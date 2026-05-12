@@ -1,0 +1,27 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/healthupgrades}
+    username: ${DB_USERNAME:healthupgrades}
+    password: ${DB_PASSWORD:healthupgrades}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:a-very-long-default-secret-key-that-should-be-changed-in-production-at-least-256-bits}
+    expiration: 86400000
+
+logging:
+  level:
+    com.healthupgrades: DEBUG
