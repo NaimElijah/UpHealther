@@ -1,0 +1,166 @@
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: User;
+}
+
+export interface HealthArea {
+  id: string;
+  userId: string;
+  name: string;
+  description?: string;
+  priority?: number;
+  icon?: string;
+  color?: string;
+  createdAt: string;
+  upgradeCount?: number;
+}
+
+export type UpgradeType =
+  | 'HABIT'
+  | 'ONE_TIME_ACTION'
+  | 'PRODUCT_REPLACEMENT'
+  | 'ROUTINE'
+  | 'GOAL'
+  | 'EXPERIMENT'
+  | 'LEARNING_TASK'
+  | 'MEDICAL_PREVENTIVE';
+
+export type UpgradeStatus =
+  | 'IDEA'
+  | 'PLANNED'
+  | 'ACTIVE'
+  | 'PAUSED'
+  | 'COMPLETED'
+  | 'ABANDONED';
+
+export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
+
+export type TrackingType = 'BOOLEAN' | 'NUMERIC' | 'TEXT' | 'RATING' | 'CHECKLIST';
+
+export type Frequency = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM';
+
+export interface TrackingConfig {
+  id: string;
+  upgradeId: string;
+  trackingType: TrackingType;
+  frequency: Frequency;
+  targetNumericValue?: number;
+  targetUnit?: string;
+  requiredDaily?: boolean;
+}
+
+export interface HealthUpgrade {
+  id: string;
+  userId: string;
+  areaId?: string;
+  title: string;
+  description?: string;
+  type: UpgradeType;
+  status: UpgradeStatus;
+  difficulty: Difficulty;
+  plannedStartDate?: string;
+  actualStartDate?: string;
+  targetEndDate?: string;
+  motivation?: string;
+  successCriteria?: string;
+  createdAt: string;
+  version: number;
+  trackingConfig?: TrackingConfig;
+}
+
+export interface ProgressEntry {
+  id: string;
+  upgradeId: string;
+  userId: string;
+  date: string;
+  completed?: boolean;
+  numericValue?: number;
+  unit?: string;
+  rating?: number;
+  note?: string;
+  createdAt: string;
+}
+
+export interface Reflection {
+  id: string;
+  upgradeId: string;
+  userId: string;
+  date: string;
+  difficultyRating?: number;
+  benefitRating?: number;
+  whatWorked?: string;
+  whatDidNotWork?: string;
+  nextAdjustment?: string;
+  createdAt: string;
+}
+
+export interface DashboardDto {
+  activeUpgrades: HealthUpgrade[];
+  plannedUpgrades: HealthUpgrade[];
+  todayUpgrades: HealthUpgrade[];
+  overdueUpgrades: HealthUpgrade[];
+  weeklyCompletionRate: number;
+  streaks: Record<string, number>;
+  recentlyCompleted: HealthUpgrade[];
+  areaSummary: AreaSummary[];
+}
+
+export interface AreaSummary {
+  areaId: string;
+  areaName: string;
+  totalUpgrades: number;
+  activeCount: number;
+  completedCount: number;
+}
+
+export interface CreateHealthAreaRequest {
+  name: string;
+  description?: string;
+  priority?: number;
+  icon?: string;
+  color?: string;
+}
+
+export interface CreateUpgradeRequest {
+  areaId?: string;
+  title: string;
+  description?: string;
+  type: UpgradeType;
+  difficulty: Difficulty;
+  motivation?: string;
+  successCriteria?: string;
+  plannedStartDate?: string;
+  targetEndDate?: string;
+}
+
+export interface UpdateUpgradeStatusRequest {
+  status: UpgradeStatus;
+  date?: string;
+}
+
+export interface CreateProgressRequest {
+  upgradeId: string;
+  date: string;
+  completed?: boolean;
+  numericValue?: number;
+  unit?: string;
+  rating?: number;
+  note?: string;
+}
+
+export interface CreateReflectionRequest {
+  upgradeId: string;
+  date: string;
+  difficultyRating?: number;
+  benefitRating?: number;
+  whatWorked?: string;
+  whatDidNotWork?: string;
+  nextAdjustment?: string;
+}
