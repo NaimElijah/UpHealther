@@ -41,7 +41,7 @@ VALUES
      CURRENT_DATE - INTERVAL '10 days', 'Eat healthier and save money', 0, now(), now()),
 
     ('c0000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000006',
-     'Replace dish soap with natural alternative', 'Switch to eco-friendly dish soap without harsh chemicals', 'EXPERIMENT', 'DRAFT', 'EASY',
+     'Replace dish soap with natural alternative', 'Switch to eco-friendly dish soap without harsh chemicals', 'EXPERIMENT', 'IDEA', 'EASY',
      NULL, 'Reduce chemical exposure in the home', 0, now(), now()),
 
     ('c0000000-0000-0000-0000-000000000006', 'a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000003',

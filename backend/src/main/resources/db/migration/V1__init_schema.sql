@@ -34,7 +34,7 @@ CREATE TABLE health_upgrades (
     title VARCHAR(255) NOT NULL,
     description TEXT,
     type VARCHAR(50) NOT NULL,
-    status VARCHAR(50) NOT NULL DEFAULT 'DRAFT',
+    status VARCHAR(50) NOT NULL DEFAULT 'IDEA',
     difficulty VARCHAR(50),
     planned_start_date DATE,
     actual_start_date DATE,

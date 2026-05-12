@@ -17,13 +17,13 @@ class HealthUpgradeTest {
         upgrade = HealthUpgrade.builder()
                 .title("Test Upgrade")
                 .type(UpgradeType.HABIT)
-                .status(UpgradeStatus.DRAFT)
+                .status(UpgradeStatus.IDEA)
                 .difficulty(Difficulty.MEDIUM)
                 .build();
     }
 
     @Test
-    void plan_fromDraft_shouldTransitionToPlanned() {
+    void plan_fromIdea_shouldTransitionToPlanned() {
         LocalDate startDate = LocalDate.now().plusDays(3);
         upgrade.plan(startDate);
         assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.PLANNED);
@@ -54,7 +54,7 @@ class HealthUpgradeTest {
     }
 
     @Test
-    void activate_fromDraft_shouldThrow() {
+    void activate_fromIdea_shouldThrow() {
         assertThatThrownBy(() -> upgrade.activate(LocalDate.now()))
                 .isInstanceOf(BusinessRuleException.class);
     }
@@ -67,7 +67,7 @@ class HealthUpgradeTest {
     }
 
     @Test
-    void pause_fromDraft_shouldThrow() {
+    void pause_fromIdea_shouldThrow() {
         assertThatThrownBy(() -> upgrade.pause())
                 .isInstanceOf(BusinessRuleException.class);
     }
@@ -108,17 +108,54 @@ class HealthUpgradeTest {
     }
 
     @Test
-    void reschedule_shouldUpdatePlannedStartDate() {
-        LocalDate newDate = LocalDate.now().plusDays(5);
-        upgrade.reschedule(newDate);
-        assertThat(upgrade.getPlannedStartDate()).isEqualTo(newDate);
-    }
-
-    @Test
     void reschedule_fromCompleted_shouldThrow() {
         upgrade.setStatus(UpgradeStatus.COMPLETED);
         assertThatThrownBy(() -> upgrade.reschedule(LocalDate.now()))
                 .isInstanceOf(BusinessRuleException.class);
+    }
+
+    @Test
+    void reschedule_fromAbandoned_shouldTransitionToPlanned() {
+        upgrade.setStatus(UpgradeStatus.ABANDONED);
+        LocalDate newDate = LocalDate.now().plusDays(7);
+        upgrade.reschedule(newDate);
+        assertThat(upgrade.getPlannedStartDate()).isEqualTo(newDate);
+        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.PLANNED);
+    }
+
+    @Test
+    void reschedule_fromIdea_shouldKeepIdeaStatus() {
+        LocalDate newDate = LocalDate.now().plusDays(5);
+        upgrade.reschedule(newDate);
+        assertThat(upgrade.getPlannedStartDate()).isEqualTo(newDate);
+        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.IDEA);
+    }
+
+    @Test
+    void reschedule_fromPlanned_shouldKeepPlannedStatus() {
+        upgrade.setStatus(UpgradeStatus.PLANNED);
+        LocalDate newDate = LocalDate.now().plusDays(10);
+        upgrade.reschedule(newDate);
+        assertThat(upgrade.getPlannedStartDate()).isEqualTo(newDate);
+        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.PLANNED);
+    }
+
+    @Test
+    void reschedule_fromActive_shouldKeepActiveStatus() {
+        upgrade.setStatus(UpgradeStatus.ACTIVE);
+        LocalDate newDate = LocalDate.now().plusDays(10);
+        upgrade.reschedule(newDate);
+        assertThat(upgrade.getPlannedStartDate()).isEqualTo(newDate);
+        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.ACTIVE);
+    }
+
+    @Test
+    void reschedule_fromPaused_shouldKeepPausedStatus() {
+        upgrade.setStatus(UpgradeStatus.PAUSED);
+        LocalDate newDate = LocalDate.now().plusDays(10);
+        upgrade.reschedule(newDate);
+        assertThat(upgrade.getPlannedStartDate()).isEqualTo(newDate);
+        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.PAUSED);
     }
 
     @Test

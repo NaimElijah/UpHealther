@@ -1,7 +1,7 @@
 package com.healthupgrades.upgrade.domain;
 
 public enum UpgradeStatus {
-    DRAFT,
+    IDEA,
     PLANNED,
     ACTIVE,
     PAUSED,

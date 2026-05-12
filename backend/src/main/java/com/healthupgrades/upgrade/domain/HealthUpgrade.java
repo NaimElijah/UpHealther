@@ -63,7 +63,7 @@ public class HealthUpgrade {
 
     @PrePersist
     protected void onCreate() {
-        if (status == null) status = UpgradeStatus.DRAFT;
+        if (status == null) status = UpgradeStatus.IDEA;
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
@@ -74,8 +74,8 @@ public class HealthUpgrade {
     }
 
     public void plan(LocalDate plannedStart) {
-        if (status != UpgradeStatus.DRAFT) {
-            throw new BusinessRuleException("Only DRAFT upgrades can be planned");
+        if (status != UpgradeStatus.IDEA) {
+            throw new BusinessRuleException("Only IDEA upgrades can be planned");
         }
         this.plannedStartDate = plannedStart;
         this.status = UpgradeStatus.PLANNED;
@@ -111,10 +111,13 @@ public class HealthUpgrade {
     }
 
     public void reschedule(LocalDate newDate) {
-        if (status == UpgradeStatus.COMPLETED || status == UpgradeStatus.ABANDONED) {
-            throw new BusinessRuleException("Cannot reschedule a COMPLETED or ABANDONED upgrade");
+        if (status == UpgradeStatus.COMPLETED) {
+            throw new BusinessRuleException("Cannot reschedule a COMPLETED upgrade");
         }
         this.plannedStartDate = newDate;
+        if (status == UpgradeStatus.ABANDONED) {
+            this.status = UpgradeStatus.PLANNED;
+        }
     }
 
     public void changeDifficulty(Difficulty difficulty) {

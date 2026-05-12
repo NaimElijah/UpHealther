@@ -32,7 +32,7 @@ public class UpgradeService {
                 .title(req.title())
                 .description(req.description())
                 .type(req.type())
-                .status(UpgradeStatus.DRAFT)
+                .status(UpgradeStatus.IDEA)
                 .difficulty(req.difficulty())
                 .plannedStartDate(req.plannedStartDate())
                 .targetEndDate(req.targetEndDate())
