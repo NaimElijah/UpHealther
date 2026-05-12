@@ -1,0 +1,136 @@
+package com.healthupgrades.upgrade.domain;
+
+import com.healthupgrades.common.exception.BusinessRuleException;
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+@Entity
+@Table(name = "health_upgrades")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class HealthUpgrade {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(nullable = false)
+    private UUID userId;
+
+    private UUID areaId;
+
+    @Column(nullable = false)
+    private String title;
+
+    private String description;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private UpgradeType type;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private UpgradeStatus status;
+
+    @Enumerated(EnumType.STRING)
+    private Difficulty difficulty;
+
+    private LocalDate plannedStartDate;
+
+    private LocalDate actualStartDate;
+
+    private LocalDate targetEndDate;
+
+    private String motivation;
+
+    private String successCriteria;
+
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    private LocalDateTime updatedAt;
+
+    @Version
+    private Long version;
+
+    @PrePersist
+    protected void onCreate() {
+        if (status == null) status = UpgradeStatus.DRAFT;
+        createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
+
+    public void plan(LocalDate plannedStart) {
+        if (status != UpgradeStatus.DRAFT) {
+            throw new BusinessRuleException("Only DRAFT upgrades can be planned");
+        }
+        this.plannedStartDate = plannedStart;
+        this.status = UpgradeStatus.PLANNED;
+    }
+
+    public void activate(LocalDate startDate) {
+        if (status != UpgradeStatus.PLANNED && status != UpgradeStatus.PAUSED) {
+            throw new BusinessRuleException("Only PLANNED or PAUSED upgrades can be activated");
+        }
+        this.actualStartDate = startDate;
+        this.status = UpgradeStatus.ACTIVE;
+    }
+
+    public void pause() {
+        if (status != UpgradeStatus.ACTIVE) {
+            throw new BusinessRuleException("Only ACTIVE upgrades can be paused");
+        }
+        this.status = UpgradeStatus.PAUSED;
+    }
+
+    public void complete() {
+        if (status != UpgradeStatus.ACTIVE) {
+            throw new BusinessRuleException("Only ACTIVE upgrades can be completed");
+        }
+        this.status = UpgradeStatus.COMPLETED;
+    }
+
+    public void abandon() {
+        if (status == UpgradeStatus.COMPLETED || status == UpgradeStatus.ABANDONED) {
+            throw new BusinessRuleException("Cannot abandon a COMPLETED or already ABANDONED upgrade");
+        }
+        this.status = UpgradeStatus.ABANDONED;
+    }
+
+    public void reschedule(LocalDate newDate) {
+        if (status == UpgradeStatus.COMPLETED || status == UpgradeStatus.ABANDONED) {
+            throw new BusinessRuleException("Cannot reschedule a COMPLETED or ABANDONED upgrade");
+        }
+        this.plannedStartDate = newDate;
+    }
+
+    public void changeDifficulty(Difficulty difficulty) {
+        this.difficulty = difficulty;
+    }
+
+    public boolean isOverdue() {
+        return targetEndDate != null
+                && status == UpgradeStatus.ACTIVE
+                && LocalDate.now().isAfter(targetEndDate);
+    }
+
+    public boolean isActiveOn(LocalDate date) {
+        if (status != UpgradeStatus.ACTIVE) return false;
+        if (actualStartDate != null && date.isBefore(actualStartDate)) return false;
+        if (targetEndDate != null && date.isAfter(targetEndDate)) return false;
+        return true;
+    }
+}
