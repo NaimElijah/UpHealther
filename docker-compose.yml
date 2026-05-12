@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: healthupgrades-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-healthupgrades}
+      POSTGRES_USER: ${POSTGRES_USER:-healthupgrades}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-healthupgrades}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-healthupgrades}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: healthupgrades-backend
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-healthupgrades}
+      DB_USERNAME: ${POSTGRES_USER:-healthupgrades}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-healthupgrades}
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret-in-production-must-be-256-bits-long-random}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: healthupgrades-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
