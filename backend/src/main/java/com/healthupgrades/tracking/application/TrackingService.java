@@ -95,6 +95,12 @@ public class TrackingService {
         return progressRepository.findByUserIdAndDate(userId, LocalDate.now()).stream().map(this::toDto).toList();
     }
 
+    public int getCurrentStreak(UUID userId, UUID upgradeId) {
+        upgradeService.getUpgrade(userId, upgradeId);
+        List<ProgressEntry> entries = progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId);
+        return streakCalculator.calculateCurrentStreak(entries);
+    }
+
     public List<ProgressDto> getWeekProgress(UUID userId) {
         LocalDate today = LocalDate.now();
         LocalDate weekAgo = today.minusDays(6);

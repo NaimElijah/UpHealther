@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getAllProgress } from '../api/progress';
+import { getWeekProgress } from '../api/progress';
 import { getUpgrades } from '../api/upgrades';
 import PageHeader from '../components/ui/PageHeader';
 import Card from '../components/ui/Card';
@@ -10,7 +10,7 @@ import Badge from '../components/ui/Badge';
 import type { ProgressEntry, HealthUpgrade } from '../types';
 
 const ProgressHistoryPage: React.FC = () => {
-  const { data: progress = [], isLoading: pLoading } = useQuery({ queryKey: ['allProgress'], queryFn: getAllProgress });
+  const { data: progress = [], isLoading: pLoading } = useQuery({ queryKey: ['allProgress'], queryFn: getWeekProgress });
   const { data: upgrades = [], isLoading: uLoading } = useQuery({ queryKey: ['allUpgrades'], queryFn: () => getUpgrades() });
 
   const upgradeMap: Record<string, HealthUpgrade> = {};
@@ -22,7 +22,7 @@ const ProgressHistoryPage: React.FC = () => {
 
   return (
     <div className="max-w-3xl mx-auto">
-      <PageHeader title="Progress History" subtitle="All your logged progress entries" />
+      <PageHeader title="Progress History" subtitle="Your progress entries from the last 7 days" />
       {sorted.length === 0 ? (
         <EmptyState icon="📈" title="No progress logged yet" description="Log progress on your active upgrades to see history here." />
       ) : (

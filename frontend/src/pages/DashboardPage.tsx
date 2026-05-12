@@ -8,7 +8,7 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import UpgradeCard from '../components/upgrade/UpgradeCard';
 import EmptyState from '../components/ui/EmptyState';
-import { updateUpgradeStatus } from '../api/upgrades';
+import { performUpgradeAction } from '../api/upgrades';
 import type { UpgradeStatus } from '../types';
 
 const DashboardPage: React.FC = () => {
@@ -21,7 +21,7 @@ const DashboardPage: React.FC = () => {
   });
 
   const handleStatusChange = async (id: string, status: UpgradeStatus) => {
-    await updateUpgradeStatus(id, { status });
+    await performUpgradeAction(id, status);
     await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
   };
 

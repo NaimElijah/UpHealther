@@ -33,6 +33,13 @@ public class ProgressController {
         return ResponseEntity.ok(trackingService.getProgress(user.getId(), upgradeId));
     }
 
+    @GetMapping("/api/upgrades/{upgradeId}/streak")
+    public ResponseEntity<Integer> getStreak(
+            @AuthenticationPrincipal User user,
+            @PathVariable UUID upgradeId) {
+        return ResponseEntity.ok(trackingService.getCurrentStreak(user.getId(), upgradeId));
+    }
+
     @GetMapping("/api/progress/today")
     public ResponseEntity<List<ProgressDto>> getToday(@AuthenticationPrincipal User user) {
         return ResponseEntity.ok(trackingService.getTodayProgress(user.getId()));

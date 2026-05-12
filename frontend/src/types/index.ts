@@ -140,11 +140,6 @@ export interface CreateUpgradeRequest {
   targetEndDate?: string;
 }
 
-export interface UpdateUpgradeStatusRequest {
-  status: UpgradeStatus;
-  date?: string;
-}
-
 export interface CreateProgressRequest {
   upgradeId: string;
   date: string;

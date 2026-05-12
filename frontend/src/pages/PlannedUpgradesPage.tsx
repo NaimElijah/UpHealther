@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getUpgrades, updateUpgradeStatus } from '../api/upgrades';
+import { getUpgrades, performUpgradeAction } from '../api/upgrades';
 import PageHeader from '../components/ui/PageHeader';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
@@ -15,7 +15,7 @@ const PlannedUpgradesPage: React.FC = () => {
   const { data: upgrades = [], isLoading } = useQuery({ queryKey: ['upgrades', 'PLANNED'], queryFn: () => getUpgrades('PLANNED') });
 
   const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: UpgradeStatus }) => updateUpgradeStatus(id, { status }),
+    mutationFn: ({ id, status }: { id: string; status: UpgradeStatus }) => performUpgradeAction(id, status),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['upgrades'] }),
   });
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getUpgrades, createUpgrade, updateUpgradeStatus } from '../api/upgrades';
+import { getUpgrades, createUpgrade, performUpgradeAction } from '../api/upgrades';
 import { getHealthAreas } from '../api/healthAreas';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
@@ -44,7 +44,7 @@ const UpgradeBacklogPage: React.FC = () => {
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: UpgradeStatus }) => updateUpgradeStatus(id, { status }),
+    mutationFn: ({ id, status }: { id: string; status: UpgradeStatus }) => performUpgradeAction(id, status),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['upgrades'] }),
   });
 
