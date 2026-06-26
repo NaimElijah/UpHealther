@@ -5,6 +5,7 @@ import { getUpgradeById } from '../api/upgrades';
 import { getProgressByUpgrade, createProgress, getStreak } from '../api/progress';
 import { getReflectionsByUpgrade, createReflection } from '../api/reflections';
 import { saveTrackingConfig, type SaveTrackingConfigRequest } from '../api/trackingConfig';
+import { getReminders, createReminder, deleteReminder } from '../api/reminders';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -17,6 +18,7 @@ import Badge from '../components/ui/Badge';
 import type { CreateProgressRequest, CreateReflectionRequest, TrackingType, Frequency } from '../types';
 
 const today = () => new Date().toISOString().split('T')[0];
+const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 
 // Parse number inputs without ever sending NaN to the API (e.g. when the field is cleared).
 const numOrUndef = (v: string): number | undefined => {
@@ -59,10 +61,25 @@ const UpgradeDetailsPage: React.FC = () => {
     benefitRating: 3,
   });
 
+  const [reminderTime, setReminderTime] = useState('09:00');
+  const [reminderDays, setReminderDays] = useState<string[]>([]);
+  const toggleDay = (d: string) =>
+    setReminderDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
+
   const { data: upgrade, isLoading, error } = useQuery({ queryKey: ['upgrade', id], queryFn: () => getUpgradeById(id!), enabled: !!id });
   const { data: progress = [] } = useQuery({ queryKey: ['progress', id], queryFn: () => getProgressByUpgrade(id!), enabled: !!id });
   const { data: reflections = [] } = useQuery({ queryKey: ['reflections', id], queryFn: () => getReflectionsByUpgrade(id!), enabled: !!id });
   const { data: streak = { current: 0, longest: 0 } } = useQuery({ queryKey: ['streak', id], queryFn: () => getStreak(id!), enabled: !!id });
+  const { data: reminders = [] } = useQuery({ queryKey: ['reminders', id], queryFn: () => getReminders(id!), enabled: !!id });
+
+  const createReminderMut = useMutation({
+    mutationFn: () => createReminder(id!, { reminderTime, daysOfWeek: reminderDays, enabled: true }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['reminders', id] }); setReminderDays([]); },
+  });
+  const deleteReminderMut = useMutation({
+    mutationFn: (reminderId: string) => deleteReminder(reminderId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['reminders', id] }),
+  });
 
   const progressMutation = useMutation({
     mutationFn: createProgress,
@@ -151,6 +168,53 @@ const UpgradeDetailsPage: React.FC = () => {
         ) : (
           <p className="text-gray-500 text-sm text-center py-4">No tracking configured yet. Configure how you'll track this upgrade.</p>
         )}
+      </Card>
+
+      <Card header={<span>Reminders ({reminders.length})</span>}>
+        {reminders.length === 0 ? (
+          <p className="text-gray-500 text-sm mb-4">No reminders yet. Add one to get notified.</p>
+        ) : (
+          <div className="space-y-2 mb-4">
+            {reminders.map((r) => (
+              <div key={r.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">⏰ {r.reminderTime.slice(0, 5)}</span>
+                  <span className="text-gray-500">{r.daysOfWeek.length ? r.daysOfWeek.join(', ') : 'Every day'}</span>
+                  {!r.enabled && <Badge variant="gray">disabled</Badge>}
+                </div>
+                <button
+                  onClick={() => deleteReminderMut.mutate(r.id)}
+                  className="text-red-500 hover:text-red-700 text-xs font-medium"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <form
+          onSubmit={(e) => { e.preventDefault(); createReminderMut.mutate(); }}
+          className="flex flex-wrap items-end gap-3 border-t border-gray-100 pt-3"
+        >
+          <Input label="Time" type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)} />
+          <div>
+            <label className="text-sm font-medium text-gray-700 block mb-1">Days <span className="text-gray-400">(none = every day)</span></label>
+            <div className="flex gap-1">
+              {DAYS.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  title={d}
+                  onClick={() => toggleDay(d)}
+                  className={`w-9 h-9 rounded-lg text-xs font-medium transition-colors ${reminderDays.includes(d) ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                >
+                  {d[0]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <Button type="submit" loading={createReminderMut.isPending}>Add reminder</Button>
+        </form>
       </Card>
 
       <Card header={

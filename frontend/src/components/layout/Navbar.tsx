@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import Button from '../ui/Button';
+import NotificationBell from '../notifications/NotificationBell';
 
 const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
@@ -12,7 +13,8 @@ const Navbar: React.FC = () => {
         <span className="text-2xl">💪</span>
         <span className="font-bold text-gray-900 text-lg">HealthUpgrades</span>
       </Link>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
+        <NotificationBell />
         {user && (
           <span className="text-sm text-gray-600 hidden sm:block">
             Hi, <span className="font-medium">{user.name}</span>

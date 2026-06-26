@@ -1,0 +1,100 @@
+package com.healthupgrades.notification.scheduling;
+
+import com.healthupgrades.notification.application.NotificationService;
+import com.healthupgrades.notification.domain.NotificationCategory;
+import com.healthupgrades.notification.domain.NotificationType;
+import com.healthupgrades.notification.infrastructure.NotificationRepository;
+import com.healthupgrades.reminder.domain.Reminder;
+import com.healthupgrades.reminder.infrastructure.ReminderRepository;
+import com.healthupgrades.tracking.infrastructure.ProgressEntryRepository;
+import com.healthupgrades.upgrade.domain.HealthUpgrade;
+import com.healthupgrades.upgrade.domain.UpgradeStatus;
+import com.healthupgrades.upgrade.infrastructure.UpgradeRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+/**
+ * Produces the delayed/scheduled notifications. These call {@link NotificationService} directly (rather
+ * than going through domain events) because schedulers run outside a service transaction. Crons are
+ * configured under {@code app.notifications.schedules.*}.
+ */
+@Component
+@RequiredArgsConstructor
+public class NotificationScheduler {
+
+    private final UpgradeRepository upgradeRepository;
+    private final ProgressEntryRepository progressRepository;
+    private final ReminderRepository reminderRepository;
+    private final NotificationRepository notificationRepository;
+    private final NotificationService notificationService;
+
+    /** Alerts the owner once when an active upgrade passes its target date. */
+    @Scheduled(cron = "${app.notifications.schedules.overdue}")
+    public void notifyOverdue() {
+        for (HealthUpgrade u : upgradeRepository.findByStatus(UpgradeStatus.ACTIVE)) {
+            if (u.isOverdue() && !notificationRepository.existsByUserIdAndRelatedUpgradeIdAndType(
+                    u.getUserId(), u.getId(), NotificationType.UPGRADE_OVERDUE)) {
+                notificationService.create(u.getUserId(), NotificationType.UPGRADE_OVERDUE,
+                        NotificationCategory.WARNING, "Upgrade overdue ⏰",
+                        "\"" + u.getTitle() + "\" is past its target date.", u.getId());
+            }
+        }
+    }
+
+    /** Nudges users with active upgrades who haven't logged any progress today (once per day). */
+    @Scheduled(cron = "${app.notifications.schedules.daily-checkin}")
+    public void notifyDailyCheckin() {
+        LocalDate today = LocalDate.now();
+        Map<UUID, List<HealthUpgrade>> activeByUser = upgradeRepository.findByStatus(UpgradeStatus.ACTIVE).stream()
+                .collect(Collectors.groupingBy(HealthUpgrade::getUserId));
+
+        activeByUser.forEach((userId, upgrades) -> {
+            boolean alreadyNudged = notificationRepository.existsByUserIdAndTypeAndCreatedAtAfter(
+                    userId, NotificationType.CHECKIN_REMINDER, today.atStartOfDay());
+            boolean loggedToday = !progressRepository.findByUserIdAndDate(userId, today).isEmpty();
+            if (!alreadyNudged && !loggedToday) {
+                notificationService.create(userId, NotificationType.CHECKIN_REMINDER, NotificationCategory.REMINDER,
+                        "Daily check-in ⏳",
+                        "You have " + upgrades.size() + " active upgrade" + (upgrades.size() == 1 ? "" : "s")
+                                + " to track today.", null);
+            }
+        });
+    }
+
+    /** Dispatches user-configured per-upgrade reminders whose time/day matches now (runs every minute). */
+    @Scheduled(cron = "${app.notifications.schedules.reminders}")
+    public void dispatchReminders() {
+        LocalTime now = LocalTime.now();
+        String todayShort = LocalDate.now().getDayOfWeek().name().substring(0, 3); // e.g. MONDAY -> MON
+
+        for (Reminder reminder : reminderRepository.findByEnabledTrue()) {
+            LocalTime time = reminder.getReminderTime();
+            if (time == null || time.getHour() != now.getHour() || time.getMinute() != now.getMinute()) {
+                continue;
+            }
+            if (!dayMatches(reminder.getDaysOfWeek(), todayShort)) {
+                continue;
+            }
+            upgradeRepository.findById(reminder.getUpgradeId()).ifPresent(u ->
+                    notificationService.create(u.getUserId(), NotificationType.REMINDER, NotificationCategory.REMINDER,
+                            "Reminder ⏰", "Time for \"" + u.getTitle() + "\".", u.getId()));
+        }
+    }
+
+    /** A blank/empty day list means "every day"; otherwise the CSV must contain today (e.g. MON,WED,FRI). */
+    private boolean dayMatches(String daysOfWeek, String todayShort) {
+        if (daysOfWeek == null || daysOfWeek.isBlank()) return true;
+        return Arrays.stream(daysOfWeek.split(","))
+                .map(s -> s.trim().toUpperCase())
+                .anyMatch(todayShort::equals);
+    }
+}
