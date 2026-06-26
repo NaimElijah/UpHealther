@@ -2,6 +2,7 @@ package com.healthupgrades.tracking.api;
 
 import com.healthupgrades.tracking.application.TrackingService;
 import com.healthupgrades.user.domain.User;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,7 +22,7 @@ public class ProgressController {
     public ResponseEntity<ProgressDto> recordProgress(
             @AuthenticationPrincipal User user,
             @PathVariable UUID upgradeId,
-            @RequestBody ProgressRequest req) {
+            @Valid @RequestBody ProgressRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(trackingService.recordProgress(user.getId(), upgradeId, req));
     }
@@ -34,10 +35,10 @@ public class ProgressController {
     }
 
     @GetMapping("/api/upgrades/{upgradeId}/streak")
-    public ResponseEntity<Integer> getStreak(
+    public ResponseEntity<StreakDto> getStreak(
             @AuthenticationPrincipal User user,
             @PathVariable UUID upgradeId) {
-        return ResponseEntity.ok(trackingService.getCurrentStreak(user.getId(), upgradeId));
+        return ResponseEntity.ok(trackingService.getStreakSummary(user.getId(), upgradeId));
     }
 
     @GetMapping("/api/progress/today")

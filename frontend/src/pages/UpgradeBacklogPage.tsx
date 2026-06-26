@@ -35,7 +35,7 @@ const UpgradeBacklogPage: React.FC = () => {
   const [form, setForm] = useState<CreateUpgradeRequest>({ title: '', type: 'HABIT', difficulty: 'MEDIUM' });
   const [formError, setFormError] = useState('');
 
-  const { data: upgrades = [], isLoading } = useQuery({ queryKey: ['upgrades', 'IDEA'], queryFn: () => getUpgrades('IDEA') });
+  const { data: upgrades = [], isLoading, error } = useQuery({ queryKey: ['upgrades', 'IDEA'], queryFn: () => getUpgrades('IDEA') });
   const { data: areas = [] } = useQuery({ queryKey: ['healthAreas'], queryFn: getHealthAreas });
 
   const createMutation = useMutation({
@@ -62,6 +62,7 @@ const UpgradeBacklogPage: React.FC = () => {
   const areaOptions = [{ value: '', label: 'No area' }, ...areas.map((a) => ({ value: a.id, label: a.name }))];
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
+  if (error) return <p className="text-red-500 text-center py-10">Failed to load the backlog.</p>;
 
   return (
     <div className="max-w-4xl mx-auto">

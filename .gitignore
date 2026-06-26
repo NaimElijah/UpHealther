@@ -33,3 +33,6 @@ logs/
 
 # Docker
 .docker/
+
+# Local tooling config (project guide, skills, agents)
+.claude/

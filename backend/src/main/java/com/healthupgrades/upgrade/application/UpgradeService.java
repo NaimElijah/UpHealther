@@ -2,6 +2,9 @@ package com.healthupgrades.upgrade.application;
 
 import com.healthupgrades.common.events.*;
 import com.healthupgrades.common.exception.ResourceNotFoundException;
+import com.healthupgrades.tracking.api.TrackingConfigDto;
+import com.healthupgrades.tracking.domain.TrackingConfig;
+import com.healthupgrades.tracking.infrastructure.TrackingConfigRepository;
 import com.healthupgrades.upgrade.api.UpgradeDto;
 import com.healthupgrades.upgrade.api.UpgradeRequest;
 import com.healthupgrades.upgrade.domain.*;
@@ -13,7 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
@@ -23,6 +28,7 @@ public class UpgradeService {
     private final UpgradeRepository repository;
     private final UpgradeSchedulingService schedulingService;
     private final DomainEventPublisher eventPublisher;
+    private final TrackingConfigRepository trackingConfigRepository;
 
     @Transactional
     public UpgradeDto create(UUID userId, UpgradeRequest req) {
@@ -57,7 +63,7 @@ public class UpgradeService {
         } else {
             stream = repository.findByUserId(userId).stream();
         }
-        return stream.map(this::toDto).toList();
+        return toDtos(stream.toList());
     }
 
     public UpgradeDto findById(UUID userId, UUID id) {
@@ -143,10 +149,34 @@ public class UpgradeService {
     }
 
     public UpgradeDto toDto(HealthUpgrade u) {
+        TrackingConfigDto trackingConfig = trackingConfigRepository.findByUpgradeId(u.getId())
+                .map(UpgradeService::toTrackingConfigDto)
+                .orElse(null);
+        return toDto(u, trackingConfig);
+    }
+
+    /**
+     * Batch variant of {@link #toDto(HealthUpgrade)}. Loads every upgrade's tracking config in a single
+     * query instead of one lookup per upgrade, avoiding the N+1 pattern on list/dashboard endpoints.
+     */
+    public List<UpgradeDto> toDtos(List<HealthUpgrade> upgrades) {
+        if (upgrades.isEmpty()) return List.of();
+        List<UUID> ids = upgrades.stream().map(HealthUpgrade::getId).toList();
+        Map<UUID, TrackingConfigDto> configsByUpgradeId = trackingConfigRepository.findByUpgradeIdIn(ids).stream()
+                .collect(Collectors.toMap(TrackingConfig::getUpgradeId, UpgradeService::toTrackingConfigDto));
+        return upgrades.stream().map(u -> toDto(u, configsByUpgradeId.get(u.getId()))).toList();
+    }
+
+    private UpgradeDto toDto(HealthUpgrade u, TrackingConfigDto trackingConfig) {
         return new UpgradeDto(u.getId(), u.getUserId(), u.getAreaId(), u.getTitle(),
                 u.getDescription(), u.getType(), u.getStatus(), u.getDifficulty(),
                 u.getPlannedStartDate(), u.getActualStartDate(), u.getTargetEndDate(),
-                u.getMotivation(), u.getSuccessCriteria(), u.isOverdue(),
-                u.getCreatedAt(), u.getUpdatedAt());
+                u.getMotivation(), u.getSuccessCriteria(), u.isOverdue(), u.getVersion(),
+                trackingConfig, u.getCreatedAt(), u.getUpdatedAt());
+    }
+
+    private static TrackingConfigDto toTrackingConfigDto(TrackingConfig c) {
+        return new TrackingConfigDto(c.getId(), c.getUpgradeId(), c.getTrackingType(),
+                c.getFrequency(), c.getTargetNumericValue(), c.getTargetUnit(), c.getRequiredDaily());
     }
 }

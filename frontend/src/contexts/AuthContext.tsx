@@ -1,18 +1,7 @@
-import React, { createContext, useState, useEffect, useCallback } from 'react';
-import { loginApi, registerApi } from '../api/auth';
+import React, { useState, useEffect, useCallback } from 'react';
+import { loginApi, registerApi, getMe } from '../api/auth';
+import { AuthContext } from './authContextValue';
 import type { User } from '../types';
-
-interface AuthContextType {
-  user: User | null;
-  token: string | null;
-  isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
-  isAuthenticated: boolean;
-}
-
-export const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -22,15 +11,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const storedToken = localStorage.getItem('jwt_token');
     const storedUser = localStorage.getItem('user');
-    if (storedToken && storedUser) {
-      setToken(storedToken);
+    if (!storedToken) {
+      setIsLoading(false);
+      return;
+    }
+
+    setToken(storedToken);
+    // Optimistically restore the cached user so the UI renders immediately...
+    if (storedUser) {
       try {
         setUser(JSON.parse(storedUser) as User);
       } catch {
         localStorage.removeItem('user');
       }
     }
-    setIsLoading(false);
+
+    // ...then validate the token against the backend. If it's expired/invalid, clear the session.
+    getMe()
+      .then((freshUser) => {
+        setUser(freshUser);
+        localStorage.setItem('user', JSON.stringify(freshUser));
+      })
+      .catch(() => {
+        localStorage.removeItem('jwt_token');
+        localStorage.removeItem('user');
+        setToken(null);
+        setUser(null);
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {

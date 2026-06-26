@@ -1,11 +1,14 @@
 package com.healthupgrades.reflection.api;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+
 import java.time.LocalDate;
 
 public record ReflectionRequest(
         LocalDate date,
-        Integer difficultyRating,
-        Integer benefitRating,
+        @Min(1) @Max(5) Integer difficultyRating,
+        @Min(1) @Max(5) Integer benefitRating,
         String whatWorked,
         String whatDidNotWork,
         String nextAdjustment

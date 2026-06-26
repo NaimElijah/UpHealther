@@ -18,7 +18,7 @@ const HealthAreasPage: React.FC = () => {
   const [form, setForm] = useState<CreateHealthAreaRequest>({ name: '', description: '', icon: '', color: '' });
   const [formError, setFormError] = useState('');
 
-  const { data: areas = [], isLoading } = useQuery({ queryKey: ['healthAreas'], queryFn: getHealthAreas });
+  const { data: areas = [], isLoading, error } = useQuery({ queryKey: ['healthAreas'], queryFn: getHealthAreas });
 
   const createMutation = useMutation({
     mutationFn: createHealthArea,
@@ -56,6 +56,7 @@ const HealthAreasPage: React.FC = () => {
   };
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
+  if (error) return <p className="text-red-500 text-center py-10">Failed to load health areas.</p>;
 
   return (
     <div className="max-w-4xl mx-auto">

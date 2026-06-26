@@ -42,7 +42,7 @@ export type UpgradeStatus =
 
 export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
 
-export type TrackingType = 'BOOLEAN' | 'NUMERIC' | 'TEXT' | 'RATING' | 'CHECKLIST';
+export type TrackingType = 'BOOLEAN' | 'NUMERIC' | 'TEXT' | 'RATING';
 
 export type Frequency = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM';
 
@@ -70,9 +70,16 @@ export interface HealthUpgrade {
   targetEndDate?: string;
   motivation?: string;
   successCriteria?: string;
+  overdue?: boolean;
   createdAt: string;
+  updatedAt?: string;
   version: number;
   trackingConfig?: TrackingConfig;
+}
+
+export interface StreakSummary {
+  current: number;
+  longest: number;
 }
 
 export interface ProgressEntry {
