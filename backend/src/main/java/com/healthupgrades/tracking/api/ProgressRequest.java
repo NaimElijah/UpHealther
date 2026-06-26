@@ -1,12 +1,16 @@
 package com.healthupgrades.tracking.api;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.PositiveOrZero;
+
 import java.time.LocalDate;
 
 public record ProgressRequest(
         LocalDate date,
         Boolean completed,
-        Double numericValue,
+        @PositiveOrZero Double numericValue,
         String unit,
-        Integer rating,
+        @Min(1) @Max(5) Integer rating,
         String note
 ) {}

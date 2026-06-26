@@ -4,15 +4,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getUpgradeById } from '../api/upgrades';
 import { getProgressByUpgrade, createProgress, getStreak } from '../api/progress';
 import { getReflectionsByUpgrade, createReflection } from '../api/reflections';
+import { saveTrackingConfig, type SaveTrackingConfigRequest } from '../api/trackingConfig';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
+import Select from '../components/ui/Select';
 import Modal from '../components/ui/Modal';
 import UpgradeStatusBadge from '../components/upgrade/UpgradeStatusBadge';
 import UpgradeTypeBadge from '../components/upgrade/UpgradeTypeBadge';
 import Badge from '../components/ui/Badge';
-import type { CreateProgressRequest, CreateReflectionRequest } from '../types';
+import type { CreateProgressRequest, CreateReflectionRequest, TrackingType, Frequency } from '../types';
 
 const today = () => new Date().toISOString().split('T')[0];
 
@@ -23,6 +25,13 @@ const UpgradeDetailsPage: React.FC = () => {
 
   const [progressOpen, setProgressOpen] = useState(false);
   const [reflectionOpen, setReflectionOpen] = useState(false);
+  const [trackingOpen, setTrackingOpen] = useState(false);
+
+  const [trackingForm, setTrackingForm] = useState<SaveTrackingConfigRequest>({
+    trackingType: 'BOOLEAN',
+    frequency: 'DAILY',
+    requiredDaily: true,
+  });
 
   const [progressForm, setProgressForm] = useState<CreateProgressRequest>({
     upgradeId: id ?? '',
@@ -40,10 +49,10 @@ const UpgradeDetailsPage: React.FC = () => {
     benefitRating: 3,
   });
 
-  const { data: upgrade, isLoading } = useQuery({ queryKey: ['upgrade', id], queryFn: () => getUpgradeById(id!), enabled: !!id });
+  const { data: upgrade, isLoading, error } = useQuery({ queryKey: ['upgrade', id], queryFn: () => getUpgradeById(id!), enabled: !!id });
   const { data: progress = [] } = useQuery({ queryKey: ['progress', id], queryFn: () => getProgressByUpgrade(id!), enabled: !!id });
   const { data: reflections = [] } = useQuery({ queryKey: ['reflections', id], queryFn: () => getReflectionsByUpgrade(id!), enabled: !!id });
-  const { data: streak = 0 } = useQuery({ queryKey: ['streak', id], queryFn: () => getStreak(id!), enabled: !!id });
+  const { data: streak = { current: 0, longest: 0 } } = useQuery({ queryKey: ['streak', id], queryFn: () => getStreak(id!), enabled: !!id });
 
   const progressMutation = useMutation({
     mutationFn: createProgress,
@@ -51,11 +60,17 @@ const UpgradeDetailsPage: React.FC = () => {
   });
 
   const reflectionMutation = useMutation({
-    mutationFn: createReflection,
+    mutationFn: (body: Omit<CreateReflectionRequest, 'upgradeId'>) => createReflection(id!, body),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['reflections', id] }); setReflectionOpen(false); },
   });
 
-  if (isLoading || !upgrade) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
+  const trackingMutation = useMutation({
+    mutationFn: (req: SaveTrackingConfigRequest) => saveTrackingConfig(id!, req),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['upgrade', id] }); setTrackingOpen(false); },
+  });
+
+  if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
+  if (error || !upgrade) return <p className="text-red-500 text-center py-10">Failed to load this upgrade.</p>;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -88,27 +103,45 @@ const UpgradeDetailsPage: React.FC = () => {
         </div>
       </Card>
 
-      {streak > 0 && (
+      {streak.current > 0 && (
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex items-center gap-3">
           <span className="text-3xl">🔥</span>
           <div>
-            <p className="font-semibold text-orange-700">{streak}-day streak!</p>
-            <p className="text-sm text-orange-500">Keep it up!</p>
+            <p className="font-semibold text-orange-700">{streak.current}-day streak!</p>
+            <p className="text-sm text-orange-500">Longest streak: {streak.longest} day{streak.longest === 1 ? '' : 's'}. Keep it up!</p>
           </div>
         </div>
       )}
 
-      {upgrade.trackingConfig && (
-        <Card header="Tracking Configuration">
+      <Card header={
+        <div className="flex items-center justify-between">
+          <span>Tracking Configuration</span>
+          <Button size="sm" variant="secondary" onClick={() => {
+            setTrackingForm({
+              trackingType: upgrade.trackingConfig?.trackingType ?? 'BOOLEAN',
+              frequency: upgrade.trackingConfig?.frequency ?? 'DAILY',
+              targetNumericValue: upgrade.trackingConfig?.targetNumericValue,
+              targetUnit: upgrade.trackingConfig?.targetUnit,
+              requiredDaily: upgrade.trackingConfig?.requiredDaily ?? true,
+            });
+            setTrackingOpen(true);
+          }}>
+            {upgrade.trackingConfig ? 'Edit' : 'Configure'}
+          </Button>
+        </div>
+      }>
+        {upgrade.trackingConfig ? (
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div><span className="text-gray-500">Type:</span> <span className="font-medium">{upgrade.trackingConfig.trackingType}</span></div>
             <div><span className="text-gray-500">Frequency:</span> <span className="font-medium">{upgrade.trackingConfig.frequency}</span></div>
-            {upgrade.trackingConfig.targetNumericValue && (
+            {upgrade.trackingConfig.targetNumericValue != null && (
               <div><span className="text-gray-500">Target:</span> <span className="font-medium">{upgrade.trackingConfig.targetNumericValue} {upgrade.trackingConfig.targetUnit}</span></div>
             )}
           </div>
-        </Card>
-      )}
+        ) : (
+          <p className="text-gray-500 text-sm text-center py-4">No tracking configured yet. Configure how you'll track this upgrade.</p>
+        )}
+      </Card>
 
       <Card header={
         <div className="flex items-center justify-between">
@@ -192,7 +225,7 @@ const UpgradeDetailsPage: React.FC = () => {
       </Modal>
 
       <Modal isOpen={reflectionOpen} onClose={() => setReflectionOpen(false)} title="Add Reflection">
-        <form onSubmit={(e) => { e.preventDefault(); reflectionMutation.mutate({ ...reflectionForm, upgradeId: id! }); }} className="space-y-4">
+        <form onSubmit={(e) => { e.preventDefault(); reflectionMutation.mutate(reflectionForm); }} className="space-y-4">
           <Input label="Date" type="date" value={reflectionForm.date} onChange={(e) => setReflectionForm({ ...reflectionForm, date: e.target.value })} />
           <div>
             <label className="text-sm font-medium text-gray-700">What worked?</label>
@@ -213,6 +246,62 @@ const UpgradeDetailsPage: React.FC = () => {
           <div className="flex gap-2 justify-end">
             <Button variant="secondary" type="button" onClick={() => setReflectionOpen(false)}>Cancel</Button>
             <Button type="submit" loading={reflectionMutation.isPending}>Save</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal isOpen={trackingOpen} onClose={() => setTrackingOpen(false)} title="Configure Tracking">
+        <form onSubmit={(e) => { e.preventDefault(); trackingMutation.mutate(trackingForm); }} className="space-y-4">
+          <Select
+            label="Tracking type"
+            value={trackingForm.trackingType}
+            onChange={(e) => setTrackingForm({ ...trackingForm, trackingType: e.target.value as TrackingType })}
+            options={[
+              { value: 'BOOLEAN', label: 'Yes / No (did it)' },
+              { value: 'NUMERIC', label: 'Numeric (amount vs target)' },
+              { value: 'RATING', label: 'Rating (1-5)' },
+              { value: 'TEXT', label: 'Text note' },
+            ]}
+          />
+          <Select
+            label="Frequency"
+            value={trackingForm.frequency ?? 'DAILY'}
+            onChange={(e) => setTrackingForm({ ...trackingForm, frequency: e.target.value as Frequency })}
+            options={[
+              { value: 'DAILY', label: 'Daily' },
+              { value: 'WEEKLY', label: 'Weekly' },
+              { value: 'MONTHLY', label: 'Monthly' },
+              { value: 'CUSTOM', label: 'Custom' },
+            ]}
+          />
+          {trackingForm.trackingType === 'NUMERIC' && (
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Target value"
+                type="number"
+                value={trackingForm.targetNumericValue ?? ''}
+                onChange={(e) => setTrackingForm({ ...trackingForm, targetNumericValue: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
+              />
+              <Input
+                label="Unit"
+                value={trackingForm.targetUnit ?? ''}
+                placeholder="e.g. liters"
+                onChange={(e) => setTrackingForm({ ...trackingForm, targetUnit: e.target.value })}
+              />
+            </div>
+          )}
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={trackingForm.requiredDaily ?? false}
+              onChange={(e) => setTrackingForm({ ...trackingForm, requiredDaily: e.target.checked })}
+              className="w-4 h-4 rounded"
+            />
+            <span className="text-sm font-medium text-gray-700">Required daily</span>
+          </label>
+          <div className="flex gap-2 justify-end">
+            <Button variant="secondary" type="button" onClick={() => setTrackingOpen(false)}>Cancel</Button>
+            <Button type="submit" loading={trackingMutation.isPending}>Save</Button>
           </div>
         </form>
       </Modal>

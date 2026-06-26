@@ -58,7 +58,7 @@ public class UpgradeController {
     @PostMapping("/{id}/plan")
     public ResponseEntity<UpgradeDto> plan(@AuthenticationPrincipal User user,
                                             @PathVariable UUID id,
-                                            @RequestBody PlanRequest req) {
+                                            @Valid @RequestBody PlanRequest req) {
         return ResponseEntity.ok(service.plan(user.getId(), id, req.plannedStartDate()));
     }
 
@@ -88,7 +88,7 @@ public class UpgradeController {
     @PostMapping("/{id}/reschedule")
     public ResponseEntity<UpgradeDto> reschedule(@AuthenticationPrincipal User user,
                                                   @PathVariable UUID id,
-                                                  @RequestBody RescheduleRequest req) {
+                                                  @Valid @RequestBody RescheduleRequest req) {
         return ResponseEntity.ok(service.reschedule(user.getId(), id, req.newDate()));
     }
 }

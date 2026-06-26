@@ -1,7 +1,10 @@
 import axios from 'axios';
 
+// Default to a relative base URL so every `/api/...` call is same-origin and flows through the
+// Vite dev proxy (vite.config.ts) in development and the nginx proxy (nginx.conf) in production.
+// This avoids cross-origin/CORS issues. Set VITE_API_URL only when the API lives on another origin.
 const client = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080',
+  baseURL: import.meta.env.VITE_API_URL || '',
 });
 
 client.interceptors.request.use((config) => {

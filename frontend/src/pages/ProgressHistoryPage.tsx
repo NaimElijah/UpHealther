@@ -10,8 +10,8 @@ import Badge from '../components/ui/Badge';
 import type { ProgressEntry, HealthUpgrade } from '../types';
 
 const ProgressHistoryPage: React.FC = () => {
-  const { data: progress = [], isLoading: pLoading } = useQuery({ queryKey: ['allProgress'], queryFn: getWeekProgress });
-  const { data: upgrades = [], isLoading: uLoading } = useQuery({ queryKey: ['allUpgrades'], queryFn: () => getUpgrades() });
+  const { data: progress = [], isLoading: pLoading, error: pError } = useQuery({ queryKey: ['allProgress'], queryFn: getWeekProgress });
+  const { data: upgrades = [], isLoading: uLoading, error: uError } = useQuery({ queryKey: ['allUpgrades'], queryFn: () => getUpgrades() });
 
   const upgradeMap: Record<string, HealthUpgrade> = {};
   upgrades.forEach((u) => { upgradeMap[u.id] = u; });
@@ -19,6 +19,7 @@ const ProgressHistoryPage: React.FC = () => {
   const sorted = [...progress].sort((a: ProgressEntry, b: ProgressEntry) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   if (pLoading || uLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
+  if (pError || uError) return <p className="text-red-500 text-center py-10">Failed to load progress history.</p>;
 
   return (
     <div className="max-w-3xl mx-auto">

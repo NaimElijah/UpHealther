@@ -1,5 +1,5 @@
 import client from './client';
-import type { ProgressEntry, CreateProgressRequest } from '../types';
+import type { ProgressEntry, CreateProgressRequest, StreakSummary } from '../types';
 
 export const getProgressByUpgrade = async (upgradeId: string): Promise<ProgressEntry[]> => {
   const { data } = await client.get<ProgressEntry[]>(`/api/upgrades/${upgradeId}/progress`);
@@ -29,8 +29,8 @@ export const createProgress = async (req: CreateProgressRequest): Promise<Progre
   return data;
 };
 
-export const getStreak = async (upgradeId: string): Promise<number> => {
-  const { data } = await client.get<number>(`/api/upgrades/${upgradeId}/streak`);
+export const getStreak = async (upgradeId: string): Promise<StreakSummary> => {
+  const { data } = await client.get<StreakSummary>(`/api/upgrades/${upgradeId}/streak`);
   return data;
 };
 

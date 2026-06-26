@@ -12,7 +12,7 @@ import type { UpgradeStatus } from '../types';
 const PlannedUpgradesPage: React.FC = () => {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { data: upgrades = [], isLoading } = useQuery({ queryKey: ['upgrades', 'PLANNED'], queryFn: () => getUpgrades('PLANNED') });
+  const { data: upgrades = [], isLoading, error } = useQuery({ queryKey: ['upgrades', 'PLANNED'], queryFn: () => getUpgrades('PLANNED') });
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: UpgradeStatus }) => performUpgradeAction(id, status),
@@ -26,6 +26,7 @@ const PlannedUpgradesPage: React.FC = () => {
   });
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
+  if (error) return <p className="text-red-500 text-center py-10">Failed to load upgrades.</p>;
 
   return (
     <div className="max-w-4xl mx-auto">

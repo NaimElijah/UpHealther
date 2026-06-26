@@ -243,7 +243,8 @@ npm run build
 | `POSTGRES_PASSWORD` | `healthupgrades` | PostgreSQL password |
 | `DB_URL` | `jdbc:postgresql://localhost:5432/healthupgrades` | Full JDBC URL |
 | `JWT_SECRET` | (default dev key) | JWT signing secret (change in production!) |
-| `VITE_API_URL` | `http://localhost:8080` | Backend API URL for frontend |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:3000` | Comma-separated origins allowed to call the API cross-origin (only needed when not using the dev/nginx `/api` proxy) |
+| `VITE_API_URL` | (empty) | Backend API URL for frontend. Leave empty to use the same-origin `/api` proxy (Vite in dev, nginx in prod) — recommended. Set only if the API is on another origin. |
 
 ## Future Improvements
 

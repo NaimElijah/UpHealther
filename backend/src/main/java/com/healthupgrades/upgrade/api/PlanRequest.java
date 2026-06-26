@@ -1,5 +1,7 @@
 package com.healthupgrades.upgrade.api;
 
+import jakarta.validation.constraints.NotNull;
+
 import java.time.LocalDate;
 
-public record PlanRequest(LocalDate plannedStartDate) {}
+public record PlanRequest(@NotNull LocalDate plannedStartDate) {}

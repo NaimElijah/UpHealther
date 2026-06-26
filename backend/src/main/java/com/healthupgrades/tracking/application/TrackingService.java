@@ -7,9 +7,11 @@ import com.healthupgrades.common.exception.DuplicateProgressException;
 import com.healthupgrades.common.exception.ResourceNotFoundException;
 import com.healthupgrades.tracking.api.ProgressDto;
 import com.healthupgrades.tracking.api.ProgressRequest;
+import com.healthupgrades.tracking.api.StreakDto;
 import com.healthupgrades.tracking.api.TrackingConfigDto;
 import com.healthupgrades.tracking.api.TrackingConfigRequest;
 import com.healthupgrades.tracking.domain.ProgressEntry;
+import com.healthupgrades.tracking.domain.ProgressEvaluationService;
 import com.healthupgrades.tracking.domain.StreakCalculator;
 import com.healthupgrades.tracking.domain.TrackingConfig;
 import com.healthupgrades.tracking.infrastructure.ProgressEntryRepository;
@@ -32,6 +34,7 @@ public class TrackingService {
     private final ProgressEntryRepository progressRepository;
     private final UpgradeService upgradeService;
     private final StreakCalculator streakCalculator;
+    private final ProgressEvaluationService evaluationService;
     private final DomainEventPublisher eventPublisher;
 
     @Transactional
@@ -74,6 +77,15 @@ public class TrackingService {
                 .rating(req.rating())
                 .note(req.note())
                 .build();
+
+        // When a tracking config exists, the server decides whether the entry counts as "completed"
+        // by evaluating it against the configured target (e.g. numericValue >= target), instead of
+        // trusting the client. This keeps streaks and completion rates honest.
+        TrackingConfig config = configRepository.findByUpgradeId(upgradeId).orElse(null);
+        if (config != null) {
+            entry.setCompleted(evaluationService.isSuccessful(entry, config));
+        }
+
         entry = progressRepository.save(entry);
         eventPublisher.publish(new ProgressEntryRecorded(entry.getId(), upgradeId, userId, date, LocalDateTime.now()));
 
@@ -95,10 +107,12 @@ public class TrackingService {
         return progressRepository.findByUserIdAndDate(userId, LocalDate.now()).stream().map(this::toDto).toList();
     }
 
-    public int getCurrentStreak(UUID userId, UUID upgradeId) {
+    public StreakDto getStreakSummary(UUID userId, UUID upgradeId) {
         upgradeService.getUpgrade(userId, upgradeId);
         List<ProgressEntry> entries = progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId);
-        return streakCalculator.calculateCurrentStreak(entries);
+        return new StreakDto(
+                streakCalculator.calculateCurrentStreak(entries),
+                streakCalculator.calculateLongestStreak(entries));
     }
 
     public List<ProgressDto> getWeekProgress(UUID userId) {

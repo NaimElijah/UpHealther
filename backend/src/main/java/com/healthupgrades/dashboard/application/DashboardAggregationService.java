@@ -6,6 +6,8 @@ import com.healthupgrades.healtharea.infrastructure.HealthAreaRepository;
 import com.healthupgrades.tracking.domain.ProgressEntry;
 import com.healthupgrades.tracking.domain.StreakCalculator;
 import com.healthupgrades.tracking.infrastructure.ProgressEntryRepository;
+import com.healthupgrades.upgrade.api.UpgradeDto;
+import com.healthupgrades.upgrade.application.UpgradeService;
 import com.healthupgrades.upgrade.domain.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.UpgradeStatus;
 import com.healthupgrades.upgrade.infrastructure.UpgradeRepository;
@@ -24,40 +26,45 @@ public class DashboardAggregationService {
     private final ProgressEntryRepository progressRepository;
     private final HealthAreaRepository areaRepository;
     private final StreakCalculator streakCalculator;
+    private final UpgradeService upgradeService;
 
     public DashboardDto buildDashboard(UUID userId) {
         List<HealthUpgrade> allUpgrades = upgradeRepository.findByUserId(userId);
 
-        int activeCount = (int) allUpgrades.stream().filter(u -> u.getStatus() == UpgradeStatus.ACTIVE).count();
-        int plannedCount = (int) allUpgrades.stream().filter(u -> u.getStatus() == UpgradeStatus.PLANNED).count();
+        List<UpgradeDto> activeUpgrades = mapByStatus(allUpgrades, UpgradeStatus.ACTIVE);
+        List<UpgradeDto> plannedUpgrades = mapByStatus(allUpgrades, UpgradeStatus.PLANNED);
 
         LocalDate today = LocalDate.now();
-        List<DashboardDto.UpgradeSummary> todaySummary = allUpgrades.stream()
+        List<UpgradeDto> todayUpgrades = allUpgrades.stream()
                 .filter(u -> u.isActiveOn(today))
-                .map(u -> new DashboardDto.UpgradeSummary(u.getId(), u.getTitle(), u.getStatus().name()))
+                .map(upgradeService::toDto)
                 .toList();
 
-        List<DashboardDto.UpgradeSummary> overdueSummary = allUpgrades.stream()
+        List<UpgradeDto> overdueUpgrades = allUpgrades.stream()
                 .filter(HealthUpgrade::isOverdue)
-                .map(u -> new DashboardDto.UpgradeSummary(u.getId(), u.getTitle(), u.getStatus().name()))
+                .map(upgradeService::toDto)
                 .toList();
 
         double weeklyRate = calculateWeeklyCompletionRate(userId, today);
 
         Map<UUID, Integer> streaks = calculateStreaks(userId, allUpgrades);
 
-        List<DashboardDto.UpgradeSummary> recentCompleted = allUpgrades.stream()
+        List<UpgradeDto> recentlyCompleted = allUpgrades.stream()
                 .filter(u -> u.getStatus() == UpgradeStatus.COMPLETED)
                 .sorted(Comparator.comparing(HealthUpgrade::getUpdatedAt).reversed())
                 .limit(5)
-                .map(u -> new DashboardDto.UpgradeSummary(u.getId(), u.getTitle(), u.getStatus().name()))
+                .map(upgradeService::toDto)
                 .toList();
 
         List<HealthArea> areas = areaRepository.findByUserId(userId);
         List<DashboardDto.AreaSummary> areaSummary = buildAreaSummary(areas, allUpgrades);
 
-        return new DashboardDto(activeCount, plannedCount, todaySummary, overdueSummary,
-                weeklyRate, streaks, recentCompleted, areaSummary);
+        return new DashboardDto(activeUpgrades, plannedUpgrades, todayUpgrades, overdueUpgrades,
+                weeklyRate, streaks, recentlyCompleted, areaSummary);
+    }
+
+    private List<UpgradeDto> mapByStatus(List<HealthUpgrade> upgrades, UpgradeStatus status) {
+        return upgrades.stream().filter(u -> u.getStatus() == status).map(upgradeService::toDto).toList();
     }
 
     private double calculateWeeklyCompletionRate(UUID userId, LocalDate today) {
@@ -89,7 +96,8 @@ public class DashboardAggregationService {
                     List<HealthUpgrade> areaUpgrades = byArea.getOrDefault(area.getId(), Collections.emptyList());
                     int total = areaUpgrades.size();
                     int active = (int) areaUpgrades.stream().filter(u -> u.getStatus() == UpgradeStatus.ACTIVE).count();
-                    return new DashboardDto.AreaSummary(area.getId(), area.getName(), total, active);
+                    int completed = (int) areaUpgrades.stream().filter(u -> u.getStatus() == UpgradeStatus.COMPLETED).count();
+                    return new DashboardDto.AreaSummary(area.getId(), area.getName(), total, active, completed);
                 })
                 .toList();
     }

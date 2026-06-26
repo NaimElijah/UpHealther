@@ -2,6 +2,9 @@ package com.healthupgrades.upgrade.application;
 
 import com.healthupgrades.common.events.*;
 import com.healthupgrades.common.exception.ResourceNotFoundException;
+import com.healthupgrades.tracking.api.TrackingConfigDto;
+import com.healthupgrades.tracking.domain.TrackingConfig;
+import com.healthupgrades.tracking.infrastructure.TrackingConfigRepository;
 import com.healthupgrades.upgrade.api.UpgradeDto;
 import com.healthupgrades.upgrade.api.UpgradeRequest;
 import com.healthupgrades.upgrade.domain.*;
@@ -23,6 +26,7 @@ public class UpgradeService {
     private final UpgradeRepository repository;
     private final UpgradeSchedulingService schedulingService;
     private final DomainEventPublisher eventPublisher;
+    private final TrackingConfigRepository trackingConfigRepository;
 
     @Transactional
     public UpgradeDto create(UUID userId, UpgradeRequest req) {
@@ -143,10 +147,18 @@ public class UpgradeService {
     }
 
     public UpgradeDto toDto(HealthUpgrade u) {
+        TrackingConfigDto trackingConfig = trackingConfigRepository.findByUpgradeId(u.getId())
+                .map(UpgradeService::toTrackingConfigDto)
+                .orElse(null);
         return new UpgradeDto(u.getId(), u.getUserId(), u.getAreaId(), u.getTitle(),
                 u.getDescription(), u.getType(), u.getStatus(), u.getDifficulty(),
                 u.getPlannedStartDate(), u.getActualStartDate(), u.getTargetEndDate(),
-                u.getMotivation(), u.getSuccessCriteria(), u.isOverdue(),
-                u.getCreatedAt(), u.getUpdatedAt());
+                u.getMotivation(), u.getSuccessCriteria(), u.isOverdue(), u.getVersion(),
+                trackingConfig, u.getCreatedAt(), u.getUpdatedAt());
+    }
+
+    private static TrackingConfigDto toTrackingConfigDto(TrackingConfig c) {
+        return new TrackingConfigDto(c.getId(), c.getUpgradeId(), c.getTrackingType(),
+                c.getFrequency(), c.getTargetNumericValue(), c.getTargetUnit(), c.getRequiredDaily());
     }
 }

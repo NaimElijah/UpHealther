@@ -2,6 +2,7 @@ package com.healthupgrades.reflection.api;
 
 import com.healthupgrades.reflection.application.ReflectionService;
 import com.healthupgrades.user.domain.User;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,7 +22,7 @@ public class ReflectionController {
     @PostMapping
     public ResponseEntity<ReflectionDto> create(@AuthenticationPrincipal User user,
                                                  @PathVariable UUID upgradeId,
-                                                 @RequestBody ReflectionRequest req) {
+                                                 @Valid @RequestBody ReflectionRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(user.getId(), upgradeId, req));
     }
 
