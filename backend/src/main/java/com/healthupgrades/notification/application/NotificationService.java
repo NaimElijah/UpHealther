@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 import java.util.UUID;
@@ -43,9 +45,27 @@ public class NotificationService {
                 .build());
 
         NotificationDto dto = toDto(notification);
-        // Routed to the session(s) whose STOMP principal name == userId (see JwtChannelInterceptor).
-        messagingTemplate.convertAndSendToUser(userId.toString(), USER_QUEUE, dto);
+        pushAfterCommit(userId, dto);
         return dto;
+    }
+
+    /**
+     * Push only after the surrounding transaction commits, so a client never receives a real-time
+     * notification for a row that then rolls back. When there is no active transaction (defensive),
+     * push immediately.
+     */
+    private void pushAfterCommit(UUID userId, NotificationDto dto) {
+        // Routed to the session(s) whose STOMP principal name == userId (see JwtChannelInterceptor).
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    messagingTemplate.convertAndSendToUser(userId.toString(), USER_QUEUE, dto);
+                }
+            });
+        } else {
+            messagingTemplate.convertAndSendToUser(userId.toString(), USER_QUEUE, dto);
+        }
     }
 
     public List<NotificationDto> listRecent(UUID userId) {

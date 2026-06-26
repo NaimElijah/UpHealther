@@ -9,6 +9,8 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+import java.util.Arrays;
+
 @Configuration
 @EnableWebSocketMessageBroker
 @RequiredArgsConstructor
@@ -23,8 +25,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         // Native WebSocket (no SockJS). Same-origin requests via the Vite/nginx proxy need no CORS,
         // but allowedOriginPatterns lets a different-origin frontend connect when configured.
-        registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns(allowedOrigins.split(","));
+        String[] origins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toArray(String[]::new);
+        registry.addEndpoint("/ws").setAllowedOriginPatterns(origins);
     }
 
     @Override

@@ -14,12 +14,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -36,6 +38,7 @@ public class NotificationScheduler {
     private final ReminderRepository reminderRepository;
     private final NotificationRepository notificationRepository;
     private final NotificationService notificationService;
+    private final Clock clock;
 
     /** Alerts the owner once when an active upgrade passes its target date. */
     @Scheduled(cron = "${app.notifications.schedules.overdue}")
@@ -53,7 +56,7 @@ public class NotificationScheduler {
     /** Nudges users with active upgrades who haven't logged any progress today (once per day). */
     @Scheduled(cron = "${app.notifications.schedules.daily-checkin}")
     public void notifyDailyCheckin() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(clock);
         Map<UUID, List<HealthUpgrade>> activeByUser = upgradeRepository.findByStatus(UpgradeStatus.ACTIVE).stream()
                 .collect(Collectors.groupingBy(HealthUpgrade::getUserId));
 
@@ -73,21 +76,31 @@ public class NotificationScheduler {
     /** Dispatches user-configured per-upgrade reminders whose time/day matches now (runs every minute). */
     @Scheduled(cron = "${app.notifications.schedules.reminders}")
     public void dispatchReminders() {
-        LocalTime now = LocalTime.now();
-        String todayShort = LocalDate.now().getDayOfWeek().name().substring(0, 3); // e.g. MONDAY -> MON
+        LocalTime now = LocalTime.now(clock);
+        String todayShort = LocalDate.now(clock).getDayOfWeek().name().substring(0, 3); // e.g. MONDAY -> MON
 
-        for (Reminder reminder : reminderRepository.findByEnabledTrue()) {
-            LocalTime time = reminder.getReminderTime();
-            if (time == null || time.getHour() != now.getHour() || time.getMinute() != now.getMinute()) {
-                continue;
+        List<Reminder> due = reminderRepository.findByEnabledTrue().stream()
+                .filter(r -> isDueNow(r.getReminderTime(), now))
+                .filter(r -> dayMatches(r.getDaysOfWeek(), todayShort))
+                .toList();
+        if (due.isEmpty()) return;
+
+        // Bulk-load the related upgrades in one query instead of one lookup per reminder.
+        List<UUID> upgradeIds = due.stream().map(Reminder::getUpgradeId).distinct().toList();
+        Map<UUID, HealthUpgrade> upgrades = upgradeRepository.findAllById(upgradeIds).stream()
+                .collect(Collectors.toMap(HealthUpgrade::getId, Function.identity()));
+
+        for (Reminder reminder : due) {
+            HealthUpgrade u = upgrades.get(reminder.getUpgradeId());
+            if (u != null) {
+                notificationService.create(u.getUserId(), NotificationType.REMINDER, NotificationCategory.REMINDER,
+                        "Reminder ⏰", "Time for \"" + u.getTitle() + "\".", u.getId());
             }
-            if (!dayMatches(reminder.getDaysOfWeek(), todayShort)) {
-                continue;
-            }
-            upgradeRepository.findById(reminder.getUpgradeId()).ifPresent(u ->
-                    notificationService.create(u.getUserId(), NotificationType.REMINDER, NotificationCategory.REMINDER,
-                            "Reminder ⏰", "Time for \"" + u.getTitle() + "\".", u.getId()));
         }
+    }
+
+    private boolean isDueNow(LocalTime time, LocalTime now) {
+        return time != null && time.getHour() == now.getHour() && time.getMinute() == now.getMinute();
     }
 
     /** A blank/empty day list means "every day"; otherwise the CSV must contain today (e.g. MON,WED,FRI). */

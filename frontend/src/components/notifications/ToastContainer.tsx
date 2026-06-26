@@ -22,24 +22,33 @@ const ToastContainer: React.FC<Props> = ({ toasts, onDismiss }) => {
       {toasts.map((t) => {
         const meta = categoryMeta[t.category];
         return (
+          // The card is a non-interactive live region; the interactive parts are real buttons so the
+          // toast is keyboard- and screen-reader-accessible.
           <div
             key={t.id}
             role="status"
-            className={`${meta.bg} ${meta.ring} border rounded-xl shadow-lg p-3 flex items-start gap-3 cursor-pointer animate-[fadeIn_0.2s_ease-out]`}
-            onClick={() => {
-              if (t.relatedUpgradeId) navigate(`/upgrades/${t.relatedUpgradeId}`);
-              onDismiss(t.id);
-            }}
+            aria-live="polite"
+            className={`${meta.bg} ${meta.ring} border rounded-xl shadow-lg p-3 flex items-start gap-2 animate-[fadeIn_0.2s_ease-out]`}
           >
-            <span className="text-lg leading-none mt-0.5">{meta.icon}</span>
-            <div className="flex-1 min-w-0">
-              <p className={`text-sm font-semibold ${meta.text} truncate`}>{t.title}</p>
-              {t.message && <p className="text-xs text-gray-600 mt-0.5 line-clamp-2">{t.message}</p>}
-            </div>
             <button
-              onClick={(e) => { e.stopPropagation(); onDismiss(t.id); }}
-              className="text-gray-400 hover:text-gray-600 text-lg leading-none"
-              aria-label="Dismiss"
+              type="button"
+              onClick={() => {
+                if (t.relatedUpgradeId) navigate(`/upgrades/${t.relatedUpgradeId}`);
+                onDismiss(t.id);
+              }}
+              className="flex items-start gap-3 flex-1 min-w-0 text-left"
+            >
+              <span className="text-lg leading-none mt-0.5">{meta.icon}</span>
+              <span className="flex-1 min-w-0">
+                <span className={`block text-sm font-semibold ${meta.text} truncate`}>{t.title}</span>
+                {t.message && <span className="block text-xs text-gray-600 mt-0.5 line-clamp-2">{t.message}</span>}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onDismiss(t.id)}
+              className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0"
+              aria-label="Dismiss notification"
             >
               &times;
             </button>
