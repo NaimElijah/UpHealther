@@ -18,6 +18,16 @@ import type { CreateProgressRequest, CreateReflectionRequest, TrackingType, Freq
 
 const today = () => new Date().toISOString().split('T')[0];
 
+// Parse number inputs without ever sending NaN to the API (e.g. when the field is cleared).
+const numOrUndef = (v: string): number | undefined => {
+  const n = parseFloat(v);
+  return Number.isNaN(n) ? undefined : n;
+};
+const intOrUndef = (v: string): number | undefined => {
+  const n = parseInt(v, 10);
+  return Number.isNaN(n) ? undefined : n;
+};
+
 const UpgradeDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -204,7 +214,7 @@ const UpgradeDetailsPage: React.FC = () => {
             </label>
           )}
           {upgrade.trackingConfig?.trackingType === 'NUMERIC' && (
-            <Input label={`Value (${upgrade.trackingConfig.targetUnit ?? ''})`} type="number" value={progressForm.numericValue ?? ''} onChange={(e) => setProgressForm({ ...progressForm, numericValue: parseFloat(e.target.value) })} />
+            <Input label={`Value (${upgrade.trackingConfig.targetUnit ?? ''})`} type="number" value={progressForm.numericValue ?? ''} onChange={(e) => setProgressForm({ ...progressForm, numericValue: numOrUndef(e.target.value) })} />
           )}
           {upgrade.trackingConfig?.trackingType === 'RATING' && (
             <div>
@@ -240,8 +250,8 @@ const UpgradeDetailsPage: React.FC = () => {
             <textarea className="w-full mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} value={reflectionForm.nextAdjustment ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, nextAdjustment: e.target.value })} />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Difficulty (1-5)" type="number" min={1} max={5} value={reflectionForm.difficultyRating ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, difficultyRating: parseInt(e.target.value) })} />
-            <Input label="Benefit (1-5)" type="number" min={1} max={5} value={reflectionForm.benefitRating ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, benefitRating: parseInt(e.target.value) })} />
+            <Input label="Difficulty (1-5)" type="number" min={1} max={5} value={reflectionForm.difficultyRating ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, difficultyRating: intOrUndef(e.target.value) })} />
+            <Input label="Benefit (1-5)" type="number" min={1} max={5} value={reflectionForm.benefitRating ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, benefitRating: intOrUndef(e.target.value) })} />
           </div>
           <div className="flex gap-2 justify-end">
             <Button variant="secondary" type="button" onClick={() => setReflectionOpen(false)}>Cancel</Button>
@@ -280,7 +290,7 @@ const UpgradeDetailsPage: React.FC = () => {
                 label="Target value"
                 type="number"
                 value={trackingForm.targetNumericValue ?? ''}
-                onChange={(e) => setTrackingForm({ ...trackingForm, targetNumericValue: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
+                onChange={(e) => setTrackingForm({ ...trackingForm, targetNumericValue: numOrUndef(e.target.value) })}
               />
               <Input
                 label="Unit"

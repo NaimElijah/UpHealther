@@ -65,7 +65,10 @@ class DashboardAggregationServiceTest {
                 upgrade(UpgradeStatus.PLANNED),
                 upgrade(UpgradeStatus.COMPLETED));
         when(upgradeRepository.findByUserId(userId)).thenReturn(upgrades);
-        when(upgradeService.toDto(any())).thenReturn(dummyDto());
+        when(upgradeService.toDtos(any())).thenAnswer(inv -> {
+            List<HealthUpgrade> ups = inv.getArgument(0);
+            return ups.stream().map(u -> dtoFor(u.getId())).toList();
+        });
         // 2 of 4 weekly entries completed -> 50%
         when(progressRepository.findByUserIdAndDateBetween(any(), any(), any()))
                 .thenReturn(List.of(entry(true), entry(true), entry(false), entry(false)));
@@ -83,8 +86,8 @@ class DashboardAggregationServiceTest {
         assertThat(dashboard.streaks()).hasSize(2);
     }
 
-    private UpgradeDto dummyDto() {
-        return new UpgradeDto(UUID.randomUUID(), userId, null, "t", null, null, null, null,
+    private UpgradeDto dtoFor(UUID id) {
+        return new UpgradeDto(id, userId, null, "t", null, null, null, null,
                 null, null, null, null, null, false, 0L, null, LocalDateTime.now(), LocalDateTime.now());
     }
 }

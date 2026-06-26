@@ -73,11 +73,23 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+        List<String> origins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
+
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(Arrays.stream(allowedOrigins.split(",")).map(String::trim).toList());
+        if (origins.contains("*")) {
+            // Browsers reject a wildcard origin combined with credentials, so use origin patterns
+            // and disable credentials in that case (this API authenticates via a bearer token, not cookies).
+            config.setAllowedOriginPatterns(List.of("*"));
+            config.setAllowCredentials(false);
+        } else {
+            config.setAllowedOrigins(origins);
+            config.setAllowCredentials(true);
+        }
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
-        config.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);

@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,19 +32,16 @@ public class DashboardAggregationService {
     public DashboardDto buildDashboard(UUID userId) {
         List<HealthUpgrade> allUpgrades = upgradeRepository.findByUserId(userId);
 
-        List<UpgradeDto> activeUpgrades = mapByStatus(allUpgrades, UpgradeStatus.ACTIVE);
-        List<UpgradeDto> plannedUpgrades = mapByStatus(allUpgrades, UpgradeStatus.PLANNED);
+        // Map every upgrade to a DTO once (a single batched tracking-config query), then reuse the
+        // results across the different dashboard sections instead of re-mapping per section.
+        Map<UUID, UpgradeDto> dtoById = upgradeService.toDtos(allUpgrades).stream()
+                .collect(Collectors.toMap(UpgradeDto::id, dto -> dto));
 
         LocalDate today = LocalDate.now();
-        List<UpgradeDto> todayUpgrades = allUpgrades.stream()
-                .filter(u -> u.isActiveOn(today))
-                .map(upgradeService::toDto)
-                .toList();
-
-        List<UpgradeDto> overdueUpgrades = allUpgrades.stream()
-                .filter(HealthUpgrade::isOverdue)
-                .map(upgradeService::toDto)
-                .toList();
+        List<UpgradeDto> activeUpgrades = filterToDtos(allUpgrades, dtoById, u -> u.getStatus() == UpgradeStatus.ACTIVE);
+        List<UpgradeDto> plannedUpgrades = filterToDtos(allUpgrades, dtoById, u -> u.getStatus() == UpgradeStatus.PLANNED);
+        List<UpgradeDto> todayUpgrades = filterToDtos(allUpgrades, dtoById, u -> u.isActiveOn(today));
+        List<UpgradeDto> overdueUpgrades = filterToDtos(allUpgrades, dtoById, HealthUpgrade::isOverdue);
 
         double weeklyRate = calculateWeeklyCompletionRate(userId, today);
 
@@ -53,7 +51,7 @@ public class DashboardAggregationService {
                 .filter(u -> u.getStatus() == UpgradeStatus.COMPLETED)
                 .sorted(Comparator.comparing(HealthUpgrade::getUpdatedAt).reversed())
                 .limit(5)
-                .map(upgradeService::toDto)
+                .map(u -> dtoById.get(u.getId()))
                 .toList();
 
         List<HealthArea> areas = areaRepository.findByUserId(userId);
@@ -63,8 +61,9 @@ public class DashboardAggregationService {
                 weeklyRate, streaks, recentlyCompleted, areaSummary);
     }
 
-    private List<UpgradeDto> mapByStatus(List<HealthUpgrade> upgrades, UpgradeStatus status) {
-        return upgrades.stream().filter(u -> u.getStatus() == status).map(upgradeService::toDto).toList();
+    private List<UpgradeDto> filterToDtos(List<HealthUpgrade> upgrades, Map<UUID, UpgradeDto> dtoById,
+                                          Predicate<HealthUpgrade> predicate) {
+        return upgrades.stream().filter(predicate).map(u -> dtoById.get(u.getId())).toList();
     }
 
     private double calculateWeeklyCompletionRate(UUID userId, LocalDate today) {

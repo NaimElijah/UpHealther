@@ -14,6 +14,12 @@ type ProgressMap = Record<string, Partial<CreateProgressRequest>>;
 
 const today = () => new Date().toISOString().split('T')[0];
 
+// Avoid sending NaN to the API when the numeric field is cleared.
+const numOrUndef = (v: string): number | undefined => {
+  const n = parseFloat(v);
+  return Number.isNaN(n) ? undefined : n;
+};
+
 const DailyCheckinPage: React.FC = () => {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -91,7 +97,7 @@ const DailyCheckinPage: React.FC = () => {
                     className="rounded-lg border border-gray-300 px-3 py-2 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="0"
                     value={progressMap[u.id]?.numericValue ?? ''}
-                    onChange={(e) => updateProgress(u.id, { numericValue: parseFloat(e.target.value) })}
+                    onChange={(e) => updateProgress(u.id, { numericValue: numOrUndef(e.target.value) })}
                   />
                   <span className="text-sm text-gray-500">{u.trackingConfig?.targetUnit ?? ''}</span>
                 </div>
