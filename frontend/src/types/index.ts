@@ -166,3 +166,43 @@ export interface CreateReflectionRequest {
   whatDidNotWork?: string;
   nextAdjustment?: string;
 }
+
+export type NotificationType =
+  | 'UPGRADE_CREATED'
+  | 'UPGRADE_PLANNED'
+  | 'UPGRADE_ACTIVATED'
+  | 'UPGRADE_PAUSED'
+  | 'UPGRADE_COMPLETED'
+  | 'UPGRADE_ABANDONED'
+  | 'STREAK_ACHIEVED'
+  | 'UPGRADE_OVERDUE'
+  | 'REFLECTION_ADDED'
+  | 'REMINDER'
+  | 'CHECKIN_REMINDER';
+
+export type NotificationCategory = 'INFO' | 'SUCCESS' | 'WARNING' | 'REMINDER';
+
+export interface AppNotification {
+  id: string;
+  type: NotificationType;
+  category: NotificationCategory;
+  title: string;
+  message?: string;
+  relatedUpgradeId?: string;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface Reminder {
+  id: string;
+  upgradeId: string;
+  reminderTime: string;   // "HH:mm" / "HH:mm:ss"
+  daysOfWeek: string[];   // e.g. ["MON","WED","FRI"]; empty means every day
+  enabled: boolean;
+}
+
+export interface CreateReminderRequest {
+  reminderTime: string;   // "HH:mm"
+  daysOfWeek?: string[];
+  enabled?: boolean;
+}

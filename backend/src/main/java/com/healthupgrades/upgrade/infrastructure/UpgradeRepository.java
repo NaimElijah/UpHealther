@@ -13,6 +13,7 @@ import java.util.UUID;
 public interface UpgradeRepository extends JpaRepository<HealthUpgrade, UUID> {
     List<HealthUpgrade> findByUserId(UUID userId);
     Optional<HealthUpgrade> findByIdAndUserId(UUID id, UUID userId);
+    List<HealthUpgrade> findByStatus(UpgradeStatus status);
     List<HealthUpgrade> findByUserIdAndStatus(UUID userId, UpgradeStatus status);
     List<HealthUpgrade> findByUserIdAndType(UUID userId, UpgradeType type);
     List<HealthUpgrade> findByUserIdAndAreaId(UUID userId, UUID areaId);

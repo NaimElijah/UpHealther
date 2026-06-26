@@ -15,6 +15,7 @@ const navItems: NavItem[] = [
   { to: '/upgrades/active', label: 'Active', icon: '🔥' },
   { to: '/daily-checkin', label: 'Daily Check-in', icon: '✅' },
   { to: '/progress-history', label: 'Progress History', icon: '📈' },
+  { to: '/notifications', label: 'Notifications', icon: '🔔' },
 ];
 
 const Sidebar: React.FC = () => (

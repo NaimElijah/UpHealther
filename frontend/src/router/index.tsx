@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './ProtectedRoute';
 import Layout from '../components/layout/Layout';
+import { NotificationProvider } from '../contexts/NotificationProvider';
 import LoginPage from '../pages/LoginPage';
 import RegisterPage from '../pages/RegisterPage';
 import DashboardPage from '../pages/DashboardPage';
@@ -12,9 +13,13 @@ import PlannedUpgradesPage from '../pages/PlannedUpgradesPage';
 import UpgradeDetailsPage from '../pages/UpgradeDetailsPage';
 import DailyCheckinPage from '../pages/DailyCheckinPage';
 import ProgressHistoryPage from '../pages/ProgressHistoryPage';
+import NotificationsPage from '../pages/NotificationsPage';
 
+// NotificationProvider lives inside the Router so toasts/items can navigate, and inside the existing
+// QueryClientProvider + AuthProvider (mounted in App.tsx) for query + auth access.
 const AppRouter: React.FC = () => (
   <BrowserRouter>
+    <NotificationProvider>
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
@@ -90,8 +95,17 @@ const AppRouter: React.FC = () => (
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/notifications"
+        element={
+          <ProtectedRoute>
+            <Layout><NotificationsPage /></Layout>
+          </ProtectedRoute>
+        }
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </NotificationProvider>
   </BrowserRouter>
 );
 

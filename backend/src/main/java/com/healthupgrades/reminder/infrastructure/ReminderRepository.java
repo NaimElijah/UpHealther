@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface ReminderRepository extends JpaRepository<Reminder, UUID> {
     List<Reminder> findByUpgradeId(UUID upgradeId);
+    List<Reminder> findByEnabledTrue();
 }
