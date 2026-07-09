@@ -1,16 +1,15 @@
 package com.healthupgrades.upgrade.domain;
 
 import com.healthupgrades.common.exception.BusinessRuleException; // thrown when the invariant is violated
-import org.springframework.stereotype.Service;
 
 /**
  * Stateless domain service enforcing the scheduling invariant that a user may not run more than a fixed
  * number of HARD upgrades at the same time.
  *
  * <p>Pure by design: it receives the user's current active-HARD count and decides, leaving the counting
- * query to the application layer. This keeps the domain free of any repository/persistence dependency.
+ * query to the application layer. Framework-free — the application provides it as a bean (see
+ * {@code UpgradeBeansConfig}) rather than it being a Spring component.
  */
-@Service
 public class UpgradeSchedulingService {
 
     /** Maximum number of concurrently ACTIVE HARD upgrades a user may have. */
