@@ -1,7 +1,7 @@
 package com.healthupgrades.reflection.api;
 
 import com.healthupgrades.reflection.application.ReflectionService;
-import com.healthupgrades.user.domain.User;
+import com.healthupgrades.common.security.SecurityUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -20,15 +20,15 @@ public class ReflectionController {
     private final ReflectionService service;
 
     @PostMapping
-    public ResponseEntity<ReflectionDto> create(@AuthenticationPrincipal User user,
+    public ResponseEntity<ReflectionDto> create(@AuthenticationPrincipal SecurityUser principal,
                                                  @PathVariable UUID upgradeId,
                                                  @Valid @RequestBody ReflectionRequest req) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.create(user.getId(), upgradeId, req));
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.create(principal.getId(), upgradeId, req));
     }
 
     @GetMapping
-    public ResponseEntity<List<ReflectionDto>> getAll(@AuthenticationPrincipal User user,
+    public ResponseEntity<List<ReflectionDto>> getAll(@AuthenticationPrincipal SecurityUser principal,
                                                        @PathVariable UUID upgradeId) {
-        return ResponseEntity.ok(service.getForUpgrade(user.getId(), upgradeId));
+        return ResponseEntity.ok(service.getForUpgrade(principal.getId(), upgradeId));
     }
 }

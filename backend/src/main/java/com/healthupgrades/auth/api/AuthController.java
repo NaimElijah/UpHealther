@@ -2,8 +2,8 @@ package com.healthupgrades.auth.api;
 
 import com.healthupgrades.auth.application.AuthService;
 import com.healthupgrades.auth.domain.TokenPair;
+import com.healthupgrades.common.security.SecurityUser;
 import com.healthupgrades.user.api.UserDto;
-import com.healthupgrades.user.domain.User;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -32,8 +32,8 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<UserDto> me(@AuthenticationPrincipal User user) {
-        return ResponseEntity.ok(authService.getMe(user.getEmail()));
+    public ResponseEntity<UserDto> me(@AuthenticationPrincipal SecurityUser principal) {
+        return ResponseEntity.ok(authService.getMe(principal.getUsername()));
     }
 
     public record RegisterRequest(

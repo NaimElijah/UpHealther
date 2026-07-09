@@ -1,7 +1,7 @@
 package com.healthupgrades.tracking.api;
 
 import com.healthupgrades.tracking.application.TrackingService;
-import com.healthupgrades.user.domain.User;
+import com.healthupgrades.common.security.SecurityUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,16 +19,16 @@ public class TrackingConfigController {
 
     @PutMapping
     public ResponseEntity<TrackingConfigDto> saveConfig(
-            @AuthenticationPrincipal User user,
+            @AuthenticationPrincipal SecurityUser principal,
             @PathVariable UUID upgradeId,
             @Valid @RequestBody TrackingConfigRequest req) {
-        return ResponseEntity.ok(trackingService.saveConfig(user.getId(), upgradeId, req));
+        return ResponseEntity.ok(trackingService.saveConfig(principal.getId(), upgradeId, req));
     }
 
     @GetMapping
     public ResponseEntity<TrackingConfigDto> getConfig(
-            @AuthenticationPrincipal User user,
+            @AuthenticationPrincipal SecurityUser principal,
             @PathVariable UUID upgradeId) {
-        return ResponseEntity.ok(trackingService.getConfig(user.getId(), upgradeId));
+        return ResponseEntity.ok(trackingService.getConfig(principal.getId(), upgradeId));
     }
 }
