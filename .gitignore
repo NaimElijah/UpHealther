@@ -31,6 +31,9 @@ Thumbs.db
 *.log
 logs/
 
+# docs
+docs/
+
 # Docker
 .docker/
 
