@@ -5,8 +5,8 @@ import com.healthupgrades.tracking.domain.model.TrackingConfig;
 /**
  * Pure domain service that decides whether a progress entry meets its tracking config's target.
  *
- * <p>Framework-free and stateless: the application layer provides it as a bean (see
- * {@code TrackingBeansConfig}) instead of it being annotated as a Spring component.
+ * <p>Framework-free and stateless: the application layer wires it as a Spring bean, keeping the
+ * framework out of the domain.
  */
 public class ProgressEvaluationService {
 

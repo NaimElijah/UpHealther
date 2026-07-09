@@ -54,23 +54,37 @@ A **Health Upgrade** is more than a habit. It can be:
 
 ## Architecture
 
-### Backend
+### Backend — Hexagonal (Ports & Adapters) + DDD
+
+Every bounded context (`auth, user, healtharea, upgrade, tracking, reflection, reminder, dashboard,
+notification`) follows the same ports-and-adapters skeleton:
 
 ```
-com.healthupgrades/
-  auth/          — registration, login, JWT token handling
-  user/          — user domain entity
-  healtharea/    — health area CRUD
-  upgrade/       — core upgrade domain with state machine
-  tracking/      — tracking config, progress entries, streak/evaluation services
-  reflection/    — periodic reflections
-  reminder/      — reminders (entity + repository)
-  dashboard/     — aggregated dashboard data
-  common/
-    security/    — JWT filter, SecurityConfig, UserDetailsService
-    exception/   — global error handling
-    events/      — domain events (in-process)
+com.healthupgrades.<context>/
+  domain/
+    model/          — JPA entities, enums, value objects (the aggregate + its state machine)
+    service/        — pure, framework-free domain services
+    port/out/       — outbound ports (repository SPI, push, event publisher)
+  application/
+    <X>Service      — @Transactional use-case orchestration
+    port/in/        — inbound ports (use-case / query interfaces) + command/result records
+  adapter/
+    in/web/         — REST controllers, request records, response DTOs, web mappers
+    in/{event,scheduling}/ — domain-event listener / scheduler (notification)
+    out/persistence/ — Spring Data *JpaRepository + the adapter implementing the outbound port
+    out/messaging/   — STOMP push adapter (notification)
+
+com.healthupgrades.common/
+  domain/{event,exception}/ — framework-free shared kernel (domain events + shared exceptions)
+  adapter/{in,out}/...      — cross-cutting adapters (event publisher, event logger, error handler)
+  security/                 — JWT filter, SecurityConfig, SecurityUser, UserDetailsService
+  websocket/                — STOMP config + JWT channel interceptor
 ```
+
+The boundaries are **enforced by ArchUnit** (`HexagonalArchitectureTest`, runs in `mvn test`): the domain
+stays framework-free (apart from JPA mappings), the application depends only on ports, Spring Data is
+confined to the persistence adapters, and bounded contexts interact only through inbound ports or published
+DTOs. See [`ADR-001-ddd-hexagonal-architecture.md`](ADR-001-ddd-hexagonal-architecture.md).
 
 ### Domain Model
 
@@ -97,7 +111,8 @@ IDEA → PLANNED → ACTIVE ⇄ PAUSED
 
 ### Domain Events (in-process)
 
-Events published via Spring's `ApplicationEventPublisher`:
+Events are published through a `DomainEventPublisher` outbound port (a Spring-backed adapter over
+`ApplicationEventPublisher`), so the application layer stays decoupled from the framework's event bus:
 - `HealthUpgradeCreated`, `HealthUpgradePlanned`, `HealthUpgradeActivated`
 - `HealthUpgradePaused`, `HealthUpgradeCompleted`, `HealthUpgradeAbandoned`
 - `ProgressEntryRecorded`, `ReflectionAdded`, `StreakAchieved`, `UpgradeOverdueDetected`
@@ -227,6 +242,7 @@ Tests cover:
 - HealthUpgrade state machine business rules
 - StreakCalculator (various entry patterns)
 - ProgressEvaluationService (boolean/numeric/rating/text)
+- Hexagonal architecture rules (ArchUnit) — domain purity, port/adapter boundaries, bounded-context isolation
 
 ### Frontend Build (includes type check)
 ```bash
@@ -270,7 +286,7 @@ npm run build
 ## Resume Summary
 
 **HealthUpgrades** is a production-quality full-stack web application built with Java 21 / Spring Boot 3 backend and React / TypeScript frontend. It demonstrates:
-- Clean architecture with domain-driven design (DDD)
+- Clean architecture: Domain-Driven Design (DDD) + Hexagonal (Ports & Adapters), enforced with ArchUnit
 - JWT authentication with Spring Security
 - PostgreSQL with Flyway migrations and optimistic locking
 - Domain events for clean separation of concerns

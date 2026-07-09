@@ -8,8 +8,8 @@ import com.healthupgrades.common.domain.exception.BusinessRuleException; // thro
  * number of HARD upgrades at the same time.
  *
  * <p>Pure by design: it receives the user's current active-HARD count and decides, leaving the counting
- * query to the application layer. Framework-free — the application provides it as a bean (see
- * {@code UpgradeBeansConfig}) rather than it being a Spring component.
+ * query to the application layer. Framework-free — the application layer wires it as a Spring bean,
+ * keeping the framework out of the domain.
  */
 public class UpgradeSchedulingService {
 
