@@ -1,6 +1,6 @@
 package com.healthupgrades.reflection.domain.port.out;
 
-import com.healthupgrades.reflection.domain.Reflection; // the aggregate this port persists
+import com.healthupgrades.reflection.domain.model.Reflection; // the aggregate this port persists
 
 import java.util.List;
 import java.util.UUID;

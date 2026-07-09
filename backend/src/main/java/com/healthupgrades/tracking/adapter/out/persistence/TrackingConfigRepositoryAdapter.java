@@ -1,6 +1,6 @@
 package com.healthupgrades.tracking.adapter.out.persistence;
 
-import com.healthupgrades.tracking.domain.TrackingConfig; // domain aggregate
+import com.healthupgrades.tracking.domain.model.TrackingConfig; // domain aggregate
 import com.healthupgrades.tracking.domain.port.out.TrackingConfigRepositoryPort; // the port implemented here
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;

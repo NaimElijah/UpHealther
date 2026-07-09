@@ -1,10 +1,10 @@
 package com.healthupgrades.reminder.application;
 
-import com.healthupgrades.common.exception.ResourceNotFoundException;
-import com.healthupgrades.reminder.api.ReminderDto;
-import com.healthupgrades.reminder.api.ReminderRequest;
+import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.reminder.adapter.in.web.ReminderDto;
+import com.healthupgrades.reminder.adapter.in.web.ReminderRequest;
 import com.healthupgrades.reminder.application.port.in.ReminderQuery;
-import com.healthupgrades.reminder.domain.Reminder;
+import com.healthupgrades.reminder.domain.model.Reminder;
 import com.healthupgrades.reminder.domain.port.out.ReminderRepositoryPort;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import lombok.RequiredArgsConstructor;

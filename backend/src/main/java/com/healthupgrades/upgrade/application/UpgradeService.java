@@ -1,10 +1,11 @@
 package com.healthupgrades.upgrade.application;
+import com.healthupgrades.upgrade.domain.service.UpgradeSchedulingService;
 
-import com.healthupgrades.common.events.*;
-import com.healthupgrades.common.exception.ResourceNotFoundException;
-import com.healthupgrades.upgrade.api.UpgradeRequest;
+import com.healthupgrades.common.domain.event.*;
+import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.upgrade.adapter.in.web.UpgradeRequest;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
-import com.healthupgrades.upgrade.domain.*;
+import com.healthupgrades.upgrade.domain.model.*;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

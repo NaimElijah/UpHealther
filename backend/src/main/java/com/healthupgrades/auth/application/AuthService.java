@@ -1,11 +1,11 @@
 package com.healthupgrades.auth.application;
 
-import com.healthupgrades.auth.domain.TokenPair;
-import com.healthupgrades.common.exception.BusinessRuleException;
+import com.healthupgrades.auth.domain.model.TokenPair;
+import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.security.JwtTokenProvider;
-import com.healthupgrades.user.api.UserDto;
+import com.healthupgrades.user.adapter.in.web.UserDto;
 import com.healthupgrades.user.application.port.in.UserDirectory;
-import com.healthupgrades.user.domain.User;
+import com.healthupgrades.user.domain.model.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;

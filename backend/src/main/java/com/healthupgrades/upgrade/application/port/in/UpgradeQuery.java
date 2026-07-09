@@ -1,7 +1,7 @@
 package com.healthupgrades.upgrade.application.port.in;
 
-import com.healthupgrades.upgrade.domain.HealthUpgrade; // returned domain aggregate
-import com.healthupgrades.upgrade.domain.UpgradeStatus; // status filter
+import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // returned domain aggregate
+import com.healthupgrades.upgrade.domain.model.UpgradeStatus; // status filter
 
 import java.util.List;
 import java.util.Optional;

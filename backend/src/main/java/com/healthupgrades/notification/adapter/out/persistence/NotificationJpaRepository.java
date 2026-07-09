@@ -1,7 +1,7 @@
 package com.healthupgrades.notification.adapter.out.persistence;
 
-import com.healthupgrades.notification.domain.Notification; // managed entity
-import com.healthupgrades.notification.domain.NotificationType; // dedup-guard parameter
+import com.healthupgrades.notification.domain.model.Notification; // managed entity
+import com.healthupgrades.notification.domain.model.NotificationType; // dedup-guard parameter
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;

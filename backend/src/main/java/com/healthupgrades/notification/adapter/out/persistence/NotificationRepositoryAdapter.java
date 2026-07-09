@@ -1,7 +1,7 @@
 package com.healthupgrades.notification.adapter.out.persistence;
 
-import com.healthupgrades.notification.domain.Notification; // domain aggregate
-import com.healthupgrades.notification.domain.NotificationType; // dedup-guard parameter
+import com.healthupgrades.notification.domain.model.Notification; // domain aggregate
+import com.healthupgrades.notification.domain.model.NotificationType; // dedup-guard parameter
 import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort; // the port implemented here
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;

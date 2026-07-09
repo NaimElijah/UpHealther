@@ -1,9 +1,9 @@
 package com.healthupgrades.upgrade.domain.port.out;
 
-import com.healthupgrades.upgrade.domain.Difficulty; // difficulty enum used as a query filter
-import com.healthupgrades.upgrade.domain.HealthUpgrade; // the aggregate this port persists
-import com.healthupgrades.upgrade.domain.UpgradeStatus; // lifecycle status used as a query filter
-import com.healthupgrades.upgrade.domain.UpgradeType; // type enum used as a query filter
+import com.healthupgrades.upgrade.domain.model.Difficulty; // difficulty enum used as a query filter
+import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // the aggregate this port persists
+import com.healthupgrades.upgrade.domain.model.UpgradeStatus; // lifecycle status used as a query filter
+import com.healthupgrades.upgrade.domain.model.UpgradeType; // type enum used as a query filter
 
 import java.util.List;
 import java.util.Optional;

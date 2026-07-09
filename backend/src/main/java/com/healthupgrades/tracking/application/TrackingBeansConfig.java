@@ -1,7 +1,7 @@
 package com.healthupgrades.tracking.application;
 
-import com.healthupgrades.tracking.domain.ProgressEvaluationService; // pure domain service being exposed
-import com.healthupgrades.tracking.domain.StreakCalculator; // pure domain service being exposed
+import com.healthupgrades.tracking.domain.service.ProgressEvaluationService; // pure domain service being exposed
+import com.healthupgrades.tracking.domain.service.StreakCalculator; // pure domain service being exposed
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 

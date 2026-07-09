@@ -2,7 +2,7 @@ package com.healthupgrades.common.websocket;
 
 import com.healthupgrades.common.security.JwtTokenProvider;
 import com.healthupgrades.user.application.port.in.UserDirectory;
-import com.healthupgrades.user.domain.User;
+import com.healthupgrades.user.domain.model.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;

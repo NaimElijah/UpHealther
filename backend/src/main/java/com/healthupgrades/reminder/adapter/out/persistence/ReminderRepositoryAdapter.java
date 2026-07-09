@@ -1,6 +1,6 @@
 package com.healthupgrades.reminder.adapter.out.persistence;
 
-import com.healthupgrades.reminder.domain.Reminder; // domain aggregate
+import com.healthupgrades.reminder.domain.model.Reminder; // domain aggregate
 import com.healthupgrades.reminder.domain.port.out.ReminderRepositoryPort; // the port implemented here
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;

@@ -1,6 +1,6 @@
 package com.healthupgrades.upgrade.application;
 
-import com.healthupgrades.upgrade.domain.UpgradeSchedulingService; // pure domain service being exposed
+import com.healthupgrades.upgrade.domain.service.UpgradeSchedulingService; // pure domain service being exposed
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 

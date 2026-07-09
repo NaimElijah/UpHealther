@@ -1,9 +1,9 @@
 package com.healthupgrades.upgrade.adapter.out.persistence;
 
-import com.healthupgrades.upgrade.domain.Difficulty; // query filter
-import com.healthupgrades.upgrade.domain.HealthUpgrade; // managed entity
-import com.healthupgrades.upgrade.domain.UpgradeStatus; // query filter
-import com.healthupgrades.upgrade.domain.UpgradeType; // query filter
+import com.healthupgrades.upgrade.domain.model.Difficulty; // query filter
+import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // managed entity
+import com.healthupgrades.upgrade.domain.model.UpgradeStatus; // query filter
+import com.healthupgrades.upgrade.domain.model.UpgradeType; // query filter
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
