@@ -4,13 +4,13 @@ import com.healthupgrades.notification.api.NotificationDto;
 import com.healthupgrades.notification.domain.Notification;
 import com.healthupgrades.notification.domain.NotificationCategory;
 import com.healthupgrades.notification.domain.NotificationType;
+import com.healthupgrades.notification.domain.port.out.NotificationPushPort;
 import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -25,7 +25,7 @@ import static org.mockito.Mockito.when;
 class NotificationServiceTest {
 
     @Mock NotificationRepositoryPort repository;
-    @Mock SimpMessagingTemplate messagingTemplate;
+    @Mock NotificationPushPort pushPort;
 
     @InjectMocks NotificationService service;
 
@@ -47,9 +47,8 @@ class NotificationServiceTest {
         assertThat(dto.read()).isFalse();
         assertThat(dto.relatedUpgradeId()).isEqualTo(upgradeId);
         verify(repository).save(any(Notification.class));
-        // pushed to the userId-named STOMP user destination
-        verify(messagingTemplate).convertAndSendToUser(eq(userId.toString()),
-                eq(NotificationService.USER_QUEUE), any(NotificationDto.class));
+        // pushed to the user's real-time channel via the outbound push port
+        verify(pushPort).push(eq(userId), any(Notification.class));
     }
 
     @Test
