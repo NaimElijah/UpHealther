@@ -14,8 +14,8 @@ import com.healthupgrades.tracking.domain.ProgressEntry;
 import com.healthupgrades.tracking.domain.ProgressEvaluationService;
 import com.healthupgrades.tracking.domain.StreakCalculator;
 import com.healthupgrades.tracking.domain.TrackingConfig;
-import com.healthupgrades.tracking.infrastructure.ProgressEntryRepository;
-import com.healthupgrades.tracking.infrastructure.TrackingConfigRepository;
+import com.healthupgrades.tracking.domain.port.out.ProgressEntryRepositoryPort;
+import com.healthupgrades.tracking.domain.port.out.TrackingConfigRepositoryPort;
 import com.healthupgrades.upgrade.application.UpgradeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -30,8 +30,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class TrackingService {
 
-    private final TrackingConfigRepository configRepository;
-    private final ProgressEntryRepository progressRepository;
+    private final TrackingConfigRepositoryPort configRepository;
+    private final ProgressEntryRepositoryPort progressRepository;
     private final UpgradeService upgradeService;
     private final StreakCalculator streakCalculator;
     private final ProgressEvaluationService evaluationService;

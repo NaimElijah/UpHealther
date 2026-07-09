@@ -3,13 +3,13 @@ package com.healthupgrades.notification.scheduling;
 import com.healthupgrades.notification.application.NotificationService;
 import com.healthupgrades.notification.domain.NotificationCategory;
 import com.healthupgrades.notification.domain.NotificationType;
-import com.healthupgrades.notification.infrastructure.NotificationRepository;
+import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort;
 import com.healthupgrades.reminder.domain.Reminder;
-import com.healthupgrades.reminder.infrastructure.ReminderRepository;
-import com.healthupgrades.tracking.infrastructure.ProgressEntryRepository;
+import com.healthupgrades.reminder.domain.port.out.ReminderRepositoryPort;
+import com.healthupgrades.tracking.domain.port.out.ProgressEntryRepositoryPort;
 import com.healthupgrades.upgrade.domain.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.UpgradeStatus;
-import com.healthupgrades.upgrade.infrastructure.UpgradeRepository;
+import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -33,10 +33,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class NotificationScheduler {
 
-    private final UpgradeRepository upgradeRepository;
-    private final ProgressEntryRepository progressRepository;
-    private final ReminderRepository reminderRepository;
-    private final NotificationRepository notificationRepository;
+    private final UpgradeRepositoryPort upgradeRepository;
+    private final ProgressEntryRepositoryPort progressRepository;
+    private final ReminderRepositoryPort reminderRepository;
+    private final NotificationRepositoryPort notificationRepository;
     private final NotificationService notificationService;
     private final Clock clock;
 

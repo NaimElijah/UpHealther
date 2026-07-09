@@ -1,13 +1,13 @@
 package com.healthupgrades.notification.scheduling;
 
 import com.healthupgrades.notification.domain.NotificationType;
-import com.healthupgrades.notification.infrastructure.NotificationRepository;
+import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort;
 import com.healthupgrades.reminder.domain.Reminder;
-import com.healthupgrades.reminder.infrastructure.ReminderRepository;
-import com.healthupgrades.tracking.infrastructure.ProgressEntryRepository;
+import com.healthupgrades.reminder.domain.port.out.ReminderRepositoryPort;
+import com.healthupgrades.tracking.domain.port.out.ProgressEntryRepositoryPort;
 import com.healthupgrades.upgrade.domain.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.UpgradeStatus;
-import com.healthupgrades.upgrade.infrastructure.UpgradeRepository;
+import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,10 +31,10 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class NotificationSchedulerTest {
 
-    @Mock UpgradeRepository upgradeRepository;
-    @Mock ProgressEntryRepository progressRepository;
-    @Mock ReminderRepository reminderRepository;
-    @Mock NotificationRepository notificationRepository;
+    @Mock UpgradeRepositoryPort upgradeRepository;
+    @Mock ProgressEntryRepositoryPort progressRepository;
+    @Mock ReminderRepositoryPort reminderRepository;
+    @Mock NotificationRepositoryPort notificationRepository;
     @Mock com.healthupgrades.notification.application.NotificationService notificationService;
 
     // Fixed clock -> deterministic time-based scheduling (09:00 UTC).

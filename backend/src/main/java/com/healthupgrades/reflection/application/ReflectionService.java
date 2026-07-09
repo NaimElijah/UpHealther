@@ -5,7 +5,7 @@ import com.healthupgrades.common.events.ReflectionAdded;
 import com.healthupgrades.reflection.api.ReflectionDto;
 import com.healthupgrades.reflection.api.ReflectionRequest;
 import com.healthupgrades.reflection.domain.Reflection;
-import com.healthupgrades.reflection.infrastructure.ReflectionRepository;
+import com.healthupgrades.reflection.domain.port.out.ReflectionRepositoryPort;
 import com.healthupgrades.upgrade.application.UpgradeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,7 +20,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ReflectionService {
 
-    private final ReflectionRepository repository;
+    private final ReflectionRepositoryPort repository;
     private final UpgradeService upgradeService;
     private final DomainEventPublisher eventPublisher;
 

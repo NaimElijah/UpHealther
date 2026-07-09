@@ -4,7 +4,7 @@ import com.healthupgrades.notification.api.NotificationDto;
 import com.healthupgrades.notification.domain.Notification;
 import com.healthupgrades.notification.domain.NotificationCategory;
 import com.healthupgrades.notification.domain.NotificationType;
-import com.healthupgrades.notification.infrastructure.NotificationRepository;
+import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -24,7 +24,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceTest {
 
-    @Mock NotificationRepository repository;
+    @Mock NotificationRepositoryPort repository;
     @Mock SimpMessagingTemplate messagingTemplate;
 
     @InjectMocks NotificationService service;
