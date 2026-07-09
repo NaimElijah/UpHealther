@@ -1,15 +1,15 @@
 package com.healthupgrades.dashboard.application;
 
 import com.healthupgrades.dashboard.api.DashboardDto;
-import com.healthupgrades.healtharea.infrastructure.HealthAreaRepository;
+import com.healthupgrades.healtharea.domain.port.out.HealthAreaRepositoryPort;
 import com.healthupgrades.tracking.domain.ProgressEntry;
 import com.healthupgrades.tracking.domain.StreakCalculator;
-import com.healthupgrades.tracking.infrastructure.ProgressEntryRepository;
+import com.healthupgrades.tracking.domain.port.out.ProgressEntryRepositoryPort;
 import com.healthupgrades.upgrade.api.UpgradeDto;
 import com.healthupgrades.upgrade.application.UpgradeService;
 import com.healthupgrades.upgrade.domain.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.UpgradeStatus;
-import com.healthupgrades.upgrade.infrastructure.UpgradeRepository;
+import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -28,9 +28,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class DashboardAggregationServiceTest {
 
-    @Mock UpgradeRepository upgradeRepository;
-    @Mock ProgressEntryRepository progressRepository;
-    @Mock HealthAreaRepository areaRepository;
+    @Mock UpgradeRepositoryPort upgradeRepository;
+    @Mock ProgressEntryRepositoryPort progressRepository;
+    @Mock HealthAreaRepositoryPort areaRepository;
     @Mock StreakCalculator streakCalculator;
     @Mock UpgradeService upgradeService;
 

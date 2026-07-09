@@ -9,8 +9,8 @@ import com.healthupgrades.tracking.domain.ProgressEvaluationService;
 import com.healthupgrades.tracking.domain.StreakCalculator;
 import com.healthupgrades.tracking.domain.TrackingConfig;
 import com.healthupgrades.tracking.domain.TrackingType;
-import com.healthupgrades.tracking.infrastructure.ProgressEntryRepository;
-import com.healthupgrades.tracking.infrastructure.TrackingConfigRepository;
+import com.healthupgrades.tracking.domain.port.out.ProgressEntryRepositoryPort;
+import com.healthupgrades.tracking.domain.port.out.TrackingConfigRepositoryPort;
 import com.healthupgrades.upgrade.application.UpgradeService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,8 +33,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class TrackingServiceTest {
 
-    @Mock TrackingConfigRepository configRepository;
-    @Mock ProgressEntryRepository progressRepository;
+    @Mock TrackingConfigRepositoryPort configRepository;
+    @Mock ProgressEntryRepositoryPort progressRepository;
     @Mock UpgradeService upgradeService;
     @Mock StreakCalculator streakCalculator;
     @Mock ProgressEvaluationService evaluationService;

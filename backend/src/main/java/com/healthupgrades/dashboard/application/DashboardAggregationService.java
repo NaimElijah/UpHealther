@@ -2,15 +2,15 @@ package com.healthupgrades.dashboard.application;
 
 import com.healthupgrades.dashboard.api.DashboardDto;
 import com.healthupgrades.healtharea.domain.HealthArea;
-import com.healthupgrades.healtharea.infrastructure.HealthAreaRepository;
+import com.healthupgrades.healtharea.domain.port.out.HealthAreaRepositoryPort;
 import com.healthupgrades.tracking.domain.ProgressEntry;
 import com.healthupgrades.tracking.domain.StreakCalculator;
-import com.healthupgrades.tracking.infrastructure.ProgressEntryRepository;
+import com.healthupgrades.tracking.domain.port.out.ProgressEntryRepositoryPort;
 import com.healthupgrades.upgrade.api.UpgradeDto;
 import com.healthupgrades.upgrade.application.UpgradeService;
 import com.healthupgrades.upgrade.domain.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.UpgradeStatus;
-import com.healthupgrades.upgrade.infrastructure.UpgradeRepository;
+import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -23,9 +23,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class DashboardAggregationService {
 
-    private final UpgradeRepository upgradeRepository;
-    private final ProgressEntryRepository progressRepository;
-    private final HealthAreaRepository areaRepository;
+    private final UpgradeRepositoryPort upgradeRepository;
+    private final ProgressEntryRepositoryPort progressRepository;
+    private final HealthAreaRepositoryPort areaRepository;
     private final StreakCalculator streakCalculator;
     private final UpgradeService upgradeService;
 

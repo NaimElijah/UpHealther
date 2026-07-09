@@ -4,11 +4,11 @@ import com.healthupgrades.common.events.*;
 import com.healthupgrades.common.exception.ResourceNotFoundException;
 import com.healthupgrades.tracking.api.TrackingConfigDto;
 import com.healthupgrades.tracking.domain.TrackingConfig;
-import com.healthupgrades.tracking.infrastructure.TrackingConfigRepository;
+import com.healthupgrades.tracking.domain.port.out.TrackingConfigRepositoryPort;
 import com.healthupgrades.upgrade.api.UpgradeDto;
 import com.healthupgrades.upgrade.api.UpgradeRequest;
 import com.healthupgrades.upgrade.domain.*;
-import com.healthupgrades.upgrade.infrastructure.UpgradeRepository;
+import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,10 +25,10 @@ import java.util.stream.Stream;
 @RequiredArgsConstructor
 public class UpgradeService {
 
-    private final UpgradeRepository repository;
+    private final UpgradeRepositoryPort repository;
     private final UpgradeSchedulingService schedulingService;
     private final DomainEventPublisher eventPublisher;
-    private final TrackingConfigRepository trackingConfigRepository;
+    private final TrackingConfigRepositoryPort trackingConfigRepository;
 
     @Transactional
     public UpgradeDto create(UUID userId, UpgradeRequest req) {
@@ -102,7 +102,10 @@ public class UpgradeService {
     @Transactional
     public UpgradeDto activate(UUID userId, UUID id, LocalDate startDate) {
         HealthUpgrade upgrade = getUpgrade(userId, id);
-        schedulingService.validateCanActivate(userId, upgrade.getDifficulty());
+        // Count the user's currently-ACTIVE HARD upgrades here (data access is an application concern) and
+        // hand the number to the pure domain service, which owns the max-concurrent-HARD invariant.
+        long activeHardCount = repository.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD);
+        schedulingService.validateCanActivate(upgrade.getDifficulty(), activeHardCount);
         upgrade.activate(startDate != null ? startDate : LocalDate.now());
         upgrade = repository.save(upgrade);
         eventPublisher.publish(new HealthUpgradeActivated(upgrade.getId(), userId, upgrade.getActualStartDate(), LocalDateTime.now()));

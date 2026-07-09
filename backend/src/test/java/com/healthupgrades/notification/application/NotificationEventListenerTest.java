@@ -5,7 +5,7 @@ import com.healthupgrades.common.events.HealthUpgradeCreated;
 import com.healthupgrades.notification.domain.NotificationCategory;
 import com.healthupgrades.notification.domain.NotificationType;
 import com.healthupgrades.upgrade.domain.HealthUpgrade;
-import com.healthupgrades.upgrade.infrastructure.UpgradeRepository;
+import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
 class NotificationEventListenerTest {
 
     @Mock NotificationService notificationService;
-    @Mock UpgradeRepository upgradeRepository;
+    @Mock UpgradeRepositoryPort upgradeRepository;
 
     @InjectMocks NotificationEventListener listener;
 

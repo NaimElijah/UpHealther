@@ -4,7 +4,7 @@ import com.healthupgrades.common.events.*;
 import com.healthupgrades.notification.domain.NotificationCategory;
 import com.healthupgrades.notification.domain.NotificationType;
 import com.healthupgrades.upgrade.domain.HealthUpgrade;
-import com.healthupgrades.upgrade.infrastructure.UpgradeRepository;
+import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -24,7 +24,7 @@ import java.util.UUID;
 public class NotificationEventListener {
 
     private final NotificationService notificationService;
-    private final UpgradeRepository upgradeRepository;
+    private final UpgradeRepositoryPort upgradeRepository;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onCreated(HealthUpgradeCreated e) {

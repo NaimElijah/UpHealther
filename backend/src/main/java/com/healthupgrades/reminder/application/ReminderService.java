@@ -4,7 +4,7 @@ import com.healthupgrades.common.exception.ResourceNotFoundException;
 import com.healthupgrades.reminder.api.ReminderDto;
 import com.healthupgrades.reminder.api.ReminderRequest;
 import com.healthupgrades.reminder.domain.Reminder;
-import com.healthupgrades.reminder.infrastructure.ReminderRepository;
+import com.healthupgrades.reminder.domain.port.out.ReminderRepositoryPort;
 import com.healthupgrades.upgrade.application.UpgradeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,7 +18,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ReminderService {
 
-    private final ReminderRepository repository;
+    private final ReminderRepositoryPort repository;
     private final UpgradeService upgradeService;
 
     @Transactional

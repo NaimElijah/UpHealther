@@ -4,7 +4,7 @@ import com.healthupgrades.common.exception.ResourceNotFoundException;
 import com.healthupgrades.healtharea.api.HealthAreaDto;
 import com.healthupgrades.healtharea.api.HealthAreaRequest;
 import com.healthupgrades.healtharea.domain.HealthArea;
-import com.healthupgrades.healtharea.infrastructure.HealthAreaRepository;
+import com.healthupgrades.healtharea.domain.port.out.HealthAreaRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,7 +16,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class HealthAreaService {
 
-    private final HealthAreaRepository repository;
+    private final HealthAreaRepositoryPort repository;
 
     @Transactional
     public HealthAreaDto create(UUID userId, HealthAreaRequest req) {
