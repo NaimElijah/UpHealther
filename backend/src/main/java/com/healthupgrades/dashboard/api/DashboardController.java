@@ -1,7 +1,7 @@
 package com.healthupgrades.dashboard.api;
 
 import com.healthupgrades.dashboard.application.port.in.DashboardQuery;
-import com.healthupgrades.user.domain.User;
+import com.healthupgrades.common.security.SecurityUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -23,7 +23,7 @@ public class DashboardController {
 
     /** Returns the caller's dashboard. */
     @GetMapping
-    public ResponseEntity<DashboardDto> getDashboard(@AuthenticationPrincipal User user) {
-        return ResponseEntity.ok(mapper.toDto(dashboardQuery.getDashboard(user.getId())));
+    public ResponseEntity<DashboardDto> getDashboard(@AuthenticationPrincipal SecurityUser principal) {
+        return ResponseEntity.ok(mapper.toDto(dashboardQuery.getDashboard(principal.getId())));
     }
 }

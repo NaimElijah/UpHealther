@@ -1,7 +1,7 @@
 package com.healthupgrades.common.websocket;
 
-import com.healthupgrades.auth.infrastructure.UserRepository;
 import com.healthupgrades.common.security.JwtTokenProvider;
+import com.healthupgrades.user.application.port.in.UserDirectory;
 import com.healthupgrades.user.domain.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.Message;
@@ -23,7 +23,7 @@ import org.springframework.stereotype.Component;
 public class JwtChannelInterceptor implements ChannelInterceptor {
 
     private final JwtTokenProvider tokenProvider;
-    private final UserRepository userRepository;
+    private final UserDirectory userDirectory;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -38,7 +38,7 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
                 throw new IllegalArgumentException("Invalid JWT on STOMP CONNECT");
             }
             String email = tokenProvider.extractEmail(token);
-            User user = userRepository.findByEmail(email)
+            User user = userDirectory.findByEmail(email)
                     .orElseThrow(() -> new IllegalArgumentException("Unknown user on STOMP CONNECT"));
             accessor.setUser(new StompPrincipal(user.getId().toString()));
         }

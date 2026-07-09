@@ -1,7 +1,7 @@
 package com.healthupgrades.healtharea.api;
 
 import com.healthupgrades.healtharea.application.HealthAreaService;
-import com.healthupgrades.user.domain.User;
+import com.healthupgrades.common.security.SecurityUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -20,32 +20,32 @@ public class HealthAreaController {
     private final HealthAreaService service;
 
     @PostMapping
-    public ResponseEntity<HealthAreaDto> create(@AuthenticationPrincipal User user,
+    public ResponseEntity<HealthAreaDto> create(@AuthenticationPrincipal SecurityUser principal,
                                                  @Valid @RequestBody HealthAreaRequest req) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.create(user.getId(), req));
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.create(principal.getId(), req));
     }
 
     @GetMapping
-    public ResponseEntity<List<HealthAreaDto>> findAll(@AuthenticationPrincipal User user) {
-        return ResponseEntity.ok(service.findAll(user.getId()));
+    public ResponseEntity<List<HealthAreaDto>> findAll(@AuthenticationPrincipal SecurityUser principal) {
+        return ResponseEntity.ok(service.findAll(principal.getId()));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<HealthAreaDto> findById(@AuthenticationPrincipal User user,
+    public ResponseEntity<HealthAreaDto> findById(@AuthenticationPrincipal SecurityUser principal,
                                                    @PathVariable UUID id) {
-        return ResponseEntity.ok(service.findById(user.getId(), id));
+        return ResponseEntity.ok(service.findById(principal.getId(), id));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<HealthAreaDto> update(@AuthenticationPrincipal User user,
+    public ResponseEntity<HealthAreaDto> update(@AuthenticationPrincipal SecurityUser principal,
                                                  @PathVariable UUID id,
                                                  @Valid @RequestBody HealthAreaRequest req) {
-        return ResponseEntity.ok(service.update(user.getId(), id, req));
+        return ResponseEntity.ok(service.update(principal.getId(), id, req));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@AuthenticationPrincipal User user, @PathVariable UUID id) {
-        service.delete(user.getId(), id);
+    public ResponseEntity<Void> delete(@AuthenticationPrincipal SecurityUser principal, @PathVariable UUID id) {
+        service.delete(principal.getId(), id);
         return ResponseEntity.noContent().build();
     }
 }

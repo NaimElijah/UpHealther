@@ -1,10 +1,10 @@
 package com.healthupgrades.auth.application;
 
 import com.healthupgrades.auth.domain.TokenPair;
-import com.healthupgrades.auth.infrastructure.UserRepository;
 import com.healthupgrades.common.exception.BusinessRuleException;
 import com.healthupgrades.common.security.JwtTokenProvider;
 import com.healthupgrades.user.api.UserDto;
+import com.healthupgrades.user.application.port.in.UserDirectory;
 import com.healthupgrades.user.domain.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -17,14 +17,14 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AuthService {
 
-    private final UserRepository userRepository;
+    private final UserDirectory userDirectory;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider tokenProvider;
     private final AuthenticationManager authenticationManager;
 
     @Transactional
     public TokenPair register(String name, String email, String password) {
-        if (userRepository.existsByEmail(email)) {
+        if (userDirectory.existsByEmail(email)) {
             throw new BusinessRuleException("Email already registered: " + email);
         }
         User user = User.builder()
@@ -32,7 +32,7 @@ public class AuthService {
                 .email(email)
                 .passwordHash(passwordEncoder.encode(password))
                 .build();
-        user = userRepository.save(user);
+        user = userDirectory.save(user);
         String token = tokenProvider.generateToken(user.getEmail());
         return new TokenPair(token, toDto(user));
     }
@@ -40,14 +40,14 @@ public class AuthService {
     public TokenPair login(String email, String password) {
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(email, password));
-        User user = userRepository.findByEmail(email)
+        User user = userDirectory.findByEmail(email)
                 .orElseThrow(() -> new BusinessRuleException("User not found"));
         String token = tokenProvider.generateToken(user.getEmail());
         return new TokenPair(token, toDto(user));
     }
 
     public UserDto getMe(String email) {
-        User user = userRepository.findByEmail(email)
+        User user = userDirectory.findByEmail(email)
                 .orElseThrow(() -> new BusinessRuleException("User not found"));
         return toDto(user);
     }
