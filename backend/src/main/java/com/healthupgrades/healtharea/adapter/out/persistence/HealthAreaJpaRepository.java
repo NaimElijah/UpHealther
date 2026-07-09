@@ -1,6 +1,6 @@
 package com.healthupgrades.healtharea.adapter.out.persistence;
 
-import com.healthupgrades.healtharea.domain.HealthArea; // managed entity
+import com.healthupgrades.healtharea.domain.model.HealthArea; // managed entity
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

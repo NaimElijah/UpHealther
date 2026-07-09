@@ -1,6 +1,6 @@
 package com.healthupgrades.user.adapter.out.persistence;
 
-import com.healthupgrades.user.domain.User; // managed entity
+import com.healthupgrades.user.domain.model.User; // managed entity
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

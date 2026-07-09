@@ -1,6 +1,6 @@
 package com.healthupgrades.tracking.application.port.in;
 
-import com.healthupgrades.tracking.domain.ProgressEntry; // returned domain aggregate
+import com.healthupgrades.tracking.domain.model.ProgressEntry; // returned domain aggregate
 
 import java.time.LocalDate;
 import java.util.List;

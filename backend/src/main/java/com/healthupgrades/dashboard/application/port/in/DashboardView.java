@@ -1,6 +1,6 @@
 package com.healthupgrades.dashboard.application.port.in;
 
-import com.healthupgrades.upgrade.domain.HealthUpgrade; // domain aggregate carried in each bucket
+import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // domain aggregate carried in each bucket
 
 import java.util.List;
 import java.util.Map;

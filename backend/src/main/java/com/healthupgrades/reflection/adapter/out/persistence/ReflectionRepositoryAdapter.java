@@ -1,6 +1,6 @@
 package com.healthupgrades.reflection.adapter.out.persistence;
 
-import com.healthupgrades.reflection.domain.Reflection; // domain aggregate
+import com.healthupgrades.reflection.domain.model.Reflection; // domain aggregate
 import com.healthupgrades.reflection.domain.port.out.ReflectionRepositoryPort; // the port implemented here
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;

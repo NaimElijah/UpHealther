@@ -1,14 +1,14 @@
 package com.healthupgrades.tracking.application;
 
-import com.healthupgrades.common.events.DomainEventPublisher;
-import com.healthupgrades.common.exception.DuplicateProgressException;
-import com.healthupgrades.tracking.api.ProgressDto;
-import com.healthupgrades.tracking.api.ProgressRequest;
-import com.healthupgrades.tracking.domain.ProgressEntry;
-import com.healthupgrades.tracking.domain.ProgressEvaluationService;
-import com.healthupgrades.tracking.domain.StreakCalculator;
-import com.healthupgrades.tracking.domain.TrackingConfig;
-import com.healthupgrades.tracking.domain.TrackingType;
+import com.healthupgrades.common.domain.event.DomainEventPublisher;
+import com.healthupgrades.common.domain.exception.DuplicateProgressException;
+import com.healthupgrades.tracking.adapter.in.web.ProgressDto;
+import com.healthupgrades.tracking.adapter.in.web.ProgressRequest;
+import com.healthupgrades.tracking.domain.model.ProgressEntry;
+import com.healthupgrades.tracking.domain.service.ProgressEvaluationService;
+import com.healthupgrades.tracking.domain.service.StreakCalculator;
+import com.healthupgrades.tracking.domain.model.TrackingConfig;
+import com.healthupgrades.tracking.domain.model.TrackingType;
 import com.healthupgrades.tracking.domain.port.out.ProgressEntryRepositoryPort;
 import com.healthupgrades.tracking.domain.port.out.TrackingConfigRepositoryPort;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;

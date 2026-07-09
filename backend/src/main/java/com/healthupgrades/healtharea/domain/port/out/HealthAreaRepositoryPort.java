@@ -1,6 +1,6 @@
 package com.healthupgrades.healtharea.domain.port.out;
 
-import com.healthupgrades.healtharea.domain.HealthArea; // the aggregate this port persists
+import com.healthupgrades.healtharea.domain.model.HealthArea; // the aggregate this port persists
 
 import java.util.List;
 import java.util.Optional;

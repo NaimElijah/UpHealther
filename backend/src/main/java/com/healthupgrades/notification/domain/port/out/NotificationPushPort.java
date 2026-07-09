@@ -1,6 +1,6 @@
 package com.healthupgrades.notification.domain.port.out;
 
-import com.healthupgrades.notification.domain.Notification; // domain object pushed to the user
+import com.healthupgrades.notification.domain.model.Notification; // domain object pushed to the user
 
 import java.util.UUID;
 

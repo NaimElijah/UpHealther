@@ -1,10 +1,10 @@
 package com.healthupgrades.healtharea.application;
 
-import com.healthupgrades.common.exception.ResourceNotFoundException;
-import com.healthupgrades.healtharea.api.HealthAreaDto;
-import com.healthupgrades.healtharea.api.HealthAreaRequest;
+import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.healtharea.adapter.in.web.HealthAreaDto;
+import com.healthupgrades.healtharea.adapter.in.web.HealthAreaRequest;
 import com.healthupgrades.healtharea.application.port.in.HealthAreaQuery;
-import com.healthupgrades.healtharea.domain.HealthArea;
+import com.healthupgrades.healtharea.domain.model.HealthArea;
 import com.healthupgrades.healtharea.domain.port.out.HealthAreaRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

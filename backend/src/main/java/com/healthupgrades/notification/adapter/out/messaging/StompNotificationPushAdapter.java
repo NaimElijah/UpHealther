@@ -1,7 +1,7 @@
 package com.healthupgrades.notification.adapter.out.messaging;
 
-import com.healthupgrades.notification.api.NotificationDto;
-import com.healthupgrades.notification.domain.Notification;
+import com.healthupgrades.notification.adapter.in.web.NotificationDto;
+import com.healthupgrades.notification.domain.model.Notification;
 import com.healthupgrades.notification.domain.port.out.NotificationPushPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;

@@ -1,6 +1,6 @@
 package com.healthupgrades.reflection.adapter.out.persistence;
 
-import com.healthupgrades.reflection.domain.Reflection; // managed entity
+import com.healthupgrades.reflection.domain.model.Reflection; // managed entity
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

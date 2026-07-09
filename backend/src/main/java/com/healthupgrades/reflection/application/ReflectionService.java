@@ -1,10 +1,10 @@
 package com.healthupgrades.reflection.application;
 
-import com.healthupgrades.common.events.DomainEventPublisher;
-import com.healthupgrades.common.events.ReflectionAdded;
-import com.healthupgrades.reflection.api.ReflectionDto;
-import com.healthupgrades.reflection.api.ReflectionRequest;
-import com.healthupgrades.reflection.domain.Reflection;
+import com.healthupgrades.common.domain.event.DomainEventPublisher;
+import com.healthupgrades.common.domain.event.ReflectionAdded;
+import com.healthupgrades.reflection.adapter.in.web.ReflectionDto;
+import com.healthupgrades.reflection.adapter.in.web.ReflectionRequest;
+import com.healthupgrades.reflection.domain.model.Reflection;
 import com.healthupgrades.reflection.domain.port.out.ReflectionRepositoryPort;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import lombok.RequiredArgsConstructor;

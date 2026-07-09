@@ -1,6 +1,6 @@
 package com.healthupgrades.user.adapter.out.persistence;
 
-import com.healthupgrades.user.domain.User; // domain aggregate
+import com.healthupgrades.user.domain.model.User; // domain aggregate
 import com.healthupgrades.user.domain.port.out.UserRepositoryPort; // the port implemented here
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;

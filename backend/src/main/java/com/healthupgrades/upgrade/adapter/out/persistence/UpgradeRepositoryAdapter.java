@@ -1,9 +1,9 @@
 package com.healthupgrades.upgrade.adapter.out.persistence;
 
-import com.healthupgrades.upgrade.domain.Difficulty; // query filter
-import com.healthupgrades.upgrade.domain.HealthUpgrade; // domain aggregate
-import com.healthupgrades.upgrade.domain.UpgradeStatus; // query filter
-import com.healthupgrades.upgrade.domain.UpgradeType; // query filter
+import com.healthupgrades.upgrade.domain.model.Difficulty; // query filter
+import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // domain aggregate
+import com.healthupgrades.upgrade.domain.model.UpgradeStatus; // query filter
+import com.healthupgrades.upgrade.domain.model.UpgradeType; // query filter
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort; // the port implemented here
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;

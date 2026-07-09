@@ -1,6 +1,6 @@
 package com.healthupgrades.tracking.adapter.out.persistence;
 
-import com.healthupgrades.tracking.domain.TrackingConfig; // managed entity
+import com.healthupgrades.tracking.domain.model.TrackingConfig; // managed entity
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Collection;

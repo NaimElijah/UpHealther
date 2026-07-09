@@ -1,7 +1,7 @@
 package com.healthupgrades.user.application;
 
 import com.healthupgrades.user.application.port.in.UserDirectory;
-import com.healthupgrades.user.domain.User;
+import com.healthupgrades.user.domain.model.User;
 import com.healthupgrades.user.domain.port.out.UserRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

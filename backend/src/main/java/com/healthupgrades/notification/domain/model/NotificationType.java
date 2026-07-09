@@ -1,0 +1,15 @@
+package com.healthupgrades.notification.domain.model;
+
+public enum NotificationType {
+    UPGRADE_CREATED,
+    UPGRADE_PLANNED,
+    UPGRADE_ACTIVATED,
+    UPGRADE_PAUSED,
+    UPGRADE_COMPLETED,
+    UPGRADE_ABANDONED,
+    STREAK_ACHIEVED,
+    UPGRADE_OVERDUE,
+    REFLECTION_ADDED,
+    REMINDER,
+    CHECKIN_REMINDER
+}
