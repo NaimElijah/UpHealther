@@ -4,8 +4,8 @@ import com.healthupgrades.common.events.HealthUpgradeCompleted;
 import com.healthupgrades.common.events.HealthUpgradeCreated;
 import com.healthupgrades.notification.domain.NotificationCategory;
 import com.healthupgrades.notification.domain.NotificationType;
+import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.HealthUpgrade;
-import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
 class NotificationEventListenerTest {
 
     @Mock NotificationService notificationService;
-    @Mock UpgradeRepositoryPort upgradeRepository;
+    @Mock UpgradeQuery upgradeQuery;
 
     @InjectMocks NotificationEventListener listener;
 
@@ -35,7 +35,7 @@ class NotificationEventListenerTest {
 
     @Test
     void completed_createsSuccessNotificationWithLookedUpTitle() {
-        when(upgradeRepository.findByIdAndUserId(upgradeId, userId))
+        when(upgradeQuery.findOwned(userId, upgradeId))
                 .thenReturn(Optional.of(HealthUpgrade.builder().id(upgradeId).userId(userId).title("Drink water").build()));
 
         listener.onCompleted(new HealthUpgradeCompleted(upgradeId, userId, LocalDateTime.now()));

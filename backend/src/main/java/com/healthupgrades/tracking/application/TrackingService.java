@@ -10,36 +10,49 @@ import com.healthupgrades.tracking.api.ProgressRequest;
 import com.healthupgrades.tracking.api.StreakDto;
 import com.healthupgrades.tracking.api.TrackingConfigDto;
 import com.healthupgrades.tracking.api.TrackingConfigRequest;
+import com.healthupgrades.tracking.application.port.in.ProgressQuery;
+import com.healthupgrades.tracking.application.port.in.StreakQuery;
+import com.healthupgrades.tracking.application.port.in.TrackingConfigQuery;
 import com.healthupgrades.tracking.domain.ProgressEntry;
 import com.healthupgrades.tracking.domain.ProgressEvaluationService;
 import com.healthupgrades.tracking.domain.StreakCalculator;
 import com.healthupgrades.tracking.domain.TrackingConfig;
 import com.healthupgrades.tracking.domain.port.out.ProgressEntryRepositoryPort;
 import com.healthupgrades.tracking.domain.port.out.TrackingConfigRepositoryPort;
-import com.healthupgrades.upgrade.application.UpgradeService;
+import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
+/**
+ * Application service for tracking configuration and progress logging.
+ *
+ * <p>Confirms upgrade ownership through the upgrade context's inbound {@link UpgradeQuery} port, and
+ * itself implements the tracking inbound ports ({@link TrackingConfigQuery}, {@link ProgressQuery},
+ * {@link StreakQuery}) so other contexts can read tracking data as domain objects.
+ */
 @Service
 @RequiredArgsConstructor
-public class TrackingService {
+public class TrackingService implements TrackingConfigQuery, ProgressQuery, StreakQuery {
 
-    private final TrackingConfigRepositoryPort configRepository;
-    private final ProgressEntryRepositoryPort progressRepository;
-    private final UpgradeService upgradeService;
-    private final StreakCalculator streakCalculator;
-    private final ProgressEvaluationService evaluationService;
-    private final DomainEventPublisher eventPublisher;
+    private final TrackingConfigRepositoryPort configRepository; // outbound: tracking configs
+    private final ProgressEntryRepositoryPort progressRepository; // outbound: progress entries
+    private final UpgradeQuery upgradeQuery; // inbound port of the upgrade context (ownership checks)
+    private final StreakCalculator streakCalculator; // pure domain service
+    private final ProgressEvaluationService evaluationService; // pure domain service
+    private final DomainEventPublisher eventPublisher; // in-process domain events
 
+    /** Creates or updates the tracking config for an owned upgrade. */
     @Transactional
     public TrackingConfigDto saveConfig(UUID userId, UUID upgradeId, TrackingConfigRequest req) {
-        upgradeService.getUpgrade(userId, upgradeId);
+        upgradeQuery.getOwnedUpgrade(userId, upgradeId); // ownership check (throws if not owned)
         TrackingConfig config = configRepository.findByUpgradeId(upgradeId).orElse(
                 TrackingConfig.builder().upgradeId(upgradeId).build()
         );
@@ -51,16 +64,18 @@ public class TrackingService {
         return toConfigDto(configRepository.save(config));
     }
 
+    /** Returns the tracking config for an owned upgrade. */
     public TrackingConfigDto getConfig(UUID userId, UUID upgradeId) {
-        upgradeService.getUpgrade(userId, upgradeId);
+        upgradeQuery.getOwnedUpgrade(userId, upgradeId);
         return configRepository.findByUpgradeId(upgradeId)
                 .map(this::toConfigDto)
                 .orElseThrow(() -> new ResourceNotFoundException("Tracking config not found for upgrade: " + upgradeId));
     }
 
+    /** Records a progress entry for an owned upgrade, deriving completion from the config when present. */
     @Transactional
     public ProgressDto recordProgress(UUID userId, UUID upgradeId, ProgressRequest req) {
-        upgradeService.getUpgrade(userId, upgradeId);
+        upgradeQuery.getOwnedUpgrade(userId, upgradeId);
         LocalDate date = req.date() != null ? req.date() : LocalDate.now();
 
         if (progressRepository.existsByUpgradeIdAndDate(upgradeId, date)) {
@@ -91,41 +106,84 @@ public class TrackingService {
 
         List<ProgressEntry> allEntries = progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId);
         int streak = streakCalculator.calculateCurrentStreak(allEntries);
-        if (streak > 0 && streak % 7 == 0) {
+        if (streak > 0 && streak % 7 == 0) { // celebrate every 7-day milestone
             eventPublisher.publish(new StreakAchieved(upgradeId, userId, streak, LocalDateTime.now()));
         }
 
         return toDto(entry);
     }
 
+    /** Lists progress entries for an owned upgrade, newest first. */
     public List<ProgressDto> getProgress(UUID userId, UUID upgradeId) {
-        upgradeService.getUpgrade(userId, upgradeId);
+        upgradeQuery.getOwnedUpgrade(userId, upgradeId);
         return progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId).stream().map(this::toDto).toList();
     }
 
+    /** Today's progress entries for the caller across all upgrades. */
     public List<ProgressDto> getTodayProgress(UUID userId) {
         return progressRepository.findByUserIdAndDate(userId, LocalDate.now()).stream().map(this::toDto).toList();
     }
 
+    /** Current and longest streak for an owned upgrade. */
     public StreakDto getStreakSummary(UUID userId, UUID upgradeId) {
-        upgradeService.getUpgrade(userId, upgradeId);
+        upgradeQuery.getOwnedUpgrade(userId, upgradeId);
         List<ProgressEntry> entries = progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId);
         return new StreakDto(
                 streakCalculator.calculateCurrentStreak(entries),
                 streakCalculator.calculateLongestStreak(entries));
     }
 
+    /** The caller's progress entries over the last 7 days. */
     public List<ProgressDto> getWeekProgress(UUID userId) {
         LocalDate today = LocalDate.now();
         LocalDate weekAgo = today.minusDays(6);
         return progressRepository.findByUserIdAndDateBetween(userId, weekAgo, today).stream().map(this::toDto).toList();
     }
 
+    // ---- TrackingConfigQuery (inbound port) ----
+
+    /** {@inheritDoc} */
+    @Override
+    public Optional<TrackingConfig> findByUpgradeId(UUID upgradeId) {
+        return configRepository.findByUpgradeId(upgradeId);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public List<TrackingConfig> findByUpgradeIds(Collection<UUID> upgradeIds) {
+        return configRepository.findByUpgradeIdIn(upgradeIds);
+    }
+
+    // ---- ProgressQuery (inbound port) ----
+
+    /** {@inheritDoc} */
+    @Override
+    public List<ProgressEntry> findByUserIdAndDate(UUID userId, LocalDate date) {
+        return progressRepository.findByUserIdAndDate(userId, date);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public List<ProgressEntry> findByUserIdAndDateBetween(UUID userId, LocalDate start, LocalDate end) {
+        return progressRepository.findByUserIdAndDateBetween(userId, start, end);
+    }
+
+    // ---- StreakQuery (inbound port) ----
+
+    /** {@inheritDoc} */
+    @Override
+    public int currentStreak(UUID upgradeId) {
+        // Load the upgrade's entries and delegate to the pure domain streak calculator.
+        return streakCalculator.calculateCurrentStreak(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId));
+    }
+
+    /** Maps a tracking-config domain object to its web DTO. */
     private TrackingConfigDto toConfigDto(TrackingConfig c) {
         return new TrackingConfigDto(c.getId(), c.getUpgradeId(), c.getTrackingType(),
                 c.getFrequency(), c.getTargetNumericValue(), c.getTargetUnit(), c.getRequiredDaily());
     }
 
+    /** Maps a progress-entry domain object to its web DTO. */
     private ProgressDto toDto(ProgressEntry e) {
         return new ProgressDto(e.getId(), e.getUpgradeId(), e.getUserId(), e.getDate(),
                 e.getCompleted(), e.getNumericValue(), e.getUnit(), e.getRating(), e.getNote(), e.getCreatedAt());

@@ -1,15 +1,13 @@
 package com.healthupgrades.dashboard.application;
 
-import com.healthupgrades.dashboard.api.DashboardDto;
-import com.healthupgrades.healtharea.domain.port.out.HealthAreaRepositoryPort;
+import com.healthupgrades.dashboard.application.port.in.DashboardView;
+import com.healthupgrades.healtharea.application.port.in.HealthAreaQuery;
+import com.healthupgrades.tracking.application.port.in.ProgressQuery;
+import com.healthupgrades.tracking.application.port.in.StreakQuery;
 import com.healthupgrades.tracking.domain.ProgressEntry;
-import com.healthupgrades.tracking.domain.StreakCalculator;
-import com.healthupgrades.tracking.domain.port.out.ProgressEntryRepositoryPort;
-import com.healthupgrades.upgrade.api.UpgradeDto;
-import com.healthupgrades.upgrade.application.UpgradeService;
+import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.UpgradeStatus;
-import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -28,16 +26,16 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class DashboardAggregationServiceTest {
 
-    @Mock UpgradeRepositoryPort upgradeRepository;
-    @Mock ProgressEntryRepositoryPort progressRepository;
-    @Mock HealthAreaRepositoryPort areaRepository;
-    @Mock StreakCalculator streakCalculator;
-    @Mock UpgradeService upgradeService;
+    @Mock UpgradeQuery upgradeQuery;
+    @Mock ProgressQuery progressQuery;
+    @Mock StreakQuery streakQuery;
+    @Mock HealthAreaQuery healthAreaQuery;
 
     @InjectMocks DashboardAggregationService service;
 
     private final UUID userId = UUID.randomUUID();
 
+    // A minimal upgrade with just the fields the aggregation reads.
     private HealthUpgrade upgrade(UpgradeStatus status) {
         return HealthUpgrade.builder()
                 .id(UUID.randomUUID())
@@ -47,6 +45,7 @@ class DashboardAggregationServiceTest {
                 .build();
     }
 
+    // A minimal weekly progress entry, completed or not.
     private ProgressEntry entry(boolean completed) {
         return ProgressEntry.builder()
                 .id(UUID.randomUUID())
@@ -58,36 +57,26 @@ class DashboardAggregationServiceTest {
     }
 
     @Test
-    void buildDashboard_countsByStatus_andComputesWeeklyRate() {
+    void getDashboard_countsByStatus_andComputesWeeklyRate() {
         List<HealthUpgrade> upgrades = List.of(
                 upgrade(UpgradeStatus.ACTIVE),
                 upgrade(UpgradeStatus.ACTIVE),
                 upgrade(UpgradeStatus.PLANNED),
                 upgrade(UpgradeStatus.COMPLETED));
-        when(upgradeRepository.findByUserId(userId)).thenReturn(upgrades);
-        when(upgradeService.toDtos(any())).thenAnswer(inv -> {
-            List<HealthUpgrade> ups = inv.getArgument(0);
-            return ups.stream().map(u -> dtoFor(u.getId())).toList();
-        });
+        when(upgradeQuery.findByUser(userId)).thenReturn(upgrades);
         // 2 of 4 weekly entries completed -> 50%
-        when(progressRepository.findByUserIdAndDateBetween(any(), any(), any()))
+        when(progressQuery.findByUserIdAndDateBetween(any(), any(), any()))
                 .thenReturn(List.of(entry(true), entry(true), entry(false), entry(false)));
-        when(progressRepository.findByUpgradeId(any())).thenReturn(List.of());
-        when(streakCalculator.calculateCurrentStreak(any())).thenReturn(4);
-        when(areaRepository.findByUserId(userId)).thenReturn(List.of());
+        when(streakQuery.currentStreak(any())).thenReturn(4);
+        when(healthAreaQuery.listByUser(userId)).thenReturn(List.of());
 
-        DashboardDto dashboard = service.buildDashboard(userId);
+        DashboardView view = service.getDashboard(userId);
 
-        assertThat(dashboard.activeUpgrades()).hasSize(2);
-        assertThat(dashboard.plannedUpgrades()).hasSize(1);
-        assertThat(dashboard.recentlyCompleted()).hasSize(1);
-        assertThat(dashboard.weeklyCompletionRate()).isEqualTo(50.0);
+        assertThat(view.active()).hasSize(2);
+        assertThat(view.planned()).hasSize(1);
+        assertThat(view.recentlyCompleted()).hasSize(1);
+        assertThat(view.weeklyCompletionRate()).isEqualTo(50.0);
         // streaks are computed only for ACTIVE upgrades
-        assertThat(dashboard.streaks()).hasSize(2);
-    }
-
-    private UpgradeDto dtoFor(UUID id) {
-        return new UpgradeDto(id, userId, null, "t", null, null, null, null,
-                null, null, null, null, null, false, 0L, null, LocalDateTime.now(), LocalDateTime.now());
+        assertThat(view.streaks()).hasSize(2);
     }
 }

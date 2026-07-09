@@ -4,12 +4,12 @@ import com.healthupgrades.notification.application.NotificationService;
 import com.healthupgrades.notification.domain.NotificationCategory;
 import com.healthupgrades.notification.domain.NotificationType;
 import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort;
+import com.healthupgrades.reminder.application.port.in.ReminderQuery;
 import com.healthupgrades.reminder.domain.Reminder;
-import com.healthupgrades.reminder.domain.port.out.ReminderRepositoryPort;
-import com.healthupgrades.tracking.domain.port.out.ProgressEntryRepositoryPort;
+import com.healthupgrades.tracking.application.port.in.ProgressQuery;
+import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.UpgradeStatus;
-import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -28,22 +28,26 @@ import java.util.stream.Collectors;
  * Produces the delayed/scheduled notifications. These call {@link NotificationService} directly (rather
  * than going through domain events) because schedulers run outside a service transaction. Crons are
  * configured under {@code app.notifications.schedules.*}.
+ *
+ * <p>Reads from other bounded contexts go through their inbound query ports ({@link UpgradeQuery},
+ * {@link ProgressQuery}, {@link ReminderQuery}); only the notification store is accessed via its own
+ * outbound port.
  */
 @Component
 @RequiredArgsConstructor
 public class NotificationScheduler {
 
-    private final UpgradeRepositoryPort upgradeRepository;
-    private final ProgressEntryRepositoryPort progressRepository;
-    private final ReminderRepositoryPort reminderRepository;
-    private final NotificationRepositoryPort notificationRepository;
-    private final NotificationService notificationService;
-    private final Clock clock;
+    private final UpgradeQuery upgradeQuery; // inbound port: upgrades
+    private final ProgressQuery progressQuery; // inbound port: progress entries
+    private final ReminderQuery reminderQuery; // inbound port: enabled reminders
+    private final NotificationRepositoryPort notificationRepository; // own outbound port (dedup guards)
+    private final NotificationService notificationService; // own application service (create + push)
+    private final Clock clock; // injectable clock for deterministic scheduling
 
     /** Alerts the owner once when an active upgrade passes its target date. */
     @Scheduled(cron = "${app.notifications.schedules.overdue}")
     public void notifyOverdue() {
-        for (HealthUpgrade u : upgradeRepository.findByStatus(UpgradeStatus.ACTIVE)) {
+        for (HealthUpgrade u : upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)) {
             if (u.isOverdue() && !notificationRepository.existsByUserIdAndRelatedUpgradeIdAndType(
                     u.getUserId(), u.getId(), NotificationType.UPGRADE_OVERDUE)) {
                 notificationService.create(u.getUserId(), NotificationType.UPGRADE_OVERDUE,
@@ -57,13 +61,13 @@ public class NotificationScheduler {
     @Scheduled(cron = "${app.notifications.schedules.daily-checkin}")
     public void notifyDailyCheckin() {
         LocalDate today = LocalDate.now(clock);
-        Map<UUID, List<HealthUpgrade>> activeByUser = upgradeRepository.findByStatus(UpgradeStatus.ACTIVE).stream()
+        Map<UUID, List<HealthUpgrade>> activeByUser = upgradeQuery.findByStatus(UpgradeStatus.ACTIVE).stream()
                 .collect(Collectors.groupingBy(HealthUpgrade::getUserId));
 
         activeByUser.forEach((userId, upgrades) -> {
             boolean alreadyNudged = notificationRepository.existsByUserIdAndTypeAndCreatedAtAfter(
                     userId, NotificationType.CHECKIN_REMINDER, today.atStartOfDay());
-            boolean loggedToday = !progressRepository.findByUserIdAndDate(userId, today).isEmpty();
+            boolean loggedToday = !progressQuery.findByUserIdAndDate(userId, today).isEmpty();
             if (!alreadyNudged && !loggedToday) {
                 notificationService.create(userId, NotificationType.CHECKIN_REMINDER, NotificationCategory.REMINDER,
                         "Daily check-in ⏳",
@@ -79,7 +83,7 @@ public class NotificationScheduler {
         LocalTime now = LocalTime.now(clock);
         String todayShort = LocalDate.now(clock).getDayOfWeek().name().substring(0, 3); // e.g. MONDAY -> MON
 
-        List<Reminder> due = reminderRepository.findByEnabledTrue().stream()
+        List<Reminder> due = reminderQuery.findEnabled().stream()
                 .filter(r -> isDueNow(r.getReminderTime(), now))
                 .filter(r -> dayMatches(r.getDaysOfWeek(), todayShort))
                 .toList();
@@ -87,7 +91,7 @@ public class NotificationScheduler {
 
         // Bulk-load the related upgrades in one query instead of one lookup per reminder.
         List<UUID> upgradeIds = due.stream().map(Reminder::getUpgradeId).distinct().toList();
-        Map<UUID, HealthUpgrade> upgrades = upgradeRepository.findAllById(upgradeIds).stream()
+        Map<UUID, HealthUpgrade> upgrades = upgradeQuery.findAllById(upgradeIds).stream()
                 .collect(Collectors.toMap(HealthUpgrade::getId, Function.identity()));
 
         for (Reminder reminder : due) {
@@ -99,6 +103,7 @@ public class NotificationScheduler {
         }
     }
 
+    /** True when the reminder's time matches the current hour and minute. */
     private boolean isDueNow(LocalTime time, LocalTime now) {
         return time != null && time.getHour() == now.getHour() && time.getMinute() == now.getMinute();
     }

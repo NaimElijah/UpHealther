@@ -3,6 +3,7 @@ package com.healthupgrades.healtharea.application;
 import com.healthupgrades.common.exception.ResourceNotFoundException;
 import com.healthupgrades.healtharea.api.HealthAreaDto;
 import com.healthupgrades.healtharea.api.HealthAreaRequest;
+import com.healthupgrades.healtharea.application.port.in.HealthAreaQuery;
 import com.healthupgrades.healtharea.domain.HealthArea;
 import com.healthupgrades.healtharea.domain.port.out.HealthAreaRepositoryPort;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +15,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class HealthAreaService {
+public class HealthAreaService implements HealthAreaQuery {
 
     private final HealthAreaRepositoryPort repository;
 
@@ -58,6 +59,12 @@ public class HealthAreaService {
         HealthArea area = repository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("HealthArea not found: " + id));
         repository.delete(area);
+    }
+
+    /** {@inheritDoc} Exposes a user's areas as domain objects for the dashboard context. */
+    @Override
+    public List<HealthArea> listByUser(UUID userId) {
+        return repository.findByUserId(userId);
     }
 
     private HealthAreaDto toDto(HealthArea a) {

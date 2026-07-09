@@ -3,8 +3,8 @@ package com.healthupgrades.notification.application;
 import com.healthupgrades.common.events.*;
 import com.healthupgrades.notification.domain.NotificationCategory;
 import com.healthupgrades.notification.domain.NotificationType;
+import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.HealthUpgrade;
-import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -24,7 +24,7 @@ import java.util.UUID;
 public class NotificationEventListener {
 
     private final NotificationService notificationService;
-    private final UpgradeRepositoryPort upgradeRepository;
+    private final UpgradeQuery upgradeQuery;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onCreated(HealthUpgradeCreated e) {
@@ -79,7 +79,7 @@ public class NotificationEventListener {
     }
 
     private String title(UUID upgradeId, UUID userId) {
-        return upgradeRepository.findByIdAndUserId(upgradeId, userId)
+        return upgradeQuery.findOwned(userId, upgradeId)
                 .map(HealthUpgrade::getTitle)
                 .orElse("your upgrade");
     }
