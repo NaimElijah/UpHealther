@@ -5,9 +5,9 @@ import com.healthupgrades.notification.api.NotificationDto;
 import com.healthupgrades.notification.domain.Notification;
 import com.healthupgrades.notification.domain.NotificationCategory;
 import com.healthupgrades.notification.domain.NotificationType;
+import com.healthupgrades.notification.domain.port.out.NotificationPushPort;
 import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort;
 import lombok.RequiredArgsConstructor;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -16,15 +16,18 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Application service for notifications: persistence, reads, and coordinating the real-time push.
+ *
+ * <p>The transport is behind {@link NotificationPushPort}; this service only decides <em>when</em> to
+ * push (after the surrounding transaction commits).
+ */
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
 
-    /** STOMP user-destination the frontend subscribes to (resolved per-connection via the principal). */
-    public static final String USER_QUEUE = "/queue/notifications";
-
-    private final NotificationRepositoryPort repository;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final NotificationRepositoryPort repository; // outbound persistence port
+    private final NotificationPushPort pushPort; // outbound real-time delivery port
 
     /**
      * Persist a notification for a user, then push it in real time to any connected session. Offline
@@ -44,9 +47,8 @@ public class NotificationService {
                 .read(false)
                 .build());
 
-        NotificationDto dto = toDto(notification);
-        pushAfterCommit(userId, dto);
-        return dto;
+        pushAfterCommit(userId, notification);
+        return toDto(notification);
     }
 
     /**
@@ -54,28 +56,30 @@ public class NotificationService {
      * notification for a row that then rolls back. When there is no active transaction (defensive),
      * push immediately.
      */
-    private void pushAfterCommit(UUID userId, NotificationDto dto) {
-        // Routed to the session(s) whose STOMP principal name == userId (see JwtChannelInterceptor).
+    private void pushAfterCommit(UUID userId, Notification notification) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    messagingTemplate.convertAndSendToUser(userId.toString(), USER_QUEUE, dto);
+                    pushPort.push(userId, notification); // deliver once the write is durable
                 }
             });
         } else {
-            messagingTemplate.convertAndSendToUser(userId.toString(), USER_QUEUE, dto);
+            pushPort.push(userId, notification); // no active tx -> push now
         }
     }
 
+    /** The user's 50 most recent notifications, newest first. */
     public List<NotificationDto> listRecent(UUID userId) {
         return repository.findTop50ByUserIdOrderByCreatedAtDesc(userId).stream().map(this::toDto).toList();
     }
 
+    /** Count of the user's unread notifications. */
     public long unreadCount(UUID userId) {
         return repository.countByUserIdAndReadFalse(userId);
     }
 
+    /** Marks a single owned notification as read. */
     @Transactional
     public NotificationDto markRead(UUID userId, UUID id) {
         Notification notification = repository.findByIdAndUserId(id, userId)
@@ -84,11 +88,13 @@ public class NotificationService {
         return toDto(repository.save(notification));
     }
 
+    /** Marks all of the user's notifications as read. */
     @Transactional
     public void markAllRead(UUID userId) {
         repository.markAllReadForUser(userId);
     }
 
+    /** Maps a notification domain object to its web DTO. */
     private NotificationDto toDto(Notification n) {
         return new NotificationDto(n.getId(), n.getType(), n.getCategory(), n.getTitle(), n.getMessage(),
                 n.getRelatedUpgradeId(), n.isRead(), n.getCreatedAt());
