@@ -48,7 +48,7 @@ public class DashboardAggregationService implements DashboardQuery {
         List<HealthUpgrade> active = all.stream().filter(u -> u.getStatus() == UpgradeStatus.ACTIVE).toList();
         List<HealthUpgrade> planned = all.stream().filter(u -> u.getStatus() == UpgradeStatus.PLANNED).toList();
         List<HealthUpgrade> todayList = all.stream().filter(u -> u.isActiveOn(today)).toList();
-        List<HealthUpgrade> overdue = all.stream().filter(HealthUpgrade::isOverdue).toList();
+        List<HealthUpgrade> overdue = all.stream().filter(u -> u.isOverdue(today)).toList();
 
         double weeklyRate = calculateWeeklyCompletionRate(userId, today);
         Map<UUID, Integer> streaks = calculateStreaks(all);

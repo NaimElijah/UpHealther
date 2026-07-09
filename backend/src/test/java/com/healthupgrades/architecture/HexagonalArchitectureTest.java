@@ -7,7 +7,9 @@ import com.tngtech.archunit.lang.ArchRule; // the type of a single architecture 
 import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition; // builds bounded-context slice rules
 
 import static com.tngtech.archunit.base.DescribedPredicate.alwaysTrue; // matches any origin class
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage; // single-package predicate
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage; // package predicate for ignores
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.simpleNameEndingWith; // class-name predicate
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes; // entry point for positive rules
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses; // entry point for forbidding rules
 
@@ -78,6 +80,9 @@ class HexagonalArchitectureTest {
                     .ignoreDependency(alwaysTrue(), resideInAnyPackage(
                             "com.healthupgrades.common..", // shared kernel + cross-cutting adapters
                             "..domain.model..",            // another context's domain model is shareable
-                            "..application.port.in..",     // another context's inbound ports (the sanctioned entry)
-                            "..adapter.in.web.."));        // published web DTOs (presentation models)
+                            "..application.port.in..")     // another context's inbound ports (the sanctioned entry)
+                            // Published presentation models only: web DTOs and sanctioned shareable web
+                            // mappers — NOT controllers, request records, or other web wiring.
+                            .or(resideInAPackage("..adapter.in.web..")
+                                    .and(simpleNameEndingWith("Dto").or(simpleNameEndingWith("WebMapper")))));
 }

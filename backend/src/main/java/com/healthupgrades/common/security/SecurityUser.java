@@ -1,5 +1,6 @@
 package com.healthupgrades.common.security;
 
+import org.springframework.security.core.CredentialsContainer;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
@@ -13,13 +14,14 @@ import java.util.UUID;
  *
  * <p>This is the wrapper that keeps Spring Security out of the domain: the {@code User} entity is a plain
  * JPA aggregate, and this adapter type is what implements {@link UserDetails} and is exposed to
- * controllers via {@code @AuthenticationPrincipal}.
+ * controllers via {@code @AuthenticationPrincipal}. It implements {@link CredentialsContainer} so Spring
+ * Security clears the stored password hash once authentication has completed.
  */
-public class SecurityUser implements UserDetails {
+public class SecurityUser implements UserDetails, CredentialsContainer {
 
     private final UUID id; // the user's identifier, used for ownership scoping
     private final String email; // the username in Spring Security terms
-    private final String passwordHash; // the encoded password, used for authentication
+    private String passwordHash; // encoded password; non-final so it can be erased after authentication
 
     /** Creates a principal from the identity fields of a user. */
     public SecurityUser(UUID id, String email, String passwordHash) {
@@ -39,7 +41,7 @@ public class SecurityUser implements UserDetails {
         return List.of();
     }
 
-    /** {@inheritDoc} The encoded password used for credential matching. */
+    /** {@inheritDoc} The encoded password used for credential matching (null once erased). */
     @Override
     public String getPassword() {
         return passwordHash;
@@ -73,5 +75,11 @@ public class SecurityUser implements UserDetails {
     @Override
     public boolean isEnabled() {
         return true;
+    }
+
+    /** {@inheritDoc} Clears the stored password hash once Spring Security no longer needs it. */
+    @Override
+    public void eraseCredentials() {
+        this.passwordHash = null;
     }
 }

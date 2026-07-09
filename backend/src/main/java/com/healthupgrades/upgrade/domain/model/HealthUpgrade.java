@@ -125,9 +125,14 @@ public class HealthUpgrade {
     }
 
     public boolean isOverdue() {
+        return isOverdue(LocalDate.now());
+    }
+
+    /** Whether the upgrade is past its target date as of the given date (ACTIVE upgrades only). */
+    public boolean isOverdue(LocalDate asOf) {
         return targetEndDate != null
                 && status == UpgradeStatus.ACTIVE
-                && LocalDate.now().isAfter(targetEndDate);
+                && asOf.isAfter(targetEndDate);
     }
 
     public boolean isActiveOn(LocalDate date) {

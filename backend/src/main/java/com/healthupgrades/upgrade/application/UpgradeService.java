@@ -99,8 +99,10 @@ public class UpgradeService implements UpgradeQuery {
     @Transactional
     public HealthUpgrade activate(UUID userId, UUID id, LocalDate startDate) {
         HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
-        // Count the user's currently-ACTIVE HARD upgrades and let the pure domain service decide.
-        long activeHardCount = repository.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD);
+        // Only HARD activations are capped, so avoid the count query entirely for EASY/MEDIUM upgrades.
+        long activeHardCount = upgrade.getDifficulty() == Difficulty.HARD
+                ? repository.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD)
+                : 0L;
         schedulingService.validateCanActivate(upgrade.getDifficulty(), activeHardCount);
         upgrade.activate(startDate != null ? startDate : LocalDate.now());
         upgrade = repository.save(upgrade);
