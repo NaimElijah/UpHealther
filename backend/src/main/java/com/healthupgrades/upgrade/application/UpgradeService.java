@@ -2,11 +2,8 @@ package com.healthupgrades.upgrade.application;
 
 import com.healthupgrades.common.events.*;
 import com.healthupgrades.common.exception.ResourceNotFoundException;
-import com.healthupgrades.tracking.api.TrackingConfigDto;
-import com.healthupgrades.tracking.domain.TrackingConfig;
-import com.healthupgrades.tracking.domain.port.out.TrackingConfigRepositoryPort;
-import com.healthupgrades.upgrade.api.UpgradeDto;
 import com.healthupgrades.upgrade.api.UpgradeRequest;
+import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.*;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import lombok.RequiredArgsConstructor;
@@ -16,22 +13,28 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
+/**
+ * Application service orchestrating the health-upgrade lifecycle.
+ *
+ * <p>Each state change follows the pattern: load the aggregate, invoke the domain method (which guards the
+ * transition), save via the repository port, publish a domain event, and return the domain aggregate.
+ * Command methods return {@link HealthUpgrade}; the web adapter maps it to a DTO. Implements the
+ * {@link UpgradeQuery} inbound port so other contexts read upgrades as domain objects.
+ */
 @Service
 @RequiredArgsConstructor
-public class UpgradeService {
+public class UpgradeService implements UpgradeQuery {
 
-    private final UpgradeRepositoryPort repository;
-    private final UpgradeSchedulingService schedulingService;
-    private final DomainEventPublisher eventPublisher;
-    private final TrackingConfigRepositoryPort trackingConfigRepository;
+    private final UpgradeRepositoryPort repository; // outbound persistence port
+    private final UpgradeSchedulingService schedulingService; // pure domain invariant
+    private final DomainEventPublisher eventPublisher; // in-process domain events
 
+    /** Creates a new upgrade in the IDEA state and publishes a creation event. */
     @Transactional
-    public UpgradeDto create(UUID userId, UpgradeRequest req) {
+    public HealthUpgrade create(UUID userId, UpgradeRequest req) {
         HealthUpgrade upgrade = HealthUpgrade.builder()
                 .userId(userId)
                 .areaId(req.areaId())
@@ -47,32 +50,22 @@ public class UpgradeService {
                 .build();
         upgrade = repository.save(upgrade);
         eventPublisher.publish(new HealthUpgradeCreated(upgrade.getId(), userId, upgrade.getTitle(), LocalDateTime.now()));
-        return toDto(upgrade);
+        return upgrade;
     }
 
-    public List<UpgradeDto> findAll(UUID userId, UpgradeStatus status, UpgradeType type, UUID areaId, Difficulty difficulty) {
-        Stream<HealthUpgrade> stream;
-        if (status != null) {
-            stream = repository.findByUserIdAndStatus(userId, status).stream();
-        } else if (type != null) {
-            stream = repository.findByUserIdAndType(userId, type).stream();
-        } else if (areaId != null) {
-            stream = repository.findByUserIdAndAreaId(userId, areaId).stream();
-        } else if (difficulty != null) {
-            stream = repository.findByUserIdAndDifficulty(userId, difficulty).stream();
-        } else {
-            stream = repository.findByUserId(userId).stream();
-        }
-        return toDtos(stream.toList());
+    /** Lists a user's upgrades, optionally narrowed by the first non-null filter. */
+    public List<HealthUpgrade> findAll(UUID userId, UpgradeStatus status, UpgradeType type, UUID areaId, Difficulty difficulty) {
+        if (status != null) return repository.findByUserIdAndStatus(userId, status); // filter by status
+        if (type != null) return repository.findByUserIdAndType(userId, type); // filter by type
+        if (areaId != null) return repository.findByUserIdAndAreaId(userId, areaId); // filter by area
+        if (difficulty != null) return repository.findByUserIdAndDifficulty(userId, difficulty); // filter by difficulty
+        return repository.findByUserId(userId); // no filter -> all
     }
 
-    public UpgradeDto findById(UUID userId, UUID id) {
-        return toDto(getUpgrade(userId, id));
-    }
-
+    /** Updates the editable fields of an owned upgrade. */
     @Transactional
-    public UpgradeDto update(UUID userId, UUID id, UpgradeRequest req) {
-        HealthUpgrade upgrade = getUpgrade(userId, id);
+    public HealthUpgrade update(UUID userId, UUID id, UpgradeRequest req) {
+        HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
         upgrade.setAreaId(req.areaId());
         upgrade.setTitle(req.title());
         upgrade.setDescription(req.description());
@@ -80,106 +73,108 @@ public class UpgradeService {
         upgrade.setTargetEndDate(req.targetEndDate());
         upgrade.setMotivation(req.motivation());
         upgrade.setSuccessCriteria(req.successCriteria());
-        if (req.difficulty() != null) upgrade.changeDifficulty(req.difficulty());
-        return toDto(repository.save(upgrade));
+        if (req.difficulty() != null) upgrade.changeDifficulty(req.difficulty()); // guarded by the entity
+        return repository.save(upgrade);
     }
 
+    /** Deletes an owned upgrade. */
     @Transactional
     public void delete(UUID userId, UUID id) {
-        HealthUpgrade upgrade = getUpgrade(userId, id);
+        HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
         repository.delete(upgrade);
     }
 
+    /** Moves an owned upgrade to PLANNED with a planned start date. */
     @Transactional
-    public UpgradeDto plan(UUID userId, UUID id, LocalDate plannedStartDate) {
-        HealthUpgrade upgrade = getUpgrade(userId, id);
+    public HealthUpgrade plan(UUID userId, UUID id, LocalDate plannedStartDate) {
+        HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
         upgrade.plan(plannedStartDate);
         upgrade = repository.save(upgrade);
         eventPublisher.publish(new HealthUpgradePlanned(upgrade.getId(), userId, plannedStartDate, LocalDateTime.now()));
-        return toDto(upgrade);
+        return upgrade;
     }
 
+    /** Activates an owned upgrade, enforcing the max-concurrent-HARD invariant first. */
     @Transactional
-    public UpgradeDto activate(UUID userId, UUID id, LocalDate startDate) {
-        HealthUpgrade upgrade = getUpgrade(userId, id);
-        // Count the user's currently-ACTIVE HARD upgrades here (data access is an application concern) and
-        // hand the number to the pure domain service, which owns the max-concurrent-HARD invariant.
+    public HealthUpgrade activate(UUID userId, UUID id, LocalDate startDate) {
+        HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
+        // Count the user's currently-ACTIVE HARD upgrades and let the pure domain service decide.
         long activeHardCount = repository.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD);
         schedulingService.validateCanActivate(upgrade.getDifficulty(), activeHardCount);
         upgrade.activate(startDate != null ? startDate : LocalDate.now());
         upgrade = repository.save(upgrade);
         eventPublisher.publish(new HealthUpgradeActivated(upgrade.getId(), userId, upgrade.getActualStartDate(), LocalDateTime.now()));
-        return toDto(upgrade);
+        return upgrade;
     }
 
+    /** Pauses an owned ACTIVE upgrade. */
     @Transactional
-    public UpgradeDto pause(UUID userId, UUID id) {
-        HealthUpgrade upgrade = getUpgrade(userId, id);
+    public HealthUpgrade pause(UUID userId, UUID id) {
+        HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
         upgrade.pause();
         upgrade = repository.save(upgrade);
         eventPublisher.publish(new HealthUpgradePaused(upgrade.getId(), userId, LocalDateTime.now()));
-        return toDto(upgrade);
+        return upgrade;
     }
 
+    /** Completes an owned ACTIVE upgrade. */
     @Transactional
-    public UpgradeDto complete(UUID userId, UUID id) {
-        HealthUpgrade upgrade = getUpgrade(userId, id);
+    public HealthUpgrade complete(UUID userId, UUID id) {
+        HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
         upgrade.complete();
         upgrade = repository.save(upgrade);
         eventPublisher.publish(new HealthUpgradeCompleted(upgrade.getId(), userId, LocalDateTime.now()));
-        return toDto(upgrade);
+        return upgrade;
     }
 
+    /** Abandons an owned upgrade. */
     @Transactional
-    public UpgradeDto abandon(UUID userId, UUID id) {
-        HealthUpgrade upgrade = getUpgrade(userId, id);
+    public HealthUpgrade abandon(UUID userId, UUID id) {
+        HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
         upgrade.abandon();
         upgrade = repository.save(upgrade);
         eventPublisher.publish(new HealthUpgradeAbandoned(upgrade.getId(), userId, LocalDateTime.now()));
-        return toDto(upgrade);
+        return upgrade;
     }
 
+    /** Reschedules an owned upgrade to a new date (reactivates an abandoned one to PLANNED). */
     @Transactional
-    public UpgradeDto reschedule(UUID userId, UUID id, LocalDate newDate) {
-        HealthUpgrade upgrade = getUpgrade(userId, id);
+    public HealthUpgrade reschedule(UUID userId, UUID id, LocalDate newDate) {
+        HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
         upgrade.reschedule(newDate);
-        return toDto(repository.save(upgrade));
+        return repository.save(upgrade);
     }
 
-    public HealthUpgrade getUpgrade(UUID userId, UUID id) {
+    // ---- UpgradeQuery (inbound port) ----
+
+    /** {@inheritDoc} */
+    @Override
+    public HealthUpgrade getOwnedUpgrade(UUID userId, UUID id) {
         return repository.findByIdAndUserId(id, userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Upgrade not found: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Upgrade not found: " + id)); // ownership guard
     }
 
-    public UpgradeDto toDto(HealthUpgrade u) {
-        TrackingConfigDto trackingConfig = trackingConfigRepository.findByUpgradeId(u.getId())
-                .map(UpgradeService::toTrackingConfigDto)
-                .orElse(null);
-        return toDto(u, trackingConfig);
+    /** {@inheritDoc} */
+    @Override
+    public Optional<HealthUpgrade> findOwned(UUID userId, UUID id) {
+        return repository.findByIdAndUserId(id, userId); // best-effort, no throw
     }
 
-    /**
-     * Batch variant of {@link #toDto(HealthUpgrade)}. Loads every upgrade's tracking config in a single
-     * query instead of one lookup per upgrade, avoiding the N+1 pattern on list/dashboard endpoints.
-     */
-    public List<UpgradeDto> toDtos(List<HealthUpgrade> upgrades) {
-        if (upgrades.isEmpty()) return List.of();
-        List<UUID> ids = upgrades.stream().map(HealthUpgrade::getId).toList();
-        Map<UUID, TrackingConfigDto> configsByUpgradeId = trackingConfigRepository.findByUpgradeIdIn(ids).stream()
-                .collect(Collectors.toMap(TrackingConfig::getUpgradeId, UpgradeService::toTrackingConfigDto));
-        return upgrades.stream().map(u -> toDto(u, configsByUpgradeId.get(u.getId()))).toList();
+    /** {@inheritDoc} */
+    @Override
+    public List<HealthUpgrade> findByUser(UUID userId) {
+        return repository.findByUserId(userId);
     }
 
-    private UpgradeDto toDto(HealthUpgrade u, TrackingConfigDto trackingConfig) {
-        return new UpgradeDto(u.getId(), u.getUserId(), u.getAreaId(), u.getTitle(),
-                u.getDescription(), u.getType(), u.getStatus(), u.getDifficulty(),
-                u.getPlannedStartDate(), u.getActualStartDate(), u.getTargetEndDate(),
-                u.getMotivation(), u.getSuccessCriteria(), u.isOverdue(), u.getVersion(),
-                trackingConfig, u.getCreatedAt(), u.getUpdatedAt());
+    /** {@inheritDoc} */
+    @Override
+    public List<HealthUpgrade> findByStatus(UpgradeStatus status) {
+        return repository.findByStatus(status);
     }
 
-    private static TrackingConfigDto toTrackingConfigDto(TrackingConfig c) {
-        return new TrackingConfigDto(c.getId(), c.getUpgradeId(), c.getTrackingType(),
-                c.getFrequency(), c.getTargetNumericValue(), c.getTargetUnit(), c.getRequiredDaily());
+    /** {@inheritDoc} */
+    @Override
+    public List<HealthUpgrade> findAllById(Iterable<UUID> ids) {
+        return repository.findAllById(ids);
     }
 }

@@ -3,9 +3,10 @@ package com.healthupgrades.reminder.application;
 import com.healthupgrades.common.exception.ResourceNotFoundException;
 import com.healthupgrades.reminder.api.ReminderDto;
 import com.healthupgrades.reminder.api.ReminderRequest;
+import com.healthupgrades.reminder.application.port.in.ReminderQuery;
 import com.healthupgrades.reminder.domain.Reminder;
 import com.healthupgrades.reminder.domain.port.out.ReminderRepositoryPort;
-import com.healthupgrades.upgrade.application.UpgradeService;
+import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,14 +17,14 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class ReminderService {
+public class ReminderService implements ReminderQuery {
 
     private final ReminderRepositoryPort repository;
-    private final UpgradeService upgradeService;
+    private final UpgradeQuery upgradeQuery;
 
     @Transactional
     public ReminderDto create(UUID userId, UUID upgradeId, ReminderRequest req) {
-        upgradeService.getUpgrade(userId, upgradeId); // ownership check (throws if not owned)
+        upgradeQuery.getOwnedUpgrade(userId, upgradeId); // ownership check (throws if not owned)
         Reminder reminder = Reminder.builder()
                 .upgradeId(upgradeId)
                 .reminderTime(req.reminderTime())
@@ -34,7 +35,7 @@ public class ReminderService {
     }
 
     public List<ReminderDto> getForUpgrade(UUID userId, UUID upgradeId) {
-        upgradeService.getUpgrade(userId, upgradeId);
+        upgradeQuery.getOwnedUpgrade(userId, upgradeId);
         return repository.findByUpgradeId(upgradeId).stream().map(this::toDto).toList();
     }
 
@@ -56,8 +57,14 @@ public class ReminderService {
     private Reminder getOwnedReminder(UUID userId, UUID reminderId) {
         Reminder reminder = repository.findById(reminderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reminder not found: " + reminderId));
-        upgradeService.getUpgrade(userId, reminder.getUpgradeId()); // ownership via parent upgrade
+        upgradeQuery.getOwnedUpgrade(userId, reminder.getUpgradeId()); // ownership via parent upgrade
         return reminder;
+    }
+
+    /** {@inheritDoc} Exposes enabled reminders as domain objects for the notification scheduler. */
+    @Override
+    public List<Reminder> findEnabled() {
+        return repository.findByEnabledTrue();
     }
 
     private String toCsv(List<String> days) {

@@ -6,7 +6,7 @@ import com.healthupgrades.reflection.api.ReflectionDto;
 import com.healthupgrades.reflection.api.ReflectionRequest;
 import com.healthupgrades.reflection.domain.Reflection;
 import com.healthupgrades.reflection.domain.port.out.ReflectionRepositoryPort;
-import com.healthupgrades.upgrade.application.UpgradeService;
+import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,12 +21,12 @@ import java.util.UUID;
 public class ReflectionService {
 
     private final ReflectionRepositoryPort repository;
-    private final UpgradeService upgradeService;
+    private final UpgradeQuery upgradeQuery;
     private final DomainEventPublisher eventPublisher;
 
     @Transactional
     public ReflectionDto create(UUID userId, UUID upgradeId, ReflectionRequest req) {
-        upgradeService.getUpgrade(userId, upgradeId);
+        upgradeQuery.getOwnedUpgrade(userId, upgradeId);
         Reflection reflection = Reflection.builder()
                 .upgradeId(upgradeId)
                 .userId(userId)
@@ -43,7 +43,7 @@ public class ReflectionService {
     }
 
     public List<ReflectionDto> getForUpgrade(UUID userId, UUID upgradeId) {
-        upgradeService.getUpgrade(userId, upgradeId);
+        upgradeQuery.getOwnedUpgrade(userId, upgradeId);
         return repository.findByUpgradeIdOrderByDateDesc(upgradeId).stream().map(this::toDto).toList();
     }
 

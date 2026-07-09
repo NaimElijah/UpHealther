@@ -2,12 +2,12 @@ package com.healthupgrades.notification.scheduling;
 
 import com.healthupgrades.notification.domain.NotificationType;
 import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort;
+import com.healthupgrades.reminder.application.port.in.ReminderQuery;
 import com.healthupgrades.reminder.domain.Reminder;
-import com.healthupgrades.reminder.domain.port.out.ReminderRepositoryPort;
-import com.healthupgrades.tracking.domain.port.out.ProgressEntryRepositoryPort;
+import com.healthupgrades.tracking.application.port.in.ProgressQuery;
+import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.UpgradeStatus;
-import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,9 +31,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class NotificationSchedulerTest {
 
-    @Mock UpgradeRepositoryPort upgradeRepository;
-    @Mock ProgressEntryRepositoryPort progressRepository;
-    @Mock ReminderRepositoryPort reminderRepository;
+    @Mock UpgradeQuery upgradeQuery;
+    @Mock ProgressQuery progressQuery;
+    @Mock ReminderQuery reminderQuery;
     @Mock NotificationRepositoryPort notificationRepository;
     @Mock com.healthupgrades.notification.application.NotificationService notificationService;
 
@@ -46,7 +46,7 @@ class NotificationSchedulerTest {
 
     @BeforeEach
     void setUp() {
-        scheduler = new NotificationScheduler(upgradeRepository, progressRepository, reminderRepository,
+        scheduler = new NotificationScheduler(upgradeQuery, progressQuery, reminderQuery,
                 notificationRepository, notificationService, fixedClock);
     }
 
@@ -56,7 +56,7 @@ class NotificationSchedulerTest {
                 .status(UpgradeStatus.ACTIVE).targetEndDate(LocalDate.now().minusDays(1)).build();
         HealthUpgrade notOverdue = HealthUpgrade.builder().id(UUID.randomUUID()).userId(userId).title("Walk")
                 .status(UpgradeStatus.ACTIVE).build(); // no target date -> not overdue
-        when(upgradeRepository.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(overdue, notOverdue));
+        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(overdue, notOverdue));
         when(notificationRepository.existsByUserIdAndRelatedUpgradeIdAndType(any(), any(), any())).thenReturn(false);
 
         scheduler.notifyOverdue();
@@ -68,7 +68,7 @@ class NotificationSchedulerTest {
     void notifyOverdue_skipsWhenAlreadyNotified() {
         HealthUpgrade overdue = HealthUpgrade.builder().id(upgradeId).userId(userId).title("Sleep early")
                 .status(UpgradeStatus.ACTIVE).targetEndDate(LocalDate.now().minusDays(1)).build();
-        when(upgradeRepository.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(overdue));
+        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(overdue));
         when(notificationRepository.existsByUserIdAndRelatedUpgradeIdAndType(any(), any(), any())).thenReturn(true);
 
         scheduler.notifyOverdue();
@@ -81,8 +81,8 @@ class NotificationSchedulerTest {
         // Reminder time matches the fixed clock (09:00); no day filter -> due now.
         Reminder reminder = Reminder.builder().id(UUID.randomUUID()).upgradeId(upgradeId)
                 .reminderTime(LocalTime.of(9, 0)).daysOfWeek(null).enabled(true).build();
-        when(reminderRepository.findByEnabledTrue()).thenReturn(List.of(reminder));
-        when(upgradeRepository.findAllById(List.of(upgradeId))).thenReturn(List.of(
+        when(reminderQuery.findEnabled()).thenReturn(List.of(reminder));
+        when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(
                 HealthUpgrade.builder().id(upgradeId).userId(userId).title("Meditate").build()));
 
         scheduler.dispatchReminders();
@@ -94,7 +94,7 @@ class NotificationSchedulerTest {
     void dispatchReminders_notDue_doesNothing() {
         Reminder reminder = Reminder.builder().id(UUID.randomUUID()).upgradeId(upgradeId)
                 .reminderTime(LocalTime.of(7, 30)).daysOfWeek(null).enabled(true).build();
-        when(reminderRepository.findByEnabledTrue()).thenReturn(List.of(reminder));
+        when(reminderQuery.findEnabled()).thenReturn(List.of(reminder));
 
         scheduler.dispatchReminders();
 
