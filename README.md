@@ -84,7 +84,7 @@ com.healthupgrades.common/
 The boundaries are **enforced by ArchUnit** (`HexagonalArchitectureTest`, runs in `mvn test`): the domain
 stays framework-free (apart from JPA mappings), the application depends only on ports, Spring Data is
 confined to the persistence adapters, and bounded contexts interact only through inbound ports or published
-DTOs. See [`ADR-001-ddd-hexagonal-architecture.md`](ADR-001-ddd-hexagonal-architecture.md).
+DTOs. See [`ADRs/ADR-001-ddd-hexagonal-architecture.md`](ADRs/ADR-001-ddd-hexagonal-architecture.md).
 
 ### Domain Model
 
