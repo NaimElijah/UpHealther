@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -23,6 +24,7 @@ public class ReflectionService {
     private final ReflectionRepositoryPort repository;
     private final UpgradeQuery upgradeQuery;
     private final DomainEventPublisher eventPublisher;
+    private final Clock clock; // decides the date a reflection defaults to
 
     @Transactional
     public ReflectionDto create(UUID userId, UUID upgradeId, ReflectionRequest req) {
@@ -30,7 +32,7 @@ public class ReflectionService {
         Reflection reflection = Reflection.builder()
                 .upgradeId(upgradeId)
                 .userId(userId)
-                .date(req.date() != null ? req.date() : LocalDate.now())
+                .date(req.date() != null ? req.date() : LocalDate.now(clock))
                 .difficultyRating(req.difficultyRating())
                 .benefitRating(req.benefitRating())
                 .whatWorked(req.whatWorked())

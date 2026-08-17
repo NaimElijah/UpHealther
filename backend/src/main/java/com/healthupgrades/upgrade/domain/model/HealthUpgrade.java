@@ -124,11 +124,12 @@ public class HealthUpgrade {
         this.difficulty = difficulty;
     }
 
-    public boolean isOverdue() {
-        return isOverdue(LocalDate.now());
-    }
-
-    /** Whether the upgrade is past its target date as of the given date (ACTIVE upgrades only). */
+    /**
+     * Whether the upgrade is past its target date as of the given date (ACTIVE upgrades only).
+     *
+     * <p>The caller supplies the date rather than the aggregate reading the system clock, so callers that
+     * inject a {@link java.time.Clock} actually get to decide what "now" means.
+     */
     public boolean isOverdue(LocalDate asOf) {
         return targetEndDate != null
                 && status == UpgradeStatus.ACTIVE

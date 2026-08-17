@@ -8,14 +8,16 @@ import com.healthupgrades.tracking.domain.model.ProgressEntry;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -31,9 +33,19 @@ class DashboardAggregationServiceTest {
     @Mock StreakQuery streakQuery;
     @Mock HealthAreaQuery healthAreaQuery;
 
-    @InjectMocks DashboardAggregationService service;
+    /** Fixed so the dashboard's "today" buckets are decided here, not by when the suite runs. */
+    private final Clock fixedClock = Clock.fixed(Instant.parse("2026-03-15T09:00:00Z"), ZoneOffset.UTC);
+    private final LocalDate today = LocalDate.of(2026, 3, 15);
+
+    private DashboardAggregationService service;
 
     private final UUID userId = UUID.randomUUID();
+
+    @BeforeEach
+    void setUp() {
+        service = new DashboardAggregationService(upgradeQuery, progressQuery, streakQuery,
+                healthAreaQuery, fixedClock);
+    }
 
     // A minimal upgrade with just the fields the aggregation reads.
     private HealthUpgrade upgrade(UpgradeStatus status) {
@@ -41,7 +53,7 @@ class DashboardAggregationServiceTest {
                 .id(UUID.randomUUID())
                 .userId(userId)
                 .status(status)
-                .updatedAt(LocalDateTime.now())
+                .updatedAt(today.atStartOfDay())
                 .build();
     }
 
@@ -51,7 +63,7 @@ class DashboardAggregationServiceTest {
                 .id(UUID.randomUUID())
                 .upgradeId(UUID.randomUUID())
                 .userId(userId)
-                .date(LocalDate.now())
+                .date(today)
                 .completed(completed)
                 .build();
     }

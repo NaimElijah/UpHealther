@@ -15,6 +15,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -39,9 +42,11 @@ class UpgradeServiceTest {
     private final UUID userId = UUID.randomUUID();
     private final UUID upgradeId = UUID.randomUUID();
 
+    private final Clock fixedClock = Clock.fixed(Instant.parse("2026-03-15T09:00:00Z"), ZoneOffset.UTC);
+
     @BeforeEach
     void setUp() {
-        service = new UpgradeService(repository, schedulingService, eventPublisher);
+        service = new UpgradeService(repository, schedulingService, eventPublisher, fixedClock);
     }
 
     private HealthUpgrade upgradeWith(UpgradeStatus status, Difficulty difficulty) {

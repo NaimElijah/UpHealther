@@ -10,6 +10,9 @@ import static org.assertj.core.api.Assertions.*;
 
 class HealthUpgradeTest {
 
+    /** A fixed day to judge date-dependent rules against; the aggregate never reads the clock itself. */
+    private static final LocalDate REFERENCE_DAY = LocalDate.of(2026, 3, 15);
+
     private HealthUpgrade upgrade;
 
     @BeforeEach
@@ -161,28 +164,42 @@ class HealthUpgradeTest {
     @Test
     void isOverdue_whenActiveAndPastTargetDate_shouldReturnTrue() {
         upgrade.setStatus(UpgradeStatus.ACTIVE);
-        upgrade.setTargetEndDate(LocalDate.now().minusDays(1));
-        assertThat(upgrade.isOverdue()).isTrue();
+        upgrade.setTargetEndDate(REFERENCE_DAY.minusDays(1));
+        assertThat(upgrade.isOverdue(REFERENCE_DAY)).isTrue();
     }
 
     @Test
     void isOverdue_whenActiveAndFutureTargetDate_shouldReturnFalse() {
         upgrade.setStatus(UpgradeStatus.ACTIVE);
-        upgrade.setTargetEndDate(LocalDate.now().plusDays(5));
-        assertThat(upgrade.isOverdue()).isFalse();
+        upgrade.setTargetEndDate(REFERENCE_DAY.plusDays(5));
+        assertThat(upgrade.isOverdue(REFERENCE_DAY)).isFalse();
+    }
+
+    @Test
+    void isOverdue_whenNotActive_shouldReturnFalse() {
+        upgrade.setStatus(UpgradeStatus.PAUSED);
+        upgrade.setTargetEndDate(REFERENCE_DAY.minusDays(30));
+        assertThat(upgrade.isOverdue(REFERENCE_DAY)).isFalse();
+    }
+
+    @Test
+    void isOverdue_onTheTargetDateItself_shouldReturnFalse() {
+        upgrade.setStatus(UpgradeStatus.ACTIVE);
+        upgrade.setTargetEndDate(REFERENCE_DAY);
+        assertThat(upgrade.isOverdue(REFERENCE_DAY)).isFalse();
     }
 
     @Test
     void isActiveOn_whenActiveAndDateInRange_shouldReturnTrue() {
         upgrade.setStatus(UpgradeStatus.ACTIVE);
-        upgrade.setActualStartDate(LocalDate.now().minusDays(3));
-        upgrade.setTargetEndDate(LocalDate.now().plusDays(3));
-        assertThat(upgrade.isActiveOn(LocalDate.now())).isTrue();
+        upgrade.setActualStartDate(REFERENCE_DAY.minusDays(3));
+        upgrade.setTargetEndDate(REFERENCE_DAY.plusDays(3));
+        assertThat(upgrade.isActiveOn(REFERENCE_DAY)).isTrue();
     }
 
     @Test
     void isActiveOn_whenNotActive_shouldReturnFalse() {
         upgrade.setStatus(UpgradeStatus.PAUSED);
-        assertThat(upgrade.isActiveOn(LocalDate.now())).isFalse();
+        assertThat(upgrade.isActiveOn(REFERENCE_DAY)).isFalse();
     }
 }

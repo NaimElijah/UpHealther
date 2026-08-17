@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -32,6 +33,7 @@ public class UpgradeService implements UpgradeQuery {
     private final UpgradeRepositoryPort repository; // outbound persistence port
     private final UpgradeSchedulingService schedulingService; // pure domain invariant
     private final DomainEventPublisher eventPublisher; // in-process domain events
+    private final Clock clock; // decides the start date an activation defaults to
 
     /** Creates a new upgrade in the IDEA state and publishes a creation event. */
     @Transactional
@@ -121,7 +123,7 @@ public class UpgradeService implements UpgradeQuery {
     public HealthUpgrade activate(UUID userId, UUID id, LocalDate startDate) {
         HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
         validateHardLimit(userId, upgrade.getDifficulty(), true); // activation always claims a slot
-        upgrade.activate(startDate != null ? startDate : LocalDate.now());
+        upgrade.activate(startDate != null ? startDate : LocalDate.now(clock));
         upgrade = repository.save(upgrade);
         eventPublisher.publish(new HealthUpgradeActivated(upgrade.getId(), userId, upgrade.getActualStartDate(), LocalDateTime.now()));
         return upgrade;

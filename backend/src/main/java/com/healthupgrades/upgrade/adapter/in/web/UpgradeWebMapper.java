@@ -7,6 +7,8 @@ import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // domain aggregat
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -25,6 +27,7 @@ import java.util.stream.Collectors;
 public class UpgradeWebMapper {
 
     private final TrackingConfigQuery trackingConfigQuery; // cross-context read of tracking configs
+    private final Clock clock; // decides the "as of" date for the derived overdue flag
 
     /** Maps a single upgrade, looking up its tracking config on demand. */
     public UpgradeDto toDto(HealthUpgrade upgrade) {
@@ -53,7 +56,7 @@ public class UpgradeWebMapper {
         return new UpgradeDto(u.getId(), u.getUserId(), u.getAreaId(), u.getTitle(),
                 u.getDescription(), u.getType(), u.getStatus(), u.getDifficulty(),
                 u.getPlannedStartDate(), u.getActualStartDate(), u.getTargetEndDate(),
-                u.getMotivation(), u.getSuccessCriteria(), u.isOverdue(), u.getVersion(),
+                u.getMotivation(), u.getSuccessCriteria(), u.isOverdue(LocalDate.now(clock)), u.getVersion(),
                 trackingConfig, u.getCreatedAt(), u.getUpdatedAt());
     }
 

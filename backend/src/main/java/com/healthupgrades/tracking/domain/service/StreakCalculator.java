@@ -15,10 +15,14 @@ import java.util.stream.Collectors;
 public class StreakCalculator {
 
     /**
-     * Calculates the current consecutive-day completion streak. Counts back from today; if nothing was
-     * completed today yet, it counts back from yesterday so the streak is not prematurely broken.
+     * Calculates the current consecutive-day completion streak. Counts back from {@code today}; if
+     * nothing was completed today yet, it counts back from yesterday so the streak is not prematurely
+     * broken.
+     *
+     * <p>{@code today} is a parameter rather than a call to the system clock, which keeps this service
+     * pure and lets callers that inject a {@link java.time.Clock} decide what "today" means.
      */
-    public int calculateCurrentStreak(List<ProgressEntry> entries) {
+    public int calculateCurrentStreak(List<ProgressEntry> entries, LocalDate today) {
         if (entries == null || entries.isEmpty()) return 0; // no data -> no streak
 
         // Collect the distinct dates the user actually completed the habit.
@@ -29,7 +33,6 @@ public class StreakCalculator {
 
         if (completedDates.isEmpty()) return 0; // logged entries but none completed
 
-        LocalDate today = LocalDate.now();
         int streak = 0;
         LocalDate current = today;
 

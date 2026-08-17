@@ -24,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -48,6 +49,7 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Stre
     private final StreakCalculator streakCalculator; // pure domain service
     private final ProgressEvaluationService evaluationService; // pure domain service
     private final DomainEventPublisher eventPublisher; // in-process domain events
+    private final Clock clock; // single source of "today" for defaulting and streaks
 
     /** Creates or updates the tracking config for an owned upgrade. */
     @Transactional
@@ -76,7 +78,7 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Stre
     @Transactional
     public ProgressDto recordProgress(UUID userId, UUID upgradeId, ProgressRequest req) {
         upgradeQuery.getOwnedUpgrade(userId, upgradeId);
-        LocalDate date = req.date() != null ? req.date() : LocalDate.now();
+        LocalDate date = req.date() != null ? req.date() : LocalDate.now(clock);
 
         if (progressRepository.existsByUpgradeIdAndDate(upgradeId, date)) {
             throw new DuplicateProgressException("Progress already recorded for date: " + date);
@@ -105,7 +107,7 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Stre
         eventPublisher.publish(new ProgressEntryRecorded(entry.getId(), upgradeId, userId, date, LocalDateTime.now()));
 
         List<ProgressEntry> allEntries = progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId);
-        int streak = streakCalculator.calculateCurrentStreak(allEntries);
+        int streak = streakCalculator.calculateCurrentStreak(allEntries, LocalDate.now(clock));
         if (streak > 0 && streak % 7 == 0) { // celebrate every 7-day milestone
             eventPublisher.publish(new StreakAchieved(upgradeId, userId, streak, LocalDateTime.now()));
         }
@@ -121,7 +123,7 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Stre
 
     /** Today's progress entries for the caller across all upgrades. */
     public List<ProgressDto> getTodayProgress(UUID userId) {
-        return progressRepository.findByUserIdAndDate(userId, LocalDate.now()).stream().map(this::toDto).toList();
+        return progressRepository.findByUserIdAndDate(userId, LocalDate.now(clock)).stream().map(this::toDto).toList();
     }
 
     /** Current and longest streak for an owned upgrade. */
@@ -129,13 +131,13 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Stre
         upgradeQuery.getOwnedUpgrade(userId, upgradeId);
         List<ProgressEntry> entries = progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId);
         return new StreakDto(
-                streakCalculator.calculateCurrentStreak(entries),
+                streakCalculator.calculateCurrentStreak(entries, LocalDate.now(clock)),
                 streakCalculator.calculateLongestStreak(entries));
     }
 
     /** The caller's progress entries over the last 7 days. */
     public List<ProgressDto> getWeekProgress(UUID userId) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(clock);
         LocalDate weekAgo = today.minusDays(6);
         return progressRepository.findByUserIdAndDateBetween(userId, weekAgo, today).stream().map(this::toDto).toList();
     }
@@ -174,7 +176,8 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Stre
     @Override
     public int currentStreak(UUID upgradeId) {
         // Load the upgrade's entries and delegate to the pure domain streak calculator.
-        return streakCalculator.calculateCurrentStreak(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId));
+        return streakCalculator.calculateCurrentStreak(
+                progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId), LocalDate.now(clock));
     }
 
     /** Maps a tracking-config domain object to its web DTO. */
