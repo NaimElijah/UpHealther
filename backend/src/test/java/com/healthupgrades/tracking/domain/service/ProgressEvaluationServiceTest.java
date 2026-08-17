@@ -99,6 +99,61 @@ class ProgressEvaluationServiceTest {
         assertThat(service.isSuccessful(e, c)).isFalse();
     }
 
+    @Test
+    void numeric_valueClearsTargetButUnitDiffers_returnsFalse() {
+        // 45 minutes is not 30 kilometres, however favourably the bare numbers compare.
+        ProgressEntry e = buildEntry();
+        e.setNumericValue(45.0);
+        e.setUnit("minutes");
+        TrackingConfig c = buildConfig(TrackingType.NUMERIC);
+        c.setTargetNumericValue(30.0);
+        c.setTargetUnit("km");
+        assertThat(service.isSuccessful(e, c)).isFalse();
+    }
+
+    @Test
+    void numeric_valueClearsTargetAndUnitMatches_returnsTrue() {
+        ProgressEntry e = buildEntry();
+        e.setNumericValue(45.0);
+        e.setUnit("minutes");
+        TrackingConfig c = buildConfig(TrackingType.NUMERIC);
+        c.setTargetNumericValue(30.0);
+        c.setTargetUnit("minutes");
+        assertThat(service.isSuccessful(e, c)).isTrue();
+    }
+
+    @Test
+    void numeric_entryOmitsUnit_isTakenToUseTheConfiguredOne() {
+        ProgressEntry e = buildEntry();
+        e.setNumericValue(45.0);
+        e.setUnit(null);
+        TrackingConfig c = buildConfig(TrackingType.NUMERIC);
+        c.setTargetNumericValue(30.0);
+        c.setTargetUnit("minutes");
+        assertThat(service.isSuccessful(e, c)).isTrue();
+    }
+
+    @Test
+    void numeric_unitsDifferOnlyInCaseAndPadding_returnsTrue() {
+        ProgressEntry e = buildEntry();
+        e.setNumericValue(45.0);
+        e.setUnit("  Minutes ");
+        TrackingConfig c = buildConfig(TrackingType.NUMERIC);
+        c.setTargetNumericValue(30.0);
+        c.setTargetUnit("minutes");
+        assertThat(service.isSuccessful(e, c)).isTrue();
+    }
+
+    @Test
+    void numeric_configHasNoTargetUnit_acceptsAnyLoggedUnit() {
+        ProgressEntry e = buildEntry();
+        e.setNumericValue(45.0);
+        e.setUnit("minutes");
+        TrackingConfig c = buildConfig(TrackingType.NUMERIC);
+        c.setTargetNumericValue(30.0);
+        assertThat(service.isSuccessful(e, c)).isTrue();
+    }
+
     // RATING tests
     @Test
     void rating_threeOrAbove_returnsTrue() {
