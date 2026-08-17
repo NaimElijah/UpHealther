@@ -1,7 +1,7 @@
 package com.healthupgrades.upgrade.application;
 
-import com.healthupgrades.common.domain.event.DomainEventPublisher;
-import com.healthupgrades.common.domain.event.HealthUpgradePlanned;
+import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
+import com.healthupgrades.upgrade.domain.event.HealthUpgradePlanned;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.upgrade.adapter.in.web.UpgradeRequest;
 import com.healthupgrades.upgrade.domain.model.Difficulty;

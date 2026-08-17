@@ -1,7 +1,7 @@
 package com.healthupgrades.reflection.application;
 
-import com.healthupgrades.common.domain.event.DomainEventPublisher;
-import com.healthupgrades.common.domain.event.ReflectionAdded;
+import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
+import com.healthupgrades.reflection.domain.event.ReflectionAdded;
 import com.healthupgrades.reflection.adapter.in.web.ReflectionDto;
 import com.healthupgrades.reflection.adapter.in.web.ReflectionRequest;
 import com.healthupgrades.reflection.domain.model.Reflection;

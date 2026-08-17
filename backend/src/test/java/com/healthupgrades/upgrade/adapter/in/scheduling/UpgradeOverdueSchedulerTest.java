@@ -1,7 +1,7 @@
 package com.healthupgrades.upgrade.adapter.in.scheduling;
 
-import com.healthupgrades.common.domain.event.DomainEventPublisher;
-import com.healthupgrades.common.domain.event.UpgradeOverdueDetected;
+import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
+import com.healthupgrades.upgrade.domain.event.UpgradeOverdueDetected;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;

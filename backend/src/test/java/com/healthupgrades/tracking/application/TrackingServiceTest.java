@@ -1,6 +1,6 @@
 package com.healthupgrades.tracking.application;
 
-import com.healthupgrades.common.domain.event.DomainEventPublisher;
+import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.common.domain.exception.DuplicateProgressException;
 import com.healthupgrades.tracking.adapter.in.web.ProgressDto;
 import com.healthupgrades.tracking.adapter.in.web.ProgressRequest;

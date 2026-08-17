@@ -1,8 +1,9 @@
 package com.healthupgrades.upgrade.application;
 import com.healthupgrades.upgrade.domain.service.UpgradeSchedulingService;
 
-import com.healthupgrades.common.domain.event.*;
+import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.upgrade.domain.event.*;
 import com.healthupgrades.upgrade.adapter.in.web.UpgradeRequest;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.model.*;

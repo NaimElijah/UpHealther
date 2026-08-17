@@ -1,7 +1,15 @@
 package com.healthupgrades.notification.adapter.in.event;
 import com.healthupgrades.notification.application.NotificationService;
 
-import com.healthupgrades.common.domain.event.*;
+import com.healthupgrades.reflection.domain.event.ReflectionAdded;
+import com.healthupgrades.tracking.domain.event.StreakAchieved;
+import com.healthupgrades.upgrade.domain.event.HealthUpgradeAbandoned;
+import com.healthupgrades.upgrade.domain.event.HealthUpgradeActivated;
+import com.healthupgrades.upgrade.domain.event.HealthUpgradeCompleted;
+import com.healthupgrades.upgrade.domain.event.HealthUpgradeCreated;
+import com.healthupgrades.upgrade.domain.event.HealthUpgradePaused;
+import com.healthupgrades.upgrade.domain.event.HealthUpgradePlanned;
+import com.healthupgrades.upgrade.domain.event.UpgradeOverdueDetected;
 import com.healthupgrades.notification.domain.model.NotificationCategory;
 import com.healthupgrades.notification.domain.model.NotificationType;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;

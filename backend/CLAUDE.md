@@ -31,7 +31,14 @@ rather than working from a layout described in prose.
   already-ACTIVE upgrade to HARD in `update`. An upgrade occupies a HARD slot only while ACTIVE.
 
 - **Domain events are in-process.** Publish via the injected `DomainEventPublisher` (a thin wrapper
-  over Spring's `ApplicationEventPublisher`) after a successful state change.
+  over Spring's `ApplicationEventPublisher`) after a successful state change. The port itself is
+  cross-cutting and lives in `common/domain/port/out/`; each **event** belongs to the context that
+  raises it (`upgrade/domain/event/`, `tracking/domain/event/`, `reflection/domain/event/`), and only
+  the `DomainEvent` marker is shared. Publishing is logged once, generically, in
+  `SpringDomainEventPublisher` — do not add per-event log-only listeners.
+
+  A context's published events are part of its published language, so other contexts may consume them;
+  that is why `..domain.event..` is a sanctioned cross-context surface in the ArchUnit rules.
 
 - **Exception → HTTP status is centralized** in the global exception handler. Throw the
   right domain exception rather than building `ResponseEntity` status by hand:

@@ -1,4 +1,6 @@
-package com.healthupgrades.common.domain.event;
+package com.healthupgrades.upgrade.domain.event;
+
+import com.healthupgrades.common.domain.event.DomainEvent;
 
 import java.time.LocalDateTime;
 import java.util.UUID;

@@ -80,6 +80,7 @@ class HexagonalArchitectureTest {
                     .ignoreDependency(alwaysTrue(), resideInAnyPackage(
                             "com.healthupgrades.common..", // shared kernel + cross-cutting adapters
                             "..domain.model..",            // another context's domain model is shareable
+                            "..domain.event..",            // published domain events are published language
                             // A context's declared ports are its published surface whichever way they
                             // face. Inbound ports are the sanctioned way in; outbound ports are how a
                             // context states what it needs so a supplier can satisfy it without the
