@@ -20,8 +20,9 @@ rather than working from a layout described in prose.
 
   Lifecycle: `IDEA → PLANNED → ACTIVE ⇄ PAUSED`; `ACTIVE → COMPLETED`; (most states) `→ ABANDONED`;
   `reschedule` on an `ABANDONED` upgrade reactivates it to `PLANNED`. The max-3-concurrent-HARD rule
-  is enforced separately in `UpgradeSchedulingService.validateWithinHardLimit` (called by the service before
-  `entity.activate`).
+  is enforced separately in `UpgradeSchedulingService.validateWithinHardLimit`, which the service applies on
+  **every** route to a running HARD upgrade — before `entity.activate`, and before promoting an
+  already-ACTIVE upgrade to HARD in `update`. An upgrade occupies a HARD slot only while ACTIVE.
 
 - **Domain events are in-process.** Publish via the injected `DomainEventPublisher` (a thin wrapper
   over Spring's `ApplicationEventPublisher`) after a successful state change.

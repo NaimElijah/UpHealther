@@ -67,6 +67,12 @@ public class UpgradeService implements UpgradeQuery {
     @Transactional
     public HealthUpgrade update(UUID userId, UUID id, UpgradeRequest req) {
         HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
+        boolean difficultyChanges = req.difficulty() != null && req.difficulty() != upgrade.getDifficulty();
+        if (difficultyChanges) {
+            // Fail before mutating anything.
+            validateHardLimit(userId, req.difficulty(), upgrade.getStatus() == UpgradeStatus.ACTIVE);
+        }
+
         upgrade.setAreaId(req.areaId());
         upgrade.setTitle(req.title());
         upgrade.setDescription(req.description());
@@ -74,8 +80,23 @@ public class UpgradeService implements UpgradeQuery {
         upgrade.setTargetEndDate(req.targetEndDate());
         upgrade.setMotivation(req.motivation());
         upgrade.setSuccessCriteria(req.successCriteria());
-        if (req.difficulty() != null) upgrade.changeDifficulty(req.difficulty()); // guarded by the entity
+        if (difficultyChanges) upgrade.changeDifficulty(req.difficulty());
         return repository.save(upgrade);
+    }
+
+    /**
+     * Applies the max-concurrent-HARD invariant to an upgrade that would run at {@code difficulty}.
+     *
+     * <p>An upgrade occupies a HARD slot only while ACTIVE, so {@code willRunActive} says whether this
+     * upgrade would hold one once the operation completes — true when activating, and true when
+     * promoting an already-ACTIVE upgrade. Otherwise, and for uncapped difficulties, the count query is
+     * skipped entirely.
+     */
+    private void validateHardLimit(UUID userId, Difficulty difficulty, boolean willRunActive) {
+        long activeHardCount = difficulty == Difficulty.HARD && willRunActive
+                ? repository.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD)
+                : 0L;
+        schedulingService.validateWithinHardLimit(difficulty, activeHardCount);
     }
 
     /** Deletes an owned upgrade. */
@@ -99,11 +120,7 @@ public class UpgradeService implements UpgradeQuery {
     @Transactional
     public HealthUpgrade activate(UUID userId, UUID id, LocalDate startDate) {
         HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
-        // Only HARD activations are capped, so avoid the count query entirely for EASY/MEDIUM upgrades.
-        long activeHardCount = upgrade.getDifficulty() == Difficulty.HARD
-                ? repository.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD)
-                : 0L;
-        schedulingService.validateWithinHardLimit(upgrade.getDifficulty(), activeHardCount);
+        validateHardLimit(userId, upgrade.getDifficulty(), true); // activation always claims a slot
         upgrade.activate(startDate != null ? startDate : LocalDate.now());
         upgrade = repository.save(upgrade);
         eventPublisher.publish(new HealthUpgradeActivated(upgrade.getId(), userId, upgrade.getActualStartDate(), LocalDateTime.now()));
