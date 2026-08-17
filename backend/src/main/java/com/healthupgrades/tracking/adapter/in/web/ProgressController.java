@@ -17,37 +17,38 @@ import java.util.UUID;
 public class ProgressController {
 
     private final TrackingService trackingService;
+    private final TrackingWebMapper mapper;
 
     @PostMapping("/api/upgrades/{upgradeId}/progress")
     public ResponseEntity<ProgressDto> recordProgress(
             @AuthenticationPrincipal SecurityUser principal,
             @PathVariable UUID upgradeId,
             @Valid @RequestBody ProgressRequest req) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(trackingService.recordProgress(principal.getId(), upgradeId, req));
+        return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toDto(
+                trackingService.recordProgress(principal.getId(), upgradeId, mapper.toDetails(req))));
     }
 
     @GetMapping("/api/upgrades/{upgradeId}/progress")
     public ResponseEntity<List<ProgressDto>> getProgress(
             @AuthenticationPrincipal SecurityUser principal,
             @PathVariable UUID upgradeId) {
-        return ResponseEntity.ok(trackingService.getProgress(principal.getId(), upgradeId));
+        return ResponseEntity.ok(mapper.toDtos(trackingService.getProgress(principal.getId(), upgradeId)));
     }
 
     @GetMapping("/api/upgrades/{upgradeId}/streak")
     public ResponseEntity<StreakDto> getStreak(
             @AuthenticationPrincipal SecurityUser principal,
             @PathVariable UUID upgradeId) {
-        return ResponseEntity.ok(trackingService.getStreakSummary(principal.getId(), upgradeId));
+        return ResponseEntity.ok(mapper.toDto(trackingService.getStreakSummary(principal.getId(), upgradeId)));
     }
 
     @GetMapping("/api/progress/today")
     public ResponseEntity<List<ProgressDto>> getToday(@AuthenticationPrincipal SecurityUser principal) {
-        return ResponseEntity.ok(trackingService.getTodayProgress(principal.getId()));
+        return ResponseEntity.ok(mapper.toDtos(trackingService.getTodayProgress(principal.getId())));
     }
 
     @GetMapping("/api/progress/week")
     public ResponseEntity<List<ProgressDto>> getWeek(@AuthenticationPrincipal SecurityUser principal) {
-        return ResponseEntity.ok(trackingService.getWeekProgress(principal.getId()));
+        return ResponseEntity.ok(mapper.toDtos(trackingService.getWeekProgress(principal.getId())));
     }
 }

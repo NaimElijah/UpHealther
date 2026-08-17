@@ -1,6 +1,5 @@
 package com.healthupgrades.upgrade.adapter.in.web;
 
-import com.healthupgrades.tracking.adapter.in.web.TrackingConfigDto;
 import com.healthupgrades.upgrade.domain.model.Difficulty;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.model.UpgradeType;
@@ -25,7 +24,7 @@ public record UpgradeDto(
         String successCriteria,
         boolean overdue,
         Long version,
-        TrackingConfigDto trackingConfig,
+        UpgradeTrackingConfigDto trackingConfig,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {}

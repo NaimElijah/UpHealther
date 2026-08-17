@@ -13,6 +13,7 @@ import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.Comparator;
@@ -37,12 +38,13 @@ public class DashboardAggregationService implements DashboardQuery {
     private final ProgressQuery progressQuery; // inbound port: progress entries
     private final StreakQuery streakQuery; // inbound port: computed streaks
     private final HealthAreaQuery healthAreaQuery; // inbound port: health areas
+    private final Clock clock; // decides the "today" every section is bucketed against
 
     /** {@inheritDoc} */
     @Override
     public DashboardView getDashboard(UUID userId) {
         List<HealthUpgrade> all = upgradeQuery.findByUser(userId); // the user's whole portfolio
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(clock);
 
         // Bucket the upgrades by the dashboard's sections (kept as domain objects).
         List<HealthUpgrade> active = all.stream().filter(u -> u.getStatus() == UpgradeStatus.ACTIVE).toList();

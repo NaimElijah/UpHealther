@@ -1,9 +1,10 @@
 package com.healthupgrades.upgrade.application;
 import com.healthupgrades.upgrade.domain.service.UpgradeSchedulingService;
 
-import com.healthupgrades.common.domain.event.*;
+import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
-import com.healthupgrades.upgrade.adapter.in.web.UpgradeRequest;
+import com.healthupgrades.upgrade.domain.event.*;
+import com.healthupgrades.upgrade.application.port.in.UpgradeDetails;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.model.*;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -32,23 +34,14 @@ public class UpgradeService implements UpgradeQuery {
     private final UpgradeRepositoryPort repository; // outbound persistence port
     private final UpgradeSchedulingService schedulingService; // pure domain invariant
     private final DomainEventPublisher eventPublisher; // in-process domain events
+    private final Clock clock; // decides the start date an activation defaults to
 
     /** Creates a new upgrade in the IDEA state and publishes a creation event. */
     @Transactional
-    public HealthUpgrade create(UUID userId, UpgradeRequest req) {
-        HealthUpgrade upgrade = HealthUpgrade.builder()
-                .userId(userId)
-                .areaId(req.areaId())
-                .title(req.title())
-                .description(req.description())
-                .type(req.type())
-                .status(UpgradeStatus.IDEA)
-                .difficulty(req.difficulty())
-                .plannedStartDate(req.plannedStartDate())
-                .targetEndDate(req.targetEndDate())
-                .motivation(req.motivation())
-                .successCriteria(req.successCriteria())
-                .build();
+    public HealthUpgrade create(UUID userId, UpgradeDetails details) {
+        HealthUpgrade upgrade = HealthUpgrade.create(userId, details.areaId(), details.title(), details.description(),
+                details.type(), details.difficulty(), details.plannedStartDate(), details.targetEndDate(),
+                details.motivation(), details.successCriteria());
         upgrade = repository.save(upgrade);
         eventPublisher.publish(new HealthUpgradeCreated(upgrade.getId(), userId, upgrade.getTitle(), LocalDateTime.now()));
         return upgrade;
@@ -65,17 +58,33 @@ public class UpgradeService implements UpgradeQuery {
 
     /** Updates the editable fields of an owned upgrade. */
     @Transactional
-    public HealthUpgrade update(UUID userId, UUID id, UpgradeRequest req) {
+    public HealthUpgrade update(UUID userId, UUID id, UpgradeDetails details) {
         HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
-        upgrade.setAreaId(req.areaId());
-        upgrade.setTitle(req.title());
-        upgrade.setDescription(req.description());
-        upgrade.setType(req.type());
-        upgrade.setTargetEndDate(req.targetEndDate());
-        upgrade.setMotivation(req.motivation());
-        upgrade.setSuccessCriteria(req.successCriteria());
-        if (req.difficulty() != null) upgrade.changeDifficulty(req.difficulty()); // guarded by the entity
+        boolean difficultyChanges = details.difficulty() != null && details.difficulty() != upgrade.getDifficulty();
+        if (difficultyChanges) {
+            // Fail before mutating anything.
+            validateHardLimit(userId, details.difficulty(), upgrade.getStatus() == UpgradeStatus.ACTIVE);
+        }
+
+        upgrade.updateDetails(details.areaId(), details.title(), details.description(), details.type(),
+                details.targetEndDate(), details.motivation(), details.successCriteria());
+        if (difficultyChanges) upgrade.changeDifficulty(details.difficulty());
         return repository.save(upgrade);
+    }
+
+    /**
+     * Applies the max-concurrent-HARD invariant to an upgrade that would run at {@code difficulty}.
+     *
+     * <p>An upgrade occupies a HARD slot only while ACTIVE, so {@code willRunActive} says whether this
+     * upgrade would hold one once the operation completes — true when activating, and true when
+     * promoting an already-ACTIVE upgrade. Otherwise, and for uncapped difficulties, the count query is
+     * skipped entirely.
+     */
+    private void validateHardLimit(UUID userId, Difficulty difficulty, boolean willRunActive) {
+        long activeHardCount = difficulty == Difficulty.HARD && willRunActive
+                ? repository.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD)
+                : 0L;
+        schedulingService.validateWithinHardLimit(difficulty, activeHardCount);
     }
 
     /** Deletes an owned upgrade. */
@@ -99,12 +108,8 @@ public class UpgradeService implements UpgradeQuery {
     @Transactional
     public HealthUpgrade activate(UUID userId, UUID id, LocalDate startDate) {
         HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
-        // Only HARD activations are capped, so avoid the count query entirely for EASY/MEDIUM upgrades.
-        long activeHardCount = upgrade.getDifficulty() == Difficulty.HARD
-                ? repository.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD)
-                : 0L;
-        schedulingService.validateCanActivate(upgrade.getDifficulty(), activeHardCount);
-        upgrade.activate(startDate != null ? startDate : LocalDate.now());
+        validateHardLimit(userId, upgrade.getDifficulty(), true); // activation always claims a slot
+        upgrade.activate(startDate != null ? startDate : LocalDate.now(clock));
         upgrade = repository.save(upgrade);
         eventPublisher.publish(new HealthUpgradeActivated(upgrade.getId(), userId, upgrade.getActualStartDate(), LocalDateTime.now()));
         return upgrade;
@@ -144,8 +149,16 @@ public class UpgradeService implements UpgradeQuery {
     @Transactional
     public HealthUpgrade reschedule(UUID userId, UUID id, LocalDate newDate) {
         HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
+        UpgradeStatus statusBefore = upgrade.getStatus();
         upgrade.reschedule(newDate);
-        return repository.save(upgrade);
+        upgrade = repository.save(upgrade);
+
+        // Rescheduling an abandoned upgrade revives it into PLANNED. That is a real lifecycle transition
+        // and has to be announced, or listeners see the upgrade silently reappear as planned.
+        if (upgrade.getStatus() == UpgradeStatus.PLANNED && statusBefore != UpgradeStatus.PLANNED) {
+            eventPublisher.publish(new HealthUpgradePlanned(upgrade.getId(), userId, newDate, LocalDateTime.now()));
+        }
+        return upgrade;
     }
 
     // ---- UpgradeQuery (inbound port) ----

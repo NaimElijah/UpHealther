@@ -56,35 +56,46 @@ A **Health Upgrade** is more than a habit. It can be:
 
 ### Backend — Hexagonal (Ports & Adapters) + DDD
 
-Every bounded context (`auth, user, healtharea, upgrade, tracking, reflection, reminder, dashboard,
-notification`) follows the same ports-and-adapters skeleton:
+A bounded context (`auth, user, healtharea, upgrade, tracking, reflection, reminder, dashboard,
+notification`) follows this ports-and-adapters skeleton, taking the parts it needs — `auth` orchestrates
+over `user` and owns no aggregate, and `dashboard` is a read model with no outbound side:
 
 ```
 com.healthupgrades.<context>/
   domain/
     model/          — JPA entities, enums, value objects (the aggregate + its state machine)
+    event/          — the domain events this context publishes (its published language)
     service/        — pure, framework-free domain services
-    port/out/       — outbound ports (repository SPI, push, event publisher)
+    port/out/       — outbound ports (repository SPI, push)
   application/
     <X>Service      — @Transactional use-case orchestration
-    port/in/        — inbound ports (use-case / query interfaces) + command/result records
+    port/in/        — inbound query ports + the command/result records use cases speak
+    port/out/       — what this context needs another to supply (see UpgradeTrackingSummaryPort)
   adapter/
     in/web/         — REST controllers, request records, response DTOs, web mappers
-    in/{event,scheduling}/ — domain-event listener / scheduler (notification)
-    out/persistence/ — Spring Data *JpaRepository + the adapter implementing the outbound port
+    in/{event,scheduling,composition}/ — event listeners, scheduled jobs, suppliers of another
+                                          context's outbound port
+    out/persistence/ — Spring Data *JpaRepository (package-private) + the adapter implementing the port
     out/messaging/   — STOMP push adapter (notification)
 
 com.healthupgrades.common/
-  domain/{event,exception}/ — framework-free shared kernel (domain events + shared exceptions)
-  adapter/{in,out}/...      — cross-cutting adapters (event publisher, event logger, error handler)
-  security/                 — JWT filter, SecurityConfig, SecurityUser, UserDetailsService
-  websocket/                — STOMP config + JWT channel interceptor
+  domain/event/      — the DomainEvent marker only; events themselves live in their own context
+  domain/exception/  — shared exceptions
+  domain/port/out/   — DomainEventPublisher, the one genuinely cross-cutting outbound port
+  adapter/{in,out}/  — cross-cutting adapters (event publisher, global error handler)
+  security/          — JWT filter, SecurityConfig, SecurityUser, UserDetailsService
+  websocket/         — STOMP config + JWT channel interceptor
 ```
 
-The boundaries are **enforced by ArchUnit** (`HexagonalArchitectureTest`, runs in `mvn test`): the domain
-stays framework-free (apart from JPA mappings), the application depends only on ports, Spring Data is
-confined to the persistence adapters, and bounded contexts interact only through inbound ports or published
-DTOs. See [`docs/ADRs/ADR-001-ddd-hexagonal-architecture.md`](docs/ADRs/ADR-001-ddd-hexagonal-architecture.md).
+The boundaries are **enforced by ArchUnit** (`HexagonalArchitectureTest`, ten rules, runs in `mvn test`):
+the domain stays framework-free (apart from JPA mappings), the application depends on no adapter in either
+direction, Spring Data is confined to the persistence adapters, controllers only to the web adapter, and
+bounded contexts interact only through published surfaces — and form an acyclic graph.
+
+See [`docs/ADRs/ADR-001-ddd-hexagonal-architecture.md`](docs/ADRs/ADR-001-ddd-hexagonal-architecture.md)
+for the original decision and
+[`docs/ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md`](docs/ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)
+for the corrections that followed a conformance audit.
 
 ### Domain Model
 
@@ -235,14 +246,21 @@ After startup, a demo account is available:
 ### Backend Tests
 ```bash
 cd backend
-mvn test
+mvn test      # unit + architecture tests — no database needed
+mvn verify    # the above plus integration tests — needs a running PostgreSQL
 ```
 
-Tests cover:
-- HealthUpgrade state machine business rules
-- StreakCalculator (various entry patterns)
-- ProgressEvaluationService (boolean/numeric/rating/text)
-- Hexagonal architecture rules (ArchUnit) — domain purity, port/adapter boundaries, bounded-context isolation
+`mvn test` covers:
+- HealthUpgrade state machine, construction invariants and the max-concurrent-HARD rule
+- Reminder scheduling (day filters, due-at) and StreakCalculator
+- ProgressEvaluationService (boolean/numeric/rating/text, including unit compatibility)
+- The exception → HTTP status contract (`GlobalExceptionHandler`)
+- Hexagonal architecture rules (ArchUnit) — domain purity, port/adapter boundaries, bounded-context
+  isolation and cycle freedom
+
+`mvn verify` adds `ApplicationContextIT`, which boots the app against PostgreSQL and so catches a broken
+bean graph or a missing Flyway migration — neither of which a unit test can see. Start a database first
+with `docker-compose up -d postgres`.
 
 ### Frontend Build (includes type check)
 ```bash

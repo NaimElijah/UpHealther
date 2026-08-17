@@ -1,17 +1,16 @@
 package com.healthupgrades.reminder.application;
 
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
-import com.healthupgrades.reminder.adapter.in.web.ReminderDto;
-import com.healthupgrades.reminder.adapter.in.web.ReminderRequest;
 import com.healthupgrades.reminder.application.port.in.ReminderQuery;
+import com.healthupgrades.reminder.application.port.in.ReminderSchedule;
 import com.healthupgrades.reminder.domain.model.Reminder;
+import com.healthupgrades.reminder.domain.model.ReminderDays;
 import com.healthupgrades.reminder.domain.port.out.ReminderRepositoryPort;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -22,30 +21,28 @@ public class ReminderService implements ReminderQuery {
     private final ReminderRepositoryPort repository;
     private final UpgradeQuery upgradeQuery;
 
+    /** Creates a reminder on an owned upgrade. New reminders are enabled unless told otherwise. */
     @Transactional
-    public ReminderDto create(UUID userId, UUID upgradeId, ReminderRequest req) {
+    public Reminder create(UUID userId, UUID upgradeId, ReminderSchedule schedule) {
         upgradeQuery.getOwnedUpgrade(userId, upgradeId); // ownership check (throws if not owned)
-        Reminder reminder = Reminder.builder()
-                .upgradeId(upgradeId)
-                .reminderTime(req.reminderTime())
-                .daysOfWeek(toCsv(req.daysOfWeek()))
-                .enabled(req.enabled() == null || req.enabled())
-                .build();
-        return toDto(repository.save(reminder));
+        Reminder reminder = Reminder.create(upgradeId, schedule.reminderTime(),
+                ReminderDays.of(schedule.days()), schedule.enabled() == null || schedule.enabled());
+        return repository.save(reminder);
     }
 
-    public List<ReminderDto> getForUpgrade(UUID userId, UUID upgradeId) {
+    /** An owned upgrade's reminders. */
+    public List<Reminder> getForUpgrade(UUID userId, UUID upgradeId) {
         upgradeQuery.getOwnedUpgrade(userId, upgradeId);
-        return repository.findByUpgradeId(upgradeId).stream().map(this::toDto).toList();
+        return repository.findByUpgradeId(upgradeId);
     }
 
+    /** Reschedules an owned reminder, leaving its enabled state alone unless one is supplied. */
     @Transactional
-    public ReminderDto update(UUID userId, UUID reminderId, ReminderRequest req) {
+    public Reminder update(UUID userId, UUID reminderId, ReminderSchedule schedule) {
         Reminder reminder = getOwnedReminder(userId, reminderId);
-        reminder.setReminderTime(req.reminderTime());
-        reminder.setDaysOfWeek(toCsv(req.daysOfWeek()));
-        if (req.enabled() != null) reminder.setEnabled(req.enabled());
-        return toDto(repository.save(reminder));
+        reminder.reschedule(schedule.reminderTime(), ReminderDays.of(schedule.days()));
+        if (schedule.enabled() != null) reminder.changeEnabled(schedule.enabled());
+        return repository.save(reminder);
     }
 
     @Transactional
@@ -67,18 +64,4 @@ public class ReminderService implements ReminderQuery {
         return repository.findByEnabledTrue();
     }
 
-    private String toCsv(List<String> days) {
-        if (days == null || days.isEmpty()) return null;
-        return String.join(",", days.stream().map(d -> d.trim().toUpperCase()).toList());
-    }
-
-    private List<String> fromCsv(String csv) {
-        if (csv == null || csv.isBlank()) return List.of();
-        return Arrays.stream(csv.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList();
-    }
-
-    private ReminderDto toDto(Reminder r) {
-        return new ReminderDto(r.getId(), r.getUpgradeId(), r.getReminderTime(),
-                fromCsv(r.getDaysOfWeek()), Boolean.TRUE.equals(r.getEnabled()));
-    }
 }

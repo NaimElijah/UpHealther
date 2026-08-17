@@ -31,7 +31,8 @@ public class UpgradeController {
     @PostMapping
     public ResponseEntity<UpgradeDto> create(@AuthenticationPrincipal SecurityUser principal,
                                               @Valid @RequestBody UpgradeRequest req) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toDto(service.create(principal.getId(), req)));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(mapper.toDto(service.create(principal.getId(), mapper.toDetails(req))));
     }
 
     /** Lists the caller's upgrades, optionally filtered. */
@@ -55,7 +56,7 @@ public class UpgradeController {
     public ResponseEntity<UpgradeDto> update(@AuthenticationPrincipal SecurityUser principal,
                                               @PathVariable UUID id,
                                               @Valid @RequestBody UpgradeRequest req) {
-        return ResponseEntity.ok(mapper.toDto(service.update(principal.getId(), id, req)));
+        return ResponseEntity.ok(mapper.toDto(service.update(principal.getId(), id, mapper.toDetails(req))));
     }
 
     /** Deletes an owned upgrade. */

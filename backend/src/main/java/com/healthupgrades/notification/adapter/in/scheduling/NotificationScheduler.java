@@ -15,9 +15,9 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -25,9 +25,14 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Produces the delayed/scheduled notifications. These call {@link NotificationService} directly (rather
- * than going through domain events) because schedulers run outside a service transaction. Crons are
- * configured under {@code app.notifications.schedules.*}.
+ * Produces the delayed/scheduled notifications that are notification concerns in their own right — a
+ * check-in nudge and the user's configured reminders. These call {@link NotificationService} directly
+ * (rather than going through domain events) because schedulers run outside a service transaction. Crons
+ * are configured under {@code app.notifications.schedules.*}.
+ *
+ * <p>Overdue alerts are not here: being overdue is a fact about an upgrade, so the upgrade context
+ * detects it and publishes {@code UpgradeOverdueDetected}, which {@code NotificationEventListener}
+ * turns into a notification.
  *
  * <p>Reads from other bounded contexts go through their inbound query ports ({@link UpgradeQuery},
  * {@link ProgressQuery}, {@link ReminderQuery}); only the notification store is accessed via its own
@@ -43,19 +48,6 @@ public class NotificationScheduler {
     private final NotificationRepositoryPort notificationRepository; // own outbound port (dedup guards)
     private final NotificationService notificationService; // own application service (create + push)
     private final Clock clock; // injectable clock for deterministic scheduling
-
-    /** Alerts the owner once when an active upgrade passes its target date. */
-    @Scheduled(cron = "${app.notifications.schedules.overdue}")
-    public void notifyOverdue() {
-        for (HealthUpgrade u : upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)) {
-            if (u.isOverdue() && !notificationRepository.existsByUserIdAndRelatedUpgradeIdAndType(
-                    u.getUserId(), u.getId(), NotificationType.UPGRADE_OVERDUE)) {
-                notificationService.create(u.getUserId(), NotificationType.UPGRADE_OVERDUE,
-                        NotificationCategory.WARNING, "Upgrade overdue ⏰",
-                        "\"" + u.getTitle() + "\" is past its target date.", u.getId());
-            }
-        }
-    }
 
     /** Nudges users with active upgrades who haven't logged any progress today (once per day). */
     @Scheduled(cron = "${app.notifications.schedules.daily-checkin}")
@@ -81,11 +73,11 @@ public class NotificationScheduler {
     @Scheduled(cron = "${app.notifications.schedules.reminders}")
     public void dispatchReminders() {
         LocalTime now = LocalTime.now(clock);
-        String todayShort = LocalDate.now(clock).getDayOfWeek().name().substring(0, 3); // e.g. MONDAY -> MON
+        DayOfWeek today = LocalDate.now(clock).getDayOfWeek();
 
+        // Whether a reminder is due is the reminder's own question to answer, not this adapter's.
         List<Reminder> due = reminderQuery.findEnabled().stream()
-                .filter(r -> isDueNow(r.getReminderTime(), now))
-                .filter(r -> dayMatches(r.getDaysOfWeek(), todayShort))
+                .filter(r -> r.isDueAt(today, now))
                 .toList();
         if (due.isEmpty()) return;
 
@@ -103,16 +95,4 @@ public class NotificationScheduler {
         }
     }
 
-    /** True when the reminder's time matches the current hour and minute. */
-    private boolean isDueNow(LocalTime time, LocalTime now) {
-        return time != null && time.getHour() == now.getHour() && time.getMinute() == now.getMinute();
-    }
-
-    /** A blank/empty day list means "every day"; otherwise the CSV must contain today (e.g. MON,WED,FRI). */
-    private boolean dayMatches(String daysOfWeek, String todayShort) {
-        if (daysOfWeek == null || daysOfWeek.isBlank()) return true;
-        return Arrays.stream(daysOfWeek.split(","))
-                .map(s -> s.trim().toUpperCase())
-                .anyMatch(todayShort::equals);
-    }
 }
