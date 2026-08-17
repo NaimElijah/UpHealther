@@ -18,6 +18,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -68,5 +69,32 @@ class NotificationServiceTest {
     void unreadCount_delegatesToRepository() {
         when(repository.countByUserIdAndReadFalse(userId)).thenReturn(4L);
         assertThat(service.unreadCount(userId)).isEqualTo(4L);
+    }
+
+    @Test
+    void createOncePerUpgrade_firstTime_persistsAndPushes() {
+        when(repository.existsByUserIdAndRelatedUpgradeIdAndType(
+                userId, upgradeId, NotificationType.UPGRADE_OVERDUE)).thenReturn(false);
+        when(repository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Optional<NotificationDto> dto = service.createOncePerUpgrade(userId, NotificationType.UPGRADE_OVERDUE,
+                NotificationCategory.WARNING, "Upgrade overdue ⏰", "Past its target date.", upgradeId);
+
+        assertThat(dto).isPresent();
+        verify(repository).save(any(Notification.class));
+        verify(pushPort).push(eq(userId), any(Notification.class));
+    }
+
+    @Test
+    void createOncePerUpgrade_alreadyNotified_savesNothingAndPushesNothing() {
+        when(repository.existsByUserIdAndRelatedUpgradeIdAndType(
+                userId, upgradeId, NotificationType.UPGRADE_OVERDUE)).thenReturn(true);
+
+        Optional<NotificationDto> dto = service.createOncePerUpgrade(userId, NotificationType.UPGRADE_OVERDUE,
+                NotificationCategory.WARNING, "Upgrade overdue ⏰", "Past its target date.", upgradeId);
+
+        assertThat(dto).isEmpty();
+        verify(repository, never()).save(any());
+        verify(pushPort, never()).push(any(), any());
     }
 }

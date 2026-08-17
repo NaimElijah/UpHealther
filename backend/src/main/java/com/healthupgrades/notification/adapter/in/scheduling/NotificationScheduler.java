@@ -25,9 +25,14 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Produces the delayed/scheduled notifications. These call {@link NotificationService} directly (rather
- * than going through domain events) because schedulers run outside a service transaction. Crons are
- * configured under {@code app.notifications.schedules.*}.
+ * Produces the delayed/scheduled notifications that are notification concerns in their own right — a
+ * check-in nudge and the user's configured reminders. These call {@link NotificationService} directly
+ * (rather than going through domain events) because schedulers run outside a service transaction. Crons
+ * are configured under {@code app.notifications.schedules.*}.
+ *
+ * <p>Overdue alerts are not here: being overdue is a fact about an upgrade, so the upgrade context
+ * detects it and publishes {@code UpgradeOverdueDetected}, which {@code NotificationEventListener}
+ * turns into a notification.
  *
  * <p>Reads from other bounded contexts go through their inbound query ports ({@link UpgradeQuery},
  * {@link ProgressQuery}, {@link ReminderQuery}); only the notification store is accessed via its own
@@ -43,19 +48,6 @@ public class NotificationScheduler {
     private final NotificationRepositoryPort notificationRepository; // own outbound port (dedup guards)
     private final NotificationService notificationService; // own application service (create + push)
     private final Clock clock; // injectable clock for deterministic scheduling
-
-    /** Alerts the owner once when an active upgrade passes its target date. */
-    @Scheduled(cron = "${app.notifications.schedules.overdue}")
-    public void notifyOverdue() {
-        for (HealthUpgrade u : upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)) {
-            if (u.isOverdue() && !notificationRepository.existsByUserIdAndRelatedUpgradeIdAndType(
-                    u.getUserId(), u.getId(), NotificationType.UPGRADE_OVERDUE)) {
-                notificationService.create(u.getUserId(), NotificationType.UPGRADE_OVERDUE,
-                        NotificationCategory.WARNING, "Upgrade overdue ⏰",
-                        "\"" + u.getTitle() + "\" is past its target date.", u.getId());
-            }
-        }
-    }
 
     /** Nudges users with active upgrades who haven't logged any progress today (once per day). */
     @Scheduled(cron = "${app.notifications.schedules.daily-checkin}")

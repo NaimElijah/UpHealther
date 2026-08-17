@@ -7,6 +7,7 @@ import com.healthupgrades.notification.domain.model.NotificationType;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -14,11 +15,12 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import java.util.UUID;
 
 /**
- * Turns domain events into user notifications. Uses {@code AFTER_COMMIT} so a notification is only
- * created once the originating action's transaction has actually committed (no notifications on
- * rollback). Scheduled/delayed notifications (overdue, check-in, reminders) are produced directly by
- * {@code NotificationScheduler}, not here. Per-progress entries are intentionally not notified (too
- * frequent) — streak milestones cover that.
+ * Turns domain events into user notifications. Events raised inside a use case use {@code AFTER_COMMIT}
+ * so a notification is only created once the originating transaction has actually committed (no
+ * notifications on rollback); events raised by a scheduled scan have no transaction to wait for and use
+ * a plain listener. The remaining time-based notifications (check-in, reminders) are produced directly
+ * by {@code NotificationScheduler}. Per-progress entries are intentionally not notified (too frequent) —
+ * streak milestones cover that.
  */
 @Component
 @RequiredArgsConstructor
@@ -77,6 +79,18 @@ public class NotificationEventListener {
     public void onReflection(ReflectionAdded e) {
         notificationService.create(e.userId(), NotificationType.REFLECTION_ADDED, NotificationCategory.INFO,
                 "Reflection added", "You reflected on \"" + title(e.upgradeId(), e.userId()) + "\".", e.upgradeId());
+    }
+
+    /**
+     * A plain listener, not an {@code AFTER_COMMIT} one: the overdue scan runs outside a transaction, so
+     * there is no commit to wait for and a transactional listener would never fire. The upgrade stays
+     * overdue until it is dealt with, so the notification is created once per upgrade.
+     */
+    @EventListener
+    public void onOverdue(UpgradeOverdueDetected e) {
+        notificationService.createOncePerUpgrade(e.userId(), NotificationType.UPGRADE_OVERDUE,
+                NotificationCategory.WARNING, "Upgrade overdue ⏰",
+                "\"" + title(e.upgradeId(), e.userId()) + "\" is past its target date.", e.upgradeId());
     }
 
     private String title(UUID upgradeId, UUID userId) {

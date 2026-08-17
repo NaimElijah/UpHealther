@@ -14,6 +14,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -49,6 +50,24 @@ public class NotificationService {
 
         pushAfterCommit(userId, notification);
         return toDto(notification);
+    }
+
+    /**
+     * Creates a notification unless the user has already been told this about this upgrade.
+     *
+     * <p>For facts a periodic scan rediscovers on every run — an overdue upgrade stays overdue until it
+     * is dealt with — so the user hears about it once instead of on every sweep.
+     *
+     * @return the new notification, or empty when one already existed
+     */
+    @Transactional
+    public Optional<NotificationDto> createOncePerUpgrade(UUID userId, NotificationType type,
+                                                          NotificationCategory category, String title,
+                                                          String message, UUID relatedUpgradeId) {
+        if (repository.existsByUserIdAndRelatedUpgradeIdAndType(userId, relatedUpgradeId, type)) {
+            return Optional.empty();
+        }
+        return Optional.of(create(userId, type, category, title, message, relatedUpgradeId));
     }
 
     /**

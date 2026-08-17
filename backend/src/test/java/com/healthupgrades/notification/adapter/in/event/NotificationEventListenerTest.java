@@ -3,6 +3,7 @@ import com.healthupgrades.notification.application.NotificationService;
 
 import com.healthupgrades.common.domain.event.HealthUpgradeCompleted;
 import com.healthupgrades.common.domain.event.HealthUpgradeCreated;
+import com.healthupgrades.common.domain.event.UpgradeOverdueDetected;
 import com.healthupgrades.notification.domain.model.NotificationCategory;
 import com.healthupgrades.notification.domain.model.NotificationType;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
@@ -51,5 +52,18 @@ class NotificationEventListenerTest {
 
         verify(notificationService).create(eq(userId), eq(NotificationType.UPGRADE_CREATED),
                 eq(NotificationCategory.INFO), any(), contains("Walk daily"), eq(upgradeId));
+    }
+
+    @Test
+    void overdue_createsWarningOncePerUpgrade() {
+        when(upgradeQuery.findOwned(userId, upgradeId))
+                .thenReturn(Optional.of(HealthUpgrade.builder().id(upgradeId).userId(userId).title("Sleep early").build()));
+
+        listener.onOverdue(new UpgradeOverdueDetected(upgradeId, userId, LocalDateTime.now()));
+
+        // The scan rediscovers an overdue upgrade on every run, so the once-per-upgrade entry point is
+        // the one that must be used here.
+        verify(notificationService).createOncePerUpgrade(eq(userId), eq(NotificationType.UPGRADE_OVERDUE),
+                eq(NotificationCategory.WARNING), any(), contains("Sleep early"), eq(upgradeId));
     }
 }
