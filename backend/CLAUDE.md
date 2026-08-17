@@ -20,7 +20,7 @@ rather than working from a layout described in prose.
 
   Lifecycle: `IDEA → PLANNED → ACTIVE ⇄ PAUSED`; `ACTIVE → COMPLETED`; (most states) `→ ABANDONED`;
   `reschedule` on an `ABANDONED` upgrade reactivates it to `PLANNED`. The max-3-concurrent-HARD rule
-  is enforced separately in `UpgradeSchedulingService.validateCanActivate` (called by the service before
+  is enforced separately in `UpgradeSchedulingService.validateWithinHardLimit` (called by the service before
   `entity.activate`).
 
 - **Domain events are in-process.** Publish via the injected `DomainEventPublisher` (a thin wrapper

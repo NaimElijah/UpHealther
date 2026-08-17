@@ -103,7 +103,7 @@ public class UpgradeService implements UpgradeQuery {
         long activeHardCount = upgrade.getDifficulty() == Difficulty.HARD
                 ? repository.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD)
                 : 0L;
-        schedulingService.validateCanActivate(upgrade.getDifficulty(), activeHardCount);
+        schedulingService.validateWithinHardLimit(upgrade.getDifficulty(), activeHardCount);
         upgrade.activate(startDate != null ? startDate : LocalDate.now());
         upgrade = repository.save(upgrade);
         eventPublisher.publish(new HealthUpgradeActivated(upgrade.getId(), userId, upgrade.getActualStartDate(), LocalDateTime.now()));
