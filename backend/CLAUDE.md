@@ -18,6 +18,12 @@ rather than working from a layout described in prose.
   *load → call the domain method → `repository.save` → publish a domain event → return `toDto`*.
   Do not put status-guard logic in services or controllers.
 
+  `HealthUpgrade` has **no setters**, so this is enforced by the compiler rather than by convention:
+  `status` moves only through the transition methods, descriptive fields only through `updateDetails`,
+  and difficulty only through `changeDifficulty`. Create one with `HealthUpgrade.create(...)`, which
+  validates the invariants a new upgrade must satisfy. The Lombok builder remains for JPA and for tests
+  that need an aggregate already in a given state — do not reach for it in production code.
+
   Lifecycle: `IDEA → PLANNED → ACTIVE ⇄ PAUSED`; `ACTIVE → COMPLETED`; (most states) `→ ABANDONED`;
   `reschedule` on an `ABANDONED` upgrade reactivates it to `PLANNED`. The max-3-concurrent-HARD rule
   is enforced separately in `UpgradeSchedulingService.validateWithinHardLimit`, which the service applies on

@@ -103,7 +103,7 @@ public class NotificationService {
     public NotificationDto markRead(UUID userId, UUID id) {
         Notification notification = repository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Notification not found: " + id));
-        notification.setRead(true);
+        notification.markAsRead();
         return toDto(repository.save(notification));
     }
 

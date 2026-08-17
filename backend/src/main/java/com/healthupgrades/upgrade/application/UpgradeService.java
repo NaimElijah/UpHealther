@@ -38,19 +38,9 @@ public class UpgradeService implements UpgradeQuery {
     /** Creates a new upgrade in the IDEA state and publishes a creation event. */
     @Transactional
     public HealthUpgrade create(UUID userId, UpgradeRequest req) {
-        HealthUpgrade upgrade = HealthUpgrade.builder()
-                .userId(userId)
-                .areaId(req.areaId())
-                .title(req.title())
-                .description(req.description())
-                .type(req.type())
-                .status(UpgradeStatus.IDEA)
-                .difficulty(req.difficulty())
-                .plannedStartDate(req.plannedStartDate())
-                .targetEndDate(req.targetEndDate())
-                .motivation(req.motivation())
-                .successCriteria(req.successCriteria())
-                .build();
+        HealthUpgrade upgrade = HealthUpgrade.create(userId, req.areaId(), req.title(), req.description(),
+                req.type(), req.difficulty(), req.plannedStartDate(), req.targetEndDate(),
+                req.motivation(), req.successCriteria());
         upgrade = repository.save(upgrade);
         eventPublisher.publish(new HealthUpgradeCreated(upgrade.getId(), userId, upgrade.getTitle(), LocalDateTime.now()));
         return upgrade;
@@ -75,13 +65,8 @@ public class UpgradeService implements UpgradeQuery {
             validateHardLimit(userId, req.difficulty(), upgrade.getStatus() == UpgradeStatus.ACTIVE);
         }
 
-        upgrade.setAreaId(req.areaId());
-        upgrade.setTitle(req.title());
-        upgrade.setDescription(req.description());
-        upgrade.setType(req.type());
-        upgrade.setTargetEndDate(req.targetEndDate());
-        upgrade.setMotivation(req.motivation());
-        upgrade.setSuccessCriteria(req.successCriteria());
+        upgrade.updateDetails(req.areaId(), req.title(), req.description(), req.type(),
+                req.targetEndDate(), req.motivation(), req.successCriteria());
         if (difficultyChanges) upgrade.changeDifficulty(req.difficulty());
         return repository.save(upgrade);
     }

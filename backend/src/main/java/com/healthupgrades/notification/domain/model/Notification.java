@@ -45,6 +45,11 @@ public class Notification {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    /** Marks the notification as read. Idempotent: marking an already-read one changes nothing. */
+    public void markAsRead() {
+        this.read = true;
+    }
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) createdAt = LocalDateTime.now();
