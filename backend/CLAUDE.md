@@ -52,6 +52,15 @@ rather than working from a layout described in prose.
   module's service to authorize — e.g. `TrackingService` calls `upgradeService.getUpgrade(userId, id)`
   first to confirm ownership before recording progress.
 
+## Tests
+
+- `mvn test` — unit and architecture tests. **No database needed**; keep it that way.
+- `mvn verify` — the above plus the `*IT` integration tests, which boot the application against a real
+  PostgreSQL and therefore **do** need one running (`docker-compose up -d postgres`, or the `DB_*` env
+  vars pointing at any instance). `ApplicationContextIT` is what catches a missing `@Bean` in the
+  hand-wired `*BeansConfig` classes and a missing Flyway migration, neither of which any unit test can
+  see.
+
 ## Database / migrations
 
 - Schema is **owned by Flyway** and Hibernate runs with `ddl-auto: validate`. Hibernate will **not**

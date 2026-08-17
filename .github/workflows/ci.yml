@@ -36,19 +36,21 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Build backend
-        run: cd backend && mvn clean compile -q
-
-      - name: Run backend tests
-        run: cd backend && mvn test
+      # `verify` compiles, runs the unit tests, runs the *IT integration tests against the Postgres
+      # service above, and packages the jar. Splitting those into separate `mvn` invocations only
+      # recompiled the same sources repeatedly.
+      - name: Build, test and verify backend
+        run: cd backend && mvn -B --no-transfer-progress clean verify
         env:
           DB_URL: jdbc:postgresql://localhost:5432/healthupgrades_test
           DB_USERNAME: healthupgrades
           DB_PASSWORD: healthupgrades
           JWT_SECRET: test-secret-key-for-ci-at-least-256-bits-long-random-string-here
 
-      - name: Package backend
-        run: cd backend && mvn package -DskipTests -q
+      - name: Audit backend dependencies for known vulnerabilities
+        run: cd backend && mvn -B --no-transfer-progress org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=7
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
 
   frontend:
     name: Frontend - Build & Lint
@@ -69,6 +71,9 @@ jobs:
 
       - name: Lint frontend
         run: cd frontend && npm run lint
+
+      - name: Audit frontend dependencies for known vulnerabilities
+        run: cd frontend && npm audit --audit-level=high
 
       - name: Build frontend
         run: cd frontend && npm run build
