@@ -35,12 +35,9 @@ public class UpgradeWebMapper {
                 req.motivation(), req.successCriteria());
     }
 
-    /** Maps a single upgrade, looking up its tracking configuration on demand. */
+    /** Maps a single upgrade. Delegates to the batch path — one upgrade is a batch of one. */
     public UpgradeDto toDto(HealthUpgrade upgrade) {
-        UpgradeTrackingSummary summary = trackingSummaries
-                .findByUpgradeIds(List.of(upgrade.getId()))
-                .get(upgrade.getId());
-        return toDto(upgrade, toTrackingConfigDto(summary));
+        return toDtos(List.of(upgrade)).get(0);
     }
 
     /**

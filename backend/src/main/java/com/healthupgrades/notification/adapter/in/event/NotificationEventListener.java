@@ -96,9 +96,11 @@ public class NotificationEventListener {
      */
     @EventListener
     public void onOverdue(UpgradeOverdueDetected e) {
+        // The message is deferred: an overdue upgrade is rediscovered by every scan, so resolving its
+        // title eagerly would cost a lookup per upgrade per run for as long as it stays overdue.
         notificationService.createOncePerUpgrade(e.userId(), NotificationType.UPGRADE_OVERDUE,
                 NotificationCategory.WARNING, "Upgrade overdue ⏰",
-                "\"" + title(e.upgradeId(), e.userId()) + "\" is past its target date.", e.upgradeId());
+                () -> "\"" + title(e.upgradeId(), e.userId()) + "\" is past its target date.", e.upgradeId());
     }
 
     private String title(UUID upgradeId, UUID userId) {

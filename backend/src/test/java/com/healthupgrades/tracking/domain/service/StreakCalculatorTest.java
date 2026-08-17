@@ -82,14 +82,15 @@ class StreakCalculatorTest {
 
     @Test
     void currentStreak_isMeasuredFromTheGivenDayNotTheSystemClock() {
-        // The run ends the day before TODAY, so it counts only when TODAY is the reference. Measured
-        // from the real calendar these dates are ancient history and the streak would be zero.
+        // The same entries yield a different answer for a different reference day, which they could not
+        // do if the calculator consulted a clock of its own. Both reference days are fixed, so this
+        // holds whatever date the suite runs on.
         List<ProgressEntry> entries = List.of(
                 entry(TODAY.minusDays(2), true),
                 entry(TODAY.minusDays(1), true)
         );
         assertThat(calculator.calculateCurrentStreak(entries, TODAY)).isEqualTo(2);
-        assertThat(calculator.calculateCurrentStreak(entries, LocalDate.now())).isZero();
+        assertThat(calculator.calculateCurrentStreak(entries, TODAY.plusYears(1))).isZero();
     }
 
     @Test

@@ -13,9 +13,11 @@ import java.util.UUID;
  */
 public interface TrackingConfigQuery {
 
-    /** The tracking config for a single upgrade, if configured. */
-    Optional<TrackingConfig> findByUpgradeId(UUID upgradeId);
-
-    /** Configs for many upgrades in one query (avoids N+1 when mapping upgrade lists). */
+    /**
+     * Configs for the given upgrades in one query.
+     *
+     * <p>Batched only, deliberately: every consumer resolves configs for a set of upgrades, and offering
+     * a single-id variant alongside invites the N+1 this exists to avoid. One id is a set of one.
+     */
     List<TrackingConfig> findByUpgradeIds(Collection<UUID> upgradeIds);
 }

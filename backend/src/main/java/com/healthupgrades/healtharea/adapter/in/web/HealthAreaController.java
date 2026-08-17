@@ -30,7 +30,7 @@ public class HealthAreaController {
 
     @GetMapping
     public ResponseEntity<List<HealthAreaDto>> findAll(@AuthenticationPrincipal SecurityUser principal) {
-        return ResponseEntity.ok(mapper.toDtos(service.findAll(principal.getId())));
+        return ResponseEntity.ok(mapper.toDtos(service.listByUser(principal.getId())));
     }
 
     @GetMapping("/{id}")

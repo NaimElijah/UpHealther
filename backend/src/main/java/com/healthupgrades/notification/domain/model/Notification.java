@@ -9,9 +9,8 @@ import java.util.UUID;
 @Entity
 @Table(name = "notifications")
 @Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED) // required by JPA, not for general use
+@AllArgsConstructor(access = AccessLevel.PRIVATE) // backs the builder only
 @Builder
 public class Notification {
 
@@ -45,7 +44,7 @@ public class Notification {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    /** Marks the notification as read. Idempotent: marking an already-read one changes nothing. */
+    /** Marks the notification as read. */
     public void markAsRead() {
         this.read = true;
     }

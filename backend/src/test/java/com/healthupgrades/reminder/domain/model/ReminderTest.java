@@ -1,5 +1,6 @@
 package com.healthupgrades.reminder.domain.model;
 
+import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import org.junit.jupiter.api.Test;
 
 import java.time.DayOfWeek;
@@ -8,6 +9,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ReminderTest {
 
@@ -65,9 +67,39 @@ class ReminderTest {
     }
 
     @Test
-    void days_ignoreBlanksAndUnrecognisedTokens() {
-        ReminderDays days = ReminderDays.of(List.of("MON", "", "  ", "NOTADAY"));
+    void days_ignoreBlankEntries() {
+        ReminderDays days = ReminderDays.of(List.of("MON", "", "  "));
         assertThat(days.toTokens()).containsExactly("MON");
+    }
+
+    @Test
+    void days_rejectAnUnrecognisedToken() {
+        assertThatThrownBy(() -> ReminderDays.of(List.of("MON", "NOTADAY")))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("NOTADAY");
+    }
+
+    @Test
+    void days_allTokensUnrecognised_mustNotSilentlyBecomeEveryDay() {
+        // Skipping unparseable tokens would leave an empty set, and an empty set means every day — so a
+        // typo would turn a twice-weekly reminder into a daily one. Failing is the safer answer.
+        assertThatThrownBy(() -> ReminderDays.of(List.of("Mondays", "Fridays")))
+                .isInstanceOf(BusinessRuleException.class);
+    }
+
+    @Test
+    void days_persistedTokensThatCannotBeReadAreDroppedRatherThanRejected() {
+        // Rows may predate this type. Refusing to load them would make the reminder unfetchable, which
+        // is worse than loading it with the days that are still readable.
+        ReminderDays days = ReminderDays.fromStorageValue("MON,GARBAGE,FRI");
+        assertThat(days.toTokens()).containsExactly("MON", "FRI");
+    }
+
+    @Test
+    void days_withTheSameDaysAreEqual() {
+        assertThat(ReminderDays.of(List.of("MON", "WED")))
+                .isEqualTo(ReminderDays.of(List.of("wednesday", "mon")))
+                .hasSameHashCodeAs(ReminderDays.of(List.of("WED", "MON")));
     }
 
     // ---- isDueAt ----

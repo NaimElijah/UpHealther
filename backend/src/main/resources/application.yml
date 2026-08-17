@@ -29,7 +29,9 @@ app:
   upgrades:
     schedules:
       # Cron expression for the scan that detects overdue upgrades (server timezone).
-      overdue: ${UPGRADE_OVERDUE_CRON:0 0 8 * * *}       # daily at 08:00 — publishes UpgradeOverdueDetected
+      # NOTIFY_OVERDUE_CRON is the name this job used before it moved to the upgrade context; it is still
+      # honoured so an existing deployment does not silently lose its override and revert to the default.
+      overdue: ${UPGRADE_OVERDUE_CRON:${NOTIFY_OVERDUE_CRON:0 0 8 * * *}} # daily at 08:00
   notifications:
     schedules:
       # Cron expressions for the delayed-notification jobs (server timezone).

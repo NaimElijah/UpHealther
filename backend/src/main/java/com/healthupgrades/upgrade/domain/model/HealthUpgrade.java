@@ -44,9 +44,15 @@ public class HealthUpgrade {
     @Column(nullable = false)
     private UpgradeType type;
 
+    /**
+     * Defaulted on the builder rather than in {@code @PrePersist}: the column is {@code nullable = false},
+     * and a callback-based default only repairs the object on the way to the database, so an aggregate
+     * built without a status was valid in a unit test and a flush-time failure in production.
+     */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private UpgradeStatus status;
+    @Builder.Default
+    private UpgradeStatus status = UpgradeStatus.IDEA;
 
     @Enumerated(EnumType.STRING)
     private Difficulty difficulty;

@@ -143,12 +143,6 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Stre
 
     /** {@inheritDoc} */
     @Override
-    public Optional<TrackingConfig> findByUpgradeId(UUID upgradeId) {
-        return configRepository.findByUpgradeId(upgradeId);
-    }
-
-    /** {@inheritDoc} */
-    @Override
     public List<TrackingConfig> findByUpgradeIds(Collection<UUID> upgradeIds) {
         return configRepository.findByUpgradeIdIn(upgradeIds);
     }

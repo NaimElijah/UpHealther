@@ -47,10 +47,9 @@ jobs:
           DB_PASSWORD: healthupgrades
           JWT_SECRET: test-secret-key-for-ci-at-least-256-bits-long-random-string-here
 
-      - name: Audit backend dependencies for known vulnerabilities
-        run: cd backend && mvn -B --no-transfer-progress org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=7
-        env:
-          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+      # There is deliberately no backend vulnerability audit yet: OWASP dependency-check cannot populate
+      # its database without an NVD API key and fails outright without one. See the known gaps in
+      # ADR-002 for what enabling it requires.
 
   frontend:
     name: Frontend - Build & Lint
@@ -72,8 +71,10 @@ jobs:
       - name: Lint frontend
         run: cd frontend && npm run lint
 
-      - name: Audit frontend dependencies for known vulnerabilities
-        run: cd frontend && npm audit --audit-level=high
+      # Scoped to what ships. Auditing the dev tree here would redden every unrelated PR whenever an
+      # advisory lands against the Vite or ESLint toolchain, none of which reaches a user's browser.
+      - name: Audit shipped frontend dependencies for known vulnerabilities
+        run: cd frontend && npm audit --omit=dev --audit-level=high
 
       - name: Build frontend
         run: cd frontend && npm run build

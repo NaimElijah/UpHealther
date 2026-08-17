@@ -32,11 +32,6 @@ public class HealthAreaService implements HealthAreaQuery {
         return repository.save(area);
     }
 
-    /** All areas owned by the user. */
-    public List<HealthArea> findAll(UUID userId) {
-        return repository.findByUserId(userId);
-    }
-
     /** A single owned area. */
     public HealthArea findById(UUID userId, UUID id) {
         return getOwnedArea(userId, id);
@@ -60,7 +55,10 @@ public class HealthAreaService implements HealthAreaQuery {
         repository.delete(getOwnedArea(userId, id));
     }
 
-    /** {@inheritDoc} Exposes a user's areas as domain objects for the dashboard context. */
+    /**
+     * {@inheritDoc} Also serves this context's own list endpoint — the query is the same one, so it has
+     * one implementation rather than a second that must be kept in step with it.
+     */
     @Override
     public List<HealthArea> listByUser(UUID userId) {
         return repository.findByUserId(userId);

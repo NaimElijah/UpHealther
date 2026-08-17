@@ -13,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -34,11 +35,7 @@ class NotificationServiceTest {
 
     @Test
     void create_persistsAndPushesToUser() {
-        when(repository.save(any(Notification.class))).thenAnswer(inv -> {
-            Notification n = inv.getArgument(0);
-            n.setId(UUID.randomUUID());
-            return n;
-        });
+        when(repository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Notification created = service.create(userId, NotificationType.UPGRADE_COMPLETED,
                 NotificationCategory.SUCCESS, "Upgrade completed 🎉", "Congrats!", upgradeId);
@@ -77,7 +74,7 @@ class NotificationServiceTest {
         when(repository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Optional<Notification> created = service.createOncePerUpgrade(userId, NotificationType.UPGRADE_OVERDUE,
-                NotificationCategory.WARNING, "Upgrade overdue ⏰", "Past its target date.", upgradeId);
+                NotificationCategory.WARNING, "Upgrade overdue ⏰", () -> "Past its target date.", upgradeId);
 
         assertThat(created).isPresent();
         verify(repository).save(any(Notification.class));
@@ -90,10 +87,25 @@ class NotificationServiceTest {
                 userId, upgradeId, NotificationType.UPGRADE_OVERDUE)).thenReturn(true);
 
         Optional<Notification> created = service.createOncePerUpgrade(userId, NotificationType.UPGRADE_OVERDUE,
-                NotificationCategory.WARNING, "Upgrade overdue ⏰", "Past its target date.", upgradeId);
+                NotificationCategory.WARNING, "Upgrade overdue ⏰", () -> "Past its target date.", upgradeId);
 
         assertThat(created).isEmpty();
         verify(repository, never()).save(any());
         verify(pushPort, never()).push(any(), any());
+    }
+
+    @Test
+    void createOncePerUpgrade_alreadyNotified_doesNotBuildTheMessage() {
+        // Building the message costs a lookup. A permanently-overdue upgrade is rediscovered on every
+        // scan, so paying for a message that is then discarded would repeat daily and indefinitely.
+        when(repository.existsByUserIdAndRelatedUpgradeIdAndType(
+                userId, upgradeId, NotificationType.UPGRADE_OVERDUE)).thenReturn(true);
+        AtomicBoolean messageBuilt = new AtomicBoolean(false);
+
+        service.createOncePerUpgrade(userId, NotificationType.UPGRADE_OVERDUE,
+                NotificationCategory.WARNING, "Upgrade overdue ⏰",
+                () -> { messageBuilt.set(true); return "Past its target date."; }, upgradeId);
+
+        assertThat(messageBuilt).isFalse();
     }
 }

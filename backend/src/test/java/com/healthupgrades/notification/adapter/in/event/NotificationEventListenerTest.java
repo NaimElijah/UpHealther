@@ -10,6 +10,7 @@ import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -17,11 +18,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -56,14 +60,19 @@ class NotificationEventListenerTest {
 
     @Test
     void overdue_createsWarningOncePerUpgrade() {
-        when(upgradeQuery.findOwned(userId, upgradeId))
-                .thenReturn(Optional.of(HealthUpgrade.builder().id(upgradeId).userId(userId).title("Sleep early").build()));
-
         listener.onOverdue(new UpgradeOverdueDetected(upgradeId, userId, LocalDateTime.now()));
 
         // The scan rediscovers an overdue upgrade on every run, so the once-per-upgrade entry point is
         // the one that must be used here.
+        ArgumentCaptor<Supplier<String>> message = ArgumentCaptor.forClass(Supplier.class);
         verify(notificationService).createOncePerUpgrade(eq(userId), eq(NotificationType.UPGRADE_OVERDUE),
-                eq(NotificationCategory.WARNING), any(), contains("Sleep early"), eq(upgradeId));
+                eq(NotificationCategory.WARNING), any(), message.capture(), eq(upgradeId));
+
+        // Not resolved yet: no lookup happens unless the notification is actually going to be created.
+        verifyNoInteractions(upgradeQuery);
+
+        when(upgradeQuery.findOwned(userId, upgradeId)).thenReturn(Optional.of(
+                HealthUpgrade.builder().id(upgradeId).userId(userId).title("Sleep early").build()));
+        assertThat(message.getValue().get()).contains("Sleep early");
     }
 }

@@ -15,6 +15,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 /**
  * Application service for notifications: persistence, reads, and coordinating the real-time push.
@@ -57,16 +58,20 @@ public class NotificationService {
      * <p>For facts a periodic scan rediscovers on every run — an overdue upgrade stays overdue until it
      * is dealt with — so the user hears about it once instead of on every sweep.
      *
+     * <p>The message is a {@link Supplier} because building it usually costs a lookup, and for the
+     * already-notified case — which is every run after the first, indefinitely — that lookup would be
+     * discarded.
+     *
      * @return the new notification, or empty when one already existed
      */
     @Transactional
     public Optional<Notification> createOncePerUpgrade(UUID userId, NotificationType type,
                                                        NotificationCategory category, String title,
-                                                       String message, UUID relatedUpgradeId) {
+                                                       Supplier<String> message, UUID relatedUpgradeId) {
         if (repository.existsByUserIdAndRelatedUpgradeIdAndType(userId, relatedUpgradeId, type)) {
             return Optional.empty();
         }
-        return Optional.of(create(userId, type, category, title, message, relatedUpgradeId));
+        return Optional.of(create(userId, type, category, title, message.get(), relatedUpgradeId));
     }
 
     /**

@@ -69,12 +69,27 @@ class HexagonalArchitectureTest {
                             "org.springframework.data.jpa..", "org.springframework.data.repository..")
                     .as("Spring Data JPA must be used only in persistence adapters");
 
-    /** Outbound ports are contracts, so everything under {@code domain.port.out} must be an interface. */
+    /**
+     * Outbound ports are contracts, so anything named {@code *Port} must be an interface — in
+     * {@code domain.port.out} and in {@code application.port.out} alike.
+     *
+     * <p>Matched by name rather than by package because a port package also holds the records its
+     * methods exchange: {@code UpgradeTrackingSummaryPort} sits beside {@code UpgradeTrackingSummary}.
+     * Scoping this rule to {@code domain.port.out} left the port the cycle-break rests on unguarded.
+     */
     @ArchTest
     static final ArchRule outbound_ports_are_interfaces =
-            classes().that().resideInAPackage("..domain.port.out..")
+            classes().that().resideInAnyPackage("..domain.port.out..", "..application.port.out..")
+                    .and().haveSimpleNameEndingWith("Port")
                     .should().beInterfaces()
                     .as("outbound ports must be interfaces");
+
+    /** Ports belong in a port package, so the rules that constrain them cannot be sidestepped. */
+    @ArchTest
+    static final ArchRule ports_live_in_a_port_package =
+            classes().that().haveSimpleNameEndingWith("Port")
+                    .should().resideInAnyPackage("..domain.port.out..", "..application.port.out..")
+                    .as("classes named *Port must live in a port package");
 
     /**
      * Bounded contexts must not depend on each other's internals. Cross-context dependencies are allowed

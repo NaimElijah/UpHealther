@@ -101,12 +101,12 @@ class UpgradeOverdueSchedulerTest {
 
     @Test
     void detectOverdueUpgrades_judgesAgainstTheInjectedClockNotTheWallClock() {
-        // 2020-06-01 is comfortably in the past by the wall clock but still ahead of this job's clock.
-        // Reading the system clock instead of the injected one would wrongly report this as overdue.
-        LocalDate aheadOfTheClockButBehindToday = LocalDate.of(2020, 6, 1);
-        assertThat(aheadOfTheClockButBehindToday).isAfter(today).isBefore(LocalDate.now());
+        // A target date long past by any wall clock this runs on, but still ahead of the clock this job
+        // was given. Reading the system clock would report it overdue; reading the injected one does not.
+        // Both dates are fixed, so the test does not depend on when the suite runs.
+        LocalDate wellPastByTheWallClockButAheadOfOurs = today.plusMonths(5);
         when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
-                .thenReturn(List.of(activeUpgradeEnding(aheadOfTheClockButBehindToday)));
+                .thenReturn(List.of(activeUpgradeEnding(wellPastByTheWallClockButAheadOfOurs)));
 
         scheduler.detectOverdueUpgrades();
 

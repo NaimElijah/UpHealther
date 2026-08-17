@@ -85,8 +85,13 @@ targets before being kept.
 so `mvn test` stays database-free. It catches the two failures that previously shipped green: a lost
 `@Bean` in the hand-wired `*BeansConfig` classes, and an entity change without a Flyway migration.
 `UpgradeSchedulingService` and `GlobalExceptionHandler` gain the tests they never had. JaCoCo reports
-coverage without gating it; OWASP dependency-check and `npm audit` fail the build on known
+coverage without gating it, and `npm audit --audit-level=high` fails the frontend build on known
 vulnerabilities.
+
+**The backend has no vulnerability audit yet.** OWASP dependency-check was added, run, and removed
+again: it cannot populate its database without an `NVD_API_KEY`, and fails outright without one. A
+step that always fails, or one marked `continue-on-error`, is the same decorative guard this record
+exists to remove. Enabling it means setting the repository secret first.
 
 ## Consequences
 
@@ -133,3 +138,6 @@ vulnerabilities.
 - **A Surefire configuration to pin test discovery.** Considered as a guard against the architecture
   suite silently ceasing to run, and rejected: `failIfNoTests` only applies when `-Dtest` is given, so it
   would have been reassuring rather than effective. The gap is real but unaddressed.
+- **Marking the backend audit `continue-on-error` so the step could stay.** Rejected for the same
+  reason as the point above: a check that cannot fail is worse than no check, because it reads as
+  coverage. **Revisit when** an `NVD_API_KEY` secret exists.

@@ -23,10 +23,13 @@ public class SpringDomainEventPublisher implements DomainEventPublisher {
     /** {@inheritDoc} */
     @Override
     public void publish(DomainEvent event) {
-        // Logged here rather than in a listener per event type: this cannot fall behind the event
-        // vocabulary, and it records the publication itself rather than one consumer's view of it.
-        // Events are records, so their toString already carries the payload.
-        log.debug("Publishing domain event: {}", event);
+        // Type and timestamp only, never the payload. Events carry user-authored upgrade titles
+        // ("Quit drinking", "Therapy weekly") alongside a user id, which is personal data in a health
+        // application — and logging records generically would enrol every field of every future event
+        // with no one reviewing the decision. Correlating a publication with its subject is the
+        // consumer's job, where the fields logged are chosen deliberately.
+        log.debug("Publishing domain event: {} occurred at {}",
+                event.getClass().getSimpleName(), event.occurredAt());
         publisher.publishEvent(event); // hand off to Spring so existing listeners keep working
     }
 }
