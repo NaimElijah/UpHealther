@@ -26,16 +26,25 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses; // 
 class HexagonalArchitectureTest {
 
     /**
-     * The domain must not depend on Spring, on adapters, or on the application layer. JPA
-     * ({@code jakarta.persistence}) and Lombok are deliberately absent from the forbidden list, so the
-     * entities may keep their persistence-mapping annotations.
+     * The domain must not depend on frameworks, on adapters, or on the application layer.
+     *
+     * <p>JPA ({@code jakarta.persistence}) and Lombok are deliberately absent from the forbidden list, so
+     * the entities may keep their persistence-mapping annotations — the one compromise ADR-001 accepts.
+     * Everything else is listed explicitly rather than relying on the Spring ban alone: without them a
+     * domain class could pick up Jackson serialisation, bean-validation constraints or servlet types and
+     * nothing would notice.
      */
     @ArchTest
     static final ArchRule domain_is_free_of_framework_and_outer_layers =
             noClasses().that().resideInAPackage("..domain..")
                     .should().dependOnClassesThat().resideInAnyPackage(
-                            "org.springframework..", "..adapter..", "..application..")
-                    .as("the domain must not depend on Spring, adapters, or the application layer");
+                            "org.springframework..",
+                            "jakarta.validation..",
+                            "jakarta.servlet..",
+                            "com.fasterxml.jackson..",
+                            "org.hibernate..",
+                            "..adapter..", "..application..")
+                    .as("the domain must not depend on frameworks, adapters, or the application layer");
 
     /**
      * The application layer must not depend on adapters in either direction. It drives the outbound side
@@ -92,4 +101,70 @@ class HexagonalArchitectureTest {
                             // mappers — NOT controllers, request records, or other web wiring.
                             .or(resideInAPackage("..adapter.in.web..")
                                     .and(simpleNameEndingWith("Dto").or(simpleNameEndingWith("WebMapper")))));
+
+    /**
+     * Bounded contexts must form an acyclic graph.
+     *
+     * <p>Distinct from the rule above, which constrains <em>what</em> may be shared: a cycle can form
+     * entirely out of sanctioned surfaces, and did — {@code upgrade} and {@code tracking} depended on
+     * each other through nothing but inbound ports, domain models and published DTOs, so every edge was
+     * individually allowed while the pair as a whole could not be reasoned about or extracted
+     * separately. Nothing here is ignored, because a cycle routed through a shared surface is still a
+     * cycle.
+     */
+    @ArchTest
+    static final ArchRule bounded_contexts_are_free_of_cycles =
+            SlicesRuleDefinition.slices()
+                    .matching("com.healthupgrades.(*)..")
+                    .namingSlices("$1")
+                    .as("bounded contexts")
+                    .should().beFreeOfCycles();
+
+    /**
+     * A driving adapter must not reach a driven one directly — it goes through the application layer and
+     * its ports. Without this, a controller could call a {@code *RepositoryAdapter} and bypass the port
+     * boundary entirely, which the Spring Data rule would not catch because the adapter class is not
+     * itself a Spring Data type.
+     *
+     * <p>The reverse direction is deliberately not forbidden: the STOMP push adapter renders
+     * notifications with the same mapper the REST transport uses, because the two payloads must stay
+     * identical and previously drifted as two copies.
+     */
+    @ArchTest
+    static final ArchRule inbound_adapters_do_not_depend_on_outbound_adapters =
+            noClasses().that().resideInAPackage("..adapter.in..")
+                    .should().dependOnClassesThat().resideInAPackage("..adapter.out..")
+                    .as("inbound adapters must not depend on outbound adapters");
+
+    /**
+     * Use-case and query ports are contracts, so they must be interfaces. Command and result records
+     * live in the same package by design and are matched by name rather than by package.
+     */
+    @ArchTest
+    static final ArchRule inbound_ports_are_interfaces =
+            classes().that().resideInAPackage("..application.port.in..")
+                    .and().haveSimpleNameEndingWith("Query")
+                    .or(resideInAPackage("..application.port.in..")
+                            .and(simpleNameEndingWith("Command")))
+                    .should().beInterfaces()
+                    .as("inbound query and command ports must be interfaces");
+
+    /** Controllers are a web concern and belong only in the web adapter. */
+    @ArchTest
+    static final ArchRule controllers_live_only_in_the_web_adapter =
+            classes().that().areAnnotatedWith("org.springframework.web.bind.annotation.RestController")
+                    .or().areAnnotatedWith("org.springframework.web.bind.annotation.ControllerAdvice")
+                    .or().areAnnotatedWith("org.springframework.web.bind.annotation.RestControllerAdvice")
+                    .should().resideInAPackage("..adapter.in.web..")
+                    .as("controllers must live in the web adapter");
+
+    /**
+     * Spring Data repositories stay package-private, so reaching past a port into another context's
+     * persistence is impossible by compilation rather than by discipline.
+     */
+    @ArchTest
+    static final ArchRule spring_data_repositories_are_package_private =
+            classes().that().haveSimpleNameEndingWith("JpaRepository")
+                    .should().bePackagePrivate()
+                    .as("Spring Data repositories must be package-private");
 }
