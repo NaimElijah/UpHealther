@@ -2,8 +2,8 @@ package com.healthupgrades.tracking.application;
 
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.common.domain.exception.DuplicateProgressException;
-import com.healthupgrades.tracking.adapter.in.web.ProgressDto;
-import com.healthupgrades.tracking.adapter.in.web.ProgressRequest;
+import com.healthupgrades.tracking.application.port.in.ProgressEntryDetails;
+
 import com.healthupgrades.tracking.domain.model.ProgressEntry;
 import com.healthupgrades.tracking.domain.service.ProgressEvaluationService;
 import com.healthupgrades.tracking.domain.service.StreakCalculator;
@@ -61,7 +61,7 @@ class TrackingServiceTest {
     @Test
     void recordProgress_setsCompletedFromEvaluation_whenConfigExists() {
         // The client did not supply `completed`; a NUMERIC config exists and the evaluator says "met".
-        ProgressRequest req = new ProgressRequest(today, null, 2.5, "liters", null, null);
+        ProgressEntryDetails req = new ProgressEntryDetails(today, null, 2.5, "liters", null, null);
         TrackingConfig config = TrackingConfig.builder()
                 .upgradeId(upgradeId).trackingType(TrackingType.NUMERIC).targetNumericValue(2.0).build();
 
@@ -72,15 +72,15 @@ class TrackingServiceTest {
         when(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenReturn(List.of());
         when(streakCalculator.calculateCurrentStreak(any(), any())).thenReturn(3);
 
-        ProgressDto dto = service.recordProgress(userId, upgradeId, req);
+        ProgressEntry saved = service.recordProgress(userId, upgradeId, req);
 
-        assertThat(dto.completed()).isTrue();
+        assertThat(saved.getCompleted()).isTrue();
         verify(evaluationService).isSuccessful(any(), any());
     }
 
     @Test
     void recordProgress_duplicateDate_throwsAndDoesNotSave() {
-        ProgressRequest req = new ProgressRequest(today, true, null, null, null, null);
+        ProgressEntryDetails req = new ProgressEntryDetails(today, true, null, null, null, null);
         when(progressRepository.existsByUpgradeIdAndDate(any(), any())).thenReturn(true);
 
         assertThatThrownBy(() -> service.recordProgress(userId, upgradeId, req))

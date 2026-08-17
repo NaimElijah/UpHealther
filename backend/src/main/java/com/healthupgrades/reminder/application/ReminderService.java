@@ -1,9 +1,8 @@
 package com.healthupgrades.reminder.application;
 
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
-import com.healthupgrades.reminder.adapter.in.web.ReminderDto;
-import com.healthupgrades.reminder.adapter.in.web.ReminderRequest;
 import com.healthupgrades.reminder.application.port.in.ReminderQuery;
+import com.healthupgrades.reminder.application.port.in.ReminderSchedule;
 import com.healthupgrades.reminder.domain.model.Reminder;
 import com.healthupgrades.reminder.domain.model.ReminderDays;
 import com.healthupgrades.reminder.domain.port.out.ReminderRepositoryPort;
@@ -22,25 +21,28 @@ public class ReminderService implements ReminderQuery {
     private final ReminderRepositoryPort repository;
     private final UpgradeQuery upgradeQuery;
 
+    /** Creates a reminder on an owned upgrade. New reminders are enabled unless told otherwise. */
     @Transactional
-    public ReminderDto create(UUID userId, UUID upgradeId, ReminderRequest req) {
+    public Reminder create(UUID userId, UUID upgradeId, ReminderSchedule schedule) {
         upgradeQuery.getOwnedUpgrade(userId, upgradeId); // ownership check (throws if not owned)
-        Reminder reminder = Reminder.create(upgradeId, req.reminderTime(),
-                ReminderDays.of(req.daysOfWeek()), req.enabled() == null || req.enabled());
-        return toDto(repository.save(reminder));
+        Reminder reminder = Reminder.create(upgradeId, schedule.reminderTime(),
+                ReminderDays.of(schedule.days()), schedule.enabled() == null || schedule.enabled());
+        return repository.save(reminder);
     }
 
-    public List<ReminderDto> getForUpgrade(UUID userId, UUID upgradeId) {
+    /** An owned upgrade's reminders. */
+    public List<Reminder> getForUpgrade(UUID userId, UUID upgradeId) {
         upgradeQuery.getOwnedUpgrade(userId, upgradeId);
-        return repository.findByUpgradeId(upgradeId).stream().map(this::toDto).toList();
+        return repository.findByUpgradeId(upgradeId);
     }
 
+    /** Reschedules an owned reminder, leaving its enabled state alone unless one is supplied. */
     @Transactional
-    public ReminderDto update(UUID userId, UUID reminderId, ReminderRequest req) {
+    public Reminder update(UUID userId, UUID reminderId, ReminderSchedule schedule) {
         Reminder reminder = getOwnedReminder(userId, reminderId);
-        reminder.reschedule(req.reminderTime(), ReminderDays.of(req.daysOfWeek()));
-        if (req.enabled() != null) reminder.changeEnabled(req.enabled());
-        return toDto(repository.save(reminder));
+        reminder.reschedule(schedule.reminderTime(), ReminderDays.of(schedule.days()));
+        if (schedule.enabled() != null) reminder.changeEnabled(schedule.enabled());
+        return repository.save(reminder);
     }
 
     @Transactional
@@ -62,8 +64,4 @@ public class ReminderService implements ReminderQuery {
         return repository.findByEnabledTrue();
     }
 
-    private ReminderDto toDto(Reminder r) {
-        return new ReminderDto(r.getId(), r.getUpgradeId(), r.getReminderTime(),
-                r.days().toTokens(), r.isEnabled());
-    }
 }

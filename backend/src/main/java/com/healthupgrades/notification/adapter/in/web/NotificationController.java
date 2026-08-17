@@ -17,10 +17,11 @@ import java.util.UUID;
 public class NotificationController {
 
     private final NotificationService service;
+    private final NotificationWebMapper mapper;
 
     @GetMapping
     public ResponseEntity<List<NotificationDto>> list(@AuthenticationPrincipal SecurityUser principal) {
-        return ResponseEntity.ok(service.listRecent(principal.getId()));
+        return ResponseEntity.ok(mapper.toDtos(service.listRecent(principal.getId())));
     }
 
     @GetMapping("/unread-count")
@@ -30,7 +31,7 @@ public class NotificationController {
 
     @PostMapping("/{id}/read")
     public ResponseEntity<NotificationDto> markRead(@AuthenticationPrincipal SecurityUser principal, @PathVariable UUID id) {
-        return ResponseEntity.ok(service.markRead(principal.getId(), id));
+        return ResponseEntity.ok(mapper.toDto(service.markRead(principal.getId(), id)));
     }
 
     @PostMapping("/read-all")

@@ -1,7 +1,6 @@
 package com.healthupgrades.notification.application;
 
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
-import com.healthupgrades.notification.adapter.in.web.NotificationDto;
 import com.healthupgrades.notification.domain.model.Notification;
 import com.healthupgrades.notification.domain.model.NotificationCategory;
 import com.healthupgrades.notification.domain.model.NotificationType;
@@ -36,8 +35,8 @@ public class NotificationService {
      * by both the event listener and the scheduler.
      */
     @Transactional
-    public NotificationDto create(UUID userId, NotificationType type, NotificationCategory category,
-                                  String title, String message, UUID relatedUpgradeId) {
+    public Notification create(UUID userId, NotificationType type, NotificationCategory category,
+                               String title, String message, UUID relatedUpgradeId) {
         Notification notification = repository.save(Notification.builder()
                 .userId(userId)
                 .type(type)
@@ -49,7 +48,7 @@ public class NotificationService {
                 .build());
 
         pushAfterCommit(userId, notification);
-        return toDto(notification);
+        return notification;
     }
 
     /**
@@ -61,9 +60,9 @@ public class NotificationService {
      * @return the new notification, or empty when one already existed
      */
     @Transactional
-    public Optional<NotificationDto> createOncePerUpgrade(UUID userId, NotificationType type,
-                                                          NotificationCategory category, String title,
-                                                          String message, UUID relatedUpgradeId) {
+    public Optional<Notification> createOncePerUpgrade(UUID userId, NotificationType type,
+                                                       NotificationCategory category, String title,
+                                                       String message, UUID relatedUpgradeId) {
         if (repository.existsByUserIdAndRelatedUpgradeIdAndType(userId, relatedUpgradeId, type)) {
             return Optional.empty();
         }
@@ -89,8 +88,8 @@ public class NotificationService {
     }
 
     /** The user's 50 most recent notifications, newest first. */
-    public List<NotificationDto> listRecent(UUID userId) {
-        return repository.findTop50ByUserIdOrderByCreatedAtDesc(userId).stream().map(this::toDto).toList();
+    public List<Notification> listRecent(UUID userId) {
+        return repository.findTop50ByUserIdOrderByCreatedAtDesc(userId);
     }
 
     /** Count of the user's unread notifications. */
@@ -100,11 +99,11 @@ public class NotificationService {
 
     /** Marks a single owned notification as read. */
     @Transactional
-    public NotificationDto markRead(UUID userId, UUID id) {
+    public Notification markRead(UUID userId, UUID id) {
         Notification notification = repository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Notification not found: " + id));
         notification.markAsRead();
-        return toDto(repository.save(notification));
+        return repository.save(notification);
     }
 
     /** Marks all of the user's notifications as read. */
@@ -113,9 +112,4 @@ public class NotificationService {
         repository.markAllReadForUser(userId);
     }
 
-    /** Maps a notification domain object to its web DTO. */
-    private NotificationDto toDto(Notification n) {
-        return new NotificationDto(n.getId(), n.getType(), n.getCategory(), n.getTitle(), n.getMessage(),
-                n.getRelatedUpgradeId(), n.isRead(), n.getCreatedAt());
-    }
 }

@@ -3,7 +3,7 @@ package com.healthupgrades.upgrade.application;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradePlanned;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
-import com.healthupgrades.upgrade.adapter.in.web.UpgradeRequest;
+import com.healthupgrades.upgrade.application.port.in.UpgradeDetails;
 import com.healthupgrades.upgrade.domain.model.Difficulty;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
@@ -63,8 +63,8 @@ class UpgradeServiceTest {
                 .build();
     }
 
-    private UpgradeRequest requestWithDifficulty(Difficulty difficulty) {
-        return new UpgradeRequest(null, "Cold showers", null, UpgradeType.HABIT,
+    private UpgradeDetails detailsWithDifficulty(Difficulty difficulty) {
+        return new UpgradeDetails(null, "Cold showers", null, UpgradeType.HABIT,
                 difficulty, null, null, null, null);
     }
 
@@ -75,7 +75,7 @@ class UpgradeServiceTest {
         when(repository.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD))
                 .thenReturn(3L);
 
-        assertThatThrownBy(() -> service.update(userId, upgradeId, requestWithDifficulty(Difficulty.HARD)))
+        assertThatThrownBy(() -> service.update(userId, upgradeId, detailsWithDifficulty(Difficulty.HARD)))
                 .isInstanceOf(BusinessRuleException.class);
 
         verify(repository, never()).save(any());
@@ -89,7 +89,7 @@ class UpgradeServiceTest {
                 .thenReturn(2L);
         when(repository.save(any(HealthUpgrade.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        HealthUpgrade saved = service.update(userId, upgradeId, requestWithDifficulty(Difficulty.HARD));
+        HealthUpgrade saved = service.update(userId, upgradeId, detailsWithDifficulty(Difficulty.HARD));
 
         assertThat(saved.getDifficulty()).isEqualTo(Difficulty.HARD);
     }
@@ -100,7 +100,7 @@ class UpgradeServiceTest {
                 .thenReturn(Optional.of(upgradeWith(UpgradeStatus.PLANNED, Difficulty.MEDIUM)));
         when(repository.save(any(HealthUpgrade.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        service.update(userId, upgradeId, requestWithDifficulty(Difficulty.HARD));
+        service.update(userId, upgradeId, detailsWithDifficulty(Difficulty.HARD));
 
         // Only ACTIVE upgrades occupy a HARD slot, so a planned promotion must not pay for the count query.
         verify(repository, never()).countByUserIdAndStatusAndDifficulty(any(), any(), any());
@@ -140,7 +140,7 @@ class UpgradeServiceTest {
                 .thenReturn(Optional.of(upgradeWith(UpgradeStatus.ACTIVE, Difficulty.HARD)));
         when(repository.save(any(HealthUpgrade.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        service.update(userId, upgradeId, requestWithDifficulty(Difficulty.HARD));
+        service.update(userId, upgradeId, detailsWithDifficulty(Difficulty.HARD));
 
         verify(repository, never()).countByUserIdAndStatusAndDifficulty(any(), any(), any());
     }

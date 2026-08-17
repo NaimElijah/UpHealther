@@ -4,7 +4,7 @@ import com.healthupgrades.upgrade.domain.service.UpgradeSchedulingService;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.upgrade.domain.event.*;
-import com.healthupgrades.upgrade.adapter.in.web.UpgradeRequest;
+import com.healthupgrades.upgrade.application.port.in.UpgradeDetails;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.model.*;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
@@ -38,10 +38,10 @@ public class UpgradeService implements UpgradeQuery {
 
     /** Creates a new upgrade in the IDEA state and publishes a creation event. */
     @Transactional
-    public HealthUpgrade create(UUID userId, UpgradeRequest req) {
-        HealthUpgrade upgrade = HealthUpgrade.create(userId, req.areaId(), req.title(), req.description(),
-                req.type(), req.difficulty(), req.plannedStartDate(), req.targetEndDate(),
-                req.motivation(), req.successCriteria());
+    public HealthUpgrade create(UUID userId, UpgradeDetails details) {
+        HealthUpgrade upgrade = HealthUpgrade.create(userId, details.areaId(), details.title(), details.description(),
+                details.type(), details.difficulty(), details.plannedStartDate(), details.targetEndDate(),
+                details.motivation(), details.successCriteria());
         upgrade = repository.save(upgrade);
         eventPublisher.publish(new HealthUpgradeCreated(upgrade.getId(), userId, upgrade.getTitle(), LocalDateTime.now()));
         return upgrade;
@@ -58,17 +58,17 @@ public class UpgradeService implements UpgradeQuery {
 
     /** Updates the editable fields of an owned upgrade. */
     @Transactional
-    public HealthUpgrade update(UUID userId, UUID id, UpgradeRequest req) {
+    public HealthUpgrade update(UUID userId, UUID id, UpgradeDetails details) {
         HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
-        boolean difficultyChanges = req.difficulty() != null && req.difficulty() != upgrade.getDifficulty();
+        boolean difficultyChanges = details.difficulty() != null && details.difficulty() != upgrade.getDifficulty();
         if (difficultyChanges) {
             // Fail before mutating anything.
-            validateHardLimit(userId, req.difficulty(), upgrade.getStatus() == UpgradeStatus.ACTIVE);
+            validateHardLimit(userId, details.difficulty(), upgrade.getStatus() == UpgradeStatus.ACTIVE);
         }
 
-        upgrade.updateDetails(req.areaId(), req.title(), req.description(), req.type(),
-                req.targetEndDate(), req.motivation(), req.successCriteria());
-        if (difficultyChanges) upgrade.changeDifficulty(req.difficulty());
+        upgrade.updateDetails(details.areaId(), details.title(), details.description(), details.type(),
+                details.targetEndDate(), details.motivation(), details.successCriteria());
+        if (difficultyChanges) upgrade.changeDifficulty(details.difficulty());
         return repository.save(upgrade);
     }
 

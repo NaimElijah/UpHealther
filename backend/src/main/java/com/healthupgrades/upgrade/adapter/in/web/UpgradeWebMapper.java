@@ -1,5 +1,6 @@
 package com.healthupgrades.upgrade.adapter.in.web;
 
+import com.healthupgrades.upgrade.application.port.in.UpgradeDetails; // the shape use cases accept
 import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummary; // what this context asked for
 import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort; // who fills it in
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // domain aggregate being mapped
@@ -26,6 +27,13 @@ public class UpgradeWebMapper {
 
     private final UpgradeTrackingSummaryPort trackingSummaries; // outbound port: tracking setup per upgrade
     private final Clock clock; // decides the "as of" date for the derived overdue flag
+
+    /** Request record to the use-case input shape. */
+    public UpgradeDetails toDetails(UpgradeRequest req) {
+        return new UpgradeDetails(req.areaId(), req.title(), req.description(), req.type(),
+                req.difficulty(), req.plannedStartDate(), req.targetEndDate(),
+                req.motivation(), req.successCriteria());
+    }
 
     /** Maps a single upgrade, looking up its tracking configuration on demand. */
     public UpgradeDto toDto(HealthUpgrade upgrade) {

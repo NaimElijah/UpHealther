@@ -2,8 +2,7 @@ package com.healthupgrades.reflection.application;
 
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.reflection.domain.event.ReflectionAdded;
-import com.healthupgrades.reflection.adapter.in.web.ReflectionDto;
-import com.healthupgrades.reflection.adapter.in.web.ReflectionRequest;
+import com.healthupgrades.reflection.application.port.in.ReflectionDetails;
 import com.healthupgrades.reflection.domain.model.Reflection;
 import com.healthupgrades.reflection.domain.port.out.ReflectionRepositoryPort;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
@@ -26,32 +25,28 @@ public class ReflectionService {
     private final DomainEventPublisher eventPublisher;
     private final Clock clock; // decides the date a reflection defaults to
 
+    /** Records a reflection against an owned upgrade, defaulting the date to today. */
     @Transactional
-    public ReflectionDto create(UUID userId, UUID upgradeId, ReflectionRequest req) {
+    public Reflection create(UUID userId, UUID upgradeId, ReflectionDetails details) {
         upgradeQuery.getOwnedUpgrade(userId, upgradeId);
         Reflection reflection = Reflection.builder()
                 .upgradeId(upgradeId)
                 .userId(userId)
-                .date(req.date() != null ? req.date() : LocalDate.now(clock))
-                .difficultyRating(req.difficultyRating())
-                .benefitRating(req.benefitRating())
-                .whatWorked(req.whatWorked())
-                .whatDidNotWork(req.whatDidNotWork())
-                .nextAdjustment(req.nextAdjustment())
+                .date(details.date() != null ? details.date() : LocalDate.now(clock))
+                .difficultyRating(details.difficultyRating())
+                .benefitRating(details.benefitRating())
+                .whatWorked(details.whatWorked())
+                .whatDidNotWork(details.whatDidNotWork())
+                .nextAdjustment(details.nextAdjustment())
                 .build();
         reflection = repository.save(reflection);
         eventPublisher.publish(new ReflectionAdded(reflection.getId(), upgradeId, userId, LocalDateTime.now()));
-        return toDto(reflection);
+        return reflection;
     }
 
-    public List<ReflectionDto> getForUpgrade(UUID userId, UUID upgradeId) {
+    /** An owned upgrade's reflections, newest first. */
+    public List<Reflection> getForUpgrade(UUID userId, UUID upgradeId) {
         upgradeQuery.getOwnedUpgrade(userId, upgradeId);
-        return repository.findByUpgradeIdOrderByDateDesc(upgradeId).stream().map(this::toDto).toList();
-    }
-
-    private ReflectionDto toDto(Reflection r) {
-        return new ReflectionDto(r.getId(), r.getUpgradeId(), r.getUserId(), r.getDate(),
-                r.getDifficultyRating(), r.getBenefitRating(), r.getWhatWorked(),
-                r.getWhatDidNotWork(), r.getNextAdjustment(), r.getCreatedAt());
+        return repository.findByUpgradeIdOrderByDateDesc(upgradeId);
     }
 }

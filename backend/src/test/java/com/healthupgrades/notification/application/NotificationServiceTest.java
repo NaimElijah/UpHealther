@@ -1,6 +1,5 @@
 package com.healthupgrades.notification.application;
 
-import com.healthupgrades.notification.adapter.in.web.NotificationDto;
 import com.healthupgrades.notification.domain.model.Notification;
 import com.healthupgrades.notification.domain.model.NotificationCategory;
 import com.healthupgrades.notification.domain.model.NotificationType;
@@ -41,12 +40,12 @@ class NotificationServiceTest {
             return n;
         });
 
-        NotificationDto dto = service.create(userId, NotificationType.UPGRADE_COMPLETED,
+        Notification created = service.create(userId, NotificationType.UPGRADE_COMPLETED,
                 NotificationCategory.SUCCESS, "Upgrade completed 🎉", "Congrats!", upgradeId);
 
-        assertThat(dto.type()).isEqualTo(NotificationType.UPGRADE_COMPLETED);
-        assertThat(dto.read()).isFalse();
-        assertThat(dto.relatedUpgradeId()).isEqualTo(upgradeId);
+        assertThat(created.getType()).isEqualTo(NotificationType.UPGRADE_COMPLETED);
+        assertThat(created.isRead()).isFalse();
+        assertThat(created.getRelatedUpgradeId()).isEqualTo(upgradeId);
         verify(repository).save(any(Notification.class));
         // pushed to the user's real-time channel via the outbound push port
         verify(pushPort).push(eq(userId), any(Notification.class));
@@ -60,9 +59,9 @@ class NotificationServiceTest {
         when(repository.findByIdAndUserId(n.getId(), userId)).thenReturn(Optional.of(n));
         when(repository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        NotificationDto dto = service.markRead(userId, n.getId());
+        Notification read = service.markRead(userId, n.getId());
 
-        assertThat(dto.read()).isTrue();
+        assertThat(read.isRead()).isTrue();
     }
 
     @Test
@@ -77,10 +76,10 @@ class NotificationServiceTest {
                 userId, upgradeId, NotificationType.UPGRADE_OVERDUE)).thenReturn(false);
         when(repository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Optional<NotificationDto> dto = service.createOncePerUpgrade(userId, NotificationType.UPGRADE_OVERDUE,
+        Optional<Notification> created = service.createOncePerUpgrade(userId, NotificationType.UPGRADE_OVERDUE,
                 NotificationCategory.WARNING, "Upgrade overdue ⏰", "Past its target date.", upgradeId);
 
-        assertThat(dto).isPresent();
+        assertThat(created).isPresent();
         verify(repository).save(any(Notification.class));
         verify(pushPort).push(eq(userId), any(Notification.class));
     }
@@ -90,10 +89,10 @@ class NotificationServiceTest {
         when(repository.existsByUserIdAndRelatedUpgradeIdAndType(
                 userId, upgradeId, NotificationType.UPGRADE_OVERDUE)).thenReturn(true);
 
-        Optional<NotificationDto> dto = service.createOncePerUpgrade(userId, NotificationType.UPGRADE_OVERDUE,
+        Optional<Notification> created = service.createOncePerUpgrade(userId, NotificationType.UPGRADE_OVERDUE,
                 NotificationCategory.WARNING, "Upgrade overdue ⏰", "Past its target date.", upgradeId);
 
-        assertThat(dto).isEmpty();
+        assertThat(created).isEmpty();
         verify(repository, never()).save(any());
         verify(pushPort, never()).push(any(), any());
     }

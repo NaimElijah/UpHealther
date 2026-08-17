@@ -19,8 +19,8 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses; // 
  * <p>This is the "pragmatic" rule set: the domain is kept strictly framework-free (apart from the JPA
  * mapping annotations the entities carry), Spring Data is confined to the persistence adapters, outbound
  * ports are interfaces, and bounded contexts talk to each other only through shared surfaces (another
- * context's inbound ports, domain model, published web DTOs, or the common shared kernel). An application
- * service is allowed to use its own context's web DTOs.
+ * context's ports, domain model, published domain events, published web DTOs, or the common shared
+ * kernel).
  */
 @AnalyzeClasses(packages = "com.healthupgrades", importOptions = ImportOption.DoNotIncludeTests.class) // analyse only production classes
 class HexagonalArchitectureTest {
@@ -38,14 +38,16 @@ class HexagonalArchitectureTest {
                     .as("the domain must not depend on Spring, adapters, or the application layer");
 
     /**
-     * The application layer must not depend on outbound adapters — it drives them through outbound ports
-     * (persistence, messaging, events) instead.
+     * The application layer must not depend on adapters in either direction. It drives the outbound side
+     * through ports (persistence, messaging, events), and states its own input and output shapes —
+     * command and result records under {@code application.port.in} — rather than accepting or returning
+     * the web adapter's request and response records.
      */
     @ArchTest
-    static final ArchRule application_does_not_depend_on_outbound_adapters =
+    static final ArchRule application_does_not_depend_on_adapters =
             noClasses().that().resideInAPackage("..application..")
-                    .should().dependOnClassesThat().resideInAPackage("..adapter.out..")
-                    .as("the application layer must not depend on outbound adapters");
+                    .should().dependOnClassesThat().resideInAPackage("..adapter..")
+                    .as("the application layer must not depend on adapters");
 
     /**
      * Spring Data JPA may only be referenced from the persistence adapters, guaranteeing repositories are

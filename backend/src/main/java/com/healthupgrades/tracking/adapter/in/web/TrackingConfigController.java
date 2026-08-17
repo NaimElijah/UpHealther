@@ -16,19 +16,21 @@ import java.util.UUID;
 public class TrackingConfigController {
 
     private final TrackingService trackingService;
+    private final TrackingWebMapper mapper;
 
     @PutMapping
     public ResponseEntity<TrackingConfigDto> saveConfig(
             @AuthenticationPrincipal SecurityUser principal,
             @PathVariable UUID upgradeId,
             @Valid @RequestBody TrackingConfigRequest req) {
-        return ResponseEntity.ok(trackingService.saveConfig(principal.getId(), upgradeId, req));
+        return ResponseEntity.ok(mapper.toDto(
+                trackingService.saveConfig(principal.getId(), upgradeId, mapper.toDetails(req))));
     }
 
     @GetMapping
     public ResponseEntity<TrackingConfigDto> getConfig(
             @AuthenticationPrincipal SecurityUser principal,
             @PathVariable UUID upgradeId) {
-        return ResponseEntity.ok(trackingService.getConfig(principal.getId(), upgradeId));
+        return ResponseEntity.ok(mapper.toDto(trackingService.getConfig(principal.getId(), upgradeId)));
     }
 }
