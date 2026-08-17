@@ -1,6 +1,7 @@
 package com.healthupgrades.upgrade.application;
 
 import com.healthupgrades.common.domain.event.DomainEventPublisher;
+import com.healthupgrades.common.domain.event.HealthUpgradePlanned;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.upgrade.adapter.in.web.UpgradeRequest;
 import com.healthupgrades.upgrade.domain.model.Difficulty;
@@ -12,11 +13,13 @@ import com.healthupgrades.upgrade.domain.service.UpgradeSchedulingService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
@@ -101,6 +104,34 @@ class UpgradeServiceTest {
 
         // Only ACTIVE upgrades occupy a HARD slot, so a planned promotion must not pay for the count query.
         verify(repository, never()).countByUserIdAndStatusAndDifficulty(any(), any(), any());
+    }
+
+    @Test
+    void reschedule_revivingAnAbandonedUpgrade_shouldAnnounceItIsPlannedAgain() {
+        when(repository.findByIdAndUserId(upgradeId, userId))
+                .thenReturn(Optional.of(upgradeWith(UpgradeStatus.ABANDONED, Difficulty.MEDIUM)));
+        when(repository.save(any(HealthUpgrade.class))).thenAnswer(inv -> inv.getArgument(0));
+        LocalDate newDate = LocalDate.of(2026, 4, 1);
+
+        HealthUpgrade revived = service.reschedule(userId, upgradeId, newDate);
+
+        assertThat(revived.getStatus()).isEqualTo(UpgradeStatus.PLANNED);
+        ArgumentCaptor<HealthUpgradePlanned> published = ArgumentCaptor.forClass(HealthUpgradePlanned.class);
+        verify(eventPublisher).publish(published.capture());
+        assertThat(published.getValue().upgradeId()).isEqualTo(upgradeId);
+        assertThat(published.getValue().plannedStartDate()).isEqualTo(newDate);
+    }
+
+    @Test
+    void reschedule_onlyMovingTheDate_shouldAnnounceNothing() {
+        // No status transition happened, so there is nothing for a listener to react to.
+        when(repository.findByIdAndUserId(upgradeId, userId))
+                .thenReturn(Optional.of(upgradeWith(UpgradeStatus.PLANNED, Difficulty.MEDIUM)));
+        when(repository.save(any(HealthUpgrade.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.reschedule(userId, upgradeId, LocalDate.of(2026, 4, 1));
+
+        verify(eventPublisher, never()).publish(any());
     }
 
     @Test

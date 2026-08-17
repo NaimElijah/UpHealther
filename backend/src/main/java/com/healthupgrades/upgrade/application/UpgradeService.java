@@ -163,8 +163,16 @@ public class UpgradeService implements UpgradeQuery {
     @Transactional
     public HealthUpgrade reschedule(UUID userId, UUID id, LocalDate newDate) {
         HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
+        UpgradeStatus statusBefore = upgrade.getStatus();
         upgrade.reschedule(newDate);
-        return repository.save(upgrade);
+        upgrade = repository.save(upgrade);
+
+        // Rescheduling an abandoned upgrade revives it into PLANNED. That is a real lifecycle transition
+        // and has to be announced, or listeners see the upgrade silently reappear as planned.
+        if (upgrade.getStatus() == UpgradeStatus.PLANNED && statusBefore != UpgradeStatus.PLANNED) {
+            eventPublisher.publish(new HealthUpgradePlanned(upgrade.getId(), userId, newDate, LocalDateTime.now()));
+        }
+        return upgrade;
     }
 
     // ---- UpgradeQuery (inbound port) ----
