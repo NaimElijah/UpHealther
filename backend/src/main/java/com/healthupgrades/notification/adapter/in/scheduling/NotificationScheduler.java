@@ -15,9 +15,9 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -73,11 +73,11 @@ public class NotificationScheduler {
     @Scheduled(cron = "${app.notifications.schedules.reminders}")
     public void dispatchReminders() {
         LocalTime now = LocalTime.now(clock);
-        String todayShort = LocalDate.now(clock).getDayOfWeek().name().substring(0, 3); // e.g. MONDAY -> MON
+        DayOfWeek today = LocalDate.now(clock).getDayOfWeek();
 
+        // Whether a reminder is due is the reminder's own question to answer, not this adapter's.
         List<Reminder> due = reminderQuery.findEnabled().stream()
-                .filter(r -> isDueNow(r.getReminderTime(), now))
-                .filter(r -> dayMatches(r.getDaysOfWeek(), todayShort))
+                .filter(r -> r.isDueAt(today, now))
                 .toList();
         if (due.isEmpty()) return;
 
@@ -95,16 +95,4 @@ public class NotificationScheduler {
         }
     }
 
-    /** True when the reminder's time matches the current hour and minute. */
-    private boolean isDueNow(LocalTime time, LocalTime now) {
-        return time != null && time.getHour() == now.getHour() && time.getMinute() == now.getMinute();
-    }
-
-    /** A blank/empty day list means "every day"; otherwise the CSV must contain today (e.g. MON,WED,FRI). */
-    private boolean dayMatches(String daysOfWeek, String todayShort) {
-        if (daysOfWeek == null || daysOfWeek.isBlank()) return true;
-        return Arrays.stream(daysOfWeek.split(","))
-                .map(s -> s.trim().toUpperCase())
-                .anyMatch(todayShort::equals);
-    }
 }
