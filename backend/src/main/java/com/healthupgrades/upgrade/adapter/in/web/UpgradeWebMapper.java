@@ -1,8 +1,7 @@
 package com.healthupgrades.upgrade.adapter.in.web;
 
-import com.healthupgrades.tracking.application.port.in.TrackingConfigQuery; // inbound port for another context's config
-import com.healthupgrades.tracking.adapter.in.web.TrackingConfigDto; // embedded web DTO (published presentation model)
-import com.healthupgrades.tracking.domain.model.TrackingConfig; // domain config obtained via the port
+import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummary; // what this context asked for
+import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort; // who fills it in
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // domain aggregate being mapped
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -12,47 +11,45 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * Web-adapter mapper that turns {@link HealthUpgrade} domain objects into {@link UpgradeDto} responses,
- * enriching each with its tracking config.
+ * enriching each with its tracking configuration.
  *
- * <p>Living in the web layer (not the application service) is what keeps the upgrade application free of
- * any tracking dependency: the config is fetched here through tracking's inbound {@link TrackingConfigQuery}
- * port, and the embedded {@link TrackingConfigDto} is assembled here.
+ * <p>The configuration arrives through {@link UpgradeTrackingSummaryPort}, a contract this context owns
+ * and another satisfies, so composing the response costs this context no dependency on whichever
+ * context supplies the data.
  */
 @Component
 @RequiredArgsConstructor
 public class UpgradeWebMapper {
 
-    private final TrackingConfigQuery trackingConfigQuery; // cross-context read of tracking configs
+    private final UpgradeTrackingSummaryPort trackingSummaries; // outbound port: tracking setup per upgrade
     private final Clock clock; // decides the "as of" date for the derived overdue flag
 
-    /** Maps a single upgrade, looking up its tracking config on demand. */
+    /** Maps a single upgrade, looking up its tracking configuration on demand. */
     public UpgradeDto toDto(HealthUpgrade upgrade) {
-        // Fetch this upgrade's config (if any) and fold it into the response.
-        TrackingConfigDto config = trackingConfigQuery.findByUpgradeId(upgrade.getId())
-                .map(UpgradeWebMapper::toTrackingConfigDto)
-                .orElse(null);
-        return toDto(upgrade, config);
+        UpgradeTrackingSummary summary = trackingSummaries
+                .findByUpgradeIds(List.of(upgrade.getId()))
+                .get(upgrade.getId());
+        return toDto(upgrade, toTrackingConfigDto(summary));
     }
 
     /**
-     * Batch variant of {@link #toDto(HealthUpgrade)}. Loads every upgrade's tracking config in a single
-     * query instead of one lookup per upgrade, avoiding the N+1 pattern on list/dashboard endpoints.
+     * Batch variant of {@link #toDto(HealthUpgrade)}. Resolves every upgrade's tracking configuration in
+     * one call instead of one lookup per upgrade, avoiding the N+1 pattern on list endpoints.
      */
     public List<UpgradeDto> toDtos(List<HealthUpgrade> upgrades) {
         if (upgrades.isEmpty()) return List.of(); // nothing to map
-        List<UUID> ids = upgrades.stream().map(HealthUpgrade::getId).toList(); // all upgrade ids
-        // One batched query keyed by upgrade id.
-        Map<UUID, TrackingConfigDto> configsByUpgradeId = trackingConfigQuery.findByUpgradeIds(ids).stream()
-                .collect(Collectors.toMap(TrackingConfig::getUpgradeId, UpgradeWebMapper::toTrackingConfigDto));
-        return upgrades.stream().map(u -> toDto(u, configsByUpgradeId.get(u.getId()))).toList();
+        List<UUID> ids = upgrades.stream().map(HealthUpgrade::getId).toList();
+        Map<UUID, UpgradeTrackingSummary> summaries = trackingSummaries.findByUpgradeIds(ids);
+        return upgrades.stream()
+                .map(u -> toDto(u, toTrackingConfigDto(summaries.get(u.getId()))))
+                .toList();
     }
 
-    /** Assembles the response record from an upgrade and its (possibly null) tracking config. */
-    private UpgradeDto toDto(HealthUpgrade u, TrackingConfigDto trackingConfig) {
+    /** Assembles the response record from an upgrade and its (possibly null) tracking configuration. */
+    private UpgradeDto toDto(HealthUpgrade u, UpgradeTrackingConfigDto trackingConfig) {
         return new UpgradeDto(u.getId(), u.getUserId(), u.getAreaId(), u.getTitle(),
                 u.getDescription(), u.getType(), u.getStatus(), u.getDifficulty(),
                 u.getPlannedStartDate(), u.getActualStartDate(), u.getTargetEndDate(),
@@ -60,9 +57,10 @@ public class UpgradeWebMapper {
                 trackingConfig, u.getCreatedAt(), u.getUpdatedAt());
     }
 
-    /** Maps a tracking-config domain object to its embedded web DTO. */
-    private static TrackingConfigDto toTrackingConfigDto(TrackingConfig c) {
-        return new TrackingConfigDto(c.getId(), c.getUpgradeId(), c.getTrackingType(),
-                c.getFrequency(), c.getTargetNumericValue(), c.getTargetUnit(), c.getRequiredDaily());
+    /** An upgrade with no tracking configuration reports none, rather than an empty object. */
+    private static UpgradeTrackingConfigDto toTrackingConfigDto(UpgradeTrackingSummary s) {
+        if (s == null) return null;
+        return new UpgradeTrackingConfigDto(s.id(), s.upgradeId(), s.trackingType(),
+                s.frequency(), s.targetNumericValue(), s.targetUnit(), s.requiredDaily());
     }
 }

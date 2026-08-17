@@ -80,7 +80,11 @@ class HexagonalArchitectureTest {
                     .ignoreDependency(alwaysTrue(), resideInAnyPackage(
                             "com.healthupgrades.common..", // shared kernel + cross-cutting adapters
                             "..domain.model..",            // another context's domain model is shareable
-                            "..application.port.in..")     // another context's inbound ports (the sanctioned entry)
+                            // A context's declared ports are its published surface whichever way they
+                            // face. Inbound ports are the sanctioned way in; outbound ports are how a
+                            // context states what it needs so a supplier can satisfy it without the
+                            // consumer depending on the supplier (see UpgradeTrackingSummaryPort).
+                            "..application.port..")
                             // Published presentation models only: web DTOs and sanctioned shareable web
                             // mappers — NOT controllers, request records, or other web wiring.
                             .or(resideInAPackage("..adapter.in.web..")
