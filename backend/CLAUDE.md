@@ -1,9 +1,14 @@
 # Backend conventions
 
 Architecture is DDD + Hexagonal. The decision and its rationale are recorded in
-`../docs/ADRs/ADR-001-ddd-hexagonal-architecture.md`, and the layering is enforced mechanically by
-`HexagonalArchitectureTest` (ArchUnit) — treat that test as the definition of the module boundaries
-rather than working from a layout described in prose.
+`../docs/ADRs/ADR-001-ddd-hexagonal-architecture.md`, corrected and extended by
+`../docs/ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md`. The layering is
+enforced mechanically by `HexagonalArchitectureTest` (ArchUnit) — treat that test as the definition of
+the module boundaries rather than working from a layout described in prose.
+
+The layout is **not** identical across contexts, whatever ADR-001 §3 says: `auth` orchestrates over
+`user` and owns no aggregate, and `dashboard` is a read/composition model with no domain or outbound
+side. Both are deliberate, not drift.
 
 ## Conventions that span multiple files (follow these)
 
@@ -15,7 +20,7 @@ rather than working from a layout described in prose.
 - **State transitions live on the entity, not in services.** `HealthUpgrade` owns its state machine
   (`plan`, `activate`, `pause`, `complete`, `abandon`, `reschedule`), each guarding the transition and
   throwing `BusinessRuleException` on an illegal move. Services orchestrate the pattern:
-  *load → call the domain method → `repository.save` → publish a domain event → return `toDto`*.
+  *load → call the domain method → `repository.save` → publish a domain event → return the aggregate*.
   Do not put status-guard logic in services or controllers.
 
   `HealthUpgrade` has **no setters**, so this is enforced by the compiler rather than by convention:
@@ -48,9 +53,20 @@ rather than working from a layout described in prose.
 - **Optimistic locking** via `@Version` on entities (e.g. `HealthUpgrade.version`) → concurrent edits
   return 409.
 
-- **Cross-module ownership checks**: a service that touches another module's aggregate calls that
-  module's service to authorize — e.g. `TrackingService` calls `upgradeService.getUpgrade(userId, id)`
-  first to confirm ownership before recording progress.
+- **The application layer never imports an adapter.** A service takes a command record from
+  `application/port/in` and returns a domain object (or a result record where there is no aggregate,
+  e.g. `StreakSummary`). The `*WebMapper` in `adapter/in/web` translates in both directions. Do not
+  give a service an HTTP request record or a DTO — the ArchUnit rule will fail the build, which is the
+  point: a wire-format change must not reach a use-case signature.
+
+- **Cross-context reads go through the other context's inbound port**, never its service class — e.g.
+  `TrackingService` calls `upgradeQuery.getOwnedUpgrade(userId, id)` to confirm ownership before
+  recording progress.
+
+- **When a context needs something another context has, and the arrow would point the wrong way,
+  invert it.** `upgrade` declares `UpgradeTrackingSummaryPort` describing what it wants, and `tracking`
+  implements it. That is what keeps the graph acyclic while the upgrade response still carries tracking
+  config; see ADR-002.
 
 ## Tests
 

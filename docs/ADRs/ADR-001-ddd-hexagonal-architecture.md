@@ -1,8 +1,21 @@
 # ADR-001: Adopt Domain-Driven Design + Hexagonal (Ports & Adapters) for the backend
 
-- **Status:** Accepted
+- **Status:** Accepted — superseded in part by
+  [ADR-002](ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)
 - **Date:** 2026-07-09
 - **Scope:** `backend/` (Spring Boot 3 / Java 21). The React frontend is unaffected.
+
+> **Superseded sections.** The record below stands as written, but three parts of it are no longer
+> accurate and are replaced by ADR-002:
+>
+> - **§3 "Canonical package layout"** — the layout was never identical for every context; `auth` and
+>   `dashboard` are deliberately two-layer. ADR-002 records the real shape.
+> - **"Pragmatic exception"** — withdrawn. No application service uses its own web DTOs any more, and
+>   the ArchUnit rule now forbids it.
+> - **"Enforced rules"** — the list of five is superseded by the ten rules ADR-002 describes.
+>
+> The core decision — pragmatic Hexagonal + DDD, JPA-annotated entities as the domain model, enforced
+> by ArchUnit in a single Maven module — is unchanged and still in force.
 
 ## Context
 

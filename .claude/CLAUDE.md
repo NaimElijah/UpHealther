@@ -24,8 +24,10 @@ experiment, goal, etc.) that moves through a lifecycle.
 ## Architecture
 
 The backend follows DDD + Hexagonal architecture; the decision and its rationale are recorded in
-`docs/ADRs/ADR-001-ddd-hexagonal-architecture.md`, and the layering is enforced by `HexagonalArchitectureTest`
-(ArchUnit). Module-specific conventions live in `backend/CLAUDE.md` and `frontend/CLAUDE.md`.
+`docs/ADRs/ADR-001-ddd-hexagonal-architecture.md`, corrected and extended by
+`docs/ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md`. The layering is
+enforced by `HexagonalArchitectureTest` (ArchUnit). Module-specific conventions live in
+`backend/CLAUDE.md` and `frontend/CLAUDE.md`.
 
 ## Commands
 
