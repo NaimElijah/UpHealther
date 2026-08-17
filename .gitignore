@@ -31,11 +31,9 @@ Thumbs.db
 *.log
 logs/
 
-# docs
-docs/
-
 # Docker
 .docker/
 
-# Local tooling config (project guide, skills, agents)
-.claude/
+# Local tooling config — .claude/ is tracked (project guide, skills, agents);
+# only machine-local agent state is ignored.
+.claude/settings.local.json
