@@ -43,6 +43,10 @@ public enum UpgradeType {
      * <p>Retained rather than offered: it predates the kinds above, appears in no requirement and is not
      * selectable in the UI, but a deployed database may hold rows carrying it — and Hibernate would fail
      * to read those back if the constant were removed.
+     *
+     * @deprecated not one of the documented upgrade kinds. Existing rows keep it and still render; new
+     *             code should choose from the eight above. Remove once no stored row carries it.
      */
+    @Deprecated
     PROTOCOL
 }

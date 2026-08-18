@@ -52,6 +52,13 @@ class FrontendEnumContractTest {
     private static final Pattern UNION_MEMBER = Pattern.compile("'([A-Z_]+)'");
 
     /**
+     * Matches a union of screaming-caps string literals, which is how this codebase spells a mirrored
+     * backend enum and nothing else.
+     */
+    private static final Pattern MIRRORED_UNION = Pattern.compile(
+            "export type (\\w+)\\s*=\\s*((?:\\s*\\|?\\s*'[A-Z_]+')+)\\s*;", Pattern.DOTALL);
+
+    /**
      * Every backend enum that the frontend mirrors, paired with the union that mirrors it.
      *
      * <p>A new mirrored enum belongs here; one that is not listed is not checked.
@@ -83,14 +90,43 @@ class FrontendEnumContractTest {
     }
 
     @Test
-    void GivenTheFrontendTypesFile_WhenItIsRead_ThenEveryMirroredUnionIsPresent() {
+    void GivenARegisteredUnion_WhenTheFrontendIsRead_ThenItStillExistsThere() {
         String source = readFrontendTypes();
 
-        assertThat(mirroredEnums().map(args -> (String) args.get()[0]))
+        assertThat(registeredUnions())
                 .allSatisfy(union -> assertThat(source)
                         .describedAs("union '%s' was renamed or removed; this test can no longer check it, "
                                 + "which is worse than it failing", union)
                         .contains("export type " + union + " ="));
+    }
+
+    /**
+     * The registration above is hand-maintained, which is the very failure this class exists to catch —
+     * so it is checked too. A mirrored union the frontend declares and nobody registered would otherwise
+     * be silently unguarded.
+     */
+    @Test
+    void GivenAMirroredUnionInTheFrontend_WhenItIsNotRegisteredHere_ThenTheOmissionFailsTheBuild() {
+        Matcher declarations = MIRRORED_UNION.matcher(readFrontendTypes());
+        Set<String> declared = new LinkedHashSet<>();
+        while (declarations.find()) {
+            declared.add(declarations.group(1));
+        }
+
+        assertThat(declared)
+                .describedAs("every enum-shaped union in %s must be registered in mirroredEnums(), or it is "
+                                + "not checked against the backend at all. Register it, or — if it is a "
+                                + "frontend-only union with no backend enum behind it — say so in a comment "
+                                + "on the declaration and exclude it here deliberately",
+                        FRONTEND_TYPES)
+                .isSubsetOf(registeredUnions());
+    }
+
+    /** The union names this class checks. */
+    private static Set<String> registeredUnions() {
+        return mirroredEnums()
+                .map(args -> (String) args.get()[0])
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     /** The values declared by one union in the frontend's shared types. */
