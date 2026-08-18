@@ -329,8 +329,10 @@ returns 409. Nothing else is version-checked, because nothing else is edited fro
 exceptions and never build a status by hand. The mapping is pinned by a test.
 
 **The frontend's types are hand-written, not generated.** `src/types/index.ts` mirrors the backend's
-DTOs and enums by hand, so nothing detects drift between them. Two divergences exist today and are
-recorded in that file.
+DTOs and enums by hand. The **enums** are checked: `FrontendEnumContractTest` reads that file and fails
+the build if any mirrored union stops matching its backend enum, which is what stops an unbindable
+value reaching the UI. The **DTO shapes** are not checked — a renamed or retyped field still drifts
+silently, and only a type generated from the API contract would close that gap.
 
 ### Known constraints
 

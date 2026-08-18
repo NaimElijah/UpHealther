@@ -41,10 +41,12 @@ export interface HealthArea {
 /**
  * What kind of change an upgrade is.
  *
- * NOTE: this union does not currently match the backend enum, which accepts only `HABIT`, `GOAL`,
- * `EXPERIMENT` and `PROTOCOL`. Five of the values below are rejected by the API with a 400, and
- * `PROTOCOL` is missing here. Keep the backend enum, this type and the seed data in step when
- * changing any of them.
+ * Must stay identical to the backend `UpgradeType` enum — the value is bound straight from the
+ * request body, so a name offered here and missing there fails to deserialize and surfaces as a 500.
+ * `FrontendEnumContractTest` in the backend fails the build if the two drift apart.
+ *
+ * `PROTOCOL` is legacy: it is accepted and rendered so an existing row displays, but it is not one of
+ * the documented kinds and is deliberately absent from the create form.
  */
 export type UpgradeType =
   | 'HABIT'
@@ -54,7 +56,8 @@ export type UpgradeType =
   | 'GOAL'
   | 'EXPERIMENT'
   | 'LEARNING_TASK'
-  | 'MEDICAL_PREVENTIVE';
+  | 'MEDICAL_PREVENTIVE'
+  | 'PROTOCOL';
 
 /**
  * Where an upgrade stands in its lifecycle.
@@ -79,9 +82,10 @@ export type TrackingType = 'BOOLEAN' | 'NUMERIC' | 'TEXT' | 'RATING';
 /**
  * How often an upgrade is expected to be acted on.
  *
- * NOTE: `CUSTOM` has no counterpart in the backend enum and is rejected by the API.
+ * Must stay identical to the backend `Frequency` enum. A per-day schedule is expressed with a
+ * reminder, not with a frequency, which is why there is no custom option here.
  */
-export type Frequency = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM';
+export type Frequency = 'DAILY' | 'WEEKLY' | 'MONTHLY';
 
 /** How one upgrade is tracked. At most one per upgrade; absent when tracking is not set up. */
 export interface TrackingConfig {
