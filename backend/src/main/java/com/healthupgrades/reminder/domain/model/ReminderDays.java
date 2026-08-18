@@ -105,16 +105,19 @@ public final class ReminderDays {
         return days.isEmpty() || days.contains(day);
     }
 
+    /** Value equality: two filters are equal when they cover the same set of days. */
     @Override
     public boolean equals(Object other) {
         return other instanceof ReminderDays that && days.equals(that.days);
     }
 
+    /** {@inheritDoc} Consistent with {@link #equals(Object)}. */
     @Override
     public int hashCode() {
         return days.hashCode();
     }
 
+    /** Diagnostic form: the day tokens, or "every day" when there is no filter. */
     @Override
     public String toString() {
         return days.isEmpty() ? "every day" : String.join(SEPARATOR, toTokens());

@@ -43,7 +43,15 @@ public class Reminder {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
-    /** Creates a reminder for an upgrade. A reminder is enabled unless explicitly created disabled. */
+    /**
+     * Creates a reminder for an upgrade.
+     *
+     * @param upgradeId    the upgrade it belongs to, and through which it is owned
+     * @param reminderTime the local time it fires at
+     * @param days         the days it fires on; an empty filter means every day
+     * @param enabled      whether it starts switched on
+     * @return the new reminder
+     */
     public static Reminder create(UUID upgradeId, LocalTime reminderTime, ReminderDays days, boolean enabled) {
         return Reminder.builder()
                 .upgradeId(upgradeId)
@@ -53,13 +61,22 @@ public class Reminder {
                 .build();
     }
 
-    /** Changes when the reminder fires. */
+    /**
+     * Changes when the reminder fires, leaving its enabled state untouched.
+     *
+     * @param reminderTime the new local time
+     * @param days         the new day filter; empty means every day
+     */
     public void reschedule(LocalTime reminderTime, ReminderDays days) {
         this.reminderTime = reminderTime;
         this.daysOfWeek = days.toStorageValue();
     }
 
-    /** Turns the reminder on or off without otherwise changing its schedule. */
+    /**
+     * Turns the reminder on or off without otherwise changing its schedule.
+     *
+     * @param enabled whether it should fire
+     */
     public void changeEnabled(boolean enabled) {
         this.enabled = enabled;
     }
@@ -77,6 +94,13 @@ public class Reminder {
     /**
      * Whether this reminder should fire at the given moment: it is enabled, the day matches its filter,
      * and the wall-clock hour and minute match its configured time.
+     *
+     * <p>Compared to the minute, not to the second, because the dispatch job wakes once a minute — an
+     * exact-instant comparison would miss almost every reminder.
+     *
+     * @param day  the day being checked
+     * @param time the wall-clock time being checked
+     * @return true if the reminder is due right now
      */
     public boolean isDueAt(DayOfWeek day, LocalTime time) {
         return isEnabled()
@@ -86,12 +110,14 @@ public class Reminder {
                 && reminderTime.getMinute() == time.getMinute();
     }
 
+    /** Stamps the creation and update timestamps before the row is first inserted. */
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
 
+    /** Refreshes the update timestamp before each update. */
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();

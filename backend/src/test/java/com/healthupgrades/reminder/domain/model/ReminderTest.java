@@ -11,6 +11,12 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/**
+ * Covers the reminder aggregate's due-ness rule: the day filter, the time match, and the enabled flag.
+ *
+ * <p>These conditions used to be evaluated by the notification scheduler against a raw CSV column, so
+ * this test is also what keeps that logic from drifting back out of the aggregate.
+ */
 class ReminderTest {
 
     private static final LocalTime NINE_AM = LocalTime.of(9, 0);

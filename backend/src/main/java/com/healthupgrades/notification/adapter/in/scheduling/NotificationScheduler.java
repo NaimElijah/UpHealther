@@ -49,7 +49,13 @@ public class NotificationScheduler {
     private final NotificationService notificationService; // own application service (create + push)
     private final Clock clock; // injectable clock for deterministic scheduling
 
-    /** Nudges users with active upgrades who haven't logged any progress today (once per day). */
+    /**
+     * Nudges every user who has running upgrades but has logged nothing today.
+     *
+     * <p>Two guards keep this from becoming noise: a user who has already logged something today is
+     * skipped, and so is one who has already been nudged since midnight — the second matters because
+     * nothing stops this cron from being configured to run more than once a day.
+     */
     @Scheduled(cron = "${app.notifications.schedules.daily-checkin}")
     public void notifyDailyCheckin() {
         LocalDate today = LocalDate.now(clock);
@@ -69,7 +75,17 @@ public class NotificationScheduler {
         });
     }
 
-    /** Dispatches user-configured per-upgrade reminders whose time/day matches now (runs every minute). */
+    /**
+     * Fires the reminders that are due at this minute.
+     *
+     * <p>Runs every minute, which is what a reminder configured to the minute requires. It sweeps every
+     * enabled reminder each time, so the two costly parts are avoided deliberately: due-ness is decided
+     * by the reminder itself without a database round trip, and the upgrades behind the due ones are
+     * loaded in one batch rather than one query each.
+     *
+     * <p>Unlike the check-in nudge there is no dedup guard, and none is needed: a given minute occurs
+     * once, so a reminder cannot match twice.
+     */
     @Scheduled(cron = "${app.notifications.schedules.reminders}")
     public void dispatchReminders() {
         LocalTime now = LocalTime.now(clock);

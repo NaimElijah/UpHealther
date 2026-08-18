@@ -6,6 +6,16 @@ import lombok.*;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+/**
+ * Health area aggregate — a user-defined grouping ("Fitness", "Sleep") that upgrades are filed under.
+ *
+ * <p>Unlike {@code HealthUpgrade}, this aggregate keeps its setters: it has no state machine and no
+ * invariant beyond "belongs to a user and has a name", so there is nothing for a factory or transition
+ * method to protect.
+ *
+ * <p>An area is referenced by upgrades through its id only, so deleting one leaves those upgrades
+ * pointing at a missing area rather than cascading.
+ */
 @Entity
 @Table(name = "health_areas")
 @Getter
@@ -39,12 +49,14 @@ public class HealthArea {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    /** Stamps the creation and update timestamps before the row is first inserted. */
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
 
+    /** Refreshes the update timestamp before each update. */
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();

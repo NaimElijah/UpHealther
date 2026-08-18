@@ -26,6 +26,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+/**
+ * Covers the overdue sweep: which active upgrades it announces, and that it announces nothing for those
+ * still within their target date.
+ *
+ * <p>Driven by a fixed {@link java.time.Clock}, so "past its target date" means the same thing on every
+ * run.
+ */
 class UpgradeOverdueSchedulerTest {
 
     @Mock UpgradeQuery upgradeQuery;

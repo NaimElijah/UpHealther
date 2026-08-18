@@ -129,17 +129,26 @@ public class HealthUpgrade {
         this.successCriteria = successCriteria;
     }
 
+    /** Stamps the creation and update timestamps before the row is first inserted. */
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
 
+    /** Refreshes the update timestamp before each update. */
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
 
+    /**
+     * Commits an idea to a start date: IDEA → PLANNED.
+     *
+     * @param plannedStart the date the user intends to start; not required to be in the future, since
+     *                     users plan retroactively
+     * @throws BusinessRuleException if the upgrade is not an IDEA
+     */
     public void plan(LocalDate plannedStart) {
         if (status != UpgradeStatus.IDEA) {
             throw new BusinessRuleException("Only IDEA upgrades can be planned");
@@ -148,6 +157,16 @@ public class HealthUpgrade {
         this.status = UpgradeStatus.PLANNED;
     }
 
+    /**
+     * Starts or resumes an upgrade: PLANNED → ACTIVE, or PAUSED → ACTIVE.
+     *
+     * <p>Records the date it actually started, which is what progress and streaks are measured from.
+     * The max-concurrent-HARD rule is <em>not</em> checked here — it needs a count across the user's
+     * other upgrades, which the aggregate cannot see; {@code UpgradeService} applies it first.
+     *
+     * @param startDate the date the upgrade starts running
+     * @throws BusinessRuleException if the upgrade is not PLANNED or PAUSED
+     */
     public void activate(LocalDate startDate) {
         if (status != UpgradeStatus.PLANNED && status != UpgradeStatus.PAUSED) {
             throw new BusinessRuleException("Only PLANNED or PAUSED upgrades can be activated");
@@ -156,6 +175,11 @@ public class HealthUpgrade {
         this.status = UpgradeStatus.ACTIVE;
     }
 
+    /**
+     * Suspends a running upgrade: ACTIVE → PAUSED, releasing any HARD slot it held.
+     *
+     * @throws BusinessRuleException if the upgrade is not ACTIVE
+     */
     public void pause() {
         if (status != UpgradeStatus.ACTIVE) {
             throw new BusinessRuleException("Only ACTIVE upgrades can be paused");
@@ -163,6 +187,11 @@ public class HealthUpgrade {
         this.status = UpgradeStatus.PAUSED;
     }
 
+    /**
+     * Finishes a running upgrade successfully: ACTIVE → COMPLETED, which is terminal.
+     *
+     * @throws BusinessRuleException if the upgrade is not ACTIVE
+     */
     public void complete() {
         if (status != UpgradeStatus.ACTIVE) {
             throw new BusinessRuleException("Only ACTIVE upgrades can be completed");
@@ -170,6 +199,13 @@ public class HealthUpgrade {
         this.status = UpgradeStatus.COMPLETED;
     }
 
+    /**
+     * Gives an upgrade up, from any state that is not already final: → ABANDONED.
+     *
+     * <p>Reversible through {@link #reschedule}, unlike completion.
+     *
+     * @throws BusinessRuleException if the upgrade is already COMPLETED or ABANDONED
+     */
     public void abandon() {
         if (status == UpgradeStatus.COMPLETED || status == UpgradeStatus.ABANDONED) {
             throw new BusinessRuleException("Cannot abandon a COMPLETED or already ABANDONED upgrade");
@@ -177,6 +213,15 @@ public class HealthUpgrade {
         this.status = UpgradeStatus.ABANDONED;
     }
 
+    /**
+     * Moves the planned start date, and revives an abandoned upgrade back to PLANNED.
+     *
+     * <p>The revival is the one transition that is not named after its target state: rescheduling
+     * something you had given up on is how you take it back on.
+     *
+     * @param newDate the new planned start date
+     * @throws BusinessRuleException if the upgrade is COMPLETED
+     */
     public void reschedule(LocalDate newDate) {
         if (status == UpgradeStatus.COMPLETED) {
             throw new BusinessRuleException("Cannot reschedule a COMPLETED upgrade");
@@ -187,6 +232,14 @@ public class HealthUpgrade {
         }
     }
 
+    /**
+     * Sets the difficulty.
+     *
+     * <p>Unguarded here on purpose: promoting an upgrade to HARD may breach the concurrent-HARD limit,
+     * and that check needs the user's other upgrades. {@code UpgradeService} validates before calling.
+     *
+     * @param difficulty the new difficulty, may be null
+     */
     public void changeDifficulty(Difficulty difficulty) {
         this.difficulty = difficulty;
     }
@@ -203,6 +256,15 @@ public class HealthUpgrade {
                 && asOf.isAfter(targetEndDate);
     }
 
+    /**
+     * Whether the upgrade is running on the given date, i.e. ACTIVE and within its date window.
+     *
+     * <p>Used to decide what belongs on a day's check-in list. An absent start or end date is treated as
+     * open-ended rather than as a failed match.
+     *
+     * @param date the day being asked about
+     * @return true if progress is expected on that date
+     */
     public boolean isActiveOn(LocalDate date) {
         if (status != UpgradeStatus.ACTIVE) return false;
         if (actualStartDate != null && date.isBefore(actualStartDate)) return false;

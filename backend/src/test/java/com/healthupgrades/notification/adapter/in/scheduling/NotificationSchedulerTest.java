@@ -27,6 +27,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+/**
+ * Covers the scheduled notifications: whether a reminder is dispatched at a given moment, and when the
+ * daily check-in nudge is suppressed.
+ *
+ * <p>Deterministic through a fixed {@link java.time.Clock} — a scheduler test that read the system clock
+ * would pass or fail depending on the minute it ran in.
+ */
 class NotificationSchedulerTest {
 
     @Mock UpgradeQuery upgradeQuery;

@@ -29,6 +29,14 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+/**
+ * Covers the translation from domain event to notification: the category each event produces, and where
+ * the upgrade title in the message comes from.
+ *
+ * <p>The title source is the part worth pinning. Creation carries the title on the event and must not
+ * look it up, while the other events do not and must; and the overdue sweep must notify only once per
+ * upgrade however many times it rediscovers the same overdue upgrade.
+ */
 class NotificationEventListenerTest {
 
     @Mock NotificationService notificationService;

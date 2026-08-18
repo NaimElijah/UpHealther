@@ -36,7 +36,14 @@ public class UpgradeService implements UpgradeQuery {
     private final DomainEventPublisher eventPublisher; // in-process domain events
     private final Clock clock; // decides the start date an activation defaults to
 
-    /** Creates a new upgrade in the IDEA state and publishes a creation event. */
+    /**
+     * Creates a new upgrade in the IDEA state and announces it.
+     *
+     * @param userId  the owner
+     * @param details the attributes to store
+     * @return the persisted aggregate
+     * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if the title or type is missing
+     */
     @Transactional
     public HealthUpgrade create(UUID userId, UpgradeDetails details) {
         HealthUpgrade upgrade = HealthUpgrade.create(userId, details.areaId(), details.title(), details.description(),
@@ -47,16 +54,42 @@ public class UpgradeService implements UpgradeQuery {
         return upgrade;
     }
 
-    /** Lists a user's upgrades, optionally narrowed by the first non-null filter. */
+    /**
+     * Lists a user's upgrades, narrowed by at most one filter.
+     *
+     * <p>The filters are not combined: the first non-null one wins, in the order status, type, area,
+     * difficulty. A caller that needs a conjunction has to narrow the result itself.
+     *
+     * @param userId     the owner
+     * @param status     lifecycle filter, or null
+     * @param type       type filter, or null
+     * @param areaId     health-area filter, or null
+     * @param difficulty difficulty filter, or null
+     * @return the matching upgrades, or all of the user's when every filter is null
+     */
     public List<HealthUpgrade> findAll(UUID userId, UpgradeStatus status, UpgradeType type, UUID areaId, Difficulty difficulty) {
-        if (status != null) return repository.findByUserIdAndStatus(userId, status); // filter by status
-        if (type != null) return repository.findByUserIdAndType(userId, type); // filter by type
-        if (areaId != null) return repository.findByUserIdAndAreaId(userId, areaId); // filter by area
-        if (difficulty != null) return repository.findByUserIdAndDifficulty(userId, difficulty); // filter by difficulty
-        return repository.findByUserId(userId); // no filter -> all
+        if (status != null) return repository.findByUserIdAndStatus(userId, status);
+        if (type != null) return repository.findByUserIdAndType(userId, type);
+        if (areaId != null) return repository.findByUserIdAndAreaId(userId, areaId);
+        if (difficulty != null) return repository.findByUserIdAndDifficulty(userId, difficulty);
+        return repository.findByUserId(userId);
     }
 
-    /** Updates the editable fields of an owned upgrade. */
+    /**
+     * Updates the editable fields of an owned upgrade, and its difficulty when that changed.
+     *
+     * <p>Promoting an already-ACTIVE upgrade to HARD is one of the two ways to occupy a HARD slot, so
+     * the limit is checked here as well as on activation — and checked before anything is mutated, so a
+     * rejected update leaves the aggregate untouched.
+     *
+     * @param userId  the owner
+     * @param id      the upgrade's identifier
+     * @param details the replacement attributes
+     * @return the saved aggregate
+     * @throws ResourceNotFoundException if the upgrade does not exist or belongs to somebody else
+     * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if the title or type is
+     *         missing, or the change would exceed the concurrent-HARD limit
+     */
     @Transactional
     public HealthUpgrade update(UUID userId, UUID id, UpgradeDetails details) {
         HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
@@ -87,14 +120,31 @@ public class UpgradeService implements UpgradeQuery {
         schedulingService.validateWithinHardLimit(difficulty, activeHardCount);
     }
 
-    /** Deletes an owned upgrade. */
+    /**
+     * Deletes an owned upgrade.
+     *
+     * <p>Publishes nothing: the upgrade is gone, so there is no aggregate left for a listener to act on.
+     *
+     * @param userId the owner
+     * @param id     the upgrade's identifier
+     * @throws ResourceNotFoundException if the upgrade does not exist or belongs to somebody else
+     */
     @Transactional
     public void delete(UUID userId, UUID id) {
         HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
         repository.delete(upgrade);
     }
 
-    /** Moves an owned upgrade to PLANNED with a planned start date. */
+    /**
+     * Commits an owned idea to a start date: IDEA to PLANNED.
+     *
+     * @param userId           the owner
+     * @param id               the upgrade's identifier
+     * @param plannedStartDate the intended start date
+     * @return the saved aggregate
+     * @throws ResourceNotFoundException if the upgrade does not exist or belongs to somebody else
+     * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if it is not an IDEA
+     */
     @Transactional
     public HealthUpgrade plan(UUID userId, UUID id, LocalDate plannedStartDate) {
         HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
@@ -104,7 +154,20 @@ public class UpgradeService implements UpgradeQuery {
         return upgrade;
     }
 
-    /** Activates an owned upgrade, enforcing the max-concurrent-HARD invariant first. */
+    /**
+     * Starts or resumes an owned upgrade: PLANNED or PAUSED to ACTIVE.
+     *
+     * <p>The HARD limit is checked before the transition, so a rejected activation leaves the aggregate
+     * as it was.
+     *
+     * @param userId    the owner
+     * @param id        the upgrade's identifier
+     * @param startDate the date it starts running; today by the injected clock when null
+     * @return the saved aggregate
+     * @throws ResourceNotFoundException if the upgrade does not exist or belongs to somebody else
+     * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if it is not PLANNED or
+     *         PAUSED, or activating it would exceed the concurrent-HARD limit
+     */
     @Transactional
     public HealthUpgrade activate(UUID userId, UUID id, LocalDate startDate) {
         HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
@@ -115,7 +178,15 @@ public class UpgradeService implements UpgradeQuery {
         return upgrade;
     }
 
-    /** Pauses an owned ACTIVE upgrade. */
+    /**
+     * Suspends an owned running upgrade: ACTIVE to PAUSED, releasing any HARD slot it held.
+     *
+     * @param userId the owner
+     * @param id     the upgrade's identifier
+     * @return the saved aggregate
+     * @throws ResourceNotFoundException if the upgrade does not exist or belongs to somebody else
+     * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if it is not ACTIVE
+     */
     @Transactional
     public HealthUpgrade pause(UUID userId, UUID id) {
         HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
@@ -125,7 +196,15 @@ public class UpgradeService implements UpgradeQuery {
         return upgrade;
     }
 
-    /** Completes an owned ACTIVE upgrade. */
+    /**
+     * Finishes an owned running upgrade: ACTIVE to COMPLETED, which is terminal.
+     *
+     * @param userId the owner
+     * @param id     the upgrade's identifier
+     * @return the saved aggregate
+     * @throws ResourceNotFoundException if the upgrade does not exist or belongs to somebody else
+     * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if it is not ACTIVE
+     */
     @Transactional
     public HealthUpgrade complete(UUID userId, UUID id) {
         HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
@@ -135,7 +214,16 @@ public class UpgradeService implements UpgradeQuery {
         return upgrade;
     }
 
-    /** Abandons an owned upgrade. */
+    /**
+     * Gives an owned upgrade up: to ABANDONED.
+     *
+     * @param userId the owner
+     * @param id     the upgrade's identifier
+     * @return the saved aggregate
+     * @throws ResourceNotFoundException if the upgrade does not exist or belongs to somebody else
+     * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if it is already
+     *         COMPLETED or ABANDONED
+     */
     @Transactional
     public HealthUpgrade abandon(UUID userId, UUID id) {
         HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
@@ -145,7 +233,16 @@ public class UpgradeService implements UpgradeQuery {
         return upgrade;
     }
 
-    /** Reschedules an owned upgrade to a new date (reactivates an abandoned one to PLANNED). */
+    /**
+     * Moves an owned upgrade's planned start date, reviving an abandoned one into PLANNED.
+     *
+     * @param userId  the owner
+     * @param id      the upgrade's identifier
+     * @param newDate the new planned start date
+     * @return the saved aggregate
+     * @throws ResourceNotFoundException if the upgrade does not exist or belongs to somebody else
+     * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if it is COMPLETED
+     */
     @Transactional
     public HealthUpgrade reschedule(UUID userId, UUID id, LocalDate newDate) {
         HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
@@ -167,13 +264,13 @@ public class UpgradeService implements UpgradeQuery {
     @Override
     public HealthUpgrade getOwnedUpgrade(UUID userId, UUID id) {
         return repository.findByIdAndUserId(id, userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Upgrade not found: " + id)); // ownership guard
+                .orElseThrow(() -> new ResourceNotFoundException("Upgrade not found: " + id));
     }
 
     /** {@inheritDoc} */
     @Override
     public Optional<HealthUpgrade> findOwned(UUID userId, UUID id) {
-        return repository.findByIdAndUserId(id, userId); // best-effort, no throw
+        return repository.findByIdAndUserId(id, userId);
     }
 
     /** {@inheritDoc} */

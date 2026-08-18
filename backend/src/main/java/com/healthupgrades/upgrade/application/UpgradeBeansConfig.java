@@ -16,6 +16,6 @@ public class UpgradeBeansConfig {
     /** Exposes the stateless {@link UpgradeSchedulingService} as an injectable bean. */
     @Bean
     public UpgradeSchedulingService upgradeSchedulingService() {
-        return new UpgradeSchedulingService(); // no dependencies -> plain construction
+        return new UpgradeSchedulingService();
     }
 }

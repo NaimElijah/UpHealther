@@ -23,7 +23,7 @@ public class StreakCalculator {
      * pure and lets callers that inject a {@link java.time.Clock} decide what "today" means.
      */
     public int calculateCurrentStreak(List<ProgressEntry> entries, LocalDate today) {
-        if (entries == null || entries.isEmpty()) return 0; // no data -> no streak
+        if (entries == null || entries.isEmpty()) return 0;
 
         // Collect the distinct dates the user actually completed the habit.
         Set<LocalDate> completedDates = entries.stream()
@@ -31,7 +31,7 @@ public class StreakCalculator {
                 .map(ProgressEntry::getDate)
                 .collect(Collectors.toSet());
 
-        if (completedDates.isEmpty()) return 0; // logged entries but none completed
+        if (completedDates.isEmpty()) return 0;
 
         int streak = 0;
         LocalDate current = today;
@@ -56,7 +56,7 @@ public class StreakCalculator {
 
     /** Calculates the longest run of consecutive completed days across the entire history. */
     public int calculateLongestStreak(List<ProgressEntry> entries) {
-        if (entries == null || entries.isEmpty()) return 0; // no data -> no streak
+        if (entries == null || entries.isEmpty()) return 0;
 
         // Distinct completed dates, ascending, so consecutive runs are adjacent.
         List<LocalDate> sortedDates = entries.stream()
@@ -66,10 +66,10 @@ public class StreakCalculator {
                 .sorted()
                 .toList();
 
-        if (sortedDates.isEmpty()) return 0; // no completed days
+        if (sortedDates.isEmpty()) return 0;
 
-        int maxStreak = 1; // best run seen so far
-        int currentStreak = 1; // current run length
+        int maxStreak = 1;
+        int currentStreak = 1;
 
         // Extend the run when the next date is exactly one day after the previous, else reset.
         for (int i = 1; i < sortedDates.size(); i++) {

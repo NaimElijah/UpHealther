@@ -34,6 +34,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+/**
+ * Covers the tracking service: that the server decides completion from the tracking configuration rather
+ * than trusting the client, that a second entry for the same day is refused, and that streak milestones
+ * are announced.
+ */
 class TrackingServiceTest {
 
     @Mock TrackingConfigRepositoryPort configRepository;
