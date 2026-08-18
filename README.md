@@ -1,4 +1,4 @@
-# UpHealther 🌱
+# UpHealther - Health Upgrades Planner & Tracker Assistant 🌱
 
 A full-stack health upgrade planning and tracking platform. Plan, activate, and track your health improvements — from drinking more water to meditating daily, from better sleep habits to product replacements.
 
