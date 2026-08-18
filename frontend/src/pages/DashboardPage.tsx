@@ -36,7 +36,8 @@ const DashboardPage: React.FC = () => {
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
   if (error) return <p className="text-red-500 text-center py-10">Failed to load dashboard.</p>;
 
-  const completionPct = Math.round((data?.weeklyCompletionRate ?? 0) * 100);
+  // Rounded, not scaled: the API sends a percentage already (see DashboardDto.weeklyCompletionRate).
+  const completionPct = Math.round(data?.weeklyCompletionRate ?? 0);
   const streakEntries = Object.entries(data?.streaks ?? {});
 
   return (

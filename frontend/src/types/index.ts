@@ -176,6 +176,7 @@ export interface DashboardDto {
   plannedUpgrades: HealthUpgrade[];
   todayUpgrades: HealthUpgrade[];
   overdueUpgrades: HealthUpgrade[];
+  /** Already a percentage in the range 0–100, not a fraction. Display it as-is. */
   weeklyCompletionRate: number;
   streaks: Record<string, number>;
   recentlyCompleted: HealthUpgrade[];
