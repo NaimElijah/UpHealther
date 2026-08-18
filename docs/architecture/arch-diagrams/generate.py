@@ -85,11 +85,13 @@ def code_only(source: str) -> str:
     return STRING_LITERAL.sub('""', LINE_COMMENT.sub("", BLOCK_COMMENT.sub("", source)))
 
 
-def stereotype_for(relative_package: str, kind: str) -> str:
-    """The layer and role to stamp on a type, from where it sits and what kind of type it is.
+def stereotype_for(relative_package: str, kind: str, name: str) -> str:
+    """The layer and role to stamp on a type, from where it sits, what kind it is, and what it is called.
 
-    A port package holds two different things — the port interface and the records passed across it —
-    and calling both "port" would hide the distinction the hexagonal layering exists to make.
+    Two distinctions the package path alone would flatten, both of which the hexagonal layering exists
+    to make visible: a port package holds the port interface *and* the records passed across it, and
+    the application package holds use cases *and* the configuration that hand-wires the domain
+    services — which carry no stereotype annotation precisely so the domain stays framework-free.
     """
     best, label = "", "type"
     for prefix, candidate in STEREOTYPES:
@@ -98,6 +100,8 @@ def stereotype_for(relative_package: str, kind: str) -> str:
 
     if label in ("inbound port", "outbound port") and kind != "interface":
         return "use-case record" if "port/in" in relative_package else "port record"
+    if label == "application" and name.endswith("Config"):
+        return "bean wiring"
     return label
 
 
@@ -123,7 +127,7 @@ def discover_types() -> dict:
             "context": context,
             "package": package,
             "kind": kind,
-            "stereotype": stereotype_for(package, kind),
+            "stereotype": stereotype_for(package, kind, name),
             "body": body,
             "source": source,
         }
@@ -231,9 +235,10 @@ def class_diagram(types: dict, context: str) -> str:
     for name, meta in sorted(members.items()):
         by_stereotype.setdefault(meta["stereotype"], []).append((name, meta))
 
-    layer_order = ["domain model", "domain event", "domain service", "outbound port",
-                   "application", "inbound port", "web adapter", "scheduling adapter",
-                   "persistence adapter", "composition adapter", "messaging adapter", "event adapter"]
+    layer_order = ["domain model", "domain event", "domain service", "outbound port", "port record",
+                   "application", "bean wiring", "inbound port", "use-case record",
+                   "web adapter", "scheduling adapter", "persistence adapter",
+                   "composition adapter", "messaging adapter", "event adapter"]
     ordered = sorted(by_stereotype, key=lambda s: (layer_order.index(s) if s in layer_order else 99, s))
 
     for stereotype in ordered:

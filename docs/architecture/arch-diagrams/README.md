@@ -150,8 +150,11 @@ Relations shown are **implements**, **extends**, and *holds a field of this type
 that reveals the wiring. Accessors and framework plumbing are left out on purpose; the interesting
 content is which layer a type sits in and which way its arrows point.
 
-Scoped to this context's own types, so dependencies on `common` and on Spring do not appear —
-`UpgradeService` also holds a `DomainEventPublisher` and a `Clock`, neither of which is drawn here.
+Two things are therefore absent by construction, and neither means what it looks like. Dependencies on
+`common` and on Spring are out of scope — `UpgradeService` also holds a `DomainEventPublisher` and a
+`Clock`. And a type *constructed in a method* rather than held as a field draws no arrow, which is why
+nothing connects `UpgradeBeansConfig` to `UpgradeSchedulingService` even though wiring that bean is the
+only reason the class exists.
 
 <!-- generated:class-diagram -->
 ```mermaid
@@ -208,17 +211,29 @@ classDiagram
         <<outbound port>>
     }
 
-    %% ---- application ----
-    class UpgradeBeansConfig {
-        <<application>>
+    %% ---- port record ----
+    class UpgradeTrackingSummary {
+        <<port record>>
     }
+
+    %% ---- application ----
     class UpgradeService {
         <<application>>
+    }
+
+    %% ---- bean wiring ----
+    class UpgradeBeansConfig {
+        <<bean wiring>>
     }
 
     %% ---- inbound port ----
     class UpgradeQuery {
         <<inbound port>>
+    }
+
+    %% ---- use-case record ----
+    class UpgradeDetails {
+        <<use-case record>>
     }
 
     %% ---- web adapter ----
@@ -258,16 +273,6 @@ classDiagram
     }
     class UpgradeRepositoryAdapter {
         <<persistence adapter>>
-    }
-
-    %% ---- port record ----
-    class UpgradeTrackingSummary {
-        <<port record>>
-    }
-
-    %% ---- use-case record ----
-    class UpgradeDetails {
-        <<use-case record>>
     }
 
     %% ---- relations: implements, extends, and fields typed by another type ----
