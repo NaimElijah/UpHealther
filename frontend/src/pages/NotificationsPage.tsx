@@ -7,6 +7,12 @@ import EmptyState from '../components/ui/EmptyState';
 import NotificationItem from '../components/notifications/NotificationItem';
 import type { AppNotification } from '../types';
 
+/**
+ * The full notification list, with an all/unread filter.
+ *
+ * Reads from the notification context rather than fetching, so it shows the same list the bell does and
+ * updates live while open. Selecting one marks it read and follows it to the upgrade it concerns.
+ */
 const NotificationsPage: React.FC = () => {
   const { notifications, unreadCount, markRead, markAllRead, desktopPermission, requestDesktopPermission } =
     useNotifications();

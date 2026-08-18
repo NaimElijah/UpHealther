@@ -9,6 +9,12 @@ import EmptyState from '../components/ui/EmptyState';
 import UpgradeCard from '../components/upgrade/UpgradeCard';
 import type { UpgradeStatus } from '../types';
 
+/**
+ * The upgrades currently running, with the transitions available from `ACTIVE`.
+ *
+ * Invalidates the whole `upgrades` key rather than the active slice, since pausing or completing one
+ * moves it onto a list this page does not show.
+ */
 const ActiveUpgradesPage: React.FC = () => {
   const qc = useQueryClient();
   const navigate = useNavigate();

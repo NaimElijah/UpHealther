@@ -3,16 +3,31 @@ import { useNavigate } from 'react-router-dom';
 import type { AppNotification } from '../../types';
 import { categoryMeta } from './notificationMeta';
 
+/**
+ * The subset of a notification a toast needs.
+ *
+ * Derived from `AppNotification` with `Pick`, so a field renamed there fails to compile here instead of
+ * silently rendering nothing.
+ */
 export interface ToastData extends Pick<AppNotification, 'category' | 'title' | 'message' | 'relatedUpgradeId'> {
   id: string;
 }
 
+/**
+ * @param toasts    the toasts to show, newest first; capped by the provider that owns them
+ * @param onDismiss called on the close button, on selection, and by the auto-dismiss timer
+ */
 interface Props {
   toasts: ToastData[];
   onDismiss: (id: string) => void;
 }
 
-/** Transient real-time toasts, stacked top-right above everything. */
+/**
+ * Transient real-time toasts, stacked top-right above everything.
+ *
+ * Rendered by the notification provider rather than by any page, so a toast survives navigation. Each
+ * is a polite live region: announced when it appears, without interrupting whatever is being read.
+ */
 const ToastContainer: React.FC<Props> = ({ toasts, onDismiss }) => {
   const navigate = useNavigate();
   if (toasts.length === 0) return null;

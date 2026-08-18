@@ -12,6 +12,12 @@ import EmptyState from '../components/ui/EmptyState';
 import UpgradeCard from '../components/upgrade/UpgradeCard';
 import type { CreateUpgradeRequest, UpgradeType, Difficulty, UpgradeStatus } from '../types';
 
+/**
+ * The upgrade types offered when creating one.
+ *
+ * Covers this app's `UpgradeType` union, which is wider than what the API accepts — see the note on
+ * that type in `src/types`.
+ */
 const typeOptions: { value: UpgradeType; label: string }[] = [
   { value: 'HABIT', label: 'Habit' },
   { value: 'ONE_TIME_ACTION', label: 'One-Time Action' },
@@ -23,12 +29,20 @@ const typeOptions: { value: UpgradeType; label: string }[] = [
   { value: 'MEDICAL_PREVENTIVE', label: 'Medical / Preventive' },
 ];
 
+/** Difficulty choices. HARD is capped at three concurrently active, and the API enforces that. */
 const difficultyOptions: { value: Difficulty; label: string }[] = [
   { value: 'EASY', label: 'Easy' },
   { value: 'MEDIUM', label: 'Medium' },
   { value: 'HARD', label: 'Hard' },
 ];
 
+/**
+ * The idea backlog: every upgrade still in `IDEA`, and the form that creates new ones.
+ *
+ * This is where upgrades enter the system — creation is not offered on the planned or active pages,
+ * because a new upgrade always starts as an idea whatever the client asks for. Planning one from here
+ * moves it off this list.
+ */
 const UpgradeBacklogPage: React.FC = () => {
   const qc = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);

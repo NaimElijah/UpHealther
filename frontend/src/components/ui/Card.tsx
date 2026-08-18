@@ -1,11 +1,16 @@
 import React from 'react';
 
+/**
+ * @param children the card body
+ * @param header   optional heading row, separated by a rule; omitted entirely when not given
+ */
 interface CardProps {
   children: React.ReactNode;
   header?: React.ReactNode;
   className?: string;
 }
 
+/** White panel with an optional header. The standard container for a section of a page. */
 const Card: React.FC<CardProps> = ({ children, header, className = '' }) => (
   <div className={`bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden ${className}`}>
     {header && (

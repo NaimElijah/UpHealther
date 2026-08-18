@@ -8,7 +8,13 @@ export const categoryMeta: Record<NotificationCategory, { icon: string; bg: stri
   REMINDER: { icon: '⏰', bg: 'bg-orange-50', ring: 'border-orange-200', text: 'text-orange-700' },
 };
 
-/** "5m ago" style relative time for an ISO timestamp. */
+/**
+ * Formats an ISO timestamp as "just now", "5m ago", "3h ago" or "2d ago", falling back to a locale date
+ * beyond a week.
+ *
+ * Coarse on purpose: a notification list is scanned, not read closely, and a rounded figure is quicker
+ * to take in than an exact one.
+ */
 export const relativeTime = (iso: string): string => {
   const diffMs = Date.now() - new Date(iso).getTime();
   const sec = Math.round(diffMs / 1000);

@@ -9,6 +9,12 @@ import Button from '../components/ui/Button';
 import { useNavigate } from 'react-router-dom';
 import type { UpgradeStatus } from '../types';
 
+/**
+ * Upgrades committed to a start date but not yet running, soonest first.
+ *
+ * Sorted client-side because the API returns them unordered; upgrades with no planned date sort last
+ * rather than first, so an unscheduled one does not head a list meant to read as a timeline.
+ */
 const PlannedUpgradesPage: React.FC = () => {
   const qc = useQueryClient();
   const navigate = useNavigate();

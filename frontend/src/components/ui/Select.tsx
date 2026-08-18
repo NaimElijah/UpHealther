@@ -1,16 +1,25 @@
 import React from 'react';
 
+/** One choice: the value submitted, and the text shown for it. */
 interface SelectOption {
   value: string;
   label: string;
 }
 
+/**
+ * Extends the native select attributes, so `value`, `onChange` and `required` pass through.
+ *
+ * @param label   optional caption, also used to derive an id when none is given
+ * @param options the choices, rendered in the order given
+ * @param error   message shown below the field, which also switches it to its error colours
+ */
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
   options: SelectOption[];
   error?: string;
 }
 
+/** Labelled dropdown with inline error display, matching {@link Input}. */
 const Select: React.FC<SelectProps> = ({ label, options, error, id, className = '', ...rest }) => {
   const selectId = id ?? label?.toLowerCase().replace(/\s+/g, '-');
   return (

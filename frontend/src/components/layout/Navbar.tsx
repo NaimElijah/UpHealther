@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import Button from '../ui/Button';
 import NotificationBell from '../notifications/NotificationBell';
 
+/** Top bar: brand link home, the notification bell, the signed-in user's name, and logout. */
 const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
 

@@ -2,12 +2,20 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNotifications } from '../../hooks/useNotifications';
 import NotificationDropdown from './NotificationDropdown';
 
+/**
+ * Navbar bell with an unread badge, opening the notification dropdown.
+ *
+ * The count is capped at "9+" so the badge cannot grow wide enough to disturb the navbar, and the
+ * button carries the count in its accessible name — a screen reader would otherwise announce only
+ * "Notifications", losing the very thing the badge conveys.
+ */
 const NotificationBell: React.FC = () => {
   const { unreadCount } = useNotifications();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Close on outside click.
+  // Close on outside click. Bound only while open, and on mousedown rather than click so the dropdown
+  // is gone before a click lands on whatever is underneath it.
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {

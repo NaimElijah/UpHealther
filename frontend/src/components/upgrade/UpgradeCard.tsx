@@ -6,18 +6,32 @@ import UpgradeTypeBadge from './UpgradeTypeBadge';
 import Badge from '../ui/Badge';
 import Button from '../ui/Button';
 
+/**
+ * @param upgrade        the upgrade to show
+ * @param onStatusChange called with the target status when a transition button is pressed; the card
+ *                       does not perform the transition itself, so the page decides how to refresh
+ * @param showActions    hide the transition buttons where the card is read-only
+ */
 interface Props {
   upgrade: HealthUpgrade;
   onStatusChange?: (id: string, status: HealthUpgrade['status']) => void;
   showActions?: boolean;
 }
 
+/** Difficulty to badge colour: green through red, so HARD reads as the demanding one. */
 const difficultyVariant: Record<string, 'green' | 'yellow' | 'red'> = {
   EASY: 'green',
   MEDIUM: 'yellow',
   HARD: 'red',
 };
 
+/**
+ * Summary card for one upgrade, with the transitions that are legal from its current status.
+ *
+ * The buttons shown mirror the server's state machine — plan an idea, activate a planned one, pause or
+ * complete a running one, resume a paused one. Offering only the legal moves is what keeps a user from
+ * meeting a 422 they could not have predicted.
+ */
 const UpgradeCard: React.FC<Props> = ({ upgrade, onStatusChange, showActions = true }) => {
   const navigate = useNavigate();
 
