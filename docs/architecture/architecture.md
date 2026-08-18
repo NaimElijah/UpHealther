@@ -8,7 +8,7 @@ rejected, and the conditions that would make us revisit a choice live in [`docs/
 
 ## Architecture overview
 
-HealthUpgrades is a three-process web application: a React single-page app, a Spring Boot HTTP API,
+UpHealther is a three-process web application: a React single-page app, a Spring Boot HTTP API,
 and a PostgreSQL database. There is no message broker, no cache, no third-party service and no second
 backend — every piece of state lives in the one database, and every side effect the API performs is
 either a write to it or a message pushed to a connected browser.
@@ -354,6 +354,7 @@ Stated because they are load-bearing, not because they are problems yet:
 
 | Question | Record |
 |---|---|
+| What is the system supposed to do, and what is it deliberately not doing? | [`docs/requirements/requirements.md`](../requirements/requirements.md) |
 | Why DDD + hexagonal at all, and why JPA entities as the domain model? | [ADR-001](../ADRs/ADR-001-ddd-hexagonal-architecture.md) |
 | Why the `upgrade`/`tracking` dependency is inverted; why events moved out of `common`; what the ten ArchUnit rules cover; what was rejected and when to revisit | [ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
