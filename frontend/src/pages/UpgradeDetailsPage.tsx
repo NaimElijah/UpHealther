@@ -366,7 +366,6 @@ const UpgradeDetailsPage: React.FC = () => {
               { value: 'DAILY', label: 'Daily' },
               { value: 'WEEKLY', label: 'Weekly' },
               { value: 'MONTHLY', label: 'Monthly' },
-              { value: 'CUSTOM', label: 'Custom' },
             ]}
           />
           {trackingForm.trackingType === 'NUMERIC' && (

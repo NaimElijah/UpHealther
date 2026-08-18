@@ -10,8 +10,9 @@ interface Props {
 /**
  * Type to colour and label.
  *
- * Covers this app's `UpgradeType` union, which is currently wider than the backend enum — see the note
- * on that type. The five values the API does not accept are unreachable in practice.
+ * Keyed by `UpgradeType`, so the compiler requires an entry for every value the backend can return —
+ * including the legacy `PROTOCOL`, which is never offered in the create form but must still render on
+ * a row that already carries it.
  */
 const typeMap: Record<UpgradeType, { variant: 'green' | 'yellow' | 'blue' | 'red' | 'gray' | 'purple'; label: string }> = {
   HABIT: { variant: 'green', label: 'Habit' },
@@ -22,6 +23,7 @@ const typeMap: Record<UpgradeType, { variant: 'green' | 'yellow' | 'blue' | 'red
   EXPERIMENT: { variant: 'gray', label: 'Experiment' },
   LEARNING_TASK: { variant: 'purple', label: 'Learning' },
   MEDICAL_PREVENTIVE: { variant: 'red', label: 'Medical' },
+  PROTOCOL: { variant: 'gray', label: 'Protocol' },
 };
 
 /** Coloured badge naming an upgrade's type, falling back to the raw value for an unknown one. */

@@ -13,10 +13,10 @@ import UpgradeCard from '../components/upgrade/UpgradeCard';
 import type { CreateUpgradeRequest, UpgradeType, Difficulty, UpgradeStatus } from '../types';
 
 /**
- * The upgrade types offered when creating one.
+ * The upgrade types offered when creating one: the eight kinds the product defines.
  *
- * Covers this app's `UpgradeType` union, which is wider than what the API accepts — see the note on
- * that type in `src/types`.
+ * Deliberately not every value of `UpgradeType` — the legacy `PROTOCOL` still renders on rows that
+ * carry it, but is not something to create more of.
  */
 const typeOptions: { value: UpgradeType; label: string }[] = [
   { value: 'HABIT', label: 'Habit' },
