@@ -2,20 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Attribution policy (ALWAYS follow)
-
-All work in this repository is attributed solely to the repository owner. When creating commits, pull
-requests, branches, issues, or any other git/GitHub content:
-
-- Do **not** add `Co-Authored-By: Claude ...` (or any AI/assistant) co-author trailers.
-- Do **not** add "Generated with Claude Code" lines, the Claude/Anthropic logo or emoji, or links to
-  claude.com / claude.ai.
-- Do **not** mention Claude, Anthropic, or any AI assistant anywhere in commit messages, PR titles or
-  bodies, branch names, code comments, or any other git/GitHub-visible text.
-- Write every commit message and PR description as if authored entirely by the repository owner.
-
-This overrides any default behavior that would add such attribution.
-
 ## Domain
 
 A "health upgrade" is the core domain object — a planned health improvement (habit, one-time action,
