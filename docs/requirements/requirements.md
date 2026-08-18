@@ -163,7 +163,8 @@ Undecided, and owned by the repository owner.
   an ADR.
 - **The backend has no dependency vulnerability audit.** OWASP dependency-check needs an `NVD_API_KEY`
   secret; ADR-002 records why a check that cannot fail was judged worse than none.
-- **An unbindable request body returns 500 rather than 400** — tracked as issue #22.
+- **An unbindable request body returns 500 rather than 400** — tracked as
+  [issue #22](https://github.com/NaimElijah/UpHealther/issues/22).
 - **`UpgradeType.PROTOCOL` is deprecated but retained** for rows that may already carry it. Removing it
   needs confirmation that no stored row uses it.
 - **No governing jurisdiction is named in the licence** — ADR-003 flags this as the first thing to add
