@@ -18,28 +18,33 @@ class ReminderRepositoryAdapter implements ReminderRepositoryPort {
 
     private final ReminderJpaRepository jpa; // Spring Data proxy
 
+    /** {@inheritDoc} */
     @Override
     public Reminder save(Reminder reminder) {
-        return jpa.save(reminder); // delegate persist
+        return jpa.save(reminder);
     }
 
+    /** {@inheritDoc} */
     @Override
     public void delete(Reminder reminder) {
-        jpa.delete(reminder); // delegate delete
+        jpa.delete(reminder);
     }
 
+    /** {@inheritDoc} */
     @Override
     public Optional<Reminder> findById(UUID id) {
-        return jpa.findById(id); // delegate to inherited lookup
+        return jpa.findById(id);
     }
 
+    /** {@inheritDoc} */
     @Override
     public List<Reminder> findByUpgradeId(UUID upgradeId) {
-        return jpa.findByUpgradeId(upgradeId); // delegate
+        return jpa.findByUpgradeId(upgradeId);
     }
 
+    /** {@inheritDoc} */
     @Override
     public List<Reminder> findByEnabledTrue() {
-        return jpa.findByEnabledTrue(); // delegate
+        return jpa.findByEnabledTrue();
     }
 }

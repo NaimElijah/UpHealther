@@ -25,20 +25,40 @@ public class AuthController {
 
     private final AuthService authService; // application service
 
-    /** Registers a new user and returns a token pair. */
+    /**
+     * Registers a new user and issues a token.
+     *
+     * @param request name, email and password; all validated as non-blank, the email as well-formed
+     * @return 201 with the JWT and the new user's public view
+     * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if the email is already
+     *         registered (surfaces as 422)
+     */
     @PostMapping("/register")
     public ResponseEntity<TokenPair> register(@Valid @RequestBody RegisterRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(toTokenPair(authService.register(request.name(), request.email(), request.password())));
     }
 
-    /** Authenticates and returns a token pair. */
+    /**
+     * Authenticates credentials and issues a token.
+     *
+     * @param request email and password
+     * @return 200 with the JWT and the user's public view
+     * @throws org.springframework.security.core.AuthenticationException if the credentials do not match
+     *         (surfaces as 401; the response never says which half was wrong)
+     */
     @PostMapping("/login")
     public ResponseEntity<TokenPair> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(toTokenPair(authService.login(request.email(), request.password())));
     }
 
-    /** Returns the authenticated user's public view. */
+    /**
+     * Returns the caller's own profile — the endpoint the frontend uses to restore a session from a
+     * stored token.
+     *
+     * @param principal the authenticated principal, injected by Spring Security from the bearer token
+     * @return 200 with the user's public view
+     */
     @GetMapping("/me")
     public ResponseEntity<UserDto> me(@AuthenticationPrincipal SecurityUser principal) {
         return ResponseEntity.ok(toUserDto(authService.getMe(principal.getUsername())));

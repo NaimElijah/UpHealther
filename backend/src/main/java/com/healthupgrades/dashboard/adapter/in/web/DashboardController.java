@@ -21,7 +21,15 @@ public class DashboardController {
     private final DashboardQuery dashboardQuery; // application aggregation port
     private final DashboardWebMapper mapper; // domain view -> HTTP DTO
 
-    /** Returns the caller's dashboard. */
+    /**
+     * Builds and returns the caller's dashboard.
+     *
+     * <p>Read-only and computed per request: nothing here is cached or stored, so the figures are always
+     * consistent with the data behind them.
+     *
+     * @param principal the authenticated caller, whose id scopes every section
+     * @return 200 with the dashboard; the buckets are empty rather than absent for a new account
+     */
     @GetMapping
     public ResponseEntity<DashboardDto> getDashboard(@AuthenticationPrincipal SecurityUser principal) {
         return ResponseEntity.ok(mapper.toDto(dashboardQuery.getDashboard(principal.getId())));

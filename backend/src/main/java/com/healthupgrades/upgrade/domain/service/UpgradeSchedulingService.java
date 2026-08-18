@@ -17,15 +17,18 @@ public class UpgradeSchedulingService {
     private static final int MAX_HARD_ACTIVE = 3;
 
     /**
-     * Validates that activating an upgrade of the given difficulty would not exceed the HARD limit.
+     * Validates that letting an upgrade run at the given difficulty would not exceed the HARD limit.
      *
-     * @param difficulty      the difficulty of the upgrade being activated
-     * @param activeHardCount the user's current number of ACTIVE HARD upgrades
+     * <p>Applies to every route by which an upgrade can come to be ACTIVE and HARD — activating one that
+     * is already HARD, and promoting an already-ACTIVE upgrade to HARD.
+     *
+     * @param difficulty      the difficulty the upgrade would run at
+     * @param activeHardCount the user's current number of ACTIVE HARD upgrades, excluding this one
      */
-    public void validateCanActivate(Difficulty difficulty, long activeHardCount) {
-        // Only HARD upgrades are capped; EASY/MEDIUM activations are always allowed.
+    public void validateWithinHardLimit(Difficulty difficulty, long activeHardCount) {
+        // Only HARD upgrades are capped; EASY/MEDIUM are always allowed.
         if (difficulty == Difficulty.HARD && activeHardCount >= MAX_HARD_ACTIVE) {
-            throw new BusinessRuleException("Cannot activate more than " + MAX_HARD_ACTIVE + " HARD upgrades simultaneously");
+            throw new BusinessRuleException("Cannot run more than " + MAX_HARD_ACTIVE + " HARD upgrades simultaneously");
         }
     }
 }

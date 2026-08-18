@@ -4,10 +4,18 @@ import { useNotifications } from '../../hooks/useNotifications';
 import NotificationItem from './NotificationItem';
 import type { AppNotification } from '../../types';
 
+/** @param onClose called after selecting a notification, and by the bell's outside-click handler */
 interface Props {
   onClose: () => void;
 }
 
+/**
+ * Panel under the bell: the eight most recent notifications, mark-all-read, and a link to the full page.
+ *
+ * Selecting one marks it read and navigates to the upgrade it concerns; ones with no related upgrade
+ * (the daily check-in nudge) just close the panel. The desktop-permission prompt appears only while the
+ * browser's answer is still `default`, so a user who has decided either way is not asked again.
+ */
 const NotificationDropdown: React.FC<Props> = ({ onClose }) => {
   const { notifications, unreadCount, markRead, markAllRead, desktopPermission, requestDesktopPermission } =
     useNotifications();

@@ -4,6 +4,15 @@ import { useAuth } from '../hooks/useAuth';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 
+/**
+ * Sign-in page, one of the two routes reachable without a session.
+ *
+ * The error message is deliberately the same whichever half of the credentials was wrong — saying
+ * which would tell an attacker that an email is registered.
+ *
+ * Redirects to the dashboard when already signed in, which is what stops a user with a valid session
+ * from landing here by typing the URL.
+ */
 const LoginPage: React.FC = () => {
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -36,7 +45,7 @@ const LoginPage: React.FC = () => {
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <div className="text-5xl mb-3">💪</div>
-          <h1 className="text-2xl font-bold text-gray-900">HealthUpgrades</h1>
+          <h1 className="text-2xl font-bold text-gray-900">UpHealther</h1>
           <p className="text-gray-500 mt-1">Sign in to your account</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">

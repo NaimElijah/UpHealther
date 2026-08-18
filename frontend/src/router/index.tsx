@@ -15,6 +15,13 @@ import DailyCheckinPage from '../pages/DailyCheckinPage';
 import ProgressHistoryPage from '../pages/ProgressHistoryPage';
 import NotificationsPage from '../pages/NotificationsPage';
 
+/**
+ * The route table, and the only place a URL maps to a page.
+ *
+ * Every route but login and register is wrapped in {@link ProtectedRoute} and the shared {@link Layout},
+ * so an authenticated page cannot be added without both. Unknown paths fall through to `/`, which
+ * redirects to the dashboard when signed in and to login otherwise.
+ */
 // NotificationProvider lives inside the Router so toasts/items can navigate, and inside the existing
 // QueryClientProvider + AuthProvider (mounted in App.tsx) for query + auth access.
 const AppRouter: React.FC = () => (

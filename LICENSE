@@ -1,0 +1,175 @@
+UpHealther — Proprietary Source-Available License
+Version 1.0
+
+Copyright (c) 2026 Naim Elijah. All rights reserved.
+
+
+SUMMARY (not part of the licence terms)
+
+    This source code is published so that it can be read, reviewed and evaluated.
+    It is not open source. You may look at it. You may not use it, copy it,
+    modify it, run it, or publish it — in whole or in part — without written
+    permission from the copyright holder.
+
+
+1. DEFINITIONS
+
+    1.1 "The Software" means the source code, documentation, configuration,
+        database migrations, diagrams, and any other original material contained
+        in this repository, together with any part of it.
+
+    1.2 "The Author" means Naim Elijah, the copyright holder and sole author of
+        the Software.
+
+    1.3 "You" means any individual or legal entity accessing the Software.
+
+    1.4 "Third-Party Components" means software that the Software depends on,
+        references, or is built with, but that was not authored by the Author.
+
+
+2. RESERVATION OF RIGHTS
+
+    The Software is the exclusive property of the Author and is protected by
+    copyright law and international copyright treaties. All rights are reserved.
+
+    Publishing the Software where it can be viewed does not place it in the
+    public domain, does not make it open source, and does not grant any licence
+    beyond the limited permission expressly stated in Section 3.
+
+    Any right not expressly granted in this licence is withheld.
+
+
+3. LIMITED PERMISSION GRANTED
+
+    Subject to your compliance with this licence, the Author grants you a
+    personal, non-exclusive, non-transferable, revocable permission to:
+
+    3.1 view and read the Software;
+
+    3.2 retain a local copy obtained through the hosting platform's own
+        mechanisms, solely for the purpose of reading and evaluating it; and
+
+    3.3 quote short excerpts for the purpose of commentary, review, teaching or
+        news reporting, provided the Author and this repository are clearly
+        credited.
+
+    This permission exists so that the Software can be assessed — by prospective
+    employers, collaborators, reviewers and the technically curious. It is not
+    permission to use the Software.
+
+
+4. RESTRICTIONS
+
+    Except with the prior written permission of the Author, you may NOT:
+
+    4.1 use the Software, or any part of it, in any project, product, service or
+        system, whether commercial or non-commercial;
+
+    4.2 copy, reproduce or republish the Software, in whole or in substantial
+        part, other than as permitted by Section 3;
+
+    4.3 modify the Software, or create derivative works based on it;
+
+    4.4 distribute, sublicense, sell, rent, lease or otherwise transfer the
+        Software or any rights in it;
+
+    4.5 deploy, host, execute or operate the Software, including as part of a
+        hosted or network-accessible service;
+
+    4.6 remove, obscure or alter any copyright notice, authorship attribution or
+        licence text contained in the Software;
+
+    4.7 present the Software, or any substantial part of it, as your own work,
+        including in a portfolio, a curriculum vitae, an academic submission, a
+        technical assessment or a competition entry; or
+
+    4.8 use the Software as training data for, or otherwise incorporate it into,
+        any machine learning model, dataset or generative system.
+
+
+5. THIRD-PARTY COMPONENTS
+
+    The Software depends on Third-Party Components that are neither owned by the
+    Author nor licensed under this licence. Those components remain governed by
+    the terms their own authors apply to them, and nothing in this licence
+    restricts, extends or otherwise affects your rights in them.
+
+    This licence applies only to the original material authored by the Author.
+
+
+6. CONTRIBUTIONS
+
+    The Author does not solicit contributions to the Software.
+
+    If you nonetheless submit a contribution — including a pull request, a patch
+    or a code suggestion — you assign to the Author all right, title and interest
+    in that contribution, or, where such assignment is not permitted by law, you
+    grant the Author a perpetual, worldwide, irrevocable, royalty-free licence to
+    use it without restriction. You confirm that you are entitled to do so.
+
+    This exists so that the Software remains under single, unambiguous ownership.
+
+
+7. NAME AND ATTRIBUTION
+
+    This licence grants no right to use the name of the Author, the name
+    "UpHealther", or any associated branding, whether to identify the origin
+    of a work, to endorse or promote anything, or otherwise.
+
+    Authorship of the Software is asserted by the Author and is recorded in the
+    version-control history of this repository.
+
+
+8. REQUESTING PERMISSION
+
+    Permission beyond Section 3 may be granted, and is granted only in writing.
+    Requests should be directed to the Author through the repository's hosting
+    platform, at: https://github.com/NaimElijah
+
+    Silence is not permission. An unanswered request is a refused request.
+
+
+9. TERMINATION
+
+    The permission granted in Section 3 terminates automatically and immediately
+    if you breach any term of this licence.
+
+    On termination you must cease all use of the Software and destroy any copy in
+    your possession. Sections 2, 4, 5, 6, 7, 10, 11 and 12 survive termination.
+
+    Termination of your permission does not limit any other remedy available to
+    the Author.
+
+
+10. NO WARRANTY
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT.
+
+    THE SOFTWARE IS A PERSONAL PROJECT AND A LIFESTYLE PLANNING TOOL. IT IS NOT A
+    MEDICAL DEVICE, IT IS NOT CERTIFIED FOR ANY PURPOSE, AND IT MUST NOT BE RELIED
+    UPON FOR MEDICAL, CLINICAL OR SAFETY-CRITICAL DECISIONS.
+
+
+11. LIMITATION OF LIABILITY
+
+    TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE AUTHOR SHALL NOT BE
+    LIABLE FOR ANY CLAIM, DAMAGE, LOSS OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+    CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE
+    SOFTWARE OR THE USE OF, OR OTHER DEALINGS IN, THE SOFTWARE.
+
+
+12. GENERAL
+
+    12.1 If any provision of this licence is held unenforceable, that provision
+         shall be limited or severed to the minimum extent necessary, and the
+         remaining provisions remain in full force.
+
+    12.2 A failure by the Author to enforce any provision is not a waiver of it.
+
+    12.3 This licence is the entire agreement concerning the Software and
+         supersedes any prior understanding regarding it.
+
+
+END OF TERMS AND CONDITIONS

@@ -1,4 +1,4 @@
-# HealthUpgrades 🌱
+# UpHealther 🌱
 
 A full-stack health upgrade planning and tracking platform. Plan, activate, and track your health improvements — from drinking more water to meditating daily, from better sleep habits to product replacements.
 
@@ -54,37 +54,55 @@ A **Health Upgrade** is more than a habit. It can be:
 
 ## Architecture
 
+[`docs/requirements/requirements.md`](docs/requirements/requirements.md) states **what** the system
+must do — the capabilities, the business rules, and the non-goals — with the enforcing class or test
+named against each. [`docs/architecture/architecture.md`](docs/architecture/architecture.md) describes
+**how** it does it: components, how they communicate, the path a request takes end to end, external
+dependencies, and the structural decisions that are not visible from the file layout. Start with
+either; the summary below is the short version.
+
 ### Backend — Hexagonal (Ports & Adapters) + DDD
 
-Every bounded context (`auth, user, healtharea, upgrade, tracking, reflection, reminder, dashboard,
-notification`) follows the same ports-and-adapters skeleton:
+A bounded context (`auth, user, healtharea, upgrade, tracking, reflection, reminder, dashboard,
+notification`) follows this ports-and-adapters skeleton, taking the parts it needs — `auth` orchestrates
+over `user` and owns no aggregate, and `dashboard` is a read model with no outbound side:
 
 ```
 com.healthupgrades.<context>/
   domain/
     model/          — JPA entities, enums, value objects (the aggregate + its state machine)
+    event/          — the domain events this context publishes (its published language)
     service/        — pure, framework-free domain services
-    port/out/       — outbound ports (repository SPI, push, event publisher)
+    port/out/       — outbound ports (repository SPI, push)
   application/
     <X>Service      — @Transactional use-case orchestration
-    port/in/        — inbound ports (use-case / query interfaces) + command/result records
+    port/in/        — inbound query ports + the command/result records use cases speak
+    port/out/       — what this context needs another to supply (see UpgradeTrackingSummaryPort)
   adapter/
     in/web/         — REST controllers, request records, response DTOs, web mappers
-    in/{event,scheduling}/ — domain-event listener / scheduler (notification)
-    out/persistence/ — Spring Data *JpaRepository + the adapter implementing the outbound port
+    in/{event,scheduling,composition}/ — event listeners, scheduled jobs, suppliers of another
+                                          context's outbound port
+    out/persistence/ — Spring Data *JpaRepository (package-private) + the adapter implementing the port
     out/messaging/   — STOMP push adapter (notification)
 
 com.healthupgrades.common/
-  domain/{event,exception}/ — framework-free shared kernel (domain events + shared exceptions)
-  adapter/{in,out}/...      — cross-cutting adapters (event publisher, event logger, error handler)
-  security/                 — JWT filter, SecurityConfig, SecurityUser, UserDetailsService
-  websocket/                — STOMP config + JWT channel interceptor
+  domain/event/      — the DomainEvent marker only; events themselves live in their own context
+  domain/exception/  — shared exceptions
+  domain/port/out/   — DomainEventPublisher, the one genuinely cross-cutting outbound port
+  adapter/{in,out}/  — cross-cutting adapters (event publisher, global error handler)
+  security/          — JWT filter, SecurityConfig, SecurityUser, UserDetailsService
+  websocket/         — STOMP config + JWT channel interceptor
 ```
 
-The boundaries are **enforced by ArchUnit** (`HexagonalArchitectureTest`, runs in `mvn test`): the domain
-stays framework-free (apart from JPA mappings), the application depends only on ports, Spring Data is
-confined to the persistence adapters, and bounded contexts interact only through inbound ports or published
-DTOs. See [`docs/ADRs/ADR-001-ddd-hexagonal-architecture.md`](docs/ADRs/ADR-001-ddd-hexagonal-architecture.md).
+The boundaries are **enforced by ArchUnit** (`HexagonalArchitectureTest`, ten rules, runs in `mvn test`):
+the domain stays framework-free (apart from JPA mappings), the application depends on no adapter in either
+direction, Spring Data is confined to the persistence adapters, controllers only to the web adapter, and
+bounded contexts interact only through published surfaces — and form an acyclic graph.
+
+See [`docs/ADRs/ADR-001-ddd-hexagonal-architecture.md`](docs/ADRs/ADR-001-ddd-hexagonal-architecture.md)
+for the original decision and
+[`docs/ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md`](docs/ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)
+for the corrections that followed a conformance audit.
 
 ### Domain Model
 
@@ -177,7 +195,7 @@ Events are published through a `DomainEventPublisher` outbound port (a Spring-ba
 1. **Clone the repository**
    ```bash
    git clone <repo-url>
-   cd Health_Upgrades_Tracker
+   cd UpHealther
    ```
 
 2. **Set up environment**
@@ -235,14 +253,21 @@ After startup, a demo account is available:
 ### Backend Tests
 ```bash
 cd backend
-mvn test
+mvn test      # unit + architecture tests — no database needed
+mvn verify    # the above plus integration tests — needs a running PostgreSQL
 ```
 
-Tests cover:
-- HealthUpgrade state machine business rules
-- StreakCalculator (various entry patterns)
-- ProgressEvaluationService (boolean/numeric/rating/text)
-- Hexagonal architecture rules (ArchUnit) — domain purity, port/adapter boundaries, bounded-context isolation
+`mvn test` covers:
+- HealthUpgrade state machine, construction invariants and the max-concurrent-HARD rule
+- Reminder scheduling (day filters, due-at) and StreakCalculator
+- ProgressEvaluationService (boolean/numeric/rating/text, including unit compatibility)
+- The exception → HTTP status contract (`GlobalExceptionHandler`)
+- Hexagonal architecture rules (ArchUnit) — domain purity, port/adapter boundaries, bounded-context
+  isolation and cycle freedom
+
+`mvn verify` adds `ApplicationContextIT`, which boots the app against PostgreSQL and so catches a broken
+bean graph or a missing Flyway migration — neither of which a unit test can see. Start a database first
+with `docker-compose up -d postgres`.
 
 ### Frontend Build (includes type check)
 ```bash
@@ -281,11 +306,11 @@ npm run build
 
 ## Disclaimer
 
-> HealthUpgrades is a lifestyle planning tool. It is **not** a medical application and does not provide medical advice, diagnosis, or treatment. Always consult a healthcare professional for medical decisions.
+> UpHealther is a lifestyle planning tool. It is **not** a medical application and does not provide medical advice, diagnosis, or treatment. Always consult a healthcare professional for medical decisions.
 
 ## Resume Summary
 
-**HealthUpgrades** is a production-quality full-stack web application built with Java 21 / Spring Boot 3 backend and React / TypeScript frontend. It demonstrates:
+**UpHealther** is a production-quality full-stack web application built with Java 21 / Spring Boot 3 backend and React / TypeScript frontend. It demonstrates:
 - Clean architecture: Domain-Driven Design (DDD) + Hexagonal (Ports & Adapters), enforced with ArchUnit
 - JWT authentication with Spring Security
 - PostgreSQL with Flyway migrations and optimistic locking
@@ -296,3 +321,29 @@ npm run build
 - Docker Compose for one-command deployment
 - GitHub Actions CI pipeline
 - Comprehensive unit tests for domain logic
+
+## License
+
+**Copyright © 2026 Naim Elijah. All rights reserved.**
+
+UpHealther is **source-available, not open source**. The code is published so it can be read,
+reviewed and evaluated — by prospective employers, collaborators and anyone technically curious. That
+is the whole of the permission granted.
+
+| You may | You may not |
+|---|---|
+| Read and review the source | Use it in any project, product or service |
+| Keep a local copy to evaluate it | Copy, modify or build on it |
+| Quote short excerpts, with credit | Deploy, host or run it |
+| | Redistribute or sell it |
+| | Present it as your own work |
+| | Use it to train a machine learning model |
+
+Anything beyond reading requires **written permission** from the author. Requests go through
+[github.com/NaimElijah](https://github.com/NaimElijah) — an unanswered request is a refused one.
+
+The full terms are in [`LICENSE`](LICENSE), and they are what govern; the table above is a summary.
+
+Third-party dependencies (Spring Boot, React, PostgreSQL and the rest) are **not** covered by this
+licence and remain under the terms their own authors set. This licence applies only to the original
+work in this repository.

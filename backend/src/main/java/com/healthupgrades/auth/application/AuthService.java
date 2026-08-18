@@ -28,7 +28,17 @@ public class AuthService {
     private final JwtTokenProvider tokenProvider; // issues JWTs
     private final AuthenticationManager authenticationManager; // verifies credentials on login
 
-    /** Registers a new user (rejecting a duplicate email) and issues a token. */
+    /**
+     * Registers a new user and issues a token for them.
+     *
+     * <p>The password is BCrypt-encoded before the user is saved; the raw value never leaves this method.
+     *
+     * @param name     display name
+     * @param email    login identity, unique across users
+     * @param password raw password, encoded here
+     * @return the issued JWT together with the persisted user
+     * @throws BusinessRuleException if the email is already registered
+     */
     @Transactional
     public AuthResult register(String name, String email, String password) {
         if (userQuery.existsByEmail(email)) {
@@ -43,7 +53,16 @@ public class AuthService {
         return new AuthResult(tokenProvider.generateToken(user.getEmail()), user);
     }
 
-    /** Authenticates credentials and issues a token. */
+    /**
+     * Authenticates credentials and issues a token.
+     *
+     * @param email    login identity
+     * @param password raw password, matched against the stored hash by the authentication manager
+     * @return the issued JWT together with the authenticated user
+     * @throws org.springframework.security.core.AuthenticationException if the credentials do not match
+     * @throws BusinessRuleException if the credentials matched but the user has since disappeared —
+     *         only reachable if the account is deleted mid-request
+     */
     public AuthResult login(String email, String password) {
         authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(email, password)); // throws on bad creds
         User user = userQuery.findByEmail(email)
@@ -51,7 +70,13 @@ public class AuthService {
         return new AuthResult(tokenProvider.generateToken(user.getEmail()), user);
     }
 
-    /** Returns the current user by email (the JWT subject). */
+    /**
+     * Looks up the current user by the email carried as the JWT subject.
+     *
+     * @param email the authenticated principal's email
+     * @return the domain user
+     * @throws BusinessRuleException if no user has that email
+     */
     public User getMe(String email) {
         return userQuery.findByEmail(email)
                 .orElseThrow(() -> new BusinessRuleException("User not found"));

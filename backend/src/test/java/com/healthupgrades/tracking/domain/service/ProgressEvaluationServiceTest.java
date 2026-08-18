@@ -11,6 +11,12 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Covers what counts as a successful entry for each tracking type.
+ *
+ * <p>Includes the unit-comparison cases: a value logged in a unit that disagrees with the target's must
+ * not be scored, which is the defect that motivated the check.
+ */
 class ProgressEvaluationServiceTest {
 
     private ProgressEvaluationService service;
@@ -97,6 +103,61 @@ class ProgressEvaluationServiceTest {
         TrackingConfig c = buildConfig(TrackingType.NUMERIC);
         c.setTargetNumericValue(2.0);
         assertThat(service.isSuccessful(e, c)).isFalse();
+    }
+
+    @Test
+    void numeric_valueClearsTargetButUnitDiffers_returnsFalse() {
+        // 45 minutes is not 30 kilometres, however favourably the bare numbers compare.
+        ProgressEntry e = buildEntry();
+        e.setNumericValue(45.0);
+        e.setUnit("minutes");
+        TrackingConfig c = buildConfig(TrackingType.NUMERIC);
+        c.setTargetNumericValue(30.0);
+        c.setTargetUnit("km");
+        assertThat(service.isSuccessful(e, c)).isFalse();
+    }
+
+    @Test
+    void numeric_valueClearsTargetAndUnitMatches_returnsTrue() {
+        ProgressEntry e = buildEntry();
+        e.setNumericValue(45.0);
+        e.setUnit("minutes");
+        TrackingConfig c = buildConfig(TrackingType.NUMERIC);
+        c.setTargetNumericValue(30.0);
+        c.setTargetUnit("minutes");
+        assertThat(service.isSuccessful(e, c)).isTrue();
+    }
+
+    @Test
+    void numeric_entryOmitsUnit_isTakenToUseTheConfiguredOne() {
+        ProgressEntry e = buildEntry();
+        e.setNumericValue(45.0);
+        e.setUnit(null);
+        TrackingConfig c = buildConfig(TrackingType.NUMERIC);
+        c.setTargetNumericValue(30.0);
+        c.setTargetUnit("minutes");
+        assertThat(service.isSuccessful(e, c)).isTrue();
+    }
+
+    @Test
+    void numeric_unitsDifferOnlyInCaseAndPadding_returnsTrue() {
+        ProgressEntry e = buildEntry();
+        e.setNumericValue(45.0);
+        e.setUnit("  Minutes ");
+        TrackingConfig c = buildConfig(TrackingType.NUMERIC);
+        c.setTargetNumericValue(30.0);
+        c.setTargetUnit("minutes");
+        assertThat(service.isSuccessful(e, c)).isTrue();
+    }
+
+    @Test
+    void numeric_configHasNoTargetUnit_acceptsAnyLoggedUnit() {
+        ProgressEntry e = buildEntry();
+        e.setNumericValue(45.0);
+        e.setUnit("minutes");
+        TrackingConfig c = buildConfig(TrackingType.NUMERIC);
+        c.setTargetNumericValue(30.0);
+        assertThat(service.isSuccessful(e, c)).isTrue();
     }
 
     // RATING tests

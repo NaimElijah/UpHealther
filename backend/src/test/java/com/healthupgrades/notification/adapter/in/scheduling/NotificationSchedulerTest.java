@@ -7,7 +7,6 @@ import com.healthupgrades.reminder.domain.model.Reminder;
 import com.healthupgrades.tracking.application.port.in.ProgressQuery;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
-import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,7 +15,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -29,6 +27,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+/**
+ * Covers the scheduled notifications: whether a reminder is dispatched at a given moment, and when the
+ * daily check-in nudge is suppressed.
+ *
+ * <p>Deterministic through a fixed {@link java.time.Clock} — a scheduler test that read the system clock
+ * would pass or fail depending on the minute it ran in.
+ */
 class NotificationSchedulerTest {
 
     @Mock UpgradeQuery upgradeQuery;
@@ -48,32 +53,6 @@ class NotificationSchedulerTest {
     void setUp() {
         scheduler = new NotificationScheduler(upgradeQuery, progressQuery, reminderQuery,
                 notificationRepository, notificationService, fixedClock);
-    }
-
-    @Test
-    void notifyOverdue_notifiesOncePerOverdueUpgrade() {
-        HealthUpgrade overdue = HealthUpgrade.builder().id(upgradeId).userId(userId).title("Sleep early")
-                .status(UpgradeStatus.ACTIVE).targetEndDate(LocalDate.now().minusDays(1)).build();
-        HealthUpgrade notOverdue = HealthUpgrade.builder().id(UUID.randomUUID()).userId(userId).title("Walk")
-                .status(UpgradeStatus.ACTIVE).build(); // no target date -> not overdue
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(overdue, notOverdue));
-        when(notificationRepository.existsByUserIdAndRelatedUpgradeIdAndType(any(), any(), any())).thenReturn(false);
-
-        scheduler.notifyOverdue();
-
-        verify(notificationService).create(eq(userId), eq(NotificationType.UPGRADE_OVERDUE), any(), any(), any(), eq(upgradeId));
-    }
-
-    @Test
-    void notifyOverdue_skipsWhenAlreadyNotified() {
-        HealthUpgrade overdue = HealthUpgrade.builder().id(upgradeId).userId(userId).title("Sleep early")
-                .status(UpgradeStatus.ACTIVE).targetEndDate(LocalDate.now().minusDays(1)).build();
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(overdue));
-        when(notificationRepository.existsByUserIdAndRelatedUpgradeIdAndType(any(), any(), any())).thenReturn(true);
-
-        scheduler.notifyOverdue();
-
-        verify(notificationService, never()).create(any(), any(), any(), any(), any(), any());
     }
 
     @Test

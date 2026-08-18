@@ -8,6 +8,11 @@ import java.util.UUID;
  */
 public interface DashboardQuery {
 
-    /** Builds the dashboard aggregate for a user. */
+    /**
+     * Builds the dashboard aggregate for a user.
+     *
+     * @param userId the owner whose data is summarised
+     * @return the assembled view; empty buckets rather than null for a user with no upgrades
+     */
     DashboardView getDashboard(UUID userId);
 }

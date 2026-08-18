@@ -7,10 +7,16 @@ import { NotificationContext } from './notificationContextValue';
 import ToastContainer, { type ToastData } from '../components/notifications/ToastContainer';
 import type { AppNotification } from '../types';
 
+/** Query key for the cached notification list, shared by the fetch and every live update below. */
 const NOTIF_KEY = ['notifications'];
 
-/** Build the WebSocket URL. Same-origin /ws (via the Vite/nginx proxy) by default; derived from
- * VITE_API_URL when the API is on another origin. */
+/**
+ * Builds the WebSocket URL.
+ *
+ * Same-origin `/ws` through the Vite or nginx proxy by default, so the socket needs no CORS setup;
+ * derived from `VITE_API_URL` only when the API is on another origin. The scheme is upgraded in step
+ * with the page's, since a `ws://` socket on an `https://` page is blocked by the browser.
+ */
 function buildWsUrl(): string {
   const apiUrl = import.meta.env.VITE_API_URL;
   if (apiUrl && /^https?:\/\//.test(apiUrl)) {
@@ -20,6 +26,17 @@ function buildWsUrl(): string {
   return `${proto}//${window.location.host}/ws`;
 }
 
+/**
+ * Owns notification state: the list, the unread count, the live connection and the toasts.
+ *
+ * Notifications arrive by two routes and both write to the same query cache — a REST fetch on mount,
+ * and a STOMP subscription for anything raised while the tab is open. Live arrivals are de-duplicated
+ * by id, so a notification that comes in both ways is shown once.
+ *
+ * Mounted inside the router because a toast can navigate, and inside the auth provider because the
+ * socket authenticates with the token. The connection follows the session: it opens when signed in and
+ * closes on logout or unmount.
+ */
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token, isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
@@ -36,10 +53,15 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     enabled: isAuthenticated,
   });
 
+  /** Removes one toast, whether it was dismissed by the user or timed out. */
   const dismissToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  /**
+   * Shows a notification as a toast: newest first, at most four at once, each auto-dismissed after six
+   * seconds. The cap matters — a burst of notifications would otherwise cover the page.
+   */
   const pushToast = useCallback((n: AppNotification) => {
     setToasts((prev) =>
       [{ id: n.id, category: n.category, title: n.title, message: n.message, relatedUpgradeId: n.relatedUpgradeId }, ...prev].slice(0, 4),
@@ -47,6 +69,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     window.setTimeout(() => dismissToast(n.id), 6000);
   }, [dismissToast]);
 
+  /**
+   * Handles a notification pushed over the socket: writes it into the cache, toasts it, and raises a
+   * desktop notification when the tab is in the background.
+   *
+   * The desktop notification is deliberately conditional on `document.hidden` — the toast already
+   * covers the case where the user is looking at the page, and doing both would notify twice.
+   */
   const handleIncoming = useCallback((n: AppNotification) => {
     // Prepend to the cached list (de-duped) so the bell/badge/list update live.
     queryClient.setQueryData<AppNotification[]>(NOTIF_KEY, (old = []) =>
@@ -65,6 +94,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [queryClient, pushToast]);
 
   // STOMP connection lifecycle — connect while authenticated, disconnect on logout/unmount.
+  // Reconnects every five seconds while the socket is down; nothing is lost meanwhile, since anything
+  // missed is still fetched by the REST query.
+  // handleIncoming is a dependency, so it is memoised: a new identity each render would tear the
+  // socket down and rebuild it on every render.
   useEffect(() => {
     if (!isAuthenticated || !token) return;
 
@@ -78,7 +111,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           try {
             handleIncoming(JSON.parse(message.body) as AppNotification);
           } catch {
-            /* ignore malformed frames */
+            // A frame that will not parse is dropped rather than thrown: an exception here would
+            // propagate into the STOMP client and tear down the subscription, costing every later
+            // notification as well as this one.
           }
         });
       },
@@ -95,6 +130,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
   }, [isAuthenticated, token, handleIncoming]);
 
+  /**
+   * Marks one notification read, updating the cache first and calling the API after.
+   *
+   * The optimistic write is what makes the badge respond instantly. If the call fails the cache is
+   * invalidated, so the server's answer replaces the guess rather than the UI keeping a lie.
+   */
   const markRead = useCallback((id: string) => {
     queryClient.setQueryData<AppNotification[]>(NOTIF_KEY, (old = []) =>
       old.map((n) => (n.id === id ? { ...n, read: true } : n)),
@@ -102,11 +143,18 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     markNotificationRead(id).catch(() => queryClient.invalidateQueries({ queryKey: NOTIF_KEY }));
   }, [queryClient]);
 
+  /** Marks every notification read, optimistically and with the same rollback-by-invalidation. */
   const markAllRead = useCallback(() => {
     queryClient.setQueryData<AppNotification[]>(NOTIF_KEY, (old = []) => old.map((n) => ({ ...n, read: true })));
     markAllNotificationsRead().catch(() => queryClient.invalidateQueries({ queryKey: NOTIF_KEY }));
   }, [queryClient]);
 
+  /**
+   * Asks the browser for desktop-notification permission.
+   *
+   * Guarded because the API is absent in insecure contexts and some embedded browsers, where reading
+   * `Notification` at all would throw.
+   */
   const requestDesktopPermission = useCallback(() => {
     if (typeof Notification === 'undefined') return;
     Notification.requestPermission().then(setDesktopPermission);

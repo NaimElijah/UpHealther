@@ -4,6 +4,15 @@ import { useAuth } from '../hooks/useAuth';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 
+/**
+ * Account creation page, and the other route reachable without a session.
+ *
+ * The password rules checked here — matching confirmation, minimum length — are for immediate feedback
+ * only; the API is the authority on whether a registration is accepted. A duplicate email is reported
+ * as a possibility rather than a fact, so this page does not become a way to test which emails exist.
+ *
+ * Signs the new account straight in, since registration returns a token.
+ */
 const RegisterPage: React.FC = () => {
   const { register, isAuthenticated } = useAuth();
   const navigate = useNavigate();

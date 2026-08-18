@@ -19,18 +19,21 @@ class TrackingConfigRepositoryAdapter implements TrackingConfigRepositoryPort {
 
     private final TrackingConfigJpaRepository jpa; // Spring Data proxy
 
+    /** {@inheritDoc} */
     @Override
     public TrackingConfig save(TrackingConfig config) {
-        return jpa.save(config); // delegate persist
+        return jpa.save(config);
     }
 
+    /** {@inheritDoc} */
     @Override
     public Optional<TrackingConfig> findByUpgradeId(UUID upgradeId) {
-        return jpa.findByUpgradeId(upgradeId); // delegate
+        return jpa.findByUpgradeId(upgradeId);
     }
 
+    /** {@inheritDoc} */
     @Override
     public List<TrackingConfig> findByUpgradeIdIn(Collection<UUID> upgradeIds) {
-        return jpa.findByUpgradeIdIn(upgradeIds); // delegate batch load
+        return jpa.findByUpgradeIdIn(upgradeIds);
     }
 }

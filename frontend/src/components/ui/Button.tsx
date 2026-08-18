@@ -1,6 +1,14 @@
 import React from 'react';
 import LoadingSpinner from './LoadingSpinner';
 
+/**
+ * Extends the native button attributes, so `type`, `onClick`, `aria-*` and the rest pass straight
+ * through.
+ *
+ * @param variant visual weight: primary for the main action, danger for destructive ones
+ * @param size    padding and text scale
+ * @param loading shows a spinner and disables the button, so a slow request cannot be double-submitted
+ */
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
@@ -21,6 +29,7 @@ const sizeClasses: Record<string, string> = {
   lg: 'px-6 py-3 text-base',
 };
 
+/** The app's button. Disabled while `loading`, which is what prevents duplicate submissions. */
 const Button: React.FC<ButtonProps> = ({
   variant = 'primary',
   size = 'md',

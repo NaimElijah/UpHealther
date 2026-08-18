@@ -9,6 +9,13 @@ import EmptyState from '../components/ui/EmptyState';
 import Badge from '../components/ui/Badge';
 import type { ProgressEntry, HealthUpgrade } from '../types';
 
+/**
+ * The last seven days of progress across every upgrade, newest first.
+ *
+ * Two queries rather than one: entries carry an upgrade id but no title, so the upgrades are fetched
+ * alongside and indexed by id. An entry whose upgrade has since been deleted still renders, labelled
+ * as unknown, rather than disappearing or breaking the list.
+ */
 const ProgressHistoryPage: React.FC = () => {
   const { data: progress = [], isLoading: pLoading, error: pError } = useQuery({ queryKey: ['allProgress'], queryFn: getWeekProgress });
   const { data: upgrades = [], isLoading: uLoading, error: uError } = useQuery({ queryKey: ['allUpgrades'], queryFn: () => getUpgrades() });

@@ -1,5 +1,11 @@
 import React, { useEffect } from 'react';
 
+/**
+ * @param isOpen   whether the dialog is shown; when false the component renders nothing at all
+ * @param onClose  called by the close button, the backdrop and the Escape key alike
+ * @param title    heading text
+ * @param children the dialog body, usually a form
+ */
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -7,6 +13,13 @@ interface ModalProps {
   children: React.ReactNode;
 }
 
+/**
+ * Centred dialog over a dimmed backdrop.
+ *
+ * Closes on Escape as well as on the button and the backdrop; the key listener is bound only while
+ * open, so a closed modal costs nothing and several on one page cannot fight over the key. Nothing is
+ * rendered when closed, which means the body is unmounted and its form state resets between openings.
+ */
 const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
