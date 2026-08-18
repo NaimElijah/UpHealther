@@ -1,5 +1,9 @@
 # Backend conventions
 
+`../docs/architecture/architecture.md` describes the system as it is — contexts, communication, data
+flow and the structural decisions behind the layout. This file covers the conventions to follow when
+changing it.
+
 Architecture is DDD + Hexagonal. The decision and its rationale are recorded in
 `../docs/ADRs/ADR-001-ddd-hexagonal-architecture.md`, corrected and extended by
 `../docs/ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md`. The layering is

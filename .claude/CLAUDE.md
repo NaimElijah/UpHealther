@@ -9,6 +9,11 @@ experiment, goal, etc.) that moves through a lifecycle.
 
 ## Architecture
 
+`docs/architecture/architecture.md` describes the system as it is: components, communication, data
+flow, external dependencies, and the structural decisions not visible from the file layout. Read it
+before changing anything that crosses a boundary, and update it in the same commit when behaviour
+changes.
+
 The backend follows DDD + Hexagonal architecture; the decision and its rationale are recorded in
 `docs/ADRs/ADR-001-ddd-hexagonal-architecture.md`, corrected and extended by
 `docs/ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md`. The layering is
