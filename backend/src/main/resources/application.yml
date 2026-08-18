@@ -8,6 +8,8 @@ spring:
     password: ${DB_PASSWORD:healthupgrades}
   jpa:
     hibernate:
+      # Flyway owns the schema; Hibernate only checks the entities against it and refuses to start on a
+      # mismatch. An entity change therefore needs a new V{n}__*.sql migration, never a schema update here.
       ddl-auto: validate
     show-sql: false
     properties:
@@ -15,12 +17,16 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
   flyway:
     enabled: true
+    # Lets Flyway adopt a database that already has tables but no schema history, so an environment
+    # created before Flyway was introduced does not have to be dropped.
     baseline-on-migrate: true
 
 app:
   jwt:
+    # The fallback exists so a clone runs with no setup; it is a published value and gives no security.
+    # Set JWT_SECRET in any deployment. At least 256 bits, or the application refuses to start.
     secret: ${JWT_SECRET:a-very-long-default-secret-key-that-should-be-changed-in-production-at-least-256-bits}
-    expiration: 86400000
+    expiration: 86400000 # 24h in milliseconds. Tokens are not refreshable, so this is the whole session.
   cors:
     # Comma-separated list of origins allowed to call the API directly (cross-origin).
     # Not needed when the frontend is served behind the Vite dev proxy or nginx (same-origin /api).
@@ -40,4 +46,5 @@ app:
 
 logging:
   level:
+    # DEBUG for this application's own packages only; everything else stays at Spring's default INFO.
     com.healthupgrades: DEBUG

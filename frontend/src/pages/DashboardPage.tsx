@@ -11,6 +11,13 @@ import EmptyState from '../components/ui/EmptyState';
 import { performUpgradeAction } from '../api/upgrades';
 import type { UpgradeStatus } from '../types';
 
+/**
+ * Landing page after sign-in: counts, the weekly rate, streaks, overdue warnings and today's upgrades.
+ *
+ * Everything comes from the single `/api/dashboard` call, so the sections cannot disagree with one
+ * another. A transition performed from a card invalidates that one query, which refreshes the whole
+ * page at once.
+ */
 const DashboardPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -20,6 +27,7 @@ const DashboardPage: React.FC = () => {
     queryFn: getDashboard,
   });
 
+  /** Performs a lifecycle transition from a card, then refetches the dashboard it appeared on. */
   const handleStatusChange = async (id: string, status: UpgradeStatus) => {
     await performUpgradeAction(id, status);
     await queryClient.invalidateQueries({ queryKey: ['dashboard'] });

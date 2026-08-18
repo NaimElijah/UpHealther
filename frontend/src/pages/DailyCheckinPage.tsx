@@ -10,16 +10,30 @@ import EmptyState from '../components/ui/EmptyState';
 import { useNavigate } from 'react-router-dom';
 import type { HealthUpgrade, CreateProgressRequest } from '../types';
 
+/** Draft entries being filled in, keyed by upgrade id, until the whole form is submitted. */
 type ProgressMap = Record<string, Partial<CreateProgressRequest>>;
 
+/** Today as `YYYY-MM-DD`, the date format the progress API expects. */
 const today = () => new Date().toISOString().split('T')[0];
 
-// Avoid sending NaN to the API when the numeric field is cleared.
+/**
+ * Parses a numeric field, treating unparseable input as absent.
+ *
+ * Clearing a number input yields an empty string, and `parseFloat('')` is NaN — which serialises to
+ * `null` and would be read as a logged value of nothing rather than as no value at all.
+ */
 const numOrUndef = (v: string): number | undefined => {
   const n = parseFloat(v);
   return Number.isNaN(n) ? undefined : n;
 };
 
+/**
+ * Logs progress for every active upgrade in one pass.
+ *
+ * The entries are gathered locally and submitted together, so the user fills the form once rather than
+ * saving each upgrade separately. Only upgrades with something entered are sent; an untouched one is
+ * left unlogged rather than recorded as missed.
+ */
 const DailyCheckinPage: React.FC = () => {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -37,6 +51,7 @@ const DailyCheckinPage: React.FC = () => {
     },
   });
 
+  /** Merges a field change into one upgrade's draft entry, leaving the others untouched. */
   const updateProgress = (id: string, partial: Partial<CreateProgressRequest>) => {
     setProgressMap((prev) => ({ ...prev, [id]: { ...prev[id], ...partial } }));
   };

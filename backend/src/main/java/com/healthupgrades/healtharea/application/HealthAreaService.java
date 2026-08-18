@@ -12,13 +12,25 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Use cases for health areas: create, read, update and delete, all scoped to one owner.
+ *
+ * <p>Every method takes the owner's id explicitly — there is no ambient "current user" in this layer —
+ * and every lookup goes through {@code getOwnedArea}, so ownership is checked in exactly one place.
+ */
 @Service
 @RequiredArgsConstructor
 public class HealthAreaService implements HealthAreaQuery {
 
     private final HealthAreaRepositoryPort repository;
 
-    /** Creates a health area owned by the given user. */
+    /**
+     * Creates a health area owned by the given user.
+     *
+     * @param userId  the owner
+     * @param details the attributes to store
+     * @return the persisted area, with its generated id and timestamps
+     */
     @Transactional
     public HealthArea create(UUID userId, HealthAreaDetails details) {
         HealthArea area = HealthArea.builder()
@@ -32,12 +44,27 @@ public class HealthAreaService implements HealthAreaQuery {
         return repository.save(area);
     }
 
-    /** A single owned area. */
+    /**
+     * Reads one of the user's areas.
+     *
+     * @param userId the owner
+     * @param id     the area's identifier
+     * @return the owned area
+     * @throws ResourceNotFoundException if the area does not exist or belongs to somebody else
+     */
     public HealthArea findById(UUID userId, UUID id) {
         return getOwnedArea(userId, id);
     }
 
-    /** Replaces the editable attributes of an owned area. */
+    /**
+     * Replaces the editable attributes of an owned area.
+     *
+     * @param userId  the owner
+     * @param id      the area's identifier
+     * @param details the replacement attributes; nulls overwrite previous values
+     * @return the saved area
+     * @throws ResourceNotFoundException if the area does not exist or belongs to somebody else
+     */
     @Transactional
     public HealthArea update(UUID userId, UUID id, HealthAreaDetails details) {
         HealthArea area = getOwnedArea(userId, id);
@@ -49,7 +76,15 @@ public class HealthAreaService implements HealthAreaQuery {
         return repository.save(area);
     }
 
-    /** Deletes an owned area. */
+    /**
+     * Deletes an owned area.
+     *
+     * <p>Upgrades filed under it are left untouched and keep the now-dangling area id.
+     *
+     * @param userId the owner
+     * @param id     the area's identifier
+     * @throws ResourceNotFoundException if the area does not exist or belongs to somebody else
+     */
     @Transactional
     public void delete(UUID userId, UUID id) {
         repository.delete(getOwnedArea(userId, id));
@@ -64,6 +99,7 @@ public class HealthAreaService implements HealthAreaQuery {
         return repository.findByUserId(userId);
     }
 
+    /** Single ownership guard: a foreign or missing area is indistinguishable, both are "not found". */
     private HealthArea getOwnedArea(UUID userId, UUID id) {
         return repository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("HealthArea not found: " + id)); // ownership guard

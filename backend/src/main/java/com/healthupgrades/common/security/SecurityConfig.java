@@ -23,6 +23,15 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Web security wiring: a stateless, token-authenticated API.
+ *
+ * <p>Defines the filter chain, the password encoder, the DAO authentication provider used by the login
+ * endpoint, and the CORS policy. Authorization is coarse — a request is either on the small permitted
+ * list or it needs a valid token. Ownership is <em>not</em> decided here: every query is scoped by user
+ * id at the repository, so one user cannot read another's rows even though both are "authenticated"
+ * (see {@code backend/CLAUDE.md}).
+ */
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
@@ -34,6 +43,14 @@ public class SecurityConfig {
     @Value("${app.cors.allowed-origins:http://localhost:3000}")
     private String allowedOrigins;
 
+    /**
+     * Builds the filter chain: stateless sessions, CORS from configuration, and the JWT filter ahead of
+     * the username/password filter.
+     *
+     * @param http Spring Security's chain builder
+     * @return the configured chain
+     * @throws Exception if the chain cannot be built
+     */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -56,6 +73,7 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /** Authentication provider used by the login endpoint to match a submitted password against the stored hash. */
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
@@ -64,16 +82,28 @@ public class SecurityConfig {
         return provider;
     }
 
+    /**
+     * Exposes the {@link AuthenticationManager} so {@code AuthService} can authenticate a login attempt.
+     *
+     * @throws Exception if the manager cannot be resolved from the configuration
+     */
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
     }
 
+    /** BCrypt encoder — the algorithm the stored password hashes (including the seeded demo user) use. */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
+    /**
+     * CORS policy for cross-origin browsers, from the comma-separated {@code app.cors.allowed-origins}.
+     *
+     * <p>Only needed when the frontend is served from another origin; the default setup proxies
+     * {@code /api} same-origin (Vite in dev, nginx in prod) and never reaches this.
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         List<String> origins = Arrays.stream(allowedOrigins.split(","))

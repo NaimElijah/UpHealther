@@ -17,19 +17,40 @@ import UpgradeTypeBadge from '../components/upgrade/UpgradeTypeBadge';
 import Badge from '../components/ui/Badge';
 import type { CreateProgressRequest, CreateReflectionRequest, TrackingType, Frequency } from '../types';
 
+/** Today as `YYYY-MM-DD`, the date format the progress and reflection APIs expect. */
 const today = () => new Date().toISOString().split('T')[0];
+/**
+ * Day tokens for the reminder day picker, in week order.
+ *
+ * Three-letter and upper case because that is the form the API stores; selecting none means the
+ * reminder fires every day.
+ */
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 
-// Parse number inputs without ever sending NaN to the API (e.g. when the field is cleared).
+/**
+ * Parses a decimal field, treating unparseable input as absent.
+ *
+ * A cleared number input yields an empty string, and `parseFloat('')` is NaN — which would serialise
+ * to `null` and be read as a logged value rather than as no value.
+ */
 const numOrUndef = (v: string): number | undefined => {
   const n = parseFloat(v);
   return Number.isNaN(n) ? undefined : n;
 };
+/** Integer counterpart of {@link numOrUndef}, for the rating fields. */
 const intOrUndef = (v: string): number | undefined => {
   const n = parseInt(v, 10);
   return Number.isNaN(n) ? undefined : n;
 };
 
+/**
+ * Everything about one upgrade: its details, progress history, streak, reflections, reminders and
+ * tracking configuration.
+ *
+ * The busiest page in the app, and the only place several of these can be edited at all. Each concern
+ * is its own query and its own mutation, so saving a reflection does not refetch the progress history;
+ * what they share is the upgrade id from the route.
+ */
 const UpgradeDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();

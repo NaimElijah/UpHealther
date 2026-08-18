@@ -18,33 +18,39 @@ class ProgressEntryRepositoryAdapter implements ProgressEntryRepositoryPort {
 
     private final ProgressEntryJpaRepository jpa; // Spring Data proxy
 
+    /** {@inheritDoc} */
     @Override
     public ProgressEntry save(ProgressEntry entry) {
-        return jpa.save(entry); // delegate persist
+        return jpa.save(entry);
     }
 
+    /** {@inheritDoc} */
     @Override
     public boolean existsByUpgradeIdAndDate(UUID upgradeId, LocalDate date) {
-        return jpa.existsByUpgradeIdAndDate(upgradeId, date); // delegate dedup check
+        return jpa.existsByUpgradeIdAndDate(upgradeId, date);
     }
 
+    /** {@inheritDoc} */
     @Override
     public List<ProgressEntry> findByUpgradeId(UUID upgradeId) {
-        return jpa.findByUpgradeId(upgradeId); // delegate
+        return jpa.findByUpgradeId(upgradeId);
     }
 
+    /** {@inheritDoc} */
     @Override
     public List<ProgressEntry> findByUpgradeIdOrderByDateDesc(UUID upgradeId) {
-        return jpa.findByUpgradeIdOrderByDateDesc(upgradeId); // delegate
+        return jpa.findByUpgradeIdOrderByDateDesc(upgradeId);
     }
 
+    /** {@inheritDoc} */
     @Override
     public List<ProgressEntry> findByUserIdAndDate(UUID userId, LocalDate date) {
-        return jpa.findByUserIdAndDate(userId, date); // delegate
+        return jpa.findByUserIdAndDate(userId, date);
     }
 
+    /** {@inheritDoc} */
     @Override
     public List<ProgressEntry> findByUserIdAndDateBetween(UUID userId, LocalDate start, LocalDate end) {
-        return jpa.findByUserIdAndDateBetween(userId, start, end); // delegate range query
+        return jpa.findByUserIdAndDateBetween(userId, start, end);
     }
 }

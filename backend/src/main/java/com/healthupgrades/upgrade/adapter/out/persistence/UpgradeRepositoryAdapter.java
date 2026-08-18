@@ -22,58 +22,69 @@ class UpgradeRepositoryAdapter implements UpgradeRepositoryPort {
 
     private final UpgradeJpaRepository jpa; // Spring Data proxy injected by constructor
 
+    /** {@inheritDoc} */
     @Override
     public HealthUpgrade save(HealthUpgrade upgrade) {
-        return jpa.save(upgrade); // delegate persist
+        return jpa.save(upgrade);
     }
 
+    /** {@inheritDoc} */
     @Override
     public void delete(HealthUpgrade upgrade) {
-        jpa.delete(upgrade); // delegate delete
+        jpa.delete(upgrade);
     }
 
+    /** {@inheritDoc} */
     @Override
     public Optional<HealthUpgrade> findByIdAndUserId(UUID id, UUID userId) {
-        return jpa.findByIdAndUserId(id, userId); // delegate ownership-scoped lookup
+        return jpa.findByIdAndUserId(id, userId);
     }
 
+    /** {@inheritDoc} */
     @Override
     public List<HealthUpgrade> findByUserId(UUID userId) {
-        return jpa.findByUserId(userId); // delegate
+        return jpa.findByUserId(userId);
     }
 
+    /** {@inheritDoc} */
     @Override
     public List<HealthUpgrade> findByUserIdAndStatus(UUID userId, UpgradeStatus status) {
-        return jpa.findByUserIdAndStatus(userId, status); // delegate
+        return jpa.findByUserIdAndStatus(userId, status);
     }
 
+    /** {@inheritDoc} */
     @Override
     public List<HealthUpgrade> findByUserIdAndType(UUID userId, UpgradeType type) {
-        return jpa.findByUserIdAndType(userId, type); // delegate
+        return jpa.findByUserIdAndType(userId, type);
     }
 
+    /** {@inheritDoc} */
     @Override
     public List<HealthUpgrade> findByUserIdAndAreaId(UUID userId, UUID areaId) {
-        return jpa.findByUserIdAndAreaId(userId, areaId); // delegate
+        return jpa.findByUserIdAndAreaId(userId, areaId);
     }
 
+    /** {@inheritDoc} */
     @Override
     public List<HealthUpgrade> findByUserIdAndDifficulty(UUID userId, Difficulty difficulty) {
-        return jpa.findByUserIdAndDifficulty(userId, difficulty); // delegate
+        return jpa.findByUserIdAndDifficulty(userId, difficulty);
     }
 
+    /** {@inheritDoc} */
     @Override
     public List<HealthUpgrade> findByStatus(UpgradeStatus status) {
-        return jpa.findByStatus(status); // delegate
+        return jpa.findByStatus(status);
     }
 
+    /** {@inheritDoc} */
     @Override
     public List<HealthUpgrade> findAllById(Iterable<UUID> ids) {
-        return jpa.findAllById(ids); // delegate to the inherited JpaRepository batch lookup
+        return jpa.findAllById(ids);
     }
 
+    /** {@inheritDoc} */
     @Override
     public long countByUserIdAndStatusAndDifficulty(UUID userId, UpgradeStatus status, Difficulty difficulty) {
-        return jpa.countByUserIdAndStatusAndDifficulty(userId, status, difficulty); // delegate count
+        return jpa.countByUserIdAndStatusAndDifficulty(userId, status, difficulty);
     }
 }

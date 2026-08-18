@@ -26,6 +26,13 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+/**
+ * Covers the dashboard's aggregation rules: which upgrade lands in which bucket, and how the weekly
+ * completion rate is computed.
+ *
+ * <p>Every collaborator is a mocked inbound port, so what is under test is the composition itself —
+ * the bucketing and arithmetic — rather than any other context's behaviour.
+ */
 class DashboardAggregationServiceTest {
 
     @Mock UpgradeQuery upgradeQuery;

@@ -20,38 +20,45 @@ class NotificationRepositoryAdapter implements NotificationRepositoryPort {
 
     private final NotificationJpaRepository jpa; // Spring Data proxy
 
+    /** {@inheritDoc} */
     @Override
     public Notification save(Notification notification) {
-        return jpa.save(notification); // delegate persist
+        return jpa.save(notification);
     }
 
+    /** {@inheritDoc} */
     @Override
     public List<Notification> findTop50ByUserIdOrderByCreatedAtDesc(UUID userId) {
-        return jpa.findTop50ByUserIdOrderByCreatedAtDesc(userId); // delegate
+        return jpa.findTop50ByUserIdOrderByCreatedAtDesc(userId);
     }
 
+    /** {@inheritDoc} */
     @Override
     public long countByUserIdAndReadFalse(UUID userId) {
-        return jpa.countByUserIdAndReadFalse(userId); // delegate unread count
+        return jpa.countByUserIdAndReadFalse(userId);
     }
 
+    /** {@inheritDoc} */
     @Override
     public Optional<Notification> findByIdAndUserId(UUID id, UUID userId) {
-        return jpa.findByIdAndUserId(id, userId); // delegate ownership-scoped lookup
+        return jpa.findByIdAndUserId(id, userId);
     }
 
+    /** {@inheritDoc} */
     @Override
     public boolean existsByUserIdAndRelatedUpgradeIdAndType(UUID userId, UUID relatedUpgradeId, NotificationType type) {
-        return jpa.existsByUserIdAndRelatedUpgradeIdAndType(userId, relatedUpgradeId, type); // delegate dedup check
+        return jpa.existsByUserIdAndRelatedUpgradeIdAndType(userId, relatedUpgradeId, type);
     }
 
+    /** {@inheritDoc} */
     @Override
     public boolean existsByUserIdAndTypeAndCreatedAtAfter(UUID userId, NotificationType type, LocalDateTime after) {
-        return jpa.existsByUserIdAndTypeAndCreatedAtAfter(userId, type, after); // delegate dedup check
+        return jpa.existsByUserIdAndTypeAndCreatedAtAfter(userId, type, after);
     }
 
+    /** {@inheritDoc} */
     @Override
     public void markAllReadForUser(UUID userId) {
-        jpa.markAllReadForUser(userId); // delegate bulk update
+        jpa.markAllReadForUser(userId);
     }
 }

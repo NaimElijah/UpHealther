@@ -1,5 +1,9 @@
 # Frontend conventions
 
+`../docs/architecture/architecture.md` describes how the SPA fits into the wider system — the proxy,
+the two transports, and what the backend guarantees. This file covers the conventions to follow inside
+`frontend/`.
+
 `npm run dev` serves on :3000 and proxies `/api` → `http://localhost:8080` (see `vite.config.ts`).
 
 - **`src/api/client.ts`** is the single axios instance. Its `baseURL` is relative by default so every

@@ -10,6 +10,13 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import type { CreateHealthAreaRequest, HealthArea } from '../types';
 
+/**
+ * Manages health areas — the folders upgrades are filed under.
+ *
+ * Create, edit and delete all go through modals over the same list, and each mutation invalidates the
+ * area query rather than patching local state, so what is shown is always what was saved. Deleting an
+ * area does not touch the upgrades filed under it.
+ */
 const HealthAreasPage: React.FC = () => {
   const qc = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -35,6 +42,7 @@ const HealthAreasPage: React.FC = () => {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['healthAreas'] }); setDeleteId(null); },
   });
 
+  /** Clears the shared form, so opening create after edit does not inherit the edited values. */
   const resetForm = () => setForm({ name: '', description: '', icon: '', color: '' });
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -50,6 +58,7 @@ const HealthAreasPage: React.FC = () => {
     await updateMutation.mutateAsync({ id: editArea.id, req: form });
   };
 
+  /** Opens the edit modal pre-filled from an area; nullable fields become empty strings for the inputs. */
   const openEdit = (area: HealthArea) => {
     setEditArea(area);
     setForm({ name: area.name, description: area.description ?? '', icon: area.icon ?? '', color: area.color ?? '' });

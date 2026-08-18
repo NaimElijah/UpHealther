@@ -4,6 +4,15 @@ import { useAuth } from '../hooks/useAuth';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 
+/**
+ * Sign-in page, one of the two routes reachable without a session.
+ *
+ * The error message is deliberately the same whichever half of the credentials was wrong — saying
+ * which would tell an attacker that an email is registered.
+ *
+ * Redirects to the dashboard when already signed in, which is what stops a user with a valid session
+ * from landing here by typing the URL.
+ */
 const LoginPage: React.FC = () => {
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();

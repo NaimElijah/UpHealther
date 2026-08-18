@@ -37,12 +37,14 @@ public class NotificationEventListener {
     private final NotificationService notificationService;
     private final UpgradeQuery upgradeQuery;
 
+    /** Tells the user their idea was captured. Titles come off the event, so no lookup is needed. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onCreated(HealthUpgradeCreated e) {
         notificationService.create(e.userId(), NotificationType.UPGRADE_CREATED, NotificationCategory.INFO,
                 "New upgrade idea", "\"" + e.title() + "\" was added to your backlog.", e.upgradeId());
     }
 
+    /** Confirms the start date the user committed to. Also fires when an abandoned upgrade is revived. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onPlanned(HealthUpgradePlanned e) {
         notificationService.create(e.userId(), NotificationType.UPGRADE_PLANNED, NotificationCategory.INFO,
@@ -50,6 +52,7 @@ public class NotificationEventListener {
                         + e.plannedStartDate() + ".", e.upgradeId());
     }
 
+    /** Marks the start of a run, or its resumption after a pause. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onActivated(HealthUpgradeActivated e) {
         notificationService.create(e.userId(), NotificationType.UPGRADE_ACTIVATED, NotificationCategory.SUCCESS,
@@ -57,12 +60,14 @@ public class NotificationEventListener {
                 e.upgradeId());
     }
 
+    /** Acknowledges a pause without editorialising: stopping for a while is not a failure. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onPaused(HealthUpgradePaused e) {
         notificationService.create(e.userId(), NotificationType.UPGRADE_PAUSED, NotificationCategory.INFO,
                 "Upgrade paused", "\"" + title(e.upgradeId(), e.userId()) + "\" is paused.", e.upgradeId());
     }
 
+    /** Celebrates a finished upgrade. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onCompleted(HealthUpgradeCompleted e) {
         notificationService.create(e.userId(), NotificationType.UPGRADE_COMPLETED, NotificationCategory.SUCCESS,
@@ -70,12 +75,14 @@ public class NotificationEventListener {
                 e.upgradeId());
     }
 
+    /** Records an abandonment neutrally — this is a lifestyle tool, not a disciplinarian. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onAbandoned(HealthUpgradeAbandoned e) {
         notificationService.create(e.userId(), NotificationType.UPGRADE_ABANDONED, NotificationCategory.INFO,
                 "Upgrade abandoned", "\"" + title(e.upgradeId(), e.userId()) + "\" was abandoned.", e.upgradeId());
     }
 
+    /** Celebrates a streak milestone. The tracking context decides which lengths qualify. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onStreak(StreakAchieved e) {
         notificationService.create(e.userId(), NotificationType.STREAK_ACHIEVED, NotificationCategory.SUCCESS,
@@ -83,6 +90,7 @@ public class NotificationEventListener {
                 "\"" + title(e.upgradeId(), e.userId()) + "\" — keep the momentum going.", e.upgradeId());
     }
 
+    /** Confirms a reflection was saved. The event carries no content, and neither does this. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onReflection(ReflectionAdded e) {
         notificationService.create(e.userId(), NotificationType.REFLECTION_ADDED, NotificationCategory.INFO,
@@ -103,6 +111,13 @@ public class NotificationEventListener {
                 () -> "\"" + title(e.upgradeId(), e.userId()) + "\" is past its target date.", e.upgradeId());
     }
 
+    /**
+     * Resolves an upgrade's title for a message, falling back to a generic phrase.
+     *
+     * <p>The fallback matters: an event can outlive the upgrade it refers to — deletion publishes
+     * nothing but does remove the row — and a notification that reads "your upgrade" is better than one
+     * that fails to be created at all.
+     */
     private String title(UUID upgradeId, UUID userId) {
         return upgradeQuery.findOwned(userId, upgradeId)
                 .map(HealthUpgrade::getTitle)

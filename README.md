@@ -54,6 +54,11 @@ A **Health Upgrade** is more than a habit. It can be:
 
 ## Architecture
 
+[`docs/architecture/architecture.md`](docs/architecture/architecture.md) describes the system as it
+actually is — components, how they communicate, the path a request takes end to end, external
+dependencies, and the structural decisions that are not visible from the file layout. Start there; the
+summary below is the short version.
+
 ### Backend — Hexagonal (Ports & Adapters) + DDD
 
 A bounded context (`auth, user, healtharea, upgrade, tracking, reflection, reminder, dashboard,

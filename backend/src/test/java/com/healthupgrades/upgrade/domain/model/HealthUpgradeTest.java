@@ -8,6 +8,13 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
 
+/**
+ * Covers the aggregate's state machine and construction invariants: which transitions are legal from
+ * each state, and which are refused.
+ *
+ * <p>This is the executable form of the lifecycle the guides describe, so a transition changed here
+ * without changing the documentation shows up as a failure.
+ */
 class HealthUpgradeTest {
 
     /** A fixed day to judge date-dependent rules against; the aggregate never reads the clock itself. */

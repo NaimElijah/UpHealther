@@ -2,11 +2,22 @@ import React from 'react';
 import type { AppNotification } from '../../types';
 import { categoryMeta, relativeTime } from './notificationMeta';
 
+/**
+ * @param notification the notification to render
+ * @param onSelect     called with it when pressed; the parent decides what selecting means
+ */
 interface Props {
   notification: AppNotification;
   onSelect: (notification: AppNotification) => void;
 }
 
+/**
+ * One row in the notification list: category icon, title, message and relative time.
+ *
+ * A real button rather than a clickable div, so it is reachable by keyboard and announced as
+ * actionable. Unread rows are tinted and carry a dot with an accessible label, since colour alone
+ * would not convey the state.
+ */
 const NotificationItem: React.FC<Props> = ({ notification, onSelect }) => {
   const meta = categoryMeta[notification.category];
   return (

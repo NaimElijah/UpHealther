@@ -25,6 +25,17 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
     private final JwtTokenProvider tokenProvider;
     private final UserQuery userQuery;
 
+    /**
+     * Authenticates a CONNECT frame and lets every other frame pass through untouched.
+     *
+     * @param message the inbound STOMP message
+     * @param channel the client inbound channel
+     * @return the same message, with the session principal attached on CONNECT
+     * @throws IllegalArgumentException if a CONNECT frame carries no bearer token, an invalid one, or a
+     *                                  token whose subject no longer exists — Spring turns this into a
+     *                                  refused connection, which is the only way to reject a STOMP
+     *                                  session from an interceptor
+     */
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);

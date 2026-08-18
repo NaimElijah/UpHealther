@@ -32,6 +32,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+/**
+ * Covers the upgrade use cases: that each transition delegates to the aggregate and announces the
+ * matching event, and that the concurrent-HARD limit is applied on both routes into a running HARD
+ * upgrade — activating one, and promoting an already-active one.
+ */
 class UpgradeServiceTest {
 
     @Mock UpgradeRepositoryPort repository;

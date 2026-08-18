@@ -18,17 +18,20 @@ public class ProgressEvaluationService {
      * non-blank text.
      */
     public boolean isSuccessful(ProgressEntry entry, TrackingConfig config) {
-        if (entry == null || config == null) return false; // nothing to evaluate against
+        // An upgrade with no tracking configuration has no definition of success, so nothing
+        // logged against it can be scored as one.
+        if (entry == null || config == null) return false;
 
         // The success rule depends on how this upgrade is tracked.
         return switch (config.getTrackingType()) {
-            case BOOLEAN -> Boolean.TRUE.equals(entry.getCompleted()); // did-it / didn't
+            case BOOLEAN -> Boolean.TRUE.equals(entry.getCompleted());
             case NUMERIC -> entry.getNumericValue() != null
                     && config.getTargetNumericValue() != null
                     && unitsAreComparable(entry.getUnit(), config.getTargetUnit())
-                    && entry.getNumericValue() >= config.getTargetNumericValue(); // met the numeric target
-            case RATING -> entry.getRating() != null && entry.getRating() >= 3; // rated 3+ out of 5
-            case TEXT -> entry.getNote() != null && !entry.getNote().isBlank(); // wrote something
+                    && entry.getNumericValue() >= config.getTargetNumericValue();
+            // 3 is the midpoint of the one-to-five scale: an average day counts, a bad one does not.
+            case RATING -> entry.getRating() != null && entry.getRating() >= 3;
+            case TEXT -> entry.getNote() != null && !entry.getNote().isBlank();
         };
     }
 

@@ -23,6 +23,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+/**
+ * Covers the notification service: that creating one both persists and pushes it, that the read flags
+ * behave, and that the once-per-upgrade guard suppresses a repeat.
+ */
 class NotificationServiceTest {
 
     @Mock NotificationRepositoryPort repository;

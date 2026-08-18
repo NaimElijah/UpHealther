@@ -11,6 +11,12 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Covers what counts as a successful entry for each tracking type.
+ *
+ * <p>Includes the unit-comparison cases: a value logged in a unit that disagrees with the target's must
+ * not be scored, which is the defect that motivated the check.
+ */
 class ProgressEvaluationServiceTest {
 
     private ProgressEvaluationService service;

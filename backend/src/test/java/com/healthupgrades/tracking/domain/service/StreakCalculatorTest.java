@@ -11,6 +11,10 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Covers streak counting, boundaries included: an unlogged today must not break the run, gaps must end
+ * it, and duplicate or unsuccessful entries must not extend it.
+ */
 class StreakCalculatorTest {
 
     /** A fixed reference day: the calculator is told what "today" is, so nothing here reads the clock. */

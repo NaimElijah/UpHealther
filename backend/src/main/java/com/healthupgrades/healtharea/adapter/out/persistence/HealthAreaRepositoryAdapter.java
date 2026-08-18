@@ -11,6 +11,9 @@ import java.util.UUID;
 
 /**
  * Persistence adapter implementing {@link HealthAreaRepositoryPort} by delegating to Spring Data JPA.
+ *
+ * <p>The adapter exists so the Spring Data interface can stay package-private: the port is the only
+ * thing the rest of the application sees, which is what keeps JPA confined to this package.
  */
 @Component
 @RequiredArgsConstructor
@@ -18,23 +21,27 @@ class HealthAreaRepositoryAdapter implements HealthAreaRepositoryPort {
 
     private final HealthAreaJpaRepository jpa; // Spring Data proxy
 
+    /** {@inheritDoc} */
     @Override
     public HealthArea save(HealthArea area) {
-        return jpa.save(area); // delegate persist
+        return jpa.save(area);
     }
 
+    /** {@inheritDoc} */
     @Override
     public void delete(HealthArea area) {
-        jpa.delete(area); // delegate delete
+        jpa.delete(area);
     }
 
+    /** {@inheritDoc} */
     @Override
     public List<HealthArea> findByUserId(UUID userId) {
-        return jpa.findByUserId(userId); // delegate
+        return jpa.findByUserId(userId);
     }
 
+    /** {@inheritDoc} */
     @Override
     public Optional<HealthArea> findByIdAndUserId(UUID id, UUID userId) {
-        return jpa.findByIdAndUserId(id, userId); // delegate ownership-scoped lookup
+        return jpa.findByIdAndUserId(id, userId);
     }
 }

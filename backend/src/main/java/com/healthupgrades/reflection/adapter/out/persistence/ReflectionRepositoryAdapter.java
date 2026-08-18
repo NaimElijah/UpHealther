@@ -17,13 +17,15 @@ class ReflectionRepositoryAdapter implements ReflectionRepositoryPort {
 
     private final ReflectionJpaRepository jpa; // Spring Data proxy
 
+    /** {@inheritDoc} */
     @Override
     public Reflection save(Reflection reflection) {
-        return jpa.save(reflection); // delegate persist
+        return jpa.save(reflection);
     }
 
+    /** {@inheritDoc} */
     @Override
     public List<Reflection> findByUpgradeIdOrderByDateDesc(UUID upgradeId) {
-        return jpa.findByUpgradeIdOrderByDateDesc(upgradeId); // delegate
+        return jpa.findByUpgradeIdOrderByDateDesc(upgradeId);
     }
 }

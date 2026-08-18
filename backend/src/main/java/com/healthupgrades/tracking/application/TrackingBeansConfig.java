@@ -17,12 +17,12 @@ public class TrackingBeansConfig {
     /** Exposes the stateless {@link StreakCalculator} as an injectable bean. */
     @Bean
     public StreakCalculator streakCalculator() {
-        return new StreakCalculator(); // no dependencies -> plain construction
+        return new StreakCalculator();
     }
 
     /** Exposes the stateless {@link ProgressEvaluationService} as an injectable bean. */
     @Bean
     public ProgressEvaluationService progressEvaluationService() {
-        return new ProgressEvaluationService(); // no dependencies -> plain construction
+        return new ProgressEvaluationService();
     }
 }
