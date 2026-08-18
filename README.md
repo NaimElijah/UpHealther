@@ -319,3 +319,29 @@ npm run build
 - Docker Compose for one-command deployment
 - GitHub Actions CI pipeline
 - Comprehensive unit tests for domain logic
+
+## License
+
+**Copyright © 2026 Naim Elijah. All rights reserved.**
+
+HealthUpgrades is **source-available, not open source**. The code is published so it can be read,
+reviewed and evaluated — by prospective employers, collaborators and anyone technically curious. That
+is the whole of the permission granted.
+
+| You may | You may not |
+|---|---|
+| Read and review the source | Use it in any project, product or service |
+| Keep a local copy to evaluate it | Copy, modify or build on it |
+| Quote short excerpts, with credit | Deploy, host or run it |
+| | Redistribute or sell it |
+| | Present it as your own work |
+| | Use it to train a machine learning model |
+
+Anything beyond reading requires **written permission** from the author. Requests go through
+[github.com/NaimElijah](https://github.com/NaimElijah) — an unanswered request is a refused one.
+
+The full terms are in [`LICENSE`](LICENSE), and they are what govern; the table above is a summary.
+
+Third-party dependencies (Spring Boot, React, PostgreSQL and the rest) are **not** covered by this
+licence and remain under the terms their own authors set. This licence applies only to the original
+work in this repository.
