@@ -7,6 +7,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A "health upgrade" is the core domain object — a planned health improvement (habit, one-time action,
 experiment, goal, etc.) that moves through a lifecycle.
 
+## Requirements
+
+`docs/requirements/requirements.md` states what the system must do: capabilities, business rules and
+invariants, non-functional requirements, and the non-goals. Each entry names the class or test that
+enforces it, so it can be checked rather than trusted. Read it before proposing work — a change that
+satisfies no requirement, or contradicts one, is a conversation before it is code — and update it in
+the same commit when what the system must do changes.
+
 ## Architecture
 
 `docs/architecture/architecture.md` describes the system as it is: components, communication, data

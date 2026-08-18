@@ -8,7 +8,7 @@ rejected, and the conditions that would make us revisit a choice live in [`docs/
 
 ## Architecture overview
 
-HealthUpgrades is a three-process web application: a React single-page app, a Spring Boot HTTP API,
+UpHealther is a three-process web application: a React single-page app, a Spring Boot HTTP API,
 and a PostgreSQL database. There is no message broker, no cache, no third-party service and no second
 backend — every piece of state lives in the one database, and every side effect the API performs is
 either a write to it or a message pushed to a connected browser.

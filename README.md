@@ -1,4 +1,4 @@
-# HealthUpgrades 🌱
+# UpHealther 🌱
 
 A full-stack health upgrade planning and tracking platform. Plan, activate, and track your health improvements — from drinking more water to meditating daily, from better sleep habits to product replacements.
 
@@ -54,10 +54,12 @@ A **Health Upgrade** is more than a habit. It can be:
 
 ## Architecture
 
-[`docs/architecture/architecture.md`](docs/architecture/architecture.md) describes the system as it
-actually is — components, how they communicate, the path a request takes end to end, external
-dependencies, and the structural decisions that are not visible from the file layout. Start there; the
-summary below is the short version.
+[`docs/requirements/requirements.md`](docs/requirements/requirements.md) states **what** the system
+must do — the capabilities, the business rules, and the non-goals — with the enforcing class or test
+named against each. [`docs/architecture/architecture.md`](docs/architecture/architecture.md) describes
+**how** it does it: components, how they communicate, the path a request takes end to end, external
+dependencies, and the structural decisions that are not visible from the file layout. Start with
+either; the summary below is the short version.
 
 ### Backend — Hexagonal (Ports & Adapters) + DDD
 
@@ -193,7 +195,7 @@ Events are published through a `DomainEventPublisher` outbound port (a Spring-ba
 1. **Clone the repository**
    ```bash
    git clone <repo-url>
-   cd Health_Upgrades_Tracker
+   cd UpHealther
    ```
 
 2. **Set up environment**
@@ -304,11 +306,11 @@ npm run build
 
 ## Disclaimer
 
-> HealthUpgrades is a lifestyle planning tool. It is **not** a medical application and does not provide medical advice, diagnosis, or treatment. Always consult a healthcare professional for medical decisions.
+> UpHealther is a lifestyle planning tool. It is **not** a medical application and does not provide medical advice, diagnosis, or treatment. Always consult a healthcare professional for medical decisions.
 
 ## Resume Summary
 
-**HealthUpgrades** is a production-quality full-stack web application built with Java 21 / Spring Boot 3 backend and React / TypeScript frontend. It demonstrates:
+**UpHealther** is a production-quality full-stack web application built with Java 21 / Spring Boot 3 backend and React / TypeScript frontend. It demonstrates:
 - Clean architecture: Domain-Driven Design (DDD) + Hexagonal (Ports & Adapters), enforced with ArchUnit
 - JWT authentication with Spring Security
 - PostgreSQL with Flyway migrations and optimistic locking
@@ -324,7 +326,7 @@ npm run build
 
 **Copyright © 2026 Naim Elijah. All rights reserved.**
 
-HealthUpgrades is **source-available, not open source**. The code is published so it can be read,
+UpHealther is **source-available, not open source**. The code is published so it can be read,
 reviewed and evaluated — by prospective employers, collaborators and anyone technically curious. That
 is the whole of the permission granted.
 
