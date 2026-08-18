@@ -23,34 +23,8 @@ domain and application layers know nothing about HTTP, JPA or Spring's event bus
 arrives through an adapter. The boundaries are not a convention — they are checked on every build by
 an ArchUnit suite, which is the authority on what the layering permits.
 
-```mermaid
-flowchart LR
-    subgraph browser["Browser"]
-        spa["React SPA"]
-    end
-
-    subgraph edge["Frontend container"]
-        nginx["nginx<br/>static files + proxy"]
-    end
-
-    subgraph api["Backend container"]
-        rest["REST controllers"]
-        stomp["STOMP endpoint /ws"]
-        jobs["Scheduled jobs"]
-        core["Domain + application core"]
-    end
-
-    db[("PostgreSQL")]
-
-    spa -->|"HTTPS /api/**"| nginx
-    spa -->|"WebSocket /ws"| nginx
-    nginx -->|"proxy_pass"| rest
-    nginx -->|"proxy_pass, upgraded"| stomp
-    rest --> core
-    jobs --> core
-    core --> stomp
-    core -->|"JDBC"| db
-```
+> **Diagram:** [System context](arch-diagrams/README.md#1-system-context) — the three
+> processes, the browser, and what each connection carries.
 
 ---
 
@@ -139,20 +113,8 @@ overdue sweep, the daily check-in nudge, and the per-minute reminder dispatch.
 
 Derived from the imports, not from intent:
 
-```mermaid
-flowchart TD
-    auth --> user
-    tracking --> upgrade
-    reflection --> upgrade
-    reminder --> upgrade
-    dashboard --> upgrade
-    dashboard --> tracking
-    dashboard --> healtharea
-    notification --> upgrade
-    notification --> tracking
-    notification --> reflection
-    notification --> reminder
-```
+> **Diagram:** [Bounded-context map](arch-diagrams/README.md#2-bounded-context-map) —
+> generated from the imports, so it is what the code does rather than what was intended.
 
 `upgrade`, `user` and `healtharea` depend on no other context. The graph is acyclic, and ArchUnit
 fails the build if that stops being true.
@@ -171,38 +133,8 @@ way. ADR-002 records why.
 
 Recording a day's progress, which touches most of the machinery:
 
-```mermaid
-sequenceDiagram
-    participant B as Browser
-    participant N as nginx
-    participant F as JWT filter
-    participant C as ProgressController
-    participant S as TrackingService
-    participant U as UpgradeQuery (upgrade)
-    participant R as Repository port
-    participant DB as PostgreSQL
-    participant L as NotificationEventListener
-    participant W as STOMP adapter
-
-    B->>N: POST /api/upgrades/{id}/progress
-    N->>F: proxied
-    F->>F: validate JWT, load user, set security context
-    F->>C: request
-    C->>C: map request record to use-case input
-    C->>S: recordProgress(userId, upgradeId, details)
-    S->>U: getOwnedUpgrade(userId, upgradeId)
-    U->>DB: SELECT ... WHERE id = ? AND user_id = ?
-    S->>R: existsByUpgradeIdAndDate → duplicate guard
-    S->>S: evaluate entry against tracking config
-    S->>R: save(entry)
-    R->>DB: INSERT
-    S-->>L: ProgressEntryRecorded, StreakAchieved (on milestone)
-    Note over L: AFTER_COMMIT — nothing fires if the transaction rolls back
-    L->>DB: INSERT notification
-    L->>W: push
-    W-->>B: STOMP frame on /user/queue/notifications
-    C-->>B: 201 with the stored entry
-```
+> **Diagram:** [Request lifecycle](arch-diagrams/README.md#6-request-lifecycle) —
+> logging progress, from the browser through to the pushed notification.
 
 Three things in that flow are easy to miss:
 
@@ -229,21 +161,8 @@ every tracking configuration rather than one per upgrade.
 A `HealthUpgrade` is created as an `IDEA` and moves only through methods on the aggregate, each of
 which guards its transition:
 
-```mermaid
-stateDiagram-v2
-    [*] --> IDEA: create
-    IDEA --> PLANNED: plan
-    PLANNED --> ACTIVE: activate
-    ACTIVE --> PAUSED: pause
-    PAUSED --> ACTIVE: activate
-    ACTIVE --> COMPLETED: complete
-    IDEA --> ABANDONED: abandon
-    PLANNED --> ABANDONED: abandon
-    ACTIVE --> ABANDONED: abandon
-    PAUSED --> ABANDONED: abandon
-    ABANDONED --> PLANNED: reschedule
-    COMPLETED --> [*]
-```
+> **Diagram:** [The upgrade lifecycle](arch-diagrams/README.md#5-the-upgrade-lifecycle) —
+> every legal transition of the aggregate's state machine.
 
 `COMPLETED` is terminal. `ABANDONED` is not — rescheduling revives it. An upgrade occupies one of the
 three concurrent HARD slots only while `ACTIVE`, which is why the limit is checked both when activating
@@ -354,6 +273,7 @@ Stated because they are load-bearing, not because they are problems yet:
 
 | Question | Record |
 |---|---|
+| What does all of this look like? | [`arch-diagrams/`](arch-diagrams/README.md) — seven diagrams, outside in |
 | What is the system supposed to do, and what is it deliberately not doing? | [`docs/requirements/requirements.md`](../requirements/requirements.md) |
 | Why DDD + hexagonal at all, and why JPA entities as the domain model? | [ADR-001](../ADRs/ADR-001-ddd-hexagonal-architecture.md) |
 | Why the `upgrade`/`tracking` dependency is inverted; why events moved out of `common`; what the ten ArchUnit rules cover; what was rejected and when to revisit | [ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md) |
