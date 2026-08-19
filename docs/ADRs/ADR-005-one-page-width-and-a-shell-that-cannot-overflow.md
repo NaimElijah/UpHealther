@@ -52,13 +52,18 @@ rows.
 **A dialog is bounded by its overlay and scrolls its own body.** The overlay carries the gutter as
 padding; `max-h-full` resolves against that padded box, so the panel is never taller than the window;
 `flex flex-col` with a `shrink-0` header and an `overflow-y-auto` body keeps the title and close button
-in place while the form scrolls. It also gained `role="dialog"`, `aria-modal` and an `aria-labelledby`
-name derived with `useId`, since three modals share the health areas page.
+in place while the form scrolls. It also gained `role="dialog"` and an `aria-labelledby` name derived
+with `useId`, since three modals share the health areas page — but deliberately **not** `aria-modal`,
+which is a claim about the rest of the page being inert that nothing here makes true.
 
 **Stored icons are reconciled on the render side, then corrected in the data.** `areaIcon.ts` falls back
-to the default glyph for anything starting with an ASCII word character, so the layout holds whatever
-the database contains; `V5__seed_health_area_icons_as_emoji.sql` then rewrites the six seeded rows as
-emoji. The render fix ships first, so at no point does the page depend on the migration having run.
+to the default for a value that is recognisably an icon *key* — an ASCII identifier, anchored at both
+ends so a keycap emoji such as `1️⃣` is not caught by its leading digit. It does not attempt to decide
+emoji-ness in general; it does not have to, because the icon is drawn in a fixed clipping box that no
+value can widen. The edit form uses the same predicate, so an undrawable value arrives as empty rather
+than being offered back for saving. `V5__seed_health_area_icons_as_emoji.sql` then rewrites the six
+seeded rows as emoji. The render fix ships first, so at no point does the page depend on the migration
+having run.
 
 ## Consequences
 
@@ -77,13 +82,22 @@ by hand in a browser at the widths listed in the pull request. The one mechanica
 `PageContainer.test.tsx`, which pins which cap each variant selects and explicitly claims nothing about
 the resulting layout.
 
-**Two widths changed deliberately.** The daily check-in goes from 672px to 768px and the notification
-and progress lists from 768px to 1280px. One reading cap and one default cap beat four arbitrary ones,
-and both list pages are rows with right-aligned metadata that read better wide.
+**Eight of the nine page widths changed.** Only the upgrade details page keeps its number. The daily
+check-in narrows the gap the other way, 672px to 768px; everything else widens, most of it 896px to
+1280px, and the notification and progress lists 768px to 1280px. One reading cap and one default cap
+beat four arbitrary ones, and both list pages are rows with right-aligned metadata that read better
+wide. The card grids on the upgrade lists and health areas gain a third column at `xl` so the extra
+width becomes another card rather than more whitespace inside two very wide ones.
 
-**`aria-modal` overstates what the dialog does.** It tells assistive technology the rest of the page is
-inert, but nothing traps the keyboard, so Tab still walks out behind the scrim, and focus is neither
-moved in on open nor restored on close. Recorded as an open question rather than half-solved.
+Two container widths remain outside `PageContainer` and are meant to: the login and register cards
+(`max-w-md`), which render outside `Layout` entirely.
+
+**The dialog announces itself but does not contain anything.** Nothing traps the keyboard, so Tab still
+walks out behind the scrim, and focus is neither moved in on open nor restored on close. `aria-modal`
+is therefore left off on purpose: it would remove the page behind from a screen reader's buffer while
+focus could still reach it, which is worse than the plain `dialog` role — controls that are focusable
+but unannounced. The role and the accessible name are the part that is honestly earned. Recorded as an
+open question rather than half-solved.
 
 ## Alternatives considered
 
@@ -113,6 +127,11 @@ moved in on open nor restored on close. Recorded as an open question rather than
   the default.
 - **A mobile navigation drawer.** Out of scope. The sidebar is hidden below `md` deliberately and says
   so; replacing it is a component, focus management and its own requirement.
+- **Letting the navbar's controls compress.** The theme toggle, bell and logout button are `shrink-0`
+  as a group, which put a 436px floor under the shell until the brand was made the thing that gives:
+  `min-w-0` on the link plus `truncate` on the wordmark. A half-width logout button is worse than an
+  ellipsised wordmark. *Revisit when* the navbar gains a fifth control, at which point the wordmark
+  alone can no longer absorb the difference and something has to move to an overflow menu.
 
 ## Note
 

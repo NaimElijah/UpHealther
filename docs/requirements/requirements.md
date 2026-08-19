@@ -102,7 +102,7 @@ nothing is shared between accounts.
 | FR-38 | A page's content grows with the browser window, up to one cap chosen for readability | `PageContainer`, `PageContainer.test.tsx` |
 | FR-39 | A dialog fits the window at any size: its heading stays put and only its body scrolls | `Modal` — checked by hand, see §6 |
 | FR-40 | A dialog announces itself as a dialog named by its title | `Modal`, `Modal.test.tsx` |
-| FR-41 | A health area whose stored icon is not a glyph is shown with the default icon | `areaIconGlyph`, `areaIcon.test.ts` |
+| FR-41 | A health area whose stored icon cannot be drawn is shown with the default icon, and editing it does not write the undrawable value back | `areaIconGlyph`, `isIconGlyph`, `areaIcon.test.ts` |
 
 ---
 
@@ -151,7 +151,7 @@ nothing is shared between accounts.
 | NFR-17 | The interface remains usable where browser storage is blocked or `matchMedia` is unavailable | `ThemeProvider`, `ThemeProvider.test.tsx` |
 | NFR-18 | Every colour in the interface is a semantic token, so no component can hard-code one that survives a theme change | `frontend/scripts/check-colours.mjs`, `.github/workflows/ci.yml` |
 | NFR-19 | Text meets a 4.5:1 contrast ratio and control boundaries 3:1, in both themes | the token values in `frontend/src/index.css` — computed, not automatically re-checked; see §6 |
-| NFR-20 | The interface does not scroll horizontally at any window width, whatever a user has stored in it | the shell's `min-w-0` floor and the truncation rules on every user-supplied string ([ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md)) — checked by hand, see §6 |
+| NFR-20 | The interface does not scroll horizontally at any window width from 320px upward, whatever a user has stored in it | the shell's `min-w-0` floors and the truncation rules on every user-supplied string ([ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md)) — checked by hand at 320, 360, 486, 684, 1040 and 1540px, see §6 |
 
 ---
 
@@ -181,8 +181,9 @@ Undecided, and owned by the repository owner.
   engine. Closing this needs a real browser in CI; [ADR-004](../ADRs/ADR-004-frontend-test-harness.md)
   records why that was deferred. FR-39 and NFR-20 land in exactly this gap: no test in the suite can
   observe a width, a wrap or an overflow, so both were verified by hand and neither is enforced.
-- **A dialog claims `aria-modal` but does not trap focus.** Tab still walks out of the dialog into the
-  page behind it, and focus is neither moved into the dialog on open nor restored on close. Closing this
+- **A dialog does not trap focus.** Tab walks out of the dialog into the page behind it, and focus is
+  neither moved into the dialog on open nor restored on close. `aria-modal` is deliberately left off
+  until that is true, because claiming it without a trap is worse than not claiming it. Closing this
   properly means a native `<dialog>` with `showModal()`; [ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md)
   records why that was not done here.
 - **The backend has no dependency vulnerability audit.** OWASP dependency-check needs an `NVD_API_KEY`
