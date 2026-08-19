@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Fails if any Tailwind palette colour is used directly in `src/`.
+ * Fails if any Tailwind palette colour is used directly in the files Tailwind compiles.
  *
  * Tailwind fails silently: `bg-surfce` emits no CSS and raises no error, so the element renders with no
  * background at all — which on a dark canvas reads as a deliberate transparent panel rather than a
@@ -9,12 +9,22 @@
  * It catches the opposite mistake too: a literal `bg-white` reintroduced by a copy-paste would render
  * correctly in light and be invisible against dark text. Colours belong in `src/index.css`, once per
  * theme, and are reached through the semantic tokens declared in `tailwind.config.js`.
+ *
+ * Scope follows the `content` glob in `tailwind.config.js`, which is `index.html` as well as `src/`.
+ * A palette class in the HTML shell compiles exactly like one in a component, so checking only `src/`
+ * would leave a hole in the one guard that exists to have none.
+ *
+ * Known boundary: this matches named utilities, so arbitrary values (`bg-[#fff]`, `text-[rgb(0,0,0)]`)
+ * pass through. Nothing in the app uses that form, and a regex over arbitrary CSS would cost more in
+ * false positives than it buys.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const SRC = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
+const FRONTEND = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+const SRC = join(FRONTEND, 'src');
+const HTML_SHELL = join(FRONTEND, 'index.html');
 
 const PALETTE = [
   'slate', 'gray', 'zinc', 'neutral', 'stone', 'red', 'orange', 'amber', 'yellow', 'lime', 'green',
@@ -40,12 +50,17 @@ const sourceFiles = (dir) =>
     return /\.tsx?$/.test(path) ? [path] : [];
   });
 
-const findings = sourceFiles(SRC).flatMap((path) =>
+/** Everything Tailwind compiles class names out of: the HTML shell plus the component tree. */
+const compiledFiles = () => [HTML_SHELL, ...sourceFiles(SRC)];
+
+const findings = compiledFiles().flatMap((path) =>
   readFileSync(path, 'utf8')
     .split('\n')
     .flatMap((line, index) => {
       const hits = [...line.matchAll(NUMBERED), ...line.matchAll(NAMED)].map((m) => m[0]);
-      return hits.length ? [`${relative(SRC, path)}:${index + 1}  ${[...new Set(hits)].join(', ')}`] : [];
+      return hits.length
+        ? [`${relative(FRONTEND, path)}:${index + 1}  ${[...new Set(hits)].join(', ')}`]
+        : [];
     }),
 );
 
@@ -56,4 +71,4 @@ if (findings.length > 0) {
   process.exit(1);
 }
 
-console.log(`No palette colours in src/ — all ${sourceFiles(SRC).length} source files use tokens.`);
+console.log(`No palette colours — all ${compiledFiles().length} compiled files use tokens.`);
