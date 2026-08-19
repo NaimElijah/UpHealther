@@ -65,8 +65,8 @@ Nine contexts, each owning its own vocabulary, plus a cross-cutting `common`.
 | Module | Responsible for |
 |---|---|
 | `src/api/` | One axios instance and a thin function per endpoint. The instance attaches the JWT and turns a 401 into a logout; every call goes through it |
-| `src/contexts/` | `AuthProvider` owns the session; `NotificationProvider` owns the notification list, the STOMP connection and the toasts |
-| `src/hooks/` | `useAuth` and `useNotifications` — typed context readers that fail loudly outside their provider |
+| `src/contexts/` | `AuthProvider` owns the session; `NotificationProvider` owns the notification list, the STOMP connection and the toasts; `ThemeProvider` owns the light/dark/system choice and the `dark` class on `<html>` |
+| `src/hooks/` | `useAuth`, `useNotifications` and `useTheme` — typed context readers that fail loudly outside their provider |
 | `src/router/` | The route table, and `ProtectedRoute`, which gates every authenticated page |
 | `src/pages/` | One component per route |
 | `src/components/` | `ui/` primitives, `upgrade/` cards and badges, `notifications/` bell, dropdown, items and toasts, `layout/` navbar and sidebar |
@@ -202,8 +202,8 @@ Integration points a maintainer will need:
   different origins. The cron expressions are overridable per environment. `.env.example` lists them
   all with safe values.
 - **CI** — GitHub Actions on every push and PR to `main` and `dev`: the backend runs `mvn verify`
-  against a PostgreSQL service container, the frontend lints, audits its shipped dependencies and
-  builds.
+  against a PostgreSQL service container, the frontend lints, tests, audits its shipped dependencies
+  and builds.
 
 ---
 
@@ -247,6 +247,21 @@ returns 409. Nothing else is version-checked, because nothing else is edited fro
 **Exception to HTTP status is decided in exactly one class.** Controllers and services throw domain
 exceptions and never build a status by hand. The mapping is pinned by a test.
 
+**No component names a colour.** Every colour in the SPA is a semantic token — `bg-surface`,
+`text-fg-subtle`, `border-line-strong` — declared in `frontend/tailwind.config.js` and given its two
+values, once per theme, in `frontend/src/index.css`. Components name the *role*; the theme decides the
+value. The indirection is not decoration: Tailwind emits nothing for a class it does not recognise and
+raises no error, so a component that reached for a palette shade would render correctly in one theme
+and be invisible in the other, silently. `npm run check:colours` fails the build on any direct palette
+use, and is the only thing that catches it.
+
+Two consequences a maintainer would otherwise have to rediscover. Tokens hold **space-separated RGB
+channels**, not hex, because Tailwind's opacity modifier (`bg-overlay/50`) can only compose an alpha
+onto a variable in that form. And the `dark` class on `<html>` is set **twice** — once by a classic
+inline script in `index.html` that runs before the first paint, and thereafter by `ThemeProvider`. The
+two must agree on the storage key and the resolution rule; changing one alone reintroduces the flash
+the script exists to prevent.
+
 **The frontend's types are hand-written, not generated.** `src/types/index.ts` mirrors the backend's
 DTOs and enums by hand. The **enums** are checked: `FrontendEnumContractTest` reads that file and fails
 the build if any mirrored union stops matching its backend enum, which is what stops an unbindable
@@ -277,6 +292,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | What is the system supposed to do, and what is it deliberately not doing? | [`docs/requirements/requirements.md`](../requirements/requirements.md) |
 | Why DDD + hexagonal at all, and why JPA entities as the domain model? | [ADR-001](../ADRs/ADR-001-ddd-hexagonal-architecture.md) |
 | Why the `upgrade`/`tracking` dependency is inverted; why events moved out of `common`; what the ten ArchUnit rules cover; what was rejected and when to revisit | [ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md) |
+| Why the frontend tests with Vitest rather than Jest; why Vitest is pinned to 3; why there is still no accessibility gate | [ADR-004](../ADRs/ADR-004-frontend-test-harness.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

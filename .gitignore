@@ -17,6 +17,8 @@ backend/.mvn/wrapper/maven-wrapper.jar
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+# Vitest and npx write a cache here when a command is run from the repo root by mistake.
+node_modules/
 
 # Environment
 .env

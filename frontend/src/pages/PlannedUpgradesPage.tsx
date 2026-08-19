@@ -32,7 +32,7 @@ const PlannedUpgradesPage: React.FC = () => {
   });
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
-  if (error) return <p className="text-red-500 text-center py-10">Failed to load upgrades.</p>;
+  if (error) return <p className="text-danger-fg text-center py-10">Failed to load upgrades.</p>;
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -48,7 +48,7 @@ const PlannedUpgradesPage: React.FC = () => {
           {sorted.map((u) => (
             <div key={u.id}>
               {u.plannedStartDate && (
-                <p className="text-xs text-gray-400 mb-1 ml-1">
+                <p className="text-xs text-fg-faint mb-1 ml-1">
                   Starts: {new Date(u.plannedStartDate).toLocaleDateString()}
                 </p>
               )}

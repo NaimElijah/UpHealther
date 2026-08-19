@@ -84,6 +84,17 @@ jobs:
       - name: Lint frontend
         run: cd frontend && npm run lint
 
+      # Tailwind emits nothing for an unknown class and raises no error, so a mistyped or missed colour
+      # renders as no colour at all rather than failing. This is the only check that catches it.
+      - name: Check no palette colours bypass the theme tokens
+        run: cd frontend && npm run check:colours
+
+      # After the lint, so a failure here is a behaviour failure rather than a style one. `npm run test`
+      # is `vitest run` and not the watcher — a bare `vitest` would hold the runner until the job times
+      # out. See ADR-004 for why the frontend has a test harness at all.
+      - name: Test frontend
+        run: cd frontend && npm run test
+
       # Scoped to what ships. Auditing the dev tree here would redden every unrelated PR whenever an
       # advisory lands against the Vite or ESLint toolchain, none of which reaches a user's browser.
       - name: Audit shipped frontend dependencies for known vulnerabilities

@@ -91,6 +91,15 @@ nothing is shared between accounts.
 | FR-32 | Notifications arrive in real time on a connected client, and are readable afterwards regardless | `StompNotificationPushAdapter`, `NotificationService` |
 | FR-33 | A user can read their fifty most recent notifications, see an unread count, and mark one or all as read | `NotificationService` |
 
+### 2.7 Appearance
+
+| ID | Requirement | Enforced by |
+|---|---|---|
+| FR-34 | A user can set the interface to a light theme, a dark theme, or to follow the operating system | `ThemeToggle`, `ThemeToggle.test.tsx` |
+| FR-35 | A user who is following the operating system sees the interface change when that preference changes, without reloading | `ThemeProvider`, `ThemeProvider.test.tsx` |
+| FR-36 | A user's explicit choice overrides the operating system's preference until they change it | `ThemeProvider`, `ThemeProvider.test.tsx` |
+| FR-37 | The theme control is reachable before signing in | `LoginPage`, `RegisterPage` |
+
 ---
 
 ## 3. Business rules and invariants
@@ -134,6 +143,10 @@ nothing is shared between accounts.
 | NFR-13 | The whole stack starts with one command | `docker-compose up --build` |
 | NFR-14 | List endpoints resolve related data in batch rather than per row | `UpgradeWebMapper.toDtos`, `TrackingConfigQuery.findByUpgradeIds` |
 | NFR-15 | Time-dependent behaviour reads an injected clock, so it is testable and timezone-explicit | `Clock` bean, scheduler tests |
+| NFR-16 | A user's theme choice survives a reload and is applied before the first paint, so the page never flashes the wrong theme | the boot script in `frontend/index.html`, `ThemeProvider` |
+| NFR-17 | The interface remains usable where browser storage is blocked or `matchMedia` is unavailable | `ThemeProvider`, `ThemeProvider.test.tsx` |
+| NFR-18 | Every colour in the interface is a semantic token, so no component can hard-code one that survives a theme change | `frontend/scripts/check-colours.mjs`, `.github/workflows/ci.yml` |
+| NFR-19 | Text meets a 4.5:1 contrast ratio and control boundaries 3:1, in both themes | the token values in `frontend/src/index.css` — computed, not automatically re-checked; see §6 |
 
 ---
 
@@ -158,9 +171,10 @@ These are deliberate. Re-proposing one needs a reason that has changed.
 
 Undecided, and owned by the repository owner.
 
-- **The frontend has no test runner.** No vitest, no jest. Frontend logic is currently verified only by
-  the type checker, the linter and inspection. Introducing one is a dependency decision that deserves
-  an ADR.
+- **The frontend has no accessibility or visual-regression gate.** Contrast ratios in the theme were
+  computed by hand; nothing re-checks them when a colour changes, and jsdom cannot — it has no layout
+  engine. Closing this needs a real browser in CI; [ADR-004](../ADRs/ADR-004-frontend-test-harness.md)
+  records why that was deferred.
 - **The backend has no dependency vulnerability audit.** OWASP dependency-check needs an `NVD_API_KEY`
   secret; ADR-002 records why a check that cannot fail was judged worse than none.
 - **An unbindable request body returns 500 rather than 400** — tracked as

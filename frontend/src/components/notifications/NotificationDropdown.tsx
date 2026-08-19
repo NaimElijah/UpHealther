@@ -29,13 +29,13 @@ const NotificationDropdown: React.FC<Props> = ({ onClose }) => {
   };
 
   return (
-    <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-gray-200 shadow-xl z-50 overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-        <span className="font-semibold text-gray-800 text-sm">
-          Notifications{unreadCount > 0 && <span className="text-blue-600"> ({unreadCount})</span>}
+    <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-surface rounded-xl border border-line shadow-xl z-50 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-line-subtle">
+        <span className="font-semibold text-fg-muted text-sm">
+          Notifications{unreadCount > 0 && <span className="text-brand-fg"> ({unreadCount})</span>}
         </span>
         {unreadCount > 0 && (
-          <button onClick={markAllRead} className="text-xs text-blue-600 hover:underline">
+          <button onClick={markAllRead} className="text-xs text-brand-fg hover:underline">
             Mark all read
           </button>
         )}
@@ -44,15 +44,15 @@ const NotificationDropdown: React.FC<Props> = ({ onClose }) => {
       {desktopPermission === 'default' && (
         <button
           onClick={requestDesktopPermission}
-          className="w-full text-left px-4 py-2 text-xs text-blue-700 bg-blue-50 hover:bg-blue-100 border-b border-gray-100"
+          className="w-full text-left px-4 py-2 text-xs text-brand-fg bg-brand-soft hover:bg-brand-soft-hover border-b border-line-subtle"
         >
           🔔 Enable desktop notifications
         </button>
       )}
 
-      <div className="max-h-96 overflow-y-auto divide-y divide-gray-100">
+      <div className="max-h-96 overflow-y-auto divide-y divide-line-subtle">
         {recent.length === 0 ? (
-          <p className="text-sm text-gray-500 text-center py-8">No notifications yet.</p>
+          <p className="text-sm text-fg-subtle text-center py-8">No notifications yet.</p>
         ) : (
           recent.map((n) => <NotificationItem key={n.id} notification={n} onSelect={select} />)
         )}
@@ -60,7 +60,7 @@ const NotificationDropdown: React.FC<Props> = ({ onClose }) => {
 
       <button
         onClick={() => { onClose(); navigate('/notifications'); }}
-        className="w-full text-center px-4 py-2.5 text-sm font-medium text-blue-600 hover:bg-gray-50 border-t border-gray-100"
+        className="w-full text-center px-4 py-2.5 text-sm font-medium text-brand-fg hover:bg-sunken border-t border-line-subtle"
       >
         View all notifications
       </button>

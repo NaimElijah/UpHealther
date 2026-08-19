@@ -5,6 +5,7 @@ import UpgradeStatusBadge from './UpgradeStatusBadge';
 import UpgradeTypeBadge from './UpgradeTypeBadge';
 import Badge from '../ui/Badge';
 import Button from '../ui/Button';
+import { difficultyVariant, UNKNOWN_DIFFICULTY_VARIANT } from './upgradeMeta';
 
 /**
  * @param upgrade        the upgrade to show
@@ -18,13 +19,6 @@ interface Props {
   showActions?: boolean;
 }
 
-/** Difficulty to badge colour: green through red, so HARD reads as the demanding one. */
-const difficultyVariant: Record<string, 'green' | 'yellow' | 'red'> = {
-  EASY: 'green',
-  MEDIUM: 'yellow',
-  HARD: 'red',
-};
-
 /**
  * Summary card for one upgrade, with the transitions that are legal from its current status.
  *
@@ -36,27 +30,27 @@ const UpgradeCard: React.FC<Props> = ({ upgrade, onStatusChange, showActions = t
   const navigate = useNavigate();
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
+    <div className="bg-surface rounded-xl border border-line p-4 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <h3
-            className="font-semibold text-gray-900 truncate cursor-pointer hover:text-blue-600"
+            className="font-semibold text-fg truncate cursor-pointer hover:text-brand-fg"
             onClick={() => navigate(`/upgrades/${upgrade.id}`)}
           >
             {upgrade.title}
           </h3>
           {upgrade.description && (
-            <p className="text-sm text-gray-500 mt-1 line-clamp-2">{upgrade.description}</p>
+            <p className="text-sm text-fg-subtle mt-1 line-clamp-2">{upgrade.description}</p>
           )}
         </div>
       </div>
       <div className="flex flex-wrap gap-2 mt-3">
         <UpgradeStatusBadge status={upgrade.status} />
         <UpgradeTypeBadge type={upgrade.type} />
-        <Badge variant={difficultyVariant[upgrade.difficulty] ?? 'gray'}>{upgrade.difficulty}</Badge>
+        <Badge variant={difficultyVariant[upgrade.difficulty] ?? UNKNOWN_DIFFICULTY_VARIANT}>{upgrade.difficulty}</Badge>
       </div>
       {showActions && onStatusChange && (
-        <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
+        <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-line-subtle">
           {upgrade.status === 'IDEA' && (
             <Button size="sm" variant="secondary" onClick={() => onStatusChange(upgrade.id, 'PLANNED')}>
               Plan
