@@ -1,6 +1,7 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeProvider';
 import AppRouter from './router';
 
 /**
@@ -20,17 +21,21 @@ const queryClient = new QueryClient({
 });
 
 /**
- * Application root: installs the query cache and the auth provider around the router.
+ * Application root: installs the theme, the query cache and the auth provider around the router.
  *
- * The order matters — auth reads through the query client, and everything the router renders needs
- * both.
+ * The order matters. Auth reads through the query client, and everything the router renders needs
+ * both. The theme sits outside them all because it depends on neither a session nor server state, and
+ * because the login and register pages render outside `Layout` but still inside `App` — which is what
+ * puts the theme toggle within reach before anyone has signed in.
  */
 const App: React.FC = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <AppRouter />
-    </AuthProvider>
-  </QueryClientProvider>
+  <ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <AppRouter />
+      </AuthProvider>
+    </QueryClientProvider>
+  </ThemeProvider>
 );
 
 export default App;

@@ -5,6 +5,31 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>UpHealther</title>
+    <!--
+      Applies the saved theme before the first paint.
+
+      Deliberately a classic (non-module) inline script: Vite leaves it alone and the browser runs it
+      synchronously while parsing the head, so the `dark` class is on <html> before any pixel is drawn.
+      A type="module" script would be bundled and deferred until after parsing, and the page would
+      flash light before React could correct it.
+
+      Kept in step with ThemeProvider: same storage key, same three states, same resolution rule.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('theme');
+          var dark =
+            stored === 'dark' ||
+            (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.classList.toggle('dark', dark);
+        } catch (e) {
+          // Reading localStorage throws outright where storage is blocked, and matchMedia is absent in
+          // a few embedded webviews. Either way the page boots light and ThemeProvider applies the
+          // system preference on mount, one frame later — a flash, not a failure.
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
