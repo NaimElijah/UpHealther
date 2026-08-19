@@ -26,7 +26,7 @@ const NotificationBell: React.FC = () => {
   }, [open]);
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div className="relative shrink-0" ref={containerRef}>
       <button
         onClick={() => setOpen((o) => !o)}
         className="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors"

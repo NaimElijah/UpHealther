@@ -61,7 +61,7 @@ const ThemeToggle: React.FC = () => {
   const { theme, resolvedTheme, setTheme } = useTheme();
 
   return (
-    <fieldset className="flex items-center gap-0.5 rounded-full bg-muted p-0.5">
+    <fieldset className="flex shrink-0 items-center gap-0.5 rounded-full bg-muted p-0.5">
       <legend className="sr-only">Theme</legend>
       {options.map((option) => (
         <label key={option.value} title={option.label} className="group cursor-pointer">
