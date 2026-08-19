@@ -32,7 +32,7 @@ const navItems: NavItem[] = [
  * reachable from the dashboard.
  */
 const Sidebar: React.FC = () => (
-  <aside className="w-60 bg-gray-50 border-r border-gray-200 min-h-full flex-shrink-0 hidden md:block">
+  <aside className="w-60 bg-surface border-r border-line min-h-full flex-shrink-0 hidden md:block">
     <nav className="py-4">
       {navItems.map((item) => (
         <NavLink
@@ -41,8 +41,8 @@ const Sidebar: React.FC = () => (
           className={({ isActive }) =>
             `flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors ${
               isActive
-                ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-600'
-                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                ? 'bg-brand-soft text-brand-fg border-r-2 border-brand'
+                : 'text-fg-subtle hover:bg-muted hover:text-fg'
             }`
           }
         >

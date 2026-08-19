@@ -269,11 +269,19 @@ mvn verify    # the above plus integration tests — needs a running PostgreSQL
 bean graph or a missing Flyway migration — neither of which a unit test can see. Start a database first
 with `docker-compose up -d postgres`.
 
-### Frontend Build (includes type check)
+### Frontend Tests
 ```bash
 cd frontend
-npm run build
+npm run test           # Vitest + jsdom + Testing Library
+npm run build          # type check and production build
+npm run lint           # ESLint, zero warnings tolerated
+npm run check:colours  # fails on any Tailwind palette colour used outside the theme tokens
 ```
+
+`npm run test` covers the theme provider — that an explicit choice beats the operating system, that
+`system` follows it live, that the media-query listener is cleaned up under `React.StrictMode`, and that
+a browser with storage blocked still boots. See
+[ADR-004](docs/ADRs/ADR-004-frontend-test-harness.md) for why the harness exists and what it cannot do.
 
 ## Environment Variables
 
@@ -297,7 +305,7 @@ npm run build
 - [ ] Gamification: achievements, badges, levels
 - [ ] Integration with wearables (steps, sleep data)
 - [ ] Weekly/monthly progress email reports
-- [ ] Dark mode
+- [x] Dark mode
 - [ ] Internationalization (i18n)
 
 ## Screenshots

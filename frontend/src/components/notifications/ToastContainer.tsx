@@ -43,7 +43,7 @@ const ToastContainer: React.FC<Props> = ({ toasts, onDismiss }) => {
             key={t.id}
             role="status"
             aria-live="polite"
-            className={`${meta.bg} ${meta.ring} border rounded-xl shadow-lg p-3 flex items-start gap-2 animate-[fadeIn_0.2s_ease-out]`}
+            className={`${meta.bg} ${meta.border} border rounded-xl shadow-lg p-3 flex items-start gap-2 animate-fade-in`}
           >
             <button
               type="button"
@@ -56,13 +56,13 @@ const ToastContainer: React.FC<Props> = ({ toasts, onDismiss }) => {
               <span className="text-lg leading-none mt-0.5">{meta.icon}</span>
               <span className="flex-1 min-w-0">
                 <span className={`block text-sm font-semibold ${meta.text} truncate`}>{t.title}</span>
-                {t.message && <span className="block text-xs text-gray-600 mt-0.5 line-clamp-2">{t.message}</span>}
+                {t.message && <span className="block text-xs text-fg-subtle mt-0.5 line-clamp-2">{t.message}</span>}
               </span>
             </button>
             <button
               type="button"
               onClick={() => onDismiss(t.id)}
-              className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0"
+              className="text-fg-faint hover:text-fg-subtle text-lg leading-none shrink-0"
               aria-label="Dismiss notification"
             >
               &times;

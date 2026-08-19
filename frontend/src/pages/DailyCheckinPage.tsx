@@ -9,6 +9,7 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import { useNavigate } from 'react-router-dom';
 import type { HealthUpgrade, CreateProgressRequest } from '../types';
+import PageContainer from '../components/ui/PageContainer';
 
 /** Draft entries being filled in, keyed by upgrade id, until the whole form is submitted. */
 type ProgressMap = Record<string, Partial<CreateProgressRequest>>;
@@ -72,17 +73,17 @@ const DailyCheckinPage: React.FC = () => {
 
   if (submitted) {
     return (
-      <div className="max-w-xl mx-auto text-center py-20">
+      <PageContainer width="narrow" className="text-center py-20">
         <div className="text-6xl mb-4">🎉</div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Check-in Complete!</h2>
-        <p className="text-gray-500 mb-6">Great job tracking your upgrades today.</p>
+        <h2 className="text-2xl font-bold text-fg mb-2">Check-in Complete!</h2>
+        <p className="text-fg-subtle mb-6">Great job tracking your upgrades today.</p>
         <Button onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>
-      </div>
+      </PageContainer>
     );
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <PageContainer width="narrow">
       <PageHeader title="Daily Check-in" subtitle={`Today: ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}`} />
 
       {upgrades.length === 0 ? (
@@ -91,7 +92,7 @@ const DailyCheckinPage: React.FC = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           {upgrades.map((u: HealthUpgrade) => (
             <Card key={u.id} header={u.title}>
-              {u.description && <p className="text-sm text-gray-500 mb-3">{u.description}</p>}
+              {u.description && <p className="text-sm text-fg-subtle mb-3">{u.description}</p>}
 
               {trackingType(u) === 'BOOLEAN' && (
                 <label className="flex items-center gap-3 cursor-pointer">
@@ -109,12 +110,12 @@ const DailyCheckinPage: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="rounded-lg border border-line-strong px-3 py-2 text-sm w-28 focus:outline-none focus:ring-2"
                     placeholder="0"
                     value={progressMap[u.id]?.numericValue ?? ''}
                     onChange={(e) => updateProgress(u.id, { numericValue: numOrUndef(e.target.value) })}
                   />
-                  <span className="text-sm text-gray-500">{u.trackingConfig?.targetUnit ?? ''}</span>
+                  <span className="text-sm text-fg-subtle">{u.trackingConfig?.targetUnit ?? ''}</span>
                 </div>
               )}
 
@@ -125,7 +126,7 @@ const DailyCheckinPage: React.FC = () => {
                       key={n}
                       type="button"
                       onClick={() => updateProgress(u.id, { rating: n })}
-                      className={`w-10 h-10 rounded-full text-sm font-semibold transition-colors ${progressMap[u.id]?.rating === n ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                      className={`w-10 h-10 rounded-full text-sm font-semibold transition-colors ${progressMap[u.id]?.rating === n ? 'bg-brand text-fg-inverted' : 'bg-muted text-fg-muted hover:bg-muted-strong'}`}
                     >
                       {n}
                     </button>
@@ -135,7 +136,7 @@ const DailyCheckinPage: React.FC = () => {
 
               {trackingType(u) === 'TEXT' && (
                 <textarea
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2"
                   rows={2}
                   placeholder="Add your note..."
                   value={progressMap[u.id]?.note ?? ''}
@@ -146,7 +147,7 @@ const DailyCheckinPage: React.FC = () => {
               {trackingType(u) !== 'TEXT' && (
                 <input
                   type="text"
-                  className="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  className="mt-3 w-full rounded-lg border border-line px-3 py-2 text-sm text-fg-subtle focus:outline-none focus:ring-1"
                   placeholder="Optional note..."
                   value={progressMap[u.id]?.note ?? ''}
                   onChange={(e) => updateProgress(u.id, { note: e.target.value })}
@@ -160,7 +161,7 @@ const DailyCheckinPage: React.FC = () => {
           </Button>
         </form>
       )}
-    </div>
+    </PageContainer>
   );
 };
 

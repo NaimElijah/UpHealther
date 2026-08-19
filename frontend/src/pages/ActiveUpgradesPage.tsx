@@ -8,6 +8,7 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import UpgradeCard from '../components/upgrade/UpgradeCard';
 import type { UpgradeStatus } from '../types';
+import PageContainer from '../components/ui/PageContainer';
 
 /**
  * The upgrades currently running, with the transitions available from `ACTIVE`.
@@ -26,10 +27,10 @@ const ActiveUpgradesPage: React.FC = () => {
   });
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
-  if (error) return <p className="text-red-500 text-center py-10">Failed to load upgrades.</p>;
+  if (error) return <p className="text-danger-fg text-center py-10">Failed to load upgrades.</p>;
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <PageContainer>
       <PageHeader
         title="Active Upgrades"
         subtitle="Upgrades you are currently working on"
@@ -38,7 +39,7 @@ const ActiveUpgradesPage: React.FC = () => {
       {upgrades.length === 0 ? (
         <EmptyState icon="🔥" title="No active upgrades" description="Activate a planned upgrade to start tracking progress." action={<Button onClick={() => navigate('/upgrades/planned')}>View Planned</Button>} />
       ) : (
-        <div className="grid sm:grid-cols-2 gap-4">
+        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {upgrades.map((u) => (
             <UpgradeCard
               key={u.id}
@@ -48,7 +49,7 @@ const ActiveUpgradesPage: React.FC = () => {
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 };
 

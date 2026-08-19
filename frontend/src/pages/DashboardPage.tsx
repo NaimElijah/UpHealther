@@ -10,6 +10,7 @@ import UpgradeCard from '../components/upgrade/UpgradeCard';
 import EmptyState from '../components/ui/EmptyState';
 import { performUpgradeAction } from '../api/upgrades';
 import type { UpgradeStatus } from '../types';
+import PageContainer from '../components/ui/PageContainer';
 
 /**
  * Landing page after sign-in: counts, the weekly rate, streaks, overdue warnings and today's upgrades.
@@ -34,63 +35,63 @@ const DashboardPage: React.FC = () => {
   };
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
-  if (error) return <p className="text-red-500 text-center py-10">Failed to load dashboard.</p>;
+  if (error) return <p className="text-danger-fg text-center py-10">Failed to load dashboard.</p>;
 
   // Rounded, not scaled: the API sends a percentage already (see DashboardDto.weeklyCompletionRate).
   const completionPct = Math.round(data?.weeklyCompletionRate ?? 0);
   const streakEntries = Object.entries(data?.streaks ?? {});
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+    <PageContainer className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-fg break-words">
             Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'},{' '}
             {user?.name?.split(' ')[0]} 👋
           </h1>
-          <p className="text-gray-500 mt-1">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+          <p className="text-fg-subtle mt-1">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
         </div>
-        <Button onClick={() => navigate('/upgrades/backlog')}>+ Add Upgrade</Button>
+        <Button className="shrink-0" onClick={() => navigate('/upgrades/backlog')}>+ Add Upgrade</Button>
       </div>
 
       {(data?.overdueUpgrades?.length ?? 0) > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
+        <div className="bg-danger-soft border border-danger-line rounded-xl p-4 flex items-center gap-3">
           <span className="text-2xl">⚠️</span>
           <div>
-            <p className="font-medium text-red-800">{data!.overdueUpgrades.length} overdue upgrade{data!.overdueUpgrades.length > 1 ? 's' : ''}</p>
-            <p className="text-sm text-red-600">Some upgrades are past their target date.</p>
+            <p className="font-medium text-danger-fg">{data!.overdueUpgrades.length} overdue upgrade{data!.overdueUpgrades.length > 1 ? 's' : ''}</p>
+            <p className="text-sm text-danger-fg">Some upgrades are past their target date.</p>
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="text-center">
-          <div className="text-3xl font-bold text-blue-600">{data?.activeUpgrades.length ?? 0}</div>
-          <div className="text-sm text-gray-500 mt-1">Active</div>
+          <div className="text-3xl font-bold text-brand-fg">{data?.activeUpgrades.length ?? 0}</div>
+          <div className="text-sm text-fg-subtle mt-1">Active</div>
         </Card>
         <Card className="text-center">
-          <div className="text-3xl font-bold text-indigo-600">{data?.plannedUpgrades.length ?? 0}</div>
-          <div className="text-sm text-gray-500 mt-1">Planned</div>
+          <div className="text-3xl font-bold text-accent-fg">{data?.plannedUpgrades.length ?? 0}</div>
+          <div className="text-sm text-fg-subtle mt-1">Planned</div>
         </Card>
         <Card className="text-center">
-          <div className="text-3xl font-bold text-green-600">{completionPct}%</div>
-          <div className="text-sm text-gray-500 mt-1">Weekly Rate</div>
+          <div className="text-3xl font-bold text-success-fg">{completionPct}%</div>
+          <div className="text-sm text-fg-subtle mt-1">Weekly Rate</div>
         </Card>
         <Card className="text-center">
-          <div className="text-3xl font-bold text-orange-500">{streakEntries.length}</div>
-          <div className="text-sm text-gray-500 mt-1">Streaks</div>
+          <div className="text-3xl font-bold text-streak-fg">{streakEntries.length}</div>
+          <div className="text-sm text-fg-subtle mt-1">Streaks</div>
         </Card>
       </div>
 
       <Card header="Weekly Completion Rate">
         <div className="flex items-center gap-4">
-          <div className="flex-1 bg-gray-200 rounded-full h-4 overflow-hidden">
+          <div className="flex-1 bg-muted-strong rounded-full h-4 overflow-hidden">
             <div
-              className="h-full bg-green-500 rounded-full transition-all duration-500"
+              className="h-full bg-success rounded-full transition-all duration-500"
               style={{ width: `${completionPct}%` }}
             />
           </div>
-          <span className="text-sm font-semibold text-gray-700 w-12 text-right">{completionPct}%</span>
+          <span className="text-sm font-semibold text-fg-muted w-12 text-right">{completionPct}%</span>
         </div>
       </Card>
 
@@ -125,9 +126,9 @@ const DashboardPage: React.FC = () => {
         <Card header="Current Streaks 🔥">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {streakEntries.map(([id, count]) => (
-              <div key={id} className="bg-orange-50 rounded-lg p-3 text-center">
-                <div className="text-2xl font-bold text-orange-600">{count}</div>
-                <div className="text-xs text-gray-500 mt-1">days</div>
+              <div key={id} className="bg-streak-soft rounded-lg p-3 text-center">
+                <div className="text-2xl font-bold text-streak-fg">{count}</div>
+                <div className="text-xs text-fg-subtle mt-1">days</div>
               </div>
             ))}
           </div>
@@ -138,15 +139,15 @@ const DashboardPage: React.FC = () => {
         <Card header="Recently Completed 🎉">
           <div className="space-y-2">
             {data!.recentlyCompleted.map((u) => (
-              <div key={u.id} className="flex items-center gap-3 p-2 rounded-lg bg-gray-50">
-                <span className="text-green-500 text-lg">✓</span>
-                <span className="text-sm font-medium text-gray-800">{u.title}</span>
+              <div key={u.id} className="flex items-center gap-3 p-2 rounded-lg bg-sunken">
+                <span className="text-success-fg text-lg">✓</span>
+                <span className="text-sm font-medium text-fg-muted">{u.title}</span>
               </div>
             ))}
           </div>
         </Card>
       )}
-    </div>
+    </PageContainer>
   );
 };
 

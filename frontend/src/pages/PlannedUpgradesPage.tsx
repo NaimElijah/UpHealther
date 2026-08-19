@@ -8,6 +8,7 @@ import UpgradeCard from '../components/upgrade/UpgradeCard';
 import Button from '../components/ui/Button';
 import { useNavigate } from 'react-router-dom';
 import type { UpgradeStatus } from '../types';
+import PageContainer from '../components/ui/PageContainer';
 
 /**
  * Upgrades committed to a start date but not yet running, soonest first.
@@ -32,10 +33,10 @@ const PlannedUpgradesPage: React.FC = () => {
   });
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
-  if (error) return <p className="text-red-500 text-center py-10">Failed to load upgrades.</p>;
+  if (error) return <p className="text-danger-fg text-center py-10">Failed to load upgrades.</p>;
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <PageContainer>
       <PageHeader
         title="Planned Upgrades"
         subtitle="Upgrades scheduled to start soon"
@@ -44,11 +45,11 @@ const PlannedUpgradesPage: React.FC = () => {
       {sorted.length === 0 ? (
         <EmptyState icon="📅" title="No planned upgrades" description="Move ideas from backlog to plan, or create a new upgrade." action={<Button onClick={() => navigate('/upgrades/backlog')}>Go to Backlog</Button>} />
       ) : (
-        <div className="grid sm:grid-cols-2 gap-4">
+        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {sorted.map((u) => (
             <div key={u.id}>
               {u.plannedStartDate && (
-                <p className="text-xs text-gray-400 mb-1 ml-1">
+                <p className="text-xs text-fg-faint mb-1 ml-1">
                   Starts: {new Date(u.plannedStartDate).toLocaleDateString()}
                 </p>
               )}
@@ -57,7 +58,7 @@ const PlannedUpgradesPage: React.FC = () => {
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 };
 

@@ -6,6 +6,7 @@ import Button from '../components/ui/Button';
 import EmptyState from '../components/ui/EmptyState';
 import NotificationItem from '../components/notifications/NotificationItem';
 import type { AppNotification } from '../types';
+import PageContainer from '../components/ui/PageContainer';
 
 /**
  * The full notification list, with an all/unread filter.
@@ -27,7 +28,7 @@ const NotificationsPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <PageContainer>
       <PageHeader
         title="Notifications"
         subtitle={unreadCount > 0 ? `${unreadCount} unread` : 'You are all caught up'}
@@ -47,7 +48,7 @@ const NotificationsPage: React.FC = () => {
             key={f}
             onClick={() => setFilter(f)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors ${
-              filter === f ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              filter === f ? 'bg-brand text-fg-inverted' : 'bg-muted text-fg-muted hover:bg-muted-strong'
             }`}
           >
             {f}{f === 'unread' && unreadCount > 0 ? ` (${unreadCount})` : ''}
@@ -62,13 +63,13 @@ const NotificationsPage: React.FC = () => {
           description="Updates about your upgrades, streaks, reminders and overdue items will show up here."
         />
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden divide-y divide-gray-100">
+        <div className="bg-surface rounded-xl border border-line shadow-sm overflow-hidden divide-y divide-line-subtle">
           {shown.map((n) => (
             <NotificationItem key={n.id} notification={n} onSelect={select} />
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 };
 

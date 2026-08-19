@@ -11,7 +11,9 @@ import java.util.UUID;
  * @param name        display name, e.g. "Nutrition"
  * @param description free-text note, may be null
  * @param priority    ordering hint chosen by the user, may be null
- * @param icon        icon key the frontend resolves to a glyph, may be null
+ * @param icon        the glyph to draw for the area, usually an emoji; may be null. Not an icon-font
+ *                    key: nothing in the client turns a name such as "water_drop" into a picture, and
+ *                    a value that is not drawable is replaced by a default when it is rendered
  * @param color       colour token the frontend resolves to a class, may be null
  * @param createdAt   when the area was created
  * @param updatedAt   when it was last modified

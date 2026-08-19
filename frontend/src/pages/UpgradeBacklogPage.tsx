@@ -11,6 +11,7 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import UpgradeCard from '../components/upgrade/UpgradeCard';
 import type { CreateUpgradeRequest, UpgradeType, Difficulty, UpgradeStatus } from '../types';
+import PageContainer from '../components/ui/PageContainer';
 
 /**
  * The upgrade types offered when creating one: the eight kinds the product defines.
@@ -76,10 +77,10 @@ const UpgradeBacklogPage: React.FC = () => {
   const areaOptions = [{ value: '', label: 'No area' }, ...areas.map((a) => ({ value: a.id, label: a.name }))];
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
-  if (error) return <p className="text-red-500 text-center py-10">Failed to load the backlog.</p>;
+  if (error) return <p className="text-danger-fg text-center py-10">Failed to load the backlog.</p>;
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <PageContainer>
       <PageHeader
         title="Idea Backlog"
         subtitle="Health upgrade ideas waiting to be planned"
@@ -88,7 +89,7 @@ const UpgradeBacklogPage: React.FC = () => {
       {upgrades.length === 0 ? (
         <EmptyState icon="💡" title="No ideas yet" description="Capture your health upgrade ideas here before planning them." action={<Button onClick={() => setIsOpen(true)}>Add First Idea</Button>} />
       ) : (
-        <div className="grid sm:grid-cols-2 gap-4">
+        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {upgrades.map((u) => (
             <UpgradeCard key={u.id} upgrade={u} onStatusChange={handleStatusChange} />
           ))}
@@ -109,7 +110,7 @@ const UpgradeBacklogPage: React.FC = () => {
           </div>
         </form>
       </Modal>
-    </div>
+    </PageContainer>
   );
 };
 

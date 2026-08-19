@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
+import ThemeToggle from '../components/theme/ThemeToggle';
 
 /**
  * Sign-in page, one of the two routes reachable without a session.
@@ -41,12 +42,16 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
+    <div className="min-h-screen bg-gradient-to-br from-brand-soft to-accent-soft flex items-center justify-center p-4 relative">
+      {/* These pages render outside Layout, so the navbar toggle cannot reach them. */}
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+      <div className="bg-surface rounded-2xl shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <div className="text-5xl mb-3">💪</div>
-          <h1 className="text-2xl font-bold text-gray-900">UpHealther</h1>
-          <p className="text-gray-500 mt-1">Sign in to your account</p>
+          <h1 className="text-2xl font-bold text-fg">UpHealther</h1>
+          <p className="text-fg-subtle mt-1">Sign in to your account</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
@@ -65,14 +70,14 @@ const LoginPage: React.FC = () => {
             placeholder="••••••••"
             autoComplete="current-password"
           />
-          {error && <p className="text-sm text-red-500 text-center">{error}</p>}
+          {error && <p className="text-sm text-danger-fg text-center">{error}</p>}
           <Button type="submit" loading={loading} className="w-full">
             Sign In
           </Button>
         </form>
-        <p className="text-center text-sm text-gray-500 mt-6">
+        <p className="text-center text-sm text-fg-subtle mt-6">
           Don't have an account?{' '}
-          <Link to="/register" className="text-blue-600 hover:underline font-medium">
+          <Link to="/register" className="text-brand-fg hover:underline font-medium">
             Register
           </Link>
         </p>
