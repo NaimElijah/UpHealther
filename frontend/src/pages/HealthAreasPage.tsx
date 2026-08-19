@@ -65,7 +65,7 @@ const HealthAreasPage: React.FC = () => {
   };
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
-  if (error) return <p className="text-red-500 text-center py-10">Failed to load health areas.</p>;
+  if (error) return <p className="text-danger-fg text-center py-10">Failed to load health areas.</p>;
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -90,14 +90,14 @@ const HealthAreasPage: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <span className="text-2xl">{area.icon ?? '🎯'}</span>
                   <div>
-                    <h3 className="font-semibold text-gray-900">{area.name}</h3>
+                    <h3 className="font-semibold text-fg">{area.name}</h3>
                     {area.upgradeCount !== undefined && (
-                      <p className="text-xs text-gray-500">{area.upgradeCount} upgrade{area.upgradeCount !== 1 ? 's' : ''}</p>
+                      <p className="text-xs text-fg-subtle">{area.upgradeCount} upgrade{area.upgradeCount !== 1 ? 's' : ''}</p>
                     )}
                   </div>
                 </div>
               </div>
-              {area.description && <p className="text-sm text-gray-500 mt-2">{area.description}</p>}
+              {area.description && <p className="text-sm text-fg-subtle mt-2">{area.description}</p>}
               <div className="flex gap-2 mt-4">
                 <Button size="sm" variant="secondary" onClick={() => openEdit(area)}>Edit</Button>
                 <Button size="sm" variant="danger" onClick={() => setDeleteId(area.id)}>Delete</Button>
@@ -134,7 +134,7 @@ const HealthAreasPage: React.FC = () => {
       </Modal>
 
       <Modal isOpen={!!deleteId} onClose={() => setDeleteId(null)} title="Delete Health Area">
-        <p className="text-gray-600 mb-4">Are you sure you want to delete this health area? This action cannot be undone.</p>
+        <p className="text-fg-subtle mb-4">Are you sure you want to delete this health area? This action cannot be undone.</p>
         <div className="flex gap-2 justify-end">
           <Button variant="secondary" onClick={() => setDeleteId(null)}>Cancel</Button>
           <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteId && deleteMutation.mutate(deleteId)}>

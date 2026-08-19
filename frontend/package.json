@@ -8,7 +8,8 @@
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:colours": "node scripts/check-colours.mjs"
   },
   "dependencies": {
     "@stomp/stompjs": "^7.0.0",
