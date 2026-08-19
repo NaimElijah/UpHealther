@@ -10,7 +10,7 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import type { CreateHealthAreaRequest, HealthArea } from '../types';
 import PageContainer from '../components/ui/PageContainer';
-import { areaIconGlyph, DEFAULT_AREA_ICON } from '../components/ui/areaIcon';
+import { areaIconGlyph, DEFAULT_AREA_ICON, isIconGlyph } from '../components/ui/areaIcon';
 
 /**
  * Manages health areas — the folders upgrades are filed under.
@@ -60,10 +60,21 @@ const HealthAreasPage: React.FC = () => {
     await updateMutation.mutateAsync({ id: editArea.id, req: form });
   };
 
-  /** Opens the edit modal pre-filled from an area; nullable fields become empty strings for the inputs. */
+  /**
+   * Opens the edit modal pre-filled from an area; nullable fields become empty strings for the inputs.
+   *
+   * A stored icon the card cannot draw arrives as empty rather than as itself. Showing `water_drop` in a
+   * field labelled "Icon (emoji)" next to a card showing the default would invite the user to press Save
+   * and write the unusable value straight back.
+   */
   const openEdit = (area: HealthArea) => {
     setEditArea(area);
-    setForm({ name: area.name, description: area.description ?? '', icon: area.icon ?? '', color: area.color ?? '' });
+    setForm({
+      name: area.name,
+      description: area.description ?? '',
+      icon: isIconGlyph(area.icon) ? (area.icon ?? '').trim() : '',
+      color: area.color ?? '',
+    });
   };
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
@@ -88,7 +99,7 @@ const HealthAreasPage: React.FC = () => {
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {areas.map((area) => (
             <Card key={area.id}>
-              <div className="flex min-w-0 items-start gap-2">
+              <div className="flex items-start gap-2">
                 <span
                   className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden text-2xl leading-none"
                   aria-hidden="true"

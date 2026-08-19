@@ -2,22 +2,36 @@
 export const DEFAULT_AREA_ICON = '🎯';
 
 /**
- * An icon *key* starts with an ASCII word character; a glyph does not.
+ * An icon *key* is an ASCII identifier and nothing else: `water_drop`, `fitness_center`, `eco`.
  *
- * The seeded areas were written against Material Symbols ligature names — `water_drop`,
- * `fitness_center`, `self_improvement` — but no icon font is loaded anywhere, so the page drew those
- * names as their own literal text. The form has always asked for an emoji. This is where the two
- * readings are reconciled, on the render side, without trusting what is stored.
+ * Anchored at both ends deliberately. A test on the first character alone would call `1️⃣` a key — its
+ * first code point is an ASCII digit — and silently swap out a glyph the user chose.
+ *
+ * Note what this does *not* claim: it rejects what is recognisably a key, not everything that is not
+ * an emoji. `!` and `™` are returned as they were stored. Deciding emoji-ness properly needs grapheme
+ * segmentation, which costs a `lib` change and mangles skin tones and variation selectors where it is
+ * unavailable — and buys nothing here, because the icon is drawn in a fixed clipping box that no value
+ * can widen. See ADR-005.
  */
-const LOOKS_LIKE_AN_ICON_KEY = /^[\w-]/;
+const ICON_KEY = /^[a-z][a-z0-9_-]*$/i;
+
+/**
+ * Whether a stored icon can be drawn as it stands.
+ *
+ * @param icon the stored icon, which is free-form text and validated nowhere
+ */
+export const isIconGlyph = (icon: string | null | undefined): boolean => {
+  const trimmed = icon?.trim() ?? '';
+  return trimmed !== '' && !ICON_KEY.test(trimmed);
+};
 
 /**
  * The glyph to draw for a health area, given whatever the API returned.
  *
- * @param icon the stored icon, which is free-form text and validated nowhere
- * @returns    the stored value when it looks like a glyph, otherwise {@link DEFAULT_AREA_ICON}
+ * @param icon the stored icon
+ * @returns    the stored value, trimmed, when it can be drawn; otherwise {@link DEFAULT_AREA_ICON}
  */
 export const areaIconGlyph = (icon: string | null | undefined): string => {
   const trimmed = icon?.trim() ?? '';
-  return trimmed === '' || LOOKS_LIKE_AN_ICON_KEY.test(trimmed) ? DEFAULT_AREA_ICON : trimmed;
+  return isIconGlyph(trimmed) ? trimmed : DEFAULT_AREA_ICON;
 };
