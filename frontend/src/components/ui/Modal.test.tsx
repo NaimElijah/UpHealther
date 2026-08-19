@@ -22,7 +22,7 @@ const TwoModals: React.FC = () => (
   </>
 );
 
-/** Opens a modal from a button, so closing can be observed the way a page uses it. */
+/** Holds the open state itself, so closing can be observed the way a page drives it. */
 const Openable: React.FC = () => {
   const [open, setOpen] = useState(true);
   return (
@@ -40,10 +40,12 @@ describe('Modal', () => {
       expect(screen.getByRole('dialog', { name: 'New Health Area' })).toBeDefined();
     });
 
-    it('GivenAnOpenModal_WhenItRenders_ThenItIsMarkedAsModal', () => {
+    // Pins a deliberate omission, not an oversight: nothing here traps focus, so claiming the page
+    // behind is inert would strand a screen-reader user on controls it had removed from their buffer.
+    it('GivenAnOpenModal_WhenItRenders_ThenItDoesNotClaimTheRestOfThePageIsInert', () => {
       renderModal();
 
-      expect(screen.getByRole('dialog').getAttribute('aria-modal')).toBe('true');
+      expect(screen.getByRole('dialog').getAttribute('aria-modal')).toBeNull();
     });
 
     it('GivenAnOpenModal_WhenItRenders_ThenTheCloseControlIsLabelled', () => {
@@ -91,7 +93,22 @@ describe('Modal', () => {
       expect(onClose).toHaveBeenCalledTimes(1);
     });
 
-    it('GivenAModalThatHasClosed_WhenEscapeIsPressed_ThenNothingListensForIt', () => {
+    // The listener is bound only while open. Asserting the dialog is still gone would pass either way;
+    // only the callback distinguishes a bound listener from an unbound one.
+    it('GivenAClosedModal_WhenEscapeIsPressed_ThenOnCloseIsNotCalled', () => {
+      const onClose = vi.fn();
+      render(
+        <Modal isOpen={false} onClose={onClose} title="New Health Area">
+          <p>body</p>
+        </Modal>,
+      );
+
+      fireEvent.keyDown(document, { key: 'Escape' });
+
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('GivenAnOpenModalThatHasSinceClosed_WhenEscapeIsPressedAgain_ThenItStaysClosed', () => {
       render(<Openable />);
       fireEvent.keyDown(document, { key: 'Escape' });
       expect(screen.queryByRole('dialog')).toBeNull();

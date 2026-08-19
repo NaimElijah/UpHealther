@@ -29,10 +29,12 @@ interface ModalProps {
  * open, so a closed modal costs nothing and several on one page cannot fight over the key. Nothing is
  * rendered when closed, which means the body is unmounted and its form state resets between openings.
  *
- * Known gap, deliberately not closed here: `aria-modal` tells assistive technology that the rest of the
- * page is inert, but nothing traps the keyboard, so Tab still walks out into the page behind. Focus is
- * neither moved in on open nor restored on close. Closing it properly means a native `<dialog>` with
- * `showModal()`; see `docs/requirements/requirements.md` §6.
+ * Deliberately no `aria-modal`. It would tell assistive technology that everything outside the dialog
+ * is inert, and nothing here makes that true: no focus trap, so Tab walks straight out into the page
+ * behind, and focus is neither moved in on open nor restored on close. Claiming it would leave a
+ * screen-reader user tabbing to controls the dialog has removed from their buffer — worse than the
+ * plain `dialog` role, which at least announces this panel honestly. Closing the gap properly means a
+ * native `<dialog>` with `showModal()`; see `docs/requirements/requirements.md` §6.
  */
 const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
   // Three modals can share one page, so the title's id has to be unique per instance — a hard-coded
@@ -54,7 +56,6 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
       <div className="absolute inset-0 bg-overlay/50" onClick={onClose} />
       <div
         role="dialog"
-        aria-modal="true"
         aria-labelledby={titleId}
         className="relative z-10 flex max-h-full w-full min-w-0 max-w-lg flex-col overflow-hidden rounded-xl bg-surface border border-line-strong shadow-xl"
       >
