@@ -50,6 +50,18 @@ Four choices inside that decision are worth stating, because each has a failure 
 - **Vitest is pinned to `^3.2.7`, not `^4`.** Vitest 4 declares a peer dependency on Vite `^6 || ^7 ||
   ^8`; this project is on Vite 5. Taking Vitest 4 would mean a Vite major upgrade riding along inside a
   styling change. Vitest 3 depends on Vite `^5.0.0 || ^6.0.0 || ^7.0.0-0` and needs nothing moved.
+- **jsdom is pinned to `^29`, not `^30`.** jsdom 30 declares `engines: ^22.22.2 || ^24.15.0 || >=26.0.0`
+  and pulls `undici@8`, which needs Node `>=22.19.0`. CI and the frontend Dockerfile both run Node 20,
+  so jsdom 30 installs with an `EBADENGINE` warning and then dies at import with
+  `webidl.util.markAsUncloneable is not a function` — an error that names nothing in this project and
+  appears only on the CI runner, never on a developer machine running a newer Node. jsdom 29 accepts
+  `^20.19.0 || ^22.13.0 || >=24.0.0`, which covers both. Same principle as the Vitest pin: the harness
+  bends to the project's runtime, not the other way round.
+
+  This one bit before it was understood — the CI test step was added and merged without ever running,
+  so the mismatch stayed invisible until the first pull request. **Node 20 reached end of life in April
+  2026**, so the real resolution is to move the whole toolchain, including `frontend/Dockerfile`, off
+  it; that is a deployment change and belongs in its own ADR rather than riding along here.
 - **Configuration lives in `vitest.config.ts`, merged over `vite.config.ts` with `mergeConfig`.** A
   `test` key inside `vite.config.ts` would make the production build configuration type-depend on a
   development-only package. Keeping them separate without the merge is worse: Vitest reads
