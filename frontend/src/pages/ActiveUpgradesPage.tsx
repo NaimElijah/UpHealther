@@ -39,7 +39,7 @@ const ActiveUpgradesPage: React.FC = () => {
       {upgrades.length === 0 ? (
         <EmptyState icon="🔥" title="No active upgrades" description="Activate a planned upgrade to start tracking progress." action={<Button onClick={() => navigate('/upgrades/planned')}>View Planned</Button>} />
       ) : (
-        <div className="grid sm:grid-cols-2 gap-4">
+        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {upgrades.map((u) => (
             <UpgradeCard
               key={u.id}

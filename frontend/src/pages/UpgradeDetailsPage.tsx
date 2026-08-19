@@ -134,16 +134,16 @@ const UpgradeDetailsPage: React.FC = () => {
             {upgrade.difficulty}
           </Badge>
         </div>
-        <h1 className="text-2xl font-bold text-fg">{upgrade.title}</h1>
-        {upgrade.description && <p className="text-fg-subtle mt-2">{upgrade.description}</p>}
+        <h1 className="text-2xl font-bold text-fg break-words">{upgrade.title}</h1>
+        {upgrade.description && <p className="text-fg-subtle mt-2 break-words">{upgrade.description}</p>}
         {upgrade.motivation && (
           <div className="mt-4 bg-brand-soft rounded-lg p-3">
-            <p className="text-sm text-brand-fg"><strong>Motivation:</strong> {upgrade.motivation}</p>
+            <p className="text-sm text-brand-fg break-words"><strong>Motivation:</strong> {upgrade.motivation}</p>
           </div>
         )}
         {upgrade.successCriteria && (
           <div className="mt-2 bg-success-soft rounded-lg p-3">
-            <p className="text-sm text-success-fg"><strong>Success Criteria:</strong> {upgrade.successCriteria}</p>
+            <p className="text-sm text-success-fg break-words"><strong>Success Criteria:</strong> {upgrade.successCriteria}</p>
           </div>
         )}
         <div className="mt-4 grid grid-cols-2 gap-4 text-sm text-fg-subtle">

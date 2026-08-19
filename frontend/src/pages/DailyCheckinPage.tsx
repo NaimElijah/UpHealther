@@ -73,12 +73,12 @@ const DailyCheckinPage: React.FC = () => {
 
   if (submitted) {
     return (
-      <div className="max-w-xl mx-auto text-center py-20">
+      <PageContainer width="narrow" className="text-center py-20">
         <div className="text-6xl mb-4">🎉</div>
         <h2 className="text-2xl font-bold text-fg mb-2">Check-in Complete!</h2>
         <p className="text-fg-subtle mb-6">Great job tracking your upgrades today.</p>
         <Button onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>
-      </div>
+      </PageContainer>
     );
   }
 

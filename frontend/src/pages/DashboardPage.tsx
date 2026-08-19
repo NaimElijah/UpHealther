@@ -45,7 +45,7 @@ const DashboardPage: React.FC = () => {
     <PageContainer className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-fg">
+          <h1 className="text-2xl font-bold text-fg break-words">
             Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'},{' '}
             {user?.name?.split(' ')[0]} 👋
           </h1>

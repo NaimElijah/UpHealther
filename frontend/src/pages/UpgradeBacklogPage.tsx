@@ -89,7 +89,7 @@ const UpgradeBacklogPage: React.FC = () => {
       {upgrades.length === 0 ? (
         <EmptyState icon="💡" title="No ideas yet" description="Capture your health upgrade ideas here before planning them." action={<Button onClick={() => setIsOpen(true)}>Add First Idea</Button>} />
       ) : (
-        <div className="grid sm:grid-cols-2 gap-4">
+        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {upgrades.map((u) => (
             <UpgradeCard key={u.id} upgrade={u} onStatusChange={handleStatusChange} />
           ))}

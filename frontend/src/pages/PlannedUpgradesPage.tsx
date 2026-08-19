@@ -45,7 +45,7 @@ const PlannedUpgradesPage: React.FC = () => {
       {sorted.length === 0 ? (
         <EmptyState icon="📅" title="No planned upgrades" description="Move ideas from backlog to plan, or create a new upgrade." action={<Button onClick={() => navigate('/upgrades/backlog')}>Go to Backlog</Button>} />
       ) : (
-        <div className="grid sm:grid-cols-2 gap-4">
+        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {sorted.map((u) => (
             <div key={u.id}>
               {u.plannedStartDate && (
