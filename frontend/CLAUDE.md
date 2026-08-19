@@ -27,11 +27,16 @@ conventions to follow inside `frontend/`.
   `text-fg-subtle`, not `text-gray-500`. The tokens are declared in `tailwind.config.js` and given
   their light and dark values in `src/index.css`. `npm run check:colours` fails on any direct palette
   use and runs in CI — Tailwind itself emits nothing and reports nothing for an unrecognised class, so
-  a mistyped token renders as *no colour at all* rather than as an error.
+  a mistyped token renders as *no colour at all* rather than as an error. It covers everything in
+  Tailwind's `content` glob, `index.html` included, and matches named utilities only: an arbitrary
+  value like `bg-[#fff]` slips past it.
   - Adding a colour means adding a **role**, with both values, not reaching for a shade. If no existing
     role fits, the role is what is missing.
   - Check contrast when you add one: 4.5:1 for text, 3:1 for control boundaries, in both themes.
     Nothing re-checks this automatically.
   - The `dark` class on `<html>` is set by the inline boot script in `index.html` *and* by
     `ThemeProvider`. They must agree on the storage key (`theme`) and the resolution rule; changing one
-    alone brings back the flash of wrong theme on load.
+    alone brings back the flash of wrong theme on load. `src/contexts/bootScript.test.tsx` enforces
+    that agreement — it runs the shipped script verbatim and compares it against the provider across
+    every combination of stored choice and system preference, so drift fails the build instead of
+    shipping. Change the rule in both places, and the test will tell you if you missed one.
