@@ -69,7 +69,7 @@ Nine contexts, each owning its own vocabulary, plus a cross-cutting `common`.
 | `src/hooks/` | `useAuth`, `useNotifications` and `useTheme` — typed context readers that fail loudly outside their provider |
 | `src/router/` | The route table, and `ProtectedRoute`, which gates every authenticated page |
 | `src/pages/` | One component per route |
-| `src/components/` | `ui/` primitives, `upgrade/` cards and badges, `notifications/` bell, dropdown, items and toasts, `layout/` navbar and sidebar |
+| `src/components/` | `ui/` primitives — including `PageContainer`, which decides how wide a page may grow — `upgrade/` cards and badges, `notifications/` bell, dropdown, items and toasts, `layout/` navbar and sidebar |
 | `src/types/` | Hand-written mirrors of the backend's response shapes and enums |
 
 ---
@@ -262,6 +262,16 @@ inline script in `index.html` that runs before the first paint, and thereafter b
 two must agree on the storage key and the resolution rule; changing one alone reintroduces the flash
 the script exists to prevent.
 
+**Nothing in the shell may be wider than the window.** `<main>` carries `min-w-0`, and that is
+load-bearing rather than tidy. A flex item's `min-width` defaults to `auto`, which resolves to its
+min-content width — so a single child that cannot shrink overrules `flex-shrink`, and the column, not
+the child, is what grows past the viewport. `min-w-0` removes that floor and hands the pressure back to
+the content, which is why every user-supplied string in the shell also carries `truncate` or
+`break-words`, and why a health area's icon sits in a fixed clipping box. It replaced an
+`overflow-auto` that was doing the same job invisibly: a flex item whose overflow is not `visible`
+already has an automatic minimum size of zero. How wide a page may then grow is decided once, in
+`PageContainer`, and not by the pages. See [ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md).
+
 **The frontend's types are hand-written, not generated.** `src/types/index.ts` mirrors the backend's
 DTOs and enums by hand. The **enums** are checked: `FrontendEnumContractTest` reads that file and fails
 the build if any mirrored union stops matching its backend enum, which is what stops an unbindable
@@ -293,6 +303,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why DDD + hexagonal at all, and why JPA entities as the domain model? | [ADR-001](../ADRs/ADR-001-ddd-hexagonal-architecture.md) |
 | Why the `upgrade`/`tracking` dependency is inverted; why events moved out of `common`; what the ten ArchUnit rules cover; what was rejected and when to revisit | [ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md) |
 | Why the frontend tests with Vitest rather than Jest; why Vitest is pinned to 3; why there is still no accessibility gate | [ADR-004](../ADRs/ADR-004-frontend-test-harness.md) |
+| Why every page shares one width; why the shell can be trusted not to overflow; why container queries and a native `<dialog>` were turned down | [ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |
