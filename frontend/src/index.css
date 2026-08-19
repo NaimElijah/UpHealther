@@ -1,3 +1,191 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/**
+ * The theme's single source of truth.
+ *
+ * Values are space-separated RGB channels rather than hex so Tailwind can compose an alpha onto them —
+ * see the `<alpha-value>` pattern in `tailwind.config.js`.
+ *
+ * Every foreground/background pair used in the app was checked against WCAG AA: 4.5:1 for text, 3:1 for
+ * control boundaries and graphical state. The worst text pair is 4.63:1 and the worst non-text pair is
+ * 3.29:1. `line` and `line-subtle` are deliberate exceptions — a card's outline and a list's divider
+ * identify no component or state, and forcing 3:1 there would put a mid-grey box round every panel.
+ *
+ * `.dark` is put on `<html>` by the boot script in `index.html` before first paint, and kept in step
+ * afterwards by `ThemeProvider`.
+ */
+@layer base {
+  :root {
+    color-scheme: light;
+
+    --color-canvas: 249 250 251;
+    --color-surface: 255 255 255;
+    --color-sunken: 249 250 251;
+    --color-muted: 243 244 246;
+    --color-muted-strong: 229 231 235;
+
+    --color-line-subtle: 239 241 244;
+    --color-line: 229 231 235;
+    --color-line-strong: 124 133 147;
+
+    --color-fg: 17 24 39;
+    --color-fg-muted: 55 65 81;
+    --color-fg-subtle: 91 100 114;
+    --color-fg-faint: 107 114 128;
+    --color-fg-inverted: 255 255 255;
+
+    --color-overlay: 17 24 39;
+    --color-focus: 29 78 216;
+
+    --color-brand: 37 99 235;
+    --color-brand-hover: 29 78 216;
+    --color-brand-soft: 239 246 255;
+    --color-brand-soft-hover: 219 234 254;
+    --color-brand-line: 147 197 253;
+    --color-brand-fg: 29 78 216;
+
+    --color-success: 21 128 61;
+    --color-success-soft: 240 253 244;
+    --color-success-line: 134 239 172;
+    --color-success-fg: 21 128 61;
+
+    --color-warning-soft: 255 251 235;
+    --color-warning-line: 252 211 77;
+    --color-warning-fg: 146 64 14;
+
+    --color-danger: 220 38 38;
+    --color-danger-hover: 185 28 28;
+    --color-danger-soft: 254 242 242;
+    --color-danger-line: 252 165 165;
+    --color-danger-fg: 185 28 28;
+
+    --color-info-soft: 236 254 255;
+    --color-info-line: 103 232 249;
+    --color-info-fg: 21 94 117;
+
+    --color-reminder-soft: 245 243 255;
+    --color-reminder-line: 196 181 253;
+    --color-reminder-fg: 109 40 217;
+
+    --color-streak-soft: 255 247 237;
+    --color-streak-line: 253 186 116;
+    --color-streak-fg: 194 65 12;
+
+    --color-accent-soft: 224 231 255;
+    --color-accent-fg: 79 70 229;
+
+    --color-tint-green-soft: 220 252 231;
+    --color-tint-green-fg: 22 101 52;
+    --color-tint-yellow-soft: 254 249 195;
+    --color-tint-yellow-fg: 133 77 14;
+    --color-tint-blue-soft: 219 234 254;
+    --color-tint-blue-fg: 30 64 175;
+    --color-tint-red-soft: 254 226 226;
+    --color-tint-red-fg: 153 27 27;
+    --color-tint-purple-soft: 243 232 255;
+    --color-tint-purple-fg: 107 33 168;
+  }
+
+  .dark {
+    /*
+     * Tells the browser to render its own chrome dark: the native `<select>` popup that `Select.tsx`
+     * relies on, number-input spinners, scrollbars and the default caret. Nothing in CSS can reach
+     * those, so without this they stay light on a dark page.
+     */
+    color-scheme: dark;
+
+    --color-canvas: 13 16 21;
+    --color-surface: 23 27 34;
+    --color-sunken: 33 38 48;
+    --color-muted: 43 49 59;
+    --color-muted-strong: 58 65 77;
+
+    --color-line-subtle: 37 43 52;
+    --color-line: 51 58 69;
+    --color-line-strong: 107 118 134;
+
+    --color-fg: 242 244 247;
+    --color-fg-muted: 199 205 216;
+    --color-fg-subtle: 154 164 178;
+    --color-fg-faint: 138 148 163;
+    --color-fg-inverted: 255 255 255;
+
+    --color-overlay: 0 0 0;
+    --color-focus: 147 197 253;
+
+    --color-brand: 37 99 235;
+    --color-brand-hover: 29 78 216;
+    --color-brand-soft: 23 38 63;
+    --color-brand-soft-hover: 30 49 84;
+    --color-brand-line: 44 76 130;
+    --color-brand-fg: 147 197 253;
+
+    --color-success: 34 197 94;
+    --color-success-soft: 16 46 30;
+    --color-success-line: 33 107 65;
+    --color-success-fg: 110 231 160;
+
+    --color-warning-soft: 51 38 10;
+    --color-warning-line: 124 90 22;
+    --color-warning-fg: 252 211 77;
+
+    --color-danger: 220 38 38;
+    --color-danger-hover: 185 28 28;
+    --color-danger-soft: 58 24 28;
+    --color-danger-line: 127 42 42;
+    --color-danger-fg: 252 165 165;
+
+    --color-info-soft: 15 44 52;
+    --color-info-line: 23 98 122;
+    --color-info-fg: 103 232 249;
+
+    --color-reminder-soft: 36 30 64;
+    --color-reminder-line: 76 61 147;
+    --color-reminder-fg: 196 181 253;
+
+    --color-streak-soft: 51 33 14;
+    --color-streak-line: 138 78 27;
+    --color-streak-fg: 253 186 116;
+
+    --color-accent-soft: 35 40 88;
+    --color-accent-fg: 165 180 252;
+
+    --color-tint-green-soft: 20 48 31;
+    --color-tint-green-fg: 134 239 172;
+    --color-tint-yellow-soft: 51 42 11;
+    --color-tint-yellow-fg: 253 224 71;
+    --color-tint-blue-soft: 23 38 63;
+    --color-tint-blue-fg: 147 197 253;
+    --color-tint-red-soft: 58 24 28;
+    --color-tint-red-fg: 252 165 165;
+    --color-tint-purple-soft: 42 30 66;
+    --color-tint-purple-fg: 216 180 254;
+  }
+
+  /*
+   * On `html` rather than `body`: this is what the browser paints for overscroll, and for the frame
+   * between the boot script running and React mounting, so nothing flashes white.
+   */
+  html {
+    background-color: rgb(var(--color-canvas));
+  }
+
+  body {
+    color: rgb(var(--color-fg));
+  }
+
+  /* Preflight hard-codes gray-400 here, which is 2.54:1 on white — below AA for text. */
+  ::placeholder {
+    color: rgb(var(--color-fg-faint));
+    opacity: 1;
+  }
+
+  /* The toasts animate in; someone who has asked for less motion should still see them appear. */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-fade-in {
+      animation: none;
+    }
+  }
+}
