@@ -43,7 +43,7 @@ const ToastContainer: React.FC<Props> = ({ toasts, onDismiss }) => {
             key={t.id}
             role="status"
             aria-live="polite"
-            className={`${meta.bg} ${meta.ring} border rounded-xl shadow-lg p-3 flex items-start gap-2 animate-[fadeIn_0.2s_ease-out]`}
+            className={`${meta.bg} ${meta.ring} border rounded-xl shadow-lg p-3 flex items-start gap-2 animate-fade-in`}
           >
             <button
               type="button"
