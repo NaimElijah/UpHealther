@@ -13,7 +13,7 @@ interface LayoutProps {
  * Applied by the router rather than by each page, so no authenticated page can be added without it.
  */
 const Layout: React.FC<LayoutProps> = ({ children }) => (
-  <div className="min-h-screen bg-gray-50 flex flex-col">
+  <div className="min-h-screen bg-canvas flex flex-col">
     <Navbar />
     <div className="flex flex-1">
       <Sidebar />

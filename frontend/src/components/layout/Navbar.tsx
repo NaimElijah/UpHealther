@@ -9,15 +9,15 @@ const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
 
   return (
-    <nav className="bg-white border-b border-gray-200 h-16 flex items-center px-6 justify-between sticky top-0 z-30">
+    <nav className="bg-surface border-b border-line h-16 flex items-center px-6 justify-between sticky top-0 z-30">
       <Link to="/dashboard" className="flex items-center gap-2">
         <span className="text-2xl">💪</span>
-        <span className="font-bold text-gray-900 text-lg">UpHealther</span>
+        <span className="font-bold text-fg text-lg">UpHealther</span>
       </Link>
       <div className="flex items-center gap-3">
         <NotificationBell />
         {user && (
-          <span className="text-sm text-gray-600 hidden sm:block">
+          <span className="text-sm text-fg-subtle hidden sm:block">
             Hi, <span className="font-medium">{user.name}</span>
           </span>
         )}
