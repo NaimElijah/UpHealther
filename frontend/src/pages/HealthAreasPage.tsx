@@ -9,6 +9,8 @@ import Input from '../components/ui/Input';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import type { CreateHealthAreaRequest, HealthArea } from '../types';
+import PageContainer from '../components/ui/PageContainer';
+import { areaIconGlyph, DEFAULT_AREA_ICON, isIconGlyph } from '../components/ui/areaIcon';
 
 /**
  * Manages health areas — the folders upgrades are filed under.
@@ -58,17 +60,28 @@ const HealthAreasPage: React.FC = () => {
     await updateMutation.mutateAsync({ id: editArea.id, req: form });
   };
 
-  /** Opens the edit modal pre-filled from an area; nullable fields become empty strings for the inputs. */
+  /**
+   * Opens the edit modal pre-filled from an area; nullable fields become empty strings for the inputs.
+   *
+   * A stored icon the card cannot draw arrives as empty rather than as itself. Showing `water_drop` in a
+   * field labelled "Icon (emoji)" next to a card showing the default would invite the user to press Save
+   * and write the unusable value straight back.
+   */
   const openEdit = (area: HealthArea) => {
     setEditArea(area);
-    setForm({ name: area.name, description: area.description ?? '', icon: area.icon ?? '', color: area.color ?? '' });
+    setForm({
+      name: area.name,
+      description: area.description ?? '',
+      icon: isIconGlyph(area.icon) ? (area.icon ?? '').trim() : '',
+      color: area.color ?? '',
+    });
   };
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
   if (error) return <p className="text-danger-fg text-center py-10">Failed to load health areas.</p>;
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <PageContainer>
       <PageHeader
         title="Health Areas"
         subtitle="Organize your upgrades by health focus area"
@@ -77,28 +90,31 @@ const HealthAreasPage: React.FC = () => {
 
       {areas.length === 0 ? (
         <EmptyState
-          icon="🎯"
+          icon={DEFAULT_AREA_ICON}
           title="No health areas yet"
           description="Create areas like Sleep, Nutrition, Fitness to organize your upgrades."
           action={<Button onClick={() => setIsCreateOpen(true)}>Create Your First Area</Button>}
         />
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {areas.map((area) => (
             <Card key={area.id}>
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">{area.icon ?? '🎯'}</span>
-                  <div>
-                    <h3 className="font-semibold text-fg">{area.name}</h3>
-                    {area.upgradeCount !== undefined && (
-                      <p className="text-xs text-fg-subtle">{area.upgradeCount} upgrade{area.upgradeCount !== 1 ? 's' : ''}</p>
-                    )}
-                  </div>
+              <div className="flex items-start gap-2">
+                <span
+                  className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden text-2xl leading-none"
+                  aria-hidden="true"
+                >
+                  {areaIconGlyph(area.icon)}
+                </span>
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-fg break-words">{area.name}</h3>
+                  {area.upgradeCount !== undefined && (
+                    <p className="text-xs text-fg-subtle">{area.upgradeCount} upgrade{area.upgradeCount !== 1 ? 's' : ''}</p>
+                  )}
                 </div>
               </div>
-              {area.description && <p className="text-sm text-fg-subtle mt-2">{area.description}</p>}
-              <div className="flex gap-2 mt-4">
+              {area.description && <p className="text-sm text-fg-subtle mt-2 break-words">{area.description}</p>}
+              <div className="flex flex-wrap gap-2 mt-4">
                 <Button size="sm" variant="secondary" onClick={() => openEdit(area)}>Edit</Button>
                 <Button size="sm" variant="danger" onClick={() => setDeleteId(area.id)}>Delete</Button>
               </div>
@@ -142,7 +158,7 @@ const HealthAreasPage: React.FC = () => {
           </Button>
         </div>
       </Modal>
-    </div>
+    </PageContainer>
   );
 };
 

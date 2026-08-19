@@ -11,7 +11,8 @@ import jakarta.validation.constraints.NotBlank;
  * @param name        display name; required and non-blank
  * @param description free-text note, optional
  * @param priority    ordering hint, optional
- * @param icon        icon key, optional
+ * @param icon        the glyph to draw for the area, usually an emoji; optional. Not an icon-font key
+ *                    — see {@link HealthAreaDto}
  * @param color       colour token, optional
  */
 public record HealthAreaRequest(

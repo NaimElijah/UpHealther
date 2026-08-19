@@ -8,6 +8,7 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import Badge from '../components/ui/Badge';
 import type { ProgressEntry, HealthUpgrade } from '../types';
+import PageContainer from '../components/ui/PageContainer';
 
 /**
  * The last seven days of progress across every upgrade, newest first.
@@ -29,7 +30,7 @@ const ProgressHistoryPage: React.FC = () => {
   if (pError || uError) return <p className="text-danger-fg text-center py-10">Failed to load progress history.</p>;
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <PageContainer>
       <PageHeader title="Progress History" subtitle="Your progress entries from the last 7 days" />
       {sorted.length === 0 ? (
         <EmptyState icon="📈" title="No progress logged yet" description="Log progress on your active upgrades to see history here." />
@@ -64,7 +65,7 @@ const ProgressHistoryPage: React.FC = () => {
           </div>
         </Card>
       )}
-    </div>
+    </PageContainer>
   );
 };
 
