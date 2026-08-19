@@ -1,11 +1,18 @@
 import type { NotificationCategory } from '../../types';
 
-/** Icon + Tailwind classes per notification category, shared by the toast, dropdown and list. */
-export const categoryMeta: Record<NotificationCategory, { icon: string; bg: string; ring: string; text: string }> = {
-  INFO: { icon: 'ℹ️', bg: 'bg-blue-50', ring: 'border-blue-200', text: 'text-blue-700' },
-  SUCCESS: { icon: '✅', bg: 'bg-green-50', ring: 'border-green-200', text: 'text-green-700' },
-  WARNING: { icon: '⚠️', bg: 'bg-red-50', ring: 'border-red-200', text: 'text-red-700' },
-  REMINDER: { icon: '⏰', bg: 'bg-orange-50', ring: 'border-orange-200', text: 'text-orange-700' },
+/**
+ * Icon + token classes per notification category, shared by the toast, dropdown and list.
+ *
+ * Each category owns a hue that means only that category. WARNING is amber rather than red, so a
+ * warning cannot be mistaken for a failure; REMINDER is violet rather than orange, so it cannot be
+ * mistaken for a streak celebration; INFO is cyan rather than the brand blue the sidebar's active
+ * state already uses.
+ */
+export const categoryMeta: Record<NotificationCategory, { icon: string; bg: string; border: string; text: string }> = {
+  INFO: { icon: 'ℹ️', bg: 'bg-info-soft', border: 'border-info-line', text: 'text-info-fg' },
+  SUCCESS: { icon: '✅', bg: 'bg-success-soft', border: 'border-success-line', text: 'text-success-fg' },
+  WARNING: { icon: '⚠️', bg: 'bg-warning-soft', border: 'border-warning-line', text: 'text-warning-fg' },
+  REMINDER: { icon: '⏰', bg: 'bg-reminder-soft', border: 'border-reminder-line', text: 'text-reminder-fg' },
 };
 
 /**
