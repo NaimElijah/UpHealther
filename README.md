@@ -1,4 +1,4 @@
-# UpHealther 🌱
+# UpHealther - Health Upgrades Planner & Tracker Assistant 🌱
 
 A full-stack health upgrade planning and tracking platform. Plan, activate, and track your health improvements — from drinking more water to meditating daily, from better sleep habits to product replacements.
 
@@ -316,7 +316,7 @@ a browser with storage blocked still boots. See
 
 > UpHealther is a lifestyle planning tool. It is **not** a medical application and does not provide medical advice, diagnosis, or treatment. Always consult a healthcare professional for medical decisions.
 
-## Resume Summary
+## Project Summary
 
 **UpHealther** is a production-quality full-stack web application built with Java 21 / Spring Boot 3 backend and React / TypeScript frontend. It demonstrates:
 - Clean architecture: Domain-Driven Design (DDD) + Hexagonal (Ports & Adapters), enforced with ArchUnit
