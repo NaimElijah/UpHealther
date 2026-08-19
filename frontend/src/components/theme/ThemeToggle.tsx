@@ -64,7 +64,7 @@ const ThemeToggle: React.FC = () => {
     <fieldset className="flex items-center gap-0.5 rounded-full bg-muted p-0.5">
       <legend className="sr-only">Theme</legend>
       {options.map((option) => (
-        <label key={option.value} title={option.label} className="cursor-pointer">
+        <label key={option.value} title={option.label} className="group cursor-pointer">
           <input
             type="radio"
             name="theme"
@@ -73,7 +73,19 @@ const ThemeToggle: React.FC = () => {
             onChange={() => setTheme(option.value)}
             className="peer sr-only"
           />
-          <span className="flex w-8 h-8 items-center justify-center rounded-full text-fg-subtle transition-colors peer-hover:text-fg peer-checked:bg-brand peer-checked:text-fg-inverted peer-focus-visible:ring-2 peer-focus-visible:ring-focus peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-muted">
+          {/*
+            Hover is `group-*` while everything else is `peer-*`, and the difference is not arbitrary.
+            The peer here is the input, which is `sr-only` — a 1px clipped box behind the icon — so a
+            pointer never reaches it and `peer-hover` would be dead style. Checked and focus-visible are
+            states of the input itself, so those stay on the peer.
+
+            `peer-checked:group-hover:text-fg-inverted` looks redundant and is kept deliberately.
+            Tailwind happens to emit `peer-checked` after `group-hover`, so the selected pill would hold
+            its inverted text on hover anyway — but that is an ordering internal to Tailwind, not a
+            guarantee, and if it ever changed the only symptom would be dark-on-blue text nobody thought
+            to test. Stating the combination pins it.
+          */}
+          <span className="flex w-8 h-8 items-center justify-center rounded-full text-fg-subtle transition-colors group-hover:text-fg peer-checked:bg-brand peer-checked:text-fg-inverted peer-checked:group-hover:text-fg-inverted peer-focus-visible:ring-2 peer-focus-visible:ring-focus peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-muted">
             {option.icon}
             <span className="sr-only">
               {option.value === 'system' ? `${option.label} (currently ${resolvedTheme})` : option.label}
