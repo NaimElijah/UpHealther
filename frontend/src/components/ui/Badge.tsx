@@ -11,13 +11,13 @@ interface BadgeProps {
   className?: string;
 }
 
-const variantClasses: Record<string, string> = {
-  green: 'bg-green-100 text-green-800',
-  yellow: 'bg-yellow-100 text-yellow-800',
-  blue: 'bg-blue-100 text-blue-800',
-  red: 'bg-red-100 text-red-800',
-  gray: 'bg-gray-100 text-gray-700',
-  purple: 'bg-purple-100 text-purple-800',
+const variantClasses: Record<NonNullable<BadgeProps['variant']>, string> = {
+  green: 'bg-tint-green-soft text-tint-green-fg',
+  yellow: 'bg-tint-yellow-soft text-tint-yellow-fg',
+  blue: 'bg-tint-blue-soft text-tint-blue-fg',
+  red: 'bg-tint-red-soft text-tint-red-fg',
+  gray: 'bg-muted text-fg-muted',
+  purple: 'bg-tint-purple-soft text-tint-purple-fg',
 };
 
 /** Small rounded label used for statuses, types and difficulties. */
