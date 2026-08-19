@@ -308,7 +308,7 @@ npm run build
 
 > UpHealther is a lifestyle planning tool. It is **not** a medical application and does not provide medical advice, diagnosis, or treatment. Always consult a healthcare professional for medical decisions.
 
-## Resume Summary
+## Project Summary
 
 **UpHealther** is a production-quality full-stack web application built with Java 21 / Spring Boot 3 backend and React / TypeScript frontend. It demonstrates:
 - Clean architecture: Domain-Driven Design (DDD) + Hexagonal (Ports & Adapters), enforced with ArchUnit
