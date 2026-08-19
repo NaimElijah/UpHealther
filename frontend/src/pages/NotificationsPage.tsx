@@ -6,6 +6,7 @@ import Button from '../components/ui/Button';
 import EmptyState from '../components/ui/EmptyState';
 import NotificationItem from '../components/notifications/NotificationItem';
 import type { AppNotification } from '../types';
+import PageContainer from '../components/ui/PageContainer';
 
 /**
  * The full notification list, with an all/unread filter.
@@ -27,7 +28,7 @@ const NotificationsPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <PageContainer>
       <PageHeader
         title="Notifications"
         subtitle={unreadCount > 0 ? `${unreadCount} unread` : 'You are all caught up'}
@@ -68,7 +69,7 @@ const NotificationsPage: React.FC = () => {
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 };
 

@@ -8,6 +8,7 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import UpgradeCard from '../components/upgrade/UpgradeCard';
 import type { UpgradeStatus } from '../types';
+import PageContainer from '../components/ui/PageContainer';
 
 /**
  * The upgrades currently running, with the transitions available from `ACTIVE`.
@@ -29,7 +30,7 @@ const ActiveUpgradesPage: React.FC = () => {
   if (error) return <p className="text-danger-fg text-center py-10">Failed to load upgrades.</p>;
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <PageContainer>
       <PageHeader
         title="Active Upgrades"
         subtitle="Upgrades you are currently working on"
@@ -48,7 +49,7 @@ const ActiveUpgradesPage: React.FC = () => {
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 };
 

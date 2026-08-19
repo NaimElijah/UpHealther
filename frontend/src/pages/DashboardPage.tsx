@@ -10,6 +10,7 @@ import UpgradeCard from '../components/upgrade/UpgradeCard';
 import EmptyState from '../components/ui/EmptyState';
 import { performUpgradeAction } from '../api/upgrades';
 import type { UpgradeStatus } from '../types';
+import PageContainer from '../components/ui/PageContainer';
 
 /**
  * Landing page after sign-in: counts, the weekly rate, streaks, overdue warnings and today's upgrades.
@@ -41,16 +42,16 @@ const DashboardPage: React.FC = () => {
   const streakEntries = Object.entries(data?.streaks ?? {});
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+    <PageContainer className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold text-fg">
             Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'},{' '}
             {user?.name?.split(' ')[0]} 👋
           </h1>
           <p className="text-fg-subtle mt-1">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
         </div>
-        <Button onClick={() => navigate('/upgrades/backlog')}>+ Add Upgrade</Button>
+        <Button className="shrink-0" onClick={() => navigate('/upgrades/backlog')}>+ Add Upgrade</Button>
       </div>
 
       {(data?.overdueUpgrades?.length ?? 0) > 0 && (
@@ -63,7 +64,7 @@ const DashboardPage: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="text-center">
           <div className="text-3xl font-bold text-brand-fg">{data?.activeUpgrades.length ?? 0}</div>
           <div className="text-sm text-fg-subtle mt-1">Active</div>
@@ -146,7 +147,7 @@ const DashboardPage: React.FC = () => {
           </div>
         </Card>
       )}
-    </div>
+    </PageContainer>
   );
 };
 

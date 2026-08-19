@@ -9,6 +9,7 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import { useNavigate } from 'react-router-dom';
 import type { HealthUpgrade, CreateProgressRequest } from '../types';
+import PageContainer from '../components/ui/PageContainer';
 
 /** Draft entries being filled in, keyed by upgrade id, until the whole form is submitted. */
 type ProgressMap = Record<string, Partial<CreateProgressRequest>>;
@@ -82,7 +83,7 @@ const DailyCheckinPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <PageContainer width="narrow">
       <PageHeader title="Daily Check-in" subtitle={`Today: ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}`} />
 
       {upgrades.length === 0 ? (
@@ -160,7 +161,7 @@ const DailyCheckinPage: React.FC = () => {
           </Button>
         </form>
       )}
-    </div>
+    </PageContainer>
   );
 };
 

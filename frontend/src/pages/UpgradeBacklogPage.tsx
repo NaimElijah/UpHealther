@@ -11,6 +11,7 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import UpgradeCard from '../components/upgrade/UpgradeCard';
 import type { CreateUpgradeRequest, UpgradeType, Difficulty, UpgradeStatus } from '../types';
+import PageContainer from '../components/ui/PageContainer';
 
 /**
  * The upgrade types offered when creating one: the eight kinds the product defines.
@@ -79,7 +80,7 @@ const UpgradeBacklogPage: React.FC = () => {
   if (error) return <p className="text-danger-fg text-center py-10">Failed to load the backlog.</p>;
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <PageContainer>
       <PageHeader
         title="Idea Backlog"
         subtitle="Health upgrade ideas waiting to be planned"
@@ -109,7 +110,7 @@ const UpgradeBacklogPage: React.FC = () => {
           </div>
         </form>
       </Modal>
-    </div>
+    </PageContainer>
   );
 };
 

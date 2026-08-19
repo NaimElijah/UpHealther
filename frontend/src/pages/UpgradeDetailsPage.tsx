@@ -17,6 +17,7 @@ import UpgradeTypeBadge from '../components/upgrade/UpgradeTypeBadge';
 import Badge from '../components/ui/Badge';
 import { difficultyVariant, UNKNOWN_DIFFICULTY_VARIANT } from '../components/upgrade/upgradeMeta';
 import type { CreateProgressRequest, CreateReflectionRequest, TrackingType, Frequency } from '../types';
+import PageContainer from '../components/ui/PageContainer';
 
 /** Today as `YYYY-MM-DD`, the date format the progress and reflection APIs expect. */
 const today = () => new Date().toISOString().split('T')[0];
@@ -122,7 +123,7 @@ const UpgradeDetailsPage: React.FC = () => {
   if (error || !upgrade) return <p className="text-danger-fg text-center py-10">Failed to load this upgrade.</p>;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <PageContainer width="narrow" className="space-y-6">
       <button onClick={() => navigate(-1)} className="text-sm text-brand-fg hover:underline">← Back</button>
 
       <Card>
@@ -400,7 +401,7 @@ const UpgradeDetailsPage: React.FC = () => {
           </div>
         </form>
       </Modal>
-    </div>
+    </PageContainer>
   );
 };
 
