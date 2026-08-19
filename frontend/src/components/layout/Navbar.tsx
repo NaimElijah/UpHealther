@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import Button from '../ui/Button';
 import NotificationBell from '../notifications/NotificationBell';
+import ThemeToggle from '../theme/ThemeToggle';
 
-/** Top bar: brand link home, the notification bell, the signed-in user's name, and logout. */
+/** Top bar: brand link home, the theme toggle, the notification bell, the signed-in user's name, and logout. */
 const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
 
@@ -15,6 +16,7 @@ const Navbar: React.FC = () => {
         <span className="font-bold text-fg text-lg">UpHealther</span>
       </Link>
       <div className="flex items-center gap-3">
+        <ThemeToggle />
         <NotificationBell />
         {user && (
           <span className="text-sm text-fg-subtle hidden sm:block">
