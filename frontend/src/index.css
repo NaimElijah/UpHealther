@@ -182,10 +182,18 @@
     opacity: 1;
   }
 
-  /* The toasts animate in; someone who has asked for less motion should still see them appear. */
-  @media (prefers-reduced-motion: reduce) {
-    .animate-fade-in {
-      animation: none;
-    }
+}
+
+/*
+ * The toasts animate in; someone who has asked for less motion should still see them appear.
+ *
+ * Deliberately outside `@layer base`. Tailwind emits base before utilities and both selectors are
+ * specificity (0,1,0), so the same rule inside the base layer loses to the `animate-fade-in` utility on
+ * source order and silently does nothing. Unlayered CSS outranks every Tailwind layer, so this wins
+ * where it belongs and needs no `!important`.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in {
+    animation: none;
   }
 }
