@@ -158,9 +158,10 @@ These are deliberate. Re-proposing one needs a reason that has changed.
 
 Undecided, and owned by the repository owner.
 
-- **The frontend has no test runner.** No vitest, no jest. Frontend logic is currently verified only by
-  the type checker, the linter and inspection. Introducing one is a dependency decision that deserves
-  an ADR.
+- **The frontend has no accessibility or visual-regression gate.** Contrast ratios in the theme were
+  computed by hand; nothing re-checks them when a colour changes, and jsdom cannot — it has no layout
+  engine. Closing this needs a real browser in CI; [ADR-004](../ADRs/ADR-004-frontend-test-harness.md)
+  records why that was deferred.
 - **The backend has no dependency vulnerability audit.** OWASP dependency-check needs an `NVD_API_KEY`
   secret; ADR-002 records why a check that cannot fail was judged worse than none.
 - **An unbindable request body returns 500 rather than 400** — tracked as

@@ -202,8 +202,8 @@ Integration points a maintainer will need:
   different origins. The cron expressions are overridable per environment. `.env.example` lists them
   all with safe values.
 - **CI** — GitHub Actions on every push and PR to `main` and `dev`: the backend runs `mvn verify`
-  against a PostgreSQL service container, the frontend lints, audits its shipped dependencies and
-  builds.
+  against a PostgreSQL service container, the frontend lints, tests, audits its shipped dependencies
+  and builds.
 
 ---
 
@@ -277,6 +277,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | What is the system supposed to do, and what is it deliberately not doing? | [`docs/requirements/requirements.md`](../requirements/requirements.md) |
 | Why DDD + hexagonal at all, and why JPA entities as the domain model? | [ADR-001](../ADRs/ADR-001-ddd-hexagonal-architecture.md) |
 | Why the `upgrade`/`tracking` dependency is inverted; why events moved out of `common`; what the ten ArchUnit rules cover; what was rejected and when to revisit | [ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md) |
+| Why the frontend tests with Vitest rather than Jest; why Vitest is pinned to 3; why there is still no accessibility gate | [ADR-004](../ADRs/ADR-004-frontend-test-harness.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |
