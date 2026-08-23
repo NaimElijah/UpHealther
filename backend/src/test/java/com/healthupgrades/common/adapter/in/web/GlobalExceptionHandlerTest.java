@@ -11,6 +11,10 @@ import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.upgrade.adapter.in.web.UpgradeController;
 import com.healthupgrades.upgrade.adapter.in.web.UpgradeWebMapper;
 import com.healthupgrades.upgrade.application.UpgradeService;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
+import io.micrometer.tracing.test.simple.SimpleTraceContext;
+import io.micrometer.tracing.test.simple.SimpleTracer;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -52,12 +56,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 class GlobalExceptionHandlerTest {
 
+    private static final String TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736";
+
     private GlobalExceptionHandler handler;
     private HttpServletRequest request;
 
     @BeforeEach
     void setUp() {
-        handler = new GlobalExceptionHandler();
+        handler = new GlobalExceptionHandler(Tracer.NOOP);
         MockHttpServletRequest mockRequest = new MockHttpServletRequest();
         mockRequest.setRequestURI("/api/upgrades/42");
         request = mockRequest;
@@ -145,6 +151,37 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void GivenTheRequestIsBeingTraced_WhenItFails_ThenTheErrorBodyCarriesTheTraceId() {
+        // The whole point of the id: a user reporting this failure can quote something that identifies
+        // one log line rather than a path that matches thousands.
+        SimpleTracer tracer = new SimpleTracer();
+        Span span = tracer.nextSpan().start();
+        // SimpleTracer does not generate a trace id, so an assertion against whatever it produced would
+        // compare "" with "" - and CorrelationId rejects a blank id, so it would compare "" with null.
+        ((SimpleTraceContext) span.context()).setTraceId(TRACE_ID);
+
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response;
+        try (Tracer.SpanInScope ignored = tracer.withSpan(span)) {
+            response = new GlobalExceptionHandler(tracer)
+                    .handleNotFound(new ResourceNotFoundException("Upgrade not found: 42"), request);
+        }
+
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getTraceId()).isEqualTo(TRACE_ID);
+    }
+
+    @Test
+    void GivenNothingIsBeingTraced_WhenARequestFails_ThenTheErrorBodyOmitsTheTraceId() {
+        // Absent, not null: ErrorResponse is @JsonInclude(NON_NULL), so no "traceId": null reaches a
+        // client that would then look for a log line that does not exist.
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
+                handler.handleNotFound(new ResourceNotFoundException("Upgrade not found: 42"), request);
+
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getTraceId()).isNull();
+    }
+
+    @Test
     void GivenTheAdviceAsSpringSeesIt_WhenItsHandlerMappingsAreBuilt_ThenNoTypeIsMappedTwice() {
         // What Spring does at startup. Adding an @ExceptionHandler for a type ResponseEntityExceptionHandler
         // already maps is an ambiguous mapping: it fails the boot, and the only other test that would
@@ -168,7 +205,7 @@ class GlobalExceptionHandlerTest {
         private final MockMvc mockMvc = MockMvcBuilders
                 .standaloneSetup(new UpgradeController(mock(UpgradeService.class), mock(UpgradeWebMapper.class)))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
-                .setControllerAdvice(new GlobalExceptionHandler())
+                .setControllerAdvice(new GlobalExceptionHandler(Tracer.NOOP))
                 .build();
 
         @Test

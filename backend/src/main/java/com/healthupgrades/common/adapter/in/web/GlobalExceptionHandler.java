@@ -2,8 +2,11 @@ package com.healthupgrades.common.adapter.in.web;
 import com.healthupgrades.common.domain.exception.*;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.healthupgrades.common.observability.CorrelationId;
+import io.micrometer.tracing.Tracer;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.HttpHeaders;
@@ -62,6 +65,7 @@ import java.util.Map;
  * contract change and breaks that test on purpose.
  */
 @Slf4j
+@RequiredArgsConstructor
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
@@ -71,11 +75,28 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      */
     private static final String INTERNAL_ERROR_MESSAGE = "Internal server error";
 
+    /** Supplies the trace id stamped on every error body; see {@link #body}. */
+    private final Tracer tracer;
+
+    /**
+     * Builds an error body carrying the trace id of the request that failed.
+     *
+     * <p>Every response this advice returns goes through here, so the tracer is consulted in exactly
+     * one place. The id is what turns "I got a 500 on /api/upgrades" into a single log line; when there
+     * is no span it is simply absent from the JSON rather than null, because {@code ErrorResponse} is
+     * {@code @JsonInclude(NON_NULL)}.
+     */
+    private ErrorResponse body(int status, String message, String path) {
+        ErrorResponse body = new ErrorResponse(status, message, path);
+        CorrelationId.of(tracer).ifPresent(body::setTraceId);
+        return body;
+    }
+
     /** Maps a missing (or foreign-owned) resource to 404. */
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(new ErrorResponse(HttpStatus.NOT_FOUND.value(), ex.getMessage(), req.getRequestURI()));
+                .body(body(HttpStatus.NOT_FOUND.value(), ex.getMessage(), req.getRequestURI()));
     }
 
     /**
@@ -85,14 +106,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(BusinessRuleException.class)
     public ResponseEntity<ErrorResponse> handleBusinessRule(BusinessRuleException ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
-                .body(new ErrorResponse(HttpStatus.UNPROCESSABLE_ENTITY.value(), ex.getMessage(), req.getRequestURI()));
+                .body(body(HttpStatus.UNPROCESSABLE_ENTITY.value(), ex.getMessage(), req.getRequestURI()));
     }
 
     /** Maps a second progress entry for the same upgrade and day to 409. */
     @ExceptionHandler(DuplicateProgressException.class)
     public ResponseEntity<ErrorResponse> handleDuplicateProgress(DuplicateProgressException ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(new ErrorResponse(HttpStatus.CONFLICT.value(), ex.getMessage(), req.getRequestURI()));
+                .body(body(HttpStatus.CONFLICT.value(), ex.getMessage(), req.getRequestURI()));
     }
 
     /**
@@ -104,14 +125,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler({OptimisticLockException.class, jakarta.persistence.OptimisticLockException.class})
     public ResponseEntity<ErrorResponse> handleOptimisticLock(Exception ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(new ErrorResponse(HttpStatus.CONFLICT.value(), "Resource was modified concurrently. Please retry.", req.getRequestURI()));
+                .body(body(HttpStatus.CONFLICT.value(), "Resource was modified concurrently. Please retry.", req.getRequestURI()));
     }
 
     /** Maps a Spring Security authorization failure to 403. */
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(new ErrorResponse(HttpStatus.FORBIDDEN.value(), "Access denied", req.getRequestURI()));
+                .body(body(HttpStatus.FORBIDDEN.value(), "Access denied", req.getRequestURI()));
     }
 
     /**
@@ -125,7 +146,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         for (FieldError fe : ex.getBindingResult().getFieldErrors()) {
             errors.put(fe.getField(), fe.getDefaultMessage());
         }
-        ErrorResponse body = new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "Validation failed", pathOf(request));
+        ErrorResponse body = body(HttpStatus.BAD_REQUEST.value(), "Validation failed", pathOf(request));
         body.setFieldErrors(errors);
         return respond(ex, HttpStatus.BAD_REQUEST, body, headers, request);
     }
@@ -181,12 +202,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ResponseEntity<ErrorResponse> handleGeneral(Exception ex, HttpServletRequest req) {
         log.error("Unhandled exception for {} {}", req.getMethod(), req.getRequestURI(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), INTERNAL_ERROR_MESSAGE, req.getRequestURI()));
+                .body(body(HttpStatus.INTERNAL_SERVER_ERROR.value(), INTERNAL_ERROR_MESSAGE, req.getRequestURI()));
     }
 
     private ResponseEntity<Object> respond(Exception ex, HttpStatusCode statusCode, String message,
                                            HttpHeaders headers, WebRequest request) {
-        return respond(ex, statusCode, new ErrorResponse(statusCode.value(), message, pathOf(request)), headers, request);
+        return respond(ex, statusCode, body(statusCode.value(), message, pathOf(request)), headers, request);
     }
 
     private ResponseEntity<Object> respond(Exception ex, HttpStatusCode statusCode, ErrorResponse body,
@@ -212,8 +233,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     /**
      * The error body every failed request returns.
      *
-     * <p>{@code fieldErrors} is populated only for validation failures and is omitted from the JSON
-     * otherwise.
+     * <p>{@code fieldErrors} is populated only for validation failures, and {@code traceId} only when
+     * the request was traced; both are omitted from the JSON otherwise. The trace id is the key that
+     * joins a failure a user reports to the log lines that produced it.
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class ErrorResponse {
@@ -222,13 +244,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         private String path;
         private LocalDateTime timestamp;
         private Map<String, String> fieldErrors;
+        private String traceId;
 
         /**
+         * Private on purpose: {@link GlobalExceptionHandler#body} is the only way to make one, which is
+         * what stops a future handler from returning an error body with no trace id on it.
+         *
          * @param status  HTTP status code, repeated in the body for clients that only read the payload
          * @param message user-facing description of the failure
          * @param path    request URI that failed, for correlating a report with a log line
          */
-        public ErrorResponse(int status, String message, String path) {
+        private ErrorResponse(int status, String message, String path) {
             this.status = status;
             this.message = message;
             this.path = path;
@@ -241,5 +267,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         public LocalDateTime getTimestamp() { return timestamp; }
         public Map<String, String> getFieldErrors() { return fieldErrors; }
         public void setFieldErrors(Map<String, String> fieldErrors) { this.fieldErrors = fieldErrors; }
+        public String getTraceId() { return traceId; }
+        public void setTraceId(String traceId) { this.traceId = traceId; }
     }
 }
