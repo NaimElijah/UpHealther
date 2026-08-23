@@ -53,7 +53,16 @@ side. Both are deliberate, not drift.
 - **Exception → HTTP status is centralized** in the global exception handler. Throw the
   right domain exception rather than building `ResponseEntity` status by hand:
   `ResourceNotFoundException` → 404, `BusinessRuleException` → 422, `DuplicateProgressException` /
-  optimistic-lock → 409, bean-validation → 400.
+  optimistic-lock → 409, bean-validation → 400 with a field → message map.
+
+  **Framework exceptions are not yours to map.** `GlobalExceptionHandler` extends Spring's
+  `ResponseEntityExceptionHandler`, so an unbindable body, a path variable that will not convert, an
+  unsupported method or media type already carry the status Spring defines; `handleExceptionInternal`
+  only re-clothes the result in this API's `ErrorResponse` body. To change one, **override its
+  `handleXxx` hook** — adding a second `@ExceptionHandler` for a type the parent already maps is an
+  ambiguous mapping and fails at startup. See
+  `../docs/ADRs/ADR-006-framework-exceptions-through-responseentityexceptionhandler.md`; the catch-all
+  that used to swallow all of these as 500s is what issue #22 was.
 
 - **Optimistic locking** via `@Version` on entities (e.g. `HealthUpgrade.version`) → concurrent edits
   return 409.
