@@ -53,7 +53,13 @@ side. Both are deliberate, not drift.
 - **Exception → HTTP status is centralized** in the global exception handler. Throw the
   right domain exception rather than building `ResponseEntity` status by hand:
   `ResourceNotFoundException` → 404, `BusinessRuleException` → 422, `DuplicateProgressException` /
-  optimistic-lock → 409, bean-validation → 400.
+  optimistic-lock → 409, bean-validation and an unbindable body (`HttpMessageNotReadableException`)
+  → 400.
+
+  The advice declares a catch-all `@ExceptionHandler(Exception.class)`, and an advice is consulted
+  before Spring's own `DefaultHandlerExceptionResolver` — so any framework exception without an
+  explicit handler here silently becomes a 500 instead of the status Spring would have given it. Add
+  the handler when you meet one; that is what issue #22 was.
 
 - **Optimistic locking** via `@Version` on entities (e.g. `HealthUpgrade.version`) → concurrent edits
   return 409.

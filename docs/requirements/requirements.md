@@ -138,7 +138,7 @@ nothing is shared between accounts.
 | NFR-4 | A token is valid for 24 hours and is not refreshable | `app.jwt.expiration` |
 | NFR-5 | The user behind a token is re-loaded on every request, so a deleted account stops working immediately | `JwtAuthenticationFilter` |
 | NFR-6 | Personal data is never written to logs; event publication logs the type and timestamp only | `SpringDomainEventPublisher` |
-| NFR-7 | Every failure maps to a defined HTTP status: 404 not found, 422 rule violation, 409 conflict, 400 invalid input, 403 denied | `GlobalExceptionHandler`, `GlobalExceptionHandlerTest` |
+| NFR-7 | Every failure maps to a defined HTTP status: 404 not found, 422 rule violation, 409 conflict, 400 invalid input (a failed constraint or a body that cannot be bound), 403 denied; a 500 carries no detail beyond the status and is logged server-side | `GlobalExceptionHandler`, `GlobalExceptionHandlerTest` |
 | NFR-8 | The database schema is owned by migrations; the application refuses to start against a schema that does not match its entities | Flyway + `ddl-auto: validate` |
 | NFR-9 | Layering is enforced mechanically, not by convention: the domain stays framework-free, the application depends on no adapter, contexts form an acyclic graph | `HexagonalArchitectureTest` (ten rules) |
 | NFR-10 | The frontend's mirrored enums cannot drift from the backend's | `FrontendEnumContractTest` |
@@ -188,8 +188,6 @@ Undecided, and owned by the repository owner.
   records why that was not done here.
 - **The backend has no dependency vulnerability audit.** OWASP dependency-check needs an `NVD_API_KEY`
   secret; ADR-002 records why a check that cannot fail was judged worse than none.
-- **An unbindable request body returns 500 rather than 400** — tracked as
-  [issue #22](https://github.com/NaimElijah/UpHealther/issues/22).
 - **`UpgradeType.PROTOCOL` is deprecated but retained** for rows that may already carry it. Removing it
   needs confirmation that no stored row uses it.
 - **No governing jurisdiction is named in the licence** — ADR-003 flags this as the first thing to add

@@ -2,8 +2,10 @@ package com.healthupgrades.common.adapter.in.web;
 import com.healthupgrades.common.domain.exception.*;
 
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -29,13 +31,20 @@ import java.util.Map;
  *   <tr><td>{@link DuplicateProgressException}</td><td>409 Conflict</td></tr>
  *   <tr><td>{@link OptimisticLockException} and the JPA one</td><td>409 Conflict</td></tr>
  *   <tr><td>{@link MethodArgumentNotValidException}</td><td>400 Bad Request, with field errors</td></tr>
+ *   <tr><td>{@link HttpMessageNotReadableException}</td><td>400 Bad Request, detail withheld</td></tr>
  *   <tr><td>{@link AccessDeniedException}</td><td>403 Forbidden</td></tr>
  *   <tr><td>anything else</td><td>500 Internal Server Error, message withheld</td></tr>
  * </table>
  *
+ * <p>The last row is the reason the rest of this advice cannot be left to the framework: an advice is
+ * consulted before Spring's own {@code DefaultHandlerExceptionResolver}, so a catch-all here claims the
+ * exceptions Spring would otherwise map itself. Every such exception needs its own handler below, or it
+ * silently becomes a 500.
+ *
  * <p>The mapping is pinned by {@code GlobalExceptionHandlerTest}; changing a status here is a wire
  * contract change and breaks that test on purpose.
  */
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -90,6 +99,20 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
+    /**
+     * Maps a request body that cannot be bound to 400 — malformed JSON, an unknown enum constant, a
+     * string where a number is expected.
+     *
+     * <p>The client's input was wrong, not the server, and the failure happens before any controller
+     * method is entered. The parser's own message is withheld: it names the target type, the offending
+     * value and the byte offset, which describes the API's internals rather than the caller's mistake.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleNotReadable(HttpMessageNotReadableException ex, HttpServletRequest req) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "Malformed request body", req.getRequestURI()));
+    }
+
     /** Maps a Spring Security authorization failure to 403. */
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex, HttpServletRequest req) {
@@ -101,10 +124,13 @@ public class GlobalExceptionHandler {
      * Catch-all for anything unmapped: 500 with a fixed message.
      *
      * <p>The exception's own message is deliberately withheld — an unanticipated failure can carry a
-     * stack detail, a SQL fragment or a value that must not reach a client.
+     * stack detail, a SQL fragment or a value that must not reach a client. It is logged instead, since
+     * withholding the cause is only safe if the server keeps it: a 500 nobody can diagnose is worse than
+     * the leak it avoids.
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneral(Exception ex, HttpServletRequest req) {
+        log.error("Unhandled exception for {} {}", req.getMethod(), req.getRequestURI(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Internal server error", req.getRequestURI()));
     }
