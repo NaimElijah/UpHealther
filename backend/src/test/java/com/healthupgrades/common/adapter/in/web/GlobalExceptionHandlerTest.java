@@ -13,6 +13,7 @@ import com.healthupgrades.upgrade.adapter.in.web.UpgradeWebMapper;
 import com.healthupgrades.upgrade.application.UpgradeService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -23,10 +24,18 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.method.annotation.ExceptionHandlerMethodResolver;
+
+import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.Mockito.mock;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -36,16 +45,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * there" from "you asked for something the rules forbid", and it was asserted nowhere: throwing the
  * wrong domain exception, or adding a handler with the wrong status, changed the API silently.
  *
- * <p>Most cases call the advice directly, which is enough when the exception is one a controller
- * throws. An unbindable body is not: it is raised by the framework before any handler method runs, and
- * which of the advice's handlers claims it is decided by Spring's resolver rather than by the call
- * site. Those cases therefore go through {@link MockMvc} in front of a real controller.
+ * <p>A domain exception is raised by a controller, so calling the advice directly tests it honestly.
+ * A framework exception is not: it is raised before any handler method runs, and which handler claims
+ * it is decided by Spring's resolver rather than by the call site — those go through {@link MockMvc}
+ * in {@link ThroughTheDispatcher}.
  */
 class GlobalExceptionHandlerTest {
 
     private GlobalExceptionHandler handler;
     private HttpServletRequest request;
-    private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
@@ -53,13 +61,6 @@ class GlobalExceptionHandlerTest {
         MockHttpServletRequest mockRequest = new MockHttpServletRequest();
         mockRequest.setRequestURI("/api/upgrades/42");
         request = mockRequest;
-
-        // The service and mapper are never reached: binding fails before the handler method is called.
-        mockMvc = MockMvcBuilders
-                .standaloneSetup(new UpgradeController(mock(UpgradeService.class), mock(UpgradeWebMapper.class)))
-                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
-                .setControllerAdvice(handler)
-                .build();
     }
 
     @Test
@@ -119,39 +120,6 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void unknownEnumValueInBody_isBadRequest() throws Exception {
-        // A syntactically valid body the API cannot bind is a bad request, not a server failure: the
-        // catch-all must not claim it.
-        mockMvc.perform(post("/api/upgrades")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"Walk daily\",\"type\":\"NOT_A_TYPE\"}"))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void malformedJsonBody_isBadRequest() throws Exception {
-        mockMvc.perform(post("/api/upgrades")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\": "))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void unbindableBody_saysNothingAboutTheParser() throws Exception {
-        // Jackson names the target type, the offending value and the byte offset; none of that is a
-        // client's business.
-        String body = mockMvc.perform(post("/api/upgrades")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"Walk daily\",\"type\":\"NOT_A_TYPE\"}"))
-                .andReturn().getResponse().getContentAsString();
-
-        assertThat(body)
-                .doesNotContain("NOT_A_TYPE")
-                .doesNotContain("com.fasterxml")
-                .doesNotContain("UpgradeType");
-    }
-
-    @Test
     void unexpectedFailure_isInternalServerErrorAndSaysNothingElse() {
         // The catch-all must never surface an internal message to a caller.
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
@@ -164,22 +132,146 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void unexpectedFailure_isLoggedWithItsStackTrace() {
+    void GivenAnUnexpectedFailure_WhenTheCatchAllHandlesIt_ThenItIsLoggedWithItsStackTrace() throws Exception {
         // Withholding the cause from the client is only safe if the server keeps it: otherwise a 500
         // leaves no trace beyond the access log.
+        List<ILoggingEvent> logged = logsFromHandler(() ->
+                handler.handleGeneral(new IllegalStateException("jdbc://user:hunter2@db/prod"), request));
+
+        assertThat(logged).singleElement().satisfies(event -> {
+            assertThat(event.getLevel()).isEqualTo(Level.ERROR);
+            assertThat(event.getThrowableProxy()).isNotNull();
+        });
+    }
+
+    @Test
+    void GivenTheAdviceAsSpringSeesIt_WhenItsHandlerMappingsAreBuilt_ThenNoTypeIsMappedTwice() {
+        // What Spring does at startup. Adding an @ExceptionHandler for a type ResponseEntityExceptionHandler
+        // already maps is an ambiguous mapping: it fails the boot, and the only other test that would
+        // notice needs a database.
+        assertThatCode(() -> new ExceptionHandlerMethodResolver(GlobalExceptionHandler.class))
+                .doesNotThrowAnyException();
+    }
+
+    /**
+     * The advice in front of a real controller, so a framework exception is raised and resolved the way
+     * it is in production.
+     *
+     * <p>Standalone MockMvc builds its own {@code ObjectMapper} rather than the application's, so this
+     * rig pins statuses and the error body's own fields — not how a domain type is serialized, which
+     * {@code UpgradeDtoSerializationTest} covers.
+     */
+    @Nested
+    class ThroughTheDispatcher {
+
+        // The service and mapper are never reached: every request below fails before the handler method.
+        private final MockMvc mockMvc = MockMvcBuilders
+                .standaloneSetup(new UpgradeController(mock(UpgradeService.class), mock(UpgradeWebMapper.class)))
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+
+        @Test
+        void GivenAnUnknownEnumConstant_WhenTheBodyIsBound_ThenTheRequestIsRejectedWith400() throws Exception {
+            // A syntactically valid body the API cannot bind is a bad request, not a server failure.
+            mockMvc.perform(post("/api/upgrades")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"title\":\"Walk daily\",\"type\":\"NOT_A_TYPE\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("Malformed request body"))
+                    .andExpect(jsonPath("$.path").value("/api/upgrades"));
+        }
+
+        @Test
+        void GivenMalformedJson_WhenTheBodyIsBound_ThenTheRequestIsRejectedWith400() throws Exception {
+            mockMvc.perform(post("/api/upgrades")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"title\": "))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("Malformed request body"));
+        }
+
+        @Test
+        void GivenAnUnbindableBody_WhenItIsRejected_ThenTheResponseRepeatsNoParserDetail() throws Exception {
+            // Jackson names the target type, the offending value and the byte offset; none of that is a
+            // client's business.
+            String body = mockMvc.perform(post("/api/upgrades")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"title\":\"Walk daily\",\"type\":\"NOT_A_TYPE\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.fieldErrors").doesNotExist())
+                    .andReturn().getResponse().getContentAsString();
+
+            assertThat(body)
+                    .doesNotContain("NOT_A_TYPE")
+                    .doesNotContain("com.fasterxml")
+                    .doesNotContain("UpgradeType");
+        }
+
+        @Test
+        void GivenARequiredFieldIsMissing_WhenTheBodyIsValidated_ThenTheFieldErrorIsNamedWith400() throws Exception {
+            mockMvc.perform(post("/api/upgrades")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"type\":\"HABIT\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("Validation failed"))
+                    .andExpect(jsonPath("$.fieldErrors.title").exists());
+        }
+
+        @Test
+        void GivenAPathVariableOfTheWrongType_WhenItIsBound_ThenTheRequestIsRejectedWith400() throws Exception {
+            mockMvc.perform(get("/api/upgrades/not-a-uuid"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("Malformed request parameter"));
+        }
+
+        @Test
+        void GivenAQueryParameterOutsideItsEnum_WhenItIsBound_ThenTheRequestIsRejectedWith400() throws Exception {
+            mockMvc.perform(get("/api/upgrades").param("status", "NOT_A_STATUS"))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void GivenAMethodTheRouteDoesNotOffer_WhenItIsCalled_ThenTheResponseIs405() throws Exception {
+            mockMvc.perform(patch("/api/upgrades/" + UUID.randomUUID()))
+                    .andExpect(status().isMethodNotAllowed())
+                    .andExpect(jsonPath("$.message").value("Method Not Allowed"));
+        }
+
+        @Test
+        void GivenABodyInAnUnsupportedMediaType_WhenItIsRead_ThenTheResponseIs415() throws Exception {
+            mockMvc.perform(post("/api/upgrades").contentType(MediaType.TEXT_PLAIN).content("not json"))
+                    .andExpect(status().isUnsupportedMediaType())
+                    .andExpect(jsonPath("$.message").value("Unsupported Media Type"));
+        }
+
+        @Test
+        void GivenAClientMistake_WhenItIsRejected_ThenNothingIsLoggedAtError() throws Exception {
+            // ERROR means "actionable now". A caller sending a bad id is not an incident, and burying
+            // real 500s under that noise is the reason this handler was changed in the first place.
+            List<ILoggingEvent> logged = logsFromHandler(() ->
+                    mockMvc.perform(get("/api/upgrades/not-a-uuid")).andExpect(status().isBadRequest()));
+
+            assertThat(logged).noneMatch(event -> event.getLevel() == Level.ERROR);
+        }
+    }
+
+    /** Collects what {@link GlobalExceptionHandler} logs while {@code action} runs. */
+    private static List<ILoggingEvent> logsFromHandler(Action action) throws Exception {
         Logger logger = (Logger) LoggerFactory.getLogger(GlobalExceptionHandler.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
         logger.addAppender(appender);
         try {
-            handler.handleGeneral(new IllegalStateException("jdbc://user:hunter2@db/prod"), request);
+            action.run();
         } finally {
             logger.detachAppender(appender);
         }
+        return appender.list;
+    }
 
-        assertThat(appender.list).singleElement().satisfies(event -> {
-            assertThat(event.getLevel()).isEqualTo(Level.ERROR);
-            assertThat(event.getThrowableProxy()).isNotNull();
-        });
+    @FunctionalInterface
+    private interface Action {
+        void run() throws Exception;
     }
 }
