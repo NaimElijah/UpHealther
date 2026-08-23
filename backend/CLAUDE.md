@@ -64,6 +64,14 @@ side. Both are deliberate, not drift.
   `../docs/ADRs/ADR-006-framework-exceptions-through-responseentityexceptionhandler.md`; the catch-all
   that used to swallow all of these as 500s is what issue #22 was.
 
+- **Correlation is the runtime's job, not the call site's.** Every log line carries a trace id because
+  the work runs inside an observation — `ServerHttpObservationFilter` for HTTP, a `SchedulingConfigurer`
+  for `@Scheduled` jobs, `StompTracingChannelInterceptor` for STOMP frames. **Never write the MDC by
+  hand**, and never pass an id through a method signature. A new inbound adapter is the one thing that
+  needs thought: say how it gets a span, or its log lines will be the only anonymous ones. Read the id
+  back only where it leaves the process, through `CorrelationId.of(tracer)`, which handles the three
+  shapes of "no id". See `../docs/ADRs/ADR-007-request-correlation-through-micrometer-tracing.md`.
+
 - **Optimistic locking** via `@Version` on entities (e.g. `HealthUpgrade.version`) → concurrent edits
   return 409.
 
