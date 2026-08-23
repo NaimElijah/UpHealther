@@ -1,5 +1,6 @@
 package com.healthupgrades.common.websocket;
 
+import com.healthupgrades.common.observability.StompTracingChannelInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -29,6 +30,7 @@ import java.util.Arrays;
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final JwtChannelInterceptor jwtChannelInterceptor;
+    private final StompTracingChannelInterceptor tracingChannelInterceptor;
 
     @Value("${app.cors.allowed-origins:http://localhost:3000}")
     private String allowedOrigins;
@@ -57,11 +59,32 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.enableSimpleBroker("/queue", "/topic");
         registry.setApplicationDestinationPrefixes("/app");
         registry.setUserDestinationPrefix("/user");
+        // The broker channel is the middle hop of convertAndSendToUser; tracing it keeps a push joined
+        // to whatever caused it. It hangs off the registry rather than being a configurer method.
+        registry.configureBrokerChannel().interceptors(tracingChannelInterceptor);
     }
 
-    /** Puts {@link JwtChannelInterceptor} on the inbound channel so CONNECT frames are authenticated. */
+    /**
+     * Puts {@link JwtChannelInterceptor} on the inbound channel so CONNECT frames are authenticated.
+     *
+     * <p>Tracing is registered <b>first</b>, and the order is load-bearing rather than cosmetic:
+     * {@code JwtChannelInterceptor} rejects a bad CONNECT by throwing from its own {@code preSend}, and
+     * the chain unwinds completion callbacks in reverse, so only an interceptor ahead of it still has a
+     * span open to record that rejection on. A rejected connection is exactly the event worth
+     * correlating.
+     */
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
-        registration.interceptors(jwtChannelInterceptor);
+        registration.interceptors(tracingChannelInterceptor, jwtChannelInterceptor);
+    }
+
+    /**
+     * Traces the outbound half too, so a push can be joined to the request or scheduled run that caused
+     * it: {@code convertAndSendToUser} hops through the broker channel and then the client-outbound
+     * channel, each on its own thread.
+     */
+    @Override
+    public void configureClientOutboundChannel(ChannelRegistration registration) {
+        registration.interceptors(tracingChannelInterceptor);
     }
 }

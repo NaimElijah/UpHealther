@@ -1,5 +1,6 @@
 package com.healthupgrades.common.security;
 
+import com.healthupgrades.common.observability.TraceIdResponseHeaderFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -123,6 +124,9 @@ public class SecurityConfig {
         }
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
+        // setAllowedHeaders governs the request; a response header is unreadable to cross-origin
+        // JavaScript unless it is exposed as well, which would silently defeat X-Trace-Id.
+        config.setExposedHeaders(List.of(TraceIdResponseHeaderFilter.TRACE_ID_HEADER));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);

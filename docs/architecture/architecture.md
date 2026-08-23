@@ -181,6 +181,27 @@ without waiting.
 
 ---
 
+### Correlation
+
+Every unit of work runs inside an observation, and the trace id it carries is what joins a failure
+somebody reports to the log lines that produced it. There are three entry points and each gets its span
+from a different place:
+
+- **HTTP** — `ServerHttpObservationFilter`, from the framework. An inbound W3C `traceparent` continues
+  the caller's trace; otherwise a new one starts. `TraceIdResponseHeaderFilter` returns the id as
+  `X-Trace-Id`, and `GlobalExceptionHandler` stamps it on the error body.
+- **Scheduled jobs** — `ScheduledMethodRunnable` already wraps each `@Scheduled` invocation in an
+  observation; `ObservabilityConfig` supplies the registry that Boot leaves unset, which is the whole of
+  it. The scheduler classes know nothing about tracing.
+- **STOMP** — `StompTracingChannelInterceptor` on the inbound, broker and client-outbound channels. It
+  spans two threads per frame, because a channel dispatches on the sending thread and handles on an
+  executor thread; the sending span's context travels between them on a non-native message header.
+
+Nothing writes the MDC by hand. Correlation is a property of the runtime, so a new log statement,
+controller or job is correlated without its author doing anything.
+[ADR-007](../ADRs/ADR-007-request-correlation-through-micrometer-tracing.md) records why this is
+Micrometer Tracing rather than a hand-rolled request id.
+
 ## External dependencies and integration points
 
 **There are no third-party APIs.** Nothing leaves the deployment: no payment provider, no email or
@@ -291,6 +312,14 @@ Stated because they are load-bearing, not because they are problems yet:
 - **The backend has no dependency vulnerability audit.** OWASP dependency-check cannot populate its
   database without an `NVD_API_KEY`. ADR-002 records why a check that always fails, or one that cannot
   fail, was judged worse than none.
+- **Two paths carry a trace id in the header but not the body.** An anonymous request to a protected
+  endpoint is rejected inside the Spring Security chain and never reaches `GlobalExceptionHandler`, so
+  it returns Boot's default error body — and as a 403, not a 401, since no `AuthenticationEntryPoint` is
+  configured;
+  and `ServerHttpObservationFilter` is registered for `REQUEST` and `ASYNC` dispatches but not `ERROR`,
+  so a container error dispatch to `/error` runs outside the observation scope entirely. Nothing logs
+  on either path today. Closing the first means configuring an `AuthenticationEntryPoint`, which is its
+  own wire-contract change.
 
 ---
 
