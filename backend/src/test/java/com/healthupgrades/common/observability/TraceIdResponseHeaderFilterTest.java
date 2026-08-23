@@ -2,6 +2,7 @@ package com.healthupgrades.common.observability;
 
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
+import io.micrometer.tracing.test.simple.SimpleTraceContext;
 import io.micrometer.tracing.test.simple.SimpleTracer;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
@@ -21,20 +22,21 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class TraceIdResponseHeaderFilterTest {
 
+    private static final String TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736";
+
     private final MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/upgrades");
     private final MockHttpServletResponse response = new MockHttpServletResponse();
 
     @Test
     void GivenARequestIsBeingTraced_WhenItIsServed_ThenTheResponseCarriesTheTraceId() throws Exception {
         SimpleTracer tracer = new SimpleTracer();
-        Span span = tracer.nextSpan().start();
+        Span span = tracedSpan(tracer);
 
         try (Tracer.SpanInScope ignored = tracer.withSpan(span)) {
             new TraceIdResponseHeaderFilter(tracer).doFilter(request, response, new MockFilterChain());
         }
 
-        assertThat(response.getHeader(TraceIdResponseHeaderFilter.TRACE_ID_HEADER))
-                .isEqualTo(span.context().traceId());
+        assertThat(response.getHeader(TraceIdResponseHeaderFilter.TRACE_ID_HEADER)).isEqualTo(TRACE_ID);
     }
 
     @Test
@@ -51,7 +53,7 @@ class TraceIdResponseHeaderFilterTest {
         // The 401 case: sendError resets the buffer, not the headers, and only a header written before
         // the chain runs is still there afterwards.
         SimpleTracer tracer = new SimpleTracer();
-        Span span = tracer.nextSpan().start();
+        Span span = tracedSpan(tracer);
         MockFilterChain sendsError = new MockFilterChain() {
             @Override
             public void doFilter(ServletRequest req, ServletResponse res) throws IOException {
@@ -64,6 +66,17 @@ class TraceIdResponseHeaderFilterTest {
         }
 
         assertThat(response.getStatus()).isEqualTo(401);
-        assertThat(response.getHeader(TraceIdResponseHeaderFilter.TRACE_ID_HEADER)).isNotBlank();
+        assertThat(response.getHeader(TraceIdResponseHeaderFilter.TRACE_ID_HEADER)).isEqualTo(TRACE_ID);
+    }
+
+    /**
+     * A started span with a known trace id. {@code SimpleTracer} does not generate one, so a test that
+     * relied on whatever it produced would compare an empty string with an empty string and pass
+     * whatever the filter did.
+     */
+    private static Span tracedSpan(SimpleTracer tracer) {
+        Span span = tracer.nextSpan().start();
+        ((SimpleTraceContext) span.context()).setTraceId(TRACE_ID);
+        return span;
     }
 }
