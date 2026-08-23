@@ -92,10 +92,27 @@
             <optional>true</optional>
         </dependency>
 
+        <!--
+          Tracing: supplies the trace id that correlates every log line, the error body and the
+          X-Trace-Id response header. The OpenTelemetry bridge is deliberate (W3C traceparent on the
+          wire, vendor-neutral) - see docs/ADRs/ADR-007. No exporter: the goal is log correlation, and
+          Boot composes an empty exporter list into a no-op. Version managed by spring-boot-dependencies.
+        -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-otel</artifactId>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- SimpleTracer: lets a test assert on spans without booting a tracing backend. -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-test</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

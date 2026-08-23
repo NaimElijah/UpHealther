@@ -2,6 +2,10 @@ server:
   port: 8080
 
 spring:
+  # Names the service in OpenTelemetry (service.name) and prefixes every log line. Without it a trace
+  # is attributed to "unknown_service".
+  application:
+    name: health-upgrades-tracker
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/healthupgrades}
     username: ${DB_USERNAME:healthupgrades}
@@ -43,6 +47,15 @@ app:
       # Cron expressions for the delayed-notification jobs (server timezone).
       daily-checkin: ${NOTIFY_CHECKIN_CRON:0 0 18 * * *} # daily at 18:00 — check-in nudge
       reminders: ${NOTIFY_REMINDERS_CRON:0 * * * * *}    # every minute — user reminder dispatch
+
+management:
+  tracing:
+    sampling:
+      # Every request is sampled. The trace id reaches the log line either way - Micrometer writes the
+      # MDC without consulting the sampler - but on an unsampled span every span.tag/span.error is
+      # silently dropped, and with no exporter configured a lower rate saves nothing. Revisit when a
+      # collector is added: this is the volume that would start leaving the process. See ADR-007.
+      probability: 1.0
 
 logging:
   level:
