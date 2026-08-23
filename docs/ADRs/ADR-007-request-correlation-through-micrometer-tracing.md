@@ -80,9 +80,20 @@ The dependency tree gains two `-alpha` OpenTelemetry artifacts (`opentelemetry-s
 `opentelemetry-instrumentation-api-semconv`) that `spring-boot-dependencies` does not manage. Nothing
 gates on this today; ADR-002 records why there is no backend dependency audit.
 
-**What this does not close.** The 401 produced inside the Spring Security chain still returns Boot's
-default error body rather than `ErrorResponse`, because no `AuthenticationEntryPoint` is configured — it
-carries the header but not the body field. And `ServerHttpObservationFilter` is registered for
+**An inbound trace id is caller-controlled, and there is no trusted-proxy boundary.** `/api/auth/**` and
+`/ws/**` are `permitAll`, so anyone can send a `traceparent` of their choosing — pinning many requests to
+one id, or reusing an id read from someone else's `X-Trace-Id`. A log search then returns two people's
+lines under one id. This is the cost of honouring an inbound id at all, which the issue explicitly asked
+for, and it is the normal trade-off in distributed tracing: a trace id is a correlation hint, never
+evidence. It is not an authorization input anywhere and must not become one. *Revisit when* this service
+sits behind a proxy that can strip client-supplied headers, at which point inbound propagation should be
+accepted only from that proxy.
+
+**What this does not close.** An anonymous request to a protected endpoint is rejected inside the
+Spring Security chain and never reaches `GlobalExceptionHandler`, so it returns Boot's default error
+body rather than `ErrorResponse` — it carries the header but not the body field. It is also a **403**,
+not a 401: with no `AuthenticationEntryPoint` configured, Spring Security's `Http403ForbiddenEntryPoint`
+answers, which is worth knowing before anyone writes a client that branches on 401. And `ServerHttpObservationFilter` is registered for
 `DispatcherType.REQUEST` and `ASYNC` but not `ERROR`, so anything logged during a container error
 dispatch to `/error` has no id. Nothing logs there today.
 

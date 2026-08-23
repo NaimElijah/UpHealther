@@ -312,8 +312,10 @@ Stated because they are load-bearing, not because they are problems yet:
 - **The backend has no dependency vulnerability audit.** OWASP dependency-check cannot populate its
   database without an `NVD_API_KEY`. ADR-002 records why a check that always fails, or one that cannot
   fail, was judged worse than none.
-- **Two paths carry a trace id in the header but not the body.** A 401 is produced inside the Spring
-  Security chain and never reaches `GlobalExceptionHandler`, so it returns Boot's default error body;
+- **Two paths carry a trace id in the header but not the body.** An anonymous request to a protected
+  endpoint is rejected inside the Spring Security chain and never reaches `GlobalExceptionHandler`, so
+  it returns Boot's default error body — and as a 403, not a 401, since no `AuthenticationEntryPoint` is
+  configured;
   and `ServerHttpObservationFilter` is registered for `REQUEST` and `ASYNC` dispatches but not `ERROR`,
   so a container error dispatch to `/error` runs outside the observation scope entirely. Nothing logs
   on either path today. Closing the first means configuring an `AuthenticationEntryPoint`, which is its

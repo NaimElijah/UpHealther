@@ -36,8 +36,8 @@ import java.util.Deque;
  *
  * <p>Registration order matters and is asserted: this interceptor is registered <em>before</em>
  * {@code JwtChannelInterceptor}, which rejects a bad CONNECT by throwing from its own {@code preSend}.
- * The chain unwinds {@code afterSendCompletion} in reverse, so a rejected connection is still inside
- * this span and is recorded on it. See
+ * The chain unwinds completion callbacks in reverse, so a rejected connection is still inside this span
+ * and is recorded on it. See
  * {@code docs/ADRs/ADR-007-request-correlation-through-micrometer-tracing.md}.
  */
 @Component
@@ -47,11 +47,17 @@ public class StompTracingChannelInterceptor implements ExecutorChannelIntercepto
     /** Internal header carrying the sending span's context to the handling thread. Never sent to a client. */
     private static final String TRACE_CONTEXT_HEADER = "healthupgrades-trace-context";
 
+    /** Marks a span whose send was refused, which otherwise ends looking exactly like a delivered one. */
+    private static final String SEND_REFUSED_TAG = "stomp.send.refused";
+
     /**
-     * Spans opened on this thread and not yet closed. A deque rather than a single slot because a
+     * Spans opened on the current thread and not yet closed. A deque rather than a single slot because a
      * handler may itself send on another channel, nesting a second span inside the first.
+     *
+     * <p>Deliberately an instance field: this is a singleton registered on three channels, and a static
+     * would additionally braid together every other instance — including the ones tests construct.
      */
-    private static final ThreadLocal<Deque<Scope>> OPEN_SCOPES = ThreadLocal.withInitial(ArrayDeque::new);
+    private final ThreadLocal<Deque<Scope>> openScopes = ThreadLocal.withInitial(ArrayDeque::new);
 
     private final Tracer tracer;
     private final Propagator propagator;
@@ -63,23 +69,33 @@ public class StompTracingChannelInterceptor implements ExecutorChannelIntercepto
                 .extract(accessor, (carrier, key) -> carrier.getFirstNativeHeader(key))
                 .name(spanName(accessor))
                 .start();
-        open(span);
-
-        MessageHeaderAccessor mutable = MessageHeaderAccessor.getMutableAccessor(message);
-        mutable.setHeader(TRACE_CONTEXT_HEADER, span.context());
-        return MessageBuilder.createMessage(message.getPayload(), mutable.getMessageHeaders());
+        try {
+            MessageHeaderAccessor mutable = MessageHeaderAccessor.getMutableAccessor(message);
+            mutable.setHeader(TRACE_CONTEXT_HEADER, span.context());
+            Message<?> forwarded = MessageBuilder.createMessage(message.getPayload(), mutable.getMessageHeaders());
+            // Opened only once nothing above can still throw. Spring advances its interceptor index after
+            // preSend returns, so an interceptor that throws is skipped by triggerAfterSendCompletion -
+            // a scope opened before the throw would never be closed and would attach this frame's trace
+            // id to every later frame on the same pooled thread.
+            open(span);
+            return forwarded;
+        } catch (RuntimeException e) {
+            span.error(e);
+            span.end();
+            throw e;
+        }
     }
 
     @Override
     public void afterSendCompletion(Message<?> message, MessageChannel channel, boolean sent, Exception ex) {
-        close(ex);
+        close(ex, sent);
     }
 
     @Override
     public Message<?> beforeHandle(Message<?> message, MessageChannel channel, MessageHandler handler) {
         Span.Builder builder = tracer.spanBuilder().name(spanName(StompHeaderAccessor.wrap(message)) + " handle");
         if (message.getHeaders().get(TRACE_CONTEXT_HEADER) instanceof TraceContext parent) {
-            builder.setParent(parent);
+            builder = builder.setParent(parent);
         }
         open(builder.start());
         return message;
@@ -87,39 +103,51 @@ public class StompTracingChannelInterceptor implements ExecutorChannelIntercepto
 
     @Override
     public void afterMessageHandled(Message<?> message, MessageChannel channel, MessageHandler handler, Exception ex) {
-        close(ex);
+        close(ex, true);
     }
 
     private void open(Span span) {
-        OPEN_SCOPES.get().push(new Scope(span, tracer.withSpan(span)));
+        openScopes.get().push(new Scope(span, tracer.withSpan(span)));
     }
 
     /**
-     * Ends the innermost span open on this thread, recording {@code ex} on it when the work failed.
+     * Ends the innermost span open on this thread, recording why the work stopped.
      *
      * <p>Tolerates an empty deque: an interceptor earlier in the chain can reject a message before this
      * one's {@code preSend} ran, and Spring still calls the completion hook.
+     *
+     * @param ex   the failure, or null when the work completed
+     * @param sent whether the channel accepted the message; a refused send carries no exception, so
+     *             without the tag it would end indistinguishable from a delivered one
      */
-    private void close(Exception ex) {
-        Deque<Scope> scopes = OPEN_SCOPES.get();
+    private void close(Exception ex, boolean sent) {
+        Deque<Scope> scopes = openScopes.get();
         Scope scope = scopes.poll();
+        if (scopes.isEmpty()) {
+            openScopes.remove();
+        }
         if (scope == null) {
             return;
         }
-        if (scopes.isEmpty()) {
-            OPEN_SCOPES.remove();
-        }
         if (ex != null) {
             scope.span.error(ex);
+        }
+        if (!sent) {
+            scope.span.tag(SEND_REFUSED_TAG, "true");
         }
         scope.inScope.close();
         scope.span.end();
     }
 
-    /** {@code SEND /app/x}, or just the command when the frame has no destination. */
+    /**
+     * The STOMP command, and deliberately nothing else.
+     *
+     * <p>The destination is not in the name on purpose: {@code convertAndSendToUser} produces
+     * {@code /user/{userId}/queue/notifications} and a session-suffixed queue after that, which would put
+     * a user id into observability data — contradicting NFR-6 — and give the name unbounded cardinality.
+     */
     private static String spanName(StompHeaderAccessor accessor) {
-        String command = accessor.getCommand() == null ? "MESSAGE" : accessor.getCommand().name();
-        return accessor.getDestination() == null ? command : command + " " + accessor.getDestination();
+        return accessor.getCommand() == null ? "MESSAGE" : accessor.getCommand().name();
     }
 
     private record Scope(Span span, Tracer.SpanInScope inScope) {

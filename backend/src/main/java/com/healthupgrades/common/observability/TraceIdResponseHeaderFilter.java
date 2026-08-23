@@ -16,8 +16,9 @@ import java.io.IOException;
  *
  * <p>The header is written <b>before</b> the rest of the chain runs, which is what makes it survive the
  * responses that are not built by {@code GlobalExceptionHandler}: {@code sendError} resets the response
- * buffer but not its headers, so a 401 produced inside the Spring Security chain — which never reaches
- * the advice, because no {@code AuthenticationEntryPoint} is configured — still comes back with an id.
+ * buffer but not its headers, so the 403 Spring Security returns for an anonymous request — which never
+ * reaches the advice, and is a 403 rather than a 401 because no {@code AuthenticationEntryPoint} is
+ * configured — still comes back with an id.
  *
  * <p>The header name is ours, not a standard: W3C defines {@code traceparent} for the request side, and
  * its response-side counterpart {@code traceresponse} is still a draft that nothing consumes.

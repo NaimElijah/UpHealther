@@ -247,11 +247,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         private String traceId;
 
         /**
+         * Private on purpose: {@link GlobalExceptionHandler#body} is the only way to make one, which is
+         * what stops a future handler from returning an error body with no trace id on it.
+         *
          * @param status  HTTP status code, repeated in the body for clients that only read the payload
          * @param message user-facing description of the failure
          * @param path    request URI that failed, for correlating a report with a log line
          */
-        public ErrorResponse(int status, String message, String path) {
+        private ErrorResponse(int status, String message, String path) {
             this.status = status;
             this.message = message;
             this.path = path;

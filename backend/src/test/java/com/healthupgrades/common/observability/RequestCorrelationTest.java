@@ -37,8 +37,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>One caveat worth knowing if this ever fails oddly: Boot installs the MDC bridge by calling
  * {@code ContextStorage.addWrapper(...)}, a JVM-global side effect that OpenTelemetry ignores once a
- * {@code Context} has been used. That holds while this is the only test touching OTel context in the
- * fork, and it fails loudly rather than silently if it stops holding.
+ * {@code Context} has been used. {@code StompTracingChannelInterceptorTest} also boots the tracing
+ * auto-configuration in this fork, so whichever class runs first installs the wrapper both then rely on.
+ * The wrapper is stateless, which is why that is safe; it fails loudly rather than silently if it ever
+ * stops being.
  */
 class RequestCorrelationTest {
 

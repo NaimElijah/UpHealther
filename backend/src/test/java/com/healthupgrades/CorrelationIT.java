@@ -2,6 +2,7 @@ package com.healthupgrades;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -45,7 +46,8 @@ class CorrelationIT {
     private static final String INBOUND_TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736";
     private static final String TRACE_ID_PATTERN = "[0-9a-f]{32}";
 
-    private final HttpClient client = HttpClient.newHttpClient();
+    private static final HttpClient client = HttpClient.newHttpClient();
+
     private final ObjectMapper json = new ObjectMapper();
 
     @LocalServerPort
@@ -81,6 +83,23 @@ class CorrelationIT {
                 .isEqualTo(traceIdHeader(response));
     }
 
+    @Test
+    void GivenAnUnauthenticatedRequest_WhenSecurityRejectsIt_ThenTheTraceIdStillComesBack() throws Exception {
+        // The reason the filter is ordered ahead of Spring Security. This rejection is written inside
+        // the security chain and never reaches GlobalExceptionHandler, so the header is the only way an
+        // id reaches the caller at all. It is 403 rather than 401 because no AuthenticationEntryPoint is
+        // configured, which leaves Spring Security's Http403ForbiddenEntryPoint in place.
+        HttpResponse<String> response = client.send(
+                HttpRequest.newBuilder()
+                        .uri(URI.create("http://localhost:" + port + "/api/upgrades"))
+                        .GET()
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isEqualTo(403);
+        assertThat(traceIdHeader(response)).matches(TRACE_ID_PATTERN);
+    }
+
     private HttpResponse<String> post(String body, String traceparent) throws Exception {
         HttpRequest.Builder request = HttpRequest.newBuilder()
                 .uri(URI.create("http://localhost:" + port + "/api/auth/login"))
@@ -90,6 +109,12 @@ class CorrelationIT {
             request.header("traceparent", traceparent);
         }
         return client.send(request.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    @AfterAll
+    static void closeClient() {
+        // AutoCloseable since Java 21; each instance holds a selector thread for the rest of the fork.
+        client.close();
     }
 
     private static String traceIdHeader(HttpResponse<String> response) {

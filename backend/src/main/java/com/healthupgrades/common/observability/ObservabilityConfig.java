@@ -11,10 +11,13 @@ import org.springframework.scheduling.annotation.SchedulingConfigurer;
 import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 
 /**
- * Wires the two pieces of correlation that Spring Boot does not wire itself.
+ * Wires the response header and the scheduled-task observations, neither of which Spring Boot wires
+ * itself.
  *
- * <p>Everything else comes from the {@code micrometer-tracing-bridge-otel} dependency alone — the trace
- * id in the log pattern, the W3C {@code traceparent} propagation, the per-request scope. See
+ * <p>The third hand-wired piece, STOMP, is registered from {@code WebSocketConfig} because that is where
+ * the channels are configured — look there too when auditing correlation coverage. Everything else comes
+ * from the {@code micrometer-tracing-bridge-otel} dependency alone: the trace id in the log pattern, the
+ * W3C {@code traceparent} propagation, the per-request scope. See
  * {@code docs/ADRs/ADR-007-request-correlation-through-micrometer-tracing.md}.
  */
 @Configuration
@@ -29,7 +32,7 @@ public class ObservabilityConfig implements SchedulingConfigurer {
      *
      * <p>It has to sit between two filters it does not control: {@code ServerHttpObservationFilter}
      * (order {@code HIGHEST_PRECEDENCE + 1}), which opens the scope the id is read from, and Spring
-     * Security's chain (order {@code -100}), whose 401 the header still has to reach. Hence
+     * Security's chain (order {@code -100}), whose rejections the header still has to reach. Hence
      * {@code HIGHEST_PRECEDENCE + 2}, and hence an explicit registration bean rather than
      * {@code @Component} — a component-scanned filter defaults to {@code LOWEST_PRECEDENCE}, which is
      * on the wrong side of Spring Security.

@@ -59,7 +59,7 @@ class StompTracingChannelInterceptorTest {
         // Asserting the span was ended, not that the test double forgot it: SimpleTracer keeps every
         // span it made, and an unended span is the leak this interceptor exists to avoid.
         assertThat(tracer.getSpans()).singleElement().satisfies(span -> {
-            assertThat(span.getName()).isEqualTo("SEND /app/ping");
+            assertThat(span.getName()).isEqualTo("SEND");
             assertThat(span.getEndTimestamp()).isNotNull();
         });
     }
@@ -100,6 +100,10 @@ class StompTracingChannelInterceptorTest {
 
         assertThat(StompHeaderAccessor.wrap(forwarded).toNativeHeaderMap())
                 .doesNotContainKey("healthupgrades-trace-context");
+
+        // Completed rather than abandoned: a preSend left open would leave a scope on this thread and
+        // the next test would pop it instead of exercising its own empty-deque path.
+        interceptor.afterSendCompletion(forwarded, channel, true, null);
     }
 
     @Test
@@ -114,6 +118,18 @@ class StompTracingChannelInterceptorTest {
             assertThat(span.getName()).isEqualTo("CONNECT");
             assertThat(span.getError()).hasMessage("bad token");
         });
+    }
+
+    @Test
+    void GivenTheChannelRefusesTheMessage_WhenTheSendCompletes_ThenTheSpanSaysSo() {
+        // A refused send carries no exception, so without the tag it ends looking exactly like a
+        // delivered one - and a push that never arrived is the case worth finding in a trace.
+        Message<?> forwarded = interceptor.preSend(frame(StompCommand.SEND, "/app/ping"), channel);
+
+        interceptor.afterSendCompletion(forwarded, channel, false, null);
+
+        assertThat(tracer.getSpans()).singleElement().satisfies(span ->
+                assertThat(span.getTags()).containsEntry("stomp.send.refused", "true"));
     }
 
     @Test
