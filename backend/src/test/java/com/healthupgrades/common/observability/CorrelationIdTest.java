@@ -3,6 +3,7 @@ package com.healthupgrades.common.observability;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.TraceContext;
 import io.micrometer.tracing.Tracer;
+import io.micrometer.tracing.test.simple.SimpleTraceContext;
 import io.micrometer.tracing.test.simple.SimpleTracer;
 import org.junit.jupiter.api.Test;
 
@@ -20,13 +21,18 @@ import static org.mockito.Mockito.when;
  */
 class CorrelationIdTest {
 
+    private static final String TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736";
+
     @Test
     void GivenASpanIsInScope_WhenTheIdIsRead_ThenItIsTheSpansTraceId() {
         SimpleTracer tracer = new SimpleTracer();
         Span span = tracer.nextSpan().start();
+        // Set explicitly: SimpleTracer does not generate trace ids, so asserting against whatever it
+        // produced would compare a blank id with a blank id and hold whatever this helper did.
+        ((SimpleTraceContext) span.context()).setTraceId(TRACE_ID);
 
         try (Tracer.SpanInScope ignored = tracer.withSpan(span)) {
-            assertThat(CorrelationId.of(tracer)).contains(span.context().traceId());
+            assertThat(CorrelationId.of(tracer)).contains(TRACE_ID);
         }
     }
 

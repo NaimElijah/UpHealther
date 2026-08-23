@@ -13,6 +13,7 @@ import com.healthupgrades.upgrade.adapter.in.web.UpgradeWebMapper;
 import com.healthupgrades.upgrade.application.UpgradeService;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
+import io.micrometer.tracing.test.simple.SimpleTraceContext;
 import io.micrometer.tracing.test.simple.SimpleTracer;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +55,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * in {@link ThroughTheDispatcher}.
  */
 class GlobalExceptionHandlerTest {
+
+    private static final String TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736";
 
     private GlobalExceptionHandler handler;
     private HttpServletRequest request;
@@ -153,6 +156,9 @@ class GlobalExceptionHandlerTest {
         // one log line rather than a path that matches thousands.
         SimpleTracer tracer = new SimpleTracer();
         Span span = tracer.nextSpan().start();
+        // SimpleTracer does not generate a trace id, so an assertion against whatever it produced would
+        // compare "" with "" - and CorrelationId rejects a blank id, so it would compare "" with null.
+        ((SimpleTraceContext) span.context()).setTraceId(TRACE_ID);
 
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response;
         try (Tracer.SpanInScope ignored = tracer.withSpan(span)) {
@@ -161,7 +167,7 @@ class GlobalExceptionHandlerTest {
         }
 
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getTraceId()).isEqualTo(span.context().traceId());
+        assertThat(response.getBody().getTraceId()).isEqualTo(TRACE_ID);
     }
 
     @Test
