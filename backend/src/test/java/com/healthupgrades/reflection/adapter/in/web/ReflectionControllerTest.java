@@ -1,6 +1,5 @@
 package com.healthupgrades.reflection.adapter.in.web;
 
-import com.healthupgrades.common.adapter.in.web.GlobalExceptionHandler;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.security.JwtAuthenticationFilter;
 import com.healthupgrades.common.security.JwtTokenProvider;
@@ -43,7 +42,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * DELETE is refused by the framework as an unsupported method (405) rather than by a handler.
  */
 @WebMvcTest(ReflectionController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class, GlobalExceptionHandler.class,
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class,
         ReflectionWebMapper.class, WebSliceSupport.class})
 class ReflectionControllerTest {
 

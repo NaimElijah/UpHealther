@@ -1,6 +1,5 @@
 package com.healthupgrades.tracking.adapter.in.web;
 
-import com.healthupgrades.common.adapter.in.web.GlobalExceptionHandler;
 import com.healthupgrades.common.domain.exception.DuplicateProgressException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.security.JwtAuthenticationFilter;
@@ -43,7 +42,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * already logged, which is a state it can resolve, rather than that its request was malformed.
  */
 @WebMvcTest(ProgressController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class, GlobalExceptionHandler.class,
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class,
         TrackingWebMapper.class, WebSliceSupport.class})
 class ProgressControllerTest {
 

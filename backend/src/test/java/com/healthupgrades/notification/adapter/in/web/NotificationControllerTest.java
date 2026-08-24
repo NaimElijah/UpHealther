@@ -1,6 +1,5 @@
 package com.healthupgrades.notification.adapter.in.web;
 
-import com.healthupgrades.common.adapter.in.web.GlobalExceptionHandler;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.security.JwtAuthenticationFilter;
 import com.healthupgrades.common.security.JwtTokenProvider;
@@ -40,7 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * parse — so the shape is pinned rather than left to whoever next touches the controller.
  */
 @WebMvcTest(NotificationController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class, GlobalExceptionHandler.class,
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class,
         NotificationWebMapper.class, WebSliceSupport.class})
 class NotificationControllerTest {
 

@@ -1,6 +1,5 @@
 package com.healthupgrades.dashboard.adapter.in.web;
 
-import com.healthupgrades.common.adapter.in.web.GlobalExceptionHandler;
 import com.healthupgrades.common.security.JwtAuthenticationFilter;
 import com.healthupgrades.common.security.JwtTokenProvider;
 import com.healthupgrades.common.security.SecurityConfig;
@@ -42,7 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * serialise as an empty array rather than as null, or the frontend maps over nothing and throws.
  */
 @WebMvcTest(DashboardController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class, GlobalExceptionHandler.class,
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class,
         DashboardWebMapper.class, UpgradeWebMapper.class, WebSliceSupport.class})
 class DashboardControllerTest {
 

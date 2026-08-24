@@ -1,6 +1,5 @@
 package com.healthupgrades.upgrade.adapter.in.web;
 
-import com.healthupgrades.common.adapter.in.web.GlobalExceptionHandler;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.security.JwtAuthenticationFilter;
@@ -58,7 +57,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * mapper would make every shape assertion here a tautology.
  */
 @WebMvcTest(UpgradeController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class, GlobalExceptionHandler.class,
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class,
         UpgradeWebMapper.class, WebSliceSupport.class})
 class UpgradeControllerTest {
 

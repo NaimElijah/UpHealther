@@ -1,6 +1,5 @@
 package com.healthupgrades.tracking.adapter.in.web;
 
-import com.healthupgrades.common.adapter.in.web.GlobalExceptionHandler;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.security.JwtAuthenticationFilter;
 import com.healthupgrades.common.security.JwtTokenProvider;
@@ -39,7 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * upgrade has at most one configuration, so writing it twice must replace rather than accumulate.
  */
 @WebMvcTest(TrackingConfigController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class, GlobalExceptionHandler.class,
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class,
         TrackingWebMapper.class, WebSliceSupport.class})
 class TrackingConfigControllerTest {
 

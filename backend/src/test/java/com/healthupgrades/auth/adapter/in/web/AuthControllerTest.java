@@ -2,7 +2,6 @@ package com.healthupgrades.auth.adapter.in.web;
 
 import com.healthupgrades.auth.application.AuthResult;
 import com.healthupgrades.auth.application.AuthService;
-import com.healthupgrades.common.adapter.in.web.GlobalExceptionHandler;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.security.JwtAuthenticationFilter;
 import com.healthupgrades.common.security.JwtTokenProvider;
@@ -45,7 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@code /me} must not, which is the distinction the blanket {@code /api/auth/**} rule used to lose.
  */
 @WebMvcTest(AuthController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class, GlobalExceptionHandler.class,
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class,
         WebSliceSupport.class})
 class AuthControllerTest {
 

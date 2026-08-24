@@ -1,6 +1,5 @@
 package com.healthupgrades.reminder.adapter.in.web;
 
-import com.healthupgrades.common.adapter.in.web.GlobalExceptionHandler;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.security.JwtAuthenticationFilter;
@@ -48,7 +47,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * rejected, never ignored, and ignoring it would leave a reminder firing on days nobody chose.
  */
 @WebMvcTest(ReminderController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class, GlobalExceptionHandler.class,
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class,
         ReminderWebMapper.class, WebSliceSupport.class})
 class ReminderControllerTest {
 
