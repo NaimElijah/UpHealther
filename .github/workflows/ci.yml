@@ -42,9 +42,19 @@ jobs:
         run: |
           python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import csv
+          import sys
           from collections import defaultdict
+          from pathlib import Path
 
-          with open('backend/target/site/jacoco/jacoco.csv', newline='') as handle:
+          # This step runs on failure too (`if: always()`), and a build that dies before jacoco:report
+          # leaves no CSV behind — `clean` has already removed target/. Degrade rather than add a second
+          # red step that has nothing to do with why the build failed.
+          report = Path('backend/target/site/jacoco/jacoco.csv')
+          if not report.exists():
+              print('### Backend coverage\n\n_No report — the build did not reach it._')
+              sys.exit(0)
+
+          with report.open(newline='') as handle:
               rows = list(csv.DictReader(handle))
 
           def totals(subset, kind):

@@ -234,7 +234,13 @@
                             <goal>report-integration</goal>
                         </goals>
                     </execution>
-                    <!-- One merged view over both runs, which is what the CI summary reads. -->
+                    <!--
+                      One merged view over both runs, which is what the CI summary reads. Both this and
+                      the report below bind to post-integration-test, which runs *before* verify: bound
+                      to verify they would sit behind failsafe:verify, so a single failing IT would skip
+                      them and leave the unit-only report on disk for the summary to publish as though
+                      it were merged.
+                    -->
                     <execution>
                         <id>merge-all</id>
                         <phase>post-integration-test</phase>
@@ -256,7 +262,7 @@
                     </execution>
                     <execution>
                         <id>report-merged</id>
-                        <phase>verify</phase>
+                        <phase>post-integration-test</phase>
                         <goals>
                             <goal>report</goal>
                         </goals>
