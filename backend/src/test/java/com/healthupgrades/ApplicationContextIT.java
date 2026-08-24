@@ -38,7 +38,7 @@ class ApplicationContextIT extends PostgresIT {
     @Autowired ProgressEvaluationService progressEvaluationService;
 
     @Test
-    void applicationStartsWithTheSchemaItExpectsAndTheDomainServicesWiredByHand() {
+    void GivenTheRealSchemaAndTheHandWiredBeans_WhenTheApplicationStarts_ThenItComesUpWithBothIntact() {
         // Reaching this point already proves the context started, which means Flyway migrated and
         // Hibernate validated the resulting schema. The assertions pin the hand-wired beans specifically.
         assertThat(upgradeSchedulingService).isNotNull();

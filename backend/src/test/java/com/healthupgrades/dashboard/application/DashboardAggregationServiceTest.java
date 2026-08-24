@@ -76,7 +76,7 @@ class DashboardAggregationServiceTest {
     }
 
     @Test
-    void getDashboard_countsByStatus_andComputesWeeklyRate() {
+    void GivenUpgradesAcrossEveryStatus_WhenTheDashboardIsBuilt_ThenTheCountsAndTheWeeklyRateAreCorrect() {
         List<HealthUpgrade> upgrades = List.of(
                 upgrade(UpgradeStatus.ACTIVE),
                 upgrade(UpgradeStatus.ACTIVE),

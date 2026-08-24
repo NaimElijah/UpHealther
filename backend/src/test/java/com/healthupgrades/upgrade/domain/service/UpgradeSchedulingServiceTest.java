@@ -19,13 +19,13 @@ class UpgradeSchedulingServiceTest {
     private final UpgradeSchedulingService service = new UpgradeSchedulingService();
 
     @Test
-    void hardUpgrade_belowTheLimit_isAllowed() {
+    void GivenFewerHardUpgradesRunningThanTheLimit_WhenAnotherIsValidated_ThenItIsAllowed() {
         assertThatCode(() -> service.validateWithinHardLimit(Difficulty.HARD, LIMIT - 1))
                 .doesNotThrowAnyException();
     }
 
     @Test
-    void hardUpgrade_atTheLimit_isRejected() {
+    void GivenHardUpgradesRunningAtTheLimit_WhenAnotherIsValidated_ThenItIsRejected() {
         // At the limit the slots are already taken, so this one would be the (LIMIT + 1)th.
         assertThatThrownBy(() -> service.validateWithinHardLimit(Difficulty.HARD, LIMIT))
                 .isInstanceOf(BusinessRuleException.class)
@@ -33,31 +33,31 @@ class UpgradeSchedulingServiceTest {
     }
 
     @Test
-    void hardUpgrade_aboveTheLimit_isRejected() {
+    void GivenMoreHardUpgradesRunningThanTheLimit_WhenAnotherIsValidated_ThenItIsRejected() {
         assertThatThrownBy(() -> service.validateWithinHardLimit(Difficulty.HARD, LIMIT + 5))
                 .isInstanceOf(BusinessRuleException.class);
     }
 
     @Test
-    void hardUpgrade_withNoneRunning_isAllowed() {
+    void GivenNoHardUpgradesRunning_WhenOneIsValidated_ThenItIsAllowed() {
         assertThatCode(() -> service.validateWithinHardLimit(Difficulty.HARD, 0))
                 .doesNotThrowAnyException();
     }
 
     @Test
-    void easyUpgrade_isUncappedEvenWellPastTheHardLimit() {
+    void GivenManyHardUpgradesRunning_WhenAnEasyOneIsValidated_ThenItIsUncapped() {
         assertThatCode(() -> service.validateWithinHardLimit(Difficulty.EASY, LIMIT + 100))
                 .doesNotThrowAnyException();
     }
 
     @Test
-    void mediumUpgrade_isUncappedEvenWellPastTheHardLimit() {
+    void GivenManyHardUpgradesRunning_WhenAMediumOneIsValidated_ThenItIsUncapped() {
         assertThatCode(() -> service.validateWithinHardLimit(Difficulty.MEDIUM, LIMIT + 100))
                 .doesNotThrowAnyException();
     }
 
     @Test
-    void unsetDifficulty_isUncapped() {
+    void GivenAnUpgradeWithNoDifficulty_WhenItIsValidated_ThenItIsUncapped() {
         // Difficulty is optional on an upgrade, so an unset one must not be treated as HARD.
         assertThatCode(() -> service.validateWithinHardLimit(null, LIMIT + 100))
                 .doesNotThrowAnyException();

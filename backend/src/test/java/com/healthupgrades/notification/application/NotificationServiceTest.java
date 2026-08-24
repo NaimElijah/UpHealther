@@ -38,7 +38,7 @@ class NotificationServiceTest {
     private final UUID upgradeId = UUID.randomUUID();
 
     @Test
-    void create_persistsAndPushesToUser() {
+    void GivenANewNotification_WhenItIsCreated_ThenItIsPersistedAndPushedToItsOwner() {
         when(repository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Notification created = service.create(userId, NotificationType.UPGRADE_COMPLETED,
@@ -53,7 +53,7 @@ class NotificationServiceTest {
     }
 
     @Test
-    void markRead_flipsFlag() {
+    void GivenAnUnreadNotification_WhenItIsMarkedRead_ThenTheFlagIsFlipped() {
         Notification n = Notification.builder().id(UUID.randomUUID()).userId(userId)
                 .type(NotificationType.REMINDER).category(NotificationCategory.REMINDER)
                 .title("Reminder").read(false).build();
@@ -66,13 +66,13 @@ class NotificationServiceTest {
     }
 
     @Test
-    void unreadCount_delegatesToRepository() {
+    void GivenAUser_WhenTheUnreadCountIsRead_ThenItComesFromTheRepository() {
         when(repository.countByUserIdAndReadFalse(userId)).thenReturn(4L);
         assertThat(service.unreadCount(userId)).isEqualTo(4L);
     }
 
     @Test
-    void createOncePerUpgrade_firstTime_persistsAndPushes() {
+    void GivenAnUpgradeNotYetNotifiedAbout_WhenTheOncePerUpgradeNotificationIsCreated_ThenItIsPersistedAndPushed() {
         when(repository.existsByUserIdAndRelatedUpgradeIdAndType(
                 userId, upgradeId, NotificationType.UPGRADE_OVERDUE)).thenReturn(false);
         when(repository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -86,7 +86,7 @@ class NotificationServiceTest {
     }
 
     @Test
-    void createOncePerUpgrade_alreadyNotified_savesNothingAndPushesNothing() {
+    void GivenAnUpgradeAlreadyNotifiedAbout_WhenTheOncePerUpgradeNotificationIsCreated_ThenNothingIsSavedOrPushed() {
         when(repository.existsByUserIdAndRelatedUpgradeIdAndType(
                 userId, upgradeId, NotificationType.UPGRADE_OVERDUE)).thenReturn(true);
 
@@ -99,7 +99,7 @@ class NotificationServiceTest {
     }
 
     @Test
-    void createOncePerUpgrade_alreadyNotified_doesNotBuildTheMessage() {
+    void GivenAnUpgradeAlreadyNotifiedAbout_WhenTheOncePerUpgradeNotificationIsCreated_ThenTheMessageIsNeverBuilt() {
         // Building the message costs a lookup. A permanently-overdue upgrade is rediscovered on every
         // scan, so paying for a message that is then discarded would repeat daily and indefinitely.
         when(repository.existsByUserIdAndRelatedUpgradeIdAndType(

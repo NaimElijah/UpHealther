@@ -74,7 +74,7 @@ class UpgradeServiceTest {
     }
 
     @Test
-    void update_promotingActiveUpgradeToHard_whenLimitAlreadyReached_shouldThrow() {
+    void GivenTheHardLimitIsAlreadyReached_WhenAnActiveUpgradeIsPromotedToHard_ThenItIsRejected() {
         when(repository.findByIdAndUserId(upgradeId, userId))
                 .thenReturn(Optional.of(upgradeWith(UpgradeStatus.ACTIVE, Difficulty.MEDIUM)));
         when(repository.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD))
@@ -87,7 +87,7 @@ class UpgradeServiceTest {
     }
 
     @Test
-    void update_promotingActiveUpgradeToHard_whenUnderLimit_shouldSucceed() {
+    void GivenTheHardLimitIsNotReached_WhenAnActiveUpgradeIsPromotedToHard_ThenItSucceeds() {
         when(repository.findByIdAndUserId(upgradeId, userId))
                 .thenReturn(Optional.of(upgradeWith(UpgradeStatus.ACTIVE, Difficulty.MEDIUM)));
         when(repository.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD))
@@ -100,7 +100,7 @@ class UpgradeServiceTest {
     }
 
     @Test
-    void update_promotingUpgradeThatIsNotActive_shouldNotConsultTheHardLimit() {
+    void GivenAnUpgradeThatIsNotActive_WhenItIsPromotedToHard_ThenTheHardLimitIsNotConsulted() {
         when(repository.findByIdAndUserId(upgradeId, userId))
                 .thenReturn(Optional.of(upgradeWith(UpgradeStatus.PLANNED, Difficulty.MEDIUM)));
         when(repository.save(any(HealthUpgrade.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -112,7 +112,7 @@ class UpgradeServiceTest {
     }
 
     @Test
-    void reschedule_revivingAnAbandonedUpgrade_shouldAnnounceItIsPlannedAgain() {
+    void GivenAnAbandonedUpgrade_WhenItIsRescheduled_ThenItIsAnnouncedAsPlannedAgain() {
         when(repository.findByIdAndUserId(upgradeId, userId))
                 .thenReturn(Optional.of(upgradeWith(UpgradeStatus.ABANDONED, Difficulty.MEDIUM)));
         when(repository.save(any(HealthUpgrade.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -128,7 +128,7 @@ class UpgradeServiceTest {
     }
 
     @Test
-    void reschedule_onlyMovingTheDate_shouldAnnounceNothing() {
+    void GivenAnUpgradeThatKeepsItsStatus_WhenOnlyItsDateIsMoved_ThenNothingIsAnnounced() {
         // No status transition happened, so there is nothing for a listener to react to.
         when(repository.findByIdAndUserId(upgradeId, userId))
                 .thenReturn(Optional.of(upgradeWith(UpgradeStatus.PLANNED, Difficulty.MEDIUM)));
@@ -140,7 +140,7 @@ class UpgradeServiceTest {
     }
 
     @Test
-    void update_leavingDifficultyUnchanged_shouldNotConsultTheHardLimit() {
+    void GivenAnUnchangedDifficulty_WhenAnUpgradeIsUpdated_ThenTheHardLimitIsNotConsulted() {
         when(repository.findByIdAndUserId(upgradeId, userId))
                 .thenReturn(Optional.of(upgradeWith(UpgradeStatus.ACTIVE, Difficulty.HARD)));
         when(repository.save(any(HealthUpgrade.class))).thenAnswer(inv -> inv.getArgument(0));

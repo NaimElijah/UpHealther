@@ -70,7 +70,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void resourceNotFound_isNotFound() {
+    void GivenAResourceNotFoundException_WhenItIsHandled_ThenTheStatusIsNotFound() {
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
                 handler.handleNotFound(new ResourceNotFoundException("Upgrade not found: 42"), request);
 
@@ -82,7 +82,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void businessRuleViolation_isUnprocessableEntity() {
+    void GivenABusinessRuleViolation_WhenItIsHandled_ThenTheStatusIsUnprocessableEntity() {
         // 422 rather than 400: the request was well formed, the domain refused it.
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
                 handler.handleBusinessRule(new BusinessRuleException("Only ACTIVE upgrades can be paused"), request);
@@ -93,7 +93,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void duplicateProgress_isConflict() {
+    void GivenADuplicateProgressEntry_WhenItIsHandled_ThenTheStatusIsConflict() {
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
                 handler.handleDuplicateProgress(new DuplicateProgressException("Already recorded"), request);
 
@@ -101,7 +101,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void optimisticLock_isConflict() {
+    void GivenAnOptimisticLockFailure_WhenItIsHandled_ThenTheStatusIsConflict() {
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
                 handler.handleOptimisticLock(new OptimisticLockException("stale version"), request);
 
@@ -109,7 +109,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void optimisticLock_doesNotLeakTheUnderlyingMessage() {
+    void GivenAnOptimisticLockFailure_WhenItIsHandled_ThenTheUnderlyingMessageIsNotLeaked() {
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
                 handler.handleOptimisticLock(new OptimisticLockException("Row was updated by transaction 8123"), request);
 
@@ -118,7 +118,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void accessDenied_isForbidden() {
+    void GivenAccessIsDenied_WhenItIsHandled_ThenTheStatusIsForbidden() {
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
                 handler.handleAccessDenied(new AccessDeniedException("nope"), request);
 
@@ -126,7 +126,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void unexpectedFailure_isInternalServerErrorAndSaysNothingElse() {
+    void GivenAnUnexpectedFailure_WhenItIsHandled_ThenTheStatusIsInternalServerErrorAndTheBodySaysNothingElse() {
         // The catch-all must never surface an internal message to a caller.
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
                 handler.handleGeneral(new IllegalStateException("jdbc://user:hunter2@db/prod"), request);

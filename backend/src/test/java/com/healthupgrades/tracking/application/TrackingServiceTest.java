@@ -64,7 +64,7 @@ class TrackingServiceTest {
     }
 
     @Test
-    void recordProgress_setsCompletedFromEvaluation_whenConfigExists() {
+    void GivenATrackingConfig_WhenProgressIsRecorded_ThenCompletionIsDecidedByTheEvaluation() {
         // The client did not supply `completed`; a NUMERIC config exists and the evaluator says "met".
         ProgressEntryDetails req = new ProgressEntryDetails(today, null, 2.5, "liters", null, null);
         TrackingConfig config = TrackingConfig.builder()
@@ -84,7 +84,7 @@ class TrackingServiceTest {
     }
 
     @Test
-    void recordProgress_duplicateDate_throwsAndDoesNotSave() {
+    void GivenAnEntryAlreadyExistsForTheDate_WhenProgressIsRecordedAgain_ThenItIsRefusedAndNothingIsSaved() {
         ProgressEntryDetails req = new ProgressEntryDetails(today, true, null, null, null, null);
         when(progressRepository.existsByUpgradeIdAndDate(any(), any())).thenReturn(true);
 

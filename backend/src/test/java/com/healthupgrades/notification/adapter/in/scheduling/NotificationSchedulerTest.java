@@ -56,7 +56,7 @@ class NotificationSchedulerTest {
     }
 
     @Test
-    void dispatchReminders_dueNow_notifiesOwner() {
+    void GivenAReminderDueNow_WhenRemindersAreDispatched_ThenItsOwnerIsNotified() {
         // Reminder time matches the fixed clock (09:00); no day filter -> due now.
         Reminder reminder = Reminder.builder().id(UUID.randomUUID()).upgradeId(upgradeId)
                 .reminderTime(LocalTime.of(9, 0)).daysOfWeek(null).enabled(true).build();
@@ -70,7 +70,7 @@ class NotificationSchedulerTest {
     }
 
     @Test
-    void dispatchReminders_notDue_doesNothing() {
+    void GivenNoReminderIsDue_WhenRemindersAreDispatched_ThenNobodyIsNotified() {
         Reminder reminder = Reminder.builder().id(UUID.randomUUID()).upgradeId(upgradeId)
                 .reminderTime(LocalTime.of(7, 30)).daysOfWeek(null).enabled(true).build();
         when(reminderQuery.findEnabled()).thenReturn(List.of(reminder));

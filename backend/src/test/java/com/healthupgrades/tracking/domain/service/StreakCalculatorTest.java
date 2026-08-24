@@ -40,12 +40,12 @@ class StreakCalculatorTest {
     }
 
     @Test
-    void currentStreak_emptyList_returnsZero() {
+    void GivenNoEntries_WhenTheCurrentStreakIsCalculated_ThenItIsZero() {
         assertThat(calculator.calculateCurrentStreak(Collections.emptyList(), TODAY)).isZero();
     }
 
     @Test
-    void currentStreak_noCompletedEntries_returnsZero() {
+    void GivenNoCompletedEntries_WhenTheCurrentStreakIsCalculated_ThenItIsZero() {
         List<ProgressEntry> entries = List.of(
                 entry(TODAY.minusDays(1), false),
                 entry(TODAY, false)
@@ -54,7 +54,7 @@ class StreakCalculatorTest {
     }
 
     @Test
-    void currentStreak_consecutiveDaysIncludingToday_returnsCorrectStreak() {
+    void GivenConsecutiveCompletedDaysIncludingToday_WhenTheCurrentStreakIsCalculated_ThenItCountsThemAll() {
         List<ProgressEntry> entries = List.of(
                 entry(TODAY.minusDays(2), true),
                 entry(TODAY.minusDays(1), true),
@@ -64,7 +64,7 @@ class StreakCalculatorTest {
     }
 
     @Test
-    void currentStreak_consecutiveDaysExcludingToday_returnsCorrectStreak() {
+    void GivenConsecutiveCompletedDaysEndingYesterday_WhenTheCurrentStreakIsCalculated_ThenTodayBeingUnloggedDoesNotBreakIt() {
         List<ProgressEntry> entries = List.of(
                 entry(TODAY.minusDays(3), true),
                 entry(TODAY.minusDays(2), true),
@@ -74,7 +74,7 @@ class StreakCalculatorTest {
     }
 
     @Test
-    void currentStreak_brokenStreak_returnsCurrentOnly() {
+    void GivenAStreakBrokenByAMissedDay_WhenTheCurrentStreakIsCalculated_ThenOnlyTheRunSinceTheBreakCounts() {
         List<ProgressEntry> entries = List.of(
                 entry(TODAY.minusDays(5), true),
                 entry(TODAY.minusDays(4), true),
@@ -85,7 +85,7 @@ class StreakCalculatorTest {
     }
 
     @Test
-    void currentStreak_isMeasuredFromTheGivenDayNotTheSystemClock() {
+    void GivenAnExplicitDay_WhenTheCurrentStreakIsCalculated_ThenItIsMeasuredFromThatDayNotTheSystemClock() {
         // The same entries yield a different answer for a different reference day, which they could not
         // do if the calculator consulted a clock of its own. Both reference days are fixed, so this
         // holds whatever date the suite runs on.
@@ -98,18 +98,18 @@ class StreakCalculatorTest {
     }
 
     @Test
-    void longestStreak_emptyList_returnsZero() {
+    void GivenNoEntries_WhenTheLongestStreakIsCalculated_ThenItIsZero() {
         assertThat(calculator.calculateLongestStreak(Collections.emptyList())).isZero();
     }
 
     @Test
-    void longestStreak_singleEntry_returnsOne() {
+    void GivenASingleCompletedEntry_WhenTheLongestStreakIsCalculated_ThenItIsOne() {
         List<ProgressEntry> entries = List.of(entry(TODAY, true));
         assertThat(calculator.calculateLongestStreak(entries)).isEqualTo(1);
     }
 
     @Test
-    void longestStreak_multipleSeparatedStreaks_returnsLongest() {
+    void GivenSeveralSeparatedStreaks_WhenTheLongestIsCalculated_ThenTheLongestOneIsReturned() {
         List<ProgressEntry> entries = List.of(
                 entry(TODAY.minusDays(10), true),
                 entry(TODAY.minusDays(9), true),
@@ -121,7 +121,7 @@ class StreakCalculatorTest {
     }
 
     @Test
-    void longestStreak_ignoresNonCompletedEntries() {
+    void GivenIncompleteEntriesAmongTheCompletedOnes_WhenTheLongestStreakIsCalculated_ThenTheIncompleteOnesAreIgnored() {
         List<ProgressEntry> entries = List.of(
                 entry(TODAY.minusDays(3), true),
                 entry(TODAY.minusDays(2), false),
