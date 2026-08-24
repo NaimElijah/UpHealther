@@ -79,7 +79,9 @@ public class HealthAreaService implements HealthAreaQuery {
     /**
      * Deletes an owned area.
      *
-     * <p>Upgrades filed under it are left untouched and keep the now-dangling area id.
+     * <p>Upgrades filed under it survive. The schema decides what happens to their reference, not
+     * this method: {@code area_id ... ON DELETE SET NULL} clears it, so an upgrade becomes unfiled
+     * rather than pointing at an area that is gone. Asserted by {@code HealthAreaPersistenceIT}.
      *
      * @param userId the owner
      * @param id     the area's identifier
