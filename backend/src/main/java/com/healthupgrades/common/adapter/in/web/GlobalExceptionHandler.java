@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -126,6 +127,22 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ResponseEntity<ErrorResponse> handleOptimisticLock(Exception ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(body(HttpStatus.CONFLICT.value(), "Resource was modified concurrently. Please retry.", req.getRequestURI()));
+    }
+
+    /**
+     * Maps a failed authentication attempt to 401.
+     *
+     * <p>Reached only from the login endpoint, which authenticates inside a handler method rather than
+     * in the security chain — so without this the most ordinary outcome there is, a wrong password,
+     * fell through to {@link #handleGeneral} as a 500 and logged a stack trace for it.
+     *
+     * <p>The message is replaced with a single generic one on purpose: telling a caller that the email
+     * exists but the password was wrong is free information for anyone enumerating accounts.
+     */
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ErrorResponse> handleAuthentication(AuthenticationException ex, HttpServletRequest req) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(body(HttpStatus.UNAUTHORIZED.value(), "Invalid credentials", req.getRequestURI()));
     }
 
     /** Maps a Spring Security authorization failure to 403. */

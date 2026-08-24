@@ -25,6 +25,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -115,6 +116,28 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getMessage()).doesNotContain("8123");
+    }
+
+    @Test
+    void GivenAFailedAuthentication_WhenItIsHandled_ThenTheStatusIsUnauthorized() {
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
+                handler.handleAuthentication(new BadCredentialsException("Bad credentials"), request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    void GivenAFailedAuthentication_WhenItIsHandled_ThenTheBodyDoesNotSayWhichHalfWasWrong() {
+        // A caller learning that the email exists but the password did not match is free information
+        // for anyone enumerating accounts, so the original message is dropped rather than passed on.
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
+                handler.handleAuthentication(
+                        new BadCredentialsException("No user found for someone@example.com"), request);
+
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getMessage()).isEqualTo("Invalid credentials");
     }
 
     @Test
