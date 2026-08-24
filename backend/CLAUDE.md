@@ -94,10 +94,15 @@ side. Both are deliberate, not drift.
 
 - `mvn test` — unit and architecture tests. **No database needed**; keep it that way.
 - `mvn verify` — the above plus the `*IT` integration tests, which boot the application against a real
-  PostgreSQL and therefore **do** need one running (`docker-compose up -d postgres`, or the `DB_*` env
-  vars pointing at any instance). `ApplicationContextIT` is what catches a missing `@Bean` in the
-  hand-wired `*BeansConfig` classes and a missing Flyway migration, neither of which any unit test can
-  see.
+  PostgreSQL. They **start it themselves**: every `*IT` extends `support/PostgresIT`, which runs a
+  `postgres:15-alpine` container through Testcontainers and wires the `DataSource` to it with
+  `@ServiceConnection`. So `verify` needs a running **Docker daemon**, not a database you started — and
+  the `DB_*` env vars are not consulted during a test run at all. Do not point a test at an ambient
+  database: a local PostgreSQL listening on 5432 is accepted silently and the suite then passes against
+  the wrong schema, which is the failure
+  `../docs/ADRs/ADR-008-testcontainers-for-the-integration-test-database.md` was written about.
+  `ApplicationContextIT` is what catches a missing `@Bean` in the hand-wired `*BeansConfig` classes and a
+  missing Flyway migration, neither of which any unit test can see.
 
 ## Database / migrations
 

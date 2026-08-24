@@ -2,6 +2,7 @@ package com.healthupgrades;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.healthupgrades.support.PostgresIT;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
@@ -40,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @AutoConfigureObservability
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class CorrelationIT {
+class CorrelationIT extends PostgresIT {
 
     private static final String TRACE_ID_HEADER = "X-Trace-Id";
     private static final String INBOUND_TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736";

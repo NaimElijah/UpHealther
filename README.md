@@ -254,7 +254,7 @@ After startup, a demo account is available:
 ```bash
 cd backend
 mvn test      # unit + architecture tests — no database needed
-mvn verify    # the above plus integration tests — needs a running PostgreSQL
+mvn verify    # the above plus integration tests — needs Docker running
 ```
 
 `mvn test` covers:
@@ -265,9 +265,12 @@ mvn verify    # the above plus integration tests — needs a running PostgreSQL
 - Hexagonal architecture rules (ArchUnit) — domain purity, port/adapter boundaries, bounded-context
   isolation and cycle freedom
 
-`mvn verify` adds `ApplicationContextIT`, which boots the app against PostgreSQL and so catches a broken
-bean graph or a missing Flyway migration — neither of which a unit test can see. Start a database first
-with `docker-compose up -d postgres`.
+`mvn verify` adds the `*IT` suite, which boots the app against PostgreSQL and so catches a broken bean
+graph, a missing Flyway migration, or an invariant only the database enforces — none of which a unit test
+can see. There is nothing to start first: the tests bring up their own `postgres:15-alpine` container via
+Testcontainers, so they need a running Docker daemon and nothing else. See
+[ADR-008](docs/ADRs/ADR-008-testcontainers-for-the-integration-test-database.md) for why the database is
+described in the test source rather than handed to it.
 
 ### Frontend Tests
 ```bash
