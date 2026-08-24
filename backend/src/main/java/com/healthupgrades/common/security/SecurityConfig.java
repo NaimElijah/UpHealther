@@ -62,7 +62,11 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()
+                        // Exactly the two endpoints a visitor without a token needs. A blanket
+                        // /api/auth/** also opened /api/auth/me, which then dereferenced a null
+                        // @AuthenticationPrincipal and answered 500 instead of refusing the request
+                        // (FR-5) - see AuthenticatedBoundaryTest.
+                        .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         // The WebSocket handshake is open; the STOMP CONNECT frame is authenticated by
                         // JwtChannelInterceptor (the JWT travels in the STOMP headers, not the handshake).
