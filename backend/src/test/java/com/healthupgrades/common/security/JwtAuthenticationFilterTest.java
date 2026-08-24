@@ -17,7 +17,6 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -90,23 +89,21 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    void GivenATokenForADeletedAccount_WhenTheRequestIsFiltered_ThenItDoesNotAuthenticate() throws Exception {
-        // NFR-5 is met — the account stops working on the very next request. What this pins is *how*:
-        // the lookup throws and the exception leaves the filter, so the chain never runs. Nothing
-        // downstream converts it, because the filter chain sits outside the DispatcherServlet and so
-        // outside GlobalExceptionHandler. A caller therefore sees a 500 where 401 would be right.
-        // Asserted as it behaves, not as it should behave; see the note on this in the pull request.
+    void GivenATokenForADeletedAccount_WhenTheRequestIsFiltered_ThenItContinuesAnonymouslyRatherThanFailing() throws Exception {
+        // NFR-5: the account stops working on the very next request. It must stop working the same way
+        // every other unusable token does — anonymous, for the authorization rules to refuse — and not
+        // by throwing. This filter runs outside the DispatcherServlet, so an escaping exception reaches
+        // no handler and the container answers 500, which NFR-7 reserves for a genuine server fault.
         request.addHeader("Authorization", "Bearer " + TOKEN);
         when(tokenProvider.validateToken(TOKEN)).thenReturn(true);
         when(tokenProvider.extractEmail(TOKEN)).thenReturn(AUser.EMAIL);
         when(userDetailsService.loadUserByUsername(AUser.EMAIL))
                 .thenThrow(new UsernameNotFoundException("User not found: " + AUser.EMAIL));
 
-        assertThatThrownBy(() -> filter.doFilter(request, response, chain))
-                .isInstanceOf(UsernameNotFoundException.class);
+        filter.doFilter(request, response, chain);
 
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
-        verify(chain, never()).doFilter(request, response);
+        verify(chain).doFilter(request, response);
     }
 
     @Test
