@@ -2,11 +2,11 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. Fifty-one of the entries below name a test. Four name the command, workflow or
-script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18). The remaining three — FR-39, NFR-19 and
-NFR-20 — are verified by hand and say so, because each is about a rendered width, a colour or an
-overflow, and jsdom has no layout engine to observe any of them; §6 records what closing that gap
-would take.
+rather than trusted. Seventy of the seventy-seven entries below name a test — fifty-one distinct test
+classes and files between them. Four of the remaining seven name the command, workflow or script that
+*is* the check (NFR-11, NFR-12, NFR-13, NFR-18). The last three — FR-39, NFR-19 and NFR-20 — are
+verified by hand and say so, because each is about a rendered width, a colour or an overflow, and jsdom
+has no layout engine to observe any of them; §6 records what closing that gap would take.
 
 The test names are the gate. Coverage is reported on every CI run and gates nothing, because a
 percentage is satisfied by tests written to move it and says nothing about whether a rule is enforced
