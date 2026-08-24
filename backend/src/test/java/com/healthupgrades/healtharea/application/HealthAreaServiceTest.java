@@ -28,9 +28,10 @@ import static org.mockito.Mockito.when;
  *
  * <p>FR-8 — that deleting an area leaves upgrades filed under it intact — is only half testable here.
  * This class pins the half it can: the delete path touches the area repository and nothing else, because
- * the service holds no port through which it could cascade. The other half, that the upgrade rows
- * actually survive with their now-dangling area id, is a claim about the database and is asserted in
- * {@code HealthAreaPersistenceIT}.
+ * the service holds no port through which it could cascade. What actually happens to those upgrades is
+ * the schema's decision, not this service's, and is asserted in {@code HealthAreaPersistenceIT}:
+ * {@code area_id ... ON DELETE SET NULL} clears the reference, so an upgrade survives and becomes
+ * unfiled rather than pointing at an area that is gone.
  */
 @ExtendWith(MockitoExtension.class)
 class HealthAreaServiceTest {

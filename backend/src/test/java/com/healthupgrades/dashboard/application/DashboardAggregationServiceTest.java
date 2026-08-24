@@ -22,6 +22,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
+import static java.util.Comparator.reverseOrder;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -181,19 +182,24 @@ class DashboardAggregationServiceTest {
     }
 
     @Test
-    void GivenMoreThanFiveCompletedUpgrades_WhenTheDashboardIsBuilt_ThenOnlyTheFiveMostRecentAreShown() {
-        List<HealthUpgrade> completed = List.of(
-                completedAt(today.minusDays(1)), completedAt(today.minusDays(2)),
-                completedAt(today.minusDays(3)), completedAt(today.minusDays(4)),
-                completedAt(today.minusDays(5)), completedAt(today.minusDays(6)),
-                completedAt(today.minusDays(7)));
-        stubEmptyExceptUpgrades(completed);
+    void GivenMoreThanFiveCompletedUpgrades_WhenTheDashboardIsBuilt_ThenTheFiveMostRecentAreShownNewestFirst() {
+        // Deliberately fed oldest-first. With a newest-first fixture the assertion cannot tell "sorted
+        // then limited" from "just limited", so deleting the sort would leave this green while the
+        // dashboard showed the five *oldest* completed upgrades in repository order.
+        HealthUpgrade oldest = completedAt(today.minusDays(7));
+        HealthUpgrade newest = completedAt(today.minusDays(1));
+        List<HealthUpgrade> oldestFirst = List.of(
+                oldest, completedAt(today.minusDays(6)), completedAt(today.minusDays(5)),
+                completedAt(today.minusDays(4)), completedAt(today.minusDays(3)),
+                completedAt(today.minusDays(2)), newest);
+        stubEmptyExceptUpgrades(oldestFirst);
 
         List<HealthUpgrade> recent = service.getDashboard(userId).recentlyCompleted();
 
         assertThat(recent).hasSize(5);
-        assertThat(recent).containsExactly(completed.get(0), completed.get(1), completed.get(2),
-                completed.get(3), completed.get(4));
+        assertThat(recent.get(0)).as("newest first").isSameAs(newest);
+        assertThat(recent).doesNotContain(oldest);
+        assertThat(recent).extracting(HealthUpgrade::getUpdatedAt).isSortedAccordingTo(reverseOrder());
     }
 
     @Test

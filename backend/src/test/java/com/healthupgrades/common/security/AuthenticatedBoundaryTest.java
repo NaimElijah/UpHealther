@@ -155,29 +155,40 @@ class AuthenticatedBoundaryTest {
     }
 
     @Test
-    void GivenTheApiSurface_WhenItIsEnumerated_ThenEveryProtectedRouteIsListedHere() {
-        // Keeps the table above from going stale. A controller method added without a row here means an
-        // endpoint whose authenticated boundary nothing checks, and this is what says so.
+    void GivenTheApiSurface_WhenItIsEnumerated_ThenEveryProtectedMethodAndPathIsListedHere() {
+        // Keeps the table above from going stale. Compared as METHOD + path rather than path alone:
+        // adding a DELETE to an already-listed path leaves the set of paths unchanged, so a
+        // path-only guard would stay green while a new endpoint shipped with its authenticated
+        // boundary unasserted — which is the one thing this case exists to prevent.
         Set<String> mapped = handlerMapping.getHandlerMethods().keySet().stream()
-                .flatMap(info -> info.getPatternValues().stream())
-                .filter(pattern -> !"/error".equals(pattern)) // Boot's error dispatch, not an API route
-                .filter(pattern -> PUBLIC_ROUTES.stream().noneMatch(pattern::startsWith))
+                .flatMap(info -> info.getMethodsCondition().getMethods().stream()
+                        .flatMap(method -> info.getPatternValues().stream()
+                                .map(pattern -> method.name() + " " + pattern)))
+                .filter(route -> !route.endsWith(" /error")) // Boot's error dispatch, not an API route
+                .filter(route -> PUBLIC_ROUTES.stream().noneMatch(route.split(" ")[1]::startsWith))
                 .collect(Collectors.toSet());
 
         Set<String> listed = Set.of(
-                "/api/dashboard",
-                "/api/upgrades", "/api/upgrades/{id}",
-                "/api/upgrades/{id}/plan", "/api/upgrades/{id}/activate", "/api/upgrades/{id}/pause",
-                "/api/upgrades/{id}/complete", "/api/upgrades/{id}/abandon", "/api/upgrades/{id}/reschedule",
-                "/api/upgrades/{upgradeId}/progress", "/api/upgrades/{upgradeId}/streak",
-                "/api/upgrades/{upgradeId}/tracking-config",
-                "/api/upgrades/{upgradeId}/reflections", "/api/upgrades/{upgradeId}/reminders",
-                "/api/reminders/{id}",
-                "/api/progress/today", "/api/progress/week",
-                "/api/health-areas", "/api/health-areas/{id}",
-                "/api/notifications", "/api/notifications/unread-count",
-                "/api/notifications/{id}/read", "/api/notifications/read-all",
-                "/api/auth/me");
+                "GET /api/dashboard",
+                "GET /api/upgrades", "POST /api/upgrades",
+                "GET /api/upgrades/{id}", "PUT /api/upgrades/{id}", "DELETE /api/upgrades/{id}",
+                "POST /api/upgrades/{id}/plan", "POST /api/upgrades/{id}/activate",
+                "POST /api/upgrades/{id}/pause", "POST /api/upgrades/{id}/complete",
+                "POST /api/upgrades/{id}/abandon", "POST /api/upgrades/{id}/reschedule",
+                "GET /api/upgrades/{upgradeId}/progress", "POST /api/upgrades/{upgradeId}/progress",
+                "GET /api/upgrades/{upgradeId}/streak",
+                "GET /api/upgrades/{upgradeId}/tracking-config",
+                "PUT /api/upgrades/{upgradeId}/tracking-config",
+                "GET /api/upgrades/{upgradeId}/reflections", "POST /api/upgrades/{upgradeId}/reflections",
+                "GET /api/upgrades/{upgradeId}/reminders", "POST /api/upgrades/{upgradeId}/reminders",
+                "PUT /api/reminders/{id}", "DELETE /api/reminders/{id}",
+                "GET /api/progress/today", "GET /api/progress/week",
+                "GET /api/health-areas", "POST /api/health-areas",
+                "GET /api/health-areas/{id}", "PUT /api/health-areas/{id}",
+                "DELETE /api/health-areas/{id}",
+                "GET /api/notifications", "GET /api/notifications/unread-count",
+                "POST /api/notifications/{id}/read", "POST /api/notifications/read-all",
+                "GET /api/auth/me");
 
         assertThat(mapped)
                 .as("an endpoint exists that this class does not check the authenticated boundary of")
