@@ -15,6 +15,8 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AccountStatusException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -46,6 +48,7 @@ import java.util.Map;
  *   <tr><td>{@link HttpMessageNotReadableException}</td><td>400 Bad Request, parser detail withheld</td></tr>
  *   <tr><td>{@link TypeMismatchException}</td><td>400 Bad Request</td></tr>
  *   <tr><td>every other Spring MVC exception</td><td>the status Spring defines for it (405, 415, 406, 404, …)</td></tr>
+ *   <tr><td>{@link BadCredentialsException} / {@link AccountStatusException}</td><td>401 Unauthorized, message withheld</td></tr>
  *   <tr><td>{@link AccessDeniedException}</td><td>403 Forbidden</td></tr>
  *   <tr><td>anything else</td><td>500 Internal Server Error, message withheld</td></tr>
  * </table>
@@ -130,17 +133,27 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
-     * Maps a failed authentication attempt to 401.
+     * Maps a rejected credential to 401.
      *
      * <p>Reached only from the login endpoint, which authenticates inside a handler method rather than
      * in the security chain — so without this the most ordinary outcome there is, a wrong password,
      * fell through to {@link #handleGeneral} as a 500 and logged a stack trace for it.
      *
-     * <p>The message is replaced with a single generic one on purpose: telling a caller that the email
-     * exists but the password was wrong is free information for anyone enumerating accounts.
+     * <p><strong>Deliberately not {@code AuthenticationException}.</strong> That supertype also covers
+     * {@link org.springframework.security.authentication.AuthenticationServiceException} — which is what
+     * Spring wraps a database outage in during a login. Catching the supertype would report an outage to
+     * the user as "your password is wrong" and log nothing at all. The two subtypes named here are the
+     * ones that genuinely mean "these credentials are not good"; everything else stays a 500 with a
+     * stack trace, which is what NFR-7 asks for.
+     *
+     * <p>Nothing is logged here on purpose: a wrong password is an expected outcome on a public
+     * endpoint, not a fault, and the submitted email is personal data (NFR-6).
+     *
+     * <p>The message is replaced with a single generic one: telling a caller that the email exists but
+     * the password was wrong is free information for anyone enumerating accounts.
      */
-    @ExceptionHandler(AuthenticationException.class)
-    public ResponseEntity<ErrorResponse> handleAuthentication(AuthenticationException ex, HttpServletRequest req) {
+    @ExceptionHandler({BadCredentialsException.class, AccountStatusException.class})
+    public ResponseEntity<ErrorResponse> handleBadCredentials(AuthenticationException ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(body(HttpStatus.UNAUTHORIZED.value(), "Invalid credentials", req.getRequestURI()));
     }
