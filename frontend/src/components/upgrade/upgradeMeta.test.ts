@@ -1,21 +1,21 @@
 import { describe, it, expect } from 'vitest';
-import { difficultyVariant, UNKNOWN_DIFFICULTY_VARIANT } from './upgradeMeta';
+import { difficultyBadgeVariant, difficultyVariant } from './upgradeMeta';
 import type { Difficulty } from '../../types';
 
 /**
- * The difficulty-to-colour map, which exists because two places disagreed: the upgrade card used a map
- * and the details page an inline ternary whose final branch fell through to red for anything unknown —
- * so an unrecognised value was shown to the user as HARD.
+ * The difficulty-to-colour mapping, which exists because two places disagreed: the upgrade card used a
+ * map and the details page an inline ternary whose final branch fell through to red — so an
+ * unrecognised value was shown to the user as HARD.
  *
- * The map is total over the union, so the type checker covers the known values. What it cannot cover is
- * the unknown one: `difficulty` arrives as unvalidated JSON, so its static type is a claim about the
- * backend rather than a fact about the value on screen.
+ * Asserted through `difficultyBadgeVariant`, the function both call sites now use, rather than through
+ * the map plus a `??` written in the test. The latter proves only that the fallback constant is grey,
+ * and would stay green if a call site dropped the fallback and brought the bug back.
  */
-describe('difficultyVariant', () => {
-  it('GivenEachDifficulty_WhenItsBadgeVariantIsRead_ThenTheColoursRunGreenThroughRed', () => {
-    expect(difficultyVariant.EASY).toBe('green');
-    expect(difficultyVariant.MEDIUM).toBe('yellow');
-    expect(difficultyVariant.HARD).toBe('red');
+describe('difficultyBadgeVariant', () => {
+  it('GivenEachKnownDifficulty_WhenItsBadgeVariantIsRead_ThenTheColoursRunGreenThroughRed', () => {
+    expect(difficultyBadgeVariant('EASY')).toBe('green');
+    expect(difficultyBadgeVariant('MEDIUM')).toBe('yellow');
+    expect(difficultyBadgeVariant('HARD')).toBe('red');
   });
 
   it('GivenTheKnownDifficulties_WhenTheMapIsInspected_ThenItCoversEveryOneOfThem', () => {
@@ -26,8 +26,13 @@ describe('difficultyVariant', () => {
   });
 
   it('GivenADifficultyTheBackendDoesNotDefine_WhenItIsRendered_ThenTheFallbackSaysNothingRatherThanHard', () => {
-    const fromApi = 'IMPOSSIBLE' as Difficulty;
+    // `difficulty` is unvalidated JSON: its static type is a claim about the backend, not a fact.
+    expect(difficultyBadgeVariant('IMPOSSIBLE' as Difficulty)).toBe('gray');
+  });
 
-    expect(difficultyVariant[fromApi] ?? UNKNOWN_DIFFICULTY_VARIANT).toBe('gray');
+  it('GivenAnUpgradeWithNoDifficultySet_WhenItIsRendered_ThenTheFallbackIsUsed', () => {
+    // Difficulty is optional on an upgrade, so both absent forms reach this.
+    expect(difficultyBadgeVariant(null)).toBe('gray');
+    expect(difficultyBadgeVariant(undefined)).toBe('gray');
   });
 });
