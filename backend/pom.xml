@@ -215,6 +215,56 @@
                             <goal>report</goal>
                         </goals>
                     </execution>
+                    <!--
+                      Failsafe forks its own JVM, so without a second agent the *IT suite contributes
+                      nothing to the report - and the persistence adapters, which only the ITs exercise,
+                      read as 0% covered. That is a report that lies in the direction of "write more
+                      tests for something already tested", which is the worst direction for a diagnostic
+                      to be wrong in.
+                    -->
+                    <execution>
+                        <id>prepare-agent-integration</id>
+                        <goals>
+                            <goal>prepare-agent-integration</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report-integration</id>
+                        <goals>
+                            <goal>report-integration</goal>
+                        </goals>
+                    </execution>
+                    <!-- One merged view over both runs, which is what the CI summary reads. -->
+                    <execution>
+                        <id>merge-all</id>
+                        <phase>post-integration-test</phase>
+                        <goals>
+                            <goal>merge</goal>
+                        </goals>
+                        <configuration>
+                            <fileSets>
+                                <fileSet>
+                                    <directory>${project.build.directory}</directory>
+                                    <includes>
+                                        <include>jacoco.exec</include>
+                                        <include>jacoco-it.exec</include>
+                                    </includes>
+                                </fileSet>
+                            </fileSets>
+                            <destFile>${project.build.directory}/jacoco-merged.exec</destFile>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>report-merged</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                        <configuration>
+                            <dataFile>${project.build.directory}/jacoco-merged.exec</dataFile>
+                            <outputDirectory>${project.build.directory}/site/jacoco</outputDirectory>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
         </plugins>
