@@ -92,7 +92,18 @@ side. Both are deliberate, not drift.
 
 ## Tests
 
-- `mvn test` — unit and architecture tests. **No database needed**; keep it that way.
+Four levels, and the rule for choosing between them is in
+`../docs/ADRs/ADR-009-test-levels-boundaries-and-naming.md`: write a test at the **cheapest level that
+can actually observe the behaviour**, and never at one that cannot. Mock our own ports; never mock
+PostgreSQL — if the assertion is about what the database does, it is an `*IT` or it is not a test of
+that. Name tests `Given<state>_When<action>_Then<outcome>`.
+
+- Shared fixtures live in `src/test/java/com/healthupgrades/support/`: `AUser`, `AnUpgrade`,
+  `ATrackingConfig`, `AProgressEntry` build entities with the required fields filled in, and
+  `WebSliceSupport` wires a `@WebMvcTest` to the **real** `SecurityConfig` and `JwtAuthenticationFilter`
+  — authenticate with `WebSliceSupport.authenticateAs(...)` and `bearer(...)` rather than disabling
+  security, which would assert the opposite of FR-5.
+- `mvn test` — unit, web-slice and architecture tests. **No database needed**; keep it that way.
 - `mvn verify` — the above plus the `*IT` integration tests, which boot the application against a real
   PostgreSQL. They **start it themselves**: every `*IT` extends `support/PostgresIT`, which runs a
   `postgres:15-alpine` container through Testcontainers and wires the `DataSource` to it with
