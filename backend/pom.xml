@@ -21,6 +21,14 @@
         <java.version>21</java.version>
         <jjwt.version>0.12.3</jjwt.version>
         <jacoco.version>0.8.12</jacoco.version>
+        <!--
+          Overrides the Testcontainers version the Boot BOM manages (1.19.7). That release ships a
+          docker-java that negotiates Docker API 1.32, and Docker Engine 29 refuses anything below 1.40
+          outright - "client version 1.32 is too old". The failure is a container that never starts, so
+          every *IT errors before its first assertion. Staying on 1.x deliberately: Testcontainers 2.0 is
+          a major release and spring-boot-testcontainers 3.2.5 is built against 1.x. See ADR-008.
+        -->
+        <testcontainers.version>1.21.4</testcontainers.version>
     </properties>
 
     <dependencies>
@@ -132,7 +140,8 @@
           Testcontainers: the *IT suite starts its own PostgreSQL instead of being handed one. A
           developer-supplied database can be the wrong database - anything already listening on 5432 is
           accepted silently - and the tests then validate a schema nobody meant to test. See ADR-008.
-          Versions come from the Boot BOM; @ServiceConnection comes from spring-boot-testcontainers.
+          Versions come from the testcontainers.version property above, not the Boot BOM's default;
+          @ServiceConnection comes from spring-boot-testcontainers.
         -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

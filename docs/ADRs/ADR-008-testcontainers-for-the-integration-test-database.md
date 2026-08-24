@@ -38,9 +38,16 @@ optimistic locking): both assert what the *database* does, so both are worthless
 
 Start the database from the test source with **Testcontainers**, and delete the ambient configuration.
 
-Three test-scoped dependencies, all version-managed by the Spring Boot BOM (Testcontainers 1.19.7 under
-Boot 3.2.5, so no version tags in `pom.xml`): `spring-boot-testcontainers`,
-`org.testcontainers:junit-jupiter`, `org.testcontainers:postgresql`.
+Three test-scoped dependencies: `spring-boot-testcontainers`, `org.testcontainers:junit-jupiter` and
+`org.testcontainers:postgresql`.
+
+**Testcontainers is pinned to 1.21.4, overriding the Boot BOM's 1.19.7.** The managed version ships a
+docker-java that negotiates Docker API 1.32, and Docker Engine 29 rejects anything below 1.40 outright —
+`client version 1.32 is too old`. The container never starts, so every `*IT` errors before its first
+assertion, and the message names Docker rather than anything in this project. The pin stays on 1.x
+deliberately: Testcontainers 2.0 is a major release and `spring-boot-testcontainers` 3.2.5 is built
+against 1.x. Same principle as ADR-004's Vitest and jsdom pins — the harness bends to the environment it
+has to run in, and the reason is written down where the version is.
 
 `support/PostgresIT` holds a `PostgreSQLContainer` running **`postgres:15-alpine` — the same image
 `docker-compose.yml` runs** — annotated `@ServiceConnection` so Boot points the `DataSource` at it. Every
