@@ -5,6 +5,8 @@ import com.healthupgrades.upgrade.domain.event.UpgradeOverdueDetected;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
+import com.healthupgrades.common.observability.JobMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,11 +51,13 @@ class UpgradeOverdueSchedulerTest {
     private UpgradeOverdueScheduler scheduler;
 
     private final UUID userId = UUID.randomUUID();
+    /** A real one, not a mock: JobMetrics.timed runs the job, so a stub would run nothing. */
+    private final JobMetrics jobMetrics = new JobMetrics(new SimpleMeterRegistry());
     private final UUID upgradeId = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
-        scheduler = new UpgradeOverdueScheduler(upgradeQuery, eventPublisher, fixedClock);
+        scheduler = new UpgradeOverdueScheduler(upgradeQuery, eventPublisher, jobMetrics, fixedClock);
     }
 
     private HealthUpgrade activeUpgradeEnding(LocalDate targetEndDate) {

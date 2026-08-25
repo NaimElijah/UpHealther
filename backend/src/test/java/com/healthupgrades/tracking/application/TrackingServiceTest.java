@@ -13,6 +13,7 @@ import com.healthupgrades.tracking.domain.event.StreakAchieved;
 import com.healthupgrades.tracking.domain.model.Frequency;
 import com.healthupgrades.tracking.domain.model.ProgressEntry;
 import com.healthupgrades.tracking.domain.service.ProgressEvaluationService;
+import com.healthupgrades.support.RecordingAuditTrail;
 import com.healthupgrades.tracking.domain.service.StreakCalculator;
 import com.healthupgrades.tracking.domain.model.TrackingConfig;
 import com.healthupgrades.tracking.domain.model.TrackingType;
@@ -70,6 +71,8 @@ class TrackingServiceTest {
     private final LocalDate today = LocalDate.of(2026, 3, 15);
 
     private TrackingService service;
+    /** A real implementation, not a mock: AuditTrail.recording is a default method. */
+    private final RecordingAuditTrail auditTrail = new RecordingAuditTrail();
 
     private final UUID userId = UUID.randomUUID();
     private final UUID upgradeId = UUID.randomUUID();
@@ -77,7 +80,7 @@ class TrackingServiceTest {
     @BeforeEach
     void setUp() {
         service = new TrackingService(configRepository, progressRepository, upgradeQuery,
-                streakCalculator, evaluationService, eventPublisher, fixedClock);
+                streakCalculator, evaluationService, eventPublisher, auditTrail, fixedClock);
     }
 
     // ---- Recording progress ----

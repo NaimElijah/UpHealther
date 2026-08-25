@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { AxiosError, AxiosHeaders } from 'axios';
+import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import LoginPage from './LoginPage';
@@ -6,6 +8,25 @@ import { AuthContext, type AuthContextType } from '../contexts/authContextValue'
 import { ThemeProvider } from '../contexts/ThemeProvider';
 
 const login = vi.fn();
+
+/**
+ * What `login` actually rejects with: an axios error carrying a response.
+ *
+ * Previously these tests rejected with `new Error('401')`, which has no status on it. That was fine
+ * while every failure produced the same sentence, and stopped being fine the moment the page started
+ * telling a rejected credential apart from a server fault — the stub had no way to say which it was.
+ */
+function apiFailure(status: number, body: unknown = {}): AxiosError {
+  const config = { headers: new AxiosHeaders() } as InternalAxiosRequestConfig;
+  const response = {
+    data: body,
+    status,
+    statusText: '',
+    headers: new AxiosHeaders(),
+    config,
+  } as AxiosResponse;
+  return new AxiosError('Request failed', String(status), config, {}, response);
+}
 
 function contextWith(overrides: Partial<AuthContextType> = {}): AuthContextType {
   return {
@@ -76,7 +97,7 @@ describe('LoginPage', () => {
   });
 
   it('GivenCredentialsTheServerRejects_WhenTheFormIsSubmitted_ThenAnErrorIsShownAndNothingNavigates', async () => {
-    login.mockRejectedValue(new Error('401'));
+    login.mockRejectedValue(apiFailure(401, { message: 'Invalid credentials' }));
     renderLogin();
 
     await signIn();
@@ -85,10 +106,27 @@ describe('LoginPage', () => {
     expect(screen.queryByText('the dashboard')).toBeNull();
   });
 
+  it('GivenTheServerFails_WhenTheFormIsSubmitted_ThenTheUserIsNotToldTheirPasswordIsWrong', async () => {
+    // A database outage during login is a 500 with a trace id on the body, not a rejected credential.
+    // Answering it with "invalid email or password" sends the user to reset a password that was never
+    // the problem, and throws away the one string that would have found the fault in the log.
+    login.mockRejectedValue(apiFailure(500, {
+      message: 'Internal server error',
+      traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
+    }));
+    renderLogin();
+
+    await signIn();
+
+    await waitFor(() => expect(screen.getByText(/Internal server error/)).toBeDefined());
+    expect(screen.getByText(/4bf92f3577b34da6a3ce929d0e0e4736/)).toBeDefined();
+    expect(screen.queryByText('Invalid email or password.')).toBeNull();
+  });
+
   it('GivenAnUnknownEmailAndAWrongPassword_WhenEachIsTried_ThenTheMessageIsTheSame', async () => {
     // Two different failures, one message. A different message per case is an account-enumeration
     // oracle that costs nothing to hand out.
-    login.mockRejectedValue(new Error('401'));
+    login.mockRejectedValue(apiFailure(401, { message: 'Invalid credentials' }));
     const { unmount } = renderLogin();
     await signIn('nobody@example.com', 'whatever');
     await waitFor(() => expect(screen.getByText('Invalid email or password.')).toBeDefined());

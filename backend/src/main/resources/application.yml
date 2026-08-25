@@ -49,6 +49,34 @@ app:
       reminders: ${NOTIFY_REMINDERS_CRON:0 * * * * *}    # every minute — user reminder dispatch
 
 management:
+  endpoints:
+    web:
+      exposure:
+        # Explicit and closed. Boot's default exposes health alone, which is safe by accident rather
+        # than by decision: adding a dependency that contributes an endpoint would publish it, and
+        # /actuator/** is permitAll. Naming the three wanted here means nothing else can arrive
+        # unannounced. See ADR-012.
+        include: health,info,prometheus
+  endpoint:
+    health:
+      # Splits /actuator/health into /liveness (is the process alive) and /readiness (can it serve).
+      # A restart fixes the first and never the second, which is why an orchestrator needs both and
+      # why the compose health-check polls readiness rather than the aggregate.
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      # Every *meter*. This is the one that reaches jvm.*, hikaricp.*, audit.events and
+      # scheduled.job.runs; observations.key-values below does not, whatever its name suggests -
+      # Boot's own metadata reads "applied to every observation", and only the meters derived from an
+      # observation (http.server.requests) pick those up. Without this, scraping two deployments into
+      # one target leaves every metric but the HTTP ones colliding unlabelled.
+      application: ${spring.application.name}
+  observations:
+    key-values:
+      # Kept as well as, not instead of: this is what tags the observations themselves, and therefore
+      # the spans, which metrics.tags does not touch.
+      application: ${spring.application.name}
   tracing:
     sampling:
       # Every request is sampled. The trace id reaches the log line either way - Micrometer writes the
@@ -59,5 +87,8 @@ management:
 
 logging:
   level:
-    # DEBUG for this application's own packages only; everything else stays at Spring's default INFO.
-    com.healthupgrades: DEBUG
+    # INFO is what a deployment should run at: DEBUG is written for a developer reading along, and
+    # this application's DEBUG lines fire per domain event - every minute, from dispatchReminders.
+    # LOG_LEVEL_APP turns it up for one run without a code change. Everything outside this package
+    # stays at Spring's default INFO.
+    com.healthupgrades: ${LOG_LEVEL_APP:INFO}

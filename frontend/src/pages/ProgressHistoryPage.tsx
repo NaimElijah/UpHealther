@@ -9,6 +9,8 @@ import EmptyState from '../components/ui/EmptyState';
 import Badge from '../components/ui/Badge';
 import type { ProgressEntry, HealthUpgrade } from '../types';
 import PageContainer from '../components/ui/PageContainer';
+import ErrorState from '../components/ui/ErrorState';
+import { toApiError } from '../api/apiError';
 
 /**
  * The last seven days of progress across every upgrade, newest first.
@@ -27,7 +29,7 @@ const ProgressHistoryPage: React.FC = () => {
   const sorted = [...progress].sort((a: ProgressEntry, b: ProgressEntry) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   if (pLoading || uLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
-  if (pError || uError) return <p className="text-danger-fg text-center py-10">Failed to load progress history.</p>;
+  if (pError || uError) return <ErrorState title="Could not load this progress history." error={toApiError(pError ?? uError)} />;
 
   return (
     <PageContainer>

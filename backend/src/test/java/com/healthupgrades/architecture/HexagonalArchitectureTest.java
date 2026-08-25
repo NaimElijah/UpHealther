@@ -33,6 +33,13 @@ class HexagonalArchitectureTest {
      * Everything else is listed explicitly rather than relying on the Spring ban alone: without them a
      * domain class could pick up Jackson serialisation, bean-validation constraints or servlet types and
      * nothing would notice.
+     *
+     * <p>{@code org.slf4j} and {@code io.micrometer} are on the list for the same reason, and neither is
+     * caught by any of the others. Logging and measuring are side effects, and side effects belong at
+     * the edges: a domain class that writes a log line is one that has quietly acquired an I/O
+     * dependency and a reason to be mocked. The audit trail is the shape this is meant to take instead —
+     * the domain declares {@code AuditTrail} as a port and an adapter decides that recording means
+     * writing a line ({@code ADR-011}).
      */
     @ArchTest
     static final ArchRule domain_is_free_of_framework_and_outer_layers =
@@ -43,6 +50,8 @@ class HexagonalArchitectureTest {
                             "jakarta.servlet..",
                             "com.fasterxml.jackson..",
                             "org.hibernate..",
+                            "org.slf4j..",
+                            "io.micrometer..",
                             "..adapter..", "..application..")
                     .as("the domain must not depend on frameworks, adapters, or the application layer");
 

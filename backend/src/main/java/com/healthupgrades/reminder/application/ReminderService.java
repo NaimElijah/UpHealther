@@ -1,5 +1,7 @@
 package com.healthupgrades.reminder.application;
 
+import com.healthupgrades.common.domain.audit.AuditAction;
+import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.reminder.application.port.in.ReminderQuery;
 import com.healthupgrades.reminder.application.port.in.ReminderSchedule;
@@ -27,6 +29,7 @@ public class ReminderService implements ReminderQuery {
 
     private final ReminderRepositoryPort repository;
     private final UpgradeQuery upgradeQuery;
+    private final AuditTrail auditTrail; // records the attempt, allowed or refused
 
     /**
      * Attaches a reminder to an owned upgrade.
@@ -41,10 +44,13 @@ public class ReminderService implements ReminderQuery {
      */
     @Transactional
     public Reminder create(UUID userId, UUID upgradeId, ReminderSchedule schedule) {
-        upgradeQuery.getOwnedUpgrade(userId, upgradeId); // ownership check (throws if not owned)
-        Reminder reminder = Reminder.create(upgradeId, schedule.reminderTime(),
-                ReminderDays.of(schedule.days()), schedule.enabled() == null || schedule.enabled());
-        return repository.save(reminder);
+        // Audited against the upgrade it hangs off, which is also what ownership is decided by.
+        return auditTrail.recording(AuditAction.REMINDER_CREATE, userId, upgradeId, () -> {
+            upgradeQuery.getOwnedUpgrade(userId, upgradeId); // ownership check (throws if not owned)
+            Reminder reminder = Reminder.create(upgradeId, schedule.reminderTime(),
+                    ReminderDays.of(schedule.days()), schedule.enabled() == null || schedule.enabled());
+            return repository.save(reminder);
+        });
     }
 
     /**
@@ -73,10 +79,12 @@ public class ReminderService implements ReminderQuery {
      */
     @Transactional
     public Reminder update(UUID userId, UUID reminderId, ReminderSchedule schedule) {
-        Reminder reminder = getOwnedReminder(userId, reminderId);
-        reminder.reschedule(schedule.reminderTime(), ReminderDays.of(schedule.days()));
-        if (schedule.enabled() != null) reminder.changeEnabled(schedule.enabled());
-        return repository.save(reminder);
+        return auditTrail.recording(AuditAction.REMINDER_UPDATE, userId, reminderId, () -> {
+            Reminder reminder = getOwnedReminder(userId, reminderId);
+            reminder.reschedule(schedule.reminderTime(), ReminderDays.of(schedule.days()));
+            if (schedule.enabled() != null) reminder.changeEnabled(schedule.enabled());
+            return repository.save(reminder);
+        });
     }
 
     /**
@@ -88,8 +96,10 @@ public class ReminderService implements ReminderQuery {
      */
     @Transactional
     public void delete(UUID userId, UUID reminderId) {
-        Reminder reminder = getOwnedReminder(userId, reminderId);
-        repository.delete(reminder);
+        auditTrail.recording(AuditAction.REMINDER_DELETE, userId, reminderId, () -> {
+            Reminder reminder = getOwnedReminder(userId, reminderId);
+            repository.delete(reminder);
+        });
     }
 
     /** Single ownership guard: a reminder is the caller's only if the upgrade it hangs off is. */

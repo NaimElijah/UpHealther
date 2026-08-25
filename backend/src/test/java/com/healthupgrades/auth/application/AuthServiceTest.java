@@ -3,6 +3,7 @@ package com.healthupgrades.auth.application;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.security.JwtTokenProvider;
 import com.healthupgrades.support.AUser;
+import com.healthupgrades.support.RecordingAuditTrail;
 import com.healthupgrades.user.application.port.in.UserCommand;
 import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.User;
@@ -13,6 +14,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationServiceException;
+import com.healthupgrades.common.domain.audit.AuditAction;
+import com.healthupgrades.common.domain.audit.AuditEvent;
+import com.healthupgrades.common.domain.audit.AuditOutcome;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -54,10 +59,13 @@ class AuthServiceTest {
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     private AuthService service;
+    /** A real implementation, not a mock: AuditTrail.recording is a default method. */
+    private final RecordingAuditTrail auditTrail = new RecordingAuditTrail();
 
     @BeforeEach
     void setUp() {
-        service = new AuthService(userQuery, userCommand, passwordEncoder, tokenProvider, authenticationManager);
+        service = new AuthService(userQuery, userCommand, passwordEncoder, tokenProvider,
+                authenticationManager, auditTrail);
     }
 
     @Test
@@ -123,6 +131,91 @@ class AuthServiceTest {
                 .isInstanceOf(BadCredentialsException.class);
 
         verify(tokenProvider, never()).generateToken(any());
+    }
+
+    @Test
+    void GivenMatchingCredentials_WhenTheUserLogsIn_ThenTheSignInIsAuditedAgainstThem() {
+        User user = AUser.aUser().build();
+        when(authenticationManager.authenticate(any())).thenReturn(authenticated());
+        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(user));
+        when(tokenProvider.generateToken(AUser.EMAIL)).thenReturn("issued.jwt.token");
+
+        service.login(AUser.EMAIL, RAW_PASSWORD);
+
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGIN)).hasValue(
+                new AuditEvent(AuditAction.AUTH_LOGIN, user.getId(), user.getId(), AuditOutcome.ALLOWED));
+    }
+
+    @Test
+    void GivenCredentialsThatDoNotMatch_WhenTheUserLogsIn_ThenTheRefusalIsAuditedWithNoSubject() {
+        when(authenticationManager.authenticate(any())).thenThrow(new BadCredentialsException("Bad credentials"));
+
+        assertThatThrownBy(() -> service.login(AUser.EMAIL, "wrong"))
+                .isInstanceOf(BadCredentialsException.class);
+
+        // Deliberately subject-less. The submitted email is personal data (NFR-6) and naming a user id
+        // would confirm the account exists, which is what handleBadCredentials refuses to do on the
+        // wire. What is left is a rate signal and a trace id — the honest limit of auditing an
+        // anonymous endpoint, and the reason this is asserted rather than left to a reader's goodwill.
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGIN)).hasValue(
+                new AuditEvent(AuditAction.AUTH_LOGIN, null, null, AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenADatabaseOutageDuringLogin_WhenTheUserLogsIn_ThenItIsAuditedAsAFaultNotARefusal() {
+        // Spring wraps an outage in an AuthenticationException too. Counting it as a refusal would make
+        // "the database is down" indistinguishable from "somebody typed the wrong password".
+        when(authenticationManager.authenticate(any()))
+                .thenThrow(new AuthenticationServiceException("connection refused"));
+
+        assertThatThrownBy(() -> service.login(AUser.EMAIL, RAW_PASSWORD))
+                .isInstanceOf(AuthenticationServiceException.class);
+
+        assertThat(auditTrail.recorded(AuditAction.AUTH_LOGIN, AuditOutcome.FAILED)).isTrue();
+    }
+
+    @Test
+    void GivenTokenIssuingFails_WhenAVisitorRegisters_ThenTheAttemptIsAuditedOnceAndNotTwice() {
+        // Recording ALLOWED before the token existed put one attempt in the trail under two outcomes -
+        // allowed and failed - and double-counted it in audit.events to match. A trail that can report
+        // one event twice, differently, is a trail nobody can total.
+        when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
+        when(userCommand.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(tokenProvider.generateToken(AUser.EMAIL)).thenThrow(new IllegalStateException("secret too short"));
+
+        assertThatThrownBy(() -> service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD))
+                .isInstanceOf(IllegalStateException.class);
+
+        assertThat(auditTrail.recorded())
+                .filteredOn(event -> event.action() == AuditAction.AUTH_REGISTER)
+                .singleElement()
+                .satisfies(event -> assertThat(event.outcome()).isEqualTo(AuditOutcome.FAILED));
+    }
+
+    @Test
+    void GivenTokenIssuingFails_WhenTheUserLogsIn_ThenTheAttemptIsAuditedOnceAndNotTwice() {
+        when(authenticationManager.authenticate(any())).thenReturn(authenticated());
+        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(AUser.aUser().build()));
+        when(tokenProvider.generateToken(AUser.EMAIL)).thenThrow(new IllegalStateException("secret too short"));
+
+        assertThatThrownBy(() -> service.login(AUser.EMAIL, RAW_PASSWORD))
+                .isInstanceOf(IllegalStateException.class);
+
+        assertThat(auditTrail.recorded())
+                .filteredOn(event -> event.action() == AuditAction.AUTH_LOGIN)
+                .singleElement()
+                .satisfies(event -> assertThat(event.outcome()).isEqualTo(AuditOutcome.FAILED));
+    }
+
+    @Test
+    void GivenAnEmailAlreadyTaken_WhenAVisitorRegisters_ThenTheRefusalIsAuditedWithNoSubject() {
+        when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD))
+                .isInstanceOf(BusinessRuleException.class);
+
+        assertThat(auditTrail.only(AuditAction.AUTH_REGISTER)).hasValue(
+                new AuditEvent(AuditAction.AUTH_REGISTER, null, null, AuditOutcome.REFUSED));
     }
 
     @Test

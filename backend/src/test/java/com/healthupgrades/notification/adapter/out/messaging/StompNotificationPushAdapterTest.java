@@ -10,14 +10,17 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.messaging.MessageDeliveryException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 
 /**
@@ -69,6 +72,20 @@ class StompNotificationPushAdapterTest {
                 .as("the entity must not be pushed raw — the frontend reads the DTO")
                 .isInstanceOf(NotificationDto.class)
                 .isEqualTo(mapper.toDto(notification));
+    }
+
+    @Test
+    void GivenNoReachableSession_WhenANotificationIsPushed_ThenTheCallerIsNotFailed() {
+        // This runs from an afterCommit callback, so the notification is already durable and FR-32's
+        // "readable afterwards regardless" is already satisfied. Letting the exception out failed the
+        // caller after its transaction had committed — and in dispatchReminders that meant one
+        // unreachable session cancelled everybody else's reminders for that minute.
+        doThrow(new MessageDeliveryException("no session"))
+                .when(messagingTemplate).convertAndSendToUser(anyString(), anyString(), any(Object.class));
+
+        assertThatCode(() -> new StompNotificationPushAdapter(messagingTemplate, mapper)
+                .push(userId, aNotification()))
+                .doesNotThrowAnyException();
     }
 
     private Notification aNotification() {

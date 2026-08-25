@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -25,6 +26,7 @@ import java.io.IOException;
  */
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
@@ -65,6 +67,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             userDetails = userDetailsService.loadUserByUsername(email);
         } catch (UsernameNotFoundException ex) {
+            // WARN, not DEBUG: the signature verified, so this token was issued by us and is being
+            // presented for an account that no longer exists. Ordinary expiry does not reach here.
+            // Nothing identifies the subject — the email is the only handle we have and it is personal
+            // data (NFR-6) — so this is a rate signal, joined to its request by the trace id.
+            log.warn("A validly signed token names an account that no longer exists; request left anonymous");
             return;
         }
         UsernamePasswordAuthenticationToken auth =
