@@ -1,0 +1,7 @@
+# Line endings belong to the repository, not to each contributor's core.autocrlf setting.
+#
+# Every tracked file is already LF in the index; today that is a property of how the people who
+# committed them happened to have Git configured. This makes it a property of the repository instead,
+# so a checkout on Windows and a checkout in the Docker build produce byte-identical files. Nothing
+# tracked here is a .bat or .cmd, the two formats that genuinely need CRLF.
+* text=auto eol=lf
