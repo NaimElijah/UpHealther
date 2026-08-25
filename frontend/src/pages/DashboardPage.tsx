@@ -11,6 +11,8 @@ import EmptyState from '../components/ui/EmptyState';
 import { performUpgradeAction } from '../api/upgrades';
 import type { UpgradeStatus } from '../types';
 import PageContainer from '../components/ui/PageContainer';
+import ErrorState from '../components/ui/ErrorState';
+import { toApiError } from '../api/apiError';
 
 /**
  * Landing page after sign-in: counts, the weekly rate, streaks, overdue warnings and today's upgrades.
@@ -35,7 +37,7 @@ const DashboardPage: React.FC = () => {
   };
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
-  if (error) return <p className="text-danger-fg text-center py-10">Failed to load dashboard.</p>;
+  if (error) return <ErrorState title="Could not load your dashboard." error={toApiError(error)} />;
 
   // Rounded, not scaled: the API sends a percentage already (see DashboardDto.weeklyCompletionRate).
   const completionPct = Math.round(data?.weeklyCompletionRate ?? 0);

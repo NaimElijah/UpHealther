@@ -20,6 +20,13 @@ conventions to follow inside `frontend/`.
   `VITE_API_URL` only for a different-origin API). A request interceptor attaches the JWT from
   `localStorage['jwt_token']`; a response interceptor clears the token and redirects to `/login` on 401.
   All `src/api/*.ts` modules call through this client — add new endpoints there, not with raw axios.
+- **A failure is decoded once, in `src/api/apiError.ts`.** `toApiError(thrown)` turns anything a call
+  rejected with into `{ status, message, fieldErrors, traceId }`; render it with
+  `components/ui/ErrorState`. Do not write a hard-coded "Failed to load X." and drop the error — the
+  backend puts a **trace id** on every response (`X-Trace-Id`, and `traceId` on the error body) so that
+  a user can quote one string that finds their request in the log, and discarding it is what left a
+  support conversation with nothing in it. `toApiError` reads the body first and the header second,
+  because a request refused inside the security chain carries the header alone.
 - **Server state** is managed by TanStack Query (`@tanstack/react-query`); avoid duplicating it in
   local React state.
 - **Auth** flows through `contexts/AuthContext.tsx` (the context object lives in `contexts/authContextValue.ts`)

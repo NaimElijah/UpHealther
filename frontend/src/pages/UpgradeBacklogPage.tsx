@@ -12,6 +12,8 @@ import EmptyState from '../components/ui/EmptyState';
 import UpgradeCard from '../components/upgrade/UpgradeCard';
 import type { CreateUpgradeRequest, UpgradeType, Difficulty, UpgradeStatus } from '../types';
 import PageContainer from '../components/ui/PageContainer';
+import ErrorState from '../components/ui/ErrorState';
+import { toApiError } from '../api/apiError';
 
 /**
  * The upgrade types offered when creating one: the eight kinds the product defines.
@@ -77,7 +79,7 @@ const UpgradeBacklogPage: React.FC = () => {
   const areaOptions = [{ value: '', label: 'No area' }, ...areas.map((a) => ({ value: a.id, label: a.name }))];
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
-  if (error) return <p className="text-danger-fg text-center py-10">Failed to load the backlog.</p>;
+  if (error) return <ErrorState title="Could not load your backlog." error={toApiError(error)} />;
 
   return (
     <PageContainer>

@@ -18,6 +18,8 @@ import Badge from '../components/ui/Badge';
 import { difficultyBadgeVariant } from '../components/upgrade/upgradeMeta';
 import type { CreateProgressRequest, CreateReflectionRequest, TrackingType, Frequency } from '../types';
 import PageContainer from '../components/ui/PageContainer';
+import ErrorState from '../components/ui/ErrorState';
+import { toApiError } from '../api/apiError';
 
 /** Today as `YYYY-MM-DD`, the date format the progress and reflection APIs expect. */
 const today = () => new Date().toISOString().split('T')[0];
@@ -120,7 +122,7 @@ const UpgradeDetailsPage: React.FC = () => {
   });
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
-  if (error || !upgrade) return <p className="text-danger-fg text-center py-10">Failed to load this upgrade.</p>;
+  if (error || !upgrade) return <ErrorState title="Could not load this upgrade." error={error ? toApiError(error) : undefined} />;
 
   return (
     <PageContainer width="narrow" className="space-y-6">
