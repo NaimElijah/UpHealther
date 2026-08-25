@@ -49,6 +49,26 @@ app:
       reminders: ${NOTIFY_REMINDERS_CRON:0 * * * * *}    # every minute — user reminder dispatch
 
 management:
+  endpoints:
+    web:
+      exposure:
+        # Explicit and closed. Boot's default exposes health alone, which is safe by accident rather
+        # than by decision: adding a dependency that contributes an endpoint would publish it, and
+        # /actuator/** is permitAll. Naming the three wanted here means nothing else can arrive
+        # unannounced. See ADR-012.
+        include: health,info,prometheus
+  endpoint:
+    health:
+      # Splits /actuator/health into /liveness (is the process alive) and /readiness (can it serve).
+      # A restart fixes the first and never the second, which is why an orchestrator needs both and
+      # why the compose health-check polls readiness rather than the aggregate.
+      probes:
+        enabled: true
+  observations:
+    key-values:
+      # Tags every metric and observation with the service, so two deployments are separable in one
+      # scrape target without parsing anything.
+      application: ${spring.application.name}
   tracing:
     sampling:
       # Every request is sampled. The trace id reaches the log line either way - Micrometer writes the

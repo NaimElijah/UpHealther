@@ -258,6 +258,28 @@ the entry to its request without a foreign key.
 [ADR-011](../ADRs/ADR-011-audit-as-a-log-stream.md) records the decision, what is deliberately not
 audited, and what would reverse it.
 
+### Metrics and health
+
+`/actuator/prometheus` is the whole of the monitoring surface: request latency and error rate, JVM and
+connection-pool saturation, `audit.events{action,outcome}` and `scheduled.job.runs{job,outcome}` with
+its duration timer. It is a pull endpoint, so it needs no collector to exist before it is useful — and
+nothing scrapes it today, which is a deliberate stopping point rather than an omission.
+
+**No metric tag may be unbounded.** An action, an outcome, a job name and a status are closed sets; a
+user id, an upgrade title and a raw path are not.
+
+The exposed endpoint set is stated by name — `health,info,prometheus` — because `/actuator/**` is
+`permitAll`, so the exposure list is the only thing standing between a reader and `/actuator/env`.
+`ActuatorEndpointsIT` asserts the negative: `env`, `heapdump`, `loggers`, `beans`, `mappings`,
+`configprops` and `threaddump` answer `404`.
+
+Liveness and readiness are separate, because an orchestrator acts on them differently — a failed
+liveness probe means restart the process, a failed readiness probe means stop sending it traffic, and
+restarting a process that cannot reach its database fixes nothing. Both images declare a `HEALTHCHECK`
+against readiness, and the frontend waits for the backend to be *healthy* rather than merely started.
+[ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md) records the decisions,
+including why the management endpoints are not on a separate port.
+
 ## External dependencies and integration points
 
 **There are no third-party APIs.** Nothing leaves the deployment: no payment provider, no email or
@@ -272,8 +294,9 @@ push service, no analytics, no AI service.
 
 Integration points a maintainer will need:
 
-- **`/actuator/health`** — the backend's health endpoint, unauthenticated, and what the compose
-  health-check polls.
+- **`/actuator/health`, `/actuator/health/{liveness,readiness}`, `/actuator/info`,
+  `/actuator/prometheus`** — the backend's operational surface, unauthenticated and closed to these by
+  name. The compose and image health-checks poll **readiness**. Nothing else under `/actuator` answers.
 - **Environment variables** — `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET` are required in any
   real deployment; `CORS_ALLOWED_ORIGINS` and `VITE_API_URL` only matter when frontend and API are on
   different origins. The cron expressions are overridable per environment. `.env.example` lists them
@@ -395,6 +418,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why correlation is Micrometer Tracing rather than a hand-rolled request id; why there is no exporter | [ADR-007](../ADRs/ADR-007-request-correlation-through-micrometer-tracing.md) |
 | Why logs are JSON in a container but not locally; what each level means; why nothing personal may be logged | [ADR-010](../ADRs/ADR-010-structured-logging-and-a-level-policy.md) |
 | Why the audit trail is a log stream rather than a table or Envers; why refusals are recorded; what is not audited | [ADR-011](../ADRs/ADR-011-audit-as-a-log-stream.md) |
+| Why metrics are a scrape endpoint and not an exporter or a Grafana stack; why the actuator surface is closed by name | [ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md) |
 | Why every page shares one width; why the shell can be trusted not to overflow; why container queries and a native `<dialog>` were turned down | [ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |

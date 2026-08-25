@@ -128,6 +128,17 @@
             <version>${logstash.encoder.version}</version>
         </dependency>
 
+        <!--
+          Turns what actuator already collects - request latency, error rate, JVM and connection-pool
+          saturation - into something a scraper can read, alongside this application's own counters.
+          A pull endpoint, so it needs no collector to exist before it is useful. Version managed by
+          spring-boot-dependencies. See ADR-012.
+        -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

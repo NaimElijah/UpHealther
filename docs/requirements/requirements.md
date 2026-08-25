@@ -2,7 +2,7 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. Seventy-five of the eighty-two entries below name a test — fifty-six distinct
+rather than trusted. Seventy-eight of the eighty-five entries below name a test — fifty-seven distinct
 test classes and files between them. Four of the remaining seven name the command, workflow or script
 that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18). The last three — FR-39, NFR-19 and NFR-20 — are
 verified by hand and say so, because each is about a rendered width, a colour or an overflow, and jsdom
@@ -166,6 +166,9 @@ nothing is shared between accounts.
 | NFR-24 | An audit entry cannot carry personal data, because it has nowhere to put any: every field is an enum or an identifier, and a refused login is recorded with no subject at all | `AuditEventTest`, `AuthServiceTest` |
 | NFR-25 | Every scheduled run records how long it took, whether it finished, and what it did, so a job that has stopped working is distinguishable from one with nothing to do | `JobMetricsTest`, `NotificationSchedulerTest`, `UpgradeOverdueSchedulerTest` |
 | NFR-26 | A real-time push that cannot be delivered degrades to the stored notification and is reported, rather than failing the work that raised it | `StompNotificationPushAdapterTest` |
+| NFR-27 | Liveness and readiness are answerable separately, so "restart the process" and "stop routing to it" are distinguishable, and both images declare a health-check | `ActuatorEndpointsIT`, `backend/Dockerfile`, `docker-compose.yml` |
+| NFR-28 | Latency, error rate, saturation, connection-pool depth and the domain's own counters are readable from one scrape endpoint, and no metric tag is unbounded | `ActuatorEndpointsIT`, `LoggingAuditTrailTest`, `JobMetricsTest` ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) |
+| NFR-29 | The actuator surface is closed by name: only health, info and the metrics scrape answer, and an endpoint that would expose configuration or process memory does not | `ActuatorEndpointsIT` (env, heapdump, loggers, beans, mappings, configprops, threaddump) |
 
 ---
 
