@@ -36,8 +36,7 @@ public class HealthAreaService implements HealthAreaQuery {
      */
     @Transactional
     public HealthArea create(UUID userId, HealthAreaDetails details) {
-        // No resource id yet: the area does not exist until the save below returns.
-        return auditTrail.recording(AuditAction.AREA_CREATE, userId, null, () -> {
+        return auditTrail.recordingCreation(AuditAction.AREA_CREATE, userId, () -> {
             HealthArea area = HealthArea.builder()
                     .userId(userId)
                     .name(details.name())
@@ -47,7 +46,7 @@ public class HealthAreaService implements HealthAreaQuery {
                     .color(details.color())
                     .build();
             return repository.save(area);
-        });
+        }, HealthArea::getId);
     }
 
     /**

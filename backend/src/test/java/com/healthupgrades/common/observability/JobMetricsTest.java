@@ -54,6 +54,22 @@ class JobMetricsTest {
     }
 
     @Test
+    void GivenAJobThatDiesOnAnError_WhenItIsTimed_ThenItIsCountedAsFailedRatherThanAsACleanRun() {
+        // The failure mode that makes this class worth having and is easiest to get wrong: an Error -
+        // NoClassDefFoundError from a missing transitive dependency, OutOfMemoryError, a static
+        // initialiser blowing up - is not a RuntimeException. Deciding the outcome in a catch means
+        // an Error walks past the assignment and gets counted as ok, holding the failure counter at
+        // zero while the sweep has not worked in a week. Nobody is answered with a 500 by a scheduled
+        // job, so that counter is the only signal there is.
+        assertThatThrownBy(() -> jobMetrics.timed(JOB, () -> {
+            throw new NoClassDefFoundError("com/example/Gone");
+        })).isInstanceOf(NoClassDefFoundError.class);
+
+        assertThat(runs("failed")).isEqualTo(1);
+        assertThat(runs("ok")).isZero();
+    }
+
+    @Test
     void GivenTwoJobs_WhenBothAreTimed_ThenTheirCountsAreSeparate() {
         jobMetrics.timed(JOB, () -> { });
         jobMetrics.timed("notification.reminder-dispatch", () -> { });

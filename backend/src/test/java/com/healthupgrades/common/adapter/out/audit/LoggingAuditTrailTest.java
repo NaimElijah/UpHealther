@@ -19,6 +19,7 @@ import java.util.Arrays;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 /**
  * Pins what the audit stream actually emits: the fields, the counter derived from the same call, and
@@ -84,15 +85,21 @@ class LoggingAuditTrailTest {
     @Test
     void GivenAnAttempt_WhenItIsRecorded_ThenTheRenderedLineHoldsNothingButIdentifiersAndEnums() {
         UUID actor = UUID.randomUUID();
+        UUID resource = UUID.randomUUID();
 
-        trail.record(AuditEvent.allowed(AuditAction.REFLECTION_CREATE, actor, UUID.randomUUID()));
+        trail.record(AuditEvent.allowed(AuditAction.REFLECTION_CREATE, actor, resource));
 
         // A reflection's body is the most personal thing this application stores. It cannot reach the
-        // line because AuditEvent has nowhere to hold it (AuditEventTest), and this checks the other
-        // end: what is rendered is only what was passed in.
-        assertThat(single().getFormattedMessage())
-                .contains("action=reflection.create", "actorId=" + actor)
-                .doesNotContain("@", "null");
+        // line because AuditEvent has nowhere to hold it (AuditEventTest); this checks the other end,
+        // that the renderer adds nothing of its own.
+        //
+        // Asserted as an exact whole-line match rather than "does not contain an @". A UUID's alphabet
+        // is hex and dashes, so a doesNotContain of any word or symbol is a test that cannot fail -
+        // it reads like the NFR-6 guard and guards nothing. Pinning the whole line means anything new
+        // appearing in it has to come through here.
+        assertThat(single().getFormattedMessage()).isEqualTo(
+                "action=reflection.create outcome=ALLOWED resource=REFLECTION"
+                        + " actorId=" + actor + " resourceId=" + resource);
     }
 
     @Test
@@ -114,6 +121,29 @@ class LoggingAuditTrailTest {
         assertThat(meterRegistry.find("audit.events").counter().getId().getTags())
                 .extracting("key")
                 .containsExactlyInAnyOrder("action", "outcome");
+    }
+
+    @Test
+    void GivenAMeterRegistryThatFails_WhenAnAttemptIsRecorded_ThenTheAuditLineIsStillWrittenAndNothingThrows() {
+        // The port says implementations must not throw, and this is why it says so. AuditTrail.recording
+        // calls record() from inside its catch block, so an exception escaping here would *replace* the
+        // business exception - turning a BusinessRuleException that should be a 422 into a 500 with the
+        // real cause lost. The line is the half that matters, so a failing meter must not take it down.
+        LoggingAuditTrail brittle = new LoggingAuditTrail(new FailingMeterRegistry());
+
+        assertThatCode(() -> brittle.record(AuditEvent.allowed(AuditAction.UPGRADE_DELETE,
+                UUID.randomUUID(), UUID.randomUUID()))).doesNotThrowAnyException();
+
+        assertThat(appender.list).anySatisfy(event ->
+                assertThat(event.getFormattedMessage()).contains("action=upgrade.delete"));
+    }
+
+    /** A registry that refuses to register anything, standing in for a meter-id conflict. */
+    private static class FailingMeterRegistry extends SimpleMeterRegistry {
+        @Override
+        protected io.micrometer.core.instrument.Counter newCounter(io.micrometer.core.instrument.Meter.Id id) {
+            throw new IllegalStateException("a meter with that name already exists with different tags");
+        }
     }
 
     private ILoggingEvent single() {

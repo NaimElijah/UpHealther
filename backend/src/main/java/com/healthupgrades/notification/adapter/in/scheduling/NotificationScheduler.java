@@ -25,7 +25,6 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -75,23 +74,27 @@ public class NotificationScheduler {
                     .collect(Collectors.groupingBy(HealthUpgrade::getUserId));
 
             // A count, not a list of user ids: the point is whether the nudge went out at a plausible
-            // volume, and who was nudged is in their own notification list.
-            AtomicInteger nudged = new AtomicInteger();
-            activeByUser.forEach((userId, upgrades) -> {
+            // volume, and who was nudged is in their own notification list. A plain int in a plain loop -
+            // this map is walked on one thread, and an atomic would advertise a concurrency requirement
+            // that does not exist and send the next reader looking for it.
+            int nudged = 0;
+            for (Map.Entry<UUID, List<HealthUpgrade>> nudgeable : activeByUser.entrySet()) {
+                UUID userId = nudgeable.getKey();
+                List<HealthUpgrade> upgrades = nudgeable.getValue();
                 boolean alreadyNudged = notificationRepository.existsByUserIdAndTypeAndCreatedAtAfter(
                         userId, NotificationType.CHECKIN_REMINDER, today.atStartOfDay());
                 boolean loggedToday = !progressQuery.findByUserIdAndDate(userId, today).isEmpty();
                 if (!alreadyNudged && !loggedToday) {
-                    nudged.incrementAndGet();
+                    nudged++;
                     notificationService.create(userId, NotificationType.CHECKIN_REMINDER, NotificationCategory.REMINDER,
                             "Daily check-in ⏳",
                             "You have " + upgrades.size() + " active upgrade" + (upgrades.size() == 1 ? "" : "s")
                                     + " to track today.", null);
                 }
-            });
+            }
 
             log.info("{} {} {}", keyValue("job", CHECKIN_JOB),
-                    keyValue("usersWithActiveUpgrades", activeByUser.size()), keyValue("nudged", nudged.get()));
+                    keyValue("usersWithActiveUpgrades", activeByUser.size()), keyValue("nudged", nudged));
         });
     }
 
@@ -135,10 +138,16 @@ public class NotificationScheduler {
                 }
             }
 
-            // due != fired means a reminder outlived the upgrade it hangs off - a real inconsistency,
-            // and invisible before this line because the loop skips it in silence.
             log.info("{} {} {}", keyValue("job", REMINDERS_JOB), keyValue("due", due.size()),
                     keyValue("fired", fired));
+
+            // A reminder that outlived the upgrade it hangs off. Degraded but still serving, which
+            // ADR-010 defines as WARN - leaving it as two INFO fields nobody diffs would report a real
+            // inconsistency at the level reserved for things going normally.
+            int orphaned = due.size() - fired;
+            if (orphaned > 0) {
+                log.warn("{} {}", keyValue("event", "reminder.orphaned"), keyValue("count", orphaned));
+            }
         });
     }
 

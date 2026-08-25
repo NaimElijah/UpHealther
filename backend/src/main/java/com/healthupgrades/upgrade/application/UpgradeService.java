@@ -49,15 +49,14 @@ public class UpgradeService implements UpgradeQuery {
      */
     @Transactional
     public HealthUpgrade create(UUID userId, UpgradeDetails details) {
-        // No resource id to record against: the upgrade does not exist until the save below returns.
-        return auditTrail.recording(AuditAction.UPGRADE_CREATE, userId, null, () -> {
+        return auditTrail.recordingCreation(AuditAction.UPGRADE_CREATE, userId, () -> {
             HealthUpgrade created = HealthUpgrade.create(userId, details.areaId(), details.title(), details.description(),
                     details.type(), details.difficulty(), details.plannedStartDate(), details.targetEndDate(),
                     details.motivation(), details.successCriteria());
             HealthUpgrade saved = repository.save(created);
             eventPublisher.publish(new HealthUpgradeCreated(saved.getId(), userId, saved.getTitle(), LocalDateTime.now()));
             return saved;
-        });
+        }, HealthUpgrade::getId);
     }
 
     /**

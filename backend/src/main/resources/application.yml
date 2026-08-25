@@ -64,10 +64,18 @@ management:
       # why the compose health-check polls readiness rather than the aggregate.
       probes:
         enabled: true
+  metrics:
+    tags:
+      # Every *meter*. This is the one that reaches jvm.*, hikaricp.*, audit.events and
+      # scheduled.job.runs; observations.key-values below does not, whatever its name suggests -
+      # Boot's own metadata reads "applied to every observation", and only the meters derived from an
+      # observation (http.server.requests) pick those up. Without this, scraping two deployments into
+      # one target leaves every metric but the HTTP ones colliding unlabelled.
+      application: ${spring.application.name}
   observations:
     key-values:
-      # Tags every metric and observation with the service, so two deployments are separable in one
-      # scrape target without parsing anything.
+      # Kept as well as, not instead of: this is what tags the observations themselves, and therefore
+      # the spans, which metrics.tags does not touch.
       application: ${spring.application.name}
   tracing:
     sampling:

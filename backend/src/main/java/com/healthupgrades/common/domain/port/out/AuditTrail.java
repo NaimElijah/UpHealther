@@ -4,6 +4,7 @@ import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -52,5 +53,28 @@ public interface AuditTrail {
             operation.run();
             return null;
         });
+    }
+
+    /**
+     * Runs an operation that brings a record into existence, and names that record in the entry.
+     *
+     * <p>A creation cannot use {@link #recording(AuditAction, UUID, UUID, Supplier)}: the resource id is
+     * an argument there, and a new upgrade has no id until the save returns — so the entry would say
+     * somebody created something without saying what. That is the one question a creation entry exists
+     * to answer.
+     *
+     * @param createdId reads the new record's id off the result, once there is one
+     */
+    default <T> T recordingCreation(AuditAction action, UUID actorUserId, Supplier<T> operation,
+                                    Function<T, UUID> createdId) {
+        try {
+            T result = operation.get();
+            record(AuditEvent.allowed(action, actorUserId, createdId.apply(result)));
+            return result;
+        } catch (RuntimeException thrown) {
+            // Nothing was created, so there is genuinely no resource to name.
+            record(AuditEvent.from(action, actorUserId, null, thrown));
+            throw thrown;
+        }
     }
 }

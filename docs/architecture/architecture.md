@@ -425,6 +425,10 @@ Stated because they are load-bearing, not because they are problems yet:
 - **A browser-side error can be shown but not recorded.** The SPA has no telemetry and no log sink, so
   `ErrorBoundary` can put a message on the screen and nothing else knows it happened. Adding a
   reporting endpoint is a decision about sending user data off the device, not a logging change.
+- **A commit-time rollback is audited as a refusal, whatever caused it.** An `ALLOWED` entry is
+  deferred to the commit, so work that rolls back is recorded — but `afterCompletion` does not say why,
+  and an optimistic-lock clash, a lost unique-constraint race and an infrastructure failure at commit
+  are indistinguishable there. All three are recorded `REFUSED`.
 - **A refused login is a rate signal, not an attribution.** The audit entry deliberately names no
   subject, so the trail cannot say whose account was targeted and will not support a lockout policy as
   written.

@@ -98,8 +98,11 @@ something that says more.
   security, JPA, actuator and tracing auto-configuration at once, and ADR-007 depends on
   auto-configuration defaults by design. That is its own change with its own risk, and bundling it here
   would mean an observability regression and a framework upgrade in one unreviewable diff. *Revisit
-  when* Boot is next upgraded — at which point this dependency and most of `logback-spring.xml` are
-  deleted, not migrated.
+  when* Boot is next upgraded — at which point most of `logback-spring.xml` is deleted rather than
+  migrated. **The dependency is not**, and that cost should not be discovered during the upgrade:
+  `LoggingAuditTrail`, both schedulers and `StompNotificationPushAdapter` import
+  `StructuredArguments.keyValue`, and Boot's built-in structured logging has no equivalent — those four
+  call sites need a replacement before the artifact can go.
 - **JSON in every environment, including locally.** One format, one way to be wrong. Rejected because a
   developer reads the console directly and JSON is materially harder to scan; the cost is paid every
   day for a property that matters only where a machine reads the log.

@@ -4,12 +4,15 @@ import { useAuth } from '../hooks/useAuth';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import ThemeToggle from '../components/theme/ThemeToggle';
+import { toApiError } from '../api/apiError';
 
 /**
  * Sign-in page, one of the two routes reachable without a session.
  *
  * The error message is deliberately the same whichever half of the credentials was wrong — saying
- * which would tell an attacker that an email is registered.
+ * which would tell an attacker that an email is registered. That guard applies to a **rejected
+ * credential** and nothing else: a 500 is not a wrong password, and answering one with "invalid email
+ * or password" sends the user to reset a password that was never the problem, with nothing to quote.
  *
  * Redirects to the dashboard when already signed in, which is what stops a user with a valid session
  * from landing here by typing the URL.
@@ -34,8 +37,19 @@ const LoginPage: React.FC = () => {
     try {
       await login(email, password);
       navigate('/dashboard', { replace: true });
-    } catch {
-      setError('Invalid email or password.');
+    } catch (thrown) {
+      const failure = toApiError(thrown);
+      // 401 is the only status that means "these credentials are not good", and it keeps the
+      // deliberately vague message. Anything else is ours, so say what the API said and hand over the
+      // trace id — this is the highest-traffic failure path in the application, and it was the one
+      // place a server fault was being reported to the user as their own mistake.
+      setError(
+        failure.status === 401
+          ? 'Invalid email or password.'
+          : failure.traceId
+            ? `${failure.message} (reference ${failure.traceId})`
+            : failure.message,
+      );
     } finally {
       setLoading(false);
     }

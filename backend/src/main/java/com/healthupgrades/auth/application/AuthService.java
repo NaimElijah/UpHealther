@@ -61,8 +61,12 @@ public class AuthService {
                     .passwordHash(passwordEncoder.encode(password)) // never store the raw password
                     .build();
             user = userCommand.save(user);
+            // Recorded after the token exists, not before. Issuing it can fail - a secret too short to
+            // sign with - and recording ALLOWED first would then put one attempt in the trail twice,
+            // once as allowed and once as failed, with the counter double-counting to match.
+            AuthResult result = new AuthResult(tokenProvider.generateToken(user.getEmail()), user);
             auditTrail.record(AuditEvent.allowed(AuditAction.AUTH_REGISTER, user.getId(), user.getId()));
-            return new AuthResult(tokenProvider.generateToken(user.getEmail()), user);
+            return result;
         } catch (RuntimeException thrown) {
             auditTrail.record(AuditEvent.from(AuditAction.AUTH_REGISTER, null, null, thrown));
             throw thrown;
@@ -84,8 +88,11 @@ public class AuthService {
             authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(email, password)); // throws on bad creds
             User user = userQuery.findByEmail(email)
                     .orElseThrow(() -> new BusinessRuleException("User not found"));
+            // As in register: after the token, so a signing failure cannot produce two entries for one
+            // sign-in attempt.
+            AuthResult result = new AuthResult(tokenProvider.generateToken(user.getEmail()), user);
             auditTrail.record(AuditEvent.allowed(AuditAction.AUTH_LOGIN, user.getId(), user.getId()));
-            return new AuthResult(tokenProvider.generateToken(user.getEmail()), user);
+            return result;
         } catch (BadCredentialsException | AccountStatusException refused) {
             // A refused login is recorded with no subject at all. The submitted email is personal data
             // (NFR-6) and there is no user id to name, because naming one would mean confirming that

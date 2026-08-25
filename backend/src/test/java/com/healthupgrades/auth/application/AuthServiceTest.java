@@ -175,6 +175,39 @@ class AuthServiceTest {
     }
 
     @Test
+    void GivenTokenIssuingFails_WhenAVisitorRegisters_ThenTheAttemptIsAuditedOnceAndNotTwice() {
+        // Recording ALLOWED before the token existed put one attempt in the trail under two outcomes -
+        // allowed and failed - and double-counted it in audit.events to match. A trail that can report
+        // one event twice, differently, is a trail nobody can total.
+        when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
+        when(userCommand.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(tokenProvider.generateToken(AUser.EMAIL)).thenThrow(new IllegalStateException("secret too short"));
+
+        assertThatThrownBy(() -> service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD))
+                .isInstanceOf(IllegalStateException.class);
+
+        assertThat(auditTrail.recorded())
+                .filteredOn(event -> event.action() == AuditAction.AUTH_REGISTER)
+                .singleElement()
+                .satisfies(event -> assertThat(event.outcome()).isEqualTo(AuditOutcome.FAILED));
+    }
+
+    @Test
+    void GivenTokenIssuingFails_WhenTheUserLogsIn_ThenTheAttemptIsAuditedOnceAndNotTwice() {
+        when(authenticationManager.authenticate(any())).thenReturn(authenticated());
+        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(AUser.aUser().build()));
+        when(tokenProvider.generateToken(AUser.EMAIL)).thenThrow(new IllegalStateException("secret too short"));
+
+        assertThatThrownBy(() -> service.login(AUser.EMAIL, RAW_PASSWORD))
+                .isInstanceOf(IllegalStateException.class);
+
+        assertThat(auditTrail.recorded())
+                .filteredOn(event -> event.action() == AuditAction.AUTH_LOGIN)
+                .singleElement()
+                .satisfies(event -> assertThat(event.outcome()).isEqualTo(AuditOutcome.FAILED));
+    }
+
+    @Test
     void GivenAnEmailAlreadyTaken_WhenAVisitorRegisters_ThenTheRefusalIsAuditedWithNoSubject() {
         when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(true);
 

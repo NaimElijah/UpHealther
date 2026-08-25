@@ -15,8 +15,18 @@ import { toApiError } from './apiError';
 describe('toApiError', () => {
   const config = { headers: new AxiosHeaders() } as InternalAxiosRequestConfig;
 
+  // Real AxiosHeaders, not a plain object: apiError.ts reads the header by lower-cased bracket access,
+  // and stubbing the container it reads from would make the fallback test assert against its own stub.
+  // If axios ever stopped answering to that access, security-chain rejections would silently lose the
+  // trace id and a plain-object test would stay green.
   function responded(status: number, data: unknown, headers: Record<string, string> = {}): AxiosError {
-    const response = { data, status, statusText: '', headers, config } as AxiosResponse;
+    const response = {
+      data,
+      status,
+      statusText: '',
+      headers: AxiosHeaders.from(headers),
+      config,
+    } as AxiosResponse;
     return new AxiosError('Request failed', String(status), config, {}, response);
   }
 

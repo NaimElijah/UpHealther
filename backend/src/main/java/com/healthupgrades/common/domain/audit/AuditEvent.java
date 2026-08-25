@@ -42,4 +42,17 @@ public record AuditEvent(AuditAction action, UUID actorUserId, UUID resourceId, 
     public static AuditEvent from(AuditAction action, UUID actorUserId, UUID resourceId, RuntimeException thrown) {
         return new AuditEvent(action, actorUserId, resourceId, AuditOutcome.of(thrown));
     }
+
+    /**
+     * The same attempt, recorded as refused.
+     *
+     * <p>For the case where the work returned but its transaction did not commit — an optimistic-lock
+     * clash or a unique constraint losing a race, both decided by the database after the service method
+     * has already returned. The reason is not knowable at that point, so it is recorded as a refusal
+     * rather than a fault: the likely causes are the database declining the write, and calling every one
+     * of them {@link AuditOutcome#FAILED} would drown the signal that outcome exists to raise.
+     */
+    public AuditEvent refused() {
+        return new AuditEvent(action, actorUserId, resourceId, AuditOutcome.REFUSED);
+    }
 }

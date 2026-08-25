@@ -13,6 +13,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -86,11 +87,49 @@ class ActuatorEndpointsIT extends PostgresIT {
                 .contains("hikaricp_connections");
     }
 
-    @Test
-    void GivenAScrape_WhenTheApplicationTagIsRead_ThenEveryMetricNamesThisService() throws Exception {
-        HttpResponse<String> response = get("/actuator/prometheus");
+    /**
+     * Checked per metric family, not as one substring anywhere in the scrape.
+     *
+     * <p>The weaker form of this test passed while only {@code http_server_requests_seconds} carried
+     * the tag: it is derived from an observation, and {@code management.observations.key-values} tags
+     * observations rather than meters. Everything else — the JVM, the pool, and this application's own
+     * counters — was unlabelled, which is precisely the set that would collide if two deployments were
+     * scraped into one target. So the families here are deliberately three that are <em>not</em>
+     * observation-derived, plus the HTTP one to keep it honest.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"http_server_requests_seconds", "jvm_memory_used_bytes",
+            "hikaricp_connections", "audit_events_total"})
+    void GivenAScrape_WhenAMetricFamilyIsRead_ThenEveryOneOfItsSamplesNamesThisService(String family)
+            throws Exception {
+        get("/actuator/health"); // so the HTTP timer has something in it
+        refuseALogin(); // and so this application's own counter exists to be checked
 
-        assertThat(response.body()).contains("application=\"health-upgrades-tracker\"");
+        List<String> samples = get("/actuator/prometheus").body().lines()
+                .filter(line -> line.startsWith(family) && line.contains("{"))
+                .toList();
+
+        assertThat(samples).as("%s produced no samples to check", family).isNotEmpty();
+        assertThat(samples).allSatisfy(sample ->
+                assertThat(sample).contains("application=\"health-upgrades-tracker\""));
+    }
+
+    /**
+     * A wrong password, purely to bring {@code audit.events} into existence.
+     *
+     * <p>Micrometer registers a counter on its first increment, so a custom meter cannot be asserted
+     * against until something has counted. The scheduled-job counters would have done as well and are
+     * not used here: their crons make "has one run yet" a question of when the test happened to start.
+     * A refused login needs no seeded account — the credential is rejected either way.
+     */
+    private void refuseALogin() throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + "/api/auth/login"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        "{\"email\":\"nobody@example.com\",\"password\":\"wrong\"}"))
+                .build();
+        client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     /**

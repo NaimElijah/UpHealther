@@ -4,7 +4,7 @@
   and JSON for a container whose log is read by a machine before a person. The `json-logs` profile
   selects between them; docker-compose sets it, a local `mvn spring-boot:run` does not.
 
-  See docs/ADRs/ADR-010-structured-logging-a-level-policy-and-audit-as-a-log-stream.md.
+  See docs/ADRs/ADR-010-structured-logging-and-a-level-policy.md.
 -->
 <configuration>
 

@@ -41,15 +41,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    healthcheck:
-      # Readiness rather than the aggregate: this answers "can it serve traffic", which is what the
-      # frontend's depends_on below is actually waiting for. start_period covers JVM start and the
-      # Flyway migration, during which an unhealthy answer is correct.
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health/readiness || exit 1"]
-      interval: 30s
-      timeout: 10s
-      start_period: 60s
-      retries: 5
+    # No healthcheck here: backend/Dockerfile declares one against the readiness probe and compose uses
+    # the image's. Restating it gave two sources of truth for one probe, and they had already drifted
+    # apart on the day they were written - the image said timeout 5s / 3 retries, this said 10s / 5.
 
   frontend:
     build:
@@ -58,12 +52,7 @@ services:
     container_name: healthupgrades-frontend
     ports:
       - "3000:80"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost/ || exit 1"]
-      interval: 30s
-      timeout: 5s
-      start_period: 10s
-      retries: 3
+    # As above: frontend/Dockerfile declares the probe.
     depends_on:
       # Waits for the API to be ready, not merely started. A plain depends_on let nginx come up while
       # Flyway was still migrating, so the first page load proxied to a backend that could not answer.

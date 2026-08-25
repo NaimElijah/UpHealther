@@ -1,12 +1,15 @@
 package com.healthupgrades.common.adapter.out.audit;
 
 import com.healthupgrades.common.domain.audit.AuditEvent;
+import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.UUID;
 
@@ -47,30 +50,73 @@ public class LoggingAuditTrail implements AuditTrail {
     /**
      * {@inheritDoc}
      *
-     * <p>INFO, because an audit entry is a state transition rather than a fault — a refusal is the
-     * system working. The level policy is in
-     * {@code docs/ADRs/ADR-010-structured-logging-and-a-level-policy.md}.
+     * <p><b>An {@code ALLOWED} entry waits for the commit.</b> Every caller wraps the body of an
+     * {@code @Transactional} service method, so the work returns while its transaction is still open —
+     * the commit happens afterwards, in the proxy. No repository adapter flushes, so a {@code @Version}
+     * clash or a unique constraint losing a race is decided <em>at commit</em>, after the service method
+     * has returned. Writing the entry at that point would have the trail and the counter both claim an
+     * edit succeeded while the caller was answered 409 and nothing was persisted. Deferring it through
+     * the same {@code afterCommit} route {@code NotificationService} already uses is what makes
+     * "allowed" mean what {@code ADR-011} says it means.
      *
-     * <p>The counter is derived here rather than incremented separately at the call site so the two can
-     * never disagree about what happened. Its tags are the action key and the outcome, both closed
-     * enums: the actor and the resource are deliberately not tags, because a user id as a label is an
-     * unbounded cardinality and a metrics backend is the wrong place to look one up anyway.
+     * <p>Refusals and faults are written immediately and deliberately: they already describe an attempt
+     * that did not land, they are the security-relevant half, and a process that dies before commit
+     * should not take them with it.
      */
     @Override
     public void record(AuditEvent event) {
-        log.info("{} {} {} {} {}",
-                keyValue("action", event.action().key()),
-                keyValue("outcome", event.outcome()),
-                keyValue("resource", event.action().resource()),
-                keyValue("actorId", idOrNone(event.actorUserId())),
-                keyValue("resourceId", idOrNone(event.resourceId())));
+        if (event.outcome() == AuditOutcome.ALLOWED && TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    // afterCompletion rather than afterCommit, so a rollback is recorded rather than
+                    // leaving the attempt with no entry at all.
+                    write(status == STATUS_COMMITTED ? event : event.refused());
+                }
+            });
+            return;
+        }
+        write(event);
+    }
 
-        Counter.builder(COUNTER)
-                .description("Audited attempts, by what was attempted and how it ended")
-                .tag("action", event.action().key())
-                .tag("outcome", event.outcome().name())
-                .register(meterRegistry)
-                .increment();
+    /**
+     * Writes one entry, and never lets a failure to do so fail the work being audited.
+     *
+     * <p>The port says implementations must not throw, and this is where that is honoured. It matters
+     * most on the refusal path: {@code AuditTrail.recording} calls this from inside its catch block, so
+     * an exception escaping here would <em>replace</em> the business exception — turning a
+     * {@code BusinessRuleException} that should be a 422 into an unhandled 500 with the real cause lost.
+     *
+     * <p>The two halves are guarded separately so a meter failure still leaves the audit line, which is
+     * the half that matters. If the logging subsystem itself is what failed there is nowhere left to
+     * report it, and the second write will throw for the same reason the first did.
+     */
+    private void write(AuditEvent event) {
+        try {
+            log.info("{} {} {} {} {}",
+                    keyValue("action", event.action().key()),
+                    keyValue("outcome", event.outcome()),
+                    keyValue("resource", event.action().resource()),
+                    keyValue("actorId", idOrNone(event.actorUserId())),
+                    keyValue("resourceId", idOrNone(event.resourceId())));
+        } catch (RuntimeException unwritable) {
+            return; // Nothing can be reported about a broken logger, by a logger.
+        }
+
+        try {
+            // Derived from the same call as the line above, so the count and the trail cannot disagree.
+            // Tagged by action and outcome only: both are closed enums, whereas an actor or a resource
+            // id is an unbounded label, and a metrics backend is the wrong place to look one up anyway.
+            Counter.builder(COUNTER)
+                    .description("Audited attempts, by what was attempted and how it ended")
+                    .tag("action", event.action().key())
+                    .tag("outcome", event.outcome().name())
+                    .register(meterRegistry)
+                    .increment();
+        } catch (RuntimeException uncountable) {
+            log.error("{} was recorded but could not be counted",
+                    keyValue("action", event.action().key()), uncountable);
+        }
     }
 
     /**

@@ -45,6 +45,20 @@ reviews the next call site. An upgrade's title, a reflection's body and an email
 audited because they cannot be represented, and `AuditEventTest` asserts it by inspecting the record's
 components, so a future `String` field fails at the moment somebody adds it.
 
+**An `ALLOWED` entry waits for the commit; a refusal does not.** Every audited use case is an
+`@Transactional` service method and the recording happens inside the body, so the work returns while the
+transaction is still open — the commit happens afterwards, in the proxy. No repository adapter flushes,
+so a `@Version` clash or a unique constraint losing a race is decided *at commit*, after the body has
+returned. Writing `ALLOWED` at that point would have the trail and the counter both report an edit that
+was then rolled back and answered to the caller as a 409. `LoggingAuditTrail` therefore defers the
+`ALLOWED` entry through the same `afterCommit` route `NotificationService` already uses, and records the
+attempt as `REFUSED` if the transaction rolls back instead — the reason is not knowable at that point,
+and the likely causes are the database declining the write, so calling every one of them `FAILED` would
+drown the signal that outcome exists to raise. Refusals and faults are written immediately: they already
+describe an attempt that did not land, they are the security-relevant half, and a process that dies
+before commit should not take them with it. The deferral lives in the adapter because
+`TransactionSynchronizationManager` is Spring, and ArchUnit keeps the domain free of it.
+
 **Refusals are recorded, and the wrapper is what guarantees it.** `AuditTrail.recording(...)` runs the
 operation, records `ALLOWED` on return and the classified failure on the way out, and rethrows untouched.
 It is a default method on the port rather than a try/catch at each call site because a trail that records
@@ -81,7 +95,10 @@ everything else in the log, joined to the request by the same trace id. Adding a
 is a constant in `AuditAction` and a wrapper around a body. Nothing about the schema, the migrations or
 the aggregates changed, so nothing about them can have broken.
 
-**Harder.** The trail's retention is the log's retention, and today that is whatever `docker logs`
+**Harder.** An `ALLOWED` entry is now written from a transaction callback rather than from the call
+that produced it, so the code that decides *what* is recorded and the code that decides *when* sit in
+two different files — `AuditCommitIT` exists to keep that seam honest, and it fails if the deferral is
+removed. The trail's retention is the log's retention, and today that is whatever `docker logs`
 keeps — which is not a compliance story, and is written here so nobody assumes it is one. `AuditAction`
 is a file in `common` that a context edits when it adds an operation, a coupling accepted so that the
 whole vocabulary can be read in one place. And twenty-one use-case bodies now sit inside a lambda, so a

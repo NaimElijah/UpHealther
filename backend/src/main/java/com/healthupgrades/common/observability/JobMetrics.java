@@ -16,9 +16,10 @@ import org.springframework.stereotype.Component;
  * it still working", and {@code scheduled.job.duration} answers "is it about to stop finishing before
  * the next one starts".
  *
- * <p><b>The failure is rethrown, not handled.</b> Spring's scheduler already logs a task that threw, at
+ * <p><b>The failure is not caught at all.</b> Spring's scheduler already logs a task that threw, at
  * ERROR, through its default error handler — catching it here to log it again would produce two entries
- * for one fault and hide the stack trace behind a summary. This only counts it on the way past.
+ * for one fault and hide the stack trace behind a summary. Nothing is caught here, so nothing can be
+ * swallowed or silently reclassified on the way past.
  *
  * <p>The job name is a tag, so it is a closed set by construction: the constants live beside the
  * {@code @Scheduled} methods that use them and there are three of them. Nothing per-user or per-record
@@ -40,16 +41,22 @@ public class JobMetrics {
      *
      * @param job  the job's stable name, used as a metric tag
      * @param work the job body
-     * @throws RuntimeException whatever the job threw, untouched, so the scheduler still reports it
+     * @throws RuntimeException whatever the job threw, untouched, so the scheduler still reports it. An
+     *         {@link Error} propagates the same way and is counted as a failure, not as a clean run
      */
     public void timed(String job, Runnable work) {
         Timer.Sample sample = Timer.start(meterRegistry);
-        String outcome = OK;
+        // Pessimistic, and set to OK only once the body has actually returned. Deciding the outcome in a
+        // catch means choosing which throwables to catch, and anything not chosen - an Error, so
+        // NoClassDefFoundError, ExceptionInInitializerError and OutOfMemoryError - would walk past the
+        // assignment into the finally below and be counted as a clean run. That is the exact failure
+        // this class exists to surface: a scheduled job answers nobody with a 500, so this counter is
+        // the only signal there is, and it would sit at zero failures while the sweep had not worked
+        // for a week.
+        String outcome = FAILED;
         try {
             work.run();
-        } catch (RuntimeException thrown) {
-            outcome = FAILED;
-            throw thrown;
+            outcome = OK;
         } finally {
             sample.stop(Timer.builder(DURATION)
                     .description("How long a scheduled run took")

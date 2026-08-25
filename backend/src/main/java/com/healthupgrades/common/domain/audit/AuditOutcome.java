@@ -33,6 +33,13 @@ public enum AuditOutcome {
      * added later and forgotten here is recorded {@link #FAILED} — visibly wrong in a dashboard rather
      * than silently miscounted.
      *
+     * <p>Note what does <em>not</em> arrive here: a {@code @Version} clash decided at commit. No
+     * repository adapter flushes, so that exception is thrown by the transaction proxy after the
+     * service method has returned — outside any call this classifier sees. The audit adapter handles it
+     * on the rollback path instead, which is why {@code OptimisticLockException} being listed below is
+     * about keeping this function total over the domain's vocabulary for "no", not about a path that
+     * reaches it today.
+     *
      * @param thrown what the operation threw
      * @return {@link #REFUSED} for a decision, {@link #FAILED} for a fault
      */

@@ -35,8 +35,15 @@ class AuditOutcomeTest {
                 .isEqualTo(AuditOutcome.REFUSED);
     }
 
+    /**
+     * Pins the classifier, not a live path. A version clash is decided at commit, after the service
+     * method has returned, so it never reaches {@code AuditOutcome.of} — {@code LoggingAuditTrail}
+     * records it on the rollback path instead ({@code AuditCommitIT}). This keeps the function total
+     * over the four exceptions that make up the domain's vocabulary for "no", so that a future throw
+     * site is classified correctly the day it appears rather than counted as a fault.
+     */
     @Test
-    void GivenALostConcurrentEdit_WhenTheOutcomeIsClassified_ThenItIsARefusal() {
+    void GivenTheDomainsOptimisticLockException_WhenItIsClassified_ThenItCountsAsARefusal() {
         assertThat(AuditOutcome.of(new OptimisticLockException("version clash")))
                 .isEqualTo(AuditOutcome.REFUSED);
     }
