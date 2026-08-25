@@ -238,6 +238,18 @@ Three places are worth knowing about because they were silent and are no longer:
   durable; the failure is now reported at WARN and the caller carries on, where before one unreachable
   session cancelled everybody else's reminders for that minute.
 
+### In the browser
+
+The SPA has no log sink and no telemetry, which `architecture.md` states elsewhere as a position rather
+than an omission — so a browser-side failure can be *shown* and not *recorded*, and there is no
+`console` call in any committed file.
+
+What it can do is hand the user something to quote. `api/apiError.ts` decodes the backend's error
+contract once, reading the trace id from the error body and falling back to the `X-Trace-Id` header —
+a request refused inside the security chain carries the header alone. `ui/ErrorState` renders it.
+`ErrorBoundary`, mounted inside `ThemeProvider` and around the router, catches a render-time throw so
+it becomes a themed, reloadable message instead of a blank page.
+
 ### Audit
 
 `AuditTrail` is an outbound port in `common/domain/port/out/`, beside `DomainEventPublisher` and

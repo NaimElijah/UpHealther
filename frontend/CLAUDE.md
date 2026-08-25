@@ -27,6 +27,10 @@ conventions to follow inside `frontend/`.
   a user can quote one string that finds their request in the log, and discarding it is what left a
   support conversation with nothing in it. `toApiError` reads the body first and the header second,
   because a request refused inside the security chain carries the header alone.
+- **`components/ErrorBoundary`** is mounted in `App.tsx` inside `ThemeProvider` and around the router:
+  inside so its fallback is themed, outside so a throw in any page is contained. It has to stay a
+  class — `getDerivedStateFromError` has no hooks equivalent. It shows and does not record: there is
+  no sink to record to, and adding one is a decision about sending user data off the device.
 - **Server state** is managed by TanStack Query (`@tanstack/react-query`); avoid duplicating it in
   local React state.
 - **Auth** flows through `contexts/AuthContext.tsx` (the context object lives in `contexts/authContextValue.ts`)
