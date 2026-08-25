@@ -34,6 +34,10 @@ services:
       # a person, and `docker logs` is the only sink here - there is no file appender and no volume.
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-json-logs}
       LOG_LEVEL_APP: ${LOG_LEVEL_APP:-INFO}
+      # Boot prints its banner straight to stdout before the logging system exists, so logback cannot
+      # format it: nine unparseable lines ahead of every restart's JSON. Off here and nowhere else -
+      # a local run still gets it, and there it is a person reading rather than a parser.
+      SPRING_MAIN_BANNER_MODE: "off"
     depends_on:
       postgres:
         condition: service_healthy
