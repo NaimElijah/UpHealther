@@ -1,6 +1,8 @@
 package com.healthupgrades.healtharea.application;
 
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.common.domain.audit.AuditAction;
+import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.healtharea.application.port.in.HealthAreaDetails;
 import com.healthupgrades.healtharea.application.port.in.HealthAreaQuery;
 import com.healthupgrades.healtharea.domain.model.HealthArea;
@@ -23,6 +25,7 @@ import java.util.UUID;
 public class HealthAreaService implements HealthAreaQuery {
 
     private final HealthAreaRepositoryPort repository;
+    private final AuditTrail auditTrail; // records the attempt, allowed or refused
 
     /**
      * Creates a health area owned by the given user.
@@ -33,15 +36,18 @@ public class HealthAreaService implements HealthAreaQuery {
      */
     @Transactional
     public HealthArea create(UUID userId, HealthAreaDetails details) {
-        HealthArea area = HealthArea.builder()
-                .userId(userId)
-                .name(details.name())
-                .description(details.description())
-                .priority(details.priority())
-                .icon(details.icon())
-                .color(details.color())
-                .build();
-        return repository.save(area);
+        // No resource id yet: the area does not exist until the save below returns.
+        return auditTrail.recording(AuditAction.AREA_CREATE, userId, null, () -> {
+            HealthArea area = HealthArea.builder()
+                    .userId(userId)
+                    .name(details.name())
+                    .description(details.description())
+                    .priority(details.priority())
+                    .icon(details.icon())
+                    .color(details.color())
+                    .build();
+            return repository.save(area);
+        });
     }
 
     /**
@@ -67,13 +73,15 @@ public class HealthAreaService implements HealthAreaQuery {
      */
     @Transactional
     public HealthArea update(UUID userId, UUID id, HealthAreaDetails details) {
-        HealthArea area = getOwnedArea(userId, id);
-        area.setName(details.name());
-        area.setDescription(details.description());
-        area.setPriority(details.priority());
-        area.setIcon(details.icon());
-        area.setColor(details.color());
-        return repository.save(area);
+        return auditTrail.recording(AuditAction.AREA_UPDATE, userId, id, () -> {
+            HealthArea area = getOwnedArea(userId, id);
+            area.setName(details.name());
+            area.setDescription(details.description());
+            area.setPriority(details.priority());
+            area.setIcon(details.icon());
+            area.setColor(details.color());
+            return repository.save(area);
+        });
     }
 
     /**
@@ -89,7 +97,8 @@ public class HealthAreaService implements HealthAreaQuery {
      */
     @Transactional
     public void delete(UUID userId, UUID id) {
-        repository.delete(getOwnedArea(userId, id));
+        auditTrail.recording(AuditAction.AREA_DELETE, userId, id,
+                () -> repository.delete(getOwnedArea(userId, id)));
     }
 
     /**

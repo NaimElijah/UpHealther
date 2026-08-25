@@ -1,12 +1,18 @@
 package com.healthupgrades.auth.application;
 
+import com.healthupgrades.common.domain.audit.AuditAction;
+import com.healthupgrades.common.domain.audit.AuditEvent;
+import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
+import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.common.security.JwtTokenProvider;
 import com.healthupgrades.user.application.port.in.UserCommand;
 import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.User;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AccountStatusException;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -27,6 +33,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder; // BCrypt encoder
     private final JwtTokenProvider tokenProvider; // issues JWTs
     private final AuthenticationManager authenticationManager; // verifies credentials on login
+    private final AuditTrail auditTrail; // records who signed in, and who was turned away
 
     /**
      * Registers a new user and issues a token for them.
@@ -41,16 +48,25 @@ public class AuthService {
      */
     @Transactional
     public AuthResult register(String name, String email, String password) {
-        if (userQuery.existsByEmail(email)) {
-            throw new BusinessRuleException("Email already registered: " + email);
+        // Recorded by hand rather than through AuditTrail.recording, because until the save returns
+        // there is no user id to name as the actor, and the email that would identify the attempt is
+        // exactly what NFR-6 says must not be written down.
+        try {
+            if (userQuery.existsByEmail(email)) {
+                throw new BusinessRuleException("Email already registered: " + email);
+            }
+            User user = User.builder()
+                    .name(name)
+                    .email(email)
+                    .passwordHash(passwordEncoder.encode(password)) // never store the raw password
+                    .build();
+            user = userCommand.save(user);
+            auditTrail.record(AuditEvent.allowed(AuditAction.AUTH_REGISTER, user.getId(), user.getId()));
+            return new AuthResult(tokenProvider.generateToken(user.getEmail()), user);
+        } catch (RuntimeException thrown) {
+            auditTrail.record(AuditEvent.from(AuditAction.AUTH_REGISTER, null, null, thrown));
+            throw thrown;
         }
-        User user = User.builder()
-                .name(name)
-                .email(email)
-                .passwordHash(passwordEncoder.encode(password)) // never store the raw password
-                .build();
-        user = userCommand.save(user);
-        return new AuthResult(tokenProvider.generateToken(user.getEmail()), user);
     }
 
     /**
@@ -64,10 +80,25 @@ public class AuthService {
      *         only reachable if the account is deleted mid-request
      */
     public AuthResult login(String email, String password) {
-        authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(email, password)); // throws on bad creds
-        User user = userQuery.findByEmail(email)
-                .orElseThrow(() -> new BusinessRuleException("User not found"));
-        return new AuthResult(tokenProvider.generateToken(user.getEmail()), user);
+        try {
+            authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(email, password)); // throws on bad creds
+            User user = userQuery.findByEmail(email)
+                    .orElseThrow(() -> new BusinessRuleException("User not found"));
+            auditTrail.record(AuditEvent.allowed(AuditAction.AUTH_LOGIN, user.getId(), user.getId()));
+            return new AuthResult(tokenProvider.generateToken(user.getEmail()), user);
+        } catch (BadCredentialsException | AccountStatusException refused) {
+            // A refused login is recorded with no subject at all. The submitted email is personal data
+            // (NFR-6) and there is no user id to name, because naming one would mean confirming that
+            // the account exists. What survives is the count and the trace id — a rate signal, not an
+            // attribution, which is the honest limit of auditing an anonymous endpoint.
+            auditTrail.record(new AuditEvent(AuditAction.AUTH_LOGIN, null, null, AuditOutcome.REFUSED));
+            throw refused;
+        } catch (RuntimeException thrown) {
+            // Everything else is a fault, not a rejection - the same distinction GlobalExceptionHandler
+            // draws when it refuses to report a database outage to the user as a wrong password.
+            auditTrail.record(AuditEvent.from(AuditAction.AUTH_LOGIN, null, null, thrown));
+            throw thrown;
+        }
     }
 
     /**

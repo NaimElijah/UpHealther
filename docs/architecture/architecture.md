@@ -222,6 +222,26 @@ carries personal data — ids and enum values only, never a title, an email, a n
 [ADR-010](../ADRs/ADR-010-structured-logging-and-a-level-policy.md) records the format decision and the
 policy.
 
+### Audit
+
+`AuditTrail` is an outbound port in `common/domain/port/out/`, beside `DomainEventPublisher` and
+cross-cutting for the same reason. Every state-changing use case and both authentication outcomes record
+through it; `LoggingAuditTrail` writes them to a logger named `AUDIT` at INFO, and derives the
+`audit.events{action,outcome}` counter from the same call so the two cannot disagree.
+
+An entry is `(action, actorUserId, resourceId, outcome)` — two enums and two identifiers, with **nowhere
+to put free text**, which is how NFR-6 survives contact with twenty-one new call sites. Services record
+through `AuditTrail.recording(...)`, which brackets the operation and records the refusal as well as the
+success: BR-15 answers an attempt on somebody else's record with a `404`, so the trail is the only place
+that attempt exists at all. `REFUSED` (the system said no) and `FAILED` (the system broke) are separate
+outcomes because they need separate reactions.
+
+There is no audit table. An entry has to outlive the transaction it observes — a refused transition
+rolls back, and a row written inside it would roll back too — and the trace id already on the line joins
+the entry to its request without a foreign key.
+[ADR-011](../ADRs/ADR-011-audit-as-a-log-stream.md) records the decision, what is deliberately not
+audited, and what would reverse it.
+
 ## External dependencies and integration points
 
 **There are no third-party APIs.** Nothing leaves the deployment: no payment provider, no email or
@@ -358,6 +378,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Which of the four test levels a new test belongs at, and why coverage is reported rather than gated | [ADR-009](../ADRs/ADR-009-test-levels-boundaries-and-naming.md) |
 | Why correlation is Micrometer Tracing rather than a hand-rolled request id; why there is no exporter | [ADR-007](../ADRs/ADR-007-request-correlation-through-micrometer-tracing.md) |
 | Why logs are JSON in a container but not locally; what each level means; why nothing personal may be logged | [ADR-010](../ADRs/ADR-010-structured-logging-and-a-level-policy.md) |
+| Why the audit trail is a log stream rather than a table or Envers; why refusals are recorded; what is not audited | [ADR-011](../ADRs/ADR-011-audit-as-a-log-stream.md) |
 | Why every page shares one width; why the shell can be trusted not to overflow; why container queries and a native `<dialog>` were turned down | [ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |

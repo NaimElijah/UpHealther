@@ -7,8 +7,10 @@ import com.healthupgrades.healtharea.domain.port.out.HealthAreaRepositoryPort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import com.healthupgrades.support.RecordingAuditTrail;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
@@ -44,6 +46,8 @@ class HealthAreaServiceTest {
     private final UUID otherUserId = UUID.randomUUID();
 
     @Mock HealthAreaRepositoryPort repository;
+    /** A real implementation, not a mock: AuditTrail.recording is a default method. */
+    @Spy RecordingAuditTrail auditTrail = new RecordingAuditTrail();
 
     @InjectMocks HealthAreaService service;
 
