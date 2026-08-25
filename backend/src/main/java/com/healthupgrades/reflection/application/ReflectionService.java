@@ -1,5 +1,7 @@
 package com.healthupgrades.reflection.application;
 
+import com.healthupgrades.common.domain.audit.AuditAction;
+import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.reflection.domain.event.ReflectionAdded;
 import com.healthupgrades.reflection.application.port.in.ReflectionDetails;
@@ -29,6 +31,7 @@ public class ReflectionService {
     private final ReflectionRepositoryPort repository;
     private final UpgradeQuery upgradeQuery;
     private final DomainEventPublisher eventPublisher;
+    private final AuditTrail auditTrail; // records the attempt, allowed or refused
     private final Clock clock; // decides the date a reflection defaults to
 
     /**
@@ -46,20 +49,24 @@ public class ReflectionService {
      */
     @Transactional
     public Reflection create(UUID userId, UUID upgradeId, ReflectionDetails details) {
-        upgradeQuery.getOwnedUpgrade(userId, upgradeId);
-        Reflection reflection = Reflection.builder()
-                .upgradeId(upgradeId)
-                .userId(userId)
-                .date(details.date() != null ? details.date() : LocalDate.now(clock))
-                .difficultyRating(details.difficultyRating())
-                .benefitRating(details.benefitRating())
-                .whatWorked(details.whatWorked())
-                .whatDidNotWork(details.whatDidNotWork())
-                .nextAdjustment(details.nextAdjustment())
-                .build();
-        reflection = repository.save(reflection);
-        eventPublisher.publish(new ReflectionAdded(reflection.getId(), upgradeId, userId, LocalDateTime.now()));
-        return reflection;
+        // Audited against the upgrade reflected on: the reflection has no id until it is saved, and
+        // the upgrade is the record whose history somebody would be reconstructing.
+        return auditTrail.recording(AuditAction.REFLECTION_CREATE, userId, upgradeId, () -> {
+            upgradeQuery.getOwnedUpgrade(userId, upgradeId);
+            Reflection reflection = Reflection.builder()
+                    .upgradeId(upgradeId)
+                    .userId(userId)
+                    .date(details.date() != null ? details.date() : LocalDate.now(clock))
+                    .difficultyRating(details.difficultyRating())
+                    .benefitRating(details.benefitRating())
+                    .whatWorked(details.whatWorked())
+                    .whatDidNotWork(details.whatDidNotWork())
+                    .nextAdjustment(details.nextAdjustment())
+                    .build();
+            Reflection saved = repository.save(reflection);
+            eventPublisher.publish(new ReflectionAdded(saved.getId(), upgradeId, userId, LocalDateTime.now()));
+            return saved;
+        });
     }
 
     /**

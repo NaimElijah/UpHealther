@@ -72,6 +72,30 @@ side. Both are deliberate, not drift.
   back only where it leaves the process, through `CorrelationId.of(tracer)`, which handles the three
   shapes of "no id". See `../docs/ADRs/ADR-007-request-correlation-through-micrometer-tracing.md`.
 
+- **A log level is a claim about who has to act.** `ERROR` is a fault somebody must act on now, `WARN`
+  is degraded but still serving, `INFO` is a state transition, `DEBUG` is for a developer reading
+  along. `com.healthupgrades` runs at `INFO`, so a `DEBUG` line is invisible in any deployment until
+  someone sets `LOG_LEVEL_APP` — write one only where that is the right answer.
+
+  **Nothing personal goes in a log line**: ids and enum values, never a title, an email, a reflection
+  body, a progress note or an IP address. That is NFR-6, and it applies to the message *and* to
+  anything handed to a `{}` placeholder. The output format is chosen by the `json-logs` profile in
+  `src/main/resources/logback-spring.xml`; do not write a `<pattern>` there, because Boot's imported
+  `defaults.xml` is what puts the trace id on a plain-text line. See
+  `../docs/ADRs/ADR-010-structured-logging-and-a-level-policy.md`.
+
+- **A state change is recorded through `AuditTrail`, not through a `log.info`.** Every state-changing
+  use case wraps its body in `auditTrail.recording(action, userId, resourceId, ...)`, which records the
+  attempt whether it succeeded or was refused — a refusal is the entry somebody actually goes looking
+  for, and BR-15 means an attempt on another user's record leaves no other trace. Adding an operation
+  means adding a constant to `AuditAction` (in `common`, deliberately: one vocabulary, readable in one
+  place) and wrapping the body; it does **not** mean a new log statement.
+
+  `AuditEvent` holds two enums and two identifiers and nothing else, so there is nowhere to put a title
+  or an email even by accident. Keep it that way — `AuditEventTest` fails the build on a field that
+  could hold free text. The same bound applies to metric tags: an action and an outcome are closed sets,
+  a user id is not. See `../docs/ADRs/ADR-011-audit-as-a-log-stream.md`.
+
 - **Optimistic locking** via `@Version` on entities (e.g. `HealthUpgrade.version`) → concurrent edits
   return 409.
 

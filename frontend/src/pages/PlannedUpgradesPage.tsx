@@ -9,6 +9,8 @@ import Button from '../components/ui/Button';
 import { useNavigate } from 'react-router-dom';
 import type { UpgradeStatus } from '../types';
 import PageContainer from '../components/ui/PageContainer';
+import ErrorState from '../components/ui/ErrorState';
+import { toApiError } from '../api/apiError';
 
 /**
  * Upgrades committed to a start date but not yet running, soonest first.
@@ -33,7 +35,7 @@ const PlannedUpgradesPage: React.FC = () => {
   });
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
-  if (error) return <p className="text-danger-fg text-center py-10">Failed to load upgrades.</p>;
+  if (error) return <ErrorState title="Could not load your upgrades." error={toApiError(error)} />;
 
   return (
     <PageContainer>

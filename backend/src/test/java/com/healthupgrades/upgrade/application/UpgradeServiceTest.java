@@ -5,6 +5,9 @@ import com.healthupgrades.upgrade.domain.event.HealthUpgradeActivated;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradeCompleted;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradeCreated;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradePlanned;
+import com.healthupgrades.common.domain.audit.AuditAction;
+import com.healthupgrades.common.domain.audit.AuditEvent;
+import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.upgrade.application.port.in.UpgradeDetails;
@@ -13,6 +16,7 @@ import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.model.UpgradeType;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
+import com.healthupgrades.support.RecordingAuditTrail;
 import com.healthupgrades.upgrade.domain.service.UpgradeSchedulingService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -57,6 +61,8 @@ class UpgradeServiceTest {
     private final UpgradeSchedulingService schedulingService = new UpgradeSchedulingService();
 
     private UpgradeService service;
+    /** A real implementation, not a mock: AuditTrail.recording is a default method. */
+    private final RecordingAuditTrail auditTrail = new RecordingAuditTrail();
 
     private final UUID userId = UUID.randomUUID();
     private final UUID upgradeId = UUID.randomUUID();
@@ -65,7 +71,7 @@ class UpgradeServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new UpgradeService(repository, schedulingService, eventPublisher, fixedClock);
+        service = new UpgradeService(repository, schedulingService, eventPublisher, auditTrail, fixedClock);
     }
 
     private HealthUpgrade upgradeWith(UpgradeStatus status, Difficulty difficulty) {
@@ -392,5 +398,45 @@ class UpgradeServiceTest {
         when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.empty());
 
         assertThat(service.findOwned(userId, upgradeId)).isEmpty();
+    }
+
+    // ---- The audit trail ----
+
+    @Test
+    void GivenARunningUpgrade_WhenItIsCompleted_ThenTheTransitionIsAuditedAgainstItsOwner() {
+        HealthUpgrade upgrade = upgradeWith(UpgradeStatus.ACTIVE, Difficulty.EASY);
+        when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.of(upgrade));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.complete(userId, upgradeId);
+
+        assertThat(auditTrail.only(AuditAction.UPGRADE_COMPLETE)).hasValue(
+                new AuditEvent(AuditAction.UPGRADE_COMPLETE, userId, upgradeId, AuditOutcome.ALLOWED));
+    }
+
+    @Test
+    void GivenACompletedUpgrade_WhenItIsPaused_ThenTheRefusalIsAuditedRatherThanLost() {
+        // The half of the trail that is easy to leave out: nothing changed, nothing was published, and
+        // an attempt to move a terminal upgrade is exactly the entry somebody would come looking for.
+        when(repository.findByIdAndUserId(upgradeId, userId))
+                .thenReturn(Optional.of(upgradeWith(UpgradeStatus.COMPLETED, Difficulty.EASY)));
+
+        assertThatThrownBy(() -> service.pause(userId, upgradeId))
+                .isInstanceOf(BusinessRuleException.class);
+
+        assertThat(auditTrail.only(AuditAction.UPGRADE_PAUSE)).hasValue(
+                new AuditEvent(AuditAction.UPGRADE_PAUSE, userId, upgradeId, AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenAnUpgradeOwnedBySomebodyElse_WhenItIsDeleted_ThenTheRefusedAttemptIsAudited() {
+        // BR-15 reports a foreign record as absent, so the response says nothing happened. The trail is
+        // the only place that records somebody having reached for a record that was not theirs.
+        when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.delete(userId, upgradeId))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        assertThat(auditTrail.recorded(AuditAction.UPGRADE_DELETE, AuditOutcome.REFUSED)).isTrue();
     }
 }

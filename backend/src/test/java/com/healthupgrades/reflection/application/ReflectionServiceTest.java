@@ -5,6 +5,7 @@ import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.reflection.application.port.in.ReflectionDetails;
 import com.healthupgrades.reflection.domain.event.ReflectionAdded;
 import com.healthupgrades.reflection.domain.model.Reflection;
+import com.healthupgrades.support.RecordingAuditTrail;
 import com.healthupgrades.reflection.domain.port.out.ReflectionRepositoryPort;
 import com.healthupgrades.support.AnUpgrade;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
@@ -57,10 +58,12 @@ class ReflectionServiceTest {
     @Mock DomainEventPublisher eventPublisher;
 
     private ReflectionService service;
+    /** A real implementation, not a mock: AuditTrail.recording is a default method. */
+    private final RecordingAuditTrail auditTrail = new RecordingAuditTrail();
 
     @BeforeEach
     void setUp() {
-        service = new ReflectionService(repository, upgradeQuery, eventPublisher, fixedClock);
+        service = new ReflectionService(repository, upgradeQuery, eventPublisher, auditTrail, fixedClock);
     }
 
     @Test

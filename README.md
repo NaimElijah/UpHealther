@@ -240,7 +240,35 @@ docker-compose up --build
 
 - Frontend: http://localhost:3000
 - Backend: http://localhost:8080
-- API docs: http://localhost:8080/actuator/health
+- Health: http://localhost:8080/actuator/health
+
+`docker-compose` waits for the backend to report **ready** before starting the frontend, so the first
+page load is never proxied to an API that is still migrating its schema.
+
+### Observability
+
+Logs go to stdout and nowhere else — `docker logs healthupgrades-backend` is the whole of it. Under
+compose they are **one JSON object per line**; a local `mvn spring-boot:run` gets Spring Boot's readable
+console pattern instead. `SPRING_PROFILES_ACTIVE=json-logs` is what switches between them, and
+`LOG_LEVEL_APP=DEBUG` turns this application's own packages up for a run.
+
+Every line carries a **trace id**, which is also returned as the `X-Trace-Id` response header and on the
+body of any error. It is the one thing worth quoting in a bug report:
+
+```bash
+docker logs healthupgrades-backend | grep <the id from the error>
+```
+
+Two streams are worth knowing about:
+
+| What | Where |
+|---|---|
+| Who did what, and whether it was allowed | the `AUDIT` logger — `action`, `outcome`, `actorId`, `resourceId` |
+| Latency, error rate, saturation, pool depth, audit and job counters | http://localhost:8080/actuator/prometheus |
+
+`/actuator` serves **only** `health`, `info` and `prometheus`; anything else answers 404 by design.
+Liveness and readiness are separate: http://localhost:8080/actuator/health/liveness and
+`/actuator/health/readiness`.
 
 ### Demo Account
 
@@ -308,7 +336,14 @@ cd frontend && npm run test:coverage
 | `POSTGRES_USER` | `healthupgrades` | PostgreSQL username |
 | `POSTGRES_PASSWORD` | `healthupgrades` | PostgreSQL password |
 | `DB_URL` | `jdbc:postgresql://localhost:5432/healthupgrades` | Full JDBC URL |
+| `DB_USERNAME` | `healthupgrades` | Database user the backend connects as |
+| `DB_PASSWORD` | `healthupgrades` | Password for that user |
 | `JWT_SECRET` | (default dev key) | JWT signing secret (change in production!) |
+| `SPRING_PROFILES_ACTIVE` | (empty; `json-logs` under compose) | `json-logs` switches log output to one JSON object per line |
+| `LOG_LEVEL_APP` | `INFO` | Level for this application's own packages. `DEBUG` to read along |
+| `UPGRADE_OVERDUE_CRON` | `0 0 8 * * *` | When the overdue sweep runs (server timezone) |
+| `NOTIFY_CHECKIN_CRON` | `0 0 18 * * *` | When the daily check-in nudge runs |
+| `NOTIFY_REMINDERS_CRON` | `0 * * * * *` | How often reminders are dispatched |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:3000` | Comma-separated origins allowed to call the API cross-origin (only needed when not using the dev/nginx `/api` proxy) |
 | `VITE_API_URL` | (empty) | Backend API URL for frontend. Leave empty to use the same-origin `/api` proxy (Vite in dev, nginx in prod) — recommended. Set only if the API is on another origin. |
 

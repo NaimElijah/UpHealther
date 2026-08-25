@@ -2,9 +2,9 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. Seventy of the seventy-seven entries below name a test — fifty-one distinct test
-classes and files between them. Four of the remaining seven name the command, workflow or script that
-*is* the check (NFR-11, NFR-12, NFR-13, NFR-18). The last three — FR-39, NFR-19 and NFR-20 — are
+rather than trusted. Eighty of the eighty-seven entries below name a test — sixty-one distinct
+test classes and files between them. Four of the remaining seven name the command, workflow or script
+that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18). The last three — FR-39, NFR-19 and NFR-20 — are
 verified by hand and say so, because each is about a rendered width, a colour or an overflow, and jsdom
 has no layout engine to observe any of them; §6 records what closing that gap would take.
 
@@ -161,6 +161,16 @@ nothing is shared between accounts.
 | NFR-19 | Text meets a 4.5:1 contrast ratio and control boundaries 3:1, in both themes | the token values in `frontend/src/index.css` — computed, not automatically re-checked; see §6 |
 | NFR-20 | The interface does not scroll horizontally at any window width from 320px upward, whatever a user has stored in it | the shell's `min-w-0` floors and the truncation rules on every user-supplied string ([ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md)) — checked by hand at 320, 360, 486, 684, 1040 and 1540px, see §6 |
 | NFR-21 | Every log line written while serving a request, running a scheduled job or handling a STOMP frame carries the same trace id; the id is returned as an `X-Trace-Id` response header and on the error body, and an inbound W3C `traceparent` is continued rather than replaced | `RequestCorrelationTest`, `CorrelationIT`, `StompTracingChannelInterceptorTest`, `ObservabilityConfig` ([ADR-007](../ADRs/ADR-007-request-correlation-through-micrometer-tracing.md)) |
+| NFR-22 | Log output is one JSON object per line in a container and Boot's readable pattern locally, and a line in either format carries its trace id | `LogOutputFormatTest`, `logback-spring.xml` ([ADR-010](../ADRs/ADR-010-structured-logging-and-a-level-policy.md)) |
+| NFR-23 | Every state-changing use case and every authentication outcome records who attempted what, against which record, and whether it was allowed — including the attempts that were refused, and never claiming as allowed work whose transaction then rolled back | `AuditTrailTest`, `LoggingAuditTrailTest`, `AuditCommitIT`, `UpgradeServiceTest`, `AuthServiceTest` ([ADR-011](../ADRs/ADR-011-audit-as-a-log-stream.md)) |
+| NFR-24 | An audit entry cannot carry personal data, because it has nowhere to put any: every field is an enum or an identifier, and a refused login is recorded with no subject at all | `AuditEventTest`, `AuthServiceTest` |
+| NFR-25 | Every scheduled run records how long it took, whether it finished, and what it did, so a job that has stopped working is distinguishable from one with nothing to do | `JobMetricsTest`, `NotificationSchedulerTest`, `UpgradeOverdueSchedulerTest` |
+| NFR-26 | A real-time push that cannot be delivered degrades to the stored notification and is reported, rather than failing the work that raised it | `StompNotificationPushAdapterTest` |
+| NFR-27 | Liveness and readiness are answerable separately, so "restart the process" and "stop routing to it" are distinguishable, and both images declare a health-check | `ActuatorEndpointsIT`, `backend/Dockerfile`, `docker-compose.yml` |
+| NFR-28 | Latency, error rate, saturation, connection-pool depth and the domain's own counters are readable from one scrape endpoint, and no metric tag is unbounded | `ActuatorEndpointsIT`, `LoggingAuditTrailTest`, `JobMetricsTest` ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) |
+| NFR-29 | The actuator surface is closed by name: only health, info and the metrics scrape answer, and an endpoint that would expose configuration or process memory does not | `ActuatorEndpointsIT` (env, heapdump, loggers, beans, mappings, configprops, threaddump) |
+| NFR-30 | A request that fails shows the user the trace id that finds it in the log, from the error body or the response header, and offers none when the request never reached the server | `apiError.test.ts`, `ErrorState.test.tsx` |
+| NFR-31 | A render-time error shows a recoverable message rather than blanking the page | `ErrorBoundary.test.tsx` |
 
 ---
 

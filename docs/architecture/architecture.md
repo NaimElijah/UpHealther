@@ -181,6 +181,8 @@ without waiting.
 
 ---
 
+## Observability
+
 ### Correlation
 
 Every unit of work runs inside an observation, and the trace id it carries is what joins a failure
@@ -202,6 +204,94 @@ controller or job is correlated without its author doing anything.
 [ADR-007](../ADRs/ADR-007-request-correlation-through-micrometer-tracing.md) records why this is
 Micrometer Tracing rather than a hand-rolled request id.
 
+### Logging
+
+`docker logs` is the only sink. There is no file appender, no log volume and no aggregator, so a line
+that is not on stdout does not exist.
+
+`logback-spring.xml` renders that stdout in one of two formats, chosen by profile: Boot's readable
+console pattern by default, and one JSON object per line under `json-logs`, which `docker-compose`
+sets. The plain-text branch imports Boot's `defaults.xml` rather than defining a pattern, because that
+import is what carries `${LOG_CORRELATION_PATTERN}` — and therefore the trace id — into the output;
+`LogOutputFormatTest` renders through the real encoder in both formats so that losing it fails a build.
+
+Levels are load-bearing rather than decorative: **ERROR** is a fault a person must act on now, **WARN**
+is degraded but still serving, **INFO** is a state transition, and **DEBUG** is for a developer reading
+along. `com.healthupgrades` runs at INFO and is turned up for one run with `LOG_LEVEL_APP`. No log line
+carries personal data — ids and enum values only, never a title, an email, a note or an IP.
+[ADR-010](../ADRs/ADR-010-structured-logging-and-a-level-policy.md) records the format decision and the
+policy.
+
+Three places are worth knowing about because they were silent and are no longer:
+
+- **The scheduled jobs.** Each run is wrapped by `JobMetrics`, which times it and counts its outcome,
+  and each writes one INFO line saying what it found and what it did. A sweep that has been throwing
+  for a week used to look exactly like a sweep with nothing to do. The failure is rethrown rather than
+  handled, because Spring's scheduler already logs a task that threw and two entries for one fault is
+  worse than one. `dispatchReminders` stays silent when nothing is due — otherwise it writes a line a
+  minute, all night, and buries the runs that did something.
+- **The security boundary.** A rejected token is DEBUG with its exception type and never its message,
+  which can quote the token back. A validly signed token naming an account that no longer exists is
+  WARN: the signature was ours, so this is not ordinary expiry. Neither line names a subject, because
+  the only handle available is the email.
+- **A failed real-time push.** It runs from an `afterCommit` callback, so the notification is already
+  durable; the failure is now reported at WARN and the caller carries on, where before one unreachable
+  session cancelled everybody else's reminders for that minute.
+
+### In the browser
+
+The SPA has no log sink and no telemetry, which `architecture.md` states elsewhere as a position rather
+than an omission — so a browser-side failure can be *shown* and not *recorded*, and there is no
+`console` call in any committed file.
+
+What it can do is hand the user something to quote. `api/apiError.ts` decodes the backend's error
+contract once, reading the trace id from the error body and falling back to the `X-Trace-Id` header —
+a request refused inside the security chain carries the header alone. `ui/ErrorState` renders it.
+`ErrorBoundary`, mounted inside `ThemeProvider` and around the router, catches a render-time throw so
+it becomes a themed, reloadable message instead of a blank page.
+
+### Audit
+
+`AuditTrail` is an outbound port in `common/domain/port/out/`, beside `DomainEventPublisher` and
+cross-cutting for the same reason. Every state-changing use case and both authentication outcomes record
+through it; `LoggingAuditTrail` writes them to a logger named `AUDIT` at INFO, and derives the
+`audit.events{action,outcome}` counter from the same call so the two cannot disagree.
+
+An entry is `(action, actorUserId, resourceId, outcome)` — two enums and two identifiers, with **nowhere
+to put free text**, which is how NFR-6 survives contact with twenty-one new call sites. Services record
+through `AuditTrail.recording(...)`, which brackets the operation and records the refusal as well as the
+success: BR-15 answers an attempt on somebody else's record with a `404`, so the trail is the only place
+that attempt exists at all. `REFUSED` (the system said no) and `FAILED` (the system broke) are separate
+outcomes because they need separate reactions.
+
+There is no audit table. An entry has to outlive the transaction it observes — a refused transition
+rolls back, and a row written inside it would roll back too — and the trace id already on the line joins
+the entry to its request without a foreign key.
+[ADR-011](../ADRs/ADR-011-audit-as-a-log-stream.md) records the decision, what is deliberately not
+audited, and what would reverse it.
+
+### Metrics and health
+
+`/actuator/prometheus` is the whole of the monitoring surface: request latency and error rate, JVM and
+connection-pool saturation, `audit.events{action,outcome}` and `scheduled.job.runs{job,outcome}` with
+its duration timer. It is a pull endpoint, so it needs no collector to exist before it is useful — and
+nothing scrapes it today, which is a deliberate stopping point rather than an omission.
+
+**No metric tag may be unbounded.** An action, an outcome, a job name and a status are closed sets; a
+user id, an upgrade title and a raw path are not.
+
+The exposed endpoint set is stated by name — `health,info,prometheus` — because `/actuator/**` is
+`permitAll`, so the exposure list is the only thing standing between a reader and `/actuator/env`.
+`ActuatorEndpointsIT` asserts the negative: `env`, `heapdump`, `loggers`, `beans`, `mappings`,
+`configprops` and `threaddump` answer `404`.
+
+Liveness and readiness are separate, because an orchestrator acts on them differently — a failed
+liveness probe means restart the process, a failed readiness probe means stop sending it traffic, and
+restarting a process that cannot reach its database fixes nothing. Both images declare a `HEALTHCHECK`
+against readiness, and the frontend waits for the backend to be *healthy* rather than merely started.
+[ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md) records the decisions,
+including why the management endpoints are not on a separate port.
+
 ## External dependencies and integration points
 
 **There are no third-party APIs.** Nothing leaves the deployment: no payment provider, no email or
@@ -216,8 +306,9 @@ push service, no analytics, no AI service.
 
 Integration points a maintainer will need:
 
-- **`/actuator/health`** — the backend's health endpoint, unauthenticated, and what the compose
-  health-check polls.
+- **`/actuator/health`, `/actuator/health/{liveness,readiness}`, `/actuator/info`,
+  `/actuator/prometheus`** — the backend's operational surface, unauthenticated and closed to these by
+  name. The compose and image health-checks poll **readiness**. Nothing else under `/actuator` answers.
 - **Environment variables** — `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET` are required in any
   real deployment; `CORS_ALLOWED_ORIGINS` and `VITE_API_URL` only matter when frontend and API are on
   different origins. The cron expressions are overridable per environment. `.env.example` lists them
@@ -322,6 +413,25 @@ Stated because they are load-bearing, not because they are problems yet:
   so a container error dispatch to `/error` runs outside the observation scope entirely. Nothing logs
   on either path today. Closing the first means configuring an `AuthenticationEntryPoint`, which is its
   own wire-contract change.
+- **`docker logs` is the only sink, and its retention is the audit trail's retention.** There is no
+  file appender, no log volume and no aggregator, so a line that has aged out of the container's log
+  is gone — including the audit entries. That is adequate for diagnosis and is explicitly *not* a
+  compliance story ([ADR-011](../ADRs/ADR-011-audit-as-a-log-stream.md)).
+- **Nothing scrapes `/actuator/prometheus`, and no trace leaves the process.** The metrics endpoint is
+  correct and unread, and sampling is at 1.0 with no exporter configured. Both are deliberate stopping
+  points rather than omissions: the missing piece in each case is a deployment somebody is paged for
+  ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md),
+  [ADR-007](../ADRs/ADR-007-request-correlation-through-micrometer-tracing.md)).
+- **A browser-side error can be shown but not recorded.** The SPA has no telemetry and no log sink, so
+  `ErrorBoundary` can put a message on the screen and nothing else knows it happened. Adding a
+  reporting endpoint is a decision about sending user data off the device, not a logging change.
+- **A commit-time rollback is audited as a refusal, whatever caused it.** An `ALLOWED` entry is
+  deferred to the commit, so work that rolls back is recorded — but `afterCompletion` does not say why,
+  and an optimistic-lock clash, a lost unique-constraint race and an infrastructure failure at commit
+  are indistinguishable there. All three are recorded `REFUSED`.
+- **A refused login is a rate signal, not an attribution.** The audit entry deliberately names no
+  subject, so the trail cannot say whose account was targeted and will not support a lockout policy as
+  written.
 
 ---
 
@@ -336,6 +446,10 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the frontend tests with Vitest rather than Jest; why Vitest is pinned to 3; why there is still no accessibility gate | [ADR-004](../ADRs/ADR-004-frontend-test-harness.md) |
 | Why the integration tests start their own database instead of being handed one; why not H2 | [ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md) |
 | Which of the four test levels a new test belongs at, and why coverage is reported rather than gated | [ADR-009](../ADRs/ADR-009-test-levels-boundaries-and-naming.md) |
+| Why correlation is Micrometer Tracing rather than a hand-rolled request id; why there is no exporter | [ADR-007](../ADRs/ADR-007-request-correlation-through-micrometer-tracing.md) |
+| Why logs are JSON in a container but not locally; what each level means; why nothing personal may be logged | [ADR-010](../ADRs/ADR-010-structured-logging-and-a-level-policy.md) |
+| Why the audit trail is a log stream rather than a table or Envers; why refusals are recorded; what is not audited | [ADR-011](../ADRs/ADR-011-audit-as-a-log-stream.md) |
+| Why metrics are a scrape endpoint and not an exporter or a Grafana stack; why the actuator surface is closed by name | [ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md) |
 | Why every page shares one width; why the shell can be trusted not to overflow; why container queries and a native `<dialog>` were turned down | [ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |

@@ -30,14 +30,20 @@ services:
       DB_USERNAME: ${POSTGRES_USER:-healthupgrades}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-healthupgrades}
       JWT_SECRET: ${JWT_SECRET:-change-this-secret-in-production-must-be-256-bits-long-random}
+      # Selects the JSON encoder in logback-spring.xml. A container's log is read by a machine before
+      # a person, and `docker logs` is the only sink here - there is no file appender and no volume.
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-json-logs}
+      LOG_LEVEL_APP: ${LOG_LEVEL_APP:-INFO}
+      # Boot prints its banner straight to stdout before the logging system exists, so logback cannot
+      # format it: nine unparseable lines ahead of every restart's JSON. Off here and nowhere else -
+      # a local run still gets it, and there it is a person reading rather than a parser.
+      SPRING_MAIN_BANNER_MODE: "off"
     depends_on:
       postgres:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+    # No healthcheck here: backend/Dockerfile declares one against the readiness probe and compose uses
+    # the image's. Restating it gave two sources of truth for one probe, and they had already drifted
+    # apart on the day they were written - the image said timeout 5s / 3 retries, this said 10s / 5.
 
   frontend:
     build:
@@ -46,8 +52,12 @@ services:
     container_name: healthupgrades-frontend
     ports:
       - "3000:80"
+    # As above: frontend/Dockerfile declares the probe.
     depends_on:
-      - backend
+      # Waits for the API to be ready, not merely started. A plain depends_on let nginx come up while
+      # Flyway was still migrating, so the first page load proxied to a backend that could not answer.
+      backend:
+        condition: service_healthy
 
 volumes:
   postgres_data:

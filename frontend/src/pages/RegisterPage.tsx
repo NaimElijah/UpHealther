@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import ThemeToggle from '../components/theme/ThemeToggle';
+import { toApiError } from '../api/apiError';
 
 /**
  * Account creation page, and the other route reachable without a session.
@@ -38,8 +39,13 @@ const RegisterPage: React.FC = () => {
     try {
       await register(name, email, password);
       navigate('/dashboard', { replace: true });
-    } catch {
-      setError('Registration failed. Email may already be in use.');
+    } catch (thrown) {
+      // Was a hard-coded "Email may already be in use." for every failure, including a 500 and a
+      // network outage - which sent people looking for an account they had never created. The API
+      // says what went wrong; the trace id is appended so a report about the ones it cannot explain
+      // is worth acting on.
+      const failure = toApiError(thrown);
+      setError(failure.traceId ? `${failure.message} (reference ${failure.traceId})` : failure.message);
     } finally {
       setLoading(false);
     }

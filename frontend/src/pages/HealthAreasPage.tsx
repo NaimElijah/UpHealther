@@ -11,6 +11,8 @@ import EmptyState from '../components/ui/EmptyState';
 import type { CreateHealthAreaRequest, HealthArea } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import { areaIconGlyph, DEFAULT_AREA_ICON, isIconGlyph } from '../components/ui/areaIcon';
+import ErrorState from '../components/ui/ErrorState';
+import { toApiError } from '../api/apiError';
 
 /**
  * Manages health areas — the folders upgrades are filed under.
@@ -78,7 +80,7 @@ const HealthAreasPage: React.FC = () => {
   };
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
-  if (error) return <p className="text-danger-fg text-center py-10">Failed to load health areas.</p>;
+  if (error) return <ErrorState title="Could not load your health areas." error={toApiError(error)} />;
 
   return (
     <PageContainer>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
+import ErrorBoundary from './components/ErrorBoundary';
 import { ThemeProvider } from './contexts/ThemeProvider';
 import AppRouter from './router';
 
@@ -27,14 +28,21 @@ const queryClient = new QueryClient({
  * both. The theme sits outside them all because it depends on neither a session nor server state, and
  * because the login and register pages render outside `Layout` but still inside `App` — which is what
  * puts the theme toggle within reach before anyone has signed in.
+ *
+ * `ErrorBoundary` sits *inside* the theme and *outside* everything else: inside so its fallback is
+ * drawn in the theme the user chose, outside so a throw anywhere below it is contained. Before it,
+ * any render-time error unmounted the whole tree to a blank page with nothing to read and nothing to
+ * report.
  */
 const App: React.FC = () => (
   <ThemeProvider>
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <AppRouter />
-      </AuthProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <AppRouter />
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   </ThemeProvider>
 );
 
