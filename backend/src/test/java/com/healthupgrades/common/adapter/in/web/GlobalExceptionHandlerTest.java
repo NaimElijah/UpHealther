@@ -25,6 +25,11 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AccountStatusException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.InternalAuthenticationServiceException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -70,7 +75,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void resourceNotFound_isNotFound() {
+    void GivenAResourceNotFoundException_WhenItIsHandled_ThenTheStatusIsNotFound() {
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
                 handler.handleNotFound(new ResourceNotFoundException("Upgrade not found: 42"), request);
 
@@ -82,7 +87,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void businessRuleViolation_isUnprocessableEntity() {
+    void GivenABusinessRuleViolation_WhenItIsHandled_ThenTheStatusIsUnprocessableEntity() {
         // 422 rather than 400: the request was well formed, the domain refused it.
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
                 handler.handleBusinessRule(new BusinessRuleException("Only ACTIVE upgrades can be paused"), request);
@@ -93,7 +98,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void duplicateProgress_isConflict() {
+    void GivenADuplicateProgressEntry_WhenItIsHandled_ThenTheStatusIsConflict() {
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
                 handler.handleDuplicateProgress(new DuplicateProgressException("Already recorded"), request);
 
@@ -101,7 +106,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void optimisticLock_isConflict() {
+    void GivenAnOptimisticLockFailure_WhenItIsHandled_ThenTheStatusIsConflict() {
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
                 handler.handleOptimisticLock(new OptimisticLockException("stale version"), request);
 
@@ -109,7 +114,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void optimisticLock_doesNotLeakTheUnderlyingMessage() {
+    void GivenAnOptimisticLockFailure_WhenItIsHandled_ThenTheUnderlyingMessageIsNotLeaked() {
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
                 handler.handleOptimisticLock(new OptimisticLockException("Row was updated by transaction 8123"), request);
 
@@ -118,7 +123,58 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void accessDenied_isForbidden() {
+    void GivenAFailedAuthentication_WhenItIsHandled_ThenTheStatusIsUnauthorized() {
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
+                handler.handleBadCredentials(new BadCredentialsException("Bad credentials"), request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    void GivenAFailedAuthentication_WhenItIsHandled_ThenTheBodyDoesNotSayWhichHalfWasWrong() {
+        // A caller learning that the email exists but the password did not match is free information
+        // for anyone enumerating accounts, so the original message is dropped rather than passed on.
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
+                handler.handleBadCredentials(
+                        new BadCredentialsException("No user found for someone@example.com"), request);
+
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getMessage()).isEqualTo("Invalid credentials");
+    }
+
+    @Test
+    void GivenADisabledAccount_WhenItIsHandled_ThenTheStatusIsUnauthorized() {
+        // An account-status refusal is still "these credentials will not get you in", and saying which
+        // status it was would tell a caller the account exists.
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
+                handler.handleBadCredentials(new DisabledException("User is disabled"), request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getMessage()).isEqualTo("Invalid credentials");
+    }
+
+    @Test
+    void GivenTheUserStoreIsUnreachable_WhenLoginFails_ThenItIsAServerFaultAndNotACredentialError() {
+        // The reason the handler names two subtypes instead of AuthenticationException. Spring wraps a
+        // database outage during login in InternalAuthenticationServiceException, which is an
+        // AuthenticationException — catching the supertype would report the outage to the user as a
+        // wrong password and log nothing at all.
+        assertThat(GlobalExceptionHandler.class.getDeclaredMethods())
+                .filteredOn(m -> m.getName().equals("handleBadCredentials"))
+                .allSatisfy(m -> assertThat(m.getAnnotation(ExceptionHandler.class).value())
+                        .containsExactlyInAnyOrder(BadCredentialsException.class, AccountStatusException.class));
+
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response = handler.handleGeneral(
+                new InternalAuthenticationServiceException("could not connect", new RuntimeException()), request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    @Test
+    void GivenAccessIsDenied_WhenItIsHandled_ThenTheStatusIsForbidden() {
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
                 handler.handleAccessDenied(new AccessDeniedException("nope"), request);
 
@@ -126,7 +182,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void unexpectedFailure_isInternalServerErrorAndSaysNothingElse() {
+    void GivenAnUnexpectedFailure_WhenItIsHandled_ThenTheStatusIsInternalServerErrorAndTheBodySaysNothingElse() {
         // The catch-all must never surface an internal message to a caller.
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
                 handler.handleGeneral(new IllegalStateException("jdbc://user:hunter2@db/prod"), request);

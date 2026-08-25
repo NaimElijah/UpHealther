@@ -45,7 +45,7 @@ class ProgressEvaluationServiceTest {
 
     // BOOLEAN tests
     @Test
-    void boolean_completedTrue_returnsTrue() {
+    void GivenABooleanEntryMarkedComplete_WhenItIsEvaluated_ThenItCounts() {
         ProgressEntry e = buildEntry();
         e.setCompleted(true);
         TrackingConfig c = buildConfig(TrackingType.BOOLEAN);
@@ -53,7 +53,7 @@ class ProgressEvaluationServiceTest {
     }
 
     @Test
-    void boolean_completedFalse_returnsFalse() {
+    void GivenABooleanEntryMarkedIncomplete_WhenItIsEvaluated_ThenItDoesNotCount() {
         ProgressEntry e = buildEntry();
         e.setCompleted(false);
         TrackingConfig c = buildConfig(TrackingType.BOOLEAN);
@@ -61,7 +61,7 @@ class ProgressEvaluationServiceTest {
     }
 
     @Test
-    void boolean_completedNull_returnsFalse() {
+    void GivenABooleanEntryWithNoValue_WhenItIsEvaluated_ThenItDoesNotCount() {
         ProgressEntry e = buildEntry();
         e.setCompleted(null);
         TrackingConfig c = buildConfig(TrackingType.BOOLEAN);
@@ -70,7 +70,7 @@ class ProgressEvaluationServiceTest {
 
     // NUMERIC tests
     @Test
-    void numeric_valueAboveTarget_returnsTrue() {
+    void GivenANumericValueAboveTheTarget_WhenItIsEvaluated_ThenItCounts() {
         ProgressEntry e = buildEntry();
         e.setNumericValue(2.5);
         TrackingConfig c = buildConfig(TrackingType.NUMERIC);
@@ -79,7 +79,7 @@ class ProgressEvaluationServiceTest {
     }
 
     @Test
-    void numeric_valueEqualsTarget_returnsTrue() {
+    void GivenANumericValueEqualToTheTarget_WhenItIsEvaluated_ThenItCounts() {
         ProgressEntry e = buildEntry();
         e.setNumericValue(2.0);
         TrackingConfig c = buildConfig(TrackingType.NUMERIC);
@@ -88,7 +88,7 @@ class ProgressEvaluationServiceTest {
     }
 
     @Test
-    void numeric_valueBelowTarget_returnsFalse() {
+    void GivenANumericValueBelowTheTarget_WhenItIsEvaluated_ThenItDoesNotCount() {
         ProgressEntry e = buildEntry();
         e.setNumericValue(1.5);
         TrackingConfig c = buildConfig(TrackingType.NUMERIC);
@@ -97,7 +97,7 @@ class ProgressEvaluationServiceTest {
     }
 
     @Test
-    void numeric_valueNull_returnsFalse() {
+    void GivenANumericEntryWithNoValue_WhenItIsEvaluated_ThenItDoesNotCount() {
         ProgressEntry e = buildEntry();
         e.setNumericValue(null);
         TrackingConfig c = buildConfig(TrackingType.NUMERIC);
@@ -106,7 +106,7 @@ class ProgressEvaluationServiceTest {
     }
 
     @Test
-    void numeric_valueClearsTargetButUnitDiffers_returnsFalse() {
+    void GivenANumericValueClearingTheTargetInAnotherUnit_WhenItIsEvaluated_ThenItDoesNotCount() {
         // 45 minutes is not 30 kilometres, however favourably the bare numbers compare.
         ProgressEntry e = buildEntry();
         e.setNumericValue(45.0);
@@ -118,7 +118,7 @@ class ProgressEvaluationServiceTest {
     }
 
     @Test
-    void numeric_valueClearsTargetAndUnitMatches_returnsTrue() {
+    void GivenANumericValueClearingTheTargetInTheSameUnit_WhenItIsEvaluated_ThenItCounts() {
         ProgressEntry e = buildEntry();
         e.setNumericValue(45.0);
         e.setUnit("minutes");
@@ -129,7 +129,7 @@ class ProgressEvaluationServiceTest {
     }
 
     @Test
-    void numeric_entryOmitsUnit_isTakenToUseTheConfiguredOne() {
+    void GivenANumericEntryThatOmitsItsUnit_WhenItIsEvaluated_ThenTheConfiguredUnitIsAssumed() {
         ProgressEntry e = buildEntry();
         e.setNumericValue(45.0);
         e.setUnit(null);
@@ -140,7 +140,7 @@ class ProgressEvaluationServiceTest {
     }
 
     @Test
-    void numeric_unitsDifferOnlyInCaseAndPadding_returnsTrue() {
+    void GivenUnitsDifferingOnlyInCaseAndPadding_WhenTheEntryIsEvaluated_ThenTheyAreTreatedAsTheSameUnit() {
         ProgressEntry e = buildEntry();
         e.setNumericValue(45.0);
         e.setUnit("  Minutes ");
@@ -151,7 +151,7 @@ class ProgressEvaluationServiceTest {
     }
 
     @Test
-    void numeric_configHasNoTargetUnit_acceptsAnyLoggedUnit() {
+    void GivenAConfigWithNoTargetUnit_WhenAnEntryIsEvaluated_ThenAnyLoggedUnitIsAccepted() {
         ProgressEntry e = buildEntry();
         e.setNumericValue(45.0);
         e.setUnit("minutes");
@@ -162,7 +162,7 @@ class ProgressEvaluationServiceTest {
 
     // RATING tests
     @Test
-    void rating_threeOrAbove_returnsTrue() {
+    void GivenARatingAboveThree_WhenItIsEvaluated_ThenItCounts() {
         ProgressEntry e = buildEntry();
         e.setRating(4);
         TrackingConfig c = buildConfig(TrackingType.RATING);
@@ -170,7 +170,7 @@ class ProgressEvaluationServiceTest {
     }
 
     @Test
-    void rating_exactlyThree_returnsTrue() {
+    void GivenARatingOfExactlyThree_WhenItIsEvaluated_ThenItCounts() {
         ProgressEntry e = buildEntry();
         e.setRating(3);
         TrackingConfig c = buildConfig(TrackingType.RATING);
@@ -178,7 +178,7 @@ class ProgressEvaluationServiceTest {
     }
 
     @Test
-    void rating_belowThree_returnsFalse() {
+    void GivenARatingBelowThree_WhenItIsEvaluated_ThenItDoesNotCount() {
         ProgressEntry e = buildEntry();
         e.setRating(2);
         TrackingConfig c = buildConfig(TrackingType.RATING);
@@ -187,7 +187,7 @@ class ProgressEvaluationServiceTest {
 
     // TEXT tests
     @Test
-    void text_notePresent_returnsTrue() {
+    void GivenATextEntryWithANote_WhenItIsEvaluated_ThenItCounts() {
         ProgressEntry e = buildEntry();
         e.setNote("Felt great today!");
         TrackingConfig c = buildConfig(TrackingType.TEXT);
@@ -195,7 +195,7 @@ class ProgressEvaluationServiceTest {
     }
 
     @Test
-    void text_noteBlank_returnsFalse() {
+    void GivenATextEntryWithABlankNote_WhenItIsEvaluated_ThenItDoesNotCount() {
         ProgressEntry e = buildEntry();
         e.setNote("   ");
         TrackingConfig c = buildConfig(TrackingType.TEXT);
@@ -203,7 +203,7 @@ class ProgressEvaluationServiceTest {
     }
 
     @Test
-    void text_noteNull_returnsFalse() {
+    void GivenATextEntryWithNoNote_WhenItIsEvaluated_ThenItDoesNotCount() {
         ProgressEntry e = buildEntry();
         e.setNote(null);
         TrackingConfig c = buildConfig(TrackingType.TEXT);
@@ -212,13 +212,13 @@ class ProgressEvaluationServiceTest {
 
     // Null safety
     @Test
-    void nullEntry_returnsFalse() {
+    void GivenNoEntry_WhenEvaluationIsAsked_ThenItDoesNotCount() {
         TrackingConfig c = buildConfig(TrackingType.BOOLEAN);
         assertThat(service.isSuccessful(null, c)).isFalse();
     }
 
     @Test
-    void nullConfig_returnsFalse() {
+    void GivenNoTrackingConfig_WhenEvaluationIsAsked_ThenItDoesNotCount() {
         ProgressEntry e = buildEntry();
         assertThat(service.isSuccessful(e, null)).isFalse();
     }

@@ -92,12 +92,28 @@ side. Both are deliberate, not drift.
 
 ## Tests
 
-- `mvn test` — unit and architecture tests. **No database needed**; keep it that way.
+Four levels, and the rule for choosing between them is in
+`../docs/ADRs/ADR-009-test-levels-boundaries-and-naming.md`: write a test at the **cheapest level that
+can actually observe the behaviour**, and never at one that cannot. Mock our own ports; never mock
+PostgreSQL — if the assertion is about what the database does, it is an `*IT` or it is not a test of
+that. Name tests `Given<state>_When<action>_Then<outcome>`.
+
+- Shared fixtures live in `src/test/java/com/healthupgrades/support/`: `AUser`, `AnUpgrade`,
+  `ATrackingConfig`, `AProgressEntry` build entities with the required fields filled in, and
+  `WebSliceSupport` wires a `@WebMvcTest` to the **real** `SecurityConfig` and `JwtAuthenticationFilter`
+  — authenticate with `WebSliceSupport.authenticateAs(...)` and `bearer(...)` rather than disabling
+  security, which would assert the opposite of FR-5.
+- `mvn test` — unit, web-slice and architecture tests. **No database needed**; keep it that way.
 - `mvn verify` — the above plus the `*IT` integration tests, which boot the application against a real
-  PostgreSQL and therefore **do** need one running (`docker-compose up -d postgres`, or the `DB_*` env
-  vars pointing at any instance). `ApplicationContextIT` is what catches a missing `@Bean` in the
-  hand-wired `*BeansConfig` classes and a missing Flyway migration, neither of which any unit test can
-  see.
+  PostgreSQL. They **start it themselves**: every `*IT` extends `support/PostgresIT`, which runs a
+  `postgres:15-alpine` container through Testcontainers and wires the `DataSource` to it with
+  `@ServiceConnection`. So `verify` needs a running **Docker daemon**, not a database you started — and
+  the `DB_*` env vars are not consulted during a test run at all. Do not point a test at an ambient
+  database: a local PostgreSQL listening on 5432 is accepted silently and the suite then passes against
+  the wrong schema, which is the failure
+  `../docs/ADRs/ADR-008-testcontainers-for-the-integration-test-database.md` was written about.
+  `ApplicationContextIT` is what catches a missing `@Bean` in the hand-wired `*BeansConfig` classes and a
+  missing Flyway migration, neither of which any unit test can see.
 
 ## Database / migrations
 

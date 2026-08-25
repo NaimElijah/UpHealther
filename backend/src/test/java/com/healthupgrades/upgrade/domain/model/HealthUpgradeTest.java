@@ -46,7 +46,7 @@ class HealthUpgradeTest {
     // ---- creation ----
 
     @Test
-    void create_withTheRequiredFields_startsAsAnIdea() {
+    void GivenTheRequiredFields_WhenAnUpgradeIsCreated_ThenItStartsAsAnIdea() {
         HealthUpgrade upgrade = HealthUpgrade.create(UUID.randomUUID(), null, "Cold showers", null,
                 UpgradeType.HABIT, Difficulty.MEDIUM, null, null, null, null);
 
@@ -55,21 +55,21 @@ class HealthUpgradeTest {
     }
 
     @Test
-    void create_withoutAnOwner_shouldThrow() {
+    void GivenNoOwner_WhenAnUpgradeIsCreated_ThenItIsRejected() {
         assertThatThrownBy(() -> HealthUpgrade.create(null, null, "Cold showers", null,
                 UpgradeType.HABIT, Difficulty.MEDIUM, null, null, null, null))
                 .isInstanceOf(BusinessRuleException.class);
     }
 
     @Test
-    void create_withBlankTitle_shouldThrow() {
+    void GivenABlankTitle_WhenAnUpgradeIsCreated_ThenItIsRejected() {
         assertThatThrownBy(() -> HealthUpgrade.create(UUID.randomUUID(), null, "   ", null,
                 UpgradeType.HABIT, Difficulty.MEDIUM, null, null, null, null))
                 .isInstanceOf(BusinessRuleException.class);
     }
 
     @Test
-    void create_withoutAType_shouldThrow() {
+    void GivenNoType_WhenAnUpgradeIsCreated_ThenItIsRejected() {
         assertThatThrownBy(() -> HealthUpgrade.create(UUID.randomUUID(), null, "Cold showers", null,
                 null, Difficulty.MEDIUM, null, null, null, null))
                 .isInstanceOf(BusinessRuleException.class);
@@ -78,7 +78,7 @@ class HealthUpgradeTest {
     // ---- editing details ----
 
     @Test
-    void updateDetails_replacesTheEditableFields() {
+    void GivenAnUpgrade_WhenItsDetailsAreUpdated_ThenTheEditableFieldsAreReplaced() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
 
         upgrade.updateDetails(null, "New title", "New description", UpgradeType.EXPERIMENT,
@@ -90,7 +90,7 @@ class HealthUpgradeTest {
     }
 
     @Test
-    void updateDetails_leavesTheLifecycleAlone() {
+    void GivenAnUpgradeInAnyState_WhenItsDetailsAreUpdated_ThenItsLifecycleIsUntouched() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
 
         upgrade.updateDetails(null, "New title", null, UpgradeType.HABIT, null, null, null);
@@ -99,7 +99,7 @@ class HealthUpgradeTest {
     }
 
     @Test
-    void updateDetails_blankingTheTitle_shouldThrow() {
+    void GivenABlankTitle_WhenDetailsAreUpdated_ThenItIsRejected() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
 
         assertThatThrownBy(() -> upgrade.updateDetails(null, "  ", null, UpgradeType.HABIT, null, null, null))
@@ -109,7 +109,7 @@ class HealthUpgradeTest {
     // ---- lifecycle transitions ----
 
     @Test
-    void plan_fromIdea_shouldTransitionToPlanned() {
+    void GivenAnIdea_WhenItIsPlanned_ThenItBecomesPlanned() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.IDEA);
         LocalDate startDate = REFERENCE_DAY.plusDays(3);
 
@@ -120,13 +120,13 @@ class HealthUpgradeTest {
     }
 
     @Test
-    void plan_fromActive_shouldThrow() {
+    void GivenAnActiveUpgrade_WhenItIsPlanned_ThenItIsRejected() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
         assertThatThrownBy(() -> upgrade.plan(REFERENCE_DAY)).isInstanceOf(BusinessRuleException.class);
     }
 
     @Test
-    void activate_fromPlanned_shouldTransitionToActive() {
+    void GivenAPlannedUpgrade_WhenItIsActivated_ThenItBecomesActive() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.PLANNED);
 
         upgrade.activate(REFERENCE_DAY);
@@ -136,71 +136,71 @@ class HealthUpgradeTest {
     }
 
     @Test
-    void activate_fromPaused_shouldTransitionToActive() {
+    void GivenAPausedUpgrade_WhenItIsActivated_ThenItBecomesActive() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.PAUSED);
         upgrade.activate(REFERENCE_DAY);
         assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.ACTIVE);
     }
 
     @Test
-    void activate_fromIdea_shouldThrow() {
+    void GivenAnIdea_WhenItIsActivated_ThenItIsRejected() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.IDEA);
         assertThatThrownBy(() -> upgrade.activate(REFERENCE_DAY)).isInstanceOf(BusinessRuleException.class);
     }
 
     @Test
-    void pause_fromActive_shouldTransitionToPaused() {
+    void GivenAnActiveUpgrade_WhenItIsPaused_ThenItBecomesPaused() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
         upgrade.pause();
         assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.PAUSED);
     }
 
     @Test
-    void pause_fromIdea_shouldThrow() {
+    void GivenAnIdea_WhenItIsPaused_ThenItIsRejected() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.IDEA);
         assertThatThrownBy(upgrade::pause).isInstanceOf(BusinessRuleException.class);
     }
 
     @Test
-    void complete_fromActive_shouldTransitionToCompleted() {
+    void GivenAnActiveUpgrade_WhenItIsCompleted_ThenItBecomesCompleted() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
         upgrade.complete();
         assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.COMPLETED);
     }
 
     @Test
-    void complete_fromPaused_shouldThrow() {
+    void GivenAPausedUpgrade_WhenItIsCompleted_ThenItIsRejected() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.PAUSED);
         assertThatThrownBy(upgrade::complete).isInstanceOf(BusinessRuleException.class);
     }
 
     @Test
-    void abandon_fromActive_shouldTransitionToAbandoned() {
+    void GivenAnActiveUpgrade_WhenItIsAbandoned_ThenItBecomesAbandoned() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
         upgrade.abandon();
         assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.ABANDONED);
     }
 
     @Test
-    void abandon_fromCompleted_shouldThrow() {
+    void GivenACompletedUpgrade_WhenItIsAbandoned_ThenItIsRejected() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.COMPLETED);
         assertThatThrownBy(upgrade::abandon).isInstanceOf(BusinessRuleException.class);
     }
 
     @Test
-    void abandon_fromAbandoned_shouldThrow() {
+    void GivenAnAbandonedUpgrade_WhenItIsAbandonedAgain_ThenItIsRejected() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ABANDONED);
         assertThatThrownBy(upgrade::abandon).isInstanceOf(BusinessRuleException.class);
     }
 
     @Test
-    void reschedule_fromCompleted_shouldThrow() {
+    void GivenACompletedUpgrade_WhenItIsRescheduled_ThenItIsRejected() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.COMPLETED);
         assertThatThrownBy(() -> upgrade.reschedule(REFERENCE_DAY)).isInstanceOf(BusinessRuleException.class);
     }
 
     @Test
-    void reschedule_fromAbandoned_shouldTransitionToPlanned() {
+    void GivenAnAbandonedUpgrade_WhenItIsRescheduled_ThenItBecomesPlannedAgain() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ABANDONED);
         LocalDate newDate = REFERENCE_DAY.plusDays(7);
 
@@ -211,7 +211,7 @@ class HealthUpgradeTest {
     }
 
     @Test
-    void reschedule_fromIdea_shouldKeepIdeaStatus() {
+    void GivenAnIdea_WhenItIsRescheduled_ThenItStaysAnIdea() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.IDEA);
         LocalDate newDate = REFERENCE_DAY.plusDays(5);
 
@@ -222,21 +222,21 @@ class HealthUpgradeTest {
     }
 
     @Test
-    void reschedule_fromPlanned_shouldKeepPlannedStatus() {
+    void GivenAPlannedUpgrade_WhenItIsRescheduled_ThenItStaysPlanned() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.PLANNED);
         upgrade.reschedule(REFERENCE_DAY.plusDays(10));
         assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.PLANNED);
     }
 
     @Test
-    void reschedule_fromActive_shouldKeepActiveStatus() {
+    void GivenAnActiveUpgrade_WhenItIsRescheduled_ThenItStaysActive() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
         upgrade.reschedule(REFERENCE_DAY.plusDays(10));
         assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.ACTIVE);
     }
 
     @Test
-    void reschedule_fromPaused_shouldKeepPausedStatus() {
+    void GivenAPausedUpgrade_WhenItIsRescheduled_ThenItStaysPaused() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.PAUSED);
         upgrade.reschedule(REFERENCE_DAY.plusDays(10));
         assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.PAUSED);
@@ -245,31 +245,31 @@ class HealthUpgradeTest {
     // ---- derived date questions ----
 
     @Test
-    void isOverdue_whenActiveAndPastTargetDate_shouldReturnTrue() {
+    void GivenAnActiveUpgradePastItsTargetDate_WhenOverdueIsChecked_ThenItIsOverdue() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE, REFERENCE_DAY.minusDays(1));
         assertThat(upgrade.isOverdue(REFERENCE_DAY)).isTrue();
     }
 
     @Test
-    void isOverdue_whenActiveAndFutureTargetDate_shouldReturnFalse() {
+    void GivenAnActiveUpgradeBeforeItsTargetDate_WhenOverdueIsChecked_ThenItIsNotOverdue() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE, REFERENCE_DAY.plusDays(5));
         assertThat(upgrade.isOverdue(REFERENCE_DAY)).isFalse();
     }
 
     @Test
-    void isOverdue_whenNotActive_shouldReturnFalse() {
+    void GivenAnUpgradeThatIsNotActive_WhenOverdueIsChecked_ThenItIsNotOverdue() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.PAUSED, REFERENCE_DAY.minusDays(30));
         assertThat(upgrade.isOverdue(REFERENCE_DAY)).isFalse();
     }
 
     @Test
-    void isOverdue_onTheTargetDateItself_shouldReturnFalse() {
+    void GivenAnActiveUpgradeOnItsTargetDate_WhenOverdueIsChecked_ThenItIsNotOverdue() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE, REFERENCE_DAY);
         assertThat(upgrade.isOverdue(REFERENCE_DAY)).isFalse();
     }
 
     @Test
-    void isActiveOn_whenActiveAndDateInRange_shouldReturnTrue() {
+    void GivenAnActiveUpgradeSpanningTheDate_WhenActivityOnThatDateIsChecked_ThenItIsActive() {
         HealthUpgrade upgrade = HealthUpgrade.builder()
                 .title("Test Upgrade").type(UpgradeType.HABIT).status(UpgradeStatus.ACTIVE)
                 .actualStartDate(REFERENCE_DAY.minusDays(3)).targetEndDate(REFERENCE_DAY.plusDays(3))
@@ -278,7 +278,7 @@ class HealthUpgradeTest {
     }
 
     @Test
-    void isActiveOn_whenNotActive_shouldReturnFalse() {
+    void GivenAnUpgradeThatIsNotActive_WhenActivityOnADateIsChecked_ThenItIsNotActive() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.PAUSED);
         assertThat(upgrade.isActiveOn(REFERENCE_DAY)).isFalse();
     }

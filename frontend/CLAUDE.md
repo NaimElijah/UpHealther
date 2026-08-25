@@ -7,6 +7,14 @@ conventions to follow inside `frontend/`.
 
 `npm run dev` serves on :3000 and proxies `/api` → `http://localhost:8080` (see `vite.config.ts`).
 
+- **Tests** are Vitest on jsdom ([ADR-004](../docs/ADRs/ADR-004-frontend-test-harness.md)), colocated
+  beside what they test, and named `Given<state>_When<action>_Then<outcome>`
+  ([ADR-009](../docs/ADRs/ADR-009-test-levels-boundaries-and-naming.md)). `npm run test:coverage` adds
+  a coverage summary; nothing gates on the number. Two harness details worth knowing before writing
+  one: `window.location` has to be redefined to observe a navigation, because jsdom refuses to perform
+  one; and an axios call is tested by replacing `client.defaults.adapter`, so the real interceptor
+  chain still runs.
+
 - **`src/api/client.ts`** is the single axios instance. Its `baseURL` is relative by default so every
   `/api/...` call is same-origin and flows through the Vite dev proxy / nginx prod proxy (set
   `VITE_API_URL` only for a different-origin API). A request interceptor attaches the JWT from

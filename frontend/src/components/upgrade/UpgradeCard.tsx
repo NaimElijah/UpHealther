@@ -5,7 +5,7 @@ import UpgradeStatusBadge from './UpgradeStatusBadge';
 import UpgradeTypeBadge from './UpgradeTypeBadge';
 import Badge from '../ui/Badge';
 import Button from '../ui/Button';
-import { difficultyVariant, UNKNOWN_DIFFICULTY_VARIANT } from './upgradeMeta';
+import { difficultyBadgeVariant } from './upgradeMeta';
 
 /**
  * @param upgrade        the upgrade to show
@@ -47,7 +47,7 @@ const UpgradeCard: React.FC<Props> = ({ upgrade, onStatusChange, showActions = t
       <div className="flex flex-wrap gap-2 mt-3">
         <UpgradeStatusBadge status={upgrade.status} />
         <UpgradeTypeBadge type={upgrade.type} />
-        <Badge variant={difficultyVariant[upgrade.difficulty] ?? UNKNOWN_DIFFICULTY_VARIANT}>{upgrade.difficulty}</Badge>
+        <Badge variant={difficultyBadgeVariant(upgrade.difficulty)}>{upgrade.difficulty}</Badge>
       </div>
       {showActions && onStatusChange && (
         <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-line-subtle">

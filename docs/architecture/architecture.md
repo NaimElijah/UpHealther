@@ -307,8 +307,10 @@ Stated because they are load-bearing, not because they are problems yet:
   instance reaches only the clients connected to that instance. Notifications are persisted, so a
   client on another instance sees them on its next fetch rather than instantly. Running more than one
   instance needs a real broker relay first.
-- **`mvn test` needs no database; `mvn verify` does.** The integration tests boot the application
-  against a real PostgreSQL. Keeping the unit suite database-free is a constraint worth preserving.
+- **`mvn test` needs no database; `mvn verify` needs Docker.** The integration tests boot the
+  application against a real PostgreSQL that they start themselves through Testcontainers, so the
+  database is described in the test source rather than supplied to it ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)).
+  Keeping the unit suite database-free is a constraint worth preserving.
 - **The backend has no dependency vulnerability audit.** OWASP dependency-check cannot populate its
   database without an `NVD_API_KEY`. ADR-002 records why a check that always fails, or one that cannot
   fail, was judged worse than none.
@@ -330,8 +332,10 @@ Stated because they are load-bearing, not because they are problems yet:
 | What does all of this look like? | [`arch-diagrams/`](arch-diagrams/README.md) — seven diagrams, outside in |
 | What is the system supposed to do, and what is it deliberately not doing? | [`docs/requirements/requirements.md`](../requirements/requirements.md) |
 | Why DDD + hexagonal at all, and why JPA entities as the domain model? | [ADR-001](../ADRs/ADR-001-ddd-hexagonal-architecture.md) |
-| Why the `upgrade`/`tracking` dependency is inverted; why events moved out of `common`; what the ten ArchUnit rules cover; what was rejected and when to revisit | [ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md) |
+| Why the `upgrade`/`tracking` dependency is inverted; why events moved out of `common`; what the ArchUnit rules cover; what was rejected and when to revisit | [ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md) |
 | Why the frontend tests with Vitest rather than Jest; why Vitest is pinned to 3; why there is still no accessibility gate | [ADR-004](../ADRs/ADR-004-frontend-test-harness.md) |
+| Why the integration tests start their own database instead of being handed one; why not H2 | [ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md) |
+| Which of the four test levels a new test belongs at, and why coverage is reported rather than gated | [ADR-009](../ADRs/ADR-009-test-levels-boundaries-and-naming.md) |
 | Why every page shares one width; why the shell can be trusted not to overflow; why container queries and a native `<dialog>` were turned down | [ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |

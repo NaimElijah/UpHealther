@@ -15,7 +15,7 @@ import Modal from '../components/ui/Modal';
 import UpgradeStatusBadge from '../components/upgrade/UpgradeStatusBadge';
 import UpgradeTypeBadge from '../components/upgrade/UpgradeTypeBadge';
 import Badge from '../components/ui/Badge';
-import { difficultyVariant, UNKNOWN_DIFFICULTY_VARIANT } from '../components/upgrade/upgradeMeta';
+import { difficultyBadgeVariant } from '../components/upgrade/upgradeMeta';
 import type { CreateProgressRequest, CreateReflectionRequest, TrackingType, Frequency } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 
@@ -130,7 +130,7 @@ const UpgradeDetailsPage: React.FC = () => {
         <div className="flex flex-wrap gap-2 mb-3">
           <UpgradeStatusBadge status={upgrade.status} />
           <UpgradeTypeBadge type={upgrade.type} />
-          <Badge variant={difficultyVariant[upgrade.difficulty] ?? UNKNOWN_DIFFICULTY_VARIANT}>
+          <Badge variant={difficultyBadgeVariant(upgrade.difficulty)}>
             {upgrade.difficulty}
           </Badge>
         </div>

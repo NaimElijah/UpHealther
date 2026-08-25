@@ -11,20 +11,9 @@ jobs:
     name: Backend - Build & Test
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_DB: healthupgrades_test
-          POSTGRES_USER: healthupgrades
-          POSTGRES_PASSWORD: healthupgrades
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+    # No `services:` block. The integration tests start their own PostgreSQL through Testcontainers, so
+    # the database is described in the test source rather than in the runner's configuration and the
+    # same `mvn verify` runs identically here and on a developer machine. See ADR-008.
 
     steps:
       - uses: actions/checkout@v4
@@ -36,16 +25,69 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      # `verify` compiles, runs the unit tests, runs the *IT integration tests against the Postgres
-      # service above, and packages the jar. Splitting those into separate `mvn` invocations only
-      # recompiled the same sources repeatedly.
+      # `verify` compiles, runs the unit tests, runs the *IT integration tests against a PostgreSQL
+      # container they start themselves, and packages the jar. Splitting those into separate `mvn`
+      # invocations only recompiled the same sources repeatedly.
       - name: Build, test and verify backend
         run: cd backend && mvn -B --no-transfer-progress clean verify
         env:
-          DB_URL: jdbc:postgresql://localhost:5432/healthupgrades_test
-          DB_USERNAME: healthupgrades
-          DB_PASSWORD: healthupgrades
           JWT_SECRET: test-secret-key-for-ci-at-least-256-bits-long-random-string-here
+
+      # Coverage is reported, never gated — a threshold is satisfied by tests written to move a number
+      # and says nothing about whether a requirement is enforced (ADR-009). Printed into the job summary
+      # so it is visible without downloading anything, and listing the packages at zero, because that is
+      # the part worth acting on. Reads JaCoCo's CSV rather than its XML: same numbers, no XML parser.
+      - name: Summarise backend coverage
+        if: always()
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import csv
+          import sys
+          from collections import defaultdict
+          from pathlib import Path
+
+          # This step runs on failure too (`if: always()`), and a build that dies before jacoco:report
+          # leaves no CSV behind — `clean` has already removed target/. Degrade rather than add a second
+          # red step that has nothing to do with why the build failed.
+          report = Path('backend/target/site/jacoco/jacoco.csv')
+          if not report.exists():
+              print('### Backend coverage\n\n_No report — the build did not reach it._')
+              sys.exit(0)
+
+          with report.open(newline='') as handle:
+              rows = list(csv.DictReader(handle))
+
+          def totals(subset, kind):
+              covered = sum(int(r[f'{kind}_COVERED']) for r in subset)
+              total = covered + sum(int(r[f'{kind}_MISSED']) for r in subset)
+              return covered, total, (0 if not total else round(100 * covered / total))
+
+          print('### Backend coverage\n')
+          print('| Metric | Covered | % |')
+          print('|---|---|---|')
+          for kind in ('LINE', 'BRANCH', 'INSTRUCTION'):
+              covered, total, percent = totals(rows, kind)
+              print(f'| {kind.title()} | {covered}/{total} | {percent}% |')
+
+          by_package = defaultdict(list)
+          for row in rows:
+              by_package[row['PACKAGE']].append(row)
+          empty = sorted(
+              name.replace('com.healthupgrades.', '')
+              for name, package_rows in by_package.items()
+              if totals(package_rows, 'LINE')[1] and totals(package_rows, 'LINE')[2] == 0
+          )
+          print('\nPackages with no line coverage:\n')
+          print('\n'.join(f'- `{name}`' for name in empty) or '_none_')
+          PY
+
+      - name: Upload the backend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/target/site/jacoco/
+          retention-days: 14
 
       # There is deliberately no backend vulnerability audit yet: OWASP dependency-check cannot populate
       # its database without an NVD API key and fails outright without one. See the known gaps in
@@ -89,11 +131,20 @@ jobs:
       - name: Check no palette colours bypass the theme tokens
         run: cd frontend && npm run check:colours
 
-      # After the lint, so a failure here is a behaviour failure rather than a style one. `npm run test`
-      # is `vitest run` and not the watcher — a bare `vitest` would hold the runner until the job times
-      # out. See ADR-004 for why the frontend has a test harness at all.
+      # After the lint, so a failure here is a behaviour failure rather than a style one. `npm run
+      # test:coverage` is `vitest run --coverage` and not the watcher — a bare `vitest` would hold the
+      # runner until the job times out. See ADR-004 for why the frontend has a test harness at all, and
+      # ADR-009 for why the coverage it prints gates nothing.
       - name: Test frontend
-        run: cd frontend && npm run test
+        run: cd frontend && npm run test:coverage
+
+      - name: Upload the frontend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/
+          retention-days: 14
 
       # Scoped to what ships. Auditing the dev tree here would redden every unrelated PR whenever an
       # advisory lands against the Vite or ESLint toolchain, none of which reaches a user's browser.

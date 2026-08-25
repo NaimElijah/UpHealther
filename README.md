@@ -94,7 +94,7 @@ com.healthupgrades.common/
   websocket/         — STOMP config + JWT channel interceptor
 ```
 
-The boundaries are **enforced by ArchUnit** (`HexagonalArchitectureTest`, ten rules, runs in `mvn test`):
+The boundaries are **enforced by ArchUnit** (`HexagonalArchitectureTest`, eleven rules, runs in `mvn test`):
 the domain stays framework-free (apart from JPA mappings), the application depends on no adapter in either
 direction, Spring Data is confined to the persistence adapters, controllers only to the web adapter, and
 bounded contexts interact only through published surfaces — and form an acyclic graph.
@@ -254,34 +254,51 @@ After startup, a demo account is available:
 ```bash
 cd backend
 mvn test      # unit + architecture tests — no database needed
-mvn verify    # the above plus integration tests — needs a running PostgreSQL
+mvn verify    # the above plus integration tests — needs Docker running
 ```
 
-`mvn test` covers:
-- HealthUpgrade state machine, construction invariants and the max-concurrent-HARD rule
-- Reminder scheduling (day filters, due-at) and StreakCalculator
-- ProgressEvaluationService (boolean/numeric/rating/text, including unit compatibility)
-- The exception → HTTP status contract (`GlobalExceptionHandler`)
-- Hexagonal architecture rules (ArchUnit) — domain purity, port/adapter boundaries, bounded-context
-  isolation and cycle freedom
+`mvn test` covers four levels, described in
+[ADR-009](docs/ADRs/ADR-009-test-levels-boundaries-and-naming.md):
+- **Domain** — the HealthUpgrade state machine and its construction invariants, reminder scheduling,
+  streaks, and how an entry is scored against its tracking configuration
+- **Application** — every use case in every context, including what a rejected operation must *not*
+  leave behind
+- **Web slice** — each controller against the real security chain and exception handler: the status
+  codes, request validation, and that another user's row is a 404 rather than a 403
+- **Structural** — the hexagonal architecture rules (ArchUnit, eleven of them) and the frontend enum
+  contract
 
-`mvn verify` adds `ApplicationContextIT`, which boots the app against PostgreSQL and so catches a broken
-bean graph or a missing Flyway migration — neither of which a unit test can see. Start a database first
-with `docker-compose up -d postgres`.
+`mvn verify` adds the `*IT` suite, which boots the app against PostgreSQL and so catches a broken bean
+graph, a missing Flyway migration, or an invariant only the database enforces — none of which a unit test
+can see. There is nothing to start first: the tests bring up their own `postgres:15-alpine` container via
+Testcontainers, so they need a running Docker daemon and nothing else. See
+[ADR-008](docs/ADRs/ADR-008-testcontainers-for-the-integration-test-database.md) for why the database is
+described in the test source rather than handed to it.
 
 ### Frontend Tests
 ```bash
 cd frontend
 npm run test           # Vitest + jsdom + Testing Library
+npm run test:coverage  # the same run, with a coverage summary
 npm run build          # type check and production build
 npm run lint           # ESLint, zero warnings tolerated
 npm run check:colours  # fails on any Tailwind palette colour used outside the theme tokens
 ```
 
-`npm run test` covers the theme provider — that an explicit choice beats the operating system, that
-`system` follows it live, that the media-query listener is cleaned up under `React.StrictMode`, and that
-a browser with storage blocked still boots. See
+`npm run test` covers the session (a stored token restoring one, and a 401 ending it), the live
+notification socket, the route gate, the theme provider and the shared UI primitives. See
 [ADR-004](docs/ADRs/ADR-004-frontend-test-harness.md) for why the harness exists and what it cannot do.
+
+### Coverage
+
+Both suites report coverage on every CI run and **neither gates on it**. The gate is
+[`docs/requirements/requirements.md`](docs/requirements/requirements.md): every requirement names the
+test that enforces it, or says why none can.
+
+```bash
+cd backend && mvn test    # writes target/site/jacoco/index.html
+cd frontend && npm run test:coverage
+```
 
 ## Environment Variables
 
