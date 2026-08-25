@@ -222,6 +222,22 @@ carries personal data — ids and enum values only, never a title, an email, a n
 [ADR-010](../ADRs/ADR-010-structured-logging-and-a-level-policy.md) records the format decision and the
 policy.
 
+Three places are worth knowing about because they were silent and are no longer:
+
+- **The scheduled jobs.** Each run is wrapped by `JobMetrics`, which times it and counts its outcome,
+  and each writes one INFO line saying what it found and what it did. A sweep that has been throwing
+  for a week used to look exactly like a sweep with nothing to do. The failure is rethrown rather than
+  handled, because Spring's scheduler already logs a task that threw and two entries for one fault is
+  worse than one. `dispatchReminders` stays silent when nothing is due — otherwise it writes a line a
+  minute, all night, and buries the runs that did something.
+- **The security boundary.** A rejected token is DEBUG with its exception type and never its message,
+  which can quote the token back. A validly signed token naming an account that no longer exists is
+  WARN: the signature was ours, so this is not ordinary expiry. Neither line names a subject, because
+  the only handle available is the email.
+- **A failed real-time push.** It runs from an `afterCommit` callback, so the notification is already
+  durable; the failure is now reported at WARN and the caller carries on, where before one unreachable
+  session cancelled everybody else's reminders for that minute.
+
 ### Audit
 
 `AuditTrail` is an outbound port in `common/domain/port/out/`, beside `DomainEventPublisher` and

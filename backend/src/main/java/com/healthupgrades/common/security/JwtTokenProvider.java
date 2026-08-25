@@ -1,5 +1,6 @@
 package com.healthupgrades.common.security;
 
+import lombok.extern.slf4j.Slf4j;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,6 +22,7 @@ import java.util.Date;
  * rather than weakening every token silently.
  */
 @Component
+@Slf4j
 public class JwtTokenProvider {
 
     private final SecretKey secretKey;
@@ -87,6 +89,12 @@ public class JwtTokenProvider {
             // A rejected token is an expected outcome on a public endpoint, not a fault: the caller's
             // contract is a boolean, and the reason is withheld on purpose — telling an unauthenticated
             // caller whether a token expired or was forged is free information for an attacker.
+            //
+            // Withheld from the caller, not from us. DEBUG, because an expired token is the most
+            // ordinary thing that happens here and this would otherwise be a line per stale tab. The
+            // exception's type distinguishes "expired" from "forged"; its message is not logged,
+            // because a JJWT message can quote the malformed token back.
+            log.debug("Rejected a token: {}", e.getClass().getSimpleName());
             return false;
         }
     }
