@@ -413,6 +413,21 @@ Stated because they are load-bearing, not because they are problems yet:
   so a container error dispatch to `/error` runs outside the observation scope entirely. Nothing logs
   on either path today. Closing the first means configuring an `AuthenticationEntryPoint`, which is its
   own wire-contract change.
+- **`docker logs` is the only sink, and its retention is the audit trail's retention.** There is no
+  file appender, no log volume and no aggregator, so a line that has aged out of the container's log
+  is gone — including the audit entries. That is adequate for diagnosis and is explicitly *not* a
+  compliance story ([ADR-011](../ADRs/ADR-011-audit-as-a-log-stream.md)).
+- **Nothing scrapes `/actuator/prometheus`, and no trace leaves the process.** The metrics endpoint is
+  correct and unread, and sampling is at 1.0 with no exporter configured. Both are deliberate stopping
+  points rather than omissions: the missing piece in each case is a deployment somebody is paged for
+  ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md),
+  [ADR-007](../ADRs/ADR-007-request-correlation-through-micrometer-tracing.md)).
+- **A browser-side error can be shown but not recorded.** The SPA has no telemetry and no log sink, so
+  `ErrorBoundary` can put a message on the screen and nothing else knows it happened. Adding a
+  reporting endpoint is a decision about sending user data off the device, not a logging change.
+- **A refused login is a rate signal, not an attribution.** The audit entry deliberately names no
+  subject, so the trail cannot say whose account was targeted and will not support a lockout policy as
+  written.
 
 ---
 
