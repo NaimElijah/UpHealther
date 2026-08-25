@@ -59,5 +59,8 @@ management:
 
 logging:
   level:
-    # DEBUG for this application's own packages only; everything else stays at Spring's default INFO.
-    com.healthupgrades: DEBUG
+    # INFO is what a deployment should run at: DEBUG is written for a developer reading along, and
+    # this application's DEBUG lines fire per domain event - every minute, from dispatchReminders.
+    # LOG_LEVEL_APP turns it up for one run without a code change. Everything outside this package
+    # stays at Spring's default INFO.
+    com.healthupgrades: ${LOG_LEVEL_APP:INFO}

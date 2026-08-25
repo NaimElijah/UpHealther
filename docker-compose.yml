@@ -30,6 +30,10 @@ services:
       DB_USERNAME: ${POSTGRES_USER:-healthupgrades}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-healthupgrades}
       JWT_SECRET: ${JWT_SECRET:-change-this-secret-in-production-must-be-256-bits-long-random}
+      # Selects the JSON encoder in logback-spring.xml. A container's log is read by a machine before
+      # a person, and `docker logs` is the only sink here - there is no file appender and no volume.
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-json-logs}
+      LOG_LEVEL_APP: ${LOG_LEVEL_APP:-INFO}
     depends_on:
       postgres:
         condition: service_healthy

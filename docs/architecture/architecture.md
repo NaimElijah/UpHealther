@@ -181,6 +181,8 @@ without waiting.
 
 ---
 
+## Observability
+
 ### Correlation
 
 Every unit of work runs inside an observation, and the trace id it carries is what joins a failure
@@ -201,6 +203,24 @@ Nothing writes the MDC by hand. Correlation is a property of the runtime, so a n
 controller or job is correlated without its author doing anything.
 [ADR-007](../ADRs/ADR-007-request-correlation-through-micrometer-tracing.md) records why this is
 Micrometer Tracing rather than a hand-rolled request id.
+
+### Logging
+
+`docker logs` is the only sink. There is no file appender, no log volume and no aggregator, so a line
+that is not on stdout does not exist.
+
+`logback-spring.xml` renders that stdout in one of two formats, chosen by profile: Boot's readable
+console pattern by default, and one JSON object per line under `json-logs`, which `docker-compose`
+sets. The plain-text branch imports Boot's `defaults.xml` rather than defining a pattern, because that
+import is what carries `${LOG_CORRELATION_PATTERN}` — and therefore the trace id — into the output;
+`LogOutputFormatTest` renders through the real encoder in both formats so that losing it fails a build.
+
+Levels are load-bearing rather than decorative: **ERROR** is a fault a person must act on now, **WARN**
+is degraded but still serving, **INFO** is a state transition, and **DEBUG** is for a developer reading
+along. `com.healthupgrades` runs at INFO and is turned up for one run with `LOG_LEVEL_APP`. No log line
+carries personal data — ids and enum values only, never a title, an email, a note or an IP.
+[ADR-010](../ADRs/ADR-010-structured-logging-and-a-level-policy.md) records the format decision and the
+policy.
 
 ## External dependencies and integration points
 
@@ -336,6 +356,8 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the frontend tests with Vitest rather than Jest; why Vitest is pinned to 3; why there is still no accessibility gate | [ADR-004](../ADRs/ADR-004-frontend-test-harness.md) |
 | Why the integration tests start their own database instead of being handed one; why not H2 | [ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md) |
 | Which of the four test levels a new test belongs at, and why coverage is reported rather than gated | [ADR-009](../ADRs/ADR-009-test-levels-boundaries-and-naming.md) |
+| Why correlation is Micrometer Tracing rather than a hand-rolled request id; why there is no exporter | [ADR-007](../ADRs/ADR-007-request-correlation-through-micrometer-tracing.md) |
+| Why logs are JSON in a container but not locally; what each level means; why nothing personal may be logged | [ADR-010](../ADRs/ADR-010-structured-logging-and-a-level-policy.md) |
 | Why every page shares one width; why the shell can be trusted not to overflow; why container queries and a native `<dialog>` were turned down | [ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |

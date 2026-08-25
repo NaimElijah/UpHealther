@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Two output formats for one set of log statements: Boot's readable console pattern for a developer,
+  and JSON for a container whose log is read by a machine before a person. The `json-logs` profile
+  selects between them; docker-compose sets it, a local `mvn spring-boot:run` does not.
+
+  See docs/ADRs/ADR-010-structured-logging-a-level-policy-and-audit-as-a-log-stream.md.
+-->
+<configuration>
+
+    <!--
+      LOAD-BEARING, and the reason this file is a risk rather than a formality. Boot's defaults.xml
+      defines CONSOLE_LOG_PATTERN, and that pattern interpolates ${LOG_CORRELATION_PATTERN} - the
+      property LogCorrelationEnvironmentPostProcessor fills with the trace and span id. Replacing it
+      with a hand-written <pattern> compiles, runs, and silently un-correlates every plain-text line,
+      which is precisely the ADR-007 regression this project would not notice for months.
+      RequestCorrelationTest asserts the id still arrives, so the mistake fails a build instead.
+    -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!--
+      Read by the JSON encoder below so a log aggregator can separate two deployments of this service
+      without parsing the logger name. Matches the OpenTelemetry service.name the tracing bridge uses.
+    -->
+    <springProperty scope="context" name="serviceName" source="spring.application.name" defaultValue="unknown_service"/>
+
+    <springProfile name="!json-logs">
+        <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+    <springProfile name="json-logs">
+        <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <!--
+                  The MDC is where Micrometer's Slf4JEventListener writes traceId and spanId, so
+                  including it is what carries correlation into the JSON. It is also why nothing else
+                  may be written to the MDC by hand: an unexpected key becomes a top-level field, and
+                  a field named after something personal is NFR-6 broken silently.
+                -->
+                <includeMdc>true</includeMdc>
+                <includeContext>false</includeContext>
+                <customFields>{"service":"${serviceName}"}</customFields>
+                <fieldNames>
+                    <timestamp>timestamp</timestamp>
+                    <version>[ignore]</version>
+                    <levelValue>[ignore]</levelValue>
+                </fieldNames>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="JSON"/>
+        </root>
+    </springProfile>
+
+</configuration>

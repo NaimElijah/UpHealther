@@ -72,6 +72,18 @@ side. Both are deliberate, not drift.
   back only where it leaves the process, through `CorrelationId.of(tracer)`, which handles the three
   shapes of "no id". See `../docs/ADRs/ADR-007-request-correlation-through-micrometer-tracing.md`.
 
+- **A log level is a claim about who has to act.** `ERROR` is a fault somebody must act on now, `WARN`
+  is degraded but still serving, `INFO` is a state transition, `DEBUG` is for a developer reading
+  along. `com.healthupgrades` runs at `INFO`, so a `DEBUG` line is invisible in any deployment until
+  someone sets `LOG_LEVEL_APP` — write one only where that is the right answer.
+
+  **Nothing personal goes in a log line**: ids and enum values, never a title, an email, a reflection
+  body, a progress note or an IP address. That is NFR-6, and it applies to the message *and* to
+  anything handed to a `{}` placeholder. The output format is chosen by the `json-logs` profile in
+  `src/main/resources/logback-spring.xml`; do not write a `<pattern>` there, because Boot's imported
+  `defaults.xml` is what puts the trace id on a plain-text line. See
+  `../docs/ADRs/ADR-010-structured-logging-and-a-level-policy.md`.
+
 - **Optimistic locking** via `@Version` on entities (e.g. `HealthUpgrade.version`) → concurrent edits
   return 409.
 
