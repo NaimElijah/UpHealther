@@ -41,7 +41,7 @@ class UpgradeOverdueSchedulerTest {
     /**
      * Deliberately fixed to a date well in the past, so a target date that is still "ahead" by this clock
      * is unambiguously behind by the wall clock. That gap is what
-     * {@link #detectOverdueUpgrades_judgesAgainstTheInjectedClockNotTheWallClock()} exploits.
+     * {@link #GivenAFixedClock_WhenTheOverdueSweepRuns_ThenItJudgesAgainstThatClockNotTheWallClock()} exploits.
      */
     private final Clock fixedClock = Clock.fixed(Instant.parse("2020-01-01T09:00:00Z"), ZoneOffset.UTC);
     private final LocalDate today = LocalDate.of(2020, 1, 1);
@@ -63,7 +63,7 @@ class UpgradeOverdueSchedulerTest {
     }
 
     @Test
-    void detectOverdueUpgrades_pastTargetDate_publishesEvent() {
+    void GivenAnActiveUpgradePastItsTargetDate_WhenTheOverdueSweepRuns_ThenItIsAnnounced() {
         when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
                 .thenReturn(List.of(activeUpgradeEnding(today.minusDays(1))));
 
@@ -76,7 +76,7 @@ class UpgradeOverdueSchedulerTest {
     }
 
     @Test
-    void detectOverdueUpgrades_targetDateStillAhead_publishesNothing() {
+    void GivenATargetDateStillAhead_WhenTheOverdueSweepRuns_ThenNothingIsAnnounced() {
         when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
                 .thenReturn(List.of(activeUpgradeEnding(today.plusDays(5))));
 
@@ -86,7 +86,7 @@ class UpgradeOverdueSchedulerTest {
     }
 
     @Test
-    void detectOverdueUpgrades_noTargetDate_publishesNothing() {
+    void GivenNoTargetDate_WhenTheOverdueSweepRuns_ThenNothingIsAnnounced() {
         when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
                 .thenReturn(List.of(activeUpgradeEnding(null)));
 
@@ -96,7 +96,7 @@ class UpgradeOverdueSchedulerTest {
     }
 
     @Test
-    void detectOverdueUpgrades_targetDateIsToday_publishesNothing() {
+    void GivenATargetDateOfToday_WhenTheOverdueSweepRuns_ThenNothingIsAnnounced() {
         // Overdue means past the target date; the final day still counts as on time.
         when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
                 .thenReturn(List.of(activeUpgradeEnding(today)));
@@ -107,7 +107,7 @@ class UpgradeOverdueSchedulerTest {
     }
 
     @Test
-    void detectOverdueUpgrades_judgesAgainstTheInjectedClockNotTheWallClock() {
+    void GivenAFixedClock_WhenTheOverdueSweepRuns_ThenItJudgesAgainstThatClockNotTheWallClock() {
         // A target date long past by any wall clock this runs on, but still ahead of the clock this job
         // was given. Reading the system clock would report it overdue; reading the injected one does not.
         // Both dates are fixed, so the test does not depend on when the suite runs.

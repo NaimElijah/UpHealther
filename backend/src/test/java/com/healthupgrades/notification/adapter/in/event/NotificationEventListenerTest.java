@@ -48,7 +48,7 @@ class NotificationEventListenerTest {
     private final UUID upgradeId = UUID.randomUUID();
 
     @Test
-    void completed_createsSuccessNotificationWithLookedUpTitle() {
+    void GivenACompletedUpgrade_WhenTheEventIsHandled_ThenASuccessNotificationCarriesTheLookedUpTitle() {
         when(upgradeQuery.findOwned(userId, upgradeId))
                 .thenReturn(Optional.of(HealthUpgrade.builder().id(upgradeId).userId(userId).title("Drink water").build()));
 
@@ -59,7 +59,7 @@ class NotificationEventListenerTest {
     }
 
     @Test
-    void created_usesEventTitle_noLookup() {
+    void GivenACreatedUpgrade_WhenTheEventIsHandled_ThenTheEventTitleIsUsedWithoutALookup() {
         listener.onCreated(new HealthUpgradeCreated(upgradeId, userId, "Walk daily", LocalDateTime.now()));
 
         verify(notificationService).create(eq(userId), eq(NotificationType.UPGRADE_CREATED),
@@ -67,7 +67,7 @@ class NotificationEventListenerTest {
     }
 
     @Test
-    void overdue_createsWarningOncePerUpgrade() {
+    void GivenAnOverdueUpgrade_WhenTheEventIsHandled_ThenAWarningIsCreatedOncePerUpgrade() {
         listener.onOverdue(new UpgradeOverdueDetected(upgradeId, userId, LocalDateTime.now()));
 
         // The scan rediscovers an overdue upgrade on every run, so the once-per-upgrade entry point is

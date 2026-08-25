@@ -39,7 +39,7 @@ class UpgradeDtoSerializationTest {
     }
 
     @Test
-    void trackingConfig_serialisesWithTheFieldNamesTheFrontendReads() throws Exception {
+    void GivenAnUpgradeWithTrackingConfig_WhenTheResponseIsSerialised_ThenTheFieldNamesAreTheOnesTheFrontendReads() throws Exception {
         UpgradeTrackingConfigDto config = new UpgradeTrackingConfigDto(
                 UUID.randomUUID(), UUID.randomUUID(), "NUMERIC", "DAILY", 30.0, "minutes", true);
 
@@ -53,7 +53,7 @@ class UpgradeDtoSerializationTest {
     }
 
     @Test
-    void trackingConfig_rendersEnumValuedFieldsAsTheirNames() throws Exception {
+    void GivenTrackingConfigWithEnumValuedFields_WhenTheResponseIsSerialised_ThenTheyRenderAsTheirNames() throws Exception {
         // These were tracking's TrackingType and Frequency enums; Jackson wrote their names, and the
         // upgrade-owned record carries the same names as strings. The JSON must not change.
         UpgradeTrackingConfigDto config = new UpgradeTrackingConfigDto(
@@ -70,7 +70,7 @@ class UpgradeDtoSerializationTest {
     }
 
     @Test
-    void upgradeWithoutTrackingConfig_rendersItAsNull() throws Exception {
+    void GivenAnUpgradeWithoutTrackingConfig_WhenTheResponseIsSerialised_ThenTheConfigIsNull() throws Exception {
         // The frontend guards on `upgrade.trackingConfig?` throughout, so absent must stay null rather
         // than becoming an empty object.
         JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(sampleDto(null)));
@@ -79,7 +79,7 @@ class UpgradeDtoSerializationTest {
     }
 
     @Test
-    void theResponseKeepsTheFieldsTheFrontendTypeDeclares() throws Exception {
+    void GivenTheFrontendUpgradeType_WhenTheResponseIsSerialised_ThenEveryFieldItDeclaresIsPresent() throws Exception {
         JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(sampleDto(null)));
 
         assertThat(json.fieldNames()).toIterable().contains(

@@ -1,5 +1,6 @@
 package com.healthupgrades;
 
+import com.healthupgrades.support.PostgresIT;
 import com.healthupgrades.tracking.domain.service.ProgressEvaluationService;
 import com.healthupgrades.tracking.domain.service.StreakCalculator;
 import com.healthupgrades.upgrade.domain.service.UpgradeSchedulingService;
@@ -13,7 +14,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Boots the whole application against a real PostgreSQL.
  *
  * <p>An integration test ({@code *IT}, run by Failsafe during {@code verify}) rather than a unit test,
- * so {@code mvn test} stays database-free as documented.
+ * so {@code mvn test} stays database-free as documented. The database is the throwaway one
+ * {@link PostgresIT} starts.
  *
  * <p>It exists because nothing previously verified that the application starts at all. Two things could
  * break with a green build and only fail on deploy:
@@ -29,14 +31,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  * </ul>
  */
 @SpringBootTest
-class ApplicationContextIT {
+class ApplicationContextIT extends PostgresIT {
 
     @Autowired UpgradeSchedulingService upgradeSchedulingService;
     @Autowired StreakCalculator streakCalculator;
     @Autowired ProgressEvaluationService progressEvaluationService;
 
     @Test
-    void applicationStartsWithTheSchemaItExpectsAndTheDomainServicesWiredByHand() {
+    void GivenTheRealSchemaAndTheHandWiredBeans_WhenTheApplicationStarts_ThenItComesUpWithBothIntact() {
         // Reaching this point already proves the context started, which means Flyway migrated and
         // Hibernate validated the resulting schema. The assertions pin the hand-wired beans specifically.
         assertThat(upgradeSchedulingService).isNotNull();

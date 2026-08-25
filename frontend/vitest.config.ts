@@ -23,6 +23,16 @@ export default mergeConfig(
       globals: false,
       restoreMocks: true,
       css: false,
+      coverage: {
+        // Reported, never gated: a threshold is satisfied by tests written to move a number, and says
+        // nothing about whether a requirement is enforced. The gate is requirements.md naming a test
+        // for each entry - see docs/ADRs/ADR-009-test-levels-boundaries-and-naming.md.
+        provider: 'v8',
+        reporter: ['text-summary', 'lcov'],
+        include: ['src/**/*.{ts,tsx}'],
+        // Type-only and entry modules: no branches to cover, so counting them only dilutes the number.
+        exclude: ['src/**/*.test.{ts,tsx}', 'src/test/**', 'src/types/**', 'src/main.tsx'],
+      },
     },
   }),
 );
