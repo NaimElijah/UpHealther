@@ -19,6 +19,9 @@ conventions to follow inside `frontend/`.
   `/api/...` call is same-origin and flows through the Vite dev proxy / nginx prod proxy (set
   `VITE_API_URL` only for a different-origin API). A request interceptor attaches the JWT from
   `localStorage['jwt_token']`; a response interceptor clears the token and redirects to `/login` on 401.
+  That interceptor is **not** what ends an expired session: the API refuses an expired token with 403,
+  not 401, so expiry is noticed by `AuthContext`'s mount-time `/api/auth/me` check on the next page
+  load instead ([#58](https://github.com/NaimElijah/UpHealther/issues/58)).
   All `src/api/*.ts` modules call through this client — add new endpoints there, not with raw axios.
 - **A failure is decoded once, in `src/api/apiError.ts`.** `toApiError(thrown)` turns anything a call
   rejected with into `{ status, message, fieldErrors, traceId }`; render it with

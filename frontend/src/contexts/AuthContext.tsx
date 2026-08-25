@@ -11,7 +11,10 @@ import type { User } from '../types';
  * to render, and simultaneously checked against `/api/auth/me`. A token the server rejects clears the
  * session.
  *
- * A 401 on any later request is handled elsewhere, by the axios interceptor in `api/client.ts`.
+ * A 401 on any later request is handled elsewhere, by the axios interceptor in `api/client.ts`. That
+ * interceptor is not what ends an expired session, though: the API refuses an expired token with 403,
+ * not 401 (#58). The mount-time check below is — it clears the session on any failed `/api/auth/me`,
+ * so expiry is noticed on the next page load rather than on the request that hit it.
  */
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
