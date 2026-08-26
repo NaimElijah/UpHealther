@@ -1,21 +1,21 @@
+<div align="center">
+
 # UpHealther
 
-Plan a health change, then find out whether it actually happened — a tracker for habits,
+**Plan a health change, then find out whether it actually happened** — a tracker for habits,
 experiments, goals and one-off health actions, for people who want structure without a coach.
 
-[![CI](https://github.com/NaimElijah/UpHealther/actions/workflows/ci.yml/badge.svg)](https://github.com/NaimElijah/UpHealther/actions/workflows/ci.yml)
-[![Licence: source-available](https://img.shields.io/badge/licence-source--available-blue)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/NaimElijah/UpHealther/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/NaimElijah/UpHealther/actions/workflows/ci.yml)
+[![Last commit](https://img.shields.io/github/last-commit/NaimElijah/UpHealther?style=flat-square)](https://github.com/NaimElijah/UpHealther/commits/main)
+[![Licence](https://img.shields.io/badge/licence-source--available-blue?style=flat-square)](LICENSE)
 
 [Requirements](docs/requirements/requirements.md) ·
 [Architecture](docs/architecture/architecture.md) ·
 [Diagrams](docs/architecture/arch-diagrams/README.md) ·
+[API](docs/api.md) ·
 [Decisions](docs/ADRs/)
 
-**Contents:** [What and why](#what-and-why) · [Features](#features) · [Architecture](#architecture) ·
-[Tech stack](#tech-stack) · [Quick start](#quick-start) · [Configuration](#configuration) ·
-[Usage](#usage) · [Development](#development) · [Testing](#testing) · [Operations](#operations) ·
-[Project structure](#project-structure) · [Design decisions](#design-decisions) ·
-[Status and limitations](#status-and-limitations) · [Licence](#licence)
+</div>
 
 ```mermaid
 flowchart LR
@@ -46,6 +46,15 @@ flowchart LR
     core -->|"JDBC"| db
 ```
 
+**Contents** · [What and why](#what-and-why) · [Features](#features) ·
+[Architecture](#architecture) · [Tech stack](#tech-stack) · [Quick start](#quick-start) ·
+[Configuration](#configuration) · [Usage](#usage) · [Development](#development) ·
+[Testing](#testing) · [Operations](#operations) · [Project structure](#project-structure) ·
+[Design decisions](#design-decisions) · [Status and limitations](#status-and-limitations) ·
+[Licence](#licence)
+
+---
+
 ## What and why
 
 People who decide to change a health habit rarely fail at the decision — they fail at knowing
@@ -54,8 +63,10 @@ an **upgrade** with an explicit lifecycle, so "did I actually do this?" is a que
 memory: an upgrade is planned, activated, checked in against, and finally completed or abandoned,
 and every one of those moves is a guarded transition rather than an editable status field.
 
-It is deliberately **not a medical application**. It gives no advice, diagnosis or treatment, and
-no feature may imply otherwise ([non-goal 5.1](docs/requirements/requirements.md#5-non-goals)).
+> [!IMPORTANT]
+> UpHealther is deliberately **not a medical application**. It gives no advice, diagnosis or
+> treatment, and no feature may imply otherwise
+> ([non-goal 5.1](docs/requirements/requirements.md#5-non-goals)).
 
 ## Features
 
@@ -110,13 +121,13 @@ Seven diagrams, outside in: [arch-diagrams](docs/architecture/arch-diagrams/READ
 ## Tech stack
 
 | Layer | Technology | Version | Why |
-|---|---|---|---|
+|:---|:---|---:|:---|
 | Language | Java | 21 | Records carry the command, port and DTO layer, which is most of the boundary code |
 | Framework | Spring Boot | 3.2.5 | Confined to the adapters; ArchUnit keeps it out of the domain |
 | Auth | Spring Security + JJWT | Boot-managed / 0.12.3 | Stateless bearer tokens, no server-side session to replicate |
 | Database | PostgreSQL | 15 | The partial unique constraint and optimistic locking the domain relies on are real constraints, not application checks |
 | Migrations | Flyway | 9.22.3 | Flyway owns the schema; Hibernate runs `ddl-auto: validate` and refuses to start against one that does not match |
-| Observability | Micrometer Tracing (OTel bridge), Prometheus registry, Logstash encoder | Boot-managed / 7.4 | W3C `traceparent` on the wire and vendor-neutral; JSON logs whose trace id is a field, not a substring |
+| Observability | Micrometer Tracing, Prometheus registry, Logstash encoder | Boot-managed / 7.4 | W3C `traceparent` on the wire and vendor-neutral; JSON logs whose trace id is a field, not a substring |
 | Frontend | React + TypeScript | 18.3.1 / 5.9.3 | Enums mirrored from the backend, with a test that fails when they drift |
 | Build | Vite | 5.4.21 | Same `/api` proxy in dev as nginx serves in prod, so both sides behave identically |
 | Data fetching | TanStack Query | 5.100.10 | Cache invalidation per mutation instead of hand-rolled refetching |
@@ -164,37 +175,21 @@ a published value and gives no security.
 | `DB_URL` | JDBC URL the backend connects to | `jdbc:postgresql://localhost:5432/healthupgrades` | Outside compose |
 | `DB_USERNAME` | Database user the backend connects as | `healthupgrades` | Outside compose |
 | `DB_PASSWORD` | Password for that user | `healthupgrades` | Outside compose |
-| `CORS_ALLOWED_ORIGINS` | Origins allowed to call the API cross-origin; also the `/ws` handshake origins. Not needed behind the dev or nginx `/api` proxy | `http://localhost:3000` | No |
+| `CORS_ALLOWED_ORIGINS` | Cross-origin callers, and the `/ws` handshake origins; unused behind the `/api` proxy | `http://localhost:3000` | No |
 | `SPRING_PROFILES_ACTIVE` | `json-logs` switches log output to one JSON object per line; compose sets it | empty locally | No |
 | `LOG_LEVEL_APP` | Level for `com.healthupgrades` only | `INFO` | No |
 | `VITE_API_URL` | Backend URL for the frontend. Leave empty to use the same-origin `/api` proxy | empty | No |
 
-<details>
-<summary>Scheduled job timings — set in <code>application.yml</code>, not wired through compose</summary>
-
-| Variable | Purpose | Default |
-|---|---|---|
-| `UPGRADE_OVERDUE_CRON` | The overdue sweep (server timezone); `NOTIFY_OVERDUE_CRON` still honoured as its former name | `0 0 8 * * *` |
-| `NOTIFY_CHECKIN_CRON` | The daily check-in nudge | `0 0 18 * * *` |
-| `NOTIFY_REMINDERS_CRON` | How often reminders are dispatched | `0 * * * * *` |
-
-Absent from `.env.example`, and `docker-compose.yml` does not pass them to the backend — they take
-effect on a native run, or by adding them to the compose `environment:` block.
-
-</details>
+Three more live only in `application.yml` — `UPGRADE_OVERDUE_CRON` (`0 0 8 * * *`),
+`NOTIFY_CHECKIN_CRON` (`0 0 18 * * *`) and `NOTIFY_REMINDERS_CRON` (`0 * * * * *`). They are
+absent from `.env.example`, and `docker-compose.yml` does not pass them through, so they take
+effect on a native run only.
 
 ## Usage
 
-Authenticate, then send the token as a bearer on every `/api` call.
-
-```bash
-curl -sX POST http://localhost:8080/api/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"demo@healthupgrades.com","password":"demo123"}'
-```
-
-Returns `200` with `{ "token": "eyJhbGciOiJIUzI1NiJ9…", "user": { "id", "name", "email",
-"createdAt" } }`. Export the token as `$TOKEN` for the calls below.
+`POST /api/auth/login` with the demo credentials returns `200` and
+`{ "token": …, "user": { "id", "name", "email", "createdAt" } }`. Export that token as `$TOKEN`;
+every call below sends it as a bearer.
 
 Create an upgrade — `201`, and it starts in `IDEA` because status moves only through the transition
 endpoints:
@@ -202,11 +197,11 @@ endpoints:
 ```bash
 curl -sX POST http://localhost:8080/api/upgrades \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"title":"Walk 8k steps","type":"HABIT","difficulty":"MEDIUM","targetEndDate":"2026-12-01"}'
+  -d '{"title":"Walk 8k steps","type":"HABIT","difficulty":"MEDIUM"}'
 ```
 
 The response carries all eighteen fields of the upgrade — nulls are serialised rather than omitted,
-so a client can rely on every key being present. It is reproduced in full in
+so a client can rely on every key being present. A complete request-and-response pair is in
 [docs/api.md](docs/api.md#a-created-upgrade-in-full).
 
 A move the state machine forbids is refused by the domain, not the controller — `422`, with the
@@ -237,8 +232,8 @@ Running natively needs **JDK 21**, **Maven 3.8+**, **Node 20+**, and a PostgreSQ
 ```bash
 docker compose up -d postgres               # or bring your own PostgreSQL
 
-cd backend  && mvn spring-boot:run          # terminal 1 — :8080, Flyway migrates on start
-cd frontend && npm install && npm run dev   # terminal 2 — :3000, proxying /api to :8080
+cd backend  && mvn spring-boot:run          # terminal 1 — :8080, migrates on start
+cd frontend && npm install && npm run dev   # terminal 2 — :3000, proxies /api to :8080
 ```
 
 The backend falls back to the development defaults in `application.yml`, so a fresh clone runs
@@ -285,19 +280,20 @@ provisioning first and CI runs the same `verify`
 ([ADR-008](docs/ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)).
 
 **What CI gates on** ([`ci.yml`](.github/workflows/ci.yml), every push and PR to `main` and `dev`):
-`mvn clean verify`; the generated diagrams still matching their source; frontend lint with
+`mvn clean verify`; the generated diagrams still matching their source; frontend lint at
 `--max-warnings 0`; the colour-token check; `vitest run --coverage`; `npm audit --omit=dev
 --audit-level=high`; and the production build.
 
-**Coverage is reported and never gated.** Both suites publish a report every run — the backend's
-into the job summary, both as artefacts — but no threshold fails a build. The gate is
-[`requirements.md`](docs/requirements/requirements.md), where every requirement names the test that
-enforces it ([ADR-009](docs/ADRs/ADR-009-test-levels-boundaries-and-naming.md)).
+**Coverage is reported, never gated** — both suites publish one every run, no threshold fails a
+build. The gate is [`requirements.md`](docs/requirements/requirements.md), where every requirement
+names the test enforcing it ([ADR-009](docs/ADRs/ADR-009-test-levels-boundaries-and-naming.md)).
 
 ## Operations
 
-**Nothing is deployed.** This runs locally under Compose and has never run in a hosted environment,
-so there is no pipeline and no published image. What follows are facts about the code.
+> [!NOTE]
+> **Nothing is deployed.** This runs locally under Compose and has never run in a hosted
+> environment, so there is no pipeline and no published image. What follows are facts about the
+> code, not a description of a deployment.
 
 | Concern | Where |
 |---|---|
@@ -316,18 +312,18 @@ corrupting the schema. To chase a reported failure:
 ## Project structure
 
 ```
-backend/            Spring Boot API — nine bounded contexts, hexagonal, ArchUnit-enforced
-  src/main/java/      com.healthupgrades.<context>/{domain,application,adapter} + common/
-  src/main/resources/ application.yml, logback-spring.xml, db/migration/V{n}__*.sql
-  src/test/java/      domain · application · web slice · architecture · *IT
-frontend/           React + TypeScript SPA served by nginx in production
-  src/api/            Typed client per resource, plus the shared axios instance and error mapping
-  src/pages/          One page per route; components/, contexts/, hooks/ alongside
-docs/               The documentation the repository baseline requires
-  requirements/       What the system must do, each requirement naming its enforcing test
-  architecture/       What the system is, plus seven diagrams (three generated from source)
-  ADRs/               Why — one file per decision, append-only
-.github/workflows/  CI: backend verify, diagram drift check, frontend lint/test/audit/build
+backend/           Spring Boot API — nine bounded contexts, hexagonal, ArchUnit-enforced
+  src/main/java/     com.healthupgrades.<context>/{domain,application,adapter} + common/
+  src/main/resources/  application.yml, logback-spring.xml, db/migration/V{n}__*.sql
+  src/test/java/     domain · application · web slice · architecture · *IT
+frontend/          React + TypeScript SPA, served by nginx in production
+  src/api/           Typed client per resource, the axios instance, error mapping
+  src/pages/         One page per route; components/, contexts/, hooks/ alongside
+docs/              The documentation the repository baseline requires
+  requirements/      What the system must do, each naming its enforcing test
+  architecture/      What the system is, plus seven diagrams (three generated)
+  ADRs/              Why — one file per decision, append-only
+.github/workflows/ CI: backend verify, diagram drift, frontend lint/test/audit/build
 ```
 
 ## Design decisions
@@ -339,12 +335,11 @@ where nothing stops a controller reaching the database. **Cost:** many more type
 touches more files; entities stay JPA-annotated, so the domain is not persistence-ignorant.
 
 **A real PostgreSQL in the integration tests, started by the tests**
-([ADR-008](docs/ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)) — an embedded H2 in
-compatibility mode was rejected outright: the schema is PostgreSQL-specific, Hibernate boots with
-`validate`, and the invariants that most need a real database (a partial unique constraint,
-optimistic locking under concurrent writes) are exactly where compatibility modes diverge. A CI
-service container was rejected for keeping the two environments different. **Cost:** `mvn verify`
-needs Docker, and the suite is slower.
+([ADR-008](docs/ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)) — an embedded H2
+was rejected outright: the schema is PostgreSQL-specific, Hibernate boots with `validate`, and the
+invariants that most need a real database (a partial unique constraint, optimistic locking under
+concurrent writes) are where compatibility modes diverge. A CI service container was rejected for
+keeping the two environments different. **Cost:** `mvn verify` needs Docker and runs slower.
 
 **Coverage is reported, never gated** ([ADR-009](docs/ADRs/ADR-009-test-levels-boundaries-and-naming.md))
 — a threshold is satisfied by tests written to move a number and says nothing about whether a rule is
@@ -377,11 +372,11 @@ Known limitations, load-bearing rather than accidental:
   `NVD_API_KEY`, and a check that always fails — or cannot fail — was judged worse than none. The
   frontend's shipped dependencies *are* audited on every run.
 - **Observability stops at the process.** `docker logs` is the only sink, so its retention is the
-  audit trail's retention; nothing scrapes `/actuator/prometheus`; no span leaves the process; and
-  the SPA has no telemetry, so `ErrorBoundary` can show an error and nothing else knows it happened.
-- **Two paths carry a trace id in the header but not the body** — an anonymous request to a protected
-  endpoint is rejected inside the security chain (as a `403`, since no `AuthenticationEntryPoint` is
-  configured), and a container error dispatch runs outside the observation scope.
+  audit trail's retention; nothing scrapes `/actuator/prometheus`; no span leaves the process; the
+  SPA has no telemetry, so `ErrorBoundary` can show an error and nothing else knows.
+- **Two paths carry a trace id in the header but not the body** — an anonymous request to a
+  protected endpoint (rejected in the security chain as a `403`, no `AuthenticationEntryPoint`
+  configured), and a container error dispatch outside the observation scope.
 - **No screenshots yet.** The system-context diagram stands in until the UI is captured.
 
 Planned, and deliberately absent from every section above: push notifications, progress export,
@@ -393,11 +388,16 @@ internationalisation, wearable integration. Sharing, accountability partners and
 Outside contribution is not possible under the licence below — the code may be read, not modified.
 Corrections and questions are welcome as [issues](https://github.com/NaimElijah/UpHealther/issues).
 
+---
+
 ## Licence
 
-**Copyright © 2026 Naim Elijah. All rights reserved.** UpHealther is **source-available, not open
-source**: published so it can be read, reviewed and evaluated, which is the whole of the permission
-granted. Anything beyond reading — using, copying, modifying, running, deploying, redistributing, or
+> [!IMPORTANT]
+> UpHealther is **source-available, not open source**. Reading, reviewing and evaluating it is the
+> whole of the permission granted — it may not be used, copied, modified, run or redistributed.
+
+**Copyright © 2026 Naim Elijah. All rights reserved.** Published so it can be read, reviewed and
+evaluated. Anything beyond reading — using, copying, modifying, running, deploying, redistributing, or
 training a model on it — needs written permission, via
 [github.com/NaimElijah](https://github.com/NaimElijah); an unanswered request is a refused one.
 
