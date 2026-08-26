@@ -85,8 +85,11 @@ and `GlobalExceptionHandler` decides how it surfaces
 
 ## Error body
 
-Every failed request returns the same shape. `fieldErrors` appears only on validation failures and
-`traceId` only when the request was traced; both are omitted otherwise.
+Every failure that reaches `GlobalExceptionHandler` returns the same shape. `fieldErrors` appears
+only on validation failures and `traceId` only when the request was traced; both are omitted
+otherwise. Two paths do not reach it and so return Boot's default body instead — an anonymous
+request to a protected endpoint, rejected inside the Spring Security chain, and a container error
+dispatch to `/error`. Both still carry the `X-Trace-Id` header.
 
 ```json
 {
