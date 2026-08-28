@@ -37,8 +37,9 @@ enforced by `HexagonalArchitectureTest` (ArchUnit). Module-specific conventions 
 
 ### Full stack
 - `docker-compose up --build` — Postgres + backend + frontend. Frontend :3000, backend :8080.
-- Demo account after startup: `demo@healthupgrades.com` / `demo123` (seeded via Flyway `V2`; the demo
-  password hash is corrected in `V3`).
+- Demo account after startup: `demo@healthupgrades.com` / `demo1234` (seeded via Flyway `V2`; the
+  hash is corrected in `V3` and raised to the eight-character minimum of BR-17 in `V6`). Never edit an
+  applied migration to change it — Flyway checksums the comments too; add another `UPDATE`.
 
 ## Notes
 

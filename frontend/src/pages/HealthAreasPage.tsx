@@ -12,7 +12,7 @@ import type { CreateHealthAreaRequest, HealthArea } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import { areaIconGlyph, DEFAULT_AREA_ICON, isIconGlyph } from '../components/ui/areaIcon';
 import ErrorState from '../components/ui/ErrorState';
-import { toApiError } from '../api/apiError';
+import { toApiError, toFormMessage } from '../api/apiError';
 
 /**
  * Manages health areas — the folders upgrades are filed under.
@@ -53,13 +53,24 @@ const HealthAreasPage: React.FC = () => {
     e.preventDefault();
     setFormError('');
     if (!form.name.trim()) { setFormError('Name is required.'); return; }
-    await createMutation.mutateAsync(form);
+    try {
+      await createMutation.mutateAsync(form);
+    } catch (thrown) {
+      // The name, icon and colour are each bounded by their column (BR-16), and the API names whichever
+      // failed. Before this the rejection was unhandled and the dialog gave no sign of it.
+      setFormError(toFormMessage(toApiError(thrown), 'name'));
+    }
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editArea) return;
-    await updateMutation.mutateAsync({ id: editArea.id, req: form });
+    setFormError('');
+    try {
+      await updateMutation.mutateAsync({ id: editArea.id, req: form });
+    } catch (thrown) {
+      setFormError(toFormMessage(toApiError(thrown), 'name'));
+    }
   };
 
   /**

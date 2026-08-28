@@ -89,6 +89,41 @@ class HealthAreaControllerTest {
     }
 
     @Test
+    void GivenANameLongerThanItsColumn_WhenAnAreaIsCreated_ThenItAnswers400NamingTheField() throws Exception {
+        // health_areas.name is VARCHAR(255), which is where the 255 comes from. Unbounded here, an
+        // over-long name reached the flush in production and came back 500. This slice has no database
+        // and cannot see that flush; what it pins is the boundary contract. BR-16.
+        mockMvc.perform(bearer(post(BASE)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"" + "a".repeat(HealthAreaRequest.NAME_MAX + 1) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.name").exists());
+
+        verify(service, never()).create(any(), any());
+    }
+
+    @Test
+    void GivenAnIconLongerThanItsColumn_WhenAnAreaIsCreated_ThenItAnswers400NamingTheField() throws Exception {
+        // health_areas.icon is VARCHAR(100) - a narrower column than the name, and a separate bound.
+        mockMvc.perform(bearer(post(BASE)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Sleep\",\"icon\":\"" + "i".repeat(HealthAreaRequest.ICON_MAX + 1) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.icon").exists());
+
+        verify(service, never()).create(any(), any());
+    }
+
+    @Test
+    void GivenAColourLongerThanItsColumn_WhenAnAreaIsCreated_ThenItAnswers400NamingTheField() throws Exception {
+        // health_areas.color is VARCHAR(50), the narrowest of the three.
+        mockMvc.perform(bearer(post(BASE)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Sleep\",\"color\":\"" + "c".repeat(HealthAreaRequest.COLOR_MAX + 1) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.color").exists());
+
+        verify(service, never()).create(any(), any());
+    }
+
+    @Test
     void GivenTheCallersAreas_WhenTheyAreListed_ThenTheyAnswer200ScopedToThePrincipal() throws Exception {
         when(service.listByUser(userId)).thenReturn(List.of(anArea()));
 

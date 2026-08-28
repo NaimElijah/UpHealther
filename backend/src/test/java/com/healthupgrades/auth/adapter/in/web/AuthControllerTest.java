@@ -62,7 +62,7 @@ class AuthControllerTest {
 
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\"s3cret!\"}"))
+                        .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\"s3cret!42\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.token").value("issued.jwt.token"))
                 .andExpect(jsonPath("$.user.email").value(AUser.EMAIL))
@@ -75,7 +75,7 @@ class AuthControllerTest {
             throws Exception {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Someone\",\"email\":\"not-an-email\",\"password\":\"s3cret!\"}"))
+                        .content("{\"name\":\"Someone\",\"email\":\"not-an-email\",\"password\":\"s3cret!42\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.email").exists());
 
@@ -92,6 +92,66 @@ class AuthControllerTest {
     }
 
     @Test
+    void GivenAnEmptyPasswordViolatingTwoConstraints_WhenItIsSent_ThenTheSameMessageComesBackEveryTime()
+            throws Exception {
+        // "" fails both @NotBlank and @Size(min = 8), and the field map holds one message per field.
+        // Hibernate Validator does not specify the order of getFieldErrors(), so without the sort in
+        // GlobalExceptionHandler two identical requests could answer differently. Repeated because a
+        // single call cannot tell a stable choice from a lucky one.
+        for (int attempt = 0; attempt < 5; attempt++) {
+            mockMvc.perform(post("/api/auth/register")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\"\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.fieldErrors.password").value("must not be blank"));
+        }
+
+        verify(authService, never()).register(any(), any(), any());
+    }
+
+    @Test
+    void GivenAPasswordBelowTheMinimum_WhenAVisitorRegisters_ThenItAnswers400AndNobodyIsRegistered()
+            throws Exception {
+        // The browser has always asked for a minimum and the API never did, so any caller that was not
+        // the frontend could register a one-character password. BR-17.
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\"a\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.password").exists());
+
+        verify(authService, never()).register(any(), any(), any());
+    }
+
+    @Test
+    void GivenAPasswordAtTheMinimum_WhenAVisitorRegisters_ThenItIsAccepted() throws Exception {
+        // The bound is inclusive, so the shortest allowed password must not be refused.
+        when(authService.register(anyString(), anyString(), anyString()))
+                .thenReturn(new AuthResult("issued.jwt.token", aUser()));
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\"" + "x".repeat(AuthController.PASSWORD_MIN) + "\"}"))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void GivenAPasswordLongerThanBcryptHashes_WhenAVisitorRegisters_ThenItIsRefusedRatherThanTruncated()
+            throws Exception {
+        // BCryptPasswordEncoder in Spring Security 6.2 guards only against null: anything past 72 bytes
+        // is silently dropped, so a 100-character password and its first 72 characters would be the
+        // same password and the user would never be told. Refusing the input is the honest answer.
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\""
+                                + "p".repeat(AuthController.PASSWORD_MAX + 1) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.password").exists());
+
+        verify(authService, never()).register(any(), any(), any());
+    }
+
+    @Test
     void GivenAnEmailAlreadyRegistered_WhenAVisitorRegisters_ThenItAnswers422() throws Exception {
         // FR-4 reaching the client. The request was well-formed and the rules refuse it, which is a 422
         // rather than a 400 — the form has nothing to correct.
@@ -100,7 +160,7 @@ class AuthControllerTest {
 
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\"s3cret!\"}"))
+                        .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\"s3cret!42\"}"))
                 .andExpect(status().isUnprocessableEntity());
     }
 

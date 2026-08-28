@@ -27,6 +27,7 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -168,14 +169,22 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     /**
      * Maps bean-validation failures on a request body to 400, with a field → message map so the client
      * can attach each message to the input that produced it.
+     *
+     * <p>One field can violate several constraints at once — an empty password fails both
+     * {@code @NotBlank} and {@code @Size(min = 8)} — and the map holds one message each. Hibernate
+     * Validator does not specify the order of {@code getFieldErrors()}, so picking whichever arrives
+     * last would let two identical requests answer differently. Sorting the messages and keeping the
+     * first makes the choice arbitrary but stable, which is what a wire contract needs: the client
+     * shows one message per input either way, and the same request always produces the same one.
      */
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException ex, HttpHeaders headers,
                                                                   HttpStatusCode status, WebRequest request) {
         Map<String, String> errors = new HashMap<>();
-        for (FieldError fe : ex.getBindingResult().getFieldErrors()) {
-            errors.put(fe.getField(), fe.getDefaultMessage());
-        }
+        ex.getBindingResult().getFieldErrors().stream()
+                .sorted(Comparator.comparing(FieldError::getField)
+                        .thenComparing(fe -> String.valueOf(fe.getDefaultMessage())))
+                .forEach(fe -> errors.putIfAbsent(fe.getField(), fe.getDefaultMessage()));
         ErrorResponse body = body(HttpStatus.BAD_REQUEST.value(), "Validation failed", pathOf(request));
         body.setFieldErrors(errors);
         return respond(ex, HttpStatus.BAD_REQUEST, body, headers, request);

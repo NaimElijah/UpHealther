@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { AxiosError, AxiosHeaders } from 'axios';
 import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import { toApiError } from './apiError';
+import { toApiError, toFormMessage } from './apiError';
 
 /**
  * The one place the backend's error contract is decoded.
@@ -93,5 +93,68 @@ describe('toApiError', () => {
     const error = toApiError(responded(500, { message: 'Internal server error', traceId: '' }));
 
     expect(error.traceId).toBeUndefined();
+  });
+});
+
+/**
+ * What a form actually shows.
+ *
+ * A 400 puts "Validation failed" in `message` and the reason in `fieldErrors`, so a page that renders
+ * `message` tells somebody that something is wrong and nothing about what. That is what happened to
+ * the 400s BR-16 and BR-17 introduced: the API named the field and the interface dropped it.
+ */
+describe('toFormMessage', () => {
+  it('GivenAFailureOnTheFormsMainField_WhenItIsDescribed_ThenThatMessageIsShownAlone', () => {
+    const message = toFormMessage(
+      { status: 400, message: 'Validation failed', fieldErrors: { title: 'size must be between 0 and 255' } },
+      'title',
+    );
+
+    expect(message).toBe('Size must be between 0 and 255');
+  });
+
+  it('GivenFailuresOnFieldsTheFormDidNotName_WhenTheyAreDescribed_ThenEachIsNamedAndOrdered', () => {
+    // Sorted so the same failure always reads the same way, whatever order the map arrived in.
+    const message = toFormMessage({
+      status: 400,
+      message: 'Validation failed',
+      fieldErrors: { password: 'size must be between 8 and 72', name: 'must not be blank' },
+    });
+
+    expect(message).toBe('Name: must not be blank. Password: size must be between 8 and 72.');
+  });
+
+  it('GivenAFieldFailureElsewhere_WhenTheFormsOwnFieldIsUnaffected_ThenTheOtherFieldIsStillNamed', () => {
+    // The primary field is a preference, not a filter: dropping the rest would show an empty error.
+    const message = toFormMessage(
+      { status: 400, message: 'Validation failed', fieldErrors: { icon: 'size must be between 0 and 100' } },
+      'name',
+    );
+
+    expect(message).toBe('Icon: size must be between 0 and 100.');
+  });
+
+  it('GivenAFailureWithNoFieldDetail_WhenItIsDescribed_ThenTheTraceIdIsAppendedForAReport', () => {
+    const message = toFormMessage({ status: 500, message: 'Internal server error', traceId: 'abc123' });
+
+    expect(message).toBe('Internal server error (reference abc123)');
+  });
+
+  it('GivenAFieldFailure_WhenItIsDescribed_ThenNoTraceIdIsAppended', () => {
+    // A trace id helps a bug report and clutters a form: the user can fix this one themselves.
+    const message = toFormMessage({
+      status: 400,
+      message: 'Validation failed',
+      fieldErrors: { title: 'must not be blank' },
+      traceId: 'abc123',
+    }, 'title');
+
+    expect(message).toBe('Must not be blank');
+  });
+
+  it('GivenAFailureWithNeitherFieldsNorATraceId_WhenItIsDescribed_ThenTheMessageStandsAlone', () => {
+    const message = toFormMessage({ message: 'Could not reach the server. Check your connection and try again.' });
+
+    expect(message).toBe('Could not reach the server. Check your connection and try again.');
   });
 });
