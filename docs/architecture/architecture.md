@@ -384,11 +384,36 @@ the content, which is why every user-supplied string in the shell also carries `
 already has an automatic minimum size of zero. How wide a page may then grow is decided once, in
 `PageContainer`, and not by the pages. See [ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md).
 
+**One dialog is portalled to `<body>`, and it mutates the rest of the document while it is open.**
+`components/ui/Modal` is the only `createPortal` in the SPA. Its overlay is a direct child of
+`<body>` rather than of the page that rendered it, so that "everything behind the dialog" is one list
+of nodes instead of an ancestor's siblings at several depths — and every one of those nodes is given
+`inert` for as long as a dialog is open, which is what makes its `aria-modal="true"` true rather than
+merely asserted. The marking is refcounted in module state inside `Modal.tsx`, so two dialogs open at
+once behave, and the set of nodes is snapshotted on the first open.
+
+Two constraints fall out of that and bind anything added later. **A new `createPortal(...,
+document.body)` has to declare itself**: it either carries `data-modal-overlay`, meaning it belongs
+above a dialog and must not be inerted, or it is mounted before a dialog opens so the walk can see it
+— a portal that appears while a dialog is already open is never marked and stays reachable behind one
+that says nothing behind it is. And **`inert` is the mechanism, never `aria-hidden`**: Testing
+Library's role queries treat an `aria-hidden` ancestor as non-existent, so using it would leave every
+future page test that opens a dialog unable to query the page it is standing on. See
+[ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md).
+
 **The frontend's types are hand-written, not generated.** `src/types/index.ts` mirrors the backend's
 DTOs and enums by hand. The **enums** are checked: `FrontendEnumContractTest` reads that file and fails
 the build if any mirrored union stops matching its backend enum, which is what stops an unbindable
 value reaching the UI. The **DTO shapes** are not checked — a renamed or retyped field still drifts
 silently, and only a type generated from the API contract would close that gap.
+
+**Request DTO bounds are hand-copied from the migrations, and checked the same way.** Every
+`@Size(max = ...)` that mirrors a `VARCHAR(n)` exists because an unbounded field reaches the flush and
+returns 500 rather than 400 (BR-16). Nothing structural connects the two: the entities declare no
+`@Column(length)`, and Hibernate's `validate` checks a column's existence and type, not its width. So
+`ColumnBoundContractTest` reads the migrations directly and fails the build when a bound and its
+column disagree, or when a new bounded column is neither mirrored by a DTO nor listed as one no
+request body writes to.
 
 ### Known constraints
 
@@ -450,7 +475,8 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why logs are JSON in a container but not locally; what each level means; why nothing personal may be logged | [ADR-010](../ADRs/ADR-010-structured-logging-and-a-level-policy.md) |
 | Why the audit trail is a log stream rather than a table or Envers; why refusals are recorded; what is not audited | [ADR-011](../ADRs/ADR-011-audit-as-a-log-stream.md) |
 | Why metrics are a scrape endpoint and not an exporter or a Grafana stack; why the actuator surface is closed by name | [ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md) |
-| Why every page shares one width; why the shell can be trusted not to overflow; why container queries and a native `<dialog>` were turned down | [ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md) |
+| Why every page shares one width; why the shell can be trusted not to overflow; why container queries were turned down | [ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md) |
+| Why the dialog traps focus by hand rather than through a native `<dialog>`; why `inert` and not `aria-hidden`; why the overlay is portalled | [ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

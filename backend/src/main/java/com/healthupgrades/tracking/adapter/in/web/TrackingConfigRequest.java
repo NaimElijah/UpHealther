@@ -28,5 +28,5 @@ public record TrackingConfigRequest(
         Boolean requiredDaily
 ) {
     /** Mirrors {@code tracking_configs.target_unit VARCHAR(100)}; see BR-16 for why the bound is here. */
-    static final int TARGET_UNIT_MAX = 100;
+    public static final int TARGET_UNIT_MAX = 100;
 }

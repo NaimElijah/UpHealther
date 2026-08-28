@@ -30,5 +30,5 @@ public record ProgressRequest(
         String note
 ) {
     /** Mirrors {@code progress_entries.unit VARCHAR(100)}; see BR-16 for why the bound is here. */
-    static final int UNIT_MAX = 100;
+    public static final int UNIT_MAX = 100;
 }

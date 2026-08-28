@@ -25,17 +25,17 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     /** Mirrors {@code users.name VARCHAR(255)}; see BR-16 for why the bound is here. */
-    static final int NAME_MAX = 255;
+    public static final int NAME_MAX = 255;
 
     /** Mirrors {@code users.email VARCHAR(255)}. */
-    static final int EMAIL_MAX = 255;
+    public static final int EMAIL_MAX = 255;
 
     /**
      * The shortest password the API accepts. Unlike the bounds above this mirrors no column - only the
      * hash is stored, and a BCrypt hash is always 60 characters - so it is policy, and it is enforced
      * here because a rule the browser alone applies is not enforced at all. BR-17.
      */
-    static final int PASSWORD_MIN = 8;
+    public static final int PASSWORD_MIN = 8;
 
     /**
      * Where BCrypt stops reading. {@code BCryptPasswordEncoder} guards only against null, so anything
@@ -44,7 +44,7 @@ public class AuthController {
      * {@code @Size} counts UTF-16 code units and BCrypt counts bytes, so a password of multi-byte
      * characters can pass this bound and still be truncated.
      */
-    static final int PASSWORD_MAX = 72;
+    public static final int PASSWORD_MAX = 72;
 
     private final AuthService authService; // application service
 

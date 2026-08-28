@@ -37,6 +37,11 @@ public record UpgradeRequest(
         String motivation,
         String successCriteria
 ) {
-    /** Mirrors {@code health_upgrades.title VARCHAR(255)}; see BR-16 for why the bound is here. */
-    static final int TITLE_MAX = 255;
+    /**
+     * Mirrors {@code health_upgrades.title VARCHAR(255)}; see BR-16 for why the bound is here.
+     *
+     * <p>Public because {@code ColumnBoundContractTest} reads it from another package to check it
+     * still agrees with the migration, which is the only thing keeping the two numbers in step.
+     */
+    public static final int TITLE_MAX = 255;
 }

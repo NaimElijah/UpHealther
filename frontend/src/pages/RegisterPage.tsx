@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import ThemeToggle from '../components/theme/ThemeToggle';
-import { toApiError } from '../api/apiError';
+import { toApiError, toFormMessage } from '../api/apiError';
 
 /**
  * Must match `AuthController.PASSWORD_MIN`. Nothing keeps the two in step automatically — a contract
@@ -55,8 +55,10 @@ const RegisterPage: React.FC = () => {
       // network outage - which sent people looking for an account they had never created. The API
       // says what went wrong; the trace id is appended so a report about the ones it cannot explain
       // is worth acting on.
-      const failure = toApiError(thrown);
-      setError(failure.traceId ? `${failure.message} (reference ${failure.traceId})` : failure.message);
+      // toFormMessage prefers the field detail: a 400 puts only "Validation failed" in `message` and
+      // the reason in `fieldErrors`, so rendering `message` left somebody who pasted a passphrase past
+      // BCrypt's 72-byte limit with nothing to act on.
+      setError(toFormMessage(toApiError(thrown)));
     } finally {
       setLoading(false);
     }

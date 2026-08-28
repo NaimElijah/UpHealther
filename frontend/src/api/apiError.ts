@@ -20,6 +20,36 @@ export interface ApiError {
   traceId?: string;
 }
 
+/**
+ * The sentence to put in front of a user for a failed call, preferring the specific over the general.
+ *
+ * A validation failure carries its detail in `fieldErrors` and puts only "Validation failed" in
+ * `message`, so rendering `message` alone tells somebody that something is wrong and nothing about
+ * what — which is what every form here did with the 400s the API started returning for an over-long
+ * field or a short password. Field messages come first for that reason, and the trace id is appended
+ * only when there is no field detail, because "reference 7f3a..." helps a bug report and not a form.
+ *
+ * @param error   a decoded failure from {@link toApiError}
+ * @param primary the form's main field, whose message is shown alone when it is the one that failed
+ * @returns a string that is always safe to render
+ */
+export function toFormMessage(error: ApiError, primary?: string): string {
+  const fields = error.fieldErrors;
+  if (fields) {
+    if (primary && fields[primary]) return capitalise(fields[primary]);
+    return Object.entries(fields)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([field, message]) => `${capitalise(field)}: ${message}.`)
+      .join(' ');
+  }
+  return error.traceId ? `${error.message} (reference ${error.traceId})` : error.message;
+}
+
+/** Bean-validation messages arrive lowercase ("size must be between..."), mid-sentence in shape. */
+function capitalise(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 /** Shown when the request never reached the API, or reached it and produced nothing to quote. */
 const UNREACHABLE = 'Could not reach the server. Check your connection and try again.';
 const UNEXPLAINED = 'Something went wrong.';

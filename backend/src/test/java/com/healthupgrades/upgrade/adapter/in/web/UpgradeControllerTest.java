@@ -115,7 +115,7 @@ class UpgradeControllerTest {
         // flush; what it pins is the boundary contract that makes it unreachable. BR-16.
         mockMvc.perform(bearer(post(BASE))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"" + "a".repeat(256) + "\",\"type\":\"HABIT\"}"))
+                        .content("{\"title\":\"" + "a".repeat(UpgradeRequest.TITLE_MAX + 1) + "\",\"type\":\"HABIT\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.title").exists());
 
@@ -130,7 +130,7 @@ class UpgradeControllerTest {
 
         mockMvc.perform(bearer(post(BASE))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"" + "a".repeat(255) + "\",\"type\":\"HABIT\"}"))
+                        .content("{\"title\":\"" + "a".repeat(UpgradeRequest.TITLE_MAX) + "\",\"type\":\"HABIT\"}"))
                 .andExpect(status().isCreated());
     }
 

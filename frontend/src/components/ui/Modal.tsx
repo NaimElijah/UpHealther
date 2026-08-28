@@ -19,13 +19,23 @@ interface ModalProps {
  * every element a zero-sized box, so one would match nothing in any test and leave the trap untestable.
  * It costs nothing here because the call sites conditionally *render* their optional fields rather
  * than hiding them in CSS.
+ *
+ * This list cannot be complete — `contenteditable`, `summary`, embedded media and shadow roots all
+ * take focus under rules a selector does not capture — which is why `handleKeyDown` treats "focus is
+ * not in this list" as a reason to stand aside rather than as a boundary it has found.
  */
 const FOCUSABLE = [
   'a[href]',
+  'area[href]',
   'button:not([disabled])',
   'input:not([disabled]):not([type="hidden"])',
   'select:not([disabled])',
   'textarea:not([disabled])',
+  'iframe',
+  'audio[controls]',
+  'video[controls]',
+  'summary',
+  '[contenteditable]:not([contenteditable="false"])',
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
@@ -37,6 +47,14 @@ const FOCUSABLE = [
  * which has to be set in the JSX rather than registered from an effect — React inserts both portals
  * during the mutation phase and runs neither effect until afterwards, so an effect-time registry
  * loses that race and the first dialog marks the second one inert.
+ *
+ * **The set is snapshotted once, on the 0 -> 1 transition.** Anything appended to `<body>` while a
+ * dialog is already open is never marked, and stays reachable behind a dialog claiming nothing behind
+ * it is. Nothing does that today — this is the codebase's only portal — so the invariant is stated
+ * rather than enforced: a new `createPortal(..., document.body)` either carries `data-modal-overlay`
+ * because it belongs above a dialog, or it is mounted where this walk can see it. Watching for it
+ * would mean a MutationObserver alive for the lifetime of every dialog, which is a great deal of
+ * machinery for a case the codebase does not have.
  */
 let openModals = 0;
 let inerted: Element[] = [];
@@ -70,6 +88,12 @@ const releaseInert = () => {
  * Closes on Escape as well as on the button and the backdrop; the key listener is bound only while
  * open, so a closed modal costs nothing. Nothing is rendered when closed, which means the body is
  * unmounted and its form state resets between openings.
+ *
+ * Escape is bound to `document` rather than to the dialog, so it closes *every* open dialog rather
+ * than the topmost one. Tab is scoped to the dialog and does not have this problem. The difference
+ * cannot show up in this app, because no page can open two dialogs at once, and it is left that way
+ * on purpose: scoping Escape to the dialog would make it work only while focus was inside, which is
+ * reliably true only because the trap makes it true.
  *
  * **`aria-modal` is claimed here, and three things make the claim true.** The overlay is portalled to
  * `<body>`, so "the page behind" is exactly "the other children of `<body>`" — a one-level walk rather
@@ -119,6 +143,11 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
       // Order matters: a browser refuses to move focus into an inert subtree, so the page has to be
       // released before the trigger can take focus back. Keeping both in one effect makes that
       // explicit — split in two it would rest on declaration order, and jsdom would never show the bug.
+      //
+      // The guarantee is only as good as the release: with another dialog still open, releaseInert is
+      // a no-op and the trigger is still inside an inert subtree, so a browser ignores the focus call
+      // and focus falls to <body>. That needs two dialogs open at once, which no page here can
+      // produce; ADR-013 records it rather than defending against it.
       releaseInert();
       if (previouslyFocused?.isConnected) previouslyFocused.focus();
     };
@@ -129,10 +158,11 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
    * cannot fight over the key — only the one holding focus sees the event.
    *
    * `preventDefault` fires at the two boundaries and nowhere else: in the middle, the browser's own
-   * order beats a flat `querySelectorAll` list, which gets radio groups wrong. When focus is on the
-   * dialog container itself the index is -1, and both branches then do the right thing — Shift+Tab
-   * wraps to the last control instead of escaping backwards, and plain Tab is left alone because the
-   * container precedes its own contents in DOM order.
+   * order beats a flat `querySelectorAll` list, which gets radio groups wrong. Focus on the dialog
+   * container itself is a boundary — Shift+Tab from there would otherwise escape backwards, while
+   * plain Tab is safe to leave alone because the container precedes its own contents in DOM order.
+   * Focus on something the list does not know about is *not* a boundary, and the two are told apart
+   * by identity rather than by both happening to land on an index of -1.
    */
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== 'Tab') return;
@@ -148,8 +178,16 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
       return;
     }
 
-    const index = items.indexOf(document.activeElement as HTMLElement);
-    const wrapToLast = e.shiftKey && index <= 0;
+    const active = document.activeElement as HTMLElement | null;
+    const index = items.indexOf(active as HTMLElement);
+    const onDialogItself = active === dialog;
+
+    // Focus is on something FOCUSABLE does not list — see the note there. Standing aside is the safe
+    // reading: the browser moves focus one step, which is right, whereas guessing a boundary would
+    // throw the user to the far end of the dialog for no reason they could see.
+    if (index === -1 && !onDialogItself) return;
+
+    const wrapToLast = e.shiftKey && (onDialogItself || index === 0);
     const wrapToFirst = !e.shiftKey && index === items.length - 1;
     if (!wrapToLast && !wrapToFirst) return;
 

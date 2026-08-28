@@ -24,11 +24,11 @@ public record HealthAreaRequest(
         @Size(max = COLOR_MAX) String color
 ) {
     /** Mirrors {@code health_areas.name VARCHAR(255)}; see BR-16 for why the bound is here. */
-    static final int NAME_MAX = 255;
+    public static final int NAME_MAX = 255;
 
     /** Mirrors {@code health_areas.icon VARCHAR(100)}. */
-    static final int ICON_MAX = 100;
+    public static final int ICON_MAX = 100;
 
     /** Mirrors {@code health_areas.color VARCHAR(50)}, the narrowest of the three. */
-    static final int COLOR_MAX = 50;
+    public static final int COLOR_MAX = 50;
 }

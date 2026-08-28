@@ -92,6 +92,24 @@ class AuthControllerTest {
     }
 
     @Test
+    void GivenAnEmptyPasswordViolatingTwoConstraints_WhenItIsSent_ThenTheSameMessageComesBackEveryTime()
+            throws Exception {
+        // "" fails both @NotBlank and @Size(min = 8), and the field map holds one message per field.
+        // Hibernate Validator does not specify the order of getFieldErrors(), so without the sort in
+        // GlobalExceptionHandler two identical requests could answer differently. Repeated because a
+        // single call cannot tell a stable choice from a lucky one.
+        for (int attempt = 0; attempt < 5; attempt++) {
+            mockMvc.perform(post("/api/auth/register")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\"\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.fieldErrors.password").value("must not be blank"));
+        }
+
+        verify(authService, never()).register(any(), any(), any());
+    }
+
+    @Test
     void GivenAPasswordBelowTheMinimum_WhenAVisitorRegisters_ThenItAnswers400AndNobodyIsRegistered()
             throws Exception {
         // The browser has always asked for a minimum and the API never did, so any caller that was not
@@ -113,7 +131,7 @@ class AuthControllerTest {
 
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\"12345678\"}"))
+                        .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\"" + "x".repeat(AuthController.PASSWORD_MIN) + "\"}"))
                 .andExpect(status().isCreated());
     }
 
@@ -126,7 +144,7 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\""
-                                + "p".repeat(73) + "\"}"))
+                                + "p".repeat(AuthController.PASSWORD_MAX + 1) + "\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.password").exists());
 

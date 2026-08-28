@@ -105,7 +105,7 @@ class ProgressControllerTest {
         // over-long unit reached the flush in production and came back 500. This slice has no database
         // and cannot see that flush; what it pins is the boundary contract. BR-16.
         mockMvc.perform(bearer(post(progressPath)).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"unit\":\"" + "u".repeat(101) + "\"}"))
+                        .content("{\"unit\":\"" + "u".repeat(ProgressRequest.UNIT_MAX + 1) + "\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.unit").exists());
 

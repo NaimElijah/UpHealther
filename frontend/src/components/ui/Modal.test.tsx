@@ -28,7 +28,15 @@ const renderModal = (onClose = vi.fn(), title = 'New Health Area') =>
     </Modal>,
   );
 
-/** Two modals mounted at once, which is what `HealthAreasPage` does with its create/edit/delete trio. */
+/**
+ * Two dialogs open at once.
+ *
+ * No page here can produce this: `HealthAreasPage` mounts a create/edit/delete trio, but their three
+ * open flags are set one at a time, and a closed `Modal` returns null before its portal so it is not
+ * open in the sense the refcount cares about. `Modal` is a shared primitive that does not control its
+ * call sites, so the state is defended against rather than assumed away — these fixtures exercise the
+ * defence, not a live path.
+ */
 const TwoModals: React.FC = () => (
   <>
     <Modal isOpen onClose={() => {}} title="New Health Area">
@@ -123,7 +131,7 @@ describe('Modal', () => {
       expect(container.getAttribute('inert')).toBe('');
     });
 
-    it('GivenAModalThatHasClosed_WhenItUnmounts_ThenTheContentBehindIsNoLongerInert', () => {
+    it('GivenAnOpenModal_WhenItCloses_ThenTheContentBehindIsNoLongerInert', () => {
       const { container } = render(<Openable />);
 
       fireEvent.keyDown(document, { key: 'Escape' });
@@ -252,6 +260,26 @@ describe('Modal', () => {
 
       expect(event.defaultPrevented).toBe(true);
       expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Save' }));
+    });
+
+    // FOCUSABLE cannot enumerate everything a browser will focus, so the handler has to tell "focus
+    // is on the dialog itself" apart from "focus is on something I do not know about". Both used to
+    // land on an index of -1 and take the Shift+Tab boundary, throwing the user to the last control.
+    it('GivenFocusOnAnElementTheFocusableListDoesNotKnow_WhenShiftTabIsPressed_ThenItIsLeftAlone', () => {
+      render(
+        <Modal isOpen onClose={() => {}} title="New Health Area">
+          <div data-testid="scratch" contentEditable suppressContentEditableWarning />
+        </Modal>,
+      );
+      const scratch = screen.getByTestId('scratch');
+      // Queried, not asserted on: the point is the handler's behaviour when indexOf misses, and this
+      // is simply a reliable way to produce that state in jsdom.
+      scratch.setAttribute('contenteditable', 'false');
+      scratch.focus();
+
+      const event = pressTab(scratch, true);
+
+      expect(event.defaultPrevented).toBe(false);
     });
 
     it('GivenADialogWhoseOnlyControlIsItsCloseButton_WhenTabIsPressed_ThenFocusStaysOnThatButton', () => {
