@@ -7,11 +7,19 @@ import ThemeToggle from '../components/theme/ThemeToggle';
 import { toApiError } from '../api/apiError';
 
 /**
+ * Must match `AuthController.PASSWORD_MIN`. Nothing keeps the two in step automatically — a contract
+ * test in the shape of `FrontendEnumContractTest` would, and is more machinery than one integer earns.
+ * The server is the enforcer; this only decides when the message appears without a round trip.
+ */
+const PASSWORD_MIN_LENGTH = 8;
+
+/**
  * Account creation page, and the other route reachable without a session.
  *
  * The password rules checked here — matching confirmation, minimum length — are for immediate feedback
- * only; the API is the authority on whether a registration is accepted. A duplicate email is reported
- * as a possibility rather than a fact, so this page does not become a way to test which emails exist.
+ * only; the API is the authority on whether a registration is accepted, and since #54 it genuinely
+ * enforces the minimum rather than trusting this page to. A duplicate email is reported as a
+ * possibility rather than a fact, so this page does not become a way to test which emails exist.
  *
  * Signs the new account straight in, since registration returns a token.
  */
@@ -34,7 +42,10 @@ const RegisterPage: React.FC = () => {
     setError('');
     if (!name || !email || !password) { setError('Please fill in all fields.'); return; }
     if (password !== confirm) { setError('Passwords do not match.'); return; }
-    if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
+    if (password.length < PASSWORD_MIN_LENGTH) {
+      setError(`Password must be at least ${PASSWORD_MIN_LENGTH} characters.`);
+      return;
+    }
     setLoading(true);
     try {
       await register(name, email, password);

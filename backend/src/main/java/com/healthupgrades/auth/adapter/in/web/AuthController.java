@@ -30,6 +30,22 @@ public class AuthController {
     /** Mirrors {@code users.email VARCHAR(255)}. */
     static final int EMAIL_MAX = 255;
 
+    /**
+     * The shortest password the API accepts. Unlike the bounds above this mirrors no column - only the
+     * hash is stored, and a BCrypt hash is always 60 characters - so it is policy, and it is enforced
+     * here because a rule the browser alone applies is not enforced at all. BR-17.
+     */
+    static final int PASSWORD_MIN = 8;
+
+    /**
+     * Where BCrypt stops reading. {@code BCryptPasswordEncoder} guards only against null, so anything
+     * past this is silently dropped and a longer password becomes indistinguishable from its own
+     * prefix; refusing it is honest where truncating it is not. Note the mismatch this cannot close:
+     * {@code @Size} counts UTF-16 code units and BCrypt counts bytes, so a password of multi-byte
+     * characters can pass this bound and still be truncated.
+     */
+    static final int PASSWORD_MAX = 72;
+
     private final AuthService authService; // application service
 
     /**
@@ -85,7 +101,7 @@ public class AuthController {
     public record RegisterRequest(
             @NotBlank @Size(max = NAME_MAX) String name,
             @NotBlank @Email @Size(max = EMAIL_MAX) String email,
-            @NotBlank String password
+            @NotBlank @Size(min = PASSWORD_MIN, max = PASSWORD_MAX) String password
     ) {}
 
     /** Login request body. */

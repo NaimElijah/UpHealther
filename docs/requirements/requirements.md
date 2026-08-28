@@ -2,7 +2,7 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. Eighty-one of the eighty-eight entries below name a test — sixty-one distinct
+rather than trusted. Eighty-two of the eighty-nine entries below name a test — sixty-one distinct
 test classes and files between them. Four of the remaining seven name the command, workflow or script
 that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18). The last three — FR-39, NFR-19 and NFR-20 — are
 verified by hand and say so, because each is about a rendered width, a colour or an overflow, and jsdom
@@ -134,6 +134,7 @@ nothing is shared between accounts.
 | BR-14 | Concurrent edits to an upgrade are refused rather than silently merged | `UpgradePersistenceIT`, `GlobalExceptionHandlerTest` |
 | BR-15 | A record is visible only to its owner; another user's record is reported as absent, never as forbidden | `UpgradePersistenceIT`, `HealthAreaPersistenceIT`, `ProgressEntryPersistenceIT`, and every `*ControllerTest` |
 | BR-16 | A field stored in a bounded column is refused at the boundary when it exceeds that bound, and the response names the field | `UpgradeControllerTest`, `HealthAreaControllerTest`, `ProgressControllerTest`, `TrackingConfigControllerTest` |
+| BR-17 | A password is at least 8 characters and at most 72, refused by the API rather than only by the browser | `AuthControllerTest` |
 
 BR-16 exists because the alternative is a 500. Each bound is taken from the column the field lands in
 (`V1__init_schema.sql`), so the two cannot drift apart in the direction that matters: `@Size` counts
@@ -141,6 +142,13 @@ UTF-16 code units where `VARCHAR(n)` counts characters, which makes the boundary
 column for an astral-plane character such as an emoji, and never looser. Fields stored in `TEXT`
 columns are deliberately unbounded — nothing rejects them downstream, so a ceiling there is a product
 decision rather than a defect, and §6 records it as open.
+
+BR-17's upper bound is BCrypt's, not a policy: `BCryptPasswordEncoder` reads 72 bytes and silently
+drops the rest, so a longer password and its own prefix would be the same password and nobody would be
+told. The bound cannot close that gap completely — it counts UTF-16 code units where BCrypt counts
+bytes — but it removes the case anyone will actually hit. The minimum applies at registration, which is
+the only route by which a password reaches the system; the seeded demo account is inserted as a hash by
+Flyway and never passes through it.
 
 ---
 
