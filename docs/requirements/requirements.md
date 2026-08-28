@@ -109,7 +109,7 @@ nothing is shared between accounts.
 | FR-37 | The theme control is reachable before signing in | `LoginPage.test.tsx` |
 | FR-38 | A page's content grows with the browser window, up to one cap chosen for readability | `PageContainer`, `PageContainer.test.tsx` |
 | FR-39 | A dialog fits the window at any size: its heading stays put and only its body scrolls | `Modal` — checked by hand, see §6 |
-| FR-40 | A dialog announces itself as a dialog named by its title | `Modal`, `Modal.test.tsx` |
+| FR-40 | A dialog announces itself as a dialog named by its title, takes focus on open, confines Tab to its own controls, restores focus on close, and marks the page behind it inert | `Modal`, `Modal.test.tsx`, [ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md) |
 | FR-41 | A health area whose stored icon cannot be drawn is shown with the default icon, and editing it does not write the undrawable value back | `areaIconGlyph`, `isIconGlyph`, `areaIcon.test.ts` |
 
 ---
@@ -231,11 +231,14 @@ Undecided, and owned by the repository owner.
   engine. Closing this needs a real browser in CI; [ADR-004](../ADRs/ADR-004-frontend-test-harness.md)
   records why that was deferred. FR-39 and NFR-20 land in exactly this gap: no test in the suite can
   observe a width, a wrap or an overflow, so both were verified by hand and neither is enforced.
-- **A dialog does not trap focus.** Tab walks out of the dialog into the page behind it, and focus is
-  neither moved into the dialog on open nor restored on close. `aria-modal` is deliberately left off
-  until that is true, because claiming it without a trap is worse than not claiming it. Closing this
-  properly means a native `<dialog>` with `showModal()`; [ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md)
-  records why that was not done here.
+- **Nothing verifies that a browser honours the dialog's `inert`.** The focus trap and the inert page
+  behind it are built and tested ([ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md)),
+  but jsdom implements `inert` not at all, so the tests pin that the attribute is set and cleared on
+  the right nodes and nothing further. This is the same gap as the entry above and closes with it.
+  Two smaller residuals go with it: focus falls back to `<body>` when the element that opened a dialog
+  unmounted along with it, which the health-areas delete path does; and a toast raised while a dialog
+  is open goes inert with the rest of the page, so it is painted above the dialog and cannot be
+  dismissed.
 - **The backend has no dependency vulnerability audit.** OWASP dependency-check needs an `NVD_API_KEY`
   secret; ADR-002 records why a check that cannot fail was judged worse than none.
 - **No ceiling on the free-text fields.** `description`, `motivation`, `successCriteria`, `note`,

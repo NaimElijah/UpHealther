@@ -1,6 +1,6 @@
 # ADR-005: One page width, and a shell that cannot be pushed wider than the window
 
-- **Status:** Accepted
+- **Status:** Accepted — superseded in part by [ADR-013](ADR-013-trapping-focus-without-a-native-dialog.md)
 - **Date:** 2026-08-20
 - **Scope:** `frontend/` layout, plus one data-only backend migration. No new dependency, no runtime
   behaviour outside the browser.
