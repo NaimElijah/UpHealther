@@ -87,6 +87,20 @@ class TrackingConfigControllerTest {
     }
 
     @Test
+    void GivenATargetUnitLongerThanItsColumn_WhenAConfigurationIsSaved_ThenItAnswers400NamingTheField()
+            throws Exception {
+        // tracking_configs.target_unit is VARCHAR(100), which is where the 100 comes from. Unbounded
+        // here, an over-long unit reached the flush in production and came back 500. This slice has no
+        // database and cannot see that flush; what it pins is the boundary contract. BR-16.
+        mockMvc.perform(bearer(put(path)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"trackingType\":\"NUMERIC\",\"targetUnit\":\"" + "u".repeat(TrackingConfigRequest.TARGET_UNIT_MAX + 1) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.targetUnit").exists());
+
+        verify(trackingService, never()).saveConfig(any(), any(), any());
+    }
+
+    @Test
     void GivenATrackingTypeThatIsNotInTheEnum_WhenAConfigurationIsSaved_ThenItAnswers400RatherThan500()
             throws Exception {
         mockMvc.perform(bearer(put(path)).contentType(MediaType.APPLICATION_JSON)

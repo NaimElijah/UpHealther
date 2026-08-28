@@ -4,6 +4,7 @@ import com.healthupgrades.upgrade.domain.model.Difficulty;
 import com.healthupgrades.upgrade.domain.model.UpgradeType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
 import java.util.UUID;
@@ -16,7 +17,7 @@ import java.util.UUID;
  * belongs to {@code /plan} and {@code /reschedule}.
  *
  * @param areaId           health area to file it under, optional
- * @param title            short name; required and non-blank
+ * @param title            short name; required, non-blank and no longer than its column
  * @param description      longer explanation, optional
  * @param type             what kind of change this is; required
  * @param difficulty       how demanding it is, optional
@@ -27,7 +28,7 @@ import java.util.UUID;
  */
 public record UpgradeRequest(
         UUID areaId,
-        @NotBlank String title,
+        @NotBlank @Size(max = TITLE_MAX) String title,
         String description,
         @NotNull UpgradeType type,
         Difficulty difficulty,
@@ -35,4 +36,12 @@ public record UpgradeRequest(
         LocalDate targetEndDate,
         String motivation,
         String successCriteria
-) {}
+) {
+    /**
+     * Mirrors {@code health_upgrades.title VARCHAR(255)}; see BR-16 for why the bound is here.
+     *
+     * <p>Public because {@code ColumnBoundContractTest} reads it from another package to check it
+     * still agrees with the migration, which is the only thing keeping the two numbers in step.
+     */
+    public static final int TITLE_MAX = 255;
+}

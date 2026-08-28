@@ -148,7 +148,7 @@ Frontend at **http://localhost:3000**, API at **http://localhost:8080**. Compose
 backend to report *ready* before starting the frontend, so the first page load is never proxied to
 an API still migrating its schema — expect roughly a minute on a cold build.
 
-Sign in with the seeded demo account **`demo@healthupgrades.com` / `demo123`**. Every variable has
+Sign in with the seeded demo account **`demo@healthupgrades.com` / `demo1234`**. Every variable has
 a working default, so no `.env` is needed to start — copy `.env.example` to `.env` only to override.
 
 <details>

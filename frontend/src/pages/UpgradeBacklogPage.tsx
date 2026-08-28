@@ -13,7 +13,7 @@ import UpgradeCard from '../components/upgrade/UpgradeCard';
 import type { CreateUpgradeRequest, UpgradeType, Difficulty, UpgradeStatus } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
-import { toApiError } from '../api/apiError';
+import { toApiError, toFormMessage } from '../api/apiError';
 
 /**
  * The upgrade types offered when creating one: the eight kinds the product defines.
@@ -69,7 +69,13 @@ const UpgradeBacklogPage: React.FC = () => {
     e.preventDefault();
     setFormError('');
     if (!form.title.trim()) { setFormError('Title is required.'); return; }
-    await createMutation.mutateAsync(form);
+    try {
+      await createMutation.mutateAsync(form);
+    } catch (thrown) {
+      // Without this the rejection was unhandled and the modal simply sat there: the API refuses an
+      // over-long title with a 400 naming the field (BR-16), and none of it reached the form.
+      setFormError(toFormMessage(toApiError(thrown), 'title'));
+    }
   };
 
   const handleStatusChange = (id: string, status: UpgradeStatus) => {
