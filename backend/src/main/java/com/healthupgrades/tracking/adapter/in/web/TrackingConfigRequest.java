@@ -3,6 +3,7 @@ package com.healthupgrades.tracking.adapter.in.web;
 import com.healthupgrades.tracking.domain.model.Frequency;
 import com.healthupgrades.tracking.domain.model.TrackingType;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.util.UUID;
 
@@ -23,6 +24,9 @@ public record TrackingConfigRequest(
         @NotNull TrackingType trackingType,
         Frequency frequency,
         Double targetNumericValue,
-        String targetUnit,
+        @Size(max = TARGET_UNIT_MAX) String targetUnit,
         Boolean requiredDaily
-) {}
+) {
+    /** Mirrors {@code tracking_configs.target_unit VARCHAR(100)}; see BR-16 for why the bound is here. */
+    static final int TARGET_UNIT_MAX = 100;
+}

@@ -100,6 +100,19 @@ class ProgressControllerTest {
     }
 
     @Test
+    void GivenAUnitLongerThanItsColumn_WhenProgressIsLogged_ThenItAnswers400NamingTheField() throws Exception {
+        // progress_entries.unit is VARCHAR(100), which is where the 100 comes from. Unbounded here, an
+        // over-long unit reached the flush in production and came back 500. This slice has no database
+        // and cannot see that flush; what it pins is the boundary contract. BR-16.
+        mockMvc.perform(bearer(post(progressPath)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"unit\":\"" + "u".repeat(101) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.unit").exists());
+
+        verify(trackingService, never()).recordProgress(any(), any(), any());
+    }
+
+    @Test
     void GivenANegativeNumericValue_WhenProgressIsLogged_ThenItAnswers400() throws Exception {
         mockMvc.perform(bearer(post(progressPath)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"numericValue\":-1}"))

@@ -108,6 +108,33 @@ class UpgradeControllerTest {
     }
 
     @Test
+    void GivenATitleLongerThanItsColumn_WhenAnUpgradeIsCreated_ThenItAnswers400NamingTheField() throws Exception {
+        // health_upgrades.title is VARCHAR(255), which is where the 255 comes from. Unbounded here, an
+        // over-long title reached the flush in production and came back 500 - a server fault reported
+        // for input the caller could have corrected. This slice has no database and cannot see that
+        // flush; what it pins is the boundary contract that makes it unreachable. BR-16.
+        mockMvc.perform(bearer(post(BASE))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"" + "a".repeat(256) + "\",\"type\":\"HABIT\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.title").exists());
+
+        verify(service, never()).create(any(), any());
+    }
+
+    @Test
+    void GivenATitleExactlyAsLongAsItsColumn_WhenAnUpgradeIsCreated_ThenItIsAccepted() throws Exception {
+        // The bound is inclusive: 255 is the longest the column holds, so refusing it would be a bug of
+        // the opposite sign.
+        when(service.create(eq(userId), any())).thenReturn(anUpgrade(UpgradeStatus.IDEA));
+
+        mockMvc.perform(bearer(post(BASE))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"" + "a".repeat(255) + "\",\"type\":\"HABIT\"}"))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
     void GivenABodyThatIsNotJson_WhenAnUpgradeIsCreated_ThenItAnswers400RatherThan500() throws Exception {
         // The shape of issue #22: this used to be swallowed as a server fault.
         mockMvc.perform(bearer(post(BASE))

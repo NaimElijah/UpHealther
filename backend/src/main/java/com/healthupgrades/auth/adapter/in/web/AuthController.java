@@ -8,6 +8,7 @@ import com.healthupgrades.user.domain.model.User;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +23,12 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
+
+    /** Mirrors {@code users.name VARCHAR(255)}; see BR-16 for why the bound is here. */
+    static final int NAME_MAX = 255;
+
+    /** Mirrors {@code users.email VARCHAR(255)}. */
+    static final int EMAIL_MAX = 255;
 
     private final AuthService authService; // application service
 
@@ -76,8 +83,8 @@ public class AuthController {
 
     /** Registration request body. */
     public record RegisterRequest(
-            @NotBlank String name,
-            @NotBlank @Email String email,
+            @NotBlank @Size(max = NAME_MAX) String name,
+            @NotBlank @Email @Size(max = EMAIL_MAX) String email,
             @NotBlank String password
     ) {}
 

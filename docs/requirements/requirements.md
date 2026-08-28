@@ -2,7 +2,7 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. Eighty of the eighty-seven entries below name a test — sixty-one distinct
+rather than trusted. Eighty-one of the eighty-eight entries below name a test — sixty-one distinct
 test classes and files between them. Four of the remaining seven name the command, workflow or script
 that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18). The last three — FR-39, NFR-19 and NFR-20 — are
 verified by hand and say so, because each is about a rendered width, a colour or an overflow, and jsdom
@@ -133,6 +133,14 @@ nothing is shared between accounts.
 | BR-13 | Reflections are append-only — there is no edit or delete path | `ReflectionServiceTest` (asserted against the public surface), `ReflectionControllerTest` |
 | BR-14 | Concurrent edits to an upgrade are refused rather than silently merged | `UpgradePersistenceIT`, `GlobalExceptionHandlerTest` |
 | BR-15 | A record is visible only to its owner; another user's record is reported as absent, never as forbidden | `UpgradePersistenceIT`, `HealthAreaPersistenceIT`, `ProgressEntryPersistenceIT`, and every `*ControllerTest` |
+| BR-16 | A field stored in a bounded column is refused at the boundary when it exceeds that bound, and the response names the field | `UpgradeControllerTest`, `HealthAreaControllerTest`, `ProgressControllerTest`, `TrackingConfigControllerTest` |
+
+BR-16 exists because the alternative is a 500. Each bound is taken from the column the field lands in
+(`V1__init_schema.sql`), so the two cannot drift apart in the direction that matters: `@Size` counts
+UTF-16 code units where `VARCHAR(n)` counts characters, which makes the boundary *stricter* than the
+column for an astral-plane character such as an emoji, and never looser. Fields stored in `TEXT`
+columns are deliberately unbounded — nothing rejects them downstream, so a ceiling there is a product
+decision rather than a defect, and §6 records it as open.
 
 ---
 
@@ -222,6 +230,16 @@ Undecided, and owned by the repository owner.
   records why that was not done here.
 - **The backend has no dependency vulnerability audit.** OWASP dependency-check needs an `NVD_API_KEY`
   secret; ADR-002 records why a check that cannot fail was judged worse than none.
+- **No ceiling on the free-text fields.** `description`, `motivation`, `successCriteria`, `note`,
+  `whatWorked`, `whatDidNotWork` and `nextAdjustment` are `TEXT`, so BR-16 leaves them alone: nothing
+  downstream rejects them and there is no 500 to prevent. What is left is that a single request can
+  store as much prose as the servlet container will accept. How long a reflection may be is a product
+  decision, not a defect, and nobody has taken it.
+- **Whether `DataIntegrityViolationException` should be mapped at all.** BR-16 removes the known route
+  to it, but it stays unmapped, so any constraint a DTO annotation cannot express still surfaces as a
+  500. Mapping it centrally is not one decision but several — a unique violation, a foreign-key
+  violation and a not-null violation do not deserve the same status, and `DuplicateProgressException`
+  already shadows the first of them.
 - **`UpgradeType.PROTOCOL` is deprecated but retained** for rows that may already carry it. Removing it
   needs confirmation that no stored row uses it.
 - **No governing jurisdiction is named in the licence** — ADR-003 flags this as the first thing to add
