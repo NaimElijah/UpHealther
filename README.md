@@ -46,16 +46,16 @@ flowchart LR
     core -->|"JDBC"| db
 ```
 
-**Contents** · [What and why](#what-and-why) · [Features](#features) ·
-[Architecture](#architecture) · [Tech stack](#tech-stack) · [Quick start](#quick-start) ·
-[Configuration](#configuration) · [Usage](#usage) · [Development](#development) ·
-[Testing](#testing) · [Operations](#operations) · [Project structure](#project-structure) ·
-[Design decisions](#design-decisions) · [Status and limitations](#status-and-limitations) ·
-[Licence](#licence)
+**Contents** · [🎯 What and why](#-what-and-why) · [✨ Features](#-features) ·
+[🧱 Architecture](#-architecture) · [🧰 Tech stack](#-tech-stack) · [🚀 Quick start](#-quick-start) ·
+[🔩 Configuration](#-configuration) · [📖 Usage](#-usage) · [💻 Development](#-development) ·
+[🧪 Testing](#-testing) · [📡 Operations](#-operations) ·
+[📁 Project structure](#-project-structure) · [🧭 Design decisions](#-design-decisions) ·
+[🚦 Status and limitations](#-status-and-limitations) · [📜 Licence](#-licence)
 
 ---
 
-## What and why
+## 🎯 What and why
 
 People who decide to change a health habit rarely fail at the decision — they fail at knowing
 whether the change survived contact with a normal week. UpHealther models each intended change as
@@ -68,7 +68,7 @@ and every one of those moves is a guarded transition rather than an editable sta
 > treatment, and no feature may imply otherwise
 > ([non-goal 5.1](docs/requirements/requirements.md#5-non-goals)).
 
-## Features
+## ✨ Features
 
 - Create an upgrade — habit, one-off action, experiment, goal, routine or product replacement — and
   file it under a health area you define
@@ -84,7 +84,7 @@ and every one of those moves is a guarded transition rather than an editable sta
   client still sees them
 - Switch between light and dark themes, applied before the first paint — no wrong-theme flash
 
-## Architecture
+## 🧱 Architecture
 
 Three processes and a browser, shown above. No message broker, no cache, no third-party service:
 every piece of state is in the one database, and every side effect is either a write to it or a
@@ -118,7 +118,7 @@ Spring Data is confined to the persistence adapters.
 Seven diagrams, outside in: [arch-diagrams](docs/architecture/arch-diagrams/README.md). The prose:
 [architecture.md](docs/architecture/architecture.md). The why: [ADRs](docs/ADRs/).
 
-## Tech stack
+## 🧰 Tech stack
 
 | Layer | Technology | Version | Why |
 |:---|:---|---:|:---|
@@ -135,7 +135,7 @@ Seven diagrams, outside in: [arch-diagrams](docs/architecture/arch-diagrams/READ
 | Real-time | STOMP over WebSocket | 7.3.0 | Push reuses the JWT via a channel interceptor rather than a second auth scheme |
 | Tests | JUnit 5, ArchUnit, Testcontainers / Vitest | 1.3.0 / 1.21.4 / 3.2.7 | Real PostgreSQL in the integration suite; architecture rules as ordinary tests |
 
-## Quick start
+## 🚀 Quick start
 
 **Prerequisites:** Docker 24+ with Compose v2. Nothing else — the toolchain runs in containers.
 
@@ -161,7 +161,7 @@ a working default, so no `.env` is needed to start — copy `.env.example` to `.
 
 </details>
 
-## Configuration
+## 🔩 Configuration
 
 Mirrors [`.env.example`](.env.example). The defaults are for local development only; `JWT_SECRET` is
 a published value and gives no security.
@@ -185,7 +185,7 @@ Three more live only in `application.yml` — `UPGRADE_OVERDUE_CRON` (`0 0 8 * *
 absent from `.env.example`, and `docker-compose.yml` does not pass them through, so they take
 effect on a native run only.
 
-## Usage
+## 📖 Usage
 
 `POST /api/auth/login` with the demo credentials returns `200` and
 `{ "token": …, "user": { "id", "name", "email", "createdAt" } }`. Export that token as `$TOKEN`;
@@ -225,7 +225,7 @@ curl -sX POST "http://localhost:8080/api/upgrades/0f2c8f5a.../complete" \
 The rest of the surface — every endpoint, the full status contract, and the error body — is in
 [**docs/api.md**](docs/api.md).
 
-## Development
+## 💻 Development
 
 Running natively needs **JDK 21**, **Maven 3.8+**, **Node 20+**, and a PostgreSQL 15 on `:5432`.
 
@@ -255,7 +255,7 @@ mismatch, so an entity change needs a new migration rather than a `ddl-auto` cha
 `frontend/src/api` and the page. `HexagonalArchitectureTest` fails the build on any arrow that runs
 the wrong way.
 
-## Testing
+## 🧪 Testing
 
 | Level | Covers | Command |
 |---|---|---|
@@ -288,7 +288,7 @@ provisioning first and CI runs the same `verify`
 build. The gate is [`requirements.md`](docs/requirements/requirements.md), where every requirement
 names the test enforcing it ([ADR-009](docs/ADRs/ADR-009-test-levels-boundaries-and-naming.md)).
 
-## Operations
+## 📡 Operations
 
 > [!NOTE]
 > **Nothing is deployed.** This runs locally under Compose and has never run in a hosted
@@ -309,7 +309,7 @@ Migrations run at application start, so a bad one leaves the container un-ready 
 corrupting the schema. To chase a reported failure:
 `docker logs healthupgrades-backend | grep <trace id>`.
 
-## Project structure
+## 📁 Project structure
 
 ```
 backend/           Spring Boot API — nine bounded contexts, hexagonal, ArchUnit-enforced
@@ -326,7 +326,7 @@ docs/              The documentation the repository baseline requires
 .github/workflows/ CI: backend verify, diagram drift, frontend lint/test/audit/build
 ```
 
-## Design decisions
+## 🧭 Design decisions
 
 **DDD + hexagonal, boundaries enforced by tests** ([ADR-001](docs/ADRs/ADR-001-ddd-hexagonal-architecture.md),
 corrected by [ADR-002](docs/ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md))
@@ -357,7 +357,7 @@ with attribution buried in a notices file. AGPL grants more than intended and is
 many organisations. **Cost:** nobody may use or run the code without written permission, which rules
 out outside contribution.
 
-## Status and limitations
+## 🚦 Status and limitations
 
 **Feature-complete and unshipped.** Every capability above works and is covered — 465 unit and
 structural tests, 39 integration tests, 126 frontend tests, all green — but it has never run in a
@@ -383,14 +383,14 @@ Planned, and deliberately absent from every section above: push notifications, p
 internationalisation, wearable integration. Sharing, accountability partners and a public API are
 **non-goals** rather than backlog ([§5](docs/requirements/requirements.md#5-non-goals)).
 
-## Contributing
+## 🤝 Contributing
 
 Outside contribution is not possible under the licence below — the code may be read, not modified.
 Corrections and questions are welcome as [issues](https://github.com/NaimElijah/UpHealther/issues).
 
 ---
 
-## Licence
+## 📜 Licence
 
 > [!IMPORTANT]
 > UpHealther is **source-available, not open source**. Reading, reviewing and evaluating it is the
@@ -403,7 +403,7 @@ training a model on it — needs written permission, via
 
 [`LICENSE`](LICENSE) carries the terms that govern. Third-party dependencies remain under their own.
 
-## Acknowledgements
+## 🙏 Acknowledgements
 
 The ADR format is Michael Nygard's; the ports-and-adapters shape is Alistair Cockburn's, and the
 context boundaries Eric Evans' *Domain-Driven Design*.
