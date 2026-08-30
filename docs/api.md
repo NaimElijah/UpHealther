@@ -3,7 +3,7 @@
 Every endpoint below `/api` except `POST /api/auth/register` and `POST /api/auth/login` requires a
 bearer token: `Authorization: Bearer <token>`. Tokens last 24 hours and are not refreshable.
 
-Worked request and response bodies are in the [README's Usage section](../README.md#usage). This page
+Worked request and response bodies are in the [README's Usage section](../README.md#-usage). This page
 is the surface; [`requirements.md`](requirements/requirements.md) says what each capability must do,
 and the `*ControllerTest` named against each area pins the status codes.
 
