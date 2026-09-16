@@ -25,6 +25,10 @@ and the `*ControllerTest` named against each area pins the status codes.
 
 `GET /api/upgrades` filters on `status`, `type`, `areaId` and `difficulty`.
 
+An email is one identity however it is typed: the API trims and lowercases it before comparing or
+storing it. `POST /api/auth/register` refuses an address already held with `422` and the message
+`That email is already registered`, which does not repeat the address.
+
 ## A created upgrade, in full
 
 `POST /api/upgrades` returns `201`. Nulls are serialised rather than omitted, so the body always

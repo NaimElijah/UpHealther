@@ -36,4 +36,10 @@ public class UserService implements UserQuery, UserCommand {
     public User save(User user) {
         return repository.save(user);
     }
+
+    /** {@inheritDoc} */
+    @Override
+    public User register(User user) {
+        return repository.saveAndFlush(user);
+    }
 }

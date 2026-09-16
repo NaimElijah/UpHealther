@@ -4,6 +4,7 @@ import com.healthupgrades.auth.application.AuthResult;
 import com.healthupgrades.auth.application.AuthService;
 import com.healthupgrades.common.security.SecurityUser;
 import com.healthupgrades.user.adapter.in.web.UserDto;
+import com.healthupgrades.user.domain.model.EmailAddress;
 import com.healthupgrades.user.domain.model.User;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -97,16 +98,30 @@ public class AuthController {
         return new UserDto(user.getId(), user.getName(), user.getEmail(), user.getCreatedAt());
     }
 
-    /** Registration request body. */
+    /**
+     * Registration request body.
+     *
+     * <p>The email is normalised in the compact constructor, which Jackson runs before bean validation:
+     * {@code @Email} refuses surrounding whitespace, so normalising any later would turn a pasted
+     * address with a trailing space into a 400.
+     */
     public record RegisterRequest(
             @NotBlank @Size(max = NAME_MAX) String name,
             @NotBlank @Email @Size(max = EMAIL_MAX) String email,
             @NotBlank @Size(min = PASSWORD_MIN, max = PASSWORD_MAX) String password
-    ) {}
+    ) {
+        public RegisterRequest {
+            email = EmailAddress.normalise(email);
+        }
+    }
 
-    /** Login request body. */
+    /** Login request body; the email is normalised before validation, as in {@link RegisterRequest}. */
     public record LoginRequest(
             @NotBlank @Email String email,
             @NotBlank String password
-    ) {}
+    ) {
+        public LoginRequest {
+            email = EmailAddress.normalise(email);
+        }
+    }
 }

@@ -40,16 +40,22 @@ public class User {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
-    /** Stamps the creation and update timestamps before the row is first inserted. */
+    /**
+     * Stamps the creation and update timestamps before the row is first inserted, and normalises the
+     * email as a backstop for a caller that forgot to: the database refuses an unnormalised address, so
+     * the alternative is a constraint violation at flush.
+     */
     @PrePersist
     protected void onCreate() {
+        email = EmailAddress.normalise(email);
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
 
-    /** Refreshes the update timestamp before each update. */
+    /** Refreshes the update timestamp before each update, normalising the email for the same reason. */
     @PreUpdate
     protected void onUpdate() {
+        email = EmailAddress.normalise(email);
         updatedAt = LocalDateTime.now();
     }
 }

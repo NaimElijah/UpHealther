@@ -1,8 +1,11 @@
 package com.healthupgrades.user.adapter.out.persistence;
 
+import com.healthupgrades.user.domain.model.EmailAlreadyRegisteredException;
 import com.healthupgrades.user.domain.model.User; // domain aggregate
 import com.healthupgrades.user.domain.port.out.UserRepositoryPort; // the port implemented here
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
@@ -17,12 +20,34 @@ import java.util.Optional;
 @RequiredArgsConstructor
 class UserRepositoryAdapter implements UserRepositoryPort {
 
+    /** PostgreSQL's name for {@code email ... UNIQUE} in {@code V1__init_schema.sql}. */
+    static final String EMAIL_UNIQUE_CONSTRAINT = "users_email_key";
+
     private final UserJpaRepository jpa; // Spring Data proxy
 
     /** {@inheritDoc} */
     @Override
     public User save(User user) {
         return jpa.save(user);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Only the email's unique constraint is translated. Any other integrity failure is a defect, not a
+     * duplicate, and is rethrown unchanged so it is not reported to a user as "already registered".
+     */
+    @Override
+    public User saveAndFlush(User user) {
+        try {
+            return jpa.saveAndFlush(user);
+        } catch (DataIntegrityViolationException violation) {
+            if (violation.getCause() instanceof ConstraintViolationException constraint
+                    && EMAIL_UNIQUE_CONSTRAINT.equals(constraint.getConstraintName())) {
+                throw new EmailAlreadyRegisteredException();
+            }
+            throw violation;
+        }
     }
 
     /** {@inheritDoc} */

@@ -12,6 +12,14 @@ public interface UserRepositoryPort {
     /** Persists a new or updated user and returns the managed instance. */
     User save(User user);
 
+    /**
+     * Persists a user and flushes, so constraint violations surface inside the call.
+     *
+     * @throws com.healthupgrades.user.domain.model.EmailAlreadyRegisteredException if the address is
+     *         already held by another account
+     */
+    User saveAndFlush(User user);
+
     /** Looks up a user by email (the login identity). */
     Optional<User> findByEmail(String email);
 

@@ -50,7 +50,16 @@ class UserDetailsServiceImplTest {
         when(userQuery.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.loadUserByUsername("nobody@example.com"))
-                .isInstanceOf(UsernameNotFoundException.class);
+                .isInstanceOf(UsernameNotFoundException.class)
+                .as("an exception message is one careless log line away from the log (NFR-6)")
+                .hasMessageNotContaining("nobody@example.com");
+    }
+
+    @Test
+    void GivenAMixedCaseEmail_WhenThePrincipalIsLoaded_ThenTheNormalisedAddressIsLookedUp() {
+        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(AUser.aUser().build()));
+
+        assertThat(service.loadUserByUsername(" Someone@EXAMPLE.com").getUsername()).isEqualTo(AUser.EMAIL);
     }
 
     @Test

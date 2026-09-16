@@ -53,7 +53,7 @@ Nine contexts, each owning its own vocabulary, plus a cross-cutting `common`.
 | `reminder` | `Reminder` and its day-of-week schedule | Full |
 | `notification` | `Notification` — the inbox and the real-time push | Full, and the only context with a messaging adapter |
 | `healtharea` | `HealthArea` — the groupings upgrades are filed under | Full |
-| `user` | `User` — identity and the stored password hash | Full |
+| `user` | `User` — identity and the stored password hash; `EmailAddress`, the one rule for when two addresses are the same identity | Full |
 | `auth` | Registration, login, and issuing tokens | Two-layer: orchestrates over `user`, owns no aggregate |
 | `dashboard` | The composed dashboard read model | Two-layer: reads through other contexts' ports, persists nothing |
 | `common` | Cross-cutting: the `DomainEvent` marker, shared exceptions, the event-publisher port, the global exception handler, JWT security and the WebSocket configuration | Not a context; a shared kernel plus cross-cutting adapters |

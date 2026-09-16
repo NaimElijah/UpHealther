@@ -8,6 +8,8 @@ import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.common.security.JwtTokenProvider;
 import com.healthupgrades.user.application.port.in.UserCommand;
 import com.healthupgrades.user.application.port.in.UserQuery;
+import com.healthupgrades.user.domain.model.EmailAddress;
+import com.healthupgrades.user.domain.model.EmailAlreadyRegisteredException;
 import com.healthupgrades.user.domain.model.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AccountStatusException;
@@ -28,6 +30,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AuthService {
 
+    /**
+     * The one wording for a taken address, whichever way it was discovered. It does not quote the
+     * address back: the caller already knows it, and a message is one log line away from a file.
+     */
+    static final String EMAIL_TAKEN = "That email is already registered";
+
     private final UserQuery userQuery; // inbound read port of the user context
     private final UserCommand userCommand; // inbound write port of the user context
     private final PasswordEncoder passwordEncoder; // BCrypt encoder
@@ -39,28 +47,36 @@ public class AuthService {
      * Registers a new user and issues a token for them.
      *
      * <p>The password is BCrypt-encoded before the user is saved; the raw value never leaves this method.
+     * The address is compared and stored normalised (FR-4), and the save flushes, so an address taken
+     * by a concurrent registration after the existence check is refused here as the same 422 rather
+     * than failing at commit as a 500.
      *
      * @param name     display name
-     * @param email    login identity, unique across users
+     * @param rawEmail login identity as typed; unique across users once normalised
      * @param password raw password, encoded here
      * @return the issued JWT together with the persisted user
      * @throws BusinessRuleException if the email is already registered
      */
     @Transactional
-    public AuthResult register(String name, String email, String password) {
+    public AuthResult register(String name, String rawEmail, String password) {
+        String email = EmailAddress.normalise(rawEmail);
         // Recorded by hand rather than through AuditTrail.recording, because until the save returns
         // there is no user id to name as the actor, and the email that would identify the attempt is
         // exactly what NFR-6 says must not be written down.
         try {
             if (userQuery.existsByEmail(email)) {
-                throw new BusinessRuleException("Email already registered: " + email);
+                throw new BusinessRuleException(EMAIL_TAKEN);
             }
             User user = User.builder()
                     .name(name)
                     .email(email)
                     .passwordHash(passwordEncoder.encode(password)) // never store the raw password
                     .build();
-            user = userCommand.save(user);
+            try {
+                user = userCommand.register(user);
+            } catch (EmailAlreadyRegisteredException lostTheRace) {
+                throw new BusinessRuleException(EMAIL_TAKEN);
+            }
             // Recorded after the token exists, not before. Issuing it can fail - a secret too short to
             // sign with - and recording ALLOWED first would then put one attempt in the trail twice,
             // once as allowed and once as failed, with the counter double-counting to match.
@@ -76,14 +92,15 @@ public class AuthService {
     /**
      * Authenticates credentials and issues a token.
      *
-     * @param email    login identity
+     * @param rawEmail login identity as typed; normalised before it is matched
      * @param password raw password, matched against the stored hash by the authentication manager
      * @return the issued JWT together with the authenticated user
      * @throws org.springframework.security.core.AuthenticationException if the credentials do not match
      * @throws BusinessRuleException if the credentials matched but the user has since disappeared —
      *         only reachable if the account is deleted mid-request
      */
-    public AuthResult login(String email, String password) {
+    public AuthResult login(String rawEmail, String password) {
+        String email = EmailAddress.normalise(rawEmail);
         try {
             authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(email, password)); // throws on bad creds
             User user = userQuery.findByEmail(email)

@@ -2,7 +2,7 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. Eighty-three of the ninety entries below name a test — sixty-one distinct
+rather than trusted. Eighty-three of the ninety entries below name a test — sixty-four distinct
 test classes and files between them. Four of the remaining seven name the command, workflow or script
 that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18). The last three — FR-39, NFR-19 and NFR-20 — are
 verified by hand and say so, because each is about a rendered width, a colour or an overflow, and jsdom
@@ -43,7 +43,7 @@ nothing is shared between accounts.
 | FR-1 | A visitor can register with a name, email and password, and is signed in immediately | `AuthServiceTest`, `AuthControllerTest` |
 | FR-2 | A registered user can sign in with email and password and receive a token | `AuthServiceTest`, `AuthControllerTest` |
 | FR-3 | A signed-in user can retrieve their own profile, so a stored token restores a session | `AuthControllerTest`, `AuthContext.test.tsx` |
-| FR-4 | An email may be registered once | `AuthServiceTest`, `AuthControllerTest` (422) |
+| FR-4 | An email may be registered once. Addresses are compared trimmed and case-insensitively, the database refuses any other stored form, and a registration that loses a race for an address is refused like any other duplicate | `AuthServiceTest`, `AuthControllerTest` (422), `EmailAddressTest`, `UserPersistenceIT`, `RegistrationRaceIT` |
 | FR-5 | Every endpoint except registration, login and health checks requires a valid token | `AuthenticatedBoundaryTest` (every protected route), `ProtectedRoute.test.tsx` |
 
 ### 2.2 Health areas
@@ -255,7 +255,9 @@ Undecided, and owned by the repository owner.
   to it, but it stays unmapped, so any constraint a DTO annotation cannot express still surfaces as a
   500. Mapping it centrally is not one decision but several — a unique violation, a foreign-key
   violation and a not-null violation do not deserve the same status, and `DuplicateProgressException`
-  already shadows the first of them.
+  already shadows the first of them. The one other unique violation with a known route, a registration
+  losing a race for an address, is translated where it happens (the user persistence adapter) and
+  answered like any duplicate; the central question stands for everything else.
 - **`UpgradeType.PROTOCOL` is deprecated but retained** for rows that may already carry it. Removing it
   needs confirmation that no stored row uses it.
 - **No governing jurisdiction is named in the licence** — ADR-003 flags this as the first thing to add

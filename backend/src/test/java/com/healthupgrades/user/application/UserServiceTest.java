@@ -69,4 +69,15 @@ class UserServiceTest {
 
         assertThat(service.save(unsaved)).isSameAs(persisted);
     }
+
+    @Test
+    void GivenANewUser_WhenItIsRegistered_ThenItIsWrittenThroughTheFlushingSave() {
+        // Registration must learn about a duplicate address inside the call, not at commit, so it goes
+        // through the port method that flushes rather than the ordinary save.
+        User unsaved = AUser.aUser().id(null).build();
+        User persisted = AUser.aUser().build();
+        when(repository.saveAndFlush(unsaved)).thenReturn(persisted);
+
+        assertThat(service.register(unsaved)).isSameAs(persisted);
+    }
 }

@@ -156,12 +156,43 @@ class AuthControllerTest {
         // FR-4 reaching the client. The request was well-formed and the rules refuse it, which is a 422
         // rather than a 400 — the form has nothing to correct.
         when(authService.register(anyString(), anyString(), anyString()))
-                .thenThrow(new BusinessRuleException("Email already registered: " + AUser.EMAIL));
+                .thenThrow(new BusinessRuleException("That email is already registered"));
 
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\"s3cret!42\"}"))
-                .andExpect(status().isUnprocessableEntity());
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.message").value("That email is already registered"));
+    }
+
+    @Test
+    void GivenAnEmailWithSpacesAndCapitals_WhenAVisitorRegisters_ThenItIsAcceptedAndPassedOnNormalised()
+            throws Exception {
+        // @Email refuses surrounding whitespace, so normalising after validation would turn an address a
+        // user pasted with a trailing space into a 400. The request record normalises before it is
+        // validated.
+        when(authService.register(anyString(), anyString(), anyString()))
+                .thenReturn(new AuthResult("issued.jwt.token", aUser()));
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Someone\",\"email\":\" SomeOne@Example.COM \",\"password\":\"s3cret!42\"}"))
+                .andExpect(status().isCreated());
+
+        verify(authService).register("Someone", AUser.EMAIL, "s3cret!42");
+    }
+
+    @Test
+    void GivenAnEmailWithSpacesAndCapitals_WhenAUserLogsIn_ThenTheNormalisedAddressIsPresented() throws Exception {
+        when(authService.login(anyString(), anyString()))
+                .thenReturn(new AuthResult("issued.jwt.token", aUser()));
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"SOMEONE@example.com \",\"password\":\"s3cret!\"}"))
+                .andExpect(status().isOk());
+
+        verify(authService).login(AUser.EMAIL, "s3cret!");
     }
 
     @Test

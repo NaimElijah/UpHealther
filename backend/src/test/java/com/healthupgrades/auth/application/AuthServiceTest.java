@@ -6,6 +6,7 @@ import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.RecordingAuditTrail;
 import com.healthupgrades.user.application.port.in.UserCommand;
 import com.healthupgrades.user.application.port.in.UserQuery;
+import com.healthupgrades.user.domain.model.EmailAlreadyRegisteredException;
 import com.healthupgrades.user.domain.model.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,7 +37,7 @@ import static org.mockito.Mockito.when;
 /**
  * Covers the two ways into an authenticated session and the profile read behind them:
  * FR-1 (register), FR-2 (login), FR-3 (restore a session from a stored token), FR-4 (an email may be
- * registered once) and NFR-2 (a raw password is never stored).
+ * registered once, compared case-insensitively) and NFR-2 (a raw password is never stored).
  *
  * <p>The {@link PasswordEncoder} is the real BCrypt one rather than a mock. It is a pure function with no
  * I/O, and NFR-2 is a claim about what actually lands in the stored hash — a stubbed encoder would let
@@ -71,7 +72,7 @@ class AuthServiceTest {
     @Test
     void GivenAnUnregisteredEmail_WhenTheVisitorRegisters_ThenTheUserIsSavedAndATokenIssued() {
         when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
-        when(userCommand.save(any(User.class))).thenAnswer(call -> call.getArgument(0));
+        when(userCommand.register(any(User.class))).thenAnswer(call -> call.getArgument(0));
         when(tokenProvider.generateToken(AUser.EMAIL)).thenReturn("issued.jwt.token");
 
         AuthResult result = service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD);
@@ -87,21 +88,72 @@ class AuthServiceTest {
 
         assertThatThrownBy(() -> service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD))
                 .isInstanceOf(BusinessRuleException.class)
-                .hasMessageContaining(AUser.EMAIL);
+                .hasMessage("That email is already registered");
 
-        verify(userCommand, never()).save(any());
+        verify(userCommand, never()).register(any());
         verify(tokenProvider, never()).generateToken(any());
+    }
+
+    @Test
+    void GivenAnEmailAlreadyTaken_WhenTheRefusalIsWorded_ThenTheAddressIsNotEchoedBack() {
+        // The 422 body reaches whoever submitted the form. Quoting the address back adds nothing the
+        // caller did not send, and turns every refusal into a line that repeats personal data.
+        when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD))
+                .hasMessageNotContaining(AUser.EMAIL);
+    }
+
+    @Test
+    void GivenAMixedCaseEmailWithSpaces_WhenAVisitorRegisters_ThenItIsCheckedAndStoredTrimmedAndLowercase() {
+        when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
+        when(userCommand.register(any(User.class))).thenAnswer(call -> call.getArgument(0));
+
+        service.register(AUser.NAME, "  SomeOne@Example.com ", RAW_PASSWORD);
+
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(userCommand).register(saved.capture());
+        assertThat(saved.getValue().getEmail()).isEqualTo(AUser.EMAIL);
+    }
+
+    @Test
+    void GivenTheUniqueConstraintLosesARace_WhenAVisitorRegisters_ThenItIsRefusedAndAuditedAsRefused() {
+        // Two registrations for one address can both pass the existence check. The loser used to be
+        // decided at commit, outside this method, and came back as a 500.
+        when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
+        when(userCommand.register(any(User.class))).thenThrow(new EmailAlreadyRegisteredException());
+
+        assertThatThrownBy(() -> service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessage("That email is already registered");
+
+        verify(tokenProvider, never()).generateToken(any());
+        assertThat(auditTrail.only(AuditAction.AUTH_REGISTER)).hasValue(
+                new AuditEvent(AuditAction.AUTH_REGISTER, null, null, AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenAMixedCaseEmail_WhenTheUserLogsIn_ThenTheNormalisedAddressIsAuthenticated() {
+        User user = AUser.aUser().build();
+        when(authenticationManager.authenticate(any())).thenReturn(authenticated());
+        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(user));
+
+        service.login(" SOMEONE@example.com", RAW_PASSWORD);
+
+        ArgumentCaptor<Authentication> presented = ArgumentCaptor.forClass(Authentication.class);
+        verify(authenticationManager).authenticate(presented.capture());
+        assertThat(presented.getValue().getPrincipal()).isEqualTo(AUser.EMAIL);
     }
 
     @Test
     void GivenARawPassword_WhenTheVisitorRegisters_ThenOnlyItsHashIsStored() {
         when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
-        when(userCommand.save(any(User.class))).thenAnswer(call -> call.getArgument(0));
+        when(userCommand.register(any(User.class))).thenAnswer(call -> call.getArgument(0));
 
         service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD);
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
-        verify(userCommand).save(saved.capture());
+        verify(userCommand).register(saved.capture());
         assertThat(saved.getValue().getPasswordHash())
                 .as("the raw password must not reach the row")
                 .isNotEqualTo(RAW_PASSWORD);
@@ -180,7 +232,7 @@ class AuthServiceTest {
         // allowed and failed - and double-counted it in audit.events to match. A trail that can report
         // one event twice, differently, is a trail nobody can total.
         when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
-        when(userCommand.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userCommand.register(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(tokenProvider.generateToken(AUser.EMAIL)).thenThrow(new IllegalStateException("secret too short"));
 
         assertThatThrownBy(() -> service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD))
