@@ -240,7 +240,7 @@ class AuthControllerTest {
         // The regression this class exists to hold: /me sat behind a blanket /api/auth/** permitAll and
         // answered 500 from a null principal instead of refusing the request.
         mockMvc.perform(get("/api/auth/me"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
 
         verify(authService, never()).getMe(any());
     }

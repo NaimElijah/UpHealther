@@ -79,8 +79,8 @@ and `GlobalExceptionHandler` decides how it surfaces
 | Status | Raised when |
 |---|---|
 | `400` | Failed validation, an unbindable body, or a parameter that will not convert |
-| `401` | Credentials rejected — the response never says which half was wrong |
-| `403` | Access denied |
+| `401` | Credentials rejected — the response never says which half was wrong — or a protected endpoint called without a token the server accepts. The latter carries `WWW-Authenticate: Bearer`, with `error="invalid_token"` when a token was sent; expired, forged and revoked are not told apart |
+| `403` | The caller is authenticated and not allowed |
 | `404` | Not found, **including** a record belonging to another user: ownership is enforced by the query being user-scoped, so a foreign row is indistinguishable from a missing one |
 | `409` | A duplicate progress entry for the same upgrade and date, or a stale optimistic-lock `version` |
 | `422` | A business rule refused the operation — an illegal lifecycle transition, a fourth concurrent `HARD` upgrade, or an `areaId` that is not one of the caller's health areas (refused the same way whether it belongs to somebody else or does not exist) |
@@ -89,11 +89,10 @@ and `GlobalExceptionHandler` decides how it surfaces
 
 ## Error body
 
-Every failure that reaches `GlobalExceptionHandler` returns the same shape. `fieldErrors` appears
-only on validation failures and `traceId` only when the request was traced; both are omitted
-otherwise. Two paths do not reach it and so return Boot's default body instead — an anonymous
-request to a protected endpoint, rejected inside the Spring Security chain, and a container error
-dispatch to `/error`. Both still carry the `X-Trace-Id` header.
+Every failure returns the same shape, including a refusal decided inside the security chain.
+`fieldErrors` appears only on validation failures and `traceId` only when the request was traced;
+both are omitted otherwise. One path does not reach the handler and returns Boot's default body
+instead: a container error dispatch to `/error`. It still carries the `X-Trace-Id` header.
 
 ```json
 {

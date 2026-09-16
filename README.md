@@ -374,9 +374,8 @@ Known limitations, load-bearing rather than accidental:
 - **Observability stops at the process.** `docker logs` is the only sink, so its retention is the
   audit trail's retention; nothing scrapes `/actuator/prometheus`; no span leaves the process; the
   SPA has no telemetry, so `ErrorBoundary` can show an error and nothing else knows.
-- **Two paths carry a trace id in the header but not the body** — an anonymous request to a
-  protected endpoint (rejected in the security chain as a `403`, no `AuthenticationEntryPoint`
-  configured), and a container error dispatch outside the observation scope.
+- **One path carries a trace id in the header but not the body** — a container error dispatch
+  outside the observation scope.
 - **No screenshots yet.** The system-context diagram stands in until the UI is captured.
 
 Planned, and deliberately absent from every section above: push notifications, progress export,

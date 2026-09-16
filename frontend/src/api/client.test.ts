@@ -8,11 +8,8 @@ import client from './client';
  *
  * Neither is reachable by clicking through the application: one attaches a header, and the other fires
  * on a response the UI never renders. Both are load-bearing — the first is how every request is
- * authenticated, and the second is how a session ends when the server rejects its token with 401.
- *
- * It is not what ends an *expired* session, despite reading that way: this API answers an expired
- * token with 403, which the case below asserts is left alone. `AuthContext`'s mount-time check is
- * what recovers, on the next page load. See #58.
+ * authenticated, and the second is how a session ends when the server answers 401, which it does for
+ * a missing, expired or refused token alike.
  *
  * The adapter is replaced rather than the network stubbed, so the real interceptor chain runs and
  * nothing leaves the process. `window.location` is redefined because assigning to `href` in jsdom is a
@@ -96,16 +93,36 @@ describe('the shared API client', () => {
   });
 
   describe('turning a 401 into a logout', () => {
-    it('GivenATokenTheServerRejects_WhenItAnswers401_ThenTheTokenIsClearedAndTheUserIsSentToLogin', async () => {
-      // Named for a rejected token rather than an expired one: expiry is answered 403 by this API, so
-      // "GivenAnExpiredToken" described a scenario the backend never produces (#58).
+    it('GivenATokenTheServerRejects_WhenItAnswers401_ThenTheSessionIsClearedAndTheUserIsSentToLogin', async () => {
       localStorage.setItem('jwt_token', 'rejected.token');
+      localStorage.setItem('user', '{"id":"1"}');
       withAdapter(failWith(401));
 
       await expect(client.get('/api/upgrades')).rejects.toBeDefined();
 
       expect(localStorage.getItem('jwt_token')).toBeNull();
+      expect(localStorage.getItem('user')).toBeNull();
       expect(window.location.href).toBe('/login');
+    });
+
+    it('GivenALoginTheServerRejects_WhenItAnswers401_ThenNothingNavigatesAndTheFormSeesTheError', async () => {
+      // A refused sign-in is an answer to the form, not a lost session. Navigating here reloaded the
+      // login page and wiped the "Invalid email or password" message before anyone could read it.
+      withAdapter(failWith(401));
+
+      await expect(
+        client.post('/api/auth/login', { email: 'someone@example.com', password: 'wrong' }),
+      ).rejects.toMatchObject({ response: { status: 401 } });
+
+      expect(window.location.href).toBe('');
+    });
+
+    it('GivenARegistrationTheServerRejects_WhenItAnswers401_ThenNothingNavigates', async () => {
+      withAdapter(failWith(401));
+
+      await expect(client.post('/api/auth/register', {})).rejects.toBeDefined();
+
+      expect(window.location.href).toBe('');
     });
 
     it('GivenA401_WhenItIsHandled_ThenTheErrorIsStillRejectedRatherThanSwallowed', async () => {
@@ -129,9 +146,8 @@ describe('the shared API client', () => {
     });
 
     it('GivenAForbiddenResponse_WhenTheServerAnswers403_ThenTheSessionIsLeftAlone', async () => {
-      // Pins today's behaviour rather than endorsing it: 403 is also what this API answers for an
-      // expired token, so leaving the session alone means an open tab keeps failing until it is
-      // reloaded. #58 decides whether the server moves to 401 or this branch learns about 403.
+      // 403 means the caller is known and still not allowed. The session is fine; signing the user out
+      // would punish them for a page they should not have reached.
       localStorage.setItem('jwt_token', 'still.valid.token');
       withAdapter(failWith(403));
 

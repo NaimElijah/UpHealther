@@ -85,11 +85,11 @@ class CorrelationIT extends PostgresIT {
     }
 
     @Test
-    void GivenAnUnauthenticatedRequest_WhenSecurityRejectsIt_ThenTheTraceIdStillComesBack() throws Exception {
-        // The reason the filter is ordered ahead of Spring Security. This rejection is written inside
-        // the security chain and never reaches GlobalExceptionHandler, so the header is the only way an
-        // id reaches the caller at all. It is 403 rather than 401 because no AuthenticationEntryPoint is
-        // configured, which leaves Spring Security's Http403ForbiddenEntryPoint in place.
+    void GivenAnUnauthenticatedRequest_WhenSecurityRejectsIt_ThenTheBodyAndHeaderCarryTheSameTraceId()
+            throws Exception {
+        // The reason the filter is ordered ahead of Spring Security: this rejection is decided inside the
+        // security chain. The entry point hands it to GlobalExceptionHandler, so the body carries the id
+        // too, and it must be the same one the header carries.
         HttpResponse<String> response = client.send(
                 HttpRequest.newBuilder()
                         .uri(URI.create("http://localhost:" + port + "/api/upgrades"))
@@ -97,8 +97,10 @@ class CorrelationIT extends PostgresIT {
                         .build(),
                 HttpResponse.BodyHandlers.ofString());
 
-        assertThat(response.statusCode()).isEqualTo(403);
+        assertThat(response.statusCode()).isEqualTo(401);
+        assertThat(response.headers().firstValue("WWW-Authenticate")).hasValue("Bearer");
         assertThat(traceIdHeader(response)).matches(TRACE_ID_PATTERN);
+        assertThat(json.readTree(response.body()).path("traceId").asText()).isEqualTo(traceIdHeader(response));
     }
 
     private HttpResponse<String> post(String body, String traceparent) throws Exception {

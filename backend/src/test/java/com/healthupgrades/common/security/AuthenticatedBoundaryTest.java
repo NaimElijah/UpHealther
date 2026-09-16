@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -19,6 +20,8 @@ import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -30,10 +33,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * request that reaches a mocked service and gets a null back has still got past security, and that is
  * what the assertion is about.
  *
- * <p>The rejection status is <strong>403, not 401</strong>. No {@code AuthenticationEntryPoint} is
- * configured, so Spring Security's {@code Http403ForbiddenEntryPoint} answers an anonymous request to a
- * protected endpoint. This test asserts the behaviour as it is rather than as it arguably should be;
- * the discrepancy is recorded in {@code docs/architecture/architecture.md} under "Known constraints".
+ * <p>The rejection is <strong>401</strong> with a {@code WWW-Authenticate: Bearer} challenge and the
+ * API's own error body, whether the request carried no token or one the server refused. It used to be a
+ * bare 403, because no {@code AuthenticationEntryPoint} was configured, which left clients unable to tell
+ * "sign in again" from "this is not yours" (#58).
  *
  * <p>{@link #GivenTheApiSurface_WhenItIsEnumerated_ThenEveryProtectedRouteIsListedHere} is the guard
  * that keeps the table below honest: a new endpoint that nobody adds a row for fails this class rather
@@ -112,10 +115,14 @@ class AuthenticatedBoundaryTest {
             "POST,    /api/notifications/read-all",
             "GET,     /api/auth/me",
     })
-    void GivenNoToken_WhenAProtectedEndpointIsCalled_ThenTheRequestIsRejected(String method, String path)
+    void GivenNoToken_WhenAProtectedEndpointIsCalled_ThenItIsRefusedAs401WithAChallenge(String method, String path)
             throws Exception {
         mockMvc.perform(json(request(HttpMethod.valueOf(method), path)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, "Bearer"))
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("Authentication required"))
+                .andExpect(jsonPath("$.path").value(path));
     }
 
     @ParameterizedTest(name = "{0} {1}")
@@ -146,12 +153,15 @@ class AuthenticatedBoundaryTest {
     }
 
     @Test
-    void GivenAnInvalidToken_WhenAProtectedEndpointIsCalled_ThenTheRequestIsStillRejected() throws Exception {
-        // A token the provider refuses leaves the request anonymous rather than authenticating it.
+    void GivenAnInvalidToken_WhenAProtectedEndpointIsCalled_ThenItIsRefusedAsAnInvalidToken() throws Exception {
+        // A token the provider refuses leaves the request anonymous rather than authenticating it, and
+        // the challenge says the token was the problem, which is what tells a client to sign in again.
         org.mockito.Mockito.when(tokenProvider.validateToken(WebSliceSupport.VALID_TOKEN)).thenReturn(false);
 
         mockMvc.perform(WebSliceSupport.bearer(json(request(HttpMethod.GET, "/api/notifications"))))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, "Bearer error=\"invalid_token\""))
+                .andExpect(jsonPath("$.message").value("Authentication required"));
     }
 
     @Test

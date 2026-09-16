@@ -53,7 +53,10 @@ side. Both are deliberate, not drift.
 - **Exception → HTTP status is centralized** in the global exception handler. Throw the
   right domain exception rather than building `ResponseEntity` status by hand:
   `ResourceNotFoundException` → 404, `BusinessRuleException` → 422, `DuplicateProgressException` /
-  optimistic-lock → 409, bean-validation → 400 with a field → message map.
+  optimistic-lock → 409, bean-validation → 400 with a field → message map. Refusals decided inside the
+  security chain reach the same handler: `ErrorBodySecurityHandlers` forwards an anonymous request as
+  `AuthenticationRequiredException` (401 with a bearer challenge) and an authorization failure as
+  `AccessDeniedException` (403), so do not write a response body from a filter.
 
   **Framework exceptions are not yours to map.** `GlobalExceptionHandler` extends Spring's
   `ResponseEntityExceptionHandler`, so an unbindable body, a path variable that will not convert, an

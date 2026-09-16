@@ -50,6 +50,7 @@ import java.util.Map;
  *   <tr><td>{@link TypeMismatchException}</td><td>400 Bad Request</td></tr>
  *   <tr><td>every other Spring MVC exception</td><td>the status Spring defines for it (405, 415, 406, 404, …)</td></tr>
  *   <tr><td>{@link BadCredentialsException} / {@link AccountStatusException}</td><td>401 Unauthorized, message withheld</td></tr>
+ *   <tr><td>{@link AuthenticationRequiredException}</td><td>401 Unauthorized, with a {@code WWW-Authenticate: Bearer} challenge</td></tr>
  *   <tr><td>{@link AccessDeniedException}</td><td>403 Forbidden</td></tr>
  *   <tr><td>anything else</td><td>500 Internal Server Error, message withheld</td></tr>
  * </table>
@@ -79,6 +80,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * or a value that must not reach a client, so no 5xx body is ever built from the exception.
      */
     private static final String INTERNAL_ERROR_MESSAGE = "Internal server error";
+
+    /** RFC 6750 section 3: a request with no credential is told the scheme and nothing else. */
+    private static final String BEARER_CHALLENGE = "Bearer";
+
+    /** RFC 6750 section 3.1: the credential was presented and not accepted. */
+    private static final String INVALID_TOKEN_CHALLENGE = "Bearer error=\"invalid_token\"";
 
     /** Supplies the trace id stamped on every error body; see {@link #body}. */
     private final Tracer tracer;
@@ -159,7 +166,27 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .body(body(HttpStatus.UNAUTHORIZED.value(), "Invalid credentials", req.getRequestURI()));
     }
 
-    /** Maps a Spring Security authorization failure to 403. */
+    /**
+     * Maps a request that reached a protected resource without an accepted token to 401, with the
+     * RFC 6750 challenge that tells a client to authenticate.
+     *
+     * <p>Raised by the security chain's entry point, not by a controller. The challenge distinguishes
+     * "no token" from "a token that was refused", and says nothing more: expired, forged and revoked
+     * are one answer.
+     */
+    @ExceptionHandler(AuthenticationRequiredException.class)
+    public ResponseEntity<ErrorResponse> handleAuthenticationRequired(AuthenticationRequiredException ex,
+                                                                      HttpServletRequest req) {
+        String challenge = ex.tokenPresented() ? INVALID_TOKEN_CHALLENGE : BEARER_CHALLENGE;
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .header(HttpHeaders.WWW_AUTHENTICATE, challenge)
+                .body(body(HttpStatus.UNAUTHORIZED.value(), ex.getMessage(), req.getRequestURI()));
+    }
+
+    /**
+     * Maps a Spring Security authorization failure to 403: the caller is known and still not allowed.
+     * Reached from the security chain's access-denied handler and from method security alike.
+     */
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)

@@ -431,14 +431,11 @@ Stated because they are load-bearing, not because they are problems yet:
 - **The backend has no dependency vulnerability audit.** OWASP dependency-check cannot populate its
   database without an `NVD_API_KEY`. ADR-002 records why a check that always fails, or one that cannot
   fail, was judged worse than none.
-- **Two paths carry a trace id in the header but not the body.** An anonymous request to a protected
-  endpoint is rejected inside the Spring Security chain and never reaches `GlobalExceptionHandler`, so
-  it returns Boot's default error body — and as a 403, not a 401, since no `AuthenticationEntryPoint` is
-  configured;
-  and `ServerHttpObservationFilter` is registered for `REQUEST` and `ASYNC` dispatches but not `ERROR`,
-  so a container error dispatch to `/error` runs outside the observation scope entirely. Nothing logs
-  on either path today. Closing the first means configuring an `AuthenticationEntryPoint`, which is its
-  own wire-contract change.
+- **One path carries a trace id in the header but not the body.** `ServerHttpObservationFilter` is
+  registered for `REQUEST` and `ASYNC` dispatches but not `ERROR`, so a container error dispatch to
+  `/error` runs outside the observation scope entirely. Nothing logs on that path today. A refusal
+  inside the security chain is no longer such a path: the entry point and the access-denied handler
+  hand it to `GlobalExceptionHandler` ([ADR-014](../ADRs/ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md))
 - **`docker logs` is the only sink, and its retention is the audit trail's retention.** There is no
   file appender, no log volume and no aggregator, so a line that has aged out of the container's log
   is gone — including the audit entries. That is adequate for diagnosis and is explicitly *not* a
@@ -478,6 +475,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why metrics are a scrape endpoint and not an exporter or a Grafana stack; why the actuator surface is closed by name | [ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md) |
 | Why every page shares one width; why the shell can be trusted not to overflow; why container queries were turned down | [ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md) |
 | Why the dialog traps focus by hand rather than through a native `<dialog>`; why `inert` and not `aria-hidden`; why the overlay is portalled | [ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md) |
+| Why an unauthenticated request is a 401 with the API's own body rather than the framework's 403 | [ADR-014](../ADRs/ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

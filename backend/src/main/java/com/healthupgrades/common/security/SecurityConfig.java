@@ -2,6 +2,7 @@ package com.healthupgrades.common.security;
 
 import com.healthupgrades.common.observability.TraceIdResponseHeaderFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,6 +21,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import java.util.Arrays;
 import java.util.List;
@@ -45,15 +47,18 @@ public class SecurityConfig {
     private String allowedOrigins;
 
     /**
-     * Builds the filter chain: stateless sessions, CORS from configuration, and the JWT filter ahead of
-     * the username/password filter.
+     * Builds the filter chain: stateless sessions, CORS from configuration, the JWT filter ahead of the
+     * username/password filter, and refusals answered with the API's error body rather than the
+     * framework's.
      *
-     * @param http Spring Security's chain builder
+     * @param http       Spring Security's chain builder
+     * @param errorBodies the entry point and access-denied handler that hand refusals to the MVC resolver
      * @return the configured chain
      * @throws Exception if the chain cannot be built
      */
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, ErrorBodySecurityHandlers errorBodies)
+            throws Exception {
         http
                 // CSRF disabled intentionally: this is a stateless JWT REST API.
                 // CSRF attacks require browser-managed session cookies; JWT in Authorization header is not
@@ -73,9 +78,25 @@ public class SecurityConfig {
                         .requestMatchers("/ws/**").permitAll()
                         .anyRequest().authenticated()
                 )
+                .exceptionHandling(handling -> handling
+                        .authenticationEntryPoint(errorBodies)
+                        .accessDeniedHandler(errorBodies))
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
+    }
+
+    /**
+     * The refusal handlers, bound to Spring MVC's composite exception resolver.
+     *
+     * <p>Qualified by name because {@code DefaultErrorAttributes} also implements
+     * {@link HandlerExceptionResolver}, and it is the wrong one: it records the error for Boot's error
+     * page and resolves nothing.
+     */
+    @Bean
+    public ErrorBodySecurityHandlers errorBodySecurityHandlers(
+            @Qualifier("handlerExceptionResolver") HandlerExceptionResolver resolver) {
+        return new ErrorBodySecurityHandlers(resolver);
     }
 
     /** Authentication provider used by the login endpoint to match a submitted password against the stored hash. */

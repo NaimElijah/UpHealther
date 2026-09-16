@@ -2,7 +2,7 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. Eighty-three of the ninety entries below name a test — sixty-four distinct
+rather than trusted. Eighty-three of the ninety entries below name a test — sixty-five distinct
 test classes and files between them. Four of the remaining seven name the command, workflow or script
 that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18). The last three — FR-39, NFR-19 and NFR-20 — are
 verified by hand and say so, because each is about a rendered width, a colour or an overflow, and jsdom
@@ -44,7 +44,7 @@ nothing is shared between accounts.
 | FR-2 | A registered user can sign in with email and password and receive a token | `AuthServiceTest`, `AuthControllerTest` |
 | FR-3 | A signed-in user can retrieve their own profile, so a stored token restores a session | `AuthControllerTest`, `AuthContext.test.tsx` |
 | FR-4 | An email may be registered once. Addresses are compared trimmed and case-insensitively, the database refuses any other stored form, and a registration that loses a race for an address is refused like any other duplicate | `AuthServiceTest`, `AuthControllerTest` (422), `EmailAddressTest`, `UserPersistenceIT`, `RegistrationRaceIT` |
-| FR-5 | Every endpoint except registration, login and health checks requires a valid token | `AuthenticatedBoundaryTest` (every protected route), `ProtectedRoute.test.tsx` |
+| FR-5 | Every endpoint except registration, login and health checks requires a valid token; a request without one, or with one the server refuses, is answered 401 with a `WWW-Authenticate: Bearer` challenge and the API's error body | `AuthenticatedBoundaryTest` (every protected route), `ErrorBodySecurityHandlersTest`, `ProtectedRoute.test.tsx` |
 
 ### 2.2 Health areas
 
@@ -167,7 +167,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-4 | A token is valid for 24 hours and is not refreshable | `JwtTokenProviderTest`, `app.jwt.expiration` |
 | NFR-5 | The user behind a token is re-loaded on every request, so a deleted account stops working immediately | `JwtAuthenticationFilterTest` |
 | NFR-6 | The application never logs personal data deliberately: event publication logs the type and timestamp only, and a trace id identifies a request rather than a person. The one exception is the stack trace of an unexpected 5xx, logged in full so the fault is diagnosable and withheld from the client | `SpringDomainEventPublisher`, `GlobalExceptionHandlerTest` |
-| NFR-7 | Every failure maps to a defined HTTP status: 404 not found, 422 rule violation, 409 conflict, 401 rejected credentials, 400 invalid input (a failed constraint, an unbindable body, a parameter that will not convert), 403 denied, and the status Spring defines for every other framework exception (405, 415, 406, …). Only a genuine server fault is a 500, and it carries no detail beyond the status and the trace id that finds its log line | `GlobalExceptionHandlerTest`, every `*ControllerTest`, [ADR-006](../ADRs/ADR-006-framework-exceptions-through-responseentityexceptionhandler.md) |
+| NFR-7 | Every failure maps to a defined HTTP status: 404 not found, 422 rule violation, 409 conflict, 401 rejected credentials or no accepted token, 400 invalid input (a failed constraint, an unbindable body, a parameter that will not convert), 403 authenticated but not allowed, and the status Spring defines for every other framework exception (405, 415, 406, …). Only a genuine server fault is a 500, and it carries no detail beyond the status and the trace id that finds its log line | `GlobalExceptionHandlerTest`, every `*ControllerTest`, [ADR-006](../ADRs/ADR-006-framework-exceptions-through-responseentityexceptionhandler.md) |
 | NFR-8 | The database schema is owned by migrations; the application refuses to start against a schema that does not match its entities | `ApplicationContextIT`, Flyway + `ddl-auto: validate` |
 | NFR-9 | Layering is enforced mechanically, not by convention: the domain stays framework-free, the application depends on no adapter, contexts form an acyclic graph | `HexagonalArchitectureTest` (eleven rules) |
 | NFR-10 | The frontend's mirrored enums cannot drift from the backend's | `FrontendEnumContractTest` |
@@ -215,13 +215,6 @@ These are deliberate. Re-proposing one needs a reason that has changed.
 ## 6. Open questions
 
 Undecided, and owned by the repository owner.
-
-- **An anonymous request to a protected endpoint is answered 403, not 401.** No
-  `AuthenticationEntryPoint` is configured, so Spring Security's `Http403ForbiddenEntryPoint` answers
-  it. FR-5 is met either way — the request is refused — but 401 is the semantically correct status and
-  a client cannot distinguish "not signed in" from "not allowed". `AuthenticatedBoundaryTest` asserts
-  the behaviour as it is. Changing it is a one-line configuration change and a breaking change for any
-  client branching on the status, so it is a decision rather than a fix.
 
 - **The daily check-in logs every active upgrade, including the ones left untouched.**
   `DailyCheckinPage`'s own documentation says an untouched upgrade is "left unlogged rather than
