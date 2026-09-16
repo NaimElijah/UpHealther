@@ -116,8 +116,9 @@ Derived from the imports, not from intent:
 > **Diagram:** [Bounded-context map](arch-diagrams/README.md#2-bounded-context-map) —
 > generated from the imports, so it is what the code does rather than what was intended.
 
-`upgrade`, `user` and `healtharea` depend on no other context. The graph is acyclic, and ArchUnit
-fails the build if that stops being true.
+`user` and `healtharea` depend on no other context. `upgrade` depends only on `healtharea`, through
+`HealthAreaQuery.ownsArea`, so that an upgrade is filed only under an area the caller owns (BR-18).
+The graph is acyclic, and ArchUnit fails the build if that stops being true.
 
 The one edge that is not obvious is the absent one. An upgrade's response carries its tracking
 configuration, which would mean `upgrade → tracking` — and `tracking → upgrade` already exists for

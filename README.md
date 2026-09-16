@@ -92,8 +92,8 @@ message pushed to a connected browser.
 
 The backend is **nine bounded contexts over a shared kernel** — `auth`, `user`, `healtharea`,
 `upgrade`, `tracking`, `reflection`, `reminder`, `dashboard`, `notification` — each a hexagon:
-adapters depend on the core, and the core depends on nothing outside itself. Three of them
-(`upgrade`, `healtharea`, `user`) depend on no other context at all, and the graph is acyclic.
+adapters depend on the core, and the core depends on nothing outside itself. Two of them
+(`healtharea`, `user`) depend on no other context at all, and the graph is acyclic.
 That graph is read off the `import` statements rather than drawn, and CI fails when it stops
 matching the code — see the
 [context map](docs/architecture/arch-diagrams/README.md#2-bounded-context-map).

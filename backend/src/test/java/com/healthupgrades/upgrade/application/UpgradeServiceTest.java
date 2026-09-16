@@ -10,6 +10,7 @@ import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.healtharea.application.port.in.HealthAreaQuery;
 import com.healthupgrades.upgrade.application.port.in.UpgradeDetails;
 import com.healthupgrades.upgrade.domain.model.Difficulty;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
@@ -42,8 +43,9 @@ import static org.mockito.Mockito.when;
 
 /**
  * Covers the upgrade use cases: FR-10 (create), FR-11 (list, narrowed by one filter), FR-12 (the
- * lifecycle transitions and the events they announce), FR-13 (edit at any point), FR-14 (delete) and
- * BR-15 (another user's upgrade is absent, not forbidden).
+ * lifecycle transitions and the events they announce), FR-13 (edit at any point), FR-14 (delete),
+ * BR-15 (another user's upgrade is absent, not forbidden) and BR-18 (an upgrade is filed only under the
+ * caller's own health area).
  *
  * <p>Also BR-5, the concurrent-HARD limit, on both routes into a running HARD upgrade — activating one,
  * and promoting an already-active one — because there are two and only one of them is obvious.
@@ -56,6 +58,7 @@ class UpgradeServiceTest {
 
     @Mock UpgradeRepositoryPort repository;
     @Mock DomainEventPublisher eventPublisher;
+    @Mock HealthAreaQuery healthAreaQuery;
 
     /** The HARD-limit rule is a pure domain service, not a port — exercise the real one. */
     private final UpgradeSchedulingService schedulingService = new UpgradeSchedulingService();
@@ -71,7 +74,7 @@ class UpgradeServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new UpgradeService(repository, schedulingService, eventPublisher, auditTrail, fixedClock);
+        service = new UpgradeService(repository, schedulingService, eventPublisher, auditTrail, healthAreaQuery, fixedClock);
     }
 
     private HealthUpgrade upgradeWith(UpgradeStatus status, Difficulty difficulty) {
@@ -197,6 +200,87 @@ class UpgradeServiceTest {
 
         verify(repository, never()).save(any());
         verify(eventPublisher, never()).publish(any());
+    }
+
+    // ---- BR-18: an upgrade is filed only under the caller's own area ----
+
+    private UpgradeDetails detailsInArea(UUID areaId) {
+        return new UpgradeDetails(areaId, "Cold showers", null, UpgradeType.HABIT,
+                Difficulty.MEDIUM, null, null, null, null);
+    }
+
+    @Test
+    void GivenAnAreaOwnedBySomebodyElse_WhenAnUpgradeIsCreated_ThenItIsRefusedAndNothingIsSaved() {
+        UUID foreignArea = UUID.randomUUID();
+        when(healthAreaQuery.ownsArea(userId, foreignArea)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.create(userId, detailsInArea(foreignArea)))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessage("Unknown health area");
+
+        verify(repository, never()).save(any());
+        verify(eventPublisher, never()).publish(any());
+    }
+
+    @Test
+    void GivenARefusedArea_WhenTheCreateIsAudited_ThenTheAttemptIsRecordedAsRefused() {
+        UUID foreignArea = UUID.randomUUID();
+        when(healthAreaQuery.ownsArea(userId, foreignArea)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.create(userId, detailsInArea(foreignArea)))
+                .isInstanceOf(BusinessRuleException.class);
+
+        assertThat(auditTrail.recorded(AuditAction.UPGRADE_CREATE, AuditOutcome.REFUSED)).isTrue();
+    }
+
+    @Test
+    void GivenAnAreaTheCallerOwns_WhenAnUpgradeIsCreated_ThenItIsFiledUnderIt() {
+        UUID ownArea = UUID.randomUUID();
+        when(healthAreaQuery.ownsArea(userId, ownArea)).thenReturn(true);
+        when(repository.save(any(HealthUpgrade.class))).thenAnswer(call -> call.getArgument(0));
+
+        HealthUpgrade created = service.create(userId, detailsInArea(ownArea));
+
+        assertThat(created.getAreaId()).isEqualTo(ownArea);
+    }
+
+    @Test
+    void GivenNoArea_WhenAnUpgradeIsCreated_ThenNoOwnershipLookupIsMade() {
+        when(repository.save(any(HealthUpgrade.class))).thenAnswer(call -> call.getArgument(0));
+
+        service.create(userId, detailsInArea(null));
+
+        verify(healthAreaQuery, never()).ownsArea(any(), any());
+    }
+
+    @Test
+    void GivenAnUpgradeMovedToAForeignArea_WhenItIsUpdated_ThenItIsRefusedAndLeftUntouched() {
+        UUID foreignArea = UUID.randomUUID();
+        HealthUpgrade upgrade = upgradeWith(UpgradeStatus.PLANNED, Difficulty.MEDIUM);
+        when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.of(upgrade));
+        when(healthAreaQuery.ownsArea(userId, foreignArea)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.update(userId, upgradeId, detailsInArea(foreignArea)))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessage("Unknown health area");
+
+        assertThat(upgrade.getAreaId()).isNull();
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void GivenAnUnchangedArea_WhenTheUpgradeIsUpdated_ThenNoOwnershipLookupBlocksIt() {
+        // An upgrade filed before this rule existed may point at an area the check would now refuse;
+        // editing its title must not become impossible because of a field the user did not touch.
+        UUID existingArea = UUID.randomUUID();
+        HealthUpgrade upgrade = upgradeWith(UpgradeStatus.PLANNED, Difficulty.MEDIUM);
+        upgrade.updateDetails(existingArea, "Cold showers", null, UpgradeType.HABIT, null, null, null);
+        when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.of(upgrade));
+        when(repository.save(any(HealthUpgrade.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.update(userId, upgradeId, detailsInArea(existingArea));
+
+        verify(healthAreaQuery, never()).ownsArea(any(), any());
     }
 
     // ---- FR-11: listing ----

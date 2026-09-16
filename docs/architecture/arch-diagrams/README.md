@@ -76,6 +76,7 @@ flowchart TD
     notification["notification"]
 
     auth --> user
+    upgrade --> healtharea
     tracking --> upgrade
     reflection --> upgrade
     reminder --> upgrade
@@ -87,14 +88,15 @@ flowchart TD
     notification --> tracking
     notification --> upgrade
 
-    %% depends on nothing: healtharea, upgrade, user — the graph is acyclic,
+    %% depends on nothing: healtharea, user — the graph is acyclic,
     %% which HexagonalArchitectureTest fails the build over if it stops being true.
 ```
 <!-- /generated:context-map -->
 
 `common` is excluded: every context depends on it by definition, so drawing it would add ten edges
-that say nothing. The absent edge is the interesting one — `upgrade` points at nothing, even though
-an upgrade's response carries its tracking configuration. That inversion is
+that say nothing. The absent edge is the interesting one — `upgrade` does not point at `tracking`,
+even though an upgrade's response carries its tracking configuration. Its one outgoing edge is to
+`healtharea`, whose inbound port confirms an area is the caller's before an upgrade is filed under it. That inversion is
 [ADR-002](../../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md).
 
 ---

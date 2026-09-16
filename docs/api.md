@@ -79,7 +79,7 @@ and `GlobalExceptionHandler` decides how it surfaces
 | `403` | Access denied |
 | `404` | Not found, **including** a record belonging to another user: ownership is enforced by the query being user-scoped, so a foreign row is indistinguishable from a missing one |
 | `409` | A duplicate progress entry for the same upgrade and date, or a stale optimistic-lock `version` |
-| `422` | A business rule refused the operation — an illegal lifecycle transition, or a fourth concurrent `HARD` upgrade |
+| `422` | A business rule refused the operation — an illegal lifecycle transition, a fourth concurrent `HARD` upgrade, or an `areaId` that is not one of the caller's health areas (refused the same way whether it belongs to somebody else or does not exist) |
 | `405` `415` `406` | The status Spring defines for the framework exception |
 | `500` | A genuine server fault. Carries the status and a trace id, and nothing else |
 
