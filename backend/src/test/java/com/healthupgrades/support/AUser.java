@@ -1,6 +1,7 @@
 package com.healthupgrades.support;
 
 import com.healthupgrades.common.security.SecurityUser;
+import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User;
 
 import java.util.UUID;
@@ -39,6 +40,11 @@ public final class AUser {
     /** A user with a given id, for a test that has to match a row against an owner id it already holds. */
     public static User withId(UUID id) {
         return aUser().id(id).build();
+    }
+
+    /** A user with a given id and role, for a test about what a role may reach. */
+    public static User withRole(UUID id, Role role) {
+        return aUser().id(id).role(role).build();
     }
 
     /** The Spring Security principal a controller would receive for this user. */

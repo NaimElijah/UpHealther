@@ -1,6 +1,7 @@
 package com.healthupgrades.common.security;
 
 import com.healthupgrades.support.WebSliceSupport;
+import com.healthupgrades.user.domain.model.Role;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -16,6 +17,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -56,6 +58,12 @@ class AuthenticatedBoundaryTest {
     /** The routes that must work without a token. Everything else must not. */
     private static final Set<String> PUBLIC_ROUTES =
             Set.of("/api/auth/register", "/api/auth/login", "/actuator/", "/ws/");
+
+    /**
+     * A path under the administration prefix. Nothing serves it yet, which is the point: the prefix is
+     * closed by the filter chain, so a path added under it is refused from the moment it exists.
+     */
+    private static final String ADMIN_PATH = "/api/admin/users";
 
     @Autowired MockMvc mockMvc;
     @Autowired RequestMappingHandlerMapping handlerMapping;
@@ -204,6 +212,30 @@ class AuthenticatedBoundaryTest {
         assertThat(mapped)
                 .as("an endpoint exists that this class does not check the authenticated boundary of")
                 .isEqualTo(listed);
+    }
+
+    @Test
+    void GivenAnOrdinaryUser_WhenAnAdministrationPathIsCalled_ThenItIsRefusedAs403WithTheApiErrorBody()
+            throws Exception {
+        // Authenticated, and still refused: this is the one place in the API where authorization is
+        // decided by something other than the ownership of a row.
+        WebSliceSupport.authenticateAs(authenticator, UUID.randomUUID(), Role.USER);
+
+        mockMvc.perform(WebSliceSupport.bearer(json(request(HttpMethod.GET, ADMIN_PATH))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.path").value(ADMIN_PATH));
+    }
+
+    @Test
+    void GivenAnAdministrator_WhenTheSameAdministrationPathIsCalled_ThenSecurityDoesNotRefuseIt()
+            throws Exception {
+        // 404 rather than 403, because no handler is registered for it yet. The difference is the
+        // assertion: it shows the refusal above is about the role and not about the path being absent.
+        WebSliceSupport.authenticateAs(authenticator, UUID.randomUUID(), Role.ADMIN);
+
+        mockMvc.perform(WebSliceSupport.bearer(json(request(HttpMethod.GET, ADMIN_PATH))))
+                .andExpect(status().isNotFound());
     }
 
     /** Every request carries a JSON content type, so a body-taking endpoint is not refused for that. */

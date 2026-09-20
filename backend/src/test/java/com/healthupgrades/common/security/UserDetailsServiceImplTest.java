@@ -2,16 +2,19 @@ package com.healthupgrades.common.security;
 
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.user.application.port.in.UserQuery;
+import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -75,12 +78,35 @@ class UserDetailsServiceImplTest {
     }
 
     @Test
-    void GivenAnyPrincipal_WhenItsAuthoritiesAreRead_ThenThereAreNone() {
-        // No roles are modelled: authorization is "authenticated or not", and ownership is decided by
-        // the user-scoped queries rather than by an authority. A role appearing here would mean the
-        // authorization model changed.
+    void GivenAnOrdinaryAccount_WhenItsAuthoritiesAreRead_ThenItHoldsOnlyTheUserRole() {
+        // Exactly one authority, and it is the account's own role under Spring Security's prefix.
+        // A second authority appearing here would mean the authorization model grew something that
+        // is not a role, which is a decision for an ADR rather than a line of wiring.
         when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(AUser.aUser().build()));
 
-        assertThat(service.loadUserByUsername(AUser.EMAIL).getAuthorities()).isEmpty();
+        assertThat(service.loadUserByUsername(AUser.EMAIL).getAuthorities())
+                .extracting(GrantedAuthority::getAuthority)
+                .containsExactly("ROLE_USER");
+    }
+
+    @Test
+    void GivenAnAdministrator_WhenItsAuthoritiesAreRead_ThenItHoldsTheAdminRole() {
+        when(userQuery.findByEmail(AUser.EMAIL))
+                .thenReturn(Optional.of(AUser.withRole(UUID.randomUUID(), Role.ADMIN)));
+
+        assertThat(service.loadUserByUsername(AUser.EMAIL).getAuthorities())
+                .extracting(GrantedAuthority::getAuthority)
+                .containsExactly("ROLE_ADMIN");
+    }
+
+    @Test
+    void GivenADisabledAccount_WhenThePrincipalIsLoaded_ThenItReportsItselfDisabled() {
+        // The principal carries the flag; SecurityConfig's post-authentication check is what acts on
+        // it, and BearerTokenAuthenticator is what acts on it for a token.
+        User disabled = AUser.aUser().build();
+        disabled.disable();
+        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(disabled));
+
+        assertThat(service.loadUserByUsername(AUser.EMAIL).isEnabled()).isFalse();
     }
 }

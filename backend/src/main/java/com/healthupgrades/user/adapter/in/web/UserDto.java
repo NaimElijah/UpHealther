@@ -1,5 +1,7 @@
 package com.healthupgrades.user.adapter.in.web;
 
+import com.healthupgrades.user.domain.model.Role;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -13,11 +15,15 @@ import java.util.UUID;
  * @param id        the user's identifier
  * @param name      display name
  * @param email     login identity
+ * @param role      what the account may do beyond owning its own records; the interface shows the
+ *                  administration section only to an ADMIN, and the server refuses the paths behind
+ *                  it regardless of what the interface chose to show
  * @param createdAt when the account was created
  */
 public record UserDto(
         UUID id,
         String name,
         String email,
+        Role role,
         LocalDateTime createdAt
 ) {}

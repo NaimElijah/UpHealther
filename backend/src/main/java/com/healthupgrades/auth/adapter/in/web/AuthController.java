@@ -95,7 +95,8 @@ public class AuthController {
 
     /** Maps a domain user to its public DTO. */
     private UserDto toUserDto(User user) {
-        return new UserDto(user.getId(), user.getName(), user.getEmail(), user.getCreatedAt());
+        return new UserDto(user.getId(), user.getName(), user.getEmail(), user.getRole(),
+                user.getCreatedAt());
     }
 
     /**

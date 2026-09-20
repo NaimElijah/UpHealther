@@ -9,10 +9,12 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -31,13 +33,15 @@ import java.util.List;
  * Web security wiring: a stateless, token-authenticated API.
  *
  * <p>Defines the filter chain, the password encoder, the DAO authentication provider used by the login
- * endpoint, and the CORS policy. Authorization is coarse — a request is either on the small permitted
- * list or it needs a valid token. Ownership is <em>not</em> decided here: every query is scoped by user
- * id at the repository, so one user cannot read another's rows even though both are "authenticated"
- * (see {@code backend/CLAUDE.md}).
+ * endpoint, and the CORS policy. Authorization is deliberately thin: a request is either on the small
+ * permitted list, or it is an administration path that needs the ADMIN role, or it needs a valid token.
+ * Ownership is <em>not</em> decided here: every query is scoped by user id at the repository, so one
+ * user cannot read another's rows even though both are "authenticated", and an administrator is no
+ * exception (see {@code backend/CLAUDE.md} and ADR-016).
  */
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 @EnableConfigurationProperties(JwtProperties.class)
 @RequiredArgsConstructor
 public class SecurityConfig {
@@ -78,6 +82,10 @@ public class SecurityConfig {
                         // The WebSocket handshake is open; the STOMP CONNECT frame is authenticated by
                         // JwtChannelInterceptor (the JWT travels in the STOMP headers, not the handshake).
                         .requestMatchers("/ws/**").permitAll()
+                        // Declared here as well as by @PreAuthorize on the controller. The annotation
+                        // is the rule a reader of that class sees; this line is what refuses a path
+                        // under /api/admin that somebody later adds and forgets to annotate.
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(handling -> handling
@@ -101,12 +109,33 @@ public class SecurityConfig {
         return new ErrorBodySecurityHandlers(resolver);
     }
 
-    /** Authentication provider used by the login endpoint to match a submitted password against the stored hash. */
+    /**
+     * Authentication provider used by the login endpoint to match a submitted password against the
+     * stored hash.
+     *
+     * <p>The two account checks are deliberately swapped round. Spring runs its pre-authentication
+     * checks — enabled, not locked, not expired — <em>before</em> the password is verified, so a
+     * disabled account is refused without BCrypt ever running. That reply comes back in a fraction of
+     * the time a wrong password takes, and the difference is measurable from outside: it tells an
+     * anonymous caller which addresses belong to real accounts that happen to be switched off. Moving
+     * the check after the password match costs a disabled account exactly what a wrong password costs,
+     * and both answer 401 "Invalid credentials".
+     *
+     * <p>The pre-check is left empty rather than trimmed, because {@link SecurityUser} models none of
+     * the other flags — it answers true to locked, expired and credentials-expired. A flag that starts
+     * meaning something must be added to the post-check below, or it will not be enforced at all.
+     */
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
         provider.setUserDetailsService(userDetailsService);
         provider.setPasswordEncoder(passwordEncoder());
+        provider.setPreAuthenticationChecks(user -> { });
+        provider.setPostAuthenticationChecks(user -> {
+            if (!user.isEnabled()) {
+                throw new DisabledException("Account is disabled");
+            }
+        });
         return provider;
     }
 

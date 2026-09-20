@@ -408,6 +408,8 @@ erDiagram
         varchar password_hash
         timestamp created_at
         timestamp updated_at
+        varchar role
+        boolean enabled
     }
     health_areas {
         uuid id PK

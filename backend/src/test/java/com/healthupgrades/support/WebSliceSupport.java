@@ -2,6 +2,7 @@ package com.healthupgrades.support;
 
 import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.common.security.SecurityUser;
+import com.healthupgrades.user.domain.model.Role;
 import io.micrometer.tracing.Tracer;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -57,7 +58,19 @@ public class WebSliceSupport {
      * @return the principal, for a test that wants to assert against the same identity
      */
     public static SecurityUser authenticateAs(BearerTokenAuthenticator authenticator, UUID userId) {
-        SecurityUser principal = AUser.principalFor(userId);
+        return authenticateAs(authenticator, userId, Role.USER);
+    }
+
+    /**
+     * Makes {@link #VALID_TOKEN} resolve to a principal holding a particular role.
+     *
+     * @param authenticator the slice's mocked {@code BearerTokenAuthenticator}
+     * @param userId        the id the authenticated principal should carry
+     * @param role          the role the principal holds, which decides the administration paths
+     * @return the principal, for a test that wants to assert against the same identity
+     */
+    public static SecurityUser authenticateAs(BearerTokenAuthenticator authenticator, UUID userId, Role role) {
+        SecurityUser principal = AUser.principalFor(AUser.withRole(userId, role));
         when(authenticator.authenticate(VALID_TOKEN)).thenReturn(Optional.of(principal));
         return principal;
     }

@@ -18,6 +18,7 @@ const USER: User = {
   id: 'user-1',
   name: 'Someone',
   email: 'someone@example.com',
+  role: 'USER',
   createdAt: '2026-03-15T09:00:00',
 };
 

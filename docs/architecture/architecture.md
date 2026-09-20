@@ -83,7 +83,10 @@ Five distinct mechanisms, each used for one thing:
 identifies it, and it is accepted only under this application's issuer, audience and signing
 algorithm, so one minted by another service that happens to share the secret is refused.
 `BearerTokenAuthenticator` is the single place those rules live — the HTTP filter and the STOMP
-interceptor both authenticate through it, so the two transports cannot drift apart. Same-origin
+interceptor both authenticate through it, so the two transports cannot drift apart. It re-reads the
+account on every request, so the role it holds and whether it is enabled are decided by the row as
+it stands and never by the token: revoking ADMIN, or switching an account off, takes effect on the
+next request rather than whenever the token happens to lapse. Same-origin
 through the proxy, so no CORS preflight in the default setup; the `CORS_ALLOWED_ORIGINS` policy
 exists only for deployments that split the origins.
 
@@ -153,7 +156,10 @@ Three things in that flow are easy to miss:
 
 - **Ownership is checked by the query, not by a guard.** Every repository lookup is scoped by user id,
   so a row belonging to someone else is indistinguishable from one that does not exist and surfaces as
-  404. There is no role model and no per-resource authorization layer.
+  404. That *is* the per-resource authorization layer; there is no second one. An account's role does
+  not change it — `ADMIN` opens the `/api/admin/**` paths and nothing else, so an administrator
+  reading another account's health data is not a rule that is enforced somewhere, it is a capability
+  that does not exist ([ADR-016](../ADRs/ADR-016-roles-read-from-the-database-on-every-request.md)).
 - **The server decides completion.** The `completed` flag the client sends is advisory; when the
   upgrade has a tracking configuration the entry is re-evaluated against the target, so streaks and
   rates cannot be inflated by a client.
@@ -314,7 +320,7 @@ push service, no analytics, no AI service.
 | Dependency | Used for | How it is reached |
 |---|---|---|
 | **PostgreSQL 15** | All persistent state | JDBC from the backend only. Credentials from `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` |
-| **Flyway** | Schema ownership and migration on startup | Embedded in the backend. `V1` schema, `V2` demo seed, `V3` demo password fix, `V4` notifications |
+| **Flyway** | Schema ownership and migration on startup | Embedded in the backend; `V1`–`V8` apply in order at boot. An applied migration is never edited — Flyway checksums it, comments included — so a correction is another migration |
 | **Browser WebSocket** | Real-time notification delivery | The `/ws` STOMP endpoint, proxied by nginx (or Vite in development) |
 | **Browser Notification API** | Desktop notifications when the tab is backgrounded | Optional, permission-gated, and skipped entirely where the API is unavailable |
 

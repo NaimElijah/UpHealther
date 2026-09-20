@@ -23,6 +23,12 @@ side. Both are deliberate, not drift.
   (`findByIdAndUserId`, `findByUserIdAndStatus`, …). There is no implicit "current user" — always
   thread `userId` through service calls. A missing/foreign row surfaces as `ResourceNotFoundException`.
 
+- **A role opens paths, never rows.** `USER` and `ADMIN` live on the `users` row and are read on every
+  request, never carried in the token, so a revoked role takes effect on the next call. `ADMIN` unlocks
+  `/api/admin/**` and changes no query: the scoping above applies to an administrator exactly as it does
+  to anyone else. Do not put a role check in a service — if one looks necessary, the boundary is wrong
+  (ADR-016).
+
 - **State transitions live on the entity, not in services.** `HealthUpgrade` owns its state machine
   (`plan`, `activate`, `pause`, `complete`, `abandon`, `reschedule`), each guarding the transition and
   throwing `BusinessRuleException` on an illegal move. Services orchestrate the pattern:

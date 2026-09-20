@@ -2,7 +2,7 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. Eighty-four of the ninety-one entries below name a test — sixty-six distinct
+rather than trusted. Eighty-six of the ninety-three entries below name a test — sixty-nine distinct
 test classes and files between them. Four of the remaining seven name the command, workflow or script
 that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18). The last three — FR-39, NFR-19 and NFR-20 — are
 verified by hand and say so, because each is about a rendered width, a colour or an overflow, and jsdom
@@ -193,6 +193,8 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-30 | A request that fails shows the user the trace id that finds it in the log, from the error body or the response header, and offers none when the request never reached the server | `apiError.test.ts`, `ErrorState.test.tsx` |
 | NFR-31 | A render-time error shows a recoverable message rather than blanking the page | `ErrorBoundary.test.tsx` |
 | NFR-32 | A WebSocket session is authorised frame by frame, not only at CONNECT: a subscription must name the one destination the application pushes to, and a SEND is refused, so a connected session cannot read another session's notifications by naming the destination the broker resolved that session's queue to | `JwtChannelInterceptorTest`, `StompNotificationPushAdapterTest` |
+| NFR-33 | An account holds one of two roles, read from the database on every request rather than carried in the token, so granting or revoking ADMIN takes effect on the next request. A role decides which paths answer, never which rows do: the user-scoped queries apply to an administrator exactly as they do to anyone else | `UserTest`, `UserDetailsServiceImplTest`, `BearerTokenAuthenticatorTest`, `AuthenticatedBoundaryTest` ([ADR-016](../ADRs/ADR-016-roles-read-from-the-database-on-every-request.md)) |
+| NFR-34 | An account can be switched off without destroying anything it owns: a disabled account cannot sign in, and a token it was already issued stops working on its next request. The refusal costs the same as a wrong password and reads the same on the wire, so it does not disclose that the account exists | `UserTest`, `DisabledAccountAuthenticationTest`, `BearerTokenAuthenticatorTest` |
 
 ---
 

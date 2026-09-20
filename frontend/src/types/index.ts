@@ -6,11 +6,19 @@
  * {@link UpgradeType}.
  */
 
+/**
+ * What an account may do beyond owning its own records.
+ *
+ * Mirrors the backend `Role` enum; `FrontendEnumContractTest` fails the build if the two drift.
+ */
+export type UserRole = 'USER' | 'ADMIN';
+
 /** A user's public profile, as returned by the auth endpoints. */
 export interface User {
   id: string;
   name: string;
   email: string;
+  role: UserRole;
   createdAt: string;
 }
 
