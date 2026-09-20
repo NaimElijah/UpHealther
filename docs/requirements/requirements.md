@@ -2,7 +2,7 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. Eighty-three of the ninety entries below name a test — sixty-five distinct
+rather than trusted. Eighty-four of the ninety-one entries below name a test — sixty-six distinct
 test classes and files between them. Four of the remaining seven name the command, workflow or script
 that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18). The last three — FR-39, NFR-19 and NFR-20 — are
 verified by hand and say so, because each is about a rendered width, a colour or an overflow, and jsdom
@@ -192,6 +192,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-29 | The actuator surface is closed by name: only health, info and the metrics scrape answer, and an endpoint that would expose configuration or process memory does not | `ActuatorEndpointsIT` (env, heapdump, loggers, beans, mappings, configprops, threaddump) |
 | NFR-30 | A request that fails shows the user the trace id that finds it in the log, from the error body or the response header, and offers none when the request never reached the server | `apiError.test.ts`, `ErrorState.test.tsx` |
 | NFR-31 | A render-time error shows a recoverable message rather than blanking the page | `ErrorBoundary.test.tsx` |
+| NFR-32 | A WebSocket session is authorised frame by frame, not only at CONNECT: a subscription must name the one destination the application pushes to, and a SEND is refused, so a connected session cannot read another session's notifications by naming the destination the broker resolved that session's queue to | `JwtChannelInterceptorTest`, `StompNotificationPushAdapterTest` |
 
 ---
 

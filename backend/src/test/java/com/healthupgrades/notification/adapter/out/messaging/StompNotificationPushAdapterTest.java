@@ -1,5 +1,6 @@
 package com.healthupgrades.notification.adapter.out.messaging;
 
+import com.healthupgrades.common.websocket.JwtChannelInterceptor;
 import com.healthupgrades.notification.adapter.in.web.NotificationDto;
 import com.healthupgrades.notification.adapter.in.web.NotificationWebMapper;
 import com.healthupgrades.notification.domain.model.Notification;
@@ -100,4 +101,14 @@ class StompNotificationPushAdapterTest {
                 .read(false)
                 .build();
     }
+
+    @Test
+    void GivenTheQueueThisAdapterPushesTo_WhenASubscriberNamesIt_ThenItIsTheDestinationTheInterceptorAllows() {
+        // Two literals, in two modules that may not import each other: this adapter's queue and the one
+        // subscription JwtChannelInterceptor lets through. Changing either alone is silent — the push
+        // still succeeds, and lands in a queue nobody is allowed to subscribe to.
+        assertThat("/user" + StompNotificationPushAdapter.USER_QUEUE)
+                .isEqualTo(JwtChannelInterceptor.ALLOWED_SUBSCRIPTION);
+    }
+
 }

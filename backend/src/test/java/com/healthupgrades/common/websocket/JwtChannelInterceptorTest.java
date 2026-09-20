@@ -31,6 +31,11 @@ import static org.mockito.Mockito.when;
  *
  * <p>The session principal is named by the user id, which is what {@code convertAndSendToUser} routes by,
  * so the name asserted here is the one that decides whose notifications a socket receives.
+ *
+ * <p>Authenticating CONNECT is only half of it. A STOMP session can name any destination it likes on a
+ * later frame, so the frames after CONNECT are authorised here too: a subscription must be the one
+ * destination this application pushes to, and a SEND is refused outright because no {@code @MessageMapping}
+ * exists for one to reach.
  */
 @ExtendWith(MockitoExtension.class)
 class JwtChannelInterceptorTest {
@@ -79,6 +84,92 @@ class JwtChannelInterceptorTest {
     void GivenAConnectWithANonBearerCredential_WhenItArrives_ThenTheConnectionIsRefused() {
         assertThatThrownBy(() -> interceptor.preSend(frame(StompCommand.CONNECT, "Basic abc"), channel))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void GivenASubscribeToItsOwnUserQueue_WhenItArrives_ThenItPasses() {
+        Message<?> subscribe = frameFrom(StompCommand.SUBSCRIBE, "/user/queue/notifications", session());
+
+        assertThat(interceptor.preSend(subscribe, channel)).isSameAs(subscribe);
+    }
+
+    @Test
+    void GivenASubscribeToAnotherSessionsResolvedQueue_WhenItArrives_ThenItIsRefused() {
+        // The destination the broker resolves /user/queue/notifications into. A client that names it
+        // directly is asking for a queue belonging to whichever session owns that suffix, which is the
+        // whole reason an allowlist of one destination is not paranoia.
+        Message<?> subscribe = frameFrom(StompCommand.SUBSCRIBE, "/queue/notifications-userxyz789", session());
+
+        assertThatThrownBy(() -> interceptor.preSend(subscribe, channel))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void GivenASubscribeToATopic_WhenItArrives_ThenItIsRefused() {
+        // /topic is broker-managed and broadcast: nothing here publishes to one, and a subscriber to a
+        // topic would receive whatever a later feature did.
+        Message<?> subscribe = frameFrom(StompCommand.SUBSCRIBE, "/topic/notifications", session());
+
+        assertThatThrownBy(() -> interceptor.preSend(subscribe, channel))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void GivenASubscribeFromASessionThatNeverConnected_WhenItArrives_ThenItIsRefused() {
+        Message<?> subscribe = frameFrom(StompCommand.SUBSCRIBE, "/user/queue/notifications", null);
+
+        assertThatThrownBy(() -> interceptor.preSend(subscribe, channel))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void GivenASendFrame_WhenItArrives_ThenItIsRefusedBecauseNothingServerSideReceivesOne() {
+        // There is no @MessageMapping in the application, so a SEND can only be probing for one.
+        Message<?> send = frameFrom(StompCommand.SEND, "/app/anything", session());
+
+        assertThatThrownBy(() -> interceptor.preSend(send, channel))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void GivenAHeartbeat_WhenItArrives_ThenItPasses() {
+        // A heartbeat carries no command at all. Reading one as an unauthorised frame would close every
+        // idle socket on its first keepalive.
+        StompHeaderAccessor accessor = StompHeaderAccessor.createForHeartbeat();
+        accessor.setLeaveMutable(true);
+        Message<byte[]> heartbeat = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
+
+        assertThat(interceptor.preSend(heartbeat, channel)).isSameAs(heartbeat);
+    }
+
+    @Test
+    void GivenAnUnsubscribe_WhenItArrives_ThenItPasses() {
+        Message<?> unsubscribe = frameFrom(StompCommand.UNSUBSCRIBE, null, session());
+
+        assertThat(interceptor.preSend(unsubscribe, channel)).isSameAs(unsubscribe);
+    }
+
+    @Test
+    void GivenADisconnect_WhenItArrives_ThenItPasses() {
+        // Refusing this would leave the session to be torn down by a timeout instead of a clean close.
+        Message<?> disconnect = frameFrom(StompCommand.DISCONNECT, null, session());
+
+        assertThat(interceptor.preSend(disconnect, channel)).isSameAs(disconnect);
+    }
+
+    /** The principal a CONNECT leaves on the session, which later frames arrive carrying. */
+    private static Principal session() {
+        return new StompPrincipal(UUID.randomUUID().toString());
+    }
+
+    private static Message<byte[]> frameFrom(StompCommand command, String destination, Principal user) {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(command);
+        if (destination != null) {
+            accessor.setDestination(destination);
+        }
+        accessor.setUser(user);
+        accessor.setLeaveMutable(true);
+        return MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
     }
 
     private static Message<byte[]> frame(StompCommand command, String authorization) {

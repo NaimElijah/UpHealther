@@ -21,7 +21,7 @@ and the `*ControllerTest` named against each area pins the status codes.
 | Reminders | `GET POST /api/upgrades/{id}/reminders` · `PUT DELETE /api/reminders/{id}` |
 | Notifications | `GET /api/notifications` · `GET /api/notifications/unread-count` · `POST /api/notifications/{id}/read` · `POST /api/notifications/read-all` |
 | Dashboard | `GET /api/dashboard` |
-| Real-time | STOMP over `/ws`; the client subscribes to `/user/queue/notifications` |
+| Real-time | STOMP over `/ws`. The CONNECT frame carries `Authorization: Bearer <token>`; the client may subscribe to `/user/queue/notifications` and to nothing else, and a SEND is refused |
 
 `GET /api/upgrades` filters on `status`, `type`, `areaId` and `difficulty`.
 

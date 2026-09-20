@@ -93,6 +93,13 @@ JWT travels in the STOMP `CONNECT` frame and is validated by a channel intercept
 principal named by user id. Messages are routed to `/user/queue/notifications`, which the broker
 resolves per session using that principal.
 
+The same interceptor authorises the frames that follow, because a session that is merely connected
+can still name any destination it likes. A SUBSCRIBE must come from an authenticated session and
+name `/user/queue/notifications` exactly — the resolved `/queue/notifications-user…` of another
+session, and any `/topic`, are refused — and a SEND is refused outright, the application declaring
+no `@MessageMapping` for one to reach. Heartbeats, UNSUBSCRIBE and DISCONNECT pass untouched:
+they name nothing, and refusing a DISCONNECT would leave sessions to time out rather than close.
+
 The broker is Spring's in-memory simple broker. There is no external broker, so a push reaches only
 clients connected to *this* instance — see "Known constraints" below.
 
