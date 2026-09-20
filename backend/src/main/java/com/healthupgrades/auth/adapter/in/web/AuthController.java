@@ -85,7 +85,7 @@ public class AuthController {
      */
     @GetMapping("/me")
     public ResponseEntity<UserDto> me(@AuthenticationPrincipal SecurityUser principal) {
-        return ResponseEntity.ok(toUserDto(authService.getMe(principal.getUsername())));
+        return ResponseEntity.ok(toUserDto(authService.getMe(principal.getId())));
     }
 
     /** Maps an auth result to the token-pair response. */

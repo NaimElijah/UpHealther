@@ -99,8 +99,9 @@ matching the code — see the
 [context map](docs/architecture/arch-diagrams/README.md#2-bounded-context-map).
 
 **One request, end to end.** `POST /api/upgrades/{id}/progress` arrives at nginx and is proxied to
-the API. `JwtAuthenticationFilter` validates the bearer token and re-loads the user, so a deleted
-account stops working immediately. `ProgressController` hands a command to `TrackingService`, which
+the API. `JwtAuthenticationFilter` hands the bearer token to `BearerTokenAuthenticator`, which
+verifies it against this application's issuer, audience and signing algorithm and re-loads the
+account named by its `sub` id, so a deleted account stops working immediately. `ProgressController` hands a command to `TrackingService`, which
 asks the `upgrade` context for the upgrade *scoped to that user* — ownership is enforced by the
 query being user-scoped, so another user's row is a 404 rather than a 403. The service rejects a
 duplicate entry for the same upgrade and date, scores the entry against its tracking configuration,
@@ -172,6 +173,7 @@ a published value and gives no security.
 | `POSTGRES_USER` | Database user created by the compose Postgres | `healthupgrades` | No |
 | `POSTGRES_PASSWORD` | Password for that user | `healthupgrades` | In a deployment |
 | `JWT_SECRET` | Token signing key; at least 256 bits or the application refuses to start | published dev value | In a deployment |
+| `JWT_ACCESS_TOKEN_TTL` | How long an issued access token is accepted, as an ISO-8601 or Spring duration | `24h` | No |
 | `DB_URL` | JDBC URL the backend connects to | `jdbc:postgresql://localhost:5432/healthupgrades` | Outside compose |
 | `DB_USERNAME` | Database user the backend connects as | `healthupgrades` | Outside compose |
 | `DB_PASSWORD` | Password for that user | `healthupgrades` | Outside compose |

@@ -46,6 +46,22 @@ class UserServiceTest {
     }
 
     @Test
+    void GivenAnExistingId_WhenTheUserIsLookedUp_ThenTheUserIsReturned() {
+        User user = AUser.aUser().build();
+        when(repository.findById(user.getId())).thenReturn(Optional.of(user));
+
+        assertThat(service.findById(user.getId())).contains(user);
+    }
+
+    @Test
+    void GivenAnUnknownId_WhenTheUserIsLookedUp_ThenNothingIsReturnedRatherThanNull() {
+        java.util.UUID unknown = java.util.UUID.randomUUID();
+        when(repository.findById(unknown)).thenReturn(Optional.empty());
+
+        assertThat(service.findById(unknown)).isEmpty();
+    }
+
+    @Test
     void GivenARegisteredEmail_WhenExistenceIsChecked_ThenItIsReportedAsTaken() {
         when(repository.existsByEmail(AUser.EMAIL)).thenReturn(true);
 

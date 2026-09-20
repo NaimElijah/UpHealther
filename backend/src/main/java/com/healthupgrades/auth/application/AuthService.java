@@ -20,6 +20,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 /**
  * Application service for authentication.
  *
@@ -80,7 +82,7 @@ public class AuthService {
             // Recorded after the token exists, not before. Issuing it can fail - a secret too short to
             // sign with - and recording ALLOWED first would then put one attempt in the trail twice,
             // once as allowed and once as failed, with the counter double-counting to match.
-            AuthResult result = new AuthResult(tokenProvider.generateToken(user.getEmail()), user);
+            AuthResult result = new AuthResult(tokenProvider.issue(user.getId()).value(), user);
             auditTrail.record(AuditEvent.allowed(AuditAction.AUTH_REGISTER, user.getId(), user.getId()));
             return result;
         } catch (RuntimeException thrown) {
@@ -107,7 +109,7 @@ public class AuthService {
                     .orElseThrow(() -> new BusinessRuleException("User not found"));
             // As in register: after the token, so a signing failure cannot produce two entries for one
             // sign-in attempt.
-            AuthResult result = new AuthResult(tokenProvider.generateToken(user.getEmail()), user);
+            AuthResult result = new AuthResult(tokenProvider.issue(user.getId()).value(), user);
             auditTrail.record(AuditEvent.allowed(AuditAction.AUTH_LOGIN, user.getId(), user.getId()));
             return result;
         } catch (BadCredentialsException | AccountStatusException refused) {
@@ -126,14 +128,15 @@ public class AuthService {
     }
 
     /**
-     * Looks up the current user by the email carried as the JWT subject.
+     * Looks up the current user by the id the access token named.
      *
-     * @param email the authenticated principal's email
+     * @param userId the authenticated principal's id
      * @return the domain user
-     * @throws BusinessRuleException if no user has that email
+     * @throws BusinessRuleException if the account has gone since the token was checked, which is only
+     *         reachable if it is deleted mid-request
      */
-    public User getMe(String email) {
-        return userQuery.findByEmail(email)
+    public User getMe(UUID userId) {
+        return userQuery.findById(userId)
                 .orElseThrow(() -> new BusinessRuleException("User not found"));
     }
 }

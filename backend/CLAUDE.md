@@ -18,7 +18,8 @@ side. Both are deliberate, not drift.
 ## Conventions that span multiple files (follow these)
 
 - **User scoping is enforced at the query layer, not globally.** Controllers take
-  `@AuthenticationPrincipal User user` and pass `user.getId()` down. Repositories scope by user
+  `@AuthenticationPrincipal SecurityUser principal` and pass `principal.getId()` down. `SecurityUser`
+  is the security adapter's principal, not the `user` domain entity. Repositories scope by user
   (`findByIdAndUserId`, `findByUserIdAndStatus`, …). There is no implicit "current user" — always
   thread `userId` through service calls. A missing/foreign row surfaces as `ResourceNotFoundException`.
 
@@ -128,8 +129,10 @@ that. Name tests `Given<state>_When<action>_Then<outcome>`.
 - Shared fixtures live in `src/test/java/com/healthupgrades/support/`: `AUser`, `AnUpgrade`,
   `ATrackingConfig`, `AProgressEntry` build entities with the required fields filled in, and
   `WebSliceSupport` wires a `@WebMvcTest` to the **real** `SecurityConfig` and `JwtAuthenticationFilter`
-  — authenticate with `WebSliceSupport.authenticateAs(...)` and `bearer(...)` rather than disabling
-  security, which would assert the opposite of FR-5.
+  — authenticate with `WebSliceSupport.authenticateAs(authenticator, userId)` and `bearer(...)` rather
+  than disabling security, which would assert the opposite of FR-5. A slice mocks
+  `BearerTokenAuthenticator`, not `JwtTokenProvider`: it is the seam both transports authenticate
+  through, so mocking it leaves the filter and the security config real.
 - `mvn test` — unit, web-slice and architecture tests. **No database needed**; keep it that way.
 - `mvn verify` — the above plus the `*IT` integration tests, which boot the application against a real
   PostgreSQL. They **start it themselves**: every `*IT` extends `support/PostgresIT`, which runs a

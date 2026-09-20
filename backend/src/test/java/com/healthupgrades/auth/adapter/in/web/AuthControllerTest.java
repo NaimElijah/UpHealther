@@ -4,7 +4,7 @@ import com.healthupgrades.auth.application.AuthResult;
 import com.healthupgrades.auth.application.AuthService;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.security.JwtAuthenticationFilter;
-import com.healthupgrades.common.security.JwtTokenProvider;
+import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.common.security.SecurityConfig;
 import com.healthupgrades.common.security.UserDetailsServiceImpl;
 import com.healthupgrades.support.AUser;
@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * The HTTP contract of the three endpoints a session begins and resumes through: FR-1 (register),
- * FR-2 (login) and FR-3 (a stored token restores a session).
+ * FR-2 (login) and FR-3 (a stored token restores a session, looked up by the id the token names).
  *
  * <p>The response body is the one place a password could leak, so the shape assertions here are about
  * what is <em>absent</em> as much as what is present — {@code TokenPair} carries a {@code UserDto}, and
@@ -51,7 +51,7 @@ class AuthControllerTest {
     @Autowired MockMvc mockMvc;
 
     @MockBean AuthService authService;
-    @MockBean JwtTokenProvider tokenProvider;
+    @MockBean BearerTokenAuthenticator authenticator;
     @MockBean UserDetailsServiceImpl userDetailsService;
 
     @Test
@@ -226,8 +226,9 @@ class AuthControllerTest {
 
     @Test
     void GivenAStoredToken_WhenTheSessionIsRestored_ThenItAnswers200WithTheCallersOwnProfile() throws Exception {
-        WebSliceSupport.authenticateAs(tokenProvider, userDetailsService, UUID.randomUUID());
-        when(authService.getMe(AUser.EMAIL)).thenReturn(aUser());
+        UUID userId = UUID.randomUUID();
+        WebSliceSupport.authenticateAs(authenticator, userId);
+        when(authService.getMe(userId)).thenReturn(aUser());
 
         mockMvc.perform(bearer(get("/api/auth/me")))
                 .andExpect(status().isOk())

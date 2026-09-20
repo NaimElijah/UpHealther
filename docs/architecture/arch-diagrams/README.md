@@ -356,7 +356,7 @@ sequenceDiagram
 
     B->>N: POST /api/upgrades/{id}/progress
     N->>F: proxied
-    F->>F: validate JWT, load user, set security context
+    F->>F: BearerTokenAuthenticator — verify token, load the account named by sub, set security context
     F->>C: request
     C->>S: recordProgress(userId, upgradeId, details)
     S->>U: getOwnedUpgrade(userId, upgradeId)

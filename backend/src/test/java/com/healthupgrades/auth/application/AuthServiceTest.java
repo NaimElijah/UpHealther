@@ -1,6 +1,7 @@
 package com.healthupgrades.auth.application;
 
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
+import com.healthupgrades.common.security.IssuedAccessToken;
 import com.healthupgrades.common.security.JwtTokenProvider;
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.RecordingAuditTrail;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationServiceException;
@@ -25,7 +27,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.Instant;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -51,6 +55,8 @@ import static org.mockito.Mockito.when;
 class AuthServiceTest {
 
     private static final String RAW_PASSWORD = "correct-horse-battery-staple";
+    private static final IssuedAccessToken ISSUED =
+            new IssuedAccessToken("issued.jwt.token", Instant.parse("2026-09-16T10:15:00Z"));
 
     @Mock UserQuery userQuery;
     @Mock UserCommand userCommand;
@@ -72,12 +78,12 @@ class AuthServiceTest {
     @Test
     void GivenAnUnregisteredEmail_WhenTheVisitorRegisters_ThenTheUserIsSavedAndATokenIssued() {
         when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
-        when(userCommand.register(any(User.class))).thenAnswer(call -> call.getArgument(0));
-        when(tokenProvider.generateToken(AUser.EMAIL)).thenReturn("issued.jwt.token");
+        when(userCommand.register(any(User.class))).thenAnswer(AuthServiceTest::persisted);
+        when(tokenProvider.issue(any(UUID.class))).thenReturn(ISSUED);
 
         AuthResult result = service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD);
 
-        assertThat(result.token()).isEqualTo("issued.jwt.token");
+        assertThat(result.token()).isEqualTo(ISSUED.value());
         assertThat(result.user().getEmail()).isEqualTo(AUser.EMAIL);
         assertThat(result.user().getName()).isEqualTo(AUser.NAME);
     }
@@ -91,7 +97,7 @@ class AuthServiceTest {
                 .hasMessage("That email is already registered");
 
         verify(userCommand, never()).register(any());
-        verify(tokenProvider, never()).generateToken(any());
+        verify(tokenProvider, never()).issue(any());
     }
 
     @Test
@@ -107,7 +113,8 @@ class AuthServiceTest {
     @Test
     void GivenAMixedCaseEmailWithSpaces_WhenAVisitorRegisters_ThenItIsCheckedAndStoredTrimmedAndLowercase() {
         when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
-        when(userCommand.register(any(User.class))).thenAnswer(call -> call.getArgument(0));
+        when(userCommand.register(any(User.class))).thenAnswer(AuthServiceTest::persisted);
+        when(tokenProvider.issue(any(UUID.class))).thenReturn(ISSUED);
 
         service.register(AUser.NAME, "  SomeOne@Example.com ", RAW_PASSWORD);
 
@@ -127,7 +134,7 @@ class AuthServiceTest {
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessage("That email is already registered");
 
-        verify(tokenProvider, never()).generateToken(any());
+        verify(tokenProvider, never()).issue(any());
         assertThat(auditTrail.only(AuditAction.AUTH_REGISTER)).hasValue(
                 new AuditEvent(AuditAction.AUTH_REGISTER, null, null, AuditOutcome.REFUSED));
     }
@@ -137,6 +144,7 @@ class AuthServiceTest {
         User user = AUser.aUser().build();
         when(authenticationManager.authenticate(any())).thenReturn(authenticated());
         when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(user));
+        when(tokenProvider.issue(any(UUID.class))).thenReturn(ISSUED);
 
         service.login(" SOMEONE@example.com", RAW_PASSWORD);
 
@@ -148,7 +156,8 @@ class AuthServiceTest {
     @Test
     void GivenARawPassword_WhenTheVisitorRegisters_ThenOnlyItsHashIsStored() {
         when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
-        when(userCommand.register(any(User.class))).thenAnswer(call -> call.getArgument(0));
+        when(userCommand.register(any(User.class))).thenAnswer(AuthServiceTest::persisted);
+        when(tokenProvider.issue(any(UUID.class))).thenReturn(ISSUED);
 
         service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD);
 
@@ -167,11 +176,11 @@ class AuthServiceTest {
         User user = AUser.aUser().build();
         when(authenticationManager.authenticate(any())).thenReturn(authenticated());
         when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(user));
-        when(tokenProvider.generateToken(AUser.EMAIL)).thenReturn("issued.jwt.token");
+        when(tokenProvider.issue(any(UUID.class))).thenReturn(ISSUED);
 
         AuthResult result = service.login(AUser.EMAIL, RAW_PASSWORD);
 
-        assertThat(result.token()).isEqualTo("issued.jwt.token");
+        assertThat(result.token()).isEqualTo(ISSUED.value());
         assertThat(result.user()).isSameAs(user);
     }
 
@@ -182,7 +191,7 @@ class AuthServiceTest {
         assertThatThrownBy(() -> service.login(AUser.EMAIL, "wrong"))
                 .isInstanceOf(BadCredentialsException.class);
 
-        verify(tokenProvider, never()).generateToken(any());
+        verify(tokenProvider, never()).issue(any());
     }
 
     @Test
@@ -190,7 +199,7 @@ class AuthServiceTest {
         User user = AUser.aUser().build();
         when(authenticationManager.authenticate(any())).thenReturn(authenticated());
         when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(user));
-        when(tokenProvider.generateToken(AUser.EMAIL)).thenReturn("issued.jwt.token");
+        when(tokenProvider.issue(any(UUID.class))).thenReturn(ISSUED);
 
         service.login(AUser.EMAIL, RAW_PASSWORD);
 
@@ -232,8 +241,8 @@ class AuthServiceTest {
         // allowed and failed - and double-counted it in audit.events to match. A trail that can report
         // one event twice, differently, is a trail nobody can total.
         when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
-        when(userCommand.register(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(tokenProvider.generateToken(AUser.EMAIL)).thenThrow(new IllegalStateException("secret too short"));
+        when(userCommand.register(any())).thenAnswer(AuthServiceTest::persisted);
+        when(tokenProvider.issue(any(UUID.class))).thenThrow(new IllegalStateException("secret too short"));
 
         assertThatThrownBy(() -> service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD))
                 .isInstanceOf(IllegalStateException.class);
@@ -248,7 +257,7 @@ class AuthServiceTest {
     void GivenTokenIssuingFails_WhenTheUserLogsIn_ThenTheAttemptIsAuditedOnceAndNotTwice() {
         when(authenticationManager.authenticate(any())).thenReturn(authenticated());
         when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(AUser.aUser().build()));
-        when(tokenProvider.generateToken(AUser.EMAIL)).thenThrow(new IllegalStateException("secret too short"));
+        when(tokenProvider.issue(any(UUID.class))).thenThrow(new IllegalStateException("secret too short"));
 
         assertThatThrownBy(() -> service.login(AUser.EMAIL, RAW_PASSWORD))
                 .isInstanceOf(IllegalStateException.class);
@@ -280,23 +289,49 @@ class AuthServiceTest {
         assertThatThrownBy(() -> service.login(AUser.EMAIL, RAW_PASSWORD))
                 .isInstanceOf(BusinessRuleException.class);
 
-        verify(tokenProvider, never()).generateToken(any());
+        verify(tokenProvider, never()).issue(any());
+    }
+
+    @Test
+    void GivenMatchingCredentials_WhenTheUserLogsIn_ThenTheTokenIsIssuedForTheirIdNotTheirEmail() {
+        User user = AUser.aUser().build();
+        when(authenticationManager.authenticate(any())).thenReturn(authenticated());
+        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(user));
+        when(tokenProvider.issue(user.getId())).thenReturn(ISSUED);
+
+        assertThat(service.login(AUser.EMAIL, RAW_PASSWORD).token()).isEqualTo(ISSUED.value());
     }
 
     @Test
     void GivenAStoredToken_WhenTheSessionIsRestored_ThenTheProfileBehindItIsReturned() {
         User user = AUser.aUser().build();
-        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(user));
+        when(userQuery.findById(user.getId())).thenReturn(Optional.of(user));
 
-        assertThat(service.getMe(AUser.EMAIL)).isSameAs(user);
+        assertThat(service.getMe(user.getId())).isSameAs(user);
     }
 
     @Test
     void GivenATokenForAnAccountThatNoLongerExists_WhenTheSessionIsRestored_ThenItIsRefused() {
-        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.empty());
+        UUID gone = UUID.randomUUID();
+        when(userQuery.findById(gone)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.getMe(AUser.EMAIL))
+        assertThatThrownBy(() -> service.getMe(gone))
                 .isInstanceOf(BusinessRuleException.class);
+    }
+
+    /**
+     * What {@code UserCommand.register} answers with: the user that was handed to it, now carrying
+     * the id the database assigned on insert.
+     *
+     * <p>The service builds a user with no id, so answering with the bare argument would hand back a
+     * null id and every token would be issued for one — a state no live registration reaches, and one
+     * that would let a token-issuing assertion pass for the wrong reason. Setting the id on the same
+     * instance is what Hibernate does, so a captured argument is still the user that was saved.
+     */
+    private static User persisted(InvocationOnMock call) {
+        User registered = call.getArgument(0);
+        registered.setId(UUID.randomUUID());
+        return registered;
     }
 
     private static Authentication authenticated() {

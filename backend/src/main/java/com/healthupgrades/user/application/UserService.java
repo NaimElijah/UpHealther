@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Application service implementing the user inbound ports ({@link UserQuery} reads, {@link UserCommand}
@@ -18,6 +19,12 @@ import java.util.Optional;
 public class UserService implements UserQuery, UserCommand {
 
     private final UserRepositoryPort repository; // outbound persistence port
+
+    /** {@inheritDoc} */
+    @Override
+    public Optional<User> findById(UUID id) {
+        return repository.findById(id);
+    }
 
     /** {@inheritDoc} */
     @Override

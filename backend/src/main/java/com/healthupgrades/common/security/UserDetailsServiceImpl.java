@@ -9,7 +9,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 /**
- * Loads a Spring Security principal by email.
+ * Loads a Spring Security principal by email, for the login endpoint's password check.
  *
  * <p>Bridges the framework's {@link UserDetailsService} to the user context's {@link UserQuery}
  * inbound port, wrapping the domain user in a {@link SecurityUser} so the domain stays framework-free.
@@ -31,7 +31,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         return userQuery.findByEmail(EmailAddress.normalise(email))
-                .map(u -> new SecurityUser(u.getId(), u.getEmail(), u.getPasswordHash())) // wrap domain user
+                .map(SecurityUser::from)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
     }
 }

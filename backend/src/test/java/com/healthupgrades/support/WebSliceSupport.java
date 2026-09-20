@@ -1,16 +1,15 @@
 package com.healthupgrades.support;
 
-import com.healthupgrades.common.security.JwtTokenProvider;
+import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.common.security.SecurityUser;
-import com.healthupgrades.common.security.UserDetailsServiceImpl;
 import io.micrometer.tracing.Tracer;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import java.util.Optional;
 import java.util.UUID;
 
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 /**
@@ -22,8 +21,9 @@ import static org.mockito.Mockito.when;
  * would assert the opposite of the requirement while looking green.
  *
  * <p>Authenticating therefore means presenting a token, exactly as a caller does. {@link #authenticateAs}
- * stubs the two collaborators the filter consults so a chosen bearer token resolves to a chosen
- * principal; {@link #bearer} puts that token on a request. A request sent without it is anonymous, and
+ * stubs the collaborator the filter consults so a chosen bearer token resolves to a chosen
+ * principal; {@link #bearer} puts that token on a request. Only {@code BearerTokenAuthenticator} is
+ * stubbed: whether a real token verifies is {@code JwtTokenProviderTest}'s business. A request sent without it is anonymous, and
  * the real authorization rules decide what happens to it.
  *
  * <p>Supplies a no-op {@link Tracer} because {@code GlobalExceptionHandler} takes one to stamp the trace
@@ -51,19 +51,14 @@ public class WebSliceSupport {
     /**
      * Makes {@link #VALID_TOKEN} resolve to a principal for the given user id.
      *
-     * @param tokenProvider      the slice's mocked {@code JwtTokenProvider}
-     * @param userDetailsService the slice's mocked {@code UserDetailsServiceImpl}
-     * @param userId             the id the authenticated principal should carry, which is what every
-     *                           controller threads down as the owner id
+     * @param authenticator the slice's mocked {@code BearerTokenAuthenticator}
+     * @param userId        the id the authenticated principal should carry, which is what every
+     *                      controller threads down as the owner id
      * @return the principal, for a test that wants to assert against the same identity
      */
-    public static SecurityUser authenticateAs(JwtTokenProvider tokenProvider,
-                                              UserDetailsServiceImpl userDetailsService,
-                                              UUID userId) {
+    public static SecurityUser authenticateAs(BearerTokenAuthenticator authenticator, UUID userId) {
         SecurityUser principal = AUser.principalFor(userId);
-        when(tokenProvider.validateToken(VALID_TOKEN)).thenReturn(true);
-        when(tokenProvider.extractEmail(VALID_TOKEN)).thenReturn(AUser.EMAIL);
-        when(userDetailsService.loadUserByUsername(anyString())).thenReturn(principal);
+        when(authenticator.authenticate(VALID_TOKEN)).thenReturn(Optional.of(principal));
         return principal;
     }
 

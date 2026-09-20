@@ -1,7 +1,7 @@
 package com.healthupgrades.dashboard.adapter.in.web;
 
 import com.healthupgrades.common.security.JwtAuthenticationFilter;
-import com.healthupgrades.common.security.JwtTokenProvider;
+import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.common.security.SecurityConfig;
 import com.healthupgrades.common.security.UserDetailsServiceImpl;
 import com.healthupgrades.dashboard.application.port.in.DashboardQuery;
@@ -49,7 +49,7 @@ class DashboardControllerTest {
 
     @MockBean DashboardQuery dashboardQuery;
     @MockBean UpgradeTrackingSummaryPort trackingSummaries;
-    @MockBean JwtTokenProvider tokenProvider;
+    @MockBean BearerTokenAuthenticator authenticator;
     @MockBean UserDetailsServiceImpl userDetailsService;
 
     private UUID userId;
@@ -57,7 +57,7 @@ class DashboardControllerTest {
     @BeforeEach
     void authenticate() {
         userId = UUID.randomUUID();
-        WebSliceSupport.authenticateAs(tokenProvider, userDetailsService, userId);
+        WebSliceSupport.authenticateAs(authenticator, userId);
         when(trackingSummaries.findByUpgradeIds(any())).thenReturn(Map.of());
     }
 

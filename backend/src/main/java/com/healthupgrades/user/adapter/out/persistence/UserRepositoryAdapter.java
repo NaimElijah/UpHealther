@@ -9,6 +9,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Persistence adapter implementing {@link UserRepositoryPort} by delegating to Spring Data JPA.
@@ -48,6 +49,12 @@ class UserRepositoryAdapter implements UserRepositoryPort {
             }
             throw violation;
         }
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public Optional<User> findById(UUID id) {
+        return jpa.findById(id);
     }
 
     /** {@inheritDoc} */

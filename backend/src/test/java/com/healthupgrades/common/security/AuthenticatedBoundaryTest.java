@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * endpoint except registration, login and the health checks requires a valid token.
  *
  * <p>This is the only test of that requirement, so the slice runs the real {@code SecurityConfig} and
- * the real {@code JwtAuthenticationFilter}. Every service below is mocked, which is the point — a
+ * the real {@code JwtAuthenticationFilter}; only the token check behind the filter is stubbed. Every service below is mocked, which is the point — a
  * request that reaches a mocked service and gets a null back has still got past security, and that is
  * what the assertion is about.
  *
@@ -60,7 +60,7 @@ class AuthenticatedBoundaryTest {
     @Autowired MockMvc mockMvc;
     @Autowired RequestMappingHandlerMapping handlerMapping;
 
-    @MockBean JwtTokenProvider tokenProvider;
+    @MockBean BearerTokenAuthenticator authenticator;
     @MockBean UserDetailsServiceImpl userDetailsService;
 
     // The application services behind the controllers. Mocked: this class is about reaching them at all.
@@ -143,7 +143,7 @@ class AuthenticatedBoundaryTest {
     void GivenAValidToken_WhenAProtectedEndpointIsCalled_ThenTheRequestIsLetThrough() {
         // The other half of the rule. Without this, a chain that rejected everything would pass every
         // case above.
-        WebSliceSupport.authenticateAs(tokenProvider, userDetailsService, java.util.UUID.randomUUID());
+        WebSliceSupport.authenticateAs(authenticator, java.util.UUID.randomUUID());
 
         org.assertj.core.api.Assertions.assertThatCode(() ->
                 mockMvc.perform(WebSliceSupport.bearer(
@@ -156,7 +156,8 @@ class AuthenticatedBoundaryTest {
     void GivenAnInvalidToken_WhenAProtectedEndpointIsCalled_ThenItIsRefusedAsAnInvalidToken() throws Exception {
         // A token the provider refuses leaves the request anonymous rather than authenticating it, and
         // the challenge says the token was the problem, which is what tells a client to sign in again.
-        org.mockito.Mockito.when(tokenProvider.validateToken(WebSliceSupport.VALID_TOKEN)).thenReturn(false);
+        org.mockito.Mockito.when(authenticator.authenticate(WebSliceSupport.VALID_TOKEN))
+                .thenReturn(java.util.Optional.empty());
 
         mockMvc.perform(WebSliceSupport.bearer(json(request(HttpMethod.GET, "/api/notifications"))))
                 .andExpect(status().isUnauthorized())

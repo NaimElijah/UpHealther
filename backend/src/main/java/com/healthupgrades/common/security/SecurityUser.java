@@ -1,5 +1,6 @@
 package com.healthupgrades.common.security;
 
+import com.healthupgrades.user.domain.model.User;
 import org.springframework.security.core.CredentialsContainer;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -30,6 +31,17 @@ public class SecurityUser implements UserDetails, CredentialsContainer {
         this.passwordHash = passwordHash;
     }
 
+    /**
+     * Wraps a domain user. The one way principals are built, so a field added to the principal is filled
+     * in everywhere at once.
+     *
+     * @param user the account to authenticate as
+     * @return a principal carrying the account's id, email and password hash
+     */
+    public static SecurityUser from(User user) {
+        return new SecurityUser(user.getId(), user.getEmail(), user.getPasswordHash());
+    }
+
     /** The authenticated user's id — controllers thread this through as the owner id. */
     public UUID getId() {
         return id;
@@ -47,7 +59,7 @@ public class SecurityUser implements UserDetails, CredentialsContainer {
         return passwordHash;
     }
 
-    /** {@inheritDoc} The username is the user's email (also the JWT subject). */
+    /** {@inheritDoc} The username is the user's email, the login identity; tokens name the id instead. */
     @Override
     public String getUsername() {
         return email;

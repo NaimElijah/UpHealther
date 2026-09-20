@@ -1,96 +1,179 @@
 package com.healthupgrades.common.security;
 
-import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.WeakKeyException;
 import org.junit.jupiter.api.Test;
+
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Date;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Pins the token contract every authenticated request depends on: NFR-3 (the signing secret must be at
- * least 256 bits or the application refuses to start) and NFR-4 (a token expires and is not refreshable).
+ * Pins the access-token contract every authenticated request depends on: NFR-3 (the signing secret must
+ * be at least 256 bits or the application refuses to start) and NFR-4 (a token expires).
  *
- * <p>Expiry is exercised by constructing a provider whose lifetime has already elapsed rather than by
- * waiting. {@code JwtTokenProvider} stamps {@code exp} from {@code System.currentTimeMillis()} and takes
- * no {@code Clock}, so a negative lifetime is the only way to observe an expired token without a
- * {@code sleep} — and a sleeping test is a slow test that eventually flakes.
+ * <p>Time comes from an injected {@link Clock}, so expiry is observed by verifying with a provider whose
+ * clock is later than the issuer's rather than by waiting.
+ *
+ * <p>The forged tokens are built with JJWT directly, which is the point: each one is something an
+ * attacker holding the library could produce, and the provider must refuse it even though it parses.
  */
 class JwtTokenProviderTest {
 
-    /** Exactly 64 ASCII characters — 512 bits, comfortably over the HS256 minimum. */
+    /** Exactly 64 ASCII characters: 512 bits, comfortably over the HS256 minimum. */
     private static final String STRONG_SECRET = "a-signing-secret-long-enough-for-hs256-at-least-256-bits-long!!!!";
 
     private static final String OTHER_SECRET = "a-completely-different-secret-also-long-enough-for-hs256-hmac!!!!";
 
-    private static final long ONE_DAY_MS = 86_400_000L;
-    private static final String EMAIL = "someone@example.com";
+    private static final Duration TTL = Duration.ofMinutes(15);
+    private static final Duration SKEW = Duration.ofSeconds(30);
+    private static final String ISSUER = "healthupgrades";
+    private static final String AUDIENCE = "healthupgrades-web";
+
+    private static final Instant ISSUED_AT = Instant.parse("2026-09-16T10:00:00Z");
+    private static final UUID USER_ID = UUID.fromString("0f2c8f5a-2a4e-4a1d-8f0a-3c5b9d1e77a1");
+
+    private static JwtTokenProvider providerAt(Instant now) {
+        return providerAt(now, STRONG_SECRET);
+    }
+
+    private static JwtTokenProvider providerAt(Instant now, String secret) {
+        return new JwtTokenProvider(new JwtProperties(secret, TTL, ISSUER, AUDIENCE, SKEW),
+                Clock.fixed(now, ZoneOffset.UTC));
+    }
 
     @Test
     void GivenASecretShorterThan256Bits_WhenTheProviderIsConstructed_ThenItRefusesToStart() {
         // The check that keeps a weak secret from silently weakening every token the application issues.
-        assertThatThrownBy(() -> new JwtTokenProvider("too-short", ONE_DAY_MS))
+        assertThatThrownBy(() -> providerAt(ISSUED_AT, "too-short"))
                 .isInstanceOf(WeakKeyException.class);
     }
 
     @Test
-    void GivenAValidSecret_WhenATokenIsIssued_ThenItCarriesTheEmailAsItsSubject() {
-        JwtTokenProvider provider = new JwtTokenProvider(STRONG_SECRET, ONE_DAY_MS);
+    void GivenAnIssuedToken_WhenItIsVerified_ThenItNamesTheUserByIdNotByEmail() {
+        // The subject is the account's identifier. An email in the token is personal data sitting in
+        // browser storage, and it is not even a stable key: an address can change, an id cannot.
+        JwtTokenProvider provider = providerAt(ISSUED_AT);
 
-        String token = provider.generateToken(EMAIL);
+        String token = provider.issue(USER_ID).value();
 
-        assertThat(provider.validateToken(token)).isTrue();
-        assertThat(provider.extractEmail(token)).isEqualTo(EMAIL);
+        assertThat(provider.verify(token)).hasValueSatisfying(verified ->
+                assertThat(verified.userId()).isEqualTo(USER_ID));
     }
 
     @Test
-    void GivenATokenWhoseLifetimeHasElapsed_WhenItIsValidated_ThenItIsRejected() {
-        JwtTokenProvider expiringImmediately = new JwtTokenProvider(STRONG_SECRET, -1_000L);
-
-        String token = expiringImmediately.generateToken(EMAIL);
-
-        assertThat(expiringImmediately.validateToken(token))
-                .as("a token is not refreshable, so an elapsed one must stop working")
-                .isFalse();
+    void GivenAnIssuedToken_WhenItsExpiryIsRead_ThenItIsTheConfiguredLifetimeAfterIssue() {
+        assertThat(providerAt(ISSUED_AT).issue(USER_ID).expiresAt()).isEqualTo(ISSUED_AT.plus(TTL));
     }
 
     @Test
-    void GivenATokenSignedWithAnotherSecret_WhenItIsValidated_ThenItIsRejected() {
-        String forged = new JwtTokenProvider(OTHER_SECRET, ONE_DAY_MS).generateToken(EMAIL);
+    void GivenATokenPastExpiryByMoreThanTheSkew_WhenItIsVerified_ThenItIsRejected() {
+        String token = providerAt(ISSUED_AT).issue(USER_ID).value();
 
-        assertThat(new JwtTokenProvider(STRONG_SECRET, ONE_DAY_MS).validateToken(forged)).isFalse();
+        assertThat(providerAt(ISSUED_AT.plus(TTL).plus(SKEW).plusSeconds(1)).verify(token)).isEmpty();
     }
 
     @Test
-    void GivenATamperedToken_WhenItIsValidated_ThenItIsRejected() {
-        JwtTokenProvider provider = new JwtTokenProvider(STRONG_SECRET, ONE_DAY_MS);
-        String token = provider.generateToken(EMAIL);
+    void GivenATokenPastExpiryByLessThanTheSkew_WhenItIsVerified_ThenItIsStillAccepted() {
+        // Two hosts rarely agree on the time to the second; the skew keeps a token issued by one from
+        // being refused by the other at the boundary.
+        String token = providerAt(ISSUED_AT).issue(USER_ID).value();
+
+        assertThat(providerAt(ISSUED_AT.plus(TTL).plus(SKEW).minusSeconds(1)).verify(token)).isPresent();
+    }
+
+    @Test
+    void GivenATokenSignedWithAnotherSecret_WhenItIsVerified_ThenItIsRejected() {
+        String forged = providerAt(ISSUED_AT, OTHER_SECRET).issue(USER_ID).value();
+
+        assertThat(providerAt(ISSUED_AT).verify(forged)).isEmpty();
+    }
+
+    @Test
+    void GivenATamperedToken_WhenItIsVerified_ThenItIsRejected() {
+        String token = providerAt(ISSUED_AT).issue(USER_ID).value();
 
         // Flip one character of the payload segment; the signature no longer covers it.
         String[] parts = token.split("\\.");
         String tampered = parts[0] + "." + parts[1].substring(0, parts[1].length() - 1)
                 + (parts[1].endsWith("A") ? "B" : "A") + "." + parts[2];
 
-        assertThat(provider.validateToken(tampered)).isFalse();
+        assertThat(providerAt(ISSUED_AT).verify(tampered)).isEmpty();
     }
 
     @Test
-    void GivenSomethingThatIsNotAToken_WhenItIsValidated_ThenItIsRejectedRatherThanThrowing() {
-        JwtTokenProvider provider = new JwtTokenProvider(STRONG_SECRET, ONE_DAY_MS);
+    void GivenATokenFromAnotherIssuer_WhenItIsVerified_ThenItIsRejected() {
+        String foreign = signed(Jwts.SIG.HS256, "someone-else", AUDIENCE, USER_ID.toString());
 
-        // The filter calls validateToken on whatever a caller put in the header, so garbage must come
-        // back as false rather than as an exception escaping the filter chain.
-        assertThat(provider.validateToken("not-a-jwt")).isFalse();
-        assertThat(provider.validateToken("")).isFalse();
+        assertThat(providerAt(ISSUED_AT).verify(foreign)).isEmpty();
     }
 
     @Test
-    void GivenARejectedToken_WhenItsSubjectIsRead_ThenTheReadThrowsRatherThanReturningIt() {
-        // extractEmail verifies the signature itself, so a caller that skips validateToken still cannot
-        // read a subject out of an untrusted token.
-        JwtTokenProvider provider = new JwtTokenProvider(STRONG_SECRET, ONE_DAY_MS);
-        String forged = new JwtTokenProvider(OTHER_SECRET, ONE_DAY_MS).generateToken(EMAIL);
+    void GivenATokenForAnotherAudience_WhenItIsVerified_ThenItIsRejected() {
+        // A secret shared with another service would otherwise let that service's tokens in here.
+        String foreign = signed(Jwts.SIG.HS256, ISSUER, "some-other-client", USER_ID.toString());
 
-        assertThatThrownBy(() -> provider.extractEmail(forged)).isInstanceOf(JwtException.class);
+        assertThat(providerAt(ISSUED_AT).verify(foreign)).isEmpty();
+    }
+
+    @Test
+    void GivenATokenSignedWithHs512UnderTheSameSecret_WhenItIsVerified_ThenItIsRejected() {
+        // The algorithm is pinned. Accepting whatever the header names is how algorithm-confusion attacks
+        // begin, so a token that is genuinely signed with our key under another algorithm is still out.
+        String otherAlgorithm = signed(Jwts.SIG.HS512, ISSUER, AUDIENCE, USER_ID.toString());
+
+        assertThat(providerAt(ISSUED_AT).verify(otherAlgorithm)).isEmpty();
+    }
+
+    @Test
+    void GivenAnUnsignedToken_WhenItIsVerified_ThenItIsRejected() {
+        String unsigned = Jwts.builder()
+                .subject(USER_ID.toString())
+                .issuer(ISSUER)
+                .audience().add(AUDIENCE).and()
+                .issuedAt(Date.from(ISSUED_AT))
+                .expiration(Date.from(ISSUED_AT.plus(TTL)))
+                .compact();
+
+        assertThat(providerAt(ISSUED_AT).verify(unsigned)).isEmpty();
+    }
+
+    @Test
+    void GivenACorrectlySignedTokenWhoseSubjectIsNotAnId_WhenItIsVerified_ThenItIsRejectedRatherThanThrowing() {
+        // A token issued before the subject became the user id carries an email. It must be refused like
+        // any other unusable token, not escape the filter as an IllegalArgumentException.
+        String legacy = signed(Jwts.SIG.HS256, ISSUER, AUDIENCE, "someone@example.com");
+
+        assertThat(providerAt(ISSUED_AT).verify(legacy)).isEmpty();
+    }
+
+    @Test
+    void GivenSomethingThatIsNotAToken_WhenItIsVerified_ThenItIsRejectedRatherThanThrowing() {
+        // The filter verifies whatever a caller put in the header, so garbage must come back empty
+        // rather than as an exception escaping the filter chain.
+        JwtTokenProvider provider = providerAt(ISSUED_AT);
+
+        assertThat(provider.verify("not-a-jwt")).isEmpty();
+        assertThat(provider.verify("")).isEmpty();
+    }
+
+    private static String signed(io.jsonwebtoken.security.MacAlgorithm algorithm,
+                                 String issuer, String audience, String subject) {
+        return Jwts.builder()
+                .subject(subject)
+                .issuer(issuer)
+                .audience().add(audience).and()
+                .issuedAt(Date.from(ISSUED_AT))
+                .expiration(Date.from(ISSUED_AT.plus(TTL)))
+                .signWith(Keys.hmacShaKeyFor(STRONG_SECRET.getBytes(StandardCharsets.UTF_8)), algorithm)
+                .compact();
     }
 }

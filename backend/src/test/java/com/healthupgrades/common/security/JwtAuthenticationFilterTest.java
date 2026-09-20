@@ -12,23 +12,23 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Covers NFR-5: the user behind a token is re-loaded on every request, so a deleted account stops working
- * immediately rather than at token expiry.
+ * Pins the filter's contract: it never rejects. A request with no token, a malformed header or an
+ * unusable token continues down the chain <em>anonymous</em>, and the authorization rules decide. That is
+ * what lets the permitted endpoints work without a token; getting it wrong would either lock those
+ * endpoints or let an unusable token through.
  *
- * <p>Also pins the filter's less obvious contract — it never rejects. A request with no token, a
- * malformed header or an invalid token continues down the chain <em>anonymous</em>, and the authorization
- * rules decide. That is what lets the permitted endpoints work without a token, and getting it wrong
- * would either lock those endpoints or let an invalid token through.
+ * <p>Whether a token is usable is {@link BearerTokenAuthenticator}'s decision, covered by its own test.
  *
  * <p>The security context is cleared after each test: it lives in a {@code ThreadLocal} that outlives the
  * test method, so leaving it set would decide the outcome of the next one.
@@ -38,8 +38,7 @@ class JwtAuthenticationFilterTest {
 
     private static final String TOKEN = "a.valid.token";
 
-    @Mock JwtTokenProvider tokenProvider;
-    @Mock UserDetailsServiceImpl userDetailsService;
+    @Mock BearerTokenAuthenticator authenticator;
     @Mock FilterChain chain;
 
     private JwtAuthenticationFilter filter;
@@ -48,7 +47,7 @@ class JwtAuthenticationFilterTest {
 
     @BeforeEach
     void setUp() {
-        filter = new JwtAuthenticationFilter(tokenProvider, userDetailsService);
+        filter = new JwtAuthenticationFilter(authenticator);
         request = new MockHttpServletRequest();
         response = new MockHttpServletResponse();
     }
@@ -59,46 +58,27 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    void GivenAValidBearerToken_WhenTheRequestIsFiltered_ThenTheUserBehindItIsAuthenticated() throws Exception {
+    void GivenAUsableBearerToken_WhenTheRequestIsFiltered_ThenTheAccountBehindItIsAuthenticated() throws Exception {
         UUID userId = UUID.randomUUID();
         request.addHeader("Authorization", "Bearer " + TOKEN);
-        when(tokenProvider.validateToken(TOKEN)).thenReturn(true);
-        when(tokenProvider.extractEmail(TOKEN)).thenReturn(AUser.EMAIL);
-        when(userDetailsService.loadUserByUsername(AUser.EMAIL)).thenReturn(AUser.principalFor(userId));
+        when(authenticator.authenticate(TOKEN)).thenReturn(Optional.of(AUser.principalFor(userId)));
 
         filter.doFilter(request, response, chain);
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         assertThat(auth).isNotNull();
+        assertThat(auth.isAuthenticated()).isTrue();
         assertThat(((SecurityUser) auth.getPrincipal()).getId()).isEqualTo(userId);
         verify(chain).doFilter(request, response);
     }
 
     @Test
-    void GivenAValidToken_WhenTheRequestIsFiltered_ThenTheUserIsLoadedFreshRatherThanTakenFromTheToken() throws Exception {
-        // NFR-5. The token carries only an email, so the identity has to be re-read; this is what makes
-        // a renamed or deleted account take effect on the next request instead of at expiry.
+    void GivenAnUnusableToken_WhenTheRequestIsFiltered_ThenItContinuesAnonymouslyRatherThanBeingRejected()
+            throws Exception {
+        // Unusable covers invalid, expired and "names an account that is gone" alike. This filter runs
+        // outside the DispatcherServlet, so throwing here would reach no handler and answer 500.
         request.addHeader("Authorization", "Bearer " + TOKEN);
-        when(tokenProvider.validateToken(TOKEN)).thenReturn(true);
-        when(tokenProvider.extractEmail(TOKEN)).thenReturn(AUser.EMAIL);
-        when(userDetailsService.loadUserByUsername(AUser.EMAIL)).thenReturn(AUser.principalFor(UUID.randomUUID()));
-
-        filter.doFilter(request, response, chain);
-
-        verify(userDetailsService).loadUserByUsername(AUser.EMAIL);
-    }
-
-    @Test
-    void GivenATokenForADeletedAccount_WhenTheRequestIsFiltered_ThenItContinuesAnonymouslyRatherThanFailing() throws Exception {
-        // NFR-5: the account stops working on the very next request. It must stop working the same way
-        // every other unusable token does — anonymous, for the authorization rules to refuse — and not
-        // by throwing. This filter runs outside the DispatcherServlet, so an escaping exception reaches
-        // no handler and the container answers 500, which NFR-7 reserves for a genuine server fault.
-        request.addHeader("Authorization", "Bearer " + TOKEN);
-        when(tokenProvider.validateToken(TOKEN)).thenReturn(true);
-        when(tokenProvider.extractEmail(TOKEN)).thenReturn(AUser.EMAIL);
-        when(userDetailsService.loadUserByUsername(AUser.EMAIL))
-                .thenThrow(new UsernameNotFoundException("User not found: " + AUser.EMAIL));
+        when(authenticator.authenticate(TOKEN)).thenReturn(Optional.empty());
 
         filter.doFilter(request, response, chain);
 
@@ -111,17 +91,7 @@ class JwtAuthenticationFilterTest {
         filter.doFilter(request, response, chain);
 
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
-        verify(chain).doFilter(request, response);
-    }
-
-    @Test
-    void GivenAnInvalidToken_WhenTheRequestIsFiltered_ThenItContinuesAnonymouslyRatherThanBeingRejected() throws Exception {
-        request.addHeader("Authorization", "Bearer " + TOKEN);
-        when(tokenProvider.validateToken(TOKEN)).thenReturn(false);
-
-        filter.doFilter(request, response, chain);
-
-        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(authenticator, never()).authenticate(any());
         verify(chain).doFilter(request, response);
     }
 
@@ -132,7 +102,17 @@ class JwtAuthenticationFilterTest {
         filter.doFilter(request, response, chain);
 
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
-        verify(tokenProvider, never()).validateToken(org.mockito.ArgumentMatchers.any());
+        verify(authenticator, never()).authenticate(any());
+        verify(chain).doFilter(request, response);
+    }
+
+    @Test
+    void GivenAnEmptyBearerToken_WhenTheRequestIsFiltered_ThenNoTokenIsRead() throws Exception {
+        request.addHeader("Authorization", "Bearer ");
+
+        filter.doFilter(request, response, chain);
+
+        verify(authenticator, never()).authenticate(any());
         verify(chain).doFilter(request, response);
     }
 }

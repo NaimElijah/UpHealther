@@ -30,7 +30,14 @@ app:
     # The fallback exists so a clone runs with no setup; it is a published value and gives no security.
     # Set JWT_SECRET in any deployment. At least 256 bits, or the application refuses to start.
     secret: ${JWT_SECRET:a-very-long-default-secret-key-that-should-be-changed-in-production-at-least-256-bits}
-    expiration: 86400000 # 24h in milliseconds. Tokens are not refreshable, so this is the whole session.
+    # How long an access token is accepted. Tokens are not refreshable yet, so this is the whole session.
+    access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:24h}
+    # Written into every token and required back. A token minted by another service that happens to share
+    # the secret is refused because its issuer or audience differs.
+    issuer: healthupgrades
+    audience: healthupgrades-web
+    # How far past its expiry a token is still accepted, for hosts whose clocks disagree slightly.
+    clock-skew: 30s
   cors:
     # Comma-separated list of origins allowed to call the API directly (cross-origin).
     # Not needed when the frontend is served behind the Vite dev proxy or nginx (same-origin /api).
