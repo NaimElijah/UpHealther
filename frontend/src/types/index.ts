@@ -36,6 +36,30 @@ export interface AuthResponse {
 }
 
 /**
+ * An account as an administrator sees it.
+ *
+ * Its own type rather than `User` for one field, `enabled`, and for one absence: there is nothing
+ * here about what the account owns, because the API offers nothing. An administrator manages
+ * accounts, not records.
+ */
+export interface AdminAccount {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  enabled: boolean;
+  createdAt: string;
+}
+
+/** One page of accounts, with the total behind it so a caller knows whether there are more. */
+export interface AccountPage {
+  accounts: AdminAccount[];
+  page: number;
+  size: number;
+  total: number;
+}
+
+/**
  * A user-defined grouping upgrades are filed under.
  *
  * `upgradeCount` is not part of the health-area response; it is filled in by the client where a count
