@@ -50,7 +50,7 @@ class AuthSessionFlowIT extends PostgresIT {
         HttpResponse<String> registered = register();
 
         assertThat(registered.statusCode()).isEqualTo(201);
-        assertThat(body(registered).get("token").asText()).isNotBlank();
+        assertThat(body(registered).get("accessToken").asText()).isNotBlank();
         assertThat(setCookie(registered))
                 .as("the credential must not be reachable from script, on any deployment")
                 .contains("HttpOnly")
@@ -66,7 +66,7 @@ class AuthSessionFlowIT extends PostgresIT {
         HttpResponse<String> refreshed = refresh(first);
 
         assertThat(refreshed.statusCode()).isEqualTo(200);
-        assertThat(body(refreshed).get("token").asText()).isNotBlank();
+        assertThat(body(refreshed).get("accessToken").asText()).isNotBlank();
         assertThat(credential(refreshed))
                 .as("a credential is good for one exchange and no more")
                 .isNotEqualTo(first);
@@ -96,7 +96,7 @@ class AuthSessionFlowIT extends PostgresIT {
         // The reason a token carries a sid claim at all. Without it, signing out would be a suggestion
         // until the token expired on its own.
         HttpResponse<String> registered = register();
-        String accessToken = body(registered).get("token").asText();
+        String accessToken = body(registered).get("accessToken").asText();
         assertThat(me(accessToken).statusCode()).isEqualTo(200);
 
         logout(credential(registered));

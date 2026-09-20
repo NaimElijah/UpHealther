@@ -173,7 +173,7 @@ a published value and gives no security.
 | `POSTGRES_USER` | Database user created by the compose Postgres | `healthupgrades` | No |
 | `POSTGRES_PASSWORD` | Password for that user | `healthupgrades` | In a deployment |
 | `JWT_SECRET` | Token signing key; at least 256 bits or the application refuses to start | published dev value | In a deployment |
-| `JWT_ACCESS_TOKEN_TTL` | How long an issued access token is accepted, as an ISO-8601 or Spring duration | `24h` | No |
+| `JWT_ACCESS_TOKEN_TTL` | How long an issued access token is accepted, as an ISO-8601 or Spring duration. The SPA renews it from the refresh cookie, so this is not the length of a session | `15m` | No |
 | `DB_URL` | JDBC URL the backend connects to | `jdbc:postgresql://localhost:5432/healthupgrades` | Outside compose |
 | `DB_USERNAME` | Database user the backend connects as | `healthupgrades` | Outside compose |
 | `DB_PASSWORD` | Password for that user | `healthupgrades` | Outside compose |
@@ -190,8 +190,13 @@ effect on a native run only.
 ## 📖 Usage
 
 `POST /api/auth/login` with the demo credentials returns `200` and
-`{ "token": …, "user": { "id", "name", "email", "createdAt" } }`. Export that token as `$TOKEN`;
-every call below sends it as a bearer.
+`{ "accessToken": …, "expiresAt": …, "user": { "id", "name", "email", "role", "createdAt" } }`,
+plus a `Set-Cookie` carrying the refresh credential. Export the access token as `$TOKEN`; every call
+below sends it as a bearer.
+
+It is valid for fifteen minutes. The browser renews it from the cookie without the user noticing; at
+a terminal, sign in again, or `POST /api/auth/refresh` with the cookie and an `X-Requested-With`
+header.
 
 Create an upgrade — `201`, and it starts in `IDEA` because status moves only through the transition
 endpoints:

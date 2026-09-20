@@ -25,6 +25,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 
 import static com.healthupgrades.support.WebSliceSupport.bearer;
@@ -68,6 +69,9 @@ class AuthControllerTest {
 
     private static final UUID USER_ID = UUID.fromString("0f2c8f5a-2a4e-4a1d-8f0a-3c5b9d1e77a1");
 
+    /** When the access token in the body lapses, which the client renews before rather than after. */
+    private static final Instant EXPIRES_AT = WebSliceSupport.COOKIE_NOW.plus(Duration.ofMinutes(15));
+
     /** The cookie the browser would be holding when it calls refresh or logout. */
     private static final Cookie PRESENTED = new Cookie("refresh_token", GRANT.refreshToken());
 
@@ -82,13 +86,13 @@ class AuthControllerTest {
     void GivenValidRegistrationDetails_WhenAVisitorRegisters_ThenItAnswers201WithATokenAndTheirProfile()
             throws Exception {
         when(authService.register(anyString(), anyString(), anyString()))
-                .thenReturn(new AuthResult("issued.jwt.token", aUser(), GRANT));
+                .thenReturn(new AuthResult("issued.jwt.token", EXPIRES_AT, aUser(), GRANT));
 
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\"s3cret!42\"}"))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.token").value("issued.jwt.token"))
+                .andExpect(jsonPath("$.accessToken").value("issued.jwt.token"))
                 .andExpect(jsonPath("$.user.email").value(AUser.EMAIL))
                 .andExpect(jsonPath("$.user.passwordHash").doesNotExist())
                 .andExpect(jsonPath("$.user.password").doesNotExist());
@@ -151,7 +155,7 @@ class AuthControllerTest {
     void GivenAPasswordAtTheMinimum_WhenAVisitorRegisters_ThenItIsAccepted() throws Exception {
         // The bound is inclusive, so the shortest allowed password must not be refused.
         when(authService.register(anyString(), anyString(), anyString()))
-                .thenReturn(new AuthResult("issued.jwt.token", aUser(), GRANT));
+                .thenReturn(new AuthResult("issued.jwt.token", EXPIRES_AT, aUser(), GRANT));
 
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -196,7 +200,7 @@ class AuthControllerTest {
         // user pasted with a trailing space into a 400. The request record normalises before it is
         // validated.
         when(authService.register(anyString(), anyString(), anyString()))
-                .thenReturn(new AuthResult("issued.jwt.token", aUser(), GRANT));
+                .thenReturn(new AuthResult("issued.jwt.token", EXPIRES_AT, aUser(), GRANT));
 
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -209,7 +213,7 @@ class AuthControllerTest {
     @Test
     void GivenAnEmailWithSpacesAndCapitals_WhenAUserLogsIn_ThenTheNormalisedAddressIsPresented() throws Exception {
         when(authService.login(anyString(), anyString()))
-                .thenReturn(new AuthResult("issued.jwt.token", aUser(), GRANT));
+                .thenReturn(new AuthResult("issued.jwt.token", EXPIRES_AT, aUser(), GRANT));
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -222,13 +226,13 @@ class AuthControllerTest {
     @Test
     void GivenMatchingCredentials_WhenAUserLogsIn_ThenItAnswers200WithATokenAndTheirProfile() throws Exception {
         when(authService.login(anyString(), anyString()))
-                .thenReturn(new AuthResult("issued.jwt.token", aUser(), GRANT));
+                .thenReturn(new AuthResult("issued.jwt.token", EXPIRES_AT, aUser(), GRANT));
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"someone@example.com\",\"password\":\"s3cret!\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").value("issued.jwt.token"))
+                .andExpect(jsonPath("$.accessToken").value("issued.jwt.token"))
                 .andExpect(jsonPath("$.user.name").value(AUser.NAME));
     }
 
@@ -278,7 +282,7 @@ class AuthControllerTest {
         // If this cookie ever loses HttpOnly, injected script can take a credential that outlives the
         // page it ran on.
         when(authService.login(anyString(), anyString()))
-                .thenReturn(new AuthResult("issued.jwt.token", aUser(), GRANT));
+                .thenReturn(new AuthResult("issued.jwt.token", EXPIRES_AT, aUser(), GRANT));
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -290,7 +294,7 @@ class AuthControllerTest {
                 .andExpect(cookie().path("refresh_token", "/api/auth"))
                 .andExpect(cookie().maxAge("refresh_token", (int) Duration.ofDays(30).toSeconds()))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("SameSite=Strict")))
-                .andExpect(jsonPath("$.token").value("issued.jwt.token"));
+                .andExpect(jsonPath("$.accessToken").value("issued.jwt.token"));
     }
 
     @Test
@@ -301,13 +305,13 @@ class AuthControllerTest {
         when(sessions.refresh(GRANT.refreshToken()))
                 .thenReturn(new RefreshOutcome.Rotated(USER_ID, rotated));
         when(authService.continueSession(USER_ID, rotated))
-                .thenReturn(new AuthResult("a.newer.token", aUser(), rotated));
+                .thenReturn(new AuthResult("a.newer.token", EXPIRES_AT, aUser(), rotated));
 
         mockMvc.perform(post("/api/auth/refresh")
                         .cookie(PRESENTED)
                         .header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").value("a.newer.token"))
+                .andExpect(jsonPath("$.accessToken").value("a.newer.token"))
                 .andExpect(cookie().value("refresh_token", rotated.refreshToken()));
     }
 

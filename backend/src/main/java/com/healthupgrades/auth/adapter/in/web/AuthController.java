@@ -182,7 +182,7 @@ public class AuthController {
 
     /** Maps an auth result to the token-pair response. */
     private TokenPair toTokenPair(AuthResult result) {
-        return new TokenPair(result.token(), toUserDto(result.user()));
+        return new TokenPair(result.token(), result.expiresAt(), toUserDto(result.user()));
     }
 
     /** Maps a domain user to its public DTO. */

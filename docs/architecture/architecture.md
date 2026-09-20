@@ -64,7 +64,7 @@ Nine contexts, each owning its own vocabulary, plus a cross-cutting `common`.
 
 | Module | Responsible for |
 |---|---|
-| `src/api/` | One axios instance and a thin function per endpoint. The instance attaches the JWT and turns a 401 into a logout; every call goes through it |
+| `src/api/` | One axios instance and a thin function per endpoint. The instance attaches the in-memory access token, and renews it from the refresh cookie and retries once on a 401 rather than signing the user out; `tokenStore.ts` holds the token, and every call goes through the instance |
 | `src/contexts/` | `AuthProvider` owns the session; `NotificationProvider` owns the notification list, the STOMP connection and the toasts; `ThemeProvider` owns the light/dark/system choice and the `dark` class on `<html>` |
 | `src/hooks/` | `useAuth`, `useNotifications` and `useTheme` — typed context readers that fail loudly outside their provider |
 | `src/router/` | The route table, and `ProtectedRoute`, which gates every authenticated page |

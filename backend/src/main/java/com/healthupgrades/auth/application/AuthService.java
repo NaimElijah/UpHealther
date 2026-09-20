@@ -6,6 +6,7 @@ import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.auth.application.port.in.SessionCommand;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
+import com.healthupgrades.common.security.IssuedAccessToken;
 import com.healthupgrades.common.security.JwtTokenProvider;
 import com.healthupgrades.user.application.port.in.UserCommand;
 import com.healthupgrades.user.application.port.in.UserQuery;
@@ -156,7 +157,7 @@ public class AuthService {
      */
     public AuthResult continueSession(UUID userId, SessionGrant grant) {
         User user = getMe(userId);
-        return new AuthResult(tokenProvider.issue(userId, grant.sessionId()).value(), user, grant);
+        return issued(user, grant);
     }
 
     /**
@@ -167,7 +168,12 @@ public class AuthService {
      * credential was never returned to anybody, and the cleanup sweep removes it.
      */
     private AuthResult startSession(User user) {
-        SessionGrant grant = sessions.open(user.getId());
-        return new AuthResult(tokenProvider.issue(user.getId(), grant.sessionId()).value(), user, grant);
+        return issued(user, sessions.open(user.getId()));
+    }
+
+    /** Mints a token within a session. The one place the two halves of a grant are put together. */
+    private AuthResult issued(User user, SessionGrant grant) {
+        IssuedAccessToken token = tokenProvider.issue(user.getId(), grant.sessionId());
+        return new AuthResult(token.value(), token.expiresAt(), user, grant);
     }
 }

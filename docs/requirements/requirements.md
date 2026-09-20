@@ -2,7 +2,7 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. Eighty-nine of the ninety-six entries below name a test — seventy-three distinct
+rather than trusted. Ninety-one of the ninety-eight entries below name a test — seventy-five distinct
 test classes and files between them. Four of the remaining seven name the command, workflow or script
 that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18). The last three — FR-39, NFR-19 and NFR-20 — are
 verified by hand and say so, because each is about a rendered width, a colour or an overflow, and jsdom
@@ -198,6 +198,8 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-35 | A user can end a session, and ending it takes effect immediately: the access token already issued within it stops working on its next request. Sign-out is per device — it leaves the same account signed in elsewhere | `AuthSessionServiceTest`, `AuthSessionFlowIT`, `AuthControllerTest` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
 | NFR-36 | The long-lived refresh credential is never readable by script and never stored in a form that can be presented: it travels in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie and is held only as a SHA-256 digest. It is replaced on every use, and presenting a spent one outside the rotation grace window revokes the session and is audited | `AuthSessionTest`, `AuthSessionServiceTest`, `AuthSessionPersistenceIT`, `AuthControllerTest` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
 | NFR-37 | The two endpoints that act on the cookie alone cannot be driven from another site: the cookie is `SameSite=Strict`, and both additionally require a header that a cross-site form post cannot set, refusing the request before any session is read | `AuthControllerTest`, `AuthSessionFlowIT` |
+| NFR-38 | The access token is never written to browser storage: it is held in memory for the life of the tab, so it cannot be read by injected script and does not outlive the page. A reload restores the session from the refresh cookie instead, and the credentials of an earlier version are removed from storage on load | `tokenStore.test.ts`, `AuthContext.test.tsx`, `client.test.ts` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
+| NFR-39 | An expired access token is renewed and the request retried, rather than ending the session: the renewal is single-flight within a tab and across tabs, so a burst of parallel calls rotates the refresh credential once. Only a refusal from the renewal itself signs the user out | `client.test.ts`, `AuthSessionFlowIT` |
 
 ---
 

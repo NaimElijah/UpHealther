@@ -17,12 +17,21 @@ conventions to follow inside `frontend/`.
 
 - **`src/api/client.ts`** is the single axios instance. Its `baseURL` is relative by default so every
   `/api/...` call is same-origin and flows through the Vite dev proxy / nginx prod proxy (set
-  `VITE_API_URL` only for a different-origin API). A request interceptor attaches the JWT from
-  `localStorage['jwt_token']`; a response interceptor ends the session and redirects to `/login` on a
-  401, which the API sends for a missing, expired or refused token alike. A 401 from
-  `/api/auth/login` or `/api/auth/register` is the form's answer and is left to the page, and a 403
-  ("known, not allowed") never ends a session.
+  `VITE_API_URL` only for a different-origin API). A request interceptor attaches the access token
+  from **`src/api/tokenStore.ts`**, which holds it in memory and nowhere else — never web storage,
+  because anything injected into the page can read that. What survives a reload is the `HttpOnly`
+  refresh cookie, which this code cannot read by design.
+  A response interceptor treats a 401 as an expired token rather than a lost session: it renews from
+  the cookie — single-flight within the tab and across tabs via `navigator.locks`, since rotation
+  makes a credential good for one use — and retries the request once. Only a refusal from the refresh
+  itself ends the session and redirects to `/login`. A 401 from `/api/auth/login` or
+  `/api/auth/register` is the form's answer and is left to the page, and a 403 ("known, not allowed")
+  never ends a session. See [ADR-015](../docs/ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md).
   All `src/api/*.ts` modules call through this client — add new endpoints there, not with raw axios.
+- **Signing out can fail, and the failure has to be shown.** `logout()` rejects when the server could
+  not be reached; the refresh cookie is then still in the browser, so the next page load signs the
+  user back in. Clearing local state anyway would tell somebody on a shared machine they had signed
+  out when they had not.
 - **A failure is decoded once, in `src/api/apiError.ts`.** `toApiError(thrown)` turns anything a call
   rejected with into `{ status, message, fieldErrors, traceId }`; render it with
   `components/ui/ErrorState`. Do not write a hard-coded "Failed to load X." and drop the error — the

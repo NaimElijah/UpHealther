@@ -22,9 +22,16 @@ export interface User {
   createdAt: string;
 }
 
-/** What a successful login or registration returns: the token to store, and who it belongs to. */
+/**
+ * What a successful sign-in, registration or refresh returns.
+ *
+ * Only the access token is here. The refresh credential arrives in an `HttpOnly` cookie that this
+ * code cannot read, which is the point of it being there rather than in the body.
+ */
 export interface AuthResponse {
-  token: string;
+  accessToken: string;
+  /** ISO-8601. When the access token lapses, so the client can renew before a request fails. */
+  expiresAt: string;
   user: User;
 }
 

@@ -8,12 +8,11 @@ import { AuthContext, type AuthContextType } from '../contexts/authContextValue'
 function contextWith(overrides: Partial<AuthContextType>): AuthContextType {
   return {
     user: null,
-    token: null,
     isLoading: false,
     isAuthenticated: false,
     login: async () => {},
     register: async () => {},
-    logout: () => {},
+    logout: async () => {},
     ...overrides,
   };
 }
@@ -48,7 +47,7 @@ function renderGate(ctx: AuthContextType) {
  */
 describe('ProtectedRoute', () => {
   it('GivenASignedInCaller_WhenAProtectedPageIsVisited_ThenThePageRenders', () => {
-    renderGate(contextWith({ isAuthenticated: true, token: 'stored.token' }));
+    renderGate(contextWith({ isAuthenticated: true }));
 
     expect(screen.getByText('the dashboard')).toBeDefined();
   });

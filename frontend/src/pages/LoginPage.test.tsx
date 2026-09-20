@@ -31,12 +31,11 @@ function apiFailure(status: number, body: unknown = {}): AxiosError {
 function contextWith(overrides: Partial<AuthContextType> = {}): AuthContextType {
   return {
     user: null,
-    token: null,
     isLoading: false,
     isAuthenticated: false,
     login,
     register: async () => {},
-    logout: () => {},
+    logout: async () => {},
     ...overrides,
   };
 }
@@ -150,7 +149,7 @@ describe('LoginPage', () => {
 
   it('GivenAnAlreadySignedInUser_WhenTheyOpenTheLoginPage_ThenTheyAreSentToTheDashboard', async () => {
     // Typing the URL with a live session should not offer a second sign-in.
-    renderLogin(contextWith({ isAuthenticated: true, token: 'stored.token' }));
+    renderLogin(contextWith({ isAuthenticated: true }));
 
     await waitFor(() => expect(screen.getByText('the dashboard')).toBeDefined());
   });
