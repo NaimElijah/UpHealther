@@ -28,7 +28,7 @@ from pathlib import Path
 CLASS_DIAGRAM_CONTEXT = "upgrade"
 
 CONTEXTS = [
-    "auth", "user", "healtharea", "upgrade", "tracking",
+    "auth", "user", "admin", "healtharea", "upgrade", "tracking",
     "reflection", "reminder", "dashboard", "notification",
 ]
 

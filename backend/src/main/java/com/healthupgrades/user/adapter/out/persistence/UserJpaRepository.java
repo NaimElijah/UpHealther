@@ -1,5 +1,6 @@
 package com.healthupgrades.user.adapter.out.persistence;
 
+import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User; // managed entity
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -11,5 +12,8 @@ import java.util.UUID;
  */
 interface UserJpaRepository extends JpaRepository<User, UUID> {
     Optional<User> findByEmail(String email); // derived query: lookup by login email
-    boolean existsByEmail(String email); // derived existence check
+    boolean existsByEmail(String email);
+
+    /** Whether any account holds a role — asked once at startup by the administrator bootstrap. */
+    boolean existsByRole(Role role); // derived existence check
 }

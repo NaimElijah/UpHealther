@@ -16,11 +16,14 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -60,10 +63,7 @@ class AuthenticatedBoundaryTest {
             Set.of("/api/auth/register", "/api/auth/login", "/api/auth/refresh",
                     "/api/auth/logout", "/actuator/", "/ws/");
 
-    /**
-     * A path under the administration prefix. Nothing serves it yet, which is the point: the prefix is
-     * closed by the filter chain, so a path added under it is refused from the moment it exists.
-     */
+    /** The administration path used where one stands for the prefix. */
     private static final String ADMIN_PATH = "/api/admin/users";
 
     @Autowired MockMvc mockMvc;
@@ -75,6 +75,8 @@ class AuthenticatedBoundaryTest {
     // The application services behind the controllers. Mocked: this class is about reaching them at all.
     @MockBean com.healthupgrades.auth.application.AuthService authService;
     @MockBean com.healthupgrades.auth.application.port.in.SessionCommand sessionCommand;
+    @MockBean com.healthupgrades.admin.application.port.in.AdminUserQuery adminUserQuery;
+    @MockBean com.healthupgrades.admin.application.port.in.AdminUserCommand adminUserCommand;
     @MockBean com.healthupgrades.upgrade.application.UpgradeService upgradeService;
     @MockBean com.healthupgrades.tracking.application.TrackingService trackingService;
     @MockBean com.healthupgrades.healtharea.application.HealthAreaService healthAreaService;
@@ -124,6 +126,10 @@ class AuthenticatedBoundaryTest {
             "POST,    /api/notifications/11111111-1111-1111-1111-111111111111/read",
             "POST,    /api/notifications/read-all",
             "GET,     /api/auth/me",
+            "GET,     /api/admin/users",
+            "POST,    /api/admin/users/11111111-1111-1111-1111-111111111111/disable",
+            "POST,    /api/admin/users/11111111-1111-1111-1111-111111111111/enable",
+            "PUT,     /api/admin/users/11111111-1111-1111-1111-111111111111/role",
     })
     void GivenNoToken_WhenAProtectedEndpointIsCalled_ThenItIsRefusedAs401WithAChallenge(String method, String path)
             throws Exception {
@@ -213,35 +219,47 @@ class AuthenticatedBoundaryTest {
                 "DELETE /api/health-areas/{id}",
                 "GET /api/notifications", "GET /api/notifications/unread-count",
                 "POST /api/notifications/{id}/read", "POST /api/notifications/read-all",
-                "GET /api/auth/me");
+                "GET /api/auth/me",
+                "GET /api/admin/users",
+                "POST /api/admin/users/{id}/disable", "POST /api/admin/users/{id}/enable",
+                "PUT /api/admin/users/{id}/role");
 
         assertThat(mapped)
                 .as("an endpoint exists that this class does not check the authenticated boundary of")
                 .isEqualTo(listed);
     }
 
-    @Test
-    void GivenAnOrdinaryUser_WhenAnAdministrationPathIsCalled_ThenItIsRefusedAs403WithTheApiErrorBody()
-            throws Exception {
-        // Authenticated, and still refused: this is the one place in the API where authorization is
-        // decided by something other than the ownership of a row.
+    @ParameterizedTest(name = "{0} {1}")
+    @CsvSource({
+            "GET,     /api/admin/users",
+            "POST,    /api/admin/users/11111111-1111-1111-1111-111111111111/disable",
+            "POST,    /api/admin/users/11111111-1111-1111-1111-111111111111/enable",
+            "PUT,     /api/admin/users/11111111-1111-1111-1111-111111111111/role",
+    })
+    void GivenAnOrdinaryUser_WhenAnAdministrationPathIsCalled_ThenItIsRefusedAs403WithTheApiErrorBody(
+            String method, String path) throws Exception {
+        // Authenticated, and still refused. These four are the only endpoints in the API where
+        // authorization is decided by something other than who owns the row, so the whole prefix is
+        // checked rather than one path standing in for the rest.
         WebSliceSupport.authenticateAs(authenticator, UUID.randomUUID(), Role.USER);
 
-        mockMvc.perform(WebSliceSupport.bearer(json(request(HttpMethod.GET, ADMIN_PATH))))
+        mockMvc.perform(WebSliceSupport.bearer(json(request(HttpMethod.valueOf(method), path))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.status").value(403))
-                .andExpect(jsonPath("$.path").value(ADMIN_PATH));
+                .andExpect(jsonPath("$.path").value(path));
     }
 
     @Test
-    void GivenAnAdministrator_WhenTheSameAdministrationPathIsCalled_ThenSecurityDoesNotRefuseIt()
+    void GivenAnAdministrator_WhenAnAdministrationPathIsCalled_ThenSecurityLetsItThrough()
             throws Exception {
-        // 404 rather than 403, because no handler is registered for it yet. The difference is the
-        // assertion: it shows the refusal above is about the role and not about the path being absent.
+        // The other half of the matrix: the 403s above are about the role, not about the path being
+        // unreachable. The service behind this one is mocked, so reaching it at all is the assertion.
         WebSliceSupport.authenticateAs(authenticator, UUID.randomUUID(), Role.ADMIN);
+        when(adminUserQuery.list(anyInt(), anyInt()))
+                .thenReturn(new com.healthupgrades.admin.application.AccountPage(List.of(), 0, 25, 0));
 
         mockMvc.perform(WebSliceSupport.bearer(json(request(HttpMethod.GET, ADMIN_PATH))))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk());
     }
 
     /** Every request carries a JSON content type, so a body-taking endpoint is not refused for that. */

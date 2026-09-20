@@ -55,6 +55,7 @@ Nine contexts, each owning its own vocabulary, plus a cross-cutting `common`.
 | `healtharea` | `HealthArea` — the groupings upgrades are filed under | Full |
 | `user` | `User` — identity and the stored password hash; `EmailAddress`, the one rule for when two addresses are the same identity | Full |
 | `auth` | Registration, sign-in, sign-out, and the sessions tokens are issued within | `AuthSession` — a signed-in session, the row that makes revocation possible; orchestrates over `user` for identity |
+| `admin` | Listing accounts, switching one off or back on, and granting or revoking a role | Two-layer: orchestrates over `user` and `auth`, owns no aggregate. It depends on no context holding a user's own records, and ArchUnit keeps it that way |
 | `dashboard` | The composed dashboard read model | Two-layer: reads through other contexts' ports, persists nothing |
 | `common` | Cross-cutting: the `DomainEvent` marker, shared exceptions, the event-publisher port, the global exception handler, JWT security and the WebSocket configuration | Not a context; a shared kernel plus cross-cutting adapters |
 

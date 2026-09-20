@@ -67,6 +67,7 @@ statements — it is what the code does, not what anyone intended.
 flowchart TD
     auth["auth"]
     user["user"]
+    admin["admin"]
     healtharea["healtharea"]
     upgrade["upgrade"]
     tracking["tracking"]
@@ -76,6 +77,8 @@ flowchart TD
     notification["notification"]
 
     auth --> user
+    admin --> auth
+    admin --> user
     upgrade --> healtharea
     tracking --> upgrade
     reflection --> upgrade

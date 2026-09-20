@@ -63,6 +63,12 @@ app:
       # Sweep that deletes sessions nothing can use again. Correctness does not depend on it -
       # an expired session is refused by its own timestamps - so it runs when nothing else does.
       session-cleanup: ${AUTH_SESSION_CLEANUP_CRON:0 30 3 * * *}
+  admin:
+    # The account promoted to ADMIN at startup, so a fresh installation has a way in. An account id,
+    # never an email: registration is open, so naming an address would hand the installation to
+    # whoever registered it first. It acts only while no administrator exists at all, so leaving it
+    # set does not re-promote anybody after a deliberate demotion.
+    bootstrap-user-id: ${ADMIN_BOOTSTRAP_USER_ID:}
   cors:
     # Comma-separated list of origins allowed to call the API directly (cross-origin).
     # Not needed when the frontend is served behind the Vite dev proxy or nginx (same-origin /api).

@@ -2,7 +2,7 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. Ninety-one of the ninety-eight entries below name a test — seventy-five distinct
+rather than trusted. Ninety-seven of the hundred and four entries below name a test — seventy-eight distinct
 test classes and files between them. Four of the remaining seven name the command, workflow or script
 that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18). The last three — FR-39, NFR-19 and NFR-20 — are
 verified by hand and say so, because each is about a rendered width, a colour or an overflow, and jsdom
@@ -31,6 +31,13 @@ actually being done, and reflecting on what worked.
 
 **Users:** one person managing their own upgrades. Every record belongs to exactly one account, and
 nothing is shared between accounts.
+
+**One carve-out, and only one.** An installation has administrators, who can list the accounts on
+it, switch one off or back on, and grant or revoke the role. That is the whole of it: an
+administrator gains *paths*, never *rows*. Every query is scoped by the account that owns the
+record, for an administrator exactly as for anybody else, so there is no way — not a guarded one,
+no way at all — to read another person's health records
+([ADR-016](../ADRs/ADR-016-roles-read-from-the-database-on-every-request.md)).
 
 ---
 
@@ -111,6 +118,10 @@ nothing is shared between accounts.
 | FR-39 | A dialog fits the window at any size: its heading stays put and only its body scrolls | `Modal` — checked by hand, see §6 |
 | FR-40 | A dialog announces itself as a dialog named by its title, takes focus on open, confines Tab to its own controls, restores focus on close, and marks the page behind it inert | `Modal`, `Modal.test.tsx`, [ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md) |
 | FR-41 | A health area whose stored icon cannot be drawn is shown with the default icon, and editing it does not write the undrawable value back | `areaIconGlyph`, `isIconGlyph`, `areaIcon.test.ts` |
+| FR-42 | An administrator can list the accounts on the installation, a page at a time and oldest first, seeing each one's role and whether it is switched on — and nothing about what it owns | `AdminUserServiceTest`, `AdminUserControllerTest` |
+| FR-43 | An administrator can switch an account off and back on. Switching it off ends every session it holds and destroys nothing it owns, so switching it back on restores the account exactly as it was | `AdminUserServiceTest`, `AdminUserControllerTest` |
+| FR-44 | An administrator can grant and revoke the administrator role. The change is read from the account on its next request, so it takes effect without signing that person out | `AdminUserServiceTest`, `AdminUserControllerTest` |
+| FR-45 | A fresh installation can be given its first administrator through configuration, by account id and only while no administrator exists — so it cannot silently re-promote somebody after a deliberate demotion, and cannot be claimed by whoever registers an address first | `AdminBootstrapRunnerTest` |
 
 ---
 
@@ -169,7 +180,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-6 | The application never logs personal data deliberately: event publication logs the type and timestamp only, and a trace id identifies a request rather than a person. The one exception is the stack trace of an unexpected 5xx, logged in full so the fault is diagnosable and withheld from the client | `SpringDomainEventPublisher`, `GlobalExceptionHandlerTest` |
 | NFR-7 | Every failure maps to a defined HTTP status: 404 not found, 422 rule violation, 409 conflict, 401 rejected credentials or no accepted token, 400 invalid input (a failed constraint, an unbindable body, a parameter that will not convert), 403 authenticated but not allowed, and the status Spring defines for every other framework exception (405, 415, 406, …). Only a genuine server fault is a 500, and it carries no detail beyond the status and the trace id that finds its log line | `GlobalExceptionHandlerTest`, every `*ControllerTest`, [ADR-006](../ADRs/ADR-006-framework-exceptions-through-responseentityexceptionhandler.md) |
 | NFR-8 | The database schema is owned by migrations; the application refuses to start against a schema that does not match its entities | `ApplicationContextIT`, Flyway + `ddl-auto: validate` |
-| NFR-9 | Layering is enforced mechanically, not by convention: the domain stays framework-free, the application depends on no adapter, contexts form an acyclic graph | `HexagonalArchitectureTest` (eleven rules) |
+| NFR-9 | Layering is enforced mechanically, not by convention: the domain stays framework-free, the application depends on no adapter, contexts form an acyclic graph, and the administration context cannot reach any context holding a user's own records | `HexagonalArchitectureTest` (twelve rules) |
 | NFR-10 | The frontend's mirrored enums cannot drift from the backend's | `FrontendEnumContractTest` |
 | NFR-11 | The unit test suite runs without a database | `mvn test` — needs neither a database nor Docker |
 | NFR-12 | Every push and pull request is built, tested, linted, and the shipped frontend dependencies audited | `.github/workflows/ci.yml` |
@@ -200,6 +211,8 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-37 | The two endpoints that act on the cookie alone cannot be driven from another site: the cookie is `SameSite=Strict`, and both additionally require a header that a cross-site form post cannot set, refusing the request before any session is read | `AuthControllerTest`, `AuthSessionFlowIT` |
 | NFR-38 | The access token is never written to browser storage: it is held in memory for the life of the tab, so it cannot be read by injected script and does not outlive the page. A reload restores the session from the refresh cookie instead, and the credentials of an earlier version are removed from storage on load | `tokenStore.test.ts`, `AuthContext.test.tsx`, `client.test.ts` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
 | NFR-39 | An expired access token is renewed and the request retried, rather than ending the session: the renewal is single-flight within a tab and across tabs, so a burst of parallel calls rotates the refresh credential once. Only a refusal from the renewal itself signs the user out | `client.test.ts`, `AuthSessionFlowIT` |
+| NFR-40 | An administrator cannot act on their own account — not disable it, not enable it, not change its role. Each would be unrecoverable from inside the application: the last administrator could lock the installation, or revoke the role nobody is left to grant | `AdminUserServiceTest`, `AdminUserControllerTest` |
+| NFR-41 | The administration context has no dependency on any context holding a user's own records, so "an administrator cannot read your health data" is a property of what the code can reach rather than a check somebody remembered to write | `HexagonalArchitectureTest` |
 
 ---
 
@@ -211,7 +224,9 @@ These are deliberate. Re-proposing one needs a reason that has changed.
   no feature may imply otherwise. It is a lifestyle planning tool and says so in the README and in the
   licence's warranty disclaimer.
 - **5.2 — Not multi-tenant or shared.** There is no sharing, no accountability partner, no team view.
-  Every record belongs to one account.
+  Every record belongs to one account. Administration is not an exception to this: an administrator
+  manages *accounts* and cannot read what an account owns, which is why the capability is stated in
+  §1 as a carve-out to the user model rather than as a hole in this one.
 - **5.3 — Not horizontally scaled.** Real-time push uses an in-memory broker, so it reaches only
   clients connected to the instance that raised the notification. Running more than one instance needs
   a broker relay first — see `architecture.md`, "Known constraints".

@@ -174,6 +174,8 @@ a published value and gives no security.
 | `POSTGRES_PASSWORD` | Password for that user | `healthupgrades` | In a deployment |
 | `JWT_SECRET` | Token signing key; at least 256 bits or the application refuses to start | published dev value | In a deployment |
 | `JWT_ACCESS_TOKEN_TTL` | How long an issued access token is accepted, as an ISO-8601 or Spring duration. The SPA renews it from the refresh cookie, so this is not the length of a session | `15m` | No |
+| `AUTH_COOKIE_SECURE` | Whether the refresh cookie is TLS-only. False locally only, because localhost has no TLS for the browser to send it over | `false` | In a deployment |
+| `ADMIN_BOOTSTRAP_USER_ID` | An existing account id to promote to `ADMIN` at startup, while no administrator exists. An id, not an email — registration is open | empty | For the first admin |
 | `DB_URL` | JDBC URL the backend connects to | `jdbc:postgresql://localhost:5432/healthupgrades` | Outside compose |
 | `DB_USERNAME` | Database user the backend connects as | `healthupgrades` | Outside compose |
 | `DB_PASSWORD` | Password for that user | `healthupgrades` | Outside compose |

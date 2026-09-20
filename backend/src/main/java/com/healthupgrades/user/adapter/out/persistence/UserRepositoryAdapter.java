@@ -1,13 +1,17 @@
 package com.healthupgrades.user.adapter.out.persistence;
 
 import com.healthupgrades.user.domain.model.EmailAlreadyRegisteredException;
+import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User; // domain aggregate
 import com.healthupgrades.user.domain.port.out.UserRepositoryPort; // the port implemented here
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -67,5 +71,31 @@ class UserRepositoryAdapter implements UserRepositoryPort {
     @Override
     public boolean existsByEmail(String email) {
         return jpa.existsByEmail(email);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>This is where {@code Pageable} lives and stops. The sort is applied here rather than left to
+     * the caller: {@code created_at} is not unique, so it is paired with the primary key to give a
+     * total order — without a tie-break, two accounts created in the same millisecond can shuffle
+     * between pages and one of them is never shown.
+     */
+    @Override
+    public List<User> findAll(int page, int size) {
+        return jpa.findAll(PageRequest.of(page, size, Sort.by("createdAt").and(Sort.by("id"))))
+                .getContent();
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public long count() {
+        return jpa.count();
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public boolean existsByRole(Role role) {
+        return jpa.existsByRole(role);
     }
 }

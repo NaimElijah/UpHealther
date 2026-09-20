@@ -42,6 +42,21 @@ public enum AuditAction {
      */
     AUTH_TOKEN_REUSE("auth.reuse", AuditedResource.AUTH_SESSION),
 
+    /**
+     * An administrator switched an account off, ending every session it held.
+     *
+     * <p>The three below are the only actions in this enum where the actor and the resource are
+     * different people. That is exactly why they are audited: everything else records somebody
+     * acting on their own records, and these record somebody acting on another's.
+     */
+    ADMIN_DISABLE("admin.disable", AuditedResource.USER),
+
+    /** An administrator switched an account back on. */
+    ADMIN_ENABLE("admin.enable", AuditedResource.USER),
+
+    /** An administrator granted or revoked a role. */
+    ADMIN_ROLE("admin.role", AuditedResource.USER),
+
     UPGRADE_CREATE("upgrade.create", AuditedResource.HEALTH_UPGRADE),
     UPGRADE_UPDATE("upgrade.update", AuditedResource.HEALTH_UPGRADE),
     UPGRADE_DELETE("upgrade.delete", AuditedResource.HEALTH_UPGRADE),

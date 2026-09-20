@@ -39,6 +39,8 @@ services:
       # cookie would simply never be sent back. Set it true anywhere with TLS, which is everywhere
       # else: without it the refresh credential travels in clear text.
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      # Promotes one existing account to ADMIN, once, while there is no administrator at all.
+      ADMIN_BOOTSTRAP_USER_ID: ${ADMIN_BOOTSTRAP_USER_ID:-}
       # Selects the JSON encoder in logback-spring.xml. A container's log is read by a machine before
       # a person, and `docker logs` is the only sink here - there is no file appender and no volume.
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-json-logs}

@@ -12,8 +12,9 @@ enforced mechanically by `HexagonalArchitectureTest` (ArchUnit) — treat that t
 the module boundaries rather than working from a layout described in prose.
 
 The layout is **not** identical across contexts, whatever ADR-001 §3 says: `auth` orchestrates over
-`user` for identity while owning its own `AuthSession`, and `dashboard` is a read/composition model with no domain or outbound
-side. Both are deliberate, not drift.
+`user` for identity while owning its own `AuthSession`; `admin` orchestrates over `user` and `auth`
+and owns no aggregate; and `dashboard` is a read/composition model with no domain or outbound side.
+All three are deliberate, not drift.
 
 ## Conventions that span multiple files (follow these)
 
