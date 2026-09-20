@@ -1,8 +1,14 @@
 package com.healthupgrades.support;
 
 import com.healthupgrades.common.security.BearerTokenAuthenticator;
+import com.healthupgrades.auth.adapter.in.web.RefreshCookieProperties;
+import com.healthupgrades.auth.adapter.in.web.RefreshCookies;
 import com.healthupgrades.common.security.SecurityUser;
 import com.healthupgrades.user.domain.model.Role;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import io.micrometer.tracing.Tracer;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -37,12 +43,35 @@ public class WebSliceSupport {
     public static final String VALID_TOKEN = "a.valid.test.token";
 
     /**
+     * The instant the cookie builder above believes it is.
+     *
+     * <p>Fixed, and not the application clock: a cookie's {@code Max-Age} is the distance from now to
+     * the session expiry, so with a real clock the header would shrink by a second every second and
+     * eventually go negative. Fixed here, a test can assert the number.
+     */
+    public static final Instant COOKIE_NOW = Instant.parse("2026-09-16T10:15:00Z");
+
+    /**
      * A tracer that mints nothing. The error body's {@code traceId} is then absent rather than random,
      * which keeps a JSON assertion stable.
      */
     @Bean
     Tracer tracer() {
         return Tracer.NOOP;
+    }
+
+    /**
+     * The refresh cookie's settings, fixed here rather than bound from configuration.
+     *
+     * <p>An assertion about a cookie's attributes should be about the code that builds them, not about
+     * whatever a YAML file happened to say when the test ran. {@code secure} is true, which is the
+     * value every real deployment uses and the one worth asserting; the local override exists only
+     * because a developer on plain HTTP has no TLS for the browser to send it over.
+     */
+    @Bean
+    RefreshCookies refreshCookies() {
+        return new RefreshCookies(new RefreshCookieProperties("refresh_token", "/api/auth", true),
+                Clock.fixed(COOKIE_NOW, ZoneOffset.UTC));
     }
 
     // No Clock bean here: HealthUpgradesApplication already defines one and a second definition of the

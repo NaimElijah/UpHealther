@@ -26,6 +26,22 @@ public enum AuditAction {
     /** Somebody presented credentials. Refused as often as allowed, and both are worth knowing. */
     AUTH_LOGIN("auth.login", AuditedResource.USER),
 
+    /** A session exchanged its refresh credential for a new one and carried on. */
+    AUTH_REFRESH("auth.refresh", AuditedResource.AUTH_SESSION),
+
+    /** Somebody signed out, ending one session and leaving their other devices alone. */
+    AUTH_LOGOUT("auth.logout", AuditedResource.AUTH_SESSION),
+
+    /**
+     * A refresh credential that had already been exchanged was presented again, after the grace
+     * window. Two parties held one session's credentials, so the session was revoked for both.
+     * The one entry in this enum that should stay at zero; a non-zero count is worth alerting on.
+     *
+     * <p>Keyed {@code auth.reuse} rather than {@code auth.token-reuse}: a key is a metric label and a
+     * log-query term, and the shape every other one has is two lowercase words with a dot between.
+     */
+    AUTH_TOKEN_REUSE("auth.reuse", AuditedResource.AUTH_SESSION),
+
     UPGRADE_CREATE("upgrade.create", AuditedResource.HEALTH_UPGRADE),
     UPGRADE_UPDATE("upgrade.update", AuditedResource.HEALTH_UPGRADE),
     UPGRADE_DELETE("upgrade.delete", AuditedResource.HEALTH_UPGRADE),

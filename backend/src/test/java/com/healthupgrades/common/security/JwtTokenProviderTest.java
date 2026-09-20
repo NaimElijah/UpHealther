@@ -40,6 +40,7 @@ class JwtTokenProviderTest {
 
     private static final Instant ISSUED_AT = Instant.parse("2026-09-16T10:00:00Z");
     private static final UUID USER_ID = UUID.fromString("0f2c8f5a-2a4e-4a1d-8f0a-3c5b9d1e77a1");
+    private static final UUID SESSION_ID = UUID.fromString("6b1f0f4c-9a2d-4c3e-9b7a-1d2e3f4a5b6c");
 
     private static JwtTokenProvider providerAt(Instant now) {
         return providerAt(now, STRONG_SECRET);
@@ -63,20 +64,48 @@ class JwtTokenProviderTest {
         // browser storage, and it is not even a stable key: an address can change, an id cannot.
         JwtTokenProvider provider = providerAt(ISSUED_AT);
 
-        String token = provider.issue(USER_ID).value();
+        String token = provider.issue(USER_ID, SESSION_ID).value();
 
         assertThat(provider.verify(token)).hasValueSatisfying(verified ->
                 assertThat(verified.userId()).isEqualTo(USER_ID));
     }
 
     @Test
+    void GivenAnIssuedToken_WhenItIsVerified_ThenItNamesTheSessionItWasIssuedWithin() {
+        // The sid claim is what makes signing out mean something: without it a token belongs to no
+        // session, and there is nothing that revoking could invalidate.
+        JwtTokenProvider provider = providerAt(ISSUED_AT);
+
+        String token = provider.issue(USER_ID, SESSION_ID).value();
+
+        assertThat(provider.verify(token)).hasValueSatisfying(verified ->
+                assertThat(verified.sessionId()).isEqualTo(SESSION_ID));
+    }
+
+    @Test
+    void GivenATokenWithNoSessionClaim_WhenItIsVerified_ThenItIsRejected() {
+        // Every token minted before sessions existed looks like this. Refusing them is the intended
+        // outcome of the change, not a casualty of it: users sign in once more and get a revocable one.
+        String legacy = Jwts.builder()
+                .subject(USER_ID.toString())
+                .issuer(ISSUER)
+                .audience().add(AUDIENCE).and()
+                .issuedAt(Date.from(ISSUED_AT))
+                .expiration(Date.from(ISSUED_AT.plus(TTL)))
+                .signWith(Keys.hmacShaKeyFor(STRONG_SECRET.getBytes(StandardCharsets.UTF_8)), Jwts.SIG.HS256)
+                .compact();
+
+        assertThat(providerAt(ISSUED_AT).verify(legacy)).isEmpty();
+    }
+
+    @Test
     void GivenAnIssuedToken_WhenItsExpiryIsRead_ThenItIsTheConfiguredLifetimeAfterIssue() {
-        assertThat(providerAt(ISSUED_AT).issue(USER_ID).expiresAt()).isEqualTo(ISSUED_AT.plus(TTL));
+        assertThat(providerAt(ISSUED_AT).issue(USER_ID, SESSION_ID).expiresAt()).isEqualTo(ISSUED_AT.plus(TTL));
     }
 
     @Test
     void GivenATokenPastExpiryByMoreThanTheSkew_WhenItIsVerified_ThenItIsRejected() {
-        String token = providerAt(ISSUED_AT).issue(USER_ID).value();
+        String token = providerAt(ISSUED_AT).issue(USER_ID, SESSION_ID).value();
 
         assertThat(providerAt(ISSUED_AT.plus(TTL).plus(SKEW).plusSeconds(1)).verify(token)).isEmpty();
     }
@@ -85,21 +114,21 @@ class JwtTokenProviderTest {
     void GivenATokenPastExpiryByLessThanTheSkew_WhenItIsVerified_ThenItIsStillAccepted() {
         // Two hosts rarely agree on the time to the second; the skew keeps a token issued by one from
         // being refused by the other at the boundary.
-        String token = providerAt(ISSUED_AT).issue(USER_ID).value();
+        String token = providerAt(ISSUED_AT).issue(USER_ID, SESSION_ID).value();
 
         assertThat(providerAt(ISSUED_AT.plus(TTL).plus(SKEW).minusSeconds(1)).verify(token)).isPresent();
     }
 
     @Test
     void GivenATokenSignedWithAnotherSecret_WhenItIsVerified_ThenItIsRejected() {
-        String forged = providerAt(ISSUED_AT, OTHER_SECRET).issue(USER_ID).value();
+        String forged = providerAt(ISSUED_AT, OTHER_SECRET).issue(USER_ID, SESSION_ID).value();
 
         assertThat(providerAt(ISSUED_AT).verify(forged)).isEmpty();
     }
 
     @Test
     void GivenATamperedToken_WhenItIsVerified_ThenItIsRejected() {
-        String token = providerAt(ISSUED_AT).issue(USER_ID).value();
+        String token = providerAt(ISSUED_AT).issue(USER_ID, SESSION_ID).value();
 
         // Flip one character of the payload segment; the signature no longer covers it.
         String[] parts = token.split("\\.");

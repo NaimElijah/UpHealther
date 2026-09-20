@@ -139,7 +139,8 @@ flowchart LR
 
 This is not a convention anyone has to remember — `HexagonalArchitectureTest` fails the build on
 every arrow that runs the wrong way. Two contexts are deliberately smaller than this: `auth`
-orchestrates over `user` and owns no aggregate, and `dashboard` is a read model with no driven side.
+orchestrates over `user` for identity while owning its own `AuthSession` aggregate, and `dashboard` is
+a read model with no driven side.
 
 ---
 
@@ -395,6 +396,7 @@ erDiagram
     health_upgrades ||--o{ reflections : ""
     health_upgrades ||--o{ reminders : ""
     health_upgrades ||--o{ tracking_configs : ""
+    users ||--o{ auth_sessions : ""
     users ||--o{ health_areas : ""
     users ||--o{ health_upgrades : ""
     users ||--o{ notifications : ""
@@ -494,6 +496,18 @@ erDiagram
         uuid related_upgrade_id
         boolean is_read
         timestamp created_at
+    }
+    auth_sessions {
+        uuid id PK
+        uuid user_id
+        bytea refresh_token_hash
+        bytea previous_token_hash
+        timestamptz created_at
+        timestamptz last_used_at
+        timestamptz rotated_at
+        timestamptz idle_expires_at
+        timestamptz absolute_expires_at
+        boolean revoked
     }
 ```
 <!-- /generated:er-diagram -->

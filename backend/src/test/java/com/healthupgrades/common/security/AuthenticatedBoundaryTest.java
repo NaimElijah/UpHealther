@@ -57,7 +57,8 @@ class AuthenticatedBoundaryTest {
 
     /** The routes that must work without a token. Everything else must not. */
     private static final Set<String> PUBLIC_ROUTES =
-            Set.of("/api/auth/register", "/api/auth/login", "/actuator/", "/ws/");
+            Set.of("/api/auth/register", "/api/auth/login", "/api/auth/refresh",
+                    "/api/auth/logout", "/actuator/", "/ws/");
 
     /**
      * A path under the administration prefix. Nothing serves it yet, which is the point: the prefix is
@@ -73,6 +74,7 @@ class AuthenticatedBoundaryTest {
 
     // The application services behind the controllers. Mocked: this class is about reaching them at all.
     @MockBean com.healthupgrades.auth.application.AuthService authService;
+    @MockBean com.healthupgrades.auth.application.port.in.SessionCommand sessionCommand;
     @MockBean com.healthupgrades.upgrade.application.UpgradeService upgradeService;
     @MockBean com.healthupgrades.tracking.application.TrackingService trackingService;
     @MockBean com.healthupgrades.healtharea.application.HealthAreaService healthAreaService;
@@ -137,12 +139,16 @@ class AuthenticatedBoundaryTest {
     @CsvSource({
             "POST, /api/auth/register",
             "POST, /api/auth/login",
+            "POST, /api/auth/refresh",
+            "POST, /api/auth/logout",
     })
-    void GivenNoToken_WhenARegistrationOrLoginEndpointIsCalled_ThenSecurityLetsItThrough(String method, String path)
+    void GivenNoToken_WhenAPublicAuthEndpointIsCalled_ThenSecurityLetsItThrough(String method, String path)
             throws Exception {
-        // A visitor has no token by definition, so these two must never be behind the wall. The body is
-        // empty and therefore invalid, which is exactly the point: a 400 proves the request reached the
-        // controller's validation instead of being stopped by security.
+        // A visitor has no token by definition, and neither does a caller whose token has expired and
+        // who is trying to refresh - so none of these four may sit behind the wall. Each is sent
+        // something the controller itself refuses: an empty body for the first two, no
+        // X-Requested-With header for the last two. A 400 proves the request reached the controller
+        // rather than being stopped by security, which is the only thing this class is asserting.
         mockMvc.perform(json(request(HttpMethod.valueOf(method), path)).content("{}"))
                 .andExpect(status().isBadRequest());
     }

@@ -1,5 +1,6 @@
 package com.healthupgrades.common.security;
 
+import com.healthupgrades.common.domain.port.out.SessionStatusPort;
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.Role;
@@ -16,6 +17,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -34,9 +36,11 @@ import static org.mockito.Mockito.when;
 class BearerTokenAuthenticatorTest {
 
     private static final String TOKEN = "a.signed.token";
+    private static final UUID SESSION_ID = UUID.randomUUID();
 
     @Mock JwtTokenProvider tokenProvider;
     @Mock UserQuery userQuery;
+    @Mock SessionStatusPort sessionStatus;
 
     private BearerTokenAuthenticator authenticator;
 
@@ -44,12 +48,16 @@ class BearerTokenAuthenticatorTest {
 
     @BeforeEach
     void setUp() {
-        authenticator = new BearerTokenAuthenticator(tokenProvider, userQuery);
+        authenticator = new BearerTokenAuthenticator(tokenProvider, userQuery, sessionStatus);
+        // A live session is the precondition of every case below except the one about a dead
+        // one, which overrides it. Lenient, so the tests that never reach the check - a token
+        // the provider refuses outright - are not failed for an unused stub.
+        lenient().when(sessionStatus.isActive(SESSION_ID)).thenReturn(true);
     }
 
     @Test
     void GivenAVerifiedToken_WhenItIsAuthenticated_ThenThePrincipalIsTheAccountItNames() {
-        when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(user.getId())));
+        when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(user.getId(), SESSION_ID)));
         when(userQuery.findById(user.getId())).thenReturn(Optional.of(user));
 
         assertThat(authenticator.authenticate(TOKEN)).hasValueSatisfying(principal -> {
@@ -62,7 +70,7 @@ class BearerTokenAuthenticatorTest {
     void GivenAVerifiedToken_WhenItIsAuthenticated_ThenThePrincipalCarriesNoPasswordHash() {
         // A bearer-authenticated request never checks a password, so the hash has no reason to ride
         // along in the security context for the rest of the request.
-        when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(user.getId())));
+        when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(user.getId(), SESSION_ID)));
         when(userQuery.findById(user.getId())).thenReturn(Optional.of(user));
 
         assertThat(authenticator.authenticate(TOKEN))
@@ -73,7 +81,7 @@ class BearerTokenAuthenticatorTest {
     void GivenATokenForADeletedAccount_WhenItIsAuthenticated_ThenNobodyIsAuthenticated() {
         // NFR-5, and the reason the token carries an id rather than the account itself.
         UUID deleted = UUID.randomUUID();
-        when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(deleted)));
+        when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(deleted, SESSION_ID)));
         when(userQuery.findById(deleted)).thenReturn(Optional.empty());
 
         assertThat(authenticator.authenticate(TOKEN)).isEmpty();
@@ -86,7 +94,7 @@ class BearerTokenAuthenticatorTest {
         // between disabled meaning now and disabled meaning within the token's remaining lifetime.
         User disabled = AUser.aUser().build();
         disabled.disable();
-        when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(disabled.getId())));
+        when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(disabled.getId(), SESSION_ID)));
         when(userQuery.findById(disabled.getId())).thenReturn(Optional.of(disabled));
 
         assertThat(authenticator.authenticate(TOKEN)).isEmpty();
@@ -95,13 +103,25 @@ class BearerTokenAuthenticatorTest {
     @Test
     void GivenATokenForAnAdministrator_WhenItIsAuthenticated_ThenThePrincipalCarriesTheAdminAuthority() {
         User admin = AUser.withRole(UUID.randomUUID(), Role.ADMIN);
-        when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(admin.getId())));
+        when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(admin.getId(), SESSION_ID)));
         when(userQuery.findById(admin.getId())).thenReturn(Optional.of(admin));
 
         assertThat(authenticator.authenticate(TOKEN))
                 .hasValueSatisfying(principal -> assertThat(principal.getAuthorities())
                         .extracting(GrantedAuthority::getAuthority)
                         .containsExactly("ROLE_ADMIN"));
+    }
+
+    @Test
+    void GivenATokenForAnEndedSession_WhenItIsAuthenticated_ThenNobodyIsAuthenticated() {
+        // The token itself is perfectly valid and unexpired; its session has been signed out of.
+        // Without this check signing out would be a suggestion until the token lapsed.
+        when(tokenProvider.verify(TOKEN))
+                .thenReturn(Optional.of(new VerifiedAccessToken(user.getId(), SESSION_ID)));
+        when(sessionStatus.isActive(SESSION_ID)).thenReturn(false);
+
+        assertThat(authenticator.authenticate(TOKEN)).isEmpty();
+        verify(userQuery, never()).findById(any());
     }
 
     @Test

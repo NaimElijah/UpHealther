@@ -77,7 +77,13 @@ public class SecurityConfig {
                         // /api/auth/** also opened /api/auth/me, which then dereferenced a null
                         // @AuthenticationPrincipal and answered 500 instead of refusing the request
                         // (FR-5) - see AuthenticatedBoundaryTest.
-                        .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+                        // Refresh and logout act on the refresh cookie alone, so they must answer a
+                        // caller whose access token has already expired - which is the entire point
+                        // of refresh. They are not unprotected: the cookie is HttpOnly and
+                        // SameSite=Strict, and both endpoints additionally require an
+                        // X-Requested-With header that a cross-site form post cannot set.
+                        .requestMatchers("/api/auth/register", "/api/auth/login",
+                                "/api/auth/refresh", "/api/auth/logout").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         // The WebSocket handshake is open; the STOMP CONNECT frame is authenticated by
                         // JwtChannelInterceptor (the JWT travels in the STOMP headers, not the handshake).

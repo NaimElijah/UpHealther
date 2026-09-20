@@ -3,6 +3,7 @@ package com.healthupgrades.auth.application;
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
+import com.healthupgrades.auth.application.port.in.SessionCommand;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.common.security.JwtTokenProvider;
@@ -43,6 +44,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder; // BCrypt encoder
     private final JwtTokenProvider tokenProvider; // issues JWTs
     private final AuthenticationManager authenticationManager; // verifies credentials on login
+    private final SessionCommand sessions; // opens the server-side session a token belongs to
     private final AuditTrail auditTrail; // records who signed in, and who was turned away
 
     /**
@@ -82,7 +84,7 @@ public class AuthService {
             // Recorded after the token exists, not before. Issuing it can fail - a secret too short to
             // sign with - and recording ALLOWED first would then put one attempt in the trail twice,
             // once as allowed and once as failed, with the counter double-counting to match.
-            AuthResult result = new AuthResult(tokenProvider.issue(user.getId()).value(), user);
+            AuthResult result = startSession(user);
             auditTrail.record(AuditEvent.allowed(AuditAction.AUTH_REGISTER, user.getId(), user.getId()));
             return result;
         } catch (RuntimeException thrown) {
@@ -109,7 +111,7 @@ public class AuthService {
                     .orElseThrow(() -> new BusinessRuleException("User not found"));
             // As in register: after the token, so a signing failure cannot produce two entries for one
             // sign-in attempt.
-            AuthResult result = new AuthResult(tokenProvider.issue(user.getId()).value(), user);
+            AuthResult result = startSession(user);
             auditTrail.record(AuditEvent.allowed(AuditAction.AUTH_LOGIN, user.getId(), user.getId()));
             return result;
         } catch (BadCredentialsException | AccountStatusException refused) {
@@ -138,5 +140,34 @@ public class AuthService {
     public User getMe(UUID userId) {
         return userQuery.findById(userId)
                 .orElseThrow(() -> new BusinessRuleException("User not found"));
+    }
+
+    /**
+     * Issues a fresh access token for a session that has just rotated its credential.
+     *
+     * <p>The session was decided before this is called; all that is left is to name the account the
+     * new token is for. Token issuing stays here rather than moving to the controller, so the web
+     * adapter never touches the signing key.
+     *
+     * @param userId the account the rotated session belongs to
+     * @param grant  the session and its new credential
+     * @return the new access token, the account, and the grant to put back in the cookie
+     * @throws BusinessRuleException if the account has gone since the session was read
+     */
+    public AuthResult continueSession(UUID userId, SessionGrant grant) {
+        User user = getMe(userId);
+        return new AuthResult(tokenProvider.issue(userId, grant.sessionId()).value(), user, grant);
+    }
+
+    /**
+     * Opens a session for an account that has just proved who it is, and issues the first token in it.
+     *
+     * <p>The session has to exist before the token, because the token names it. If issuing then fails,
+     * the session is left behind on the login path, which is not transactional — harmless, because its
+     * credential was never returned to anybody, and the cleanup sweep removes it.
+     */
+    private AuthResult startSession(User user) {
+        SessionGrant grant = sessions.open(user.getId());
+        return new AuthResult(tokenProvider.issue(user.getId(), grant.sessionId()).value(), user, grant);
     }
 }

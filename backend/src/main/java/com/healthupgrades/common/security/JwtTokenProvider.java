@@ -40,6 +40,14 @@ import java.util.UUID;
 @Slf4j
 public class JwtTokenProvider {
 
+    /**
+     * The claim naming the session a token was issued within.
+     *
+     * <p>{@code sid} is the name OpenID Connect gives this claim, reused rather than invented so
+     * anybody reading a decoded token recognises it.
+     */
+    static final String SESSION_CLAIM = "sid";
+
     private final SecretKey secretKey;
     private final Duration accessTokenTtl;
     private final String issuer;
@@ -70,16 +78,18 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Issues an access token for an account.
+     * Issues an access token for an account, within a session.
      *
-     * @param userId the account the token is for
+     * @param userId    the account the token is for
+     * @param sessionId the session it belongs to, so revoking that session invalidates this token
      * @return the signed token and the instant it lapses
      */
-    public IssuedAccessToken issue(UUID userId) {
+    public IssuedAccessToken issue(UUID userId, UUID sessionId) {
         Instant now = clock.instant();
         Instant expiresAt = now.plus(accessTokenTtl);
         String token = Jwts.builder()
                 .subject(userId.toString())
+                .claim(SESSION_CLAIM, sessionId.toString())
                 .issuer(issuer)
                 .audience().add(audience).and()
                 .issuedAt(Date.from(now))
@@ -94,12 +104,21 @@ public class JwtTokenProvider {
      *
      * @param token candidate JWT, from an {@code Authorization} header or a STOMP header
      * @return the verified claims, or empty when the token is malformed, forged, expired, from another
-     *         issuer or audience, signed with another algorithm, or names something that is not an id
+     *         issuer or audience, signed with another algorithm, names no session, or names something
+     *         that is not an id
      */
     public Optional<VerifiedAccessToken> verify(String token) {
         try {
             Claims claims = parser.parseSignedClaims(token).getPayload();
-            return Optional.of(new VerifiedAccessToken(UUID.fromString(claims.getSubject())));
+            String sessionId = claims.get(SESSION_CLAIM, String.class);
+            if (sessionId == null) {
+                // A token minted before sessions existed. Refusing it is the intended outcome: it
+                // belongs to no session, so there is nothing that could ever revoke it.
+                log.debug("Rejected a token: it names no session");
+                return Optional.empty();
+            }
+            return Optional.of(new VerifiedAccessToken(
+                    UUID.fromString(claims.getSubject()), UUID.fromString(sessionId)));
         } catch (JwtException | IllegalArgumentException rejected) {
             // A rejected token is an expected outcome on a public endpoint, not a fault, and the reason is
             // withheld from the caller on purpose: telling an unauthenticated caller whether a token

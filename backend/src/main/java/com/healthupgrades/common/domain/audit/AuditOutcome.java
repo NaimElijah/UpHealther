@@ -5,6 +5,7 @@ import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.exception.DuplicateProgressException;
 import com.healthupgrades.common.domain.exception.OptimisticLockException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.common.domain.exception.RetryableConflictException;
 
 /**
  * How an audited attempt ended.
@@ -50,7 +51,8 @@ public enum AuditOutcome {
                 || thrown instanceof AuthenticationRequiredException
                 || thrown instanceof ResourceNotFoundException
                 || thrown instanceof DuplicateProgressException
-                || thrown instanceof OptimisticLockException;
+                || thrown instanceof OptimisticLockException
+                || thrown instanceof RetryableConflictException;
         return refusal ? REFUSED : FAILED;
     }
 }

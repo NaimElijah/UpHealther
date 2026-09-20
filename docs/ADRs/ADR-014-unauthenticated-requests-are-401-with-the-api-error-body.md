@@ -74,5 +74,5 @@ does for every other failure (`ErrorBodySecurityHandlers`).
 - **Write the JSON body in the entry point directly.** Rejected: a second place that builds
   `ErrorResponse` is a second place that can forget the trace id. The resolver route keeps one.
 - **Adopt `spring-boot-starter-oauth2-resource-server` for its `BearerTokenAuthenticationEntryPoint`.**
-  Rejected here as far too large a change for a status code; it is weighed on its own merits in the
-  session ADR.
+  Rejected here as far too large a change for a status code; it is weighed on its own merits in
+  [ADR-015](ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md), and rejected there too.

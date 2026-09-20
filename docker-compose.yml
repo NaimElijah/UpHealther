@@ -30,8 +30,15 @@ services:
       DB_USERNAME: ${POSTGRES_USER:-healthupgrades}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-healthupgrades}
       JWT_SECRET: ${JWT_SECRET:-change-this-secret-in-production-must-be-256-bits-long-random}
-      # Shorten it to watch a token lapse: the SPA has no refresh yet, so this is the whole session.
+      # Shorten it to watch a token lapse and be refreshed without the user noticing.
       JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-24h}
+      # How long a session survives unused, and the cap it never outlives however busy it is.
+      AUTH_SESSION_IDLE: ${AUTH_SESSION_IDLE:-7d}
+      AUTH_SESSION_ABSOLUTE: ${AUTH_SESSION_ABSOLUTE:-30d}
+      # Default false because compose serves the stack over plain HTTP on localhost, and a Secure
+      # cookie would simply never be sent back. Set it true anywhere with TLS, which is everywhere
+      # else: without it the refresh credential travels in clear text.
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
       # Selects the JSON encoder in logback-spring.xml. A container's log is read by a machine before
       # a person, and `docker logs` is the only sink here - there is no file appender and no volume.
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-json-logs}

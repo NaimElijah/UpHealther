@@ -54,7 +54,7 @@ Nine contexts, each owning its own vocabulary, plus a cross-cutting `common`.
 | `notification` | `Notification` — the inbox and the real-time push | Full, and the only context with a messaging adapter |
 | `healtharea` | `HealthArea` — the groupings upgrades are filed under | Full |
 | `user` | `User` — identity and the stored password hash; `EmailAddress`, the one rule for when two addresses are the same identity | Full |
-| `auth` | Registration, login, and issuing tokens | Two-layer: orchestrates over `user`, owns no aggregate |
+| `auth` | Registration, sign-in, sign-out, and the sessions tokens are issued within | `AuthSession` — a signed-in session, the row that makes revocation possible; orchestrates over `user` for identity |
 | `dashboard` | The composed dashboard read model | Two-layer: reads through other contexts' ports, persists nothing |
 | `common` | Cross-cutting: the `DomainEvent` marker, shared exceptions, the event-publisher port, the global exception handler, JWT security and the WebSocket configuration | Not a context; a shared kernel plus cross-cutting adapters |
 
@@ -174,6 +174,60 @@ the weekly rate, and returns a `DashboardView` of domain objects. The web mapper
 response, reusing the upgrade context's own mapper so the embedded upgrades are identical to what
 `/api/upgrades` returns, and mapping each distinct upgrade once so a single batched query resolves
 every tracking configuration rather than one per upgrade.
+
+### A session, end to end
+
+Two credentials with different lifetimes and different hiding places. The short one is in the body
+and lives in the tab's memory; the long one is in a cookie the page cannot read. The server keeps a
+row, which is what makes ending a session mean anything at all — see
+[ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as Browser
+    participant C as AuthController
+    participant S as AuthSessionService
+    participant J as JwtTokenProvider
+    participant DB as auth_sessions
+
+    Note over B,DB: Signing in
+    B->>C: POST /api/auth/login
+    C->>S: open(userId)
+    S->>DB: INSERT — only SHA-256(credential) is stored
+    S-->>C: SessionGrant
+    C->>J: issue(userId, sessionId)
+    C-->>B: 200 { token } · Set-Cookie: HttpOnly, Secure, SameSite=Strict
+
+    Note over B,DB: Renewing, once the access token lapses
+    B->>C: POST /api/auth/refresh — cookie + X-Requested-With
+    C->>S: refresh(credential)
+    S->>DB: SELECT … FOR UPDATE
+    S->>DB: UPDATE — previous := current, current := a new secret
+    S-->>C: Rotated
+    C-->>B: 200 { token } · a new Set-Cookie
+
+    Note over B,DB: The spent credential comes back
+    B->>C: POST /api/auth/refresh — the old cookie
+    C->>S: refresh(spent credential)
+    alt inside the rotation grace window
+        S-->>C: Stale — two tabs, or a retry
+        C-->>B: 409 · try again, nothing revoked
+    else after it
+        S->>DB: UPDATE revoked := true
+        S-->>C: Rejected · audited AUTH_TOKEN_REUSE
+        C-->>B: 401 · cookie cleared
+    end
+```
+
+Three things worth noticing. The row is read **`FOR UPDATE`**, so two tabs refreshing together
+serialise instead of both rotating from the same starting state. The old digest is kept, which is the
+only reason a replay is distinguishable from a guess — and a credential matching *neither* digest
+revokes nothing, because the session id travels in a token claim and is therefore not a secret.
+And the `sid` claim is checked on every authenticated request, which is what turns a revoked row
+into a refused request rather than a wait for the token to expire.
+
+---
 
 ### The record's lifetime
 
@@ -320,7 +374,7 @@ push service, no analytics, no AI service.
 | Dependency | Used for | How it is reached |
 |---|---|---|
 | **PostgreSQL 15** | All persistent state | JDBC from the backend only. Credentials from `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` |
-| **Flyway** | Schema ownership and migration on startup | Embedded in the backend; `V1`–`V8` apply in order at boot. An applied migration is never edited — Flyway checksums it, comments included — so a correction is another migration |
+| **Flyway** | Schema ownership and migration on startup | Embedded in the backend; `V1`–`V9` apply in order at boot. An applied migration is never edited — Flyway checksums it, comments included — so a correction is another migration |
 | **Browser WebSocket** | Real-time notification delivery | The `/ws` STOMP endpoint, proxied by nginx (or Vite in development) |
 | **Browser Notification API** | Desktop notifications when the tab is backgrounded | Optional, permission-gated, and skipped entirely where the API is unavailable |
 
