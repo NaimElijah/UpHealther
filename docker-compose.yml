@@ -92,6 +92,11 @@ networks:
     ipam:
       config:
         - subnet: 172.28.0.0/16
+          # Dynamic addresses come from here, leaving 172.28.0.x free for the pinned one above.
+          # Without this split, Docker hands 172.28.0.2 to whichever container is created first -
+          # postgres, since the other two wait on it - and the frontend's static request for the
+          # same address fails the stack outright with "Address already in use".
+          ip_range: 172.28.1.0/24
 
 volumes:
   postgres_data:
