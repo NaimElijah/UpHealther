@@ -53,11 +53,12 @@ public interface UserRepositoryPort {
     long count();
 
     /**
-     * Whether any account holds a given role.
+     * Whether any <em>enabled</em> account holds a given role.
      *
-     * <p>Exists for one caller — the administrator bootstrap, which must do nothing once there is an
-     * administrator. Phrased as an existence check rather than a count because that is the question,
-     * and because the alternative on offer was paging through every account until one turned up.
+     * <p>Exists for one caller — the administrator bootstrap, which must do nothing once the
+     * installation can already be administered. Enabled is part of the question, not a detail: two
+     * administrators can disable each other, and the rows then still say ADMIN while nobody can
+     * actually administer anything.
      */
-    boolean existsByRole(Role role);
+    boolean existsEnabledWithRole(Role role);
 }

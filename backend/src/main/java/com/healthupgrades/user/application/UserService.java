@@ -54,8 +54,8 @@ public class UserService implements UserQuery, UserCommand {
 
     /** {@inheritDoc} */
     @Override
-    public boolean existsByRole(Role role) {
-        return repository.existsByRole(role);
+    public boolean existsEnabledWithRole(Role role) {
+        return repository.existsEnabledWithRole(role);
     }
 
     /** {@inheritDoc} */

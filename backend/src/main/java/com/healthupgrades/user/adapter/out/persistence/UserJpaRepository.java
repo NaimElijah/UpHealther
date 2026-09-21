@@ -14,6 +14,11 @@ interface UserJpaRepository extends JpaRepository<User, UUID> {
     Optional<User> findByEmail(String email); // derived query: lookup by login email
     boolean existsByEmail(String email);
 
-    /** Whether any account holds a role — asked once at startup by the administrator bootstrap. */
-    boolean existsByRole(Role role); // derived existence check
+    /**
+     * Whether any enabled account holds a role — asked once at startup by the administrator bootstrap.
+     *
+     * <p>{@code AndEnabledTrue} is load-bearing: a disabled administrator is a row that says ADMIN and
+     * an installation nobody can administer.
+     */
+    boolean existsByRoleAndEnabledTrue(Role role); // derived existence check
 }

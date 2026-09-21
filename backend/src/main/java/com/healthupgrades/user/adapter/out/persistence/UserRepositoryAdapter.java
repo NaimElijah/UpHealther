@@ -95,7 +95,7 @@ class UserRepositoryAdapter implements UserRepositoryPort {
 
     /** {@inheritDoc} */
     @Override
-    public boolean existsByRole(Role role) {
-        return jpa.existsByRole(role);
+    public boolean existsEnabledWithRole(Role role) {
+        return jpa.existsByRoleAndEnabledTrue(role);
     }
 }

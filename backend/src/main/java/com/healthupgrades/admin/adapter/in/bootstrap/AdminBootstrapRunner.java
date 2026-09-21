@@ -70,8 +70,12 @@ public class AdminBootstrapRunner implements ApplicationRunner {
             return;
         }
 
-        if (userQuery.existsByRole(Role.ADMIN)) {
-            log.debug("An administrator already exists; the bootstrap id was ignored");
+        // Enabled administrators, not merely accounts holding the role. Two administrators can disable
+        // each other - neither is acting on their own account, so nothing refuses it - and the rows
+        // then still say ADMIN while nobody can actually administer anything. Counting the disabled
+        // ones would leave that installation recoverable only from a database console.
+        if (userQuery.existsEnabledWithRole(Role.ADMIN)) {
+            log.debug("An enabled administrator already exists; the bootstrap id was ignored");
             return;
         }
 

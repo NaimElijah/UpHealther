@@ -48,7 +48,7 @@ class AdminBootstrapRunnerTest {
     @Test
     void GivenAnInstallationWithNoAdministrator_WhenTheNamedAccountExists_ThenItIsPromoted() {
         User account = AUser.withId(BOOTSTRAP_ID);
-        when(userQuery.existsByRole(Role.ADMIN)).thenReturn(false);
+        when(userQuery.existsEnabledWithRole(Role.ADMIN)).thenReturn(false);
         when(userQuery.findById(BOOTSTRAP_ID)).thenReturn(Optional.of(account));
 
         run(BOOTSTRAP_ID.toString());
@@ -61,7 +61,7 @@ class AdminBootstrapRunnerTest {
     void GivenAnAdministratorAlreadyExists_WhenTheRunnerRuns_ThenNobodyIsPromoted() {
         // The property that makes it safe to leave the variable set: a deliberate demotion is not undone
         // by the next restart.
-        when(userQuery.existsByRole(Role.ADMIN)).thenReturn(true);
+        when(userQuery.existsEnabledWithRole(Role.ADMIN)).thenReturn(true);
 
         run(BOOTSTRAP_ID.toString());
 
@@ -69,17 +69,32 @@ class AdminBootstrapRunnerTest {
     }
 
     @Test
+    void GivenEveryAdministratorIsDisabled_WhenTheRunnerRuns_ThenItPromotesTheBootstrapAccount() {
+        // Two administrators can disable each other - neither is acting on their own account, so nothing
+        // refuses it - leaving rows that say ADMIN and an installation nobody can administer. Counting
+        // those would leave it recoverable only from a database console.
+        User account = AUser.withId(BOOTSTRAP_ID);
+        when(userQuery.existsEnabledWithRole(Role.ADMIN)).thenReturn(false);
+        when(userQuery.findById(BOOTSTRAP_ID)).thenReturn(Optional.of(account));
+
+        run(BOOTSTRAP_ID.toString());
+
+        assertThat(account.getRole()).isEqualTo(Role.ADMIN);
+        verify(userCommand).save(account);
+    }
+
+    @Test
     void GivenNoBootstrapIdIsConfigured_WhenTheRunnerRuns_ThenNothingIsReadOrWritten() {
         // The normal case, on every start of every installation that already has an administrator.
         run("");
 
-        verify(userQuery, never()).existsByRole(any());
+        verify(userQuery, never()).existsEnabledWithRole(any());
         verify(userCommand, never()).save(any());
     }
 
     @Test
     void GivenAnIdThatNamesNoAccount_WhenTheRunnerRuns_ThenItWarnsAndTheApplicationStillStarts() {
-        when(userQuery.existsByRole(Role.ADMIN)).thenReturn(false);
+        when(userQuery.existsEnabledWithRole(Role.ADMIN)).thenReturn(false);
         when(userQuery.findById(BOOTSTRAP_ID)).thenReturn(Optional.empty());
 
         assertThatCode(() -> run(BOOTSTRAP_ID.toString())).doesNotThrowAnyException();
