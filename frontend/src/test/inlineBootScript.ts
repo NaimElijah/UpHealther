@@ -34,14 +34,19 @@ export const BOOT_SCRIPT: string = (() => {
 })();
 
 /**
- * The same script with LF line endings — the bytes a browser will actually hash.
+ * Whether the script on disk uses CRLF line endings.
  *
- * A CSP hash covers the script's text exactly, so the line endings are part of it. `.gitattributes`
- * declares `* text=auto eol=lf`, so the repository and every fresh checkout — including the one the
- * Docker image is built from — hold LF. A working tree that predates that declaration can still be
- * CRLF on disk, and hashing those bytes would produce a digest that matches nothing anybody serves.
+ * A CSP hash covers the script's bytes exactly, so line endings are part of it — and the Docker image
+ * is built from the working tree, not from a fresh checkout. An earlier version of this file
+ * normalised to LF before hashing, which made the test pass against bytes nobody serves: the image
+ * was built with CRLF, the browser hashed CRLF, the digest did not match, and the boot script was
+ * silently blocked. That was caught by serving the page and hashing what came back — not here.
+ *
+ * So the hash is now taken over the bytes as they are, and this reports the mismatch as what it
+ * actually is: a file that has to be LF and is not. `.gitattributes` declares `* text=auto eol=lf`,
+ * so it only happens in a working tree that predates that, or an editor that ignores it.
  */
-export const BOOT_SCRIPT_AS_SERVED: string = BOOT_SCRIPT.replace(/\r\n/g, '\n');
+export const BOOT_SCRIPT_HAS_CRLF: boolean = BOOT_SCRIPT.includes('\r\n');
 
 /**
  * The CSP source expression for a script, as `script-src` spells it.

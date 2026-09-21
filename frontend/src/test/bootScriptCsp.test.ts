@@ -5,7 +5,7 @@
 // guarantee for an imaginary saving.
 import { describe, expect, it } from 'vitest';
 import nginxConf from '../../nginx.conf?raw';
-import { BOOT_SCRIPT_AS_SERVED, cspHashOf } from './inlineBootScript';
+import { BOOT_SCRIPT, BOOT_SCRIPT_HAS_CRLF, cspHashOf } from './inlineBootScript';
 
 /** The `add_header Content-Security-Policy "…" always;` line, with the policy captured. */
 const CSP_DIRECTIVE = /add_header\s+Content-Security-Policy\s+"([^"]*)"\s*(always)?\s*;/;
@@ -35,9 +35,17 @@ describe('the content security policy', () => {
     return { value: match[1], hasAlways: match[2] === 'always' };
   })();
 
+  it('GivenTheShippedIndexHtml_WhenItsLineEndingsAreRead_ThenTheyAreLf', () => {
+    // The image is built from the working tree, so whatever is on disk here is what a browser hashes.
+    // CRLF makes the digest below describe bytes nobody serves, and the only symptom in production is
+    // the flash of wrong theme the boot script exists to prevent.
+    expect(BOOT_SCRIPT_HAS_CRLF)
+      .toBe(false);
+  });
+
   it('GivenTheShippedBootScript_WhenItsHashIsComputed_ThenThePolicyAlreadyPermitsThatExactScript',
     async () => {
-      const expected = await cspHashOf(BOOT_SCRIPT_AS_SERVED);
+      const expected = await cspHashOf(BOOT_SCRIPT);
 
       expect(policy.value).toContain(expected);
     });
