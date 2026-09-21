@@ -67,9 +67,18 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http, ErrorBodySecurityHandlers errorBodies)
             throws Exception {
         http
-                // CSRF disabled intentionally: this is a stateless JWT REST API.
-                // CSRF attacks require browser-managed session cookies; JWT in Authorization header is not
-                // automatically sent by browsers, so CSRF protection is not applicable here.
+                // Spring's CSRF token machinery is off, which is not the same as saying CSRF does not
+                // apply. It did not, once: every endpoint authenticated from an Authorization header,
+                // which a browser never attaches by itself. That changed when sessions arrived - the
+                // refresh cookie IS sent automatically, and /api/auth/refresh and /api/auth/logout act
+                // on it alone.
+                //
+                // Those two are defended instead by the cookie being SameSite=Strict, so it is not sent
+                // cross-site at all, and by a required X-Requested-With header, which a cross-site form
+                // post cannot set and a cross-origin fetch cannot set without a preflight this server
+                // does not allow. Removing either defence re-opens CSRF on them; ADR-015 records why
+                // that pair was chosen over a double-submit token. Every other endpoint still carries a
+                // bearer token and is unaffected.
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -188,8 +197,12 @@ public class SecurityConfig {
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         // setAllowedHeaders governs the request; a response header is unreadable to cross-origin
-        // JavaScript unless it is exposed as well, which would silently defeat X-Trace-Id - and,
-        // for a 429, would leave the SPA unable to tell the user how long to wait.
+        // JavaScript unless it is exposed as well, which would silently defeat X-Trace-Id.
+        //
+        // Retry-After is exposed for any client that wants to honour it. The SPA is not currently one:
+        // it renders the 429's message and does not read the header. Exposing it anyway is right for a
+        // header the HTTP spec defines for exactly this - but nothing here shows a countdown, and a
+        // comment claiming otherwise would send the next reader looking for code that does not exist.
         config.setExposedHeaders(List.of(TraceIdResponseHeaderFilter.TRACE_ID_HEADER,
                 HttpHeaders.RETRY_AFTER));
 

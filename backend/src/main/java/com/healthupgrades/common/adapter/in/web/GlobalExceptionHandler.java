@@ -157,9 +157,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * Maps a client that has made too many attempts to 429, saying how long to wait.
      *
      * <p>{@code Retry-After} is the part that matters. A client told only "no" has nothing to do but
-     * keep asking, which is the behaviour the limit exists to stop; the SPA shows the wait, and a
-     * script that honours it stops hammering. The body says nothing about which limit was hit or how
-     * many attempts remain — an attacker tuning a script is the caller most interested in that.
+     * keep asking, which is the behaviour the limit exists to stop; a script that honours the header
+     * stops hammering. The SPA does not read it today — it renders the message below — so the header
+     * is for well-behaved clients rather than for this one. The body says nothing about which limit
+     * was hit or how many attempts remain: an attacker tuning a script is the caller most interested
+     * in that.
      */
     @ExceptionHandler(TooManyRequestsException.class)
     public ResponseEntity<ErrorResponse> handleTooManyRequests(TooManyRequestsException ex,

@@ -38,9 +38,12 @@ type PendingChange =
  * showing buttons that can only fail is a worse experience than showing none — so the row says why
  * instead. The rule is the server's; this is the explanation.
  *
- * **Every change is confirmed.** Disabling an account signs somebody out of every device they own, and
- * granting the role hands over the ability to do that to anybody. Neither belongs behind a single
- * click on a row that a mis-aimed pointer can find.
+ * **Every change that takes something away is confirmed.** Disabling an account signs somebody out of
+ * every device they own; granting the role hands over the ability to do that to anybody; revoking it
+ * takes it back. None of those belongs behind a single click on a row a mis-aimed pointer can find.
+ * Enabling is the exception, deliberately: it is the recovery action, it restores an account to
+ * exactly what it was, and a mis-click is undone by the Disable button next to it. A dialog in front
+ * of the one safe action would be noise, and noise is what teaches people to click through dialogs.
  *
  * **A failure is shown with its trace id**, through `ErrorState` and `toApiError`, rather than being
  * swallowed into a silent no-op — the change did not happen, and the person needs to know that.

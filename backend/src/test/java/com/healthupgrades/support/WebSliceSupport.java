@@ -65,14 +65,6 @@ public class WebSliceSupport {
     }
 
     /**
-     * The refresh cookie's settings, fixed here rather than bound from configuration.
-     *
-     * <p>An assertion about a cookie's attributes should be about the code that builds them, not about
-     * whatever a YAML file happened to say when the test ran. {@code secure} is true, which is the
-     * value every real deployment uses and the one worth asserting; the local override exists only
-     * because a developer on plain HTTP has no TLS for the browser to send it over.
-     */
-    /**
      * The meter registry the rate-limit interceptor counts refusals on.
      *
      * <p>A web slice pulls in {@code RateLimitConfig} — {@code @WebMvcTest} includes every
@@ -96,6 +88,14 @@ public class WebSliceSupport {
         return new FixedWindowRateLimiter(properties, Clock.systemUTC());
     }
 
+    /**
+     * The refresh cookie's settings, fixed here rather than bound from configuration.
+     *
+     * <p>An assertion about a cookie's attributes should be about the code that builds them, not about
+     * whatever a YAML file happened to say when the test ran. {@code secure} is true, which is the
+     * value every real deployment uses and the one worth asserting; the local override exists only
+     * because a developer on plain HTTP has no TLS for the browser to send it over.
+     */
     @Bean
     RefreshCookies refreshCookies() {
         return new RefreshCookies(new RefreshCookieProperties("refresh_token", "/api/auth", true),
