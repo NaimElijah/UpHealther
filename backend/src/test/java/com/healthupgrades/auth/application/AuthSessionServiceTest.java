@@ -193,6 +193,33 @@ class AuthSessionServiceTest {
     }
 
     @Test
+    void GivenACredentialRotatedOutLongAgo_WhenItIsUsedToSignOut_ThenTheSessionIsLeftAlone() {
+        // Otherwise sign-out is a way around reuse detection: the same credential presented to refresh
+        // is theft - revoked, logged, audited AUTH_TOKEN_REUSE - and presented here would have ended the
+        // victim's session as an ordinary sign-out, with the counter that should stay at zero unmoved.
+        SessionGrant opened = service.open(USER_ID);
+        service.refresh(opened.refreshToken());
+        clock.moveTo(START.plus(GRACE).plusSeconds(1));
+
+        assertThat(service.revoke(opened.refreshToken())).isFalse();
+
+        assertThat(service.isActive(opened.sessionId())).isTrue();
+        assertThat(auditTrail.recorded(AuditAction.AUTH_LOGOUT, AuditOutcome.ALLOWED)).isFalse();
+    }
+
+    @Test
+    void GivenACredentialRotatedOutMomentsAgo_WhenItIsUsedToSignOut_ThenItStillWorks() {
+        // The forgiving half: a request already in flight when another tab rotated must still sign out.
+        SessionGrant opened = service.open(USER_ID);
+        service.refresh(opened.refreshToken());
+        clock.moveTo(START.plus(GRACE));
+
+        assertThat(service.revoke(opened.refreshToken())).isTrue();
+
+        assertThat(service.isActive(opened.sessionId())).isFalse();
+    }
+
+    @Test
     void GivenTwoSessionsForOneAccount_WhenOneSignsOut_ThenTheOtherIsUntouched() {
         // Sign-out is per device. Ending every session because one browser said goodbye would be a
         // surprise on whatever phone the same account is signed in on.

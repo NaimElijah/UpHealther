@@ -140,9 +140,14 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
         byte[] presentedHash = presented.hash();
         // The credential has to match, not merely name the session. Knowing a session id is not
         // authority to end it, and the id is the half of the credential that travels in a token claim.
-        // The superseded digest counts too: signing out from a tab that has not refreshed since the
-        // other one did must still work.
-        if (!session.matchesCurrent(presentedHash) && !session.matchesPrevious(presentedHash)) {
+        //
+        // The superseded digest counts only inside the rotation grace window - the same bound refresh
+        // applies, and for the same reason. Accepting it indefinitely made this a quiet way around
+        // reuse detection: a credential rotated out an hour ago is theft when presented to /refresh
+        // (revoked, logged WARN, audited AUTH_TOKEN_REUSE) and was an ordinary sign-out when presented
+        // here, ending the victim's session while the counter that should stay at zero never moved.
+        if (!session.matchesCurrent(presentedHash)
+                && !session.matchesPreviousWithin(presentedHash, clock.instant(), properties.rotationGrace())) {
             return false;
         }
         session.revoke();
