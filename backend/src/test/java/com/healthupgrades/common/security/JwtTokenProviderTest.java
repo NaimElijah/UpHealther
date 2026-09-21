@@ -14,6 +14,7 @@ import java.util.Date;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
@@ -96,6 +97,24 @@ class JwtTokenProviderTest {
                 .compact();
 
         assertThat(providerAt(ISSUED_AT).verify(legacy)).isEmpty();
+    }
+
+    @Test
+    void GivenATokenWithNoSubjectClaim_WhenItIsVerified_ThenItIsRejectedRatherThanThrowing() {
+        // UUID.fromString(null) throws NullPointerException, which the provider's catch does not cover.
+        // Escaping verify() means escaping the filter too - which runs outside the DispatcherServlet, so
+        // GlobalExceptionHandler never sees it and a malformed token becomes a 500 rather than a 401.
+        String noSubject = Jwts.builder()
+                .claim("sid", SESSION_ID.toString())
+                .issuer(ISSUER)
+                .audience().add(AUDIENCE).and()
+                .issuedAt(Date.from(ISSUED_AT))
+                .expiration(Date.from(ISSUED_AT.plus(TTL)))
+                .signWith(Keys.hmacShaKeyFor(STRONG_SECRET.getBytes(StandardCharsets.UTF_8)), Jwts.SIG.HS256)
+                .compact();
+
+        assertThatCode(() -> assertThat(providerAt(ISSUED_AT).verify(noSubject)).isEmpty())
+                .doesNotThrowAnyException();
     }
 
     @Test

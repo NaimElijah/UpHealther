@@ -111,14 +111,20 @@ public class JwtTokenProvider {
         try {
             Claims claims = parser.parseSignedClaims(token).getPayload();
             String sessionId = claims.get(SESSION_CLAIM, String.class);
-            if (sessionId == null) {
-                // A token minted before sessions existed. Refusing it is the intended outcome: it
-                // belongs to no session, so there is nothing that could ever revoke it.
-                log.debug("Rejected a token: it names no session");
+            String subject = claims.getSubject();
+            // Both are checked for absence before parsing. UUID.fromString(null) throws a
+            // NullPointerException, which the catch below does not cover - so a signed token with no
+            // subject would escape this method entirely and surface from the filter, outside the
+            // DispatcherServlet and therefore outside GlobalExceptionHandler, as a 500 instead of the
+            // documented 401.
+            if (sessionId == null || subject == null) {
+                // A token minted before sessions existed names no session; one naming no subject is
+                // malformed. Either way there is no account to authenticate and nothing to revoke.
+                log.debug("Rejected a token: it names no session or no subject");
                 return Optional.empty();
             }
             return Optional.of(new VerifiedAccessToken(
-                    UUID.fromString(claims.getSubject()), UUID.fromString(sessionId)));
+                    UUID.fromString(subject), UUID.fromString(sessionId)));
         } catch (JwtException | IllegalArgumentException rejected) {
             // A rejected token is an expected outcome on a public endpoint, not a fault, and the reason is
             // withheld from the caller on purpose: telling an unauthenticated caller whether a token
