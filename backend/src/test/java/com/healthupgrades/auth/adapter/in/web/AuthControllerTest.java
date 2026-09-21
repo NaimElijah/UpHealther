@@ -56,7 +56,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>Runs the real security chain. {@code /register} and {@code /login} must work anonymously and
  * {@code /me} must not, which is the distinction the blanket {@code /api/auth/**} rule used to lose.
  */
-@WebMvcTest(AuthController.class)
+// The limit is raised out of the way: this class signs in and registers more than ten times, and
+// the rate limit is not what it is testing. RateLimitedSignInTest owns that.
+@WebMvcTest(value = AuthController.class, properties = "app.rate-limit.limit=1000000")
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class,
         WebSliceSupport.class})
 class AuthControllerTest {

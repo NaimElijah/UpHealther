@@ -122,6 +122,21 @@ describe('LoginPage', () => {
     expect(screen.queryByText('Invalid email or password.')).toBeNull();
   });
 
+  it('GivenTooManyAttempts_WhenTheFormIsSubmitted_ThenTheUserIsToldToWaitNotThatTheyAreWrong', async () => {
+    // The rate limit answers 429 (ADR-017). Showing "invalid email or password" here would send
+    // somebody who typed the right password off to reset it, and they would keep trying — which is
+    // the behaviour the limit exists to stop.
+    login.mockRejectedValue(apiFailure(429, {
+      message: 'Too many attempts. Please try again in a moment.',
+    }));
+    renderLogin();
+
+    await signIn();
+
+    await waitFor(() => expect(screen.getByText(/Too many attempts/)).toBeDefined());
+    expect(screen.queryByText('Invalid email or password.')).toBeNull();
+  });
+
   it('GivenAnUnknownEmailAndAWrongPassword_WhenEachIsTried_ThenTheMessageIsTheSame', async () => {
     // Two different failures, one message. A different message per case is an account-enumeration
     // oracle that costs nothing to hand out.

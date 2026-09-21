@@ -2,7 +2,7 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. Ninety-nine of the hundred and six entries below name a test — eighty-one distinct
+rather than trusted. A hundred and two of the hundred and nine entries below name a test — eighty-three distinct
 test classes and files between them. Four of the remaining seven name the command, workflow or script
 that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18). The last three — FR-39, NFR-19 and NFR-20 — are
 verified by hand and say so, because each is about a rendered width, a colour or an overflow, and jsdom
@@ -215,6 +215,9 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-39 | An expired access token is renewed and the request retried, rather than ending the session: the renewal is single-flight within a tab and across tabs, so a burst of parallel calls rotates the refresh credential once. Only a refusal from the renewal itself signs the user out | `client.test.ts`, `AuthSessionFlowIT` |
 | NFR-40 | An administrator cannot act on their own account — not disable it, not enable it, not change its role. Each would be unrecoverable from inside the application: the last administrator could lock the installation, or revoke the role nobody is left to grant | `AdminUserServiceTest`, `AdminUserControllerTest` |
 | NFR-41 | The administration context has no dependency on any context holding a user's own records, so "an administrator cannot read your health data" is a property of what the code can reach rather than a check somebody remembered to write | `HexagonalArchitectureTest` |
+| NFR-42 | Sign-in and registration are rate-limited per client address — the only two endpoints reachable without a credential. Over the limit answers 429 with `Retry-After` and never reaches the application, so a refused attempt costs no password comparison. The limit is per address and never per account, so nobody can lock another person out by failing to sign in as them | `FixedWindowRateLimiterTest`, `RateLimitedSignInTest` ([ADR-017](../ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)) |
+| NFR-43 | The address a limit counts against cannot be chosen by the caller: the proxy overwrites `X-Forwarded-For` rather than appending to it, and only the proxy's own address is trusted to set it. IPv6 is counted by its /64, so rotating addresses within one allocation buys no extra allowance | `FixedWindowRateLimiterTest`, `nginx.conf`, `server.tomcat.remoteip.internal-proxies` |
+| NFR-44 | The rate limiter's memory is bounded, so the defence cannot itself be turned into a denial of service by a caller rotating addresses | `FixedWindowRateLimiterTest` |
 
 ---
 

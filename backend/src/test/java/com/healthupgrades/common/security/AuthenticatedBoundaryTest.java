@@ -47,7 +47,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * that keeps the table below honest: a new endpoint that nobody adds a row for fails this class rather
  * than quietly shipping unasserted.
  */
-@WebMvcTest
+// Raised for the same reason as AuthControllerTest: this class walks the whole API surface and
+// hits the two limited paths on the way past.
+@WebMvcTest(properties = "app.rate-limit.limit=1000000")
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, WebSliceSupport.class,
         com.healthupgrades.upgrade.adapter.in.web.UpgradeWebMapper.class,
         com.healthupgrades.dashboard.adapter.in.web.DashboardWebMapper.class,

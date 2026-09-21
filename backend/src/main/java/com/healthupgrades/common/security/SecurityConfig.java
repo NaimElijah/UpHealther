@@ -15,6 +15,7 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -187,8 +188,10 @@ public class SecurityConfig {
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         // setAllowedHeaders governs the request; a response header is unreadable to cross-origin
-        // JavaScript unless it is exposed as well, which would silently defeat X-Trace-Id.
-        config.setExposedHeaders(List.of(TraceIdResponseHeaderFilter.TRACE_ID_HEADER));
+        // JavaScript unless it is exposed as well, which would silently defeat X-Trace-Id - and,
+        // for a 429, would leave the SPA unable to tell the user how long to wait.
+        config.setExposedHeaders(List.of(TraceIdResponseHeaderFilter.TRACE_ID_HEADER,
+                HttpHeaders.RETRY_AFTER));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);

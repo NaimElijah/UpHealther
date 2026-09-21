@@ -176,6 +176,8 @@ a published value and gives no security.
 | `JWT_ACCESS_TOKEN_TTL` | How long an issued access token is accepted, as an ISO-8601 or Spring duration. The SPA renews it from the refresh cookie, so this is not the length of a session | `15m` | No |
 | `AUTH_COOKIE_SECURE` | Whether the refresh cookie is TLS-only. False locally only, because localhost has no TLS for the browser to send it over | `false` | In a deployment |
 | `ADMIN_BOOTSTRAP_USER_ID` | An existing account id to promote to `ADMIN` at startup, while no administrator exists. An id, not an email — registration is open | empty | For the first admin |
+| `AUTH_RATE_LIMIT` | Sign-in and registration attempts allowed per client address per window | `10` | No |
+| `TRUSTED_PROXIES` | Java regex for the proxy addresses allowed to set `X-Forwarded-For`. Widening it lets a caller choose the address the rate limit counts | nginx on the compose network | Behind another proxy |
 | `DB_URL` | JDBC URL the backend connects to | `jdbc:postgresql://localhost:5432/healthupgrades` | Outside compose |
 | `DB_USERNAME` | Database user the backend connects as | `healthupgrades` | Outside compose |
 | `DB_PASSWORD` | Password for that user | `healthupgrades` | Outside compose |

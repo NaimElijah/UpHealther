@@ -1,5 +1,16 @@
 server:
   port: 8080
+  # Let Tomcat read X-Forwarded-* so getRemoteAddr() is the client's address rather than the
+  # proxy's. Without this every request behind nginx shares one address and the rate limit below
+  # counts the whole internet as a single client.
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      # Which hops may be believed. Boot's default trusts all of 10/8, 172.16/12 and 192.168/16 -
+      # and 172.16/12 contains the default Docker bridge gateway, so with the default any caller
+      # reaching the published :8080 directly could set X-Forwarded-For and be counted as whatever
+      # address it liked. Narrowed to nginx's own address on the compose network.
+      internal-proxies: ${TRUSTED_PROXIES:172\.28\.0\.2}
 
 spring:
   # Names the service in OpenTelemetry (service.name) and prefixes every log line. Without it a trace
@@ -63,6 +74,15 @@ app:
       # Sweep that deletes sessions nothing can use again. Correctness does not depend on it -
       # an expired session is refused by its own timestamps - so it runs when nothing else does.
       session-cleanup: ${AUTH_SESSION_CLEANUP_CRON:0 30 3 * * *}
+  rate-limit:
+    # Attempts per client address per window on sign-in and registration. Ten a minute is far more
+    # than a person mistyping a password ever needs, and far less than a credential-stuffing run
+    # finds worth attempting from one address.
+    limit: ${AUTH_RATE_LIMIT:10}
+    window: ${AUTH_RATE_LIMIT_WINDOW:1m}
+    # The map is keyed by the caller's address, so it is capped: without one, addresses seen once
+    # accumulate until the heap runs out, turning a defence into a different denial of service.
+    max-tracked-clients: ${AUTH_RATE_LIMIT_MAX_CLIENTS:10000}
   admin:
     # The account promoted to ADMIN at startup, so a fresh installation has a way in. An account id,
     # never an email: registration is open, so naming an address would hand the installation to

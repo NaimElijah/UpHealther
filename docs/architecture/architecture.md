@@ -79,6 +79,12 @@ Nine contexts, each owning its own vocabulary, plus a cross-cutting `common`.
 
 Five distinct mechanisms, each used for one thing:
 
+The two endpoints reachable without a credential — sign-in and registration — are rate-limited per
+client address by a handler interceptor, which runs before any controller so a refused attempt costs
+no password comparison. The address it counts is the one nginx reported, and only nginx's own address
+is trusted to report one
+([ADR-017](../ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)).
+
 **1. HTTP, browser to API.** Every read and write. JSON in and out, JWT bearer token in the
 `Authorization` header. The token names its account by id in `sub` and carries nothing else that
 identifies it, and it is accepted only under this application's issuer, audience and signing

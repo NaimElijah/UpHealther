@@ -3,7 +3,11 @@ package com.healthupgrades.support;
 import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.auth.adapter.in.web.RefreshCookieProperties;
 import com.healthupgrades.auth.adapter.in.web.RefreshCookies;
+import com.healthupgrades.common.ratelimit.FixedWindowRateLimiter;
+import com.healthupgrades.common.ratelimit.RateLimitProperties;
 import com.healthupgrades.common.security.SecurityUser;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import com.healthupgrades.user.domain.model.Role;
 
 import java.time.Clock;
@@ -68,6 +72,30 @@ public class WebSliceSupport {
      * value every real deployment uses and the one worth asserting; the local override exists only
      * because a developer on plain HTTP has no TLS for the browser to send it over.
      */
+    /**
+     * The meter registry the rate-limit interceptor counts refusals on.
+     *
+     * <p>A web slice pulls in {@code RateLimitConfig} — {@code @WebMvcTest} includes every
+     * {@code WebMvcConfigurer} — but not the {@code @Component}s it depends on, so without these two
+     * beans every slice in the codebase fails to start.
+     */
+    @Bean
+    MeterRegistry meterRegistry() {
+        return new SimpleMeterRegistry();
+    }
+
+    /**
+     * The limiter, built from whatever limits the slice's properties say.
+     *
+     * <p>Deliberately fed from the bound properties rather than hard-wired permissive: a slice that
+     * wants to <em>meet</em> the limit sets {@code app.rate-limit.limit} and gets a real limiter,
+     * and one that does not care raises it and never notices.
+     */
+    @Bean
+    FixedWindowRateLimiter rateLimiter(RateLimitProperties properties) {
+        return new FixedWindowRateLimiter(properties, Clock.systemUTC());
+    }
+
     @Bean
     RefreshCookies refreshCookies() {
         return new RefreshCookies(new RefreshCookieProperties("refresh_token", "/api/auth", true),

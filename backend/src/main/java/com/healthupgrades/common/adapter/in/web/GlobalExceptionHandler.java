@@ -154,6 +154,23 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
+     * Maps a client that has made too many attempts to 429, saying how long to wait.
+     *
+     * <p>{@code Retry-After} is the part that matters. A client told only "no" has nothing to do but
+     * keep asking, which is the behaviour the limit exists to stop; the SPA shows the wait, and a
+     * script that honours it stops hammering. The body says nothing about which limit was hit or how
+     * many attempts remain — an attacker tuning a script is the caller most interested in that.
+     */
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ResponseEntity<ErrorResponse> handleTooManyRequests(TooManyRequestsException ex,
+                                                               HttpServletRequest req) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.retryAfterSeconds()))
+                .body(body(HttpStatus.TOO_MANY_REQUESTS.value(),
+                        "Too many attempts. Please try again in a moment.", req.getRequestURI()));
+    }
+
+    /**
      * Maps a rejected credential to 401.
      *
      * <p>Reached only from the login endpoint, which authenticates inside a handler method rather than
