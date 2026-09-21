@@ -183,6 +183,28 @@ class HexagonalArchitectureTest {
                     .as("controllers must live in the web adapter");
 
     /**
+     * The administration context may not reach a user's own records.
+     *
+     * <p>Everything else in this class is about layering. This one is about a promise to users, and
+     * it is enforced here because there is nowhere else it could be: the guarantee is that an
+     * administrator gains <em>paths</em> and not <em>rows</em>, and what makes that true is that
+     * {@code admin} has no way to reach a health context at all. A reviewer cannot see the absence of
+     * an import; this rule can (ADR-016).
+     */
+    @ArchTest
+    static final ArchRule admin_cannot_reach_a_users_own_records =
+            noClasses().that().resideInAPackage("com.healthupgrades.admin..")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "com.healthupgrades.upgrade..",
+                            "com.healthupgrades.tracking..",
+                            "com.healthupgrades.healtharea..",
+                            "com.healthupgrades.reflection..",
+                            "com.healthupgrades.reminder..",
+                            "com.healthupgrades.notification..",
+                            "com.healthupgrades.dashboard..")
+                    .as("the admin context must not depend on any context holding a user's own records");
+
+    /**
      * Spring Data repositories stay package-private, so reaching past a port into another context's
      * persistence is impossible by compilation rather than by discipline.
      */

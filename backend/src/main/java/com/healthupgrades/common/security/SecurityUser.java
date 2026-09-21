@@ -1,7 +1,10 @@
 package com.healthupgrades.common.security;
 
+import com.healthupgrades.user.domain.model.Role;
+import com.healthupgrades.user.domain.model.User;
 import org.springframework.security.core.CredentialsContainer;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
@@ -19,15 +22,34 @@ import java.util.UUID;
  */
 public class SecurityUser implements UserDetails, CredentialsContainer {
 
+    /** The prefix Spring Security's hasRole() expects on an authority it matches by role name. */
+    private static final String ROLE_PREFIX = "ROLE_";
+
     private final UUID id; // the user's identifier, used for ownership scoping
     private final String email; // the username in Spring Security terms
     private String passwordHash; // encoded password; non-final so it can be erased after authentication
+    private final Role role; // read from the row on every request, never carried in the token
+    private final boolean enabled; // false once an administrator has switched the account off
 
-    /** Creates a principal from the identity fields of a user. */
-    public SecurityUser(UUID id, String email, String passwordHash) {
+    /** Creates a principal from the identity and authorisation fields of a user. */
+    public SecurityUser(UUID id, String email, String passwordHash, Role role, boolean enabled) {
         this.id = id;
         this.email = email;
         this.passwordHash = passwordHash;
+        this.role = role;
+        this.enabled = enabled;
+    }
+
+    /**
+     * Wraps a domain user. The one way principals are built, so a field added to the principal is filled
+     * in everywhere at once.
+     *
+     * @param user the account to authenticate as
+     * @return a principal carrying the account's id, email and password hash
+     */
+    public static SecurityUser from(User user) {
+        return new SecurityUser(user.getId(), user.getEmail(), user.getPasswordHash(),
+                user.getRole(), user.isEnabled());
     }
 
     /** The authenticated user's id — controllers thread this through as the owner id. */
@@ -35,10 +57,21 @@ public class SecurityUser implements UserDetails, CredentialsContainer {
         return id;
     }
 
-    /** {@inheritDoc} No roles are modelled, so authorities are always empty. */
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Exactly one authority: the account's role under Spring Security's {@code ROLE_} prefix. The
+     * role came from the row this principal was built from, and a principal is built on every
+     * request, so a revoked ADMIN stops being one on the next call rather than when its token lapses.
+     */
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of();
+        return List.of(new SimpleGrantedAuthority(ROLE_PREFIX + role.name()));
+    }
+
+    /** The account's role, for a caller that wants the domain value rather than the authority. */
+    public Role getRole() {
+        return role;
     }
 
     /** {@inheritDoc} The encoded password used for credential matching (null once erased). */
@@ -47,7 +80,7 @@ public class SecurityUser implements UserDetails, CredentialsContainer {
         return passwordHash;
     }
 
-    /** {@inheritDoc} The username is the user's email (also the JWT subject). */
+    /** {@inheritDoc} The username is the user's email, the login identity; tokens name the id instead. */
     @Override
     public String getUsername() {
         return email;
@@ -71,10 +104,10 @@ public class SecurityUser implements UserDetails, CredentialsContainer {
         return true;
     }
 
-    /** {@inheritDoc} Accounts are always enabled. */
+    /** {@inheritDoc} False once an administrator has disabled the account. */
     @Override
     public boolean isEnabled() {
-        return true;
+        return enabled;
     }
 
     /** {@inheritDoc} Clears the stored password hash once Spring Security no longer needs it. */

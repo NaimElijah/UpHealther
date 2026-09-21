@@ -30,8 +30,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>Every audited use case is an {@code @Transactional} service method, and the recording happens
  * inside the method body — so it runs while the transaction is still open, and the commit happens
- * afterwards in the proxy. No repository adapter flushes, so a {@code @Version} clash or a unique
- * constraint losing a race is decided <em>at commit</em>, after the body has returned. Writing the
+ * afterwards in the proxy. Only registration's save flushes, so everywhere else a {@code @Version}
+ * clash or a unique constraint losing a race is decided <em>at commit</em>, after the body has returned. Writing the
  * entry there would have the trail and the {@code audit.events} counter both report an edit that was
  * then rolled back and answered to the caller as a 409.
  *

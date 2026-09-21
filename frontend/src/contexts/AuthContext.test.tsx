@@ -2,24 +2,48 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import { AuthProvider } from './AuthContext';
 import { useAuth } from '../hooks/useAuth';
+import { getAccessToken, clearAccessToken } from '../api/tokenStore';
 import type { User } from '../types';
 
 const getMe = vi.fn();
 const loginApi = vi.fn();
 const registerApi = vi.fn();
+const logoutApi = vi.fn();
+const renewSession = vi.fn();
 
 vi.mock('../api/auth', () => ({
   getMe: (...args: unknown[]) => getMe(...args),
   loginApi: (...args: unknown[]) => loginApi(...args),
   registerApi: (...args: unknown[]) => registerApi(...args),
+  logoutApi: (...args: unknown[]) => logoutApi(...args),
 }));
+
+vi.mock('../api/client', async () => {
+  const tokenStore = await import('./../api/tokenStore');
+  return {
+    default: {},
+    REQUESTED_WITH: 'X-Requested-With',
+    // Stands in for the real one, which would reach the network. Setting the token on success is the
+    // part the provider depends on: it does not set the token itself any more.
+    renewSession: (...args: unknown[]) => {
+      const result = renewSession(...args);
+      return Promise.resolve(result).then((renewed) => {
+        if (renewed) tokenStore.setAccessToken('renewed.jwt.token', '2099-01-01T00:00:00Z');
+        return renewed;
+      });
+    },
+  };
+});
 
 const USER: User = {
   id: 'user-1',
   name: 'Someone',
   email: 'someone@example.com',
+  role: 'USER',
   createdAt: '2026-03-15T09:00:00',
 };
+
+const SESSION = { accessToken: 'issued.jwt.token', expiresAt: '2099-01-01T00:00:00Z', user: USER };
 
 /** Renders the provider's state as text, so a test asserts through what a consumer would actually see. */
 function Probe() {
@@ -31,7 +55,8 @@ function Probe() {
       <span data-testid="user">{user?.email ?? 'none'}</span>
       {/* Swallowed the way LoginPage does: it catches the rejection to show an error in the form. */}
       <button onClick={() => void login('someone@example.com', 's3cret!').catch(() => {})}>sign in</button>
-      <button onClick={logout}>sign out</button>
+      {/* Swallowed the way Navbar does: it catches the rejection to tell the user it did not work. */}
+      <button onClick={() => void logout().catch(() => {})}>sign out</button>
     </div>
   );
 }
@@ -44,15 +69,19 @@ const renderProvider = () =>
   );
 
 /**
- * FR-3 — a stored token restores a session — and the session actions around it.
+ * FR-3 — a session survives a reload — and the actions around it.
  *
- * The restore path is the one worth testing, and the only one impossible to check by clicking: the
- * cached user is shown immediately so the page has something to render, and is *simultaneously*
- * revalidated against `/api/auth/me`. That makes the cache a convenience rather than proof, and the
- * difference only shows when the server disagrees — a token the backend has stopped accepting has to
- * end the session rather than leave a stale name in the corner of the screen.
+ * The restore path is the one worth testing and the only one impossible to check by clicking, and it
+ * changed shape entirely: there is no stored token to read any more. The access token lives in memory
+ * and dies with the tab, so a page load starts signed out and asks the server, whose answer rests on
+ * an `HttpOnly` cookie this code cannot see. That makes the assertions here about a round trip rather
+ * than about `localStorage`, and it is why the "cached user shown before the server answered" case is
+ * gone: there is no cache to show.
  *
- * `window.location` is redefined because logout performs a full document navigation, which jsdom
+ * What is emphatically still worth asserting is that nothing writes a credential to web storage, and
+ * that a sign-out which failed says so rather than pretending.
+ *
+ * `window.location` is redefined because sign-out performs a full document navigation, which jsdom
  * refuses to do.
  */
 describe('AuthProvider', () => {
@@ -62,6 +91,11 @@ describe('AuthProvider', () => {
     getMe.mockReset();
     loginApi.mockReset();
     registerApi.mockReset();
+    logoutApi.mockReset();
+    renewSession.mockReset();
+    renewSession.mockResolvedValue(false);
+    clearAccessToken();
+    localStorage.clear();
     Object.defineProperty(window, 'location', {
       configurable: true,
       writable: true,
@@ -74,7 +108,10 @@ describe('AuthProvider', () => {
   });
 
   describe('restoring a session on load', () => {
-    it('GivenNoStoredToken_WhenTheProviderMounts_ThenItSettlesAnonymousWithoutCallingTheApi', async () => {
+    it('GivenNoRefreshCookie_WhenTheProviderMounts_ThenItSettlesAnonymousWithoutFetchingAProfile', async () => {
+      // The ordinary visitor. The refresh is refused, which is an answer and not an error.
+      renewSession.mockResolvedValue(false);
+
       renderProvider();
 
       await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
@@ -82,76 +119,46 @@ describe('AuthProvider', () => {
       expect(getMe).not.toHaveBeenCalled();
     });
 
-    it('GivenAStoredTokenTheServerAccepts_WhenTheProviderMounts_ThenTheSessionIsRestored', async () => {
-      localStorage.setItem('jwt_token', 'stored.token');
+    it('GivenALiveRefreshCookie_WhenTheProviderMounts_ThenTheSessionIsRestored', async () => {
+      renewSession.mockResolvedValue(true);
       getMe.mockResolvedValue(USER);
 
       renderProvider();
 
-      await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
-      expect(screen.getByTestId('authenticated').textContent).toBe('true');
+      await waitFor(() => expect(screen.getByTestId('authenticated').textContent).toBe('true'));
       expect(screen.getByTestId('user').textContent).toBe(USER.email);
+      expect(screen.getByTestId('loading').textContent).toBe('false');
     });
 
-    it('GivenACachedUser_WhenTheProviderMounts_ThenItIsShownBeforeTheServerHasAnswered', async () => {
-      // The reason the cache exists: without it the page renders signed-out for one round trip and the
-      // whole shell flashes.
-      localStorage.setItem('jwt_token', 'stored.token');
-      localStorage.setItem('user', JSON.stringify(USER));
-      getMe.mockReturnValue(new Promise(() => {})); // never settles
-
-      renderProvider();
-
-      expect(screen.getByTestId('user').textContent).toBe(USER.email);
-      expect(screen.getByTestId('loading').textContent).toBe('true');
-    });
-
-    it('GivenAStoredTokenTheServerRejects_WhenTheProviderMounts_ThenTheSessionIsCleared', async () => {
-      // The cached user must not outlive the token it was cached with, or a signed-out user keeps
-      // seeing their name and a shell they cannot use.
-      localStorage.setItem('jwt_token', 'expired.token');
-      localStorage.setItem('user', JSON.stringify(USER));
-      getMe.mockRejectedValue(new Error('401'));
+    it('GivenARenewedSessionWhoseProfileFails_WhenTheProviderMounts_ThenItSettlesAnonymous', async () => {
+      // The account went away between the refresh and the profile read. Showing a signed-in shell with
+      // no user behind it would be worse than showing the sign-in page.
+      renewSession.mockResolvedValue(true);
+      getMe.mockRejectedValue(new Error('gone'));
 
       renderProvider();
 
       await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
       expect(screen.getByTestId('authenticated').textContent).toBe('false');
-      expect(screen.getByTestId('user').textContent).toBe('none');
-      expect(localStorage.getItem('jwt_token')).toBeNull();
-      expect(localStorage.getItem('user')).toBeNull();
     });
 
-    it('GivenACachedUserThatWillNotParse_WhenTheProviderMounts_ThenItIsDiscardedRatherThanCrashing', async () => {
-      // Storage is writable by anything on the origin and survives a deploy that changed the shape.
-      // An unguarded JSON.parse here blanks the entire application, since nothing sits above it.
-      localStorage.setItem('jwt_token', 'stored.token');
-      localStorage.setItem('user', '{not json');
-      getMe.mockResolvedValue(USER);
+    it('GivenLegacyCredentialsInStorage_WhenTheProviderMounts_ThenTheyAreRemoved', async () => {
+      // Left over from when the token lived in localStorage. A credential nobody reads is still a
+      // credential sitting where injected script can find it, and it would sit there for years.
+      localStorage.setItem('jwt_token', 'an.old.token');
+      localStorage.setItem('user', JSON.stringify(USER));
 
       renderProvider();
 
       await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
-      expect(screen.getByTestId('user').textContent).toBe(USER.email);
-    });
-
-    it('GivenAStoredTokenTheServerAccepts_WhenTheProviderMounts_ThenTheCachedUserIsRefreshed', async () => {
-      // A name changed on another device has to win over the copy in storage.
-      localStorage.setItem('jwt_token', 'stored.token');
-      localStorage.setItem('user', JSON.stringify({ ...USER, name: 'Stale Name' }));
-      getMe.mockResolvedValue(USER);
-
-      renderProvider();
-
-      await waitFor(() =>
-        expect(JSON.parse(localStorage.getItem('user') ?? '{}').name).toBe(USER.name),
-      );
+      expect(localStorage.getItem('jwt_token')).toBeNull();
+      expect(localStorage.getItem('user')).toBeNull();
     });
   });
 
   describe('signing in and out', () => {
-    it('GivenValidCredentials_WhenTheUserSignsIn_ThenTheTokenAndProfileArePersisted', async () => {
-      loginApi.mockResolvedValue({ token: 'issued.token', user: USER });
+    it('GivenValidCredentials_WhenTheUserSignsIn_ThenTheSessionStartsAndNothingReachesWebStorage', async () => {
+      loginApi.mockResolvedValue(SESSION);
       renderProvider();
       await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
 
@@ -159,14 +166,14 @@ describe('AuthProvider', () => {
         screen.getByText('sign in').click();
       });
 
-      expect(localStorage.getItem('jwt_token')).toBe('issued.token');
       expect(screen.getByTestId('authenticated').textContent).toBe('true');
+      expect(screen.getByTestId('user').textContent).toBe(USER.email);
+      expect(getAccessToken()).toBe('issued.jwt.token');
+      expect(localStorage.length).toBe(0);
     });
 
-    it('GivenCredentialsTheServerRejects_WhenTheUserSignsIn_ThenNothingIsPersisted', async () => {
-      // A failed sign-in must leave no half-session behind — a token written before the response would
-      // authenticate later requests as nobody.
-      loginApi.mockRejectedValue(new Error('401'));
+    it('GivenCredentialsTheServerRejects_WhenTheUserSignsIn_ThenNothingIsStarted', async () => {
+      loginApi.mockRejectedValue(new Error('bad credentials'));
       renderProvider();
       await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
 
@@ -174,31 +181,46 @@ describe('AuthProvider', () => {
         screen.getByText('sign in').click();
       });
 
-      expect(localStorage.getItem('jwt_token')).toBeNull();
       expect(screen.getByTestId('authenticated').textContent).toBe('false');
+      expect(getAccessToken()).toBeNull();
     });
 
-    it('GivenASignedInUser_WhenTheySignOut_ThenStorageIsClearedAndThePageNavigatesToLogin', async () => {
-      // A full navigation rather than a router push, so the query cache goes with it and nothing
-      // belonging to the previous user can be read by the next one.
-      localStorage.setItem('jwt_token', 'stored.token');
-      getMe.mockResolvedValue(USER);
+    it('GivenASignedInUser_WhenTheySignOut_ThenTheServerIsToldAndThePageNavigatesToLogin', async () => {
+      loginApi.mockResolvedValue(SESSION);
+      logoutApi.mockResolvedValue(undefined);
       renderProvider();
-      await waitFor(() => expect(screen.getByTestId('authenticated').textContent).toBe('true'));
+      await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
+      await act(async () => {
+        screen.getByText('sign in').click();
+      });
 
       await act(async () => {
         screen.getByText('sign out').click();
       });
 
-      expect(localStorage.getItem('jwt_token')).toBeNull();
-      expect(localStorage.getItem('user')).toBeNull();
+      expect(logoutApi).toHaveBeenCalled();
+      expect(getAccessToken()).toBeNull();
       expect(window.location.href).toBe('/login');
     });
-  });
 
-  it('GivenNoProviderAbove_WhenTheAuthHookIsCalled_ThenItFailsLoudlyRatherThanReturningNull', () => {
-    // The alternative is a null context surfacing much later as an unexplained property access deep
-    // inside some component.
-    expect(() => render(<Probe />)).toThrow(/AuthProvider/);
+    it('GivenTheServerCannotBeReached_WhenTheUserSignsOut_ThenTheyStaySignedInRatherThanBeingToldOtherwise', async () => {
+      // The honest state. The refresh cookie is still in the browser, so the session is still live —
+      // clearing the UI would tell somebody on a shared machine they had signed out when they had not.
+      loginApi.mockResolvedValue(SESSION);
+      logoutApi.mockRejectedValue(new Error('network'));
+      renderProvider();
+      await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
+      await act(async () => {
+        screen.getByText('sign in').click();
+      });
+
+      await act(async () => {
+        screen.getByText('sign out').click();
+      });
+
+      expect(screen.getByTestId('authenticated').textContent).toBe('true');
+      expect(getAccessToken()).toBe('issued.jwt.token');
+      expect(window.location.href).toBe('');
+    });
   });
 });

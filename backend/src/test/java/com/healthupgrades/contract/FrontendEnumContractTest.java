@@ -7,6 +7,7 @@ import com.healthupgrades.tracking.domain.model.TrackingType;
 import com.healthupgrades.upgrade.domain.model.Difficulty;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.model.UpgradeType;
+import com.healthupgrades.user.domain.model.Role;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -71,7 +72,10 @@ class FrontendEnumContractTest {
                 Arguments.of("TrackingType", names(TrackingType.values())),
                 Arguments.of("Frequency", names(Frequency.values())),
                 Arguments.of("NotificationType", names(NotificationType.values())),
-                Arguments.of("NotificationCategory", names(NotificationCategory.values())));
+                Arguments.of("NotificationCategory", names(NotificationCategory.values())),
+                // The union is named UserRole rather than Role: the frontend has no package to
+                // disambiguate with, and Role alone reads as something the domain owns.
+                Arguments.of("UserRole", names(Role.values())));
     }
 
     @ParameterizedTest(name = "{0}")

@@ -3,7 +3,7 @@ package com.healthupgrades.reminder.adapter.in.web;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.security.JwtAuthenticationFilter;
-import com.healthupgrades.common.security.JwtTokenProvider;
+import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.common.security.SecurityConfig;
 import com.healthupgrades.common.security.UserDetailsServiceImpl;
 import com.healthupgrades.reminder.application.ReminderService;
@@ -54,7 +54,7 @@ class ReminderControllerTest {
     @Autowired MockMvc mockMvc;
 
     @MockBean ReminderService service;
-    @MockBean JwtTokenProvider tokenProvider;
+    @MockBean BearerTokenAuthenticator authenticator;
     @MockBean UserDetailsServiceImpl userDetailsService;
 
     private UUID userId;
@@ -68,7 +68,7 @@ class ReminderControllerTest {
         userId = UUID.randomUUID();
         upgradeScoped = "/api/upgrades/" + upgradeId + "/reminders";
         reminderScoped = "/api/reminders/" + reminderId;
-        WebSliceSupport.authenticateAs(tokenProvider, userDetailsService, userId);
+        WebSliceSupport.authenticateAs(authenticator, userId);
     }
 
     @Test

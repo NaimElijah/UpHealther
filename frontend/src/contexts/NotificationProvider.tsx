@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Client } from '@stomp/stompjs';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
+import { getAccessToken, hasUsableAccessToken } from '../api/tokenStore';
+import { renewSession } from '../api/client';
 import { getNotifications, markNotificationRead, markAllNotificationsRead } from '../api/notifications';
 import { NotificationContext } from './notificationContextValue';
 import ToastContainer, { type ToastData } from '../components/notifications/ToastContainer';
@@ -34,11 +36,11 @@ function buildWsUrl(): string {
  * by id, so a notification that comes in both ways is shown once.
  *
  * Mounted inside the router because a toast can navigate, and inside the auth provider because the
- * socket authenticates with the token. The connection follows the session: it opens when signed in and
- * closes on logout or unmount.
+ * socket authenticates with an access token. The connection follows the session: it opens when signed
+ * in and closes on logout or unmount.
  */
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { token, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   const [connected, setConnected] = useState(false);
   const [toasts, setToasts] = useState<ToastData[]>([]);
@@ -99,11 +101,33 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // handleIncoming is a dependency, so it is memoised: a new identity each render would tear the
   // socket down and rebuild it on every render.
   useEffect(() => {
-    if (!isAuthenticated || !token) return;
+    if (!isAuthenticated) return;
 
     const client = new Client({
       brokerURL: buildWsUrl(),
-      connectHeaders: { Authorization: `Bearer ${token}` },
+      // Read at connect time rather than captured when the effect ran. The access token is short
+      // lived and renewed underneath us, so a captured one would be stale by the first reconnect -
+      // and putting it in the dependency list instead would tear the socket down and rebuild it
+      // every fifteen minutes, losing the subscription each time for no reason.
+      //
+      // It is also renewed here when it has lapsed. Reading it without checking was an infinite
+      // loop waiting to happen: a tab left idle past the token's fifteen minutes with no HTTP
+      // traffic to renew it would reconnect with a dead token, be refused, and retry the same dead
+      // token every five seconds - live notifications silently gone, and a refused CONNECT in the
+      // server log every five seconds forever.
+      beforeConnect: async () => {
+        try {
+          if (!hasUsableAccessToken()) {
+            await renewSession();
+          }
+          const current = getAccessToken();
+          client.connectHeaders = current ? { Authorization: `Bearer ${current}` } : {};
+        } catch {
+          // stompjs 7 awaits this hook and schedules no reconnect if it throws, so a failure here
+          // would end the socket permanently rather than for one attempt. A connect with no header
+          // is refused by the server, which is a reconnect rather than a dead client.
+        }
+      },
       reconnectDelay: 5000,
       onConnect: () => {
         setConnected(true);
@@ -128,7 +152,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       clientRef.current = null;
       setConnected(false);
     };
-  }, [isAuthenticated, token, handleIncoming]);
+  }, [isAuthenticated, handleIncoming]);
 
   /**
    * Marks one notification read, updating the cache first and calling the API after.

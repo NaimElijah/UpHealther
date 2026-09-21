@@ -1,6 +1,7 @@
 package com.healthupgrades.support;
 
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -25,7 +26,15 @@ import org.testcontainers.utility.DockerImageName;
  *
  * <p>{@code @ServiceConnection} is what points Spring's {@code DataSource} at it; no test needs to read
  * a URL, and {@code application.yml}'s {@code DB_*} defaults are never consulted during {@code verify}.
+ *
+ * <p><strong>The sign-in rate limit is raised here for every integration test.</strong> The real limit
+ * is ten attempts a minute per address, and an IT suite registers and signs in far more often than
+ * that from one address — the loopback — so the limit would start refusing tests partway through a
+ * run, in an order that depends on how fast the machine is. Raised on this base class rather than on
+ * each subclass so every {@code *IT} keeps the same context cache key and the suite still starts one
+ * application. {@code RateLimitedSignInTest} is where the limit itself is asserted.
  */
+@TestPropertySource(properties = "app.rate-limit.limit=1000000")
 public abstract class PostgresIT {
 
     /** Matches the image {@code docker-compose.yml} runs, so tests and production share a dialect. */

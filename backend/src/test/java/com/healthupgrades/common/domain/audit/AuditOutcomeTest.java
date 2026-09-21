@@ -1,5 +1,6 @@
 package com.healthupgrades.common.domain.audit;
 
+import com.healthupgrades.common.domain.exception.AuthenticationRequiredException;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.exception.DuplicateProgressException;
 import com.healthupgrades.common.domain.exception.OptimisticLockException;
@@ -45,6 +46,12 @@ class AuditOutcomeTest {
     @Test
     void GivenTheDomainsOptimisticLockException_WhenItIsClassified_ThenItCountsAsARefusal() {
         assertThat(AuditOutcome.of(new OptimisticLockException("version clash")))
+                .isEqualTo(AuditOutcome.REFUSED);
+    }
+
+    @Test
+    void GivenARequestWithNoUsableCredential_WhenTheOutcomeIsClassified_ThenItIsARefusal() {
+        assertThat(AuditOutcome.of(AuthenticationRequiredException.rejectedToken()))
                 .isEqualTo(AuditOutcome.REFUSED);
     }
 

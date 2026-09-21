@@ -1,5 +1,16 @@
 server:
   port: 8080
+  # Let Tomcat read X-Forwarded-* so getRemoteAddr() is the client's address rather than the
+  # proxy's. Without this every request behind nginx shares one address and the rate limit below
+  # counts the whole internet as a single client.
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      # Which hops may be believed. Boot's default trusts all of 10/8, 172.16/12 and 192.168/16 -
+      # and 172.16/12 contains the default Docker bridge gateway, so with the default any caller
+      # reaching the published :8080 directly could set X-Forwarded-For and be counted as whatever
+      # address it liked. Narrowed to nginx's own address on the compose network.
+      internal-proxies: ${TRUSTED_PROXIES:172\.28\.0\.2}
 
 spring:
   # Names the service in OpenTelemetry (service.name) and prefixes every log line. Without it a trace
@@ -30,7 +41,54 @@ app:
     # The fallback exists so a clone runs with no setup; it is a published value and gives no security.
     # Set JWT_SECRET in any deployment. At least 256 bits, or the application refuses to start.
     secret: ${JWT_SECRET:a-very-long-default-secret-key-that-should-be-changed-in-production-at-least-256-bits}
-    expiration: 86400000 # 24h in milliseconds. Tokens are not refreshable, so this is the whole session.
+    # How long an access token is accepted. Short on purpose: it is held in the tab's memory and
+    # renewed from the refresh cookie without the user noticing, so this is the window in which a
+    # leaked token is worth anything - not the length of a session.
+    access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:15m}
+    # Written into every token and required back. A token minted by another service that happens to share
+    # the secret is refused because its issuer or audience differs.
+    issuer: healthupgrades
+    audience: healthupgrades-web
+    # How far past its expiry a token is still accepted, for hosts whose clocks disagree slightly.
+    clock-skew: 30s
+  auth:
+    session:
+      # A session lapses if it goes unused for this long. Each refresh slides it forward, so a
+      # session in daily use never lapses.
+      idle: ${AUTH_SESSION_IDLE:7d}
+      # ...and no session outlives this, however often it is refreshed. The two together mean
+      # neither an abandoned session nor a busy one can live indefinitely.
+      absolute: ${AUTH_SESSION_ABSOLUTE:30d}
+      # How long after a rotation the superseded credential counts as merely stale (409, retry)
+      # rather than replayed (session revoked). Two tabs waking together legitimately present the
+      # same credential within a moment; nothing legitimate does so ten seconds later.
+      rotation-grace: ${AUTH_SESSION_ROTATION_GRACE:10s}
+    cookie:
+      name: refresh_token
+      # Narrow on purpose: the credential is then not attached to ordinary API calls at all.
+      path: /api/auth
+      # The only cookie attribute that is configurable, and only because a developer on
+      # http://localhost has no TLS for the browser to send it over. True in every real deployment.
+      secure: ${AUTH_COOKIE_SECURE:false}
+    schedules:
+      # Sweep that deletes sessions nothing can use again. Correctness does not depend on it -
+      # an expired session is refused by its own timestamps - so it runs when nothing else does.
+      session-cleanup: ${AUTH_SESSION_CLEANUP_CRON:0 30 3 * * *}
+  rate-limit:
+    # Attempts per client address per window on sign-in and registration. Ten a minute is far more
+    # than a person mistyping a password ever needs, and far less than a credential-stuffing run
+    # finds worth attempting from one address.
+    limit: ${AUTH_RATE_LIMIT:10}
+    window: ${AUTH_RATE_LIMIT_WINDOW:1m}
+    # The map is keyed by the caller's address, so it is capped: without one, addresses seen once
+    # accumulate until the heap runs out, turning a defence into a different denial of service.
+    max-tracked-clients: ${AUTH_RATE_LIMIT_MAX_CLIENTS:10000}
+  admin:
+    # The account promoted to ADMIN at startup, so a fresh installation has a way in. An account id,
+    # never an email: registration is open, so naming an address would hand the installation to
+    # whoever registered it first. It acts only while no administrator exists at all, so leaving it
+    # set does not re-promote anybody after a deliberate demotion.
+    bootstrap-user-id: ${ADMIN_BOOTSTRAP_USER_ID:}
   cors:
     # Comma-separated list of origins allowed to call the API directly (cross-origin).
     # Not needed when the frontend is served behind the Vite dev proxy or nginx (same-origin /api).

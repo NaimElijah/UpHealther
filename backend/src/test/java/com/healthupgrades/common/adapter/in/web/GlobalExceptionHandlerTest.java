@@ -4,6 +4,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.healthupgrades.common.domain.exception.AuthenticationRequiredException;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.exception.DuplicateProgressException;
 import com.healthupgrades.common.domain.exception.OptimisticLockException;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -171,6 +173,33 @@ class GlobalExceptionHandlerTest {
                 new InternalAuthenticationServiceException("could not connect", new RuntimeException()), request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    @Test
+    void GivenARequestWithNoCredential_WhenAuthenticationIsRequired_ThenItIs401WithABareBearerChallenge() {
+        // RFC 6750 section 3: a request that carried no credential gets the scheme and nothing else,
+        // because there is no error to describe.
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response = handler.handleAuthenticationRequired(
+                AuthenticationRequiredException.noCredential(), request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getHeaders().getFirst(HttpHeaders.WWW_AUTHENTICATE)).isEqualTo("Bearer");
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getMessage()).isEqualTo("Authentication required");
+    }
+
+    @Test
+    void GivenARejectedToken_WhenAuthenticationIsRequired_ThenTheChallengeSaysInvalidTokenAndNothingMore() {
+        // invalid_token covers expired, forged and revoked alike. Saying which would tell whoever holds a
+        // stolen token whether it is worth retrying.
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response = handler.handleAuthenticationRequired(
+                AuthenticationRequiredException.rejectedToken(), request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getHeaders().getFirst(HttpHeaders.WWW_AUTHENTICATE))
+                .isEqualTo("Bearer error=\"invalid_token\"");
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getMessage()).isEqualTo("Authentication required");
     }
 
     @Test

@@ -43,8 +43,8 @@ describe('toApiError', () => {
   });
 
   it('GivenARejectionWithNoBody_WhenItIsNormalised_ThenTheHeaderSuppliesTheTraceId', () => {
-    // A request refused inside the security chain never reaches GlobalExceptionHandler, so it carries
-    // the header and not the body field. Without this fallback those failures would be unreportable.
+    // A response written before the API's own error handler could run carries the header and not the
+    // body field. Without this fallback such a failure would be unreportable.
     const error = toApiError(responded(403, '', { 'x-trace-id': '00f067aa0ba902b74bf92f3577b34da6' }));
 
     expect(error.traceId).toBe('00f067aa0ba902b74bf92f3577b34da6');

@@ -110,6 +110,13 @@ activity" alert. *Revisit when* rate limiting or lockout is implemented — at t
 becomes necessary, and choosing one (a hash of the email, a truncated IP) is a privacy decision that
 deserves its own record rather than being smuggled in as a code change.
 
+> **Revisited, 2026-09-21, and the trigger did not fire.** Rate limiting landed
+> ([ADR-017](ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)) and needed no such
+> identifier: it counts per client address in memory, and the address never reaches the audit trail,
+> a log line or a metric tag. Per-account lockout — the half that *would* have forced this decision —
+> was rejected there for a separate reason, so the privacy question stays unasked. It returns only if
+> account-targeted defence is ever wanted.
+
 ## Alternatives considered
 
 - **An `audit_log` table written through a repository port.** Durable independently of log retention and

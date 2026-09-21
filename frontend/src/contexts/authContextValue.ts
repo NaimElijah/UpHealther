@@ -2,18 +2,24 @@ import { createContext } from 'react';
 import type { User } from '../types';
 
 /**
- * What the auth context exposes: the signed-in user, the raw token, and the session actions.
+ * What the auth context exposes: the signed-in user and the session actions.
  *
- * `isLoading` is true only while a stored token is being verified on load; `isAuthenticated` is false
- * during that window, which is why consumers must check the former before acting on the latter.
+ * There is deliberately no `token` here. The access token lives in `api/tokenStore` and is read by the
+ * axios interceptors; putting it on the context would hand it to every component that wanted the user's
+ * name, and would put it in React state where a devtools snapshot or an error reporter can pick it up.
+ * A component needing an authenticated request calls through `api/client`, which attaches it.
+ *
+ * `isLoading` is true only while the session is being restored from the refresh cookie on load;
+ * `isAuthenticated` is false during that window, which is why consumers must check the former before
+ * acting on the latter.
  */
 export interface AuthContextType {
   user: User | null;
-  token: string | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
+  /** Rejects if the server could not end the session — see `AuthContext` for why that must be shown. */
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
 }
 

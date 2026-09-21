@@ -2,7 +2,7 @@ package com.healthupgrades.healtharea.adapter.in.web;
 
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.security.JwtAuthenticationFilter;
-import com.healthupgrades.common.security.JwtTokenProvider;
+import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.common.security.SecurityConfig;
 import com.healthupgrades.common.security.UserDetailsServiceImpl;
 import com.healthupgrades.healtharea.application.HealthAreaService;
@@ -55,7 +55,7 @@ class HealthAreaControllerTest {
     @Autowired MockMvc mockMvc;
 
     @MockBean HealthAreaService service;
-    @MockBean JwtTokenProvider tokenProvider;
+    @MockBean BearerTokenAuthenticator authenticator;
     @MockBean UserDetailsServiceImpl userDetailsService;
 
     private UUID userId;
@@ -64,7 +64,7 @@ class HealthAreaControllerTest {
     @BeforeEach
     void authenticate() {
         userId = UUID.randomUUID();
-        WebSliceSupport.authenticateAs(tokenProvider, userDetailsService, userId);
+        WebSliceSupport.authenticateAs(authenticator, userId);
     }
 
     @Test

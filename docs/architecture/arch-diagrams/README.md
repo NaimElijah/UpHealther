@@ -59,7 +59,7 @@ identically.
 
 ## 2. Bounded-context map
 
-The backend is nine bounded contexts over a shared kernel. This graph is read off the `import`
+The backend is ten bounded contexts over a shared kernel. This graph is read off the `import`
 statements — it is what the code does, not what anyone intended.
 
 <!-- generated:context-map -->
@@ -67,6 +67,7 @@ statements — it is what the code does, not what anyone intended.
 flowchart TD
     auth["auth"]
     user["user"]
+    admin["admin"]
     healtharea["healtharea"]
     upgrade["upgrade"]
     tracking["tracking"]
@@ -76,6 +77,9 @@ flowchart TD
     notification["notification"]
 
     auth --> user
+    admin --> auth
+    admin --> user
+    upgrade --> healtharea
     tracking --> upgrade
     reflection --> upgrade
     reminder --> upgrade
@@ -87,14 +91,15 @@ flowchart TD
     notification --> tracking
     notification --> upgrade
 
-    %% depends on nothing: healtharea, upgrade, user — the graph is acyclic,
+    %% depends on nothing: healtharea, user — the graph is acyclic,
     %% which HexagonalArchitectureTest fails the build over if it stops being true.
 ```
 <!-- /generated:context-map -->
 
 `common` is excluded: every context depends on it by definition, so drawing it would add ten edges
-that say nothing. The absent edge is the interesting one — `upgrade` points at nothing, even though
-an upgrade's response carries its tracking configuration. That inversion is
+that say nothing. The absent edge is the interesting one — `upgrade` does not point at `tracking`,
+even though an upgrade's response carries its tracking configuration. Its one outgoing edge is to
+`healtharea`, whose inbound port confirms an area is the caller's before an upgrade is filed under it. That inversion is
 [ADR-002](../../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md).
 
 ---
@@ -137,7 +142,8 @@ flowchart LR
 
 This is not a convention anyone has to remember — `HexagonalArchitectureTest` fails the build on
 every arrow that runs the wrong way. Two contexts are deliberately smaller than this: `auth`
-orchestrates over `user` and owns no aggregate, and `dashboard` is a read model with no driven side.
+orchestrates over `user` for identity while owning its own `AuthSession` aggregate, and `dashboard` is
+a read model with no driven side.
 
 ---
 
@@ -354,7 +360,7 @@ sequenceDiagram
 
     B->>N: POST /api/upgrades/{id}/progress
     N->>F: proxied
-    F->>F: validate JWT, load user, set security context
+    F->>F: BearerTokenAuthenticator — verify token, load the account named by sub, set security context
     F->>C: request
     C->>S: recordProgress(userId, upgradeId, details)
     S->>U: getOwnedUpgrade(userId, upgradeId)
@@ -393,6 +399,7 @@ erDiagram
     health_upgrades ||--o{ reflections : ""
     health_upgrades ||--o{ reminders : ""
     health_upgrades ||--o{ tracking_configs : ""
+    users ||--o{ auth_sessions : ""
     users ||--o{ health_areas : ""
     users ||--o{ health_upgrades : ""
     users ||--o{ notifications : ""
@@ -406,6 +413,8 @@ erDiagram
         varchar password_hash
         timestamp created_at
         timestamp updated_at
+        varchar role
+        boolean enabled
     }
     health_areas {
         uuid id PK
@@ -490,6 +499,18 @@ erDiagram
         uuid related_upgrade_id
         boolean is_read
         timestamp created_at
+    }
+    auth_sessions {
+        uuid id PK
+        uuid user_id
+        bytea refresh_token_hash
+        bytea previous_token_hash
+        timestamptz created_at
+        timestamptz last_used_at
+        timestamptz rotated_at
+        timestamptz idle_expires_at
+        timestamptz absolute_expires_at
+        boolean revoked
     }
 ```
 <!-- /generated:er-diagram -->

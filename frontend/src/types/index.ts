@@ -6,18 +6,57 @@
  * {@link UpgradeType}.
  */
 
+/**
+ * What an account may do beyond owning its own records.
+ *
+ * Mirrors the backend `Role` enum; `FrontendEnumContractTest` fails the build if the two drift.
+ */
+export type UserRole = 'USER' | 'ADMIN';
+
 /** A user's public profile, as returned by the auth endpoints. */
 export interface User {
   id: string;
   name: string;
   email: string;
+  role: UserRole;
   createdAt: string;
 }
 
-/** What a successful login or registration returns: the token to store, and who it belongs to. */
+/**
+ * What a successful sign-in, registration or refresh returns.
+ *
+ * Only the access token is here. The refresh credential arrives in an `HttpOnly` cookie that this
+ * code cannot read, which is the point of it being there rather than in the body.
+ */
 export interface AuthResponse {
-  token: string;
+  accessToken: string;
+  /** ISO-8601. When the access token lapses, so the client can renew before a request fails. */
+  expiresAt: string;
   user: User;
+}
+
+/**
+ * An account as an administrator sees it.
+ *
+ * Its own type rather than `User` for one field, `enabled`, and for one absence: there is nothing
+ * here about what the account owns, because the API offers nothing. An administrator manages
+ * accounts, not records.
+ */
+export interface AdminAccount {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  enabled: boolean;
+  createdAt: string;
+}
+
+/** One page of accounts, with the total behind it so a caller knows whether there are more. */
+export interface AccountPage {
+  accounts: AdminAccount[];
+  page: number;
+  size: number;
+  total: number;
 }
 
 /**

@@ -2,9 +2,11 @@ package com.healthupgrades.upgrade.application;
 import com.healthupgrades.upgrade.domain.service.UpgradeSchedulingService;
 
 import com.healthupgrades.common.domain.audit.AuditAction;
+import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.healtharea.application.port.in.HealthAreaQuery;
 import com.healthupgrades.upgrade.domain.event.*;
 import com.healthupgrades.upgrade.application.port.in.UpgradeDetails;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
@@ -18,6 +20,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -37,6 +40,7 @@ public class UpgradeService implements UpgradeQuery {
     private final UpgradeSchedulingService schedulingService; // pure domain invariant
     private final DomainEventPublisher eventPublisher; // in-process domain events
     private final AuditTrail auditTrail; // records the attempt, allowed or refused
+    private final HealthAreaQuery healthAreaQuery; // confirms an area is the caller's before filing under it
     private final Clock clock; // decides the start date an activation defaults to
 
     /**
@@ -45,11 +49,12 @@ public class UpgradeService implements UpgradeQuery {
      * @param userId  the owner
      * @param details the attributes to store
      * @return the persisted aggregate
-     * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if the title or type is missing
+     * @throws BusinessRuleException if the title or type is missing, or the area is not the caller's (BR-18)
      */
     @Transactional
     public HealthUpgrade create(UUID userId, UpgradeDetails details) {
         return auditTrail.recordingCreation(AuditAction.UPGRADE_CREATE, userId, () -> {
+            requireOwnedArea(userId, details.areaId());
             HealthUpgrade created = HealthUpgrade.create(userId, details.areaId(), details.title(), details.description(),
                     details.type(), details.difficulty(), details.plannedStartDate(), details.targetEndDate(),
                     details.motivation(), details.successCriteria());
@@ -92,13 +97,18 @@ public class UpgradeService implements UpgradeQuery {
      * @param details the replacement attributes
      * @return the saved aggregate
      * @throws ResourceNotFoundException if the upgrade does not exist or belongs to somebody else
-     * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if the title or type is
-     *         missing, or the change would exceed the concurrent-HARD limit
+     * @throws BusinessRuleException if the title or type is missing, the change would exceed the
+     *         concurrent-HARD limit, or the upgrade is moved to an area that is not the caller's (BR-18)
      */
     @Transactional
     public HealthUpgrade update(UUID userId, UUID id, UpgradeDetails details) {
         return auditTrail.recording(AuditAction.UPGRADE_UPDATE, userId, id, () -> {
             HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
+            // Only a changed area is checked. A row filed before BR-18 existed may point somewhere the
+            // check would now refuse, and editing its title must not depend on a field nobody touched.
+            if (!Objects.equals(details.areaId(), upgrade.getAreaId())) {
+                requireOwnedArea(userId, details.areaId());
+            }
             boolean difficultyChanges = details.difficulty() != null && details.difficulty() != upgrade.getDifficulty();
             if (difficultyChanges) {
                 // Fail before mutating anything.
@@ -277,6 +287,17 @@ public class UpgradeService implements UpgradeQuery {
             }
             return saved;
         });
+    }
+
+    /**
+     * Refuses an area the caller does not own (BR-18). An absent area is refused with the same message
+     * as a foreign one, so the answer says nothing about which areas exist; without this, a foreign id
+     * was stored as given and a nonexistent one failed at the flush as a 500.
+     */
+    private void requireOwnedArea(UUID userId, UUID areaId) {
+        if (areaId != null && !healthAreaQuery.ownsArea(userId, areaId)) {
+            throw new BusinessRuleException("Unknown health area");
+        }
     }
 
     // ---- UpgradeQuery (inbound port) ----

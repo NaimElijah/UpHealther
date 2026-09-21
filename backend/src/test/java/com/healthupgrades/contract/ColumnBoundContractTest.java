@@ -61,6 +61,18 @@ class ColumnBoundContractTest {
             Pattern.compile("CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?([a-z_]+)", Pattern.CASE_INSENSITIVE);
 
     /**
+     * Matches a bounded column added to a table that already exists, e.g.
+     * {@code ALTER TABLE users ADD COLUMN role VARCHAR(16)}.
+     *
+     * <p>Such a column is as real as one the {@code CREATE} declared, and BR-16 applies to it the same
+     * way. Matched against the whole file rather than a line at a time, so the statement may wrap.
+     */
+    private static final Pattern ALTER_ADD_COLUMN = Pattern.compile(
+            "ALTER\\s+TABLE\\s+([a-z_]+)\\s+ADD\\s+COLUMN\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?"
+                    + "([a-z_]+)\\s+VARCHAR\\((\\d+)\\)",
+            Pattern.CASE_INSENSITIVE);
+
+    /**
      * Every bound this codebase declares, against the column it claims to mirror.
      *
      * <p>Adding a {@code @Size(max = …)} to a request DTO without adding a row here is the one hole
@@ -87,6 +99,7 @@ class ColumnBoundContractTest {
      */
     private static final Map<String, String> UNBOUND_BY_DESIGN = Map.ofEntries(
             Map.entry("users.password_hash", "a BCrypt hash the server writes; never taken from a request"),
+            Map.entry("users.role", "an enum, bound by deserialization on the one endpoint that writes it"),
             Map.entry("health_upgrades.type", "an enum, bound by deserialization before validation runs"),
             Map.entry("health_upgrades.status", "an enum, and moved only by the transition endpoints"),
             Map.entry("health_upgrades.difficulty", "an enum, bound by deserialization"),
@@ -135,14 +148,21 @@ class ColumnBoundContractTest {
     /**
      * Every {@code table.column} created as a {@code VARCHAR(n)}, mapped to that {@code n}.
      *
-     * <p>Reads the migrations in filename order so a later {@code ALTER} of a width would need to be
-     * handled here too; today none exists, and this test failing is how the next one gets noticed.
+     * <p>Reads the migrations in filename order, so a column added by a later {@code ALTER} lands on
+     * the table alongside the ones its {@code CREATE} declared. An {@code ALTER} that <em>narrows</em>
+     * an existing width is still unhandled; there is none today, and this test failing is how the
+     * first one gets noticed.
      */
     private static Map<String, Integer> boundedColumns() {
         Map<String, Integer> columns = new LinkedHashMap<>();
         try (Stream<Path> files = Files.list(MIGRATIONS)) {
             List<Path> ordered = files.filter(p -> p.toString().endsWith(".sql")).sorted().toList();
             for (Path file : ordered) {
+                Matcher added = ALTER_ADD_COLUMN.matcher(Files.readString(file));
+                while (added.find()) {
+                    columns.put(added.group(1).toLowerCase() + "." + added.group(2).toLowerCase(),
+                            Integer.parseInt(added.group(3)));
+                }
                 String table = null;
                 for (String line : Files.readAllLines(file)) {
                     Matcher create = CREATE_TABLE.matcher(line);

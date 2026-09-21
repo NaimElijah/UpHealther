@@ -1,88 +1,105 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { loginApi, registerApi, getMe } from '../api/auth';
+import { loginApi, registerApi, getMe, logoutApi } from '../api/auth';
+import { renewSession } from '../api/client';
+import { clearAccessToken, setAccessToken } from '../api/tokenStore';
 import { AuthContext } from './authContextValue';
 import type { User } from '../types';
 
 /**
- * Owns the session: the signed-in user, the token, and the login, register and logout actions.
+ * Keys this app used to write, when the token and a copy of the user lived in `localStorage`. Removed
+ * on mount rather than left to rot: a stale token in storage is a credential sitting somewhere script
+ * can read it, and it will still be there years after it stopped working.
+ */
+const LEGACY_KEYS = ['jwt_token', 'user'];
+
+/**
+ * Owns the session: the signed-in user and the sign-in, registration and sign-out actions.
  *
- * The token and a copy of the user live in `localStorage`, which is what survives a page reload. That
- * copy is treated as a cache, never as proof: on mount it is shown immediately so the UI has something
- * to render, and simultaneously checked against `/api/auth/me`. A token the server rejects clears the
- * session.
+ * Nothing about the session is in web storage any more. The access token lives in memory
+ * (`api/tokenStore`), so it dies with the tab; what survives a reload is the `HttpOnly` refresh cookie,
+ * which this code cannot read and does not need to. A page load therefore starts signed out and asks
+ * the server: one `POST /api/auth/refresh`, which either yields a fresh token or does not.
  *
- * A 401 on any later request is handled elsewhere, by the axios interceptor in `api/client.ts`. That
- * interceptor is not what ends an expired session, though: the API refuses an expired token with 403,
- * not 401 (#58). The mount-time check below is — it clears the session on any failed `/api/auth/me`,
- * so expiry is noticed on the next page load rather than on the request that hit it.
+ * That is why there is no optimistic restore from a cached user any more. There is nothing to restore
+ * from, and the round trip that replaced it is the same one that used to validate the cached copy.
+ *
+ * A 401 on any later request is handled by the axios interceptor in `api/client.ts`, which renews the
+ * token and retries before concluding anything.
  */
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('jwt_token');
-    const storedUser = localStorage.getItem('user');
-    if (!storedToken) {
-      setIsLoading(false);
-      return;
-    }
-
-    setToken(storedToken);
-    // Optimistically restore the cached user so the UI renders immediately...
-    if (storedUser) {
+    LEGACY_KEYS.forEach((key) => {
       try {
-        setUser(JSON.parse(storedUser) as User);
+        localStorage.removeItem(key);
       } catch {
-        localStorage.removeItem('user');
+        // Storage can be unavailable entirely — a private window, or blocked site data. There is
+        // nothing to clean up in that case and nothing to report.
       }
-    }
+    });
 
-    // ...then validate the token against the backend. If it's expired/invalid, clear the session.
-    getMe()
-      .then((freshUser) => {
-        setUser(freshUser);
-        localStorage.setItem('user', JSON.stringify(freshUser));
+    let cancelled = false;
+
+    // One request decides the whole question: a live refresh cookie means a session, and the absence
+    // of one means an ordinary visitor. A 401 there is the expected answer for a visitor, not an
+    // error, which is why renewSession reports it as false rather than throwing.
+    renewSession()
+      .then(async (renewed) => {
+        if (!renewed) return;
+        const freshUser = await getMe();
+        if (!cancelled) {
+          setUser(freshUser);
+          setIsAuthenticated(true);
+        }
       })
       .catch(() => {
-        localStorage.removeItem('jwt_token');
-        localStorage.removeItem('user');
-        setToken(null);
-        setUser(null);
+        clearAccessToken();
       })
-      .finally(() => setIsLoading(false));
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  /** Signs in and persists the session. Rejects if the credentials are wrong, leaving state untouched. */
+  /** Signs in and starts the session. Rejects if the credentials are wrong, leaving state untouched. */
   const login = useCallback(async (email: string, password: string) => {
     const response = await loginApi(email, password);
-    localStorage.setItem('jwt_token', response.token);
-    localStorage.setItem('user', JSON.stringify(response.user));
-    setToken(response.token);
+    setAccessToken(response.accessToken, response.expiresAt);
     setUser(response.user);
+    setIsAuthenticated(true);
   }, []);
 
   /** Creates an account and signs straight in with the token it returns. */
   const register = useCallback(async (name: string, email: string, password: string) => {
     const response = await registerApi(name, email, password);
-    localStorage.setItem('jwt_token', response.token);
-    localStorage.setItem('user', JSON.stringify(response.user));
-    setToken(response.token);
+    setAccessToken(response.accessToken, response.expiresAt);
     setUser(response.user);
+    setIsAuthenticated(true);
   }, []);
 
   /**
-   * Clears the session and reloads onto the login page.
+   * Ends the session on the server, then reloads onto the login page.
    *
-   * A full document navigation rather than a router push, deliberately: it also discards the query
-   * cache, so nothing belonging to the previous user can be read by the next one.
+   * The server call is awaited and its failure is propagated, not swallowed. Clearing local state on a
+   * failed sign-out would be a lie: the refresh cookie would still be in the browser, so the next page
+   * load would sign the user straight back in — on a shared machine, as far as they knew, after they
+   * had signed out. The caller shows the failure and the user stays signed in, which is the honest
+   * state.
+   *
+   * On success it is a full document navigation rather than a router push, so the query cache goes with
+   * it and nothing belonging to the previous user can be read by the next one.
    */
-  const logout = useCallback(() => {
-    localStorage.removeItem('jwt_token');
-    localStorage.removeItem('user');
-    setToken(null);
+  const logout = useCallback(async () => {
+    await logoutApi();
+    clearAccessToken();
     setUser(null);
+    setIsAuthenticated(false);
     window.location.href = '/login';
   }, []);
 
@@ -90,12 +107,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider
       value={{
         user,
-        token,
         isLoading,
         login,
         register,
         logout,
-        isAuthenticated: !!token,
+        isAuthenticated,
       }}
     >
       {children}

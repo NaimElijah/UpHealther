@@ -1,17 +1,21 @@
 package com.healthupgrades.auth.application;
 
+import com.healthupgrades.auth.application.port.in.SessionCommand;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
+import com.healthupgrades.common.security.IssuedAccessToken;
 import com.healthupgrades.common.security.JwtTokenProvider;
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.RecordingAuditTrail;
 import com.healthupgrades.user.application.port.in.UserCommand;
 import com.healthupgrades.user.application.port.in.UserQuery;
+import com.healthupgrades.user.domain.model.EmailAlreadyRegisteredException;
 import com.healthupgrades.user.domain.model.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationServiceException;
@@ -24,11 +28,14 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.Instant;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -36,7 +43,7 @@ import static org.mockito.Mockito.when;
 /**
  * Covers the two ways into an authenticated session and the profile read behind them:
  * FR-1 (register), FR-2 (login), FR-3 (restore a session from a stored token), FR-4 (an email may be
- * registered once) and NFR-2 (a raw password is never stored).
+ * registered once, compared case-insensitively) and NFR-2 (a raw password is never stored).
  *
  * <p>The {@link PasswordEncoder} is the real BCrypt one rather than a mock. It is a pure function with no
  * I/O, and NFR-2 is a claim about what actually lands in the stored hash — a stubbed encoder would let
@@ -50,11 +57,18 @@ import static org.mockito.Mockito.when;
 class AuthServiceTest {
 
     private static final String RAW_PASSWORD = "correct-horse-battery-staple";
+    private static final IssuedAccessToken ISSUED =
+            new IssuedAccessToken("issued.jwt.token", Instant.parse("2026-09-16T10:15:00Z"));
+    private static final SessionGrant GRANT = new SessionGrant(
+            UUID.fromString("6b1f0f4c-9a2d-4c3e-9b7a-1d2e3f4a5b6c"),
+            "6b1f0f4c-9a2d-4c3e-9b7a-1d2e3f4a5b6c.a-secret",
+            Instant.parse("2026-10-16T10:15:00Z"));
 
     @Mock UserQuery userQuery;
     @Mock UserCommand userCommand;
     @Mock JwtTokenProvider tokenProvider;
     @Mock AuthenticationManager authenticationManager;
+    @Mock SessionCommand sessions;
 
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
@@ -65,18 +79,22 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         service = new AuthService(userQuery, userCommand, passwordEncoder, tokenProvider,
-                authenticationManager, auditTrail);
+                authenticationManager, sessions, auditTrail);
+        // Opening a session is a precondition of every successful sign-in here, and the subject
+        // of none of them - AuthSessionServiceTest is where that behaviour is pinned. Lenient,
+        // so the refusal tests are not failed for a stub they never reach.
+        lenient().when(sessions.open(any(UUID.class))).thenReturn(GRANT);
     }
 
     @Test
     void GivenAnUnregisteredEmail_WhenTheVisitorRegisters_ThenTheUserIsSavedAndATokenIssued() {
         when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
-        when(userCommand.save(any(User.class))).thenAnswer(call -> call.getArgument(0));
-        when(tokenProvider.generateToken(AUser.EMAIL)).thenReturn("issued.jwt.token");
+        when(userCommand.register(any(User.class))).thenAnswer(AuthServiceTest::persisted);
+        when(tokenProvider.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
 
         AuthResult result = service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD);
 
-        assertThat(result.token()).isEqualTo("issued.jwt.token");
+        assertThat(result.token()).isEqualTo(ISSUED.value());
         assertThat(result.user().getEmail()).isEqualTo(AUser.EMAIL);
         assertThat(result.user().getName()).isEqualTo(AUser.NAME);
     }
@@ -87,21 +105,75 @@ class AuthServiceTest {
 
         assertThatThrownBy(() -> service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD))
                 .isInstanceOf(BusinessRuleException.class)
-                .hasMessageContaining(AUser.EMAIL);
+                .hasMessage("That email is already registered");
 
-        verify(userCommand, never()).save(any());
-        verify(tokenProvider, never()).generateToken(any());
+        verify(userCommand, never()).register(any());
+        verify(tokenProvider, never()).issue(any(), any());
+    }
+
+    @Test
+    void GivenAnEmailAlreadyTaken_WhenTheRefusalIsWorded_ThenTheAddressIsNotEchoedBack() {
+        // The 422 body reaches whoever submitted the form. Quoting the address back adds nothing the
+        // caller did not send, and turns every refusal into a line that repeats personal data.
+        when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD))
+                .hasMessageNotContaining(AUser.EMAIL);
+    }
+
+    @Test
+    void GivenAMixedCaseEmailWithSpaces_WhenAVisitorRegisters_ThenItIsCheckedAndStoredTrimmedAndLowercase() {
+        when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
+        when(userCommand.register(any(User.class))).thenAnswer(AuthServiceTest::persisted);
+        when(tokenProvider.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
+
+        service.register(AUser.NAME, "  SomeOne@Example.com ", RAW_PASSWORD);
+
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(userCommand).register(saved.capture());
+        assertThat(saved.getValue().getEmail()).isEqualTo(AUser.EMAIL);
+    }
+
+    @Test
+    void GivenTheUniqueConstraintLosesARace_WhenAVisitorRegisters_ThenItIsRefusedAndAuditedAsRefused() {
+        // Two registrations for one address can both pass the existence check. The loser used to be
+        // decided at commit, outside this method, and came back as a 500.
+        when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
+        when(userCommand.register(any(User.class))).thenThrow(new EmailAlreadyRegisteredException());
+
+        assertThatThrownBy(() -> service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessage("That email is already registered");
+
+        verify(tokenProvider, never()).issue(any(), any());
+        assertThat(auditTrail.only(AuditAction.AUTH_REGISTER)).hasValue(
+                new AuditEvent(AuditAction.AUTH_REGISTER, null, null, AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenAMixedCaseEmail_WhenTheUserLogsIn_ThenTheNormalisedAddressIsAuthenticated() {
+        User user = AUser.aUser().build();
+        when(authenticationManager.authenticate(any())).thenReturn(authenticated());
+        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(user));
+        when(tokenProvider.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
+
+        service.login(" SOMEONE@example.com", RAW_PASSWORD);
+
+        ArgumentCaptor<Authentication> presented = ArgumentCaptor.forClass(Authentication.class);
+        verify(authenticationManager).authenticate(presented.capture());
+        assertThat(presented.getValue().getPrincipal()).isEqualTo(AUser.EMAIL);
     }
 
     @Test
     void GivenARawPassword_WhenTheVisitorRegisters_ThenOnlyItsHashIsStored() {
         when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
-        when(userCommand.save(any(User.class))).thenAnswer(call -> call.getArgument(0));
+        when(userCommand.register(any(User.class))).thenAnswer(AuthServiceTest::persisted);
+        when(tokenProvider.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
 
         service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD);
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
-        verify(userCommand).save(saved.capture());
+        verify(userCommand).register(saved.capture());
         assertThat(saved.getValue().getPasswordHash())
                 .as("the raw password must not reach the row")
                 .isNotEqualTo(RAW_PASSWORD);
@@ -115,11 +187,11 @@ class AuthServiceTest {
         User user = AUser.aUser().build();
         when(authenticationManager.authenticate(any())).thenReturn(authenticated());
         when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(user));
-        when(tokenProvider.generateToken(AUser.EMAIL)).thenReturn("issued.jwt.token");
+        when(tokenProvider.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
 
         AuthResult result = service.login(AUser.EMAIL, RAW_PASSWORD);
 
-        assertThat(result.token()).isEqualTo("issued.jwt.token");
+        assertThat(result.token()).isEqualTo(ISSUED.value());
         assertThat(result.user()).isSameAs(user);
     }
 
@@ -130,7 +202,7 @@ class AuthServiceTest {
         assertThatThrownBy(() -> service.login(AUser.EMAIL, "wrong"))
                 .isInstanceOf(BadCredentialsException.class);
 
-        verify(tokenProvider, never()).generateToken(any());
+        verify(tokenProvider, never()).issue(any(), any());
     }
 
     @Test
@@ -138,7 +210,7 @@ class AuthServiceTest {
         User user = AUser.aUser().build();
         when(authenticationManager.authenticate(any())).thenReturn(authenticated());
         when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(user));
-        when(tokenProvider.generateToken(AUser.EMAIL)).thenReturn("issued.jwt.token");
+        when(tokenProvider.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
 
         service.login(AUser.EMAIL, RAW_PASSWORD);
 
@@ -180,8 +252,8 @@ class AuthServiceTest {
         // allowed and failed - and double-counted it in audit.events to match. A trail that can report
         // one event twice, differently, is a trail nobody can total.
         when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
-        when(userCommand.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(tokenProvider.generateToken(AUser.EMAIL)).thenThrow(new IllegalStateException("secret too short"));
+        when(userCommand.register(any())).thenAnswer(AuthServiceTest::persisted);
+        when(tokenProvider.issue(any(UUID.class), any(UUID.class))).thenThrow(new IllegalStateException("secret too short"));
 
         assertThatThrownBy(() -> service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD))
                 .isInstanceOf(IllegalStateException.class);
@@ -196,7 +268,7 @@ class AuthServiceTest {
     void GivenTokenIssuingFails_WhenTheUserLogsIn_ThenTheAttemptIsAuditedOnceAndNotTwice() {
         when(authenticationManager.authenticate(any())).thenReturn(authenticated());
         when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(AUser.aUser().build()));
-        when(tokenProvider.generateToken(AUser.EMAIL)).thenThrow(new IllegalStateException("secret too short"));
+        when(tokenProvider.issue(any(UUID.class), any(UUID.class))).thenThrow(new IllegalStateException("secret too short"));
 
         assertThatThrownBy(() -> service.login(AUser.EMAIL, RAW_PASSWORD))
                 .isInstanceOf(IllegalStateException.class);
@@ -228,23 +300,49 @@ class AuthServiceTest {
         assertThatThrownBy(() -> service.login(AUser.EMAIL, RAW_PASSWORD))
                 .isInstanceOf(BusinessRuleException.class);
 
-        verify(tokenProvider, never()).generateToken(any());
+        verify(tokenProvider, never()).issue(any(), any());
+    }
+
+    @Test
+    void GivenMatchingCredentials_WhenTheUserLogsIn_ThenTheTokenIsIssuedForTheirIdNotTheirEmail() {
+        User user = AUser.aUser().build();
+        when(authenticationManager.authenticate(any())).thenReturn(authenticated());
+        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(user));
+        when(tokenProvider.issue(user.getId(), GRANT.sessionId())).thenReturn(ISSUED);
+
+        assertThat(service.login(AUser.EMAIL, RAW_PASSWORD).token()).isEqualTo(ISSUED.value());
     }
 
     @Test
     void GivenAStoredToken_WhenTheSessionIsRestored_ThenTheProfileBehindItIsReturned() {
         User user = AUser.aUser().build();
-        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(user));
+        when(userQuery.findById(user.getId())).thenReturn(Optional.of(user));
 
-        assertThat(service.getMe(AUser.EMAIL)).isSameAs(user);
+        assertThat(service.getMe(user.getId())).isSameAs(user);
     }
 
     @Test
     void GivenATokenForAnAccountThatNoLongerExists_WhenTheSessionIsRestored_ThenItIsRefused() {
-        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.empty());
+        UUID gone = UUID.randomUUID();
+        when(userQuery.findById(gone)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.getMe(AUser.EMAIL))
+        assertThatThrownBy(() -> service.getMe(gone))
                 .isInstanceOf(BusinessRuleException.class);
+    }
+
+    /**
+     * What {@code UserCommand.register} answers with: the user that was handed to it, now carrying
+     * the id the database assigned on insert.
+     *
+     * <p>The service builds a user with no id, so answering with the bare argument would hand back a
+     * null id and every token would be issued for one — a state no live registration reaches, and one
+     * that would let a token-issuing assertion pass for the wrong reason. Setting the id on the same
+     * instance is what Hibernate does, so a captured argument is still the user that was saved.
+     */
+    private static User persisted(InvocationOnMock call) {
+        User registered = call.getArgument(0);
+        registered.setId(UUID.randomUUID());
+        return registered;
     }
 
     private static Authentication authenticated() {
