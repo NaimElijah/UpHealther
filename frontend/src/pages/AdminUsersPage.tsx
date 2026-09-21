@@ -70,8 +70,10 @@ const AdminUsersPage: React.FC = () => {
     },
   };
 
-  const disabling = useMutation({ mutationFn: disableAccount, ...afterChange });
-  const enabling = useMutation({ mutationFn: enableAccount, ...afterChange });
+  // Wrapped rather than passed by reference: React Query hands mutationFn a second context
+  // argument, which a bare reference would forward into the API function as an extra parameter.
+  const disabling = useMutation({ mutationFn: (id: string) => disableAccount(id), ...afterChange });
+  const enabling = useMutation({ mutationFn: (id: string) => enableAccount(id), ...afterChange });
   const changingRole = useMutation({
     mutationFn: ({ id, role }: { id: string; role: 'USER' | 'ADMIN' }) => changeAccountRole(id, role),
     ...afterChange,

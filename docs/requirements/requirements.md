@@ -2,7 +2,7 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. Ninety-seven of the hundred and four entries below name a test — seventy-eight distinct
+rather than trusted. Ninety-nine of the hundred and six entries below name a test — eighty-one distinct
 test classes and files between them. Four of the remaining seven name the command, workflow or script
 that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18). The last three — FR-39, NFR-19 and NFR-20 — are
 verified by hand and say so, because each is about a rendered width, a colour or an overflow, and jsdom
@@ -122,6 +122,8 @@ no way at all — to read another person's health records
 | FR-43 | An administrator can switch an account off and back on. Switching it off ends every session it holds and destroys nothing it owns, so switching it back on restores the account exactly as it was | `AdminUserServiceTest`, `AdminUserControllerTest` |
 | FR-44 | An administrator can grant and revoke the administrator role. The change is read from the account on its next request, so it takes effect without signing that person out | `AdminUserServiceTest`, `AdminUserControllerTest` |
 | FR-45 | A fresh installation can be given its first administrator through configuration, by account id and only while no administrator exists — so it cannot silently re-promote somebody after a deliberate demotion, and cannot be claimed by whoever registers an address first | `AdminBootstrapRunnerTest` |
+| FR-46 | The account administration screen is offered only to an administrator, in the navigation and at its route, and an administrator's own row offers no controls at all — the server refuses a self-directed change, and a control that can only fail is worse than none | `RequireRole.test.tsx`, `Sidebar.test.tsx`, `AdminUsersPage.test.tsx` |
+| FR-47 | Disabling an account and changing a role are confirmed before they happen, and the confirmation says what the change actually does; a change that fails says so rather than appearing to have worked | `AdminUsersPage.test.tsx` |
 
 ---
 
