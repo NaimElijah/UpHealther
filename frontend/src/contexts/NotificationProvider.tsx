@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Client } from '@stomp/stompjs';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
-import { getAccessToken } from '../api/tokenStore';
+import { getAccessToken, hasUsableAccessToken } from '../api/tokenStore';
+import { renewSession } from '../api/client';
 import { getNotifications, markNotificationRead, markAllNotificationsRead } from '../api/notifications';
 import { NotificationContext } from './notificationContextValue';
 import ToastContainer, { type ToastData } from '../components/notifications/ToastContainer';
@@ -108,8 +109,17 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       // lived and renewed underneath us, so a captured one would be stale by the first reconnect -
       // and putting it in the dependency list instead would tear the socket down and rebuild it
       // every fifteen minutes, losing the subscription each time for no reason.
-      beforeConnect: () => {
+      //
+      // It is also renewed here when it has lapsed. Reading it without checking was an infinite
+      // loop waiting to happen: a tab left idle past the token's fifteen minutes with no HTTP
+      // traffic to renew it would reconnect with a dead token, be refused, and retry the same dead
+      // token every five seconds - live notifications silently gone, and a refused CONNECT in the
+      // server log every five seconds forever.
+      beforeConnect: async () => {
         try {
+          if (!hasUsableAccessToken()) {
+            await renewSession();
+          }
           const current = getAccessToken();
           client.connectHeaders = current ? { Authorization: `Bearer ${current}` } : {};
         } catch {

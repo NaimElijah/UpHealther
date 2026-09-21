@@ -6,6 +6,22 @@ import { NotificationProvider } from './NotificationProvider';
 import { AuthContext, type AuthContextType } from './authContextValue';
 import { useNotifications } from '../hooks/useNotifications';
 import { clearAccessToken, setAccessToken } from '../api/tokenStore';
+
+const renewSession = vi.fn();
+vi.mock('../api/client', async () => {
+  const tokenStore = await import('./../api/tokenStore');
+  return {
+    default: {},
+    REQUESTED_WITH: 'X-Requested-With',
+    // Stands in for the real renewal: on success it installs a fresh token, which is what the
+    // socket's beforeConnect hook then reads.
+    renewSession: () => Promise.resolve(renewSession()).then((ok) => {
+      if (ok) tokenStore.setAccessToken('renewed.jwt.token', '2099-01-01T00:00:00Z');
+      return ok;
+    }),
+  };
+});
+
 import type { AppNotification } from '../types';
 
 /** The last Client the provider constructed, so a test can drive its callbacks. */
@@ -21,15 +37,21 @@ class FakeClient {
   /** Written by the provider's beforeConnect hook, and read by the real client on every attempt. */
   connectHeaders: Record<string, string> = {};
   private handler?: StompHandler;
-  private readonly config: { onConnect?: () => void; beforeConnect?: () => void };
+  private readonly config: { onConnect?: () => void; beforeConnect?: () => unknown };
 
-  constructor(config: { onConnect?: () => void; beforeConnect?: () => void }) {
+  constructor(config: { onConnect?: () => void; beforeConnect?: () => unknown }) {
     this.config = config;
   }
 
-  /** Simulates the client preparing a connection attempt, which is when the token is read. */
-  prepareConnect() {
-    this.config.beforeConnect?.();
+  /**
+   * Simulates the client preparing a connection attempt, which is when the token is read.
+   *
+   * Returns whatever the hook returns so a test can await it. stompjs 7 awaits this hook, and the
+   * provider's is async because it may have to renew a lapsed token first — swallowing the promise
+   * here would leave a test asserting against headers that had not been written yet.
+   */
+  prepareConnect(): unknown {
+    return this.config.beforeConnect?.();
   }
 
   activate() {
@@ -60,7 +82,7 @@ class FakeClient {
 
 vi.mock('@stomp/stompjs', () => ({
   Client: class {
-    constructor(config: { onConnect?: () => void; beforeConnect?: () => void }) {
+    constructor(config: { onConnect?: () => void; beforeConnect?: () => unknown }) {
       // Recorded here rather than in FakeClient's own constructor: aliasing `this` out of a
       // constructor is what `no-this-alias` exists to stop, and the seam belongs to the mock anyway.
       const client = new FakeClient(config);
@@ -139,6 +161,7 @@ function renderProvider(auth: AuthContextType = authenticated()) {
 describe('NotificationProvider', () => {
   beforeEach(() => {
     lastClient = undefined;
+    renewSession.mockReset();
     getNotifications.mockReset();
     getNotifications.mockResolvedValue([]);
   });
@@ -218,6 +241,36 @@ describe('NotificationProvider', () => {
     expect(screen.getByTestId('unread').textContent).toBe('1');
   });
 
+  it('GivenTheTokenHasLapsed_WhenTheSocketReconnects_ThenItIsRenewedBeforeTheAttempt', async () => {
+    // Without this the socket retries a dead token every five seconds forever: live notifications
+    // silently stop and the server logs a refused CONNECT on a loop. A tab idle past the token's
+    // fifteen minutes, with no HTTP traffic to renew it, is all it takes.
+    setAccessToken('expired.jwt.token', '2000-01-01T00:00:00Z');
+    renewSession.mockReturnValue(true);
+    renderProvider(authenticated());
+    await waitFor(() => expect(lastClient).toBeDefined());
+
+    await act(async () => {
+      await lastClient?.prepareConnect();
+    });
+
+    expect(renewSession).toHaveBeenCalled();
+    expect(lastClient?.connectHeaders).toEqual({ Authorization: 'Bearer renewed.jwt.token' });
+  });
+
+  it('GivenAUsableToken_WhenTheSocketReconnects_ThenNothingIsRenewedNeedlessly', async () => {
+    setAccessToken('still.good.token', '2099-01-01T00:00:00Z');
+    renewSession.mockReturnValue(true);
+    renderProvider(authenticated());
+    await waitFor(() => expect(lastClient).toBeDefined());
+
+    await act(async () => {
+      await lastClient?.prepareConnect();
+    });
+
+    expect(renewSession).not.toHaveBeenCalled();
+    expect(lastClient?.connectHeaders).toEqual({ Authorization: 'Bearer still.good.token' });
+  });
   it('GivenTheTokenWasRenewed_WhenTheSocketReconnects_ThenItAuthenticatesWithTheCurrentOne', async () => {
     // The access token now lasts minutes and is replaced underneath this component. A header
     // captured when the effect ran would be stale by the first reconnect, and putting the token in
@@ -226,11 +279,15 @@ describe('NotificationProvider', () => {
     renderProvider(authenticated());
     await waitFor(() => expect(lastClient).toBeDefined());
 
-    act(() => lastClient?.prepareConnect());
+    await act(async () => {
+      await lastClient?.prepareConnect();
+    });
     expect(lastClient?.connectHeaders).toEqual({ Authorization: 'Bearer first.jwt.token' });
 
     setAccessToken('renewed.jwt.token', '2099-01-01T00:00:00Z');
-    act(() => lastClient?.prepareConnect());
+    await act(async () => {
+      await lastClient?.prepareConnect();
+    });
 
     expect(lastClient?.connectHeaders).toEqual({ Authorization: 'Bearer renewed.jwt.token' });
     expect(lastClient?.deactivated).toBe(0);
@@ -243,7 +300,9 @@ describe('NotificationProvider', () => {
     renderProvider(authenticated());
     await waitFor(() => expect(lastClient).toBeDefined());
 
-    act(() => lastClient?.prepareConnect());
+    await act(async () => {
+      await lastClient?.prepareConnect();
+    });
 
     expect(lastClient?.connectHeaders).toEqual({});
   });
