@@ -27,5 +27,8 @@ CREATE TABLE auth_sessions (
 -- keeps that delete, and "end every session this account holds", from scanning the table.
 CREATE INDEX idx_auth_sessions_user_id ON auth_sessions(user_id);
 
--- The cleanup sweep's predicate. Without it the nightly delete reads every row to find the few it wants.
-CREATE INDEX idx_auth_sessions_absolute_expires_at ON auth_sessions(absolute_expires_at);
+-- No index for the nightly cleanup sweep, deliberately. It deletes where the session is revoked OR
+-- idle OR past its cap, and Postgres can only turn an OR into a bitmap scan when every branch is
+-- indexed - so an index on one of the three would be paid for on every insert and used by nothing.
+-- The sweep scans instead, which is cheap here: the table holds roughly one row per live session and
+-- is emptied of dead ones every night. Revisit if that stops being true.
