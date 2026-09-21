@@ -2,7 +2,7 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. A hundred and two of the hundred and nine entries below name a test — eighty-three distinct
+rather than trusted. A hundred and four of the hundred and eleven entries below name a test — eighty-four distinct
 test classes and files between them. Four of the remaining seven name the command, workflow or script
 that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18). The last three — FR-39, NFR-19 and NFR-20 — are
 verified by hand and say so, because each is about a rendered width, a colour or an overflow, and jsdom
@@ -218,6 +218,8 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-42 | Sign-in and registration are rate-limited per client address — the only two endpoints reachable without a credential. Over the limit answers 429 with `Retry-After` and never reaches the application, so a refused attempt costs no password comparison. The limit is per address and never per account, so nobody can lock another person out by failing to sign in as them | `FixedWindowRateLimiterTest`, `RateLimitedSignInTest` ([ADR-017](../ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)) |
 | NFR-43 | The address a limit counts against cannot be chosen by the caller: the proxy overwrites `X-Forwarded-For` rather than appending to it, and only the proxy's own address is trusted to set it. IPv6 is counted by its /64, so rotating addresses within one allocation buys no extra allowance | `FixedWindowRateLimiterTest`, `nginx.conf`, `server.tomcat.remoteip.internal-proxies` |
 | NFR-44 | The rate limiter's memory is bounded, so the defence cannot itself be turned into a denial of service by a caller rotating addresses | `FixedWindowRateLimiterTest` |
+| NFR-45 | The page is served under a content security policy that permits one inline script by hash and no inline script by category, so an injected script does not execute. The policy also forbids framing, plugin content and a rewritten base URL, and every header is sent on error responses as well as successful ones | `bootScriptCsp.test.ts` ([ADR-018](../ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)) |
+| NFR-46 | The hash permitting the inline theme script is recomputed from the shipped file by a test, so editing that script without updating the policy fails the build rather than producing a flash of the wrong theme in production only | `bootScriptCsp.test.ts` |
 
 ---
 

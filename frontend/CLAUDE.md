@@ -54,6 +54,13 @@ conventions to follow inside `frontend/`.
   CI. Follow it for any new context.
 - Shared TypeScript types (mirroring backend DTOs/enums, e.g. `UpgradeStatus`) live in `src/types/index.ts`.
 - Styling is Tailwind CSS; reusable primitives are in `src/components/ui/`.
+- **The page is served under a CSP, and the inline boot script is permitted by a hash.** It is in
+  `nginx.conf`, so `npm run dev` serves no headers and a violation only appears in a compose run or
+  in production. `src/test/bootScriptCsp.test.ts` recomputes the hash from the shipped `index.html`
+  and fails the build if the two drift, which is the only moment anybody would notice — editing the
+  boot script at all, whitespace included, changes its hash. Adding a third-party script, font or
+  image source means editing the policy; that friction is deliberate
+  ([ADR-018](../docs/ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)).
 - **Colours are semantic tokens, never palette shades.** Write `bg-surface`, not `bg-white`;
   `text-fg-subtle`, not `text-gray-500`. The tokens are declared in `tailwind.config.js` and given
   their light and dark values in `src/index.css`. `npm run check:colours` fails on any direct palette
