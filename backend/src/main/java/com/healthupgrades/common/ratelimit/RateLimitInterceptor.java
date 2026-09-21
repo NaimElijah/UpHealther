@@ -31,8 +31,31 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     /** Counts refusals, so a credential-stuffing run is visible as a spike rather than as silence. */
     static final String REFUSALS = "auth.rate_limited";
 
+    /** What an unrecognised target is counted as, so the tag can never be caller-supplied text. */
+    static final String OTHER = "other";
+
     private final FixedWindowRateLimiter limiter;
     private final MeterRegistry meterRegistry;
+
+    /**
+     * The metric tag for a target, resolved against the closed set of limited paths.
+     *
+     * <p>Not {@code getRequestURI()} directly, which is the raw target the caller sent: matrix
+     * parameters and percent-encoding survive it but not the pattern matching that got the request
+     * here, so {@code /api/auth/login;x=1} is rate-limited as {@code /api/auth/login} and tagged as
+     * itself. A refused caller could then mint a new Micrometer meter per attempt and grow the
+     * registry — and the public {@code /actuator/prometheus} payload — without bound. ADR-012 forbids
+     * an unbounded tag for exactly this reason; matching against the two known paths makes the tag
+     * bounded by construction rather than by the caller's restraint.
+     */
+    private static String endpointTag(String requestUri) {
+        for (String limited : RateLimitConfig.LIMITED_PATHS) {
+            if (limited.equals(requestUri)) {
+                return limited;
+            }
+        }
+        return OTHER;
+    }
 
     /**
      * {@inheritDoc}
@@ -47,7 +70,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         if (decision.allowed()) {
             return true;
         }
-        meterRegistry.counter(REFUSALS, "endpoint", request.getRequestURI()).increment();
+        meterRegistry.counter(REFUSALS, "endpoint", endpointTag(request.getRequestURI())).increment();
         throw new TooManyRequestsException(decision.retryAfter());
     }
 }
