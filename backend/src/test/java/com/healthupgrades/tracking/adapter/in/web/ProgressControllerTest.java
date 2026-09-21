@@ -3,7 +3,7 @@ package com.healthupgrades.tracking.adapter.in.web;
 import com.healthupgrades.common.domain.exception.DuplicateProgressException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.security.JwtAuthenticationFilter;
-import com.healthupgrades.common.security.JwtTokenProvider;
+import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.common.security.SecurityConfig;
 import com.healthupgrades.common.security.UserDetailsServiceImpl;
 import com.healthupgrades.support.AProgressEntry;
@@ -51,7 +51,7 @@ class ProgressControllerTest {
     @Autowired MockMvc mockMvc;
 
     @MockBean TrackingService trackingService;
-    @MockBean JwtTokenProvider tokenProvider;
+    @MockBean BearerTokenAuthenticator authenticator;
     @MockBean UserDetailsServiceImpl userDetailsService;
 
     private UUID userId;
@@ -62,7 +62,7 @@ class ProgressControllerTest {
     void authenticate() {
         userId = UUID.randomUUID();
         progressPath = "/api/upgrades/" + upgradeId + "/progress";
-        WebSliceSupport.authenticateAs(tokenProvider, userDetailsService, userId);
+        WebSliceSupport.authenticateAs(authenticator, userId);
     }
 
     @Test

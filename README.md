@@ -82,6 +82,10 @@ and every one of those moves is a guarded transition rather than an editable sta
 - Record reflections against an upgrade: what worked, what did not, what to adjust
 - Receive reminders and notifications, pushed live over a WebSocket and persisted so an offline
   client still sees them
+- Sign out — on this device, immediately, and meaning it: the session is a row the server can end,
+  not a token that stays valid until it expires
+- Administer accounts: list who exists, switch an account off or back on, and grant or revoke the
+  administrator role. An administrator manages accounts and cannot read what any account owns
 - Switch between light and dark themes, applied before the first paint — no wrong-theme flash
 
 ## 🧱 Architecture
@@ -90,17 +94,18 @@ Three processes and a browser, shown above. No message broker, no cache, no thir
 every piece of state is in the one database, and every side effect is either a write to it or a
 message pushed to a connected browser.
 
-The backend is **nine bounded contexts over a shared kernel** — `auth`, `user`, `healtharea`,
+The backend is **ten bounded contexts over a shared kernel** — `auth`, `user`, `admin`, `healtharea`,
 `upgrade`, `tracking`, `reflection`, `reminder`, `dashboard`, `notification` — each a hexagon:
-adapters depend on the core, and the core depends on nothing outside itself. Three of them
-(`upgrade`, `healtharea`, `user`) depend on no other context at all, and the graph is acyclic.
+adapters depend on the core, and the core depends on nothing outside itself. Two of them
+(`healtharea`, `user`) depend on no other context at all, and the graph is acyclic.
 That graph is read off the `import` statements rather than drawn, and CI fails when it stops
 matching the code — see the
 [context map](docs/architecture/arch-diagrams/README.md#2-bounded-context-map).
 
 **One request, end to end.** `POST /api/upgrades/{id}/progress` arrives at nginx and is proxied to
-the API. `JwtAuthenticationFilter` validates the bearer token and re-loads the user, so a deleted
-account stops working immediately. `ProgressController` hands a command to `TrackingService`, which
+the API. `JwtAuthenticationFilter` hands the bearer token to `BearerTokenAuthenticator`, which
+verifies it against this application's issuer, audience and signing algorithm and re-loads the
+account named by its `sub` id, so a deleted account stops working immediately. `ProgressController` hands a command to `TrackingService`, which
 asks the `upgrade` context for the upgrade *scoped to that user* — ownership is enforced by the
 query being user-scoped, so another user's row is a 404 rather than a 403. The service rejects a
 duplicate entry for the same upgrade and date, scores the entry against its tracking configuration,
@@ -124,7 +129,7 @@ Seven diagrams, outside in: [arch-diagrams](docs/architecture/arch-diagrams/READ
 |:---|:---|---:|:---|
 | Language | Java | 21 | Records carry the command, port and DTO layer, which is most of the boundary code |
 | Framework | Spring Boot | 3.2.5 | Confined to the adapters; ArchUnit keeps it out of the domain |
-| Auth | Spring Security + JJWT | Boot-managed / 0.12.3 | Stateless bearer tokens, no server-side session to replicate |
+| Auth | Spring Security + JJWT | Boot-managed / 0.12.3 | A short-lived bearer token held in memory, renewed from a rotating refresh cookie against a server-side session row, so signing out and revoking both take effect on the next request ([ADR-015](docs/ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
 | Database | PostgreSQL | 15 | The partial unique constraint and optimistic locking the domain relies on are real constraints, not application checks |
 | Migrations | Flyway | 9.22.3 | Flyway owns the schema; Hibernate runs `ddl-auto: validate` and refuses to start against one that does not match |
 | Observability | Micrometer Tracing, Prometheus registry, Logstash encoder | Boot-managed / 7.4 | W3C `traceparent` on the wire and vendor-neutral; JSON logs whose trace id is a field, not a substring |
@@ -172,6 +177,11 @@ a published value and gives no security.
 | `POSTGRES_USER` | Database user created by the compose Postgres | `healthupgrades` | No |
 | `POSTGRES_PASSWORD` | Password for that user | `healthupgrades` | In a deployment |
 | `JWT_SECRET` | Token signing key; at least 256 bits or the application refuses to start | published dev value | In a deployment |
+| `JWT_ACCESS_TOKEN_TTL` | How long an issued access token is accepted, as an ISO-8601 or Spring duration. The SPA renews it from the refresh cookie, so this is not the length of a session | `15m` | No |
+| `AUTH_COOKIE_SECURE` | Whether the refresh cookie is TLS-only. False locally only, because localhost has no TLS for the browser to send it over | `false` | In a deployment |
+| `ADMIN_BOOTSTRAP_USER_ID` | An existing account id to promote to `ADMIN` at startup, while no administrator exists. An id, not an email — registration is open | empty | For the first admin |
+| `AUTH_RATE_LIMIT` | Sign-in and registration attempts allowed per client address per window | `10` | No |
+| `TRUSTED_PROXIES` | Java regex for the proxy addresses allowed to set `X-Forwarded-For`. Widening it lets a caller choose the address the rate limit counts | nginx on the compose network | Behind another proxy |
 | `DB_URL` | JDBC URL the backend connects to | `jdbc:postgresql://localhost:5432/healthupgrades` | Outside compose |
 | `DB_USERNAME` | Database user the backend connects as | `healthupgrades` | Outside compose |
 | `DB_PASSWORD` | Password for that user | `healthupgrades` | Outside compose |
@@ -188,8 +198,13 @@ effect on a native run only.
 ## 📖 Usage
 
 `POST /api/auth/login` with the demo credentials returns `200` and
-`{ "token": …, "user": { "id", "name", "email", "createdAt" } }`. Export that token as `$TOKEN`;
-every call below sends it as a bearer.
+`{ "accessToken": …, "expiresAt": …, "user": { "id", "name", "email", "role", "createdAt" } }`,
+plus a `Set-Cookie` carrying the refresh credential. Export the access token as `$TOKEN`; every call
+below sends it as a bearer.
+
+It is valid for fifteen minutes. The browser renews it from the cookie without the user noticing; at
+a terminal, sign in again, or `POST /api/auth/refresh` with the cookie and an `X-Requested-With`
+header.
 
 Create an upgrade — `201`, and it starts in `IDEA` because status moves only through the transition
 endpoints:
@@ -262,14 +277,14 @@ the wrong way.
 | Domain | The `HealthUpgrade` state machine and construction invariants, streaks, reminder scheduling, entry scoring | `mvn test` |
 | Application | Every use case in every context, including what a *rejected* operation must not leave behind | `mvn test` |
 | Web slice | Each controller against the real security chain: status codes, validation, another user's row as a 404 | `mvn test` |
-| Structural | Eleven ArchUnit rules, plus the frontend enum contract | `mvn test` |
+| Structural | Twelve ArchUnit rules, plus the frontend enum and column-bound contracts | `mvn test` |
 | Integration | The app booted against a real PostgreSQL — bean graph, migrations, database-enforced invariants | `mvn verify` |
-| Frontend | Session restore and 401 expiry, the notification socket, the route gate, theme, error boundary | `npm run test` |
+| Frontend | Session restore and silent token renewal, the notification socket, the route and role gates, the administration page, the content security policy, theme, error boundary | `npm run test` |
 
 ```bash
 cd backend
-mvn test        # 465 unit and structural tests — no database, no Docker
-mvn verify      # the above plus 39 integration tests in 8 *IT classes — needs Docker
+mvn test        # 642 unit and structural tests — no database, no Docker
+mvn verify      # the above plus 57 integration tests in 12 *IT classes — needs Docker
 
 cd ../frontend
 npm run lint && npm run check:colours && npm run test
@@ -312,7 +327,7 @@ corrupting the schema. To chase a reported failure:
 ## 📁 Project structure
 
 ```
-backend/           Spring Boot API — nine bounded contexts, hexagonal, ArchUnit-enforced
+backend/           Spring Boot API — ten bounded contexts, hexagonal, ArchUnit-enforced
   src/main/java/     com.healthupgrades.<context>/{domain,application,adapter} + common/
   src/main/resources/  application.yml, logback-spring.xml, db/migration/V{n}__*.sql
   src/test/java/     domain · application · web slice · architecture · *IT
@@ -359,8 +374,8 @@ out outside contribution.
 
 ## 🚦 Status and limitations
 
-**Feature-complete and unshipped.** Every capability above works and is covered — 465 unit and
-structural tests, 39 integration tests, 126 frontend tests, all green — but it has never run in a
+**Feature-complete and unshipped.** Every capability above works and is covered — 642 unit and
+structural tests, 57 integration tests, 189 frontend tests, all green — but it has never run in a
 hosted environment, has no release tags, and is versioned `0.0.1-SNAPSHOT`.
 
 Known limitations, load-bearing rather than accidental:
@@ -374,9 +389,18 @@ Known limitations, load-bearing rather than accidental:
 - **Observability stops at the process.** `docker logs` is the only sink, so its retention is the
   audit trail's retention; nothing scrapes `/actuator/prometheus`; no span leaves the process; the
   SPA has no telemetry, so `ErrorBoundary` can show an error and nothing else knows.
-- **Two paths carry a trace id in the header but not the body** — an anonymous request to a
-  protected endpoint (rejected in the security chain as a `403`, no `AuthenticationEntryPoint`
-  configured), and a container error dispatch outside the observation scope.
+- **One path carries a trace id in the header but not the body** — a container error dispatch
+  outside the observation scope.
+- **A live WebSocket outlives a sign-out until it reconnects.** The session is checked when a frame
+  arrives, and a connected socket sends none, so a socket opened before signing out keeps receiving
+  until it next reconnects. It only ever receives its own user's notifications, so the exposure is
+  bounded to that user's own data.
+- **The rate limit is per instance.** It counts in this process's memory, so running two instances
+  doubles the effective limit. That follows from the single-instance limitation above and is the
+  first thing to revisit when it changes
+  ([ADR-017](docs/ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)).
+- **The demo account ships with a published password.** It is seeded into every environment by
+  migration, which is convenient for a clone and wrong for anything reachable.
 - **No screenshots yet.** The system-context diagram stands in until the UI is captured.
 
 Planned, and deliberately absent from every section above: push notifications, progress export,

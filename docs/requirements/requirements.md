@@ -2,7 +2,7 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. Eighty-two of the eighty-nine entries below name a test — sixty-one distinct
+rather than trusted. A hundred and four of the hundred and eleven entries below name a test — eighty-four distinct
 test classes and files between them. Four of the remaining seven name the command, workflow or script
 that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18). The last three — FR-39, NFR-19 and NFR-20 — are
 verified by hand and say so, because each is about a rendered width, a colour or an overflow, and jsdom
@@ -32,6 +32,13 @@ actually being done, and reflecting on what worked.
 **Users:** one person managing their own upgrades. Every record belongs to exactly one account, and
 nothing is shared between accounts.
 
+**One carve-out, and only one.** An installation has administrators, who can list the accounts on
+it, switch one off or back on, and grant or revoke the role. That is the whole of it: an
+administrator gains *paths*, never *rows*. Every query is scoped by the account that owns the
+record, for an administrator exactly as for anybody else, so there is no way — not a guarded one,
+no way at all — to read another person's health records
+([ADR-016](../ADRs/ADR-016-roles-read-from-the-database-on-every-request.md)).
+
 ---
 
 ## 2. Functional requirements
@@ -43,8 +50,8 @@ nothing is shared between accounts.
 | FR-1 | A visitor can register with a name, email and password, and is signed in immediately | `AuthServiceTest`, `AuthControllerTest` |
 | FR-2 | A registered user can sign in with email and password and receive a token | `AuthServiceTest`, `AuthControllerTest` |
 | FR-3 | A signed-in user can retrieve their own profile, so a stored token restores a session | `AuthControllerTest`, `AuthContext.test.tsx` |
-| FR-4 | An email may be registered once | `AuthServiceTest`, `AuthControllerTest` (422) |
-| FR-5 | Every endpoint except registration, login and health checks requires a valid token | `AuthenticatedBoundaryTest` (every protected route), `ProtectedRoute.test.tsx` |
+| FR-4 | An email may be registered once. Addresses are compared trimmed and case-insensitively, the database refuses any other stored form, and a registration that loses a race for an address is refused like any other duplicate | `AuthServiceTest`, `AuthControllerTest` (422), `EmailAddressTest`, `UserPersistenceIT`, `RegistrationRaceIT` |
+| FR-5 | Every endpoint except registration, login and health checks requires a valid token; a request without one, or with one the server refuses, is answered 401 with a `WWW-Authenticate: Bearer` challenge and the API's error body | `AuthenticatedBoundaryTest` (every protected route), `ErrorBodySecurityHandlersTest`, `ProtectedRoute.test.tsx` |
 
 ### 2.2 Health areas
 
@@ -111,6 +118,12 @@ nothing is shared between accounts.
 | FR-39 | A dialog fits the window at any size: its heading stays put and only its body scrolls | `Modal` — checked by hand, see §6 |
 | FR-40 | A dialog announces itself as a dialog named by its title, takes focus on open, confines Tab to its own controls, restores focus on close, and marks the page behind it inert | `Modal`, `Modal.test.tsx`, [ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md) |
 | FR-41 | A health area whose stored icon cannot be drawn is shown with the default icon, and editing it does not write the undrawable value back | `areaIconGlyph`, `isIconGlyph`, `areaIcon.test.ts` |
+| FR-42 | An administrator can list the accounts on the installation, a page at a time and oldest first, seeing each one's role and whether it is switched on — and nothing about what it owns | `AdminUserServiceTest`, `AdminUserControllerTest` |
+| FR-43 | An administrator can switch an account off and back on. Switching it off ends every session it holds and destroys nothing it owns, so switching it back on restores the account exactly as it was | `AdminUserServiceTest`, `AdminUserControllerTest` |
+| FR-44 | An administrator can grant and revoke the administrator role. The change is read from the account on its next request, so it takes effect without signing that person out | `AdminUserServiceTest`, `AdminUserControllerTest` |
+| FR-45 | A fresh installation can be given its first administrator through configuration, by account id and only while no administrator exists — so it cannot silently re-promote somebody after a deliberate demotion, and cannot be claimed by whoever registers an address first | `AdminBootstrapRunnerTest` |
+| FR-46 | The account administration screen is offered only to an administrator, in the navigation and at its route, and an administrator's own row offers no controls at all — the server refuses a self-directed change, and a control that can only fail is worse than none | `RequireRole.test.tsx`, `Sidebar.test.tsx`, `AdminUsersPage.test.tsx` |
+| FR-47 | Disabling an account and changing a role are confirmed before they happen, and the confirmation says what the change actually does; a change that fails says so rather than appearing to have worked | `AdminUsersPage.test.tsx` |
 
 ---
 
@@ -135,6 +148,7 @@ nothing is shared between accounts.
 | BR-15 | A record is visible only to its owner; another user's record is reported as absent, never as forbidden | `UpgradePersistenceIT`, `HealthAreaPersistenceIT`, `ProgressEntryPersistenceIT`, and every `*ControllerTest` |
 | BR-16 | A field stored in a bounded column is refused at the boundary when it exceeds that bound, and the response names the field | `ColumnBoundContractTest` (bound vs. column), `UpgradeControllerTest`, `HealthAreaControllerTest`, `ProgressControllerTest`, `TrackingConfigControllerTest` |
 | BR-17 | A password is at least 8 characters and at most 72, refused by the API rather than only by the browser | `AuthControllerTest` |
+| BR-18 | An upgrade can be filed only under a health area its owner owns; a foreign area and a missing one are refused alike, with no hint which it was | `UpgradeServiceTest`, `HealthAreaServiceTest` |
 
 BR-16 exists because the alternative is a 500. Each bound is taken from the column the field lands in
 (`V1__init_schema.sql`), so the two cannot drift apart in the direction that matters: `@Size` counts
@@ -150,21 +164,25 @@ bytes — but it removes the case anyone will actually hit. The minimum applies 
 the only route by which a password reaches the system; the seeded demo account is inserted as a hash by
 Flyway and never passes through it.
 
+BR-18 is checked when an area is set, not on every write: an update that leaves `areaId` as it was does
+not re-check it, so an upgrade filed before the rule existed stays editable. The rule does not rewrite
+such rows — before BR-18, an `areaId` belonging to another user was stored as given.
+
 ---
 
 ## 4. Non-functional requirements
 
 | ID | Requirement | Enforced by |
 |---|---|---|
-| NFR-1 | Authentication is stateless: a signed token, no server session | `AuthenticatedBoundaryTest`, `SecurityConfig` (`SessionCreationPolicy.STATELESS`) |
+| NFR-1 | The API holds no HTTP session and no conversational state: a request is authenticated by the credential it carries and nothing else, so any instance can serve any request. The signed-in session is a row the token names, not server memory | `AuthenticatedBoundaryTest`, `AuthSessionFlowIT`, `SecurityConfig` (`SessionCreationPolicy.STATELESS`) |
 | NFR-2 | Passwords are stored only as BCrypt hashes; a raw password never leaves the registration call | `AuthServiceTest` (the real BCrypt encoder), `AuthControllerTest` (no password field in any response) |
-| NFR-3 | The signing secret is supplied by configuration and must be at least 256 bits, or the application refuses to start | `JwtTokenProviderTest` |
-| NFR-4 | A token is valid for 24 hours and is not refreshable | `JwtTokenProviderTest`, `app.jwt.expiration` |
-| NFR-5 | The user behind a token is re-loaded on every request, so a deleted account stops working immediately | `JwtAuthenticationFilterTest` |
+| NFR-3 | The token settings are supplied by configuration and validated as the application starts, so a missing one is named at boot rather than surfacing as a null inside the first request that needs it; the signing secret must be at least 256 bits, or the application refuses to start | `JwtTokenProviderTest`, `ApplicationContextIT` |
+| NFR-4 | A token names its account by id and the session it belongs to, never an email, and is accepted only under this application's issuer, audience and signing algorithm. It is valid for `app.jwt.access-token-ttl` and is renewed through the refresh credential rather than by signing in again | `JwtTokenProviderTest`, `AuthSessionFlowIT` |
+| NFR-5 | The session and the account behind a token are both re-loaded on every request, so signing out, deleting an account or disabling one stops an already-issued token working on the very next request rather than whenever it would have expired | `BearerTokenAuthenticatorTest`, `AuthSessionFlowIT` |
 | NFR-6 | The application never logs personal data deliberately: event publication logs the type and timestamp only, and a trace id identifies a request rather than a person. The one exception is the stack trace of an unexpected 5xx, logged in full so the fault is diagnosable and withheld from the client | `SpringDomainEventPublisher`, `GlobalExceptionHandlerTest` |
-| NFR-7 | Every failure maps to a defined HTTP status: 404 not found, 422 rule violation, 409 conflict, 401 rejected credentials, 400 invalid input (a failed constraint, an unbindable body, a parameter that will not convert), 403 denied, and the status Spring defines for every other framework exception (405, 415, 406, …). Only a genuine server fault is a 500, and it carries no detail beyond the status and the trace id that finds its log line | `GlobalExceptionHandlerTest`, every `*ControllerTest`, [ADR-006](../ADRs/ADR-006-framework-exceptions-through-responseentityexceptionhandler.md) |
+| NFR-7 | Every failure maps to a defined HTTP status: 404 not found, 422 rule violation, 409 conflict, 401 rejected credentials or no accepted token, 400 invalid input (a failed constraint, an unbindable body, a parameter that will not convert), 403 authenticated but not allowed, and the status Spring defines for every other framework exception (405, 415, 406, …). Only a genuine server fault is a 500, and it carries no detail beyond the status and the trace id that finds its log line | `GlobalExceptionHandlerTest`, every `*ControllerTest`, [ADR-006](../ADRs/ADR-006-framework-exceptions-through-responseentityexceptionhandler.md) |
 | NFR-8 | The database schema is owned by migrations; the application refuses to start against a schema that does not match its entities | `ApplicationContextIT`, Flyway + `ddl-auto: validate` |
-| NFR-9 | Layering is enforced mechanically, not by convention: the domain stays framework-free, the application depends on no adapter, contexts form an acyclic graph | `HexagonalArchitectureTest` (eleven rules) |
+| NFR-9 | Layering is enforced mechanically, not by convention: the domain stays framework-free, the application depends on no adapter, contexts form an acyclic graph, and the administration context cannot reach any context holding a user's own records | `HexagonalArchitectureTest` (twelve rules) |
 | NFR-10 | The frontend's mirrored enums cannot drift from the backend's | `FrontendEnumContractTest` |
 | NFR-11 | The unit test suite runs without a database | `mvn test` — needs neither a database nor Docker |
 | NFR-12 | Every push and pull request is built, tested, linted, and the shipped frontend dependencies audited | `.github/workflows/ci.yml` |
@@ -187,6 +205,21 @@ Flyway and never passes through it.
 | NFR-29 | The actuator surface is closed by name: only health, info and the metrics scrape answer, and an endpoint that would expose configuration or process memory does not | `ActuatorEndpointsIT` (env, heapdump, loggers, beans, mappings, configprops, threaddump) |
 | NFR-30 | A request that fails shows the user the trace id that finds it in the log, from the error body or the response header, and offers none when the request never reached the server | `apiError.test.ts`, `ErrorState.test.tsx` |
 | NFR-31 | A render-time error shows a recoverable message rather than blanking the page | `ErrorBoundary.test.tsx` |
+| NFR-32 | A WebSocket session is authorised frame by frame, not only at CONNECT: a subscription must name the one destination the application pushes to, and a SEND is refused, so a connected session cannot read another session's notifications by naming the destination the broker resolved that session's queue to | `JwtChannelInterceptorTest`, `StompNotificationPushAdapterTest` |
+| NFR-33 | An account holds one of two roles, read from the database on every request rather than carried in the token, so granting or revoking ADMIN takes effect on the next request. A role decides which paths answer, never which rows do: the user-scoped queries apply to an administrator exactly as they do to anyone else | `UserTest`, `UserDetailsServiceImplTest`, `BearerTokenAuthenticatorTest`, `AuthenticatedBoundaryTest` ([ADR-016](../ADRs/ADR-016-roles-read-from-the-database-on-every-request.md)) |
+| NFR-34 | An account can be switched off without destroying anything it owns: a disabled account cannot sign in, and a token it was already issued stops working on its next request. The refusal costs the same as a wrong password and reads the same on the wire, so it does not disclose that the account exists | `UserTest`, `DisabledAccountAuthenticationTest`, `BearerTokenAuthenticatorTest` |
+| NFR-35 | A user can end a session, and ending it takes effect immediately: the access token already issued within it stops working on its next request. Sign-out is per device — it leaves the same account signed in elsewhere | `AuthSessionServiceTest`, `AuthSessionFlowIT`, `AuthControllerTest` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
+| NFR-36 | The long-lived refresh credential is never readable by script and never stored in a form that can be presented: it travels in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie and is held only as a SHA-256 digest. It is replaced on every use, and presenting a spent one outside the rotation grace window revokes the session and is audited | `AuthSessionTest`, `AuthSessionServiceTest`, `AuthSessionPersistenceIT`, `AuthControllerTest` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
+| NFR-37 | The two endpoints that act on the cookie alone cannot be driven from another site: the cookie is `SameSite=Strict`, and both additionally require a header that a cross-site form post cannot set, refusing the request before any session is read | `AuthControllerTest`, `AuthSessionFlowIT` |
+| NFR-38 | The access token is never written to browser storage: it is held in memory for the life of the tab, so it cannot be read by injected script and does not outlive the page. A reload restores the session from the refresh cookie instead, and the credentials of an earlier version are removed from storage on load | `tokenStore.test.ts`, `AuthContext.test.tsx`, `client.test.ts` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
+| NFR-39 | An expired access token is renewed and the request retried, rather than ending the session: the renewal is single-flight within a tab and across tabs, so a burst of parallel calls rotates the refresh credential once. Only a refusal from the renewal itself signs the user out | `client.test.ts`, `AuthSessionFlowIT` |
+| NFR-40 | An administrator cannot act on their own account — not disable it, not enable it, not change its role. Each would be unrecoverable from inside the application: the last administrator could lock the installation, or revoke the role nobody is left to grant | `AdminUserServiceTest`, `AdminUserControllerTest` |
+| NFR-41 | The administration context has no dependency on any context holding a user's own records, so "an administrator cannot read your health data" is a property of what the code can reach rather than a check somebody remembered to write | `HexagonalArchitectureTest` |
+| NFR-42 | Sign-in and registration are rate-limited per client address — the only two endpoints reachable without a credential. Over the limit answers 429 with `Retry-After` and never reaches the application, so a refused attempt costs no password comparison. The limit is per address and never per account, so nobody can lock another person out by failing to sign in as them | `FixedWindowRateLimiterTest`, `RateLimitedSignInTest` ([ADR-017](../ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)) |
+| NFR-43 | The address a limit counts against cannot be chosen by the caller: the proxy overwrites `X-Forwarded-For` rather than appending to it, and only the proxy's own address is trusted to set it. IPv6 is counted by its /64, so rotating addresses within one allocation buys no extra allowance | `FixedWindowRateLimiterTest`, `nginx.conf`, `server.tomcat.remoteip.internal-proxies` |
+| NFR-44 | The rate limiter's memory is bounded, so the defence cannot itself be turned into a denial of service by a caller rotating addresses | `FixedWindowRateLimiterTest` |
+| NFR-45 | The page is served under a content security policy that permits one inline script by hash and no inline script by category, so an injected script does not execute. The policy also forbids framing, plugin content and a rewritten base URL, and every header is sent on error responses as well as successful ones | `bootScriptCsp.test.ts` ([ADR-018](../ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)) |
+| NFR-46 | The hash permitting the inline theme script is recomputed from the shipped file by a test, so editing that script without updating the policy fails the build rather than producing a flash of the wrong theme in production only | `bootScriptCsp.test.ts` |
 
 ---
 
@@ -198,7 +231,9 @@ These are deliberate. Re-proposing one needs a reason that has changed.
   no feature may imply otherwise. It is a lifestyle planning tool and says so in the README and in the
   licence's warranty disclaimer.
 - **5.2 — Not multi-tenant or shared.** There is no sharing, no accountability partner, no team view.
-  Every record belongs to one account.
+  Every record belongs to one account. Administration is not an exception to this: an administrator
+  manages *accounts* and cannot read what an account owns, which is why the capability is stated in
+  §1 as a carve-out to the user model rather than as a hole in this one.
 - **5.3 — Not horizontally scaled.** Real-time push uses an in-memory broker, so it reaches only
   clients connected to the instance that raised the notification. Running more than one instance needs
   a broker relay first — see `architecture.md`, "Known constraints".
@@ -210,13 +245,6 @@ These are deliberate. Re-proposing one needs a reason that has changed.
 ## 6. Open questions
 
 Undecided, and owned by the repository owner.
-
-- **An anonymous request to a protected endpoint is answered 403, not 401.** No
-  `AuthenticationEntryPoint` is configured, so Spring Security's `Http403ForbiddenEntryPoint` answers
-  it. FR-5 is met either way — the request is refused — but 401 is the semantically correct status and
-  a client cannot distinguish "not signed in" from "not allowed". `AuthenticatedBoundaryTest` asserts
-  the behaviour as it is. Changing it is a one-line configuration change and a breaking change for any
-  client branching on the status, so it is a decision rather than a fix.
 
 - **The daily check-in logs every active upgrade, including the ones left untouched.**
   `DailyCheckinPage`'s own documentation says an untouched upgrade is "left unlogged rather than
@@ -250,7 +278,9 @@ Undecided, and owned by the repository owner.
   to it, but it stays unmapped, so any constraint a DTO annotation cannot express still surfaces as a
   500. Mapping it centrally is not one decision but several — a unique violation, a foreign-key
   violation and a not-null violation do not deserve the same status, and `DuplicateProgressException`
-  already shadows the first of them.
+  already shadows the first of them. The one other unique violation with a known route, a registration
+  losing a race for an address, is translated where it happens (the user persistence adapter) and
+  answered like any duplicate; the central question stands for everything else.
 - **`UpgradeType.PROTOCOL` is deprecated but retained** for rows that may already carry it. Removing it
   needs confirmation that no stored row uses it.
 - **No governing jurisdiction is named in the licence** — ADR-003 flags this as the first thing to add

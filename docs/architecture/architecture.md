@@ -18,7 +18,7 @@ WebSocket connection that the API uses to push notifications as they are raised.
 same origin: a proxy in front of the SPA forwards `/api` and `/ws` to the API, so the browser makes no
 cross-origin request in the default setup.
 
-Inside the API, the code is organised as nine bounded contexts over a ports-and-adapters core. The
+Inside the API, the code is organised as ten bounded contexts over a ports-and-adapters core. The
 domain and application layers know nothing about HTTP, JPA or Spring's event bus; each of those
 arrives through an adapter. The boundaries are not a convention — they are checked on every build by
 an ArchUnit suite, which is the authority on what the layering permits.
@@ -53,8 +53,9 @@ Nine contexts, each owning its own vocabulary, plus a cross-cutting `common`.
 | `reminder` | `Reminder` and its day-of-week schedule | Full |
 | `notification` | `Notification` — the inbox and the real-time push | Full, and the only context with a messaging adapter |
 | `healtharea` | `HealthArea` — the groupings upgrades are filed under | Full |
-| `user` | `User` — identity and the stored password hash | Full |
-| `auth` | Registration, login, and issuing tokens | Two-layer: orchestrates over `user`, owns no aggregate |
+| `user` | `User` — identity and the stored password hash; `EmailAddress`, the one rule for when two addresses are the same identity | Full |
+| `auth` | Registration, sign-in, sign-out, and the sessions tokens are issued within | `AuthSession` — a signed-in session, the row that makes revocation possible; orchestrates over `user` for identity |
+| `admin` | Listing accounts, switching one off or back on, and granting or revoking a role | Two-layer: orchestrates over `user` and `auth`, owns no aggregate. It depends on no context holding a user's own records, and ArchUnit keeps it that way |
 | `dashboard` | The composed dashboard read model | Two-layer: reads through other contexts' ports, persists nothing |
 | `common` | Cross-cutting: the `DomainEvent` marker, shared exceptions, the event-publisher port, the global exception handler, JWT security and the WebSocket configuration | Not a context; a shared kernel plus cross-cutting adapters |
 
@@ -64,7 +65,7 @@ Nine contexts, each owning its own vocabulary, plus a cross-cutting `common`.
 
 | Module | Responsible for |
 |---|---|
-| `src/api/` | One axios instance and a thin function per endpoint. The instance attaches the JWT and turns a 401 into a logout; every call goes through it |
+| `src/api/` | One axios instance and a thin function per endpoint. The instance attaches the in-memory access token, and renews it from the refresh cookie and retries once on a 401 rather than signing the user out; `tokenStore.ts` holds the token, and every call goes through the instance |
 | `src/contexts/` | `AuthProvider` owns the session; `NotificationProvider` owns the notification list, the STOMP connection and the toasts; `ThemeProvider` owns the light/dark/system choice and the `dark` class on `<html>` |
 | `src/hooks/` | `useAuth`, `useNotifications` and `useTheme` — typed context readers that fail loudly outside their provider |
 | `src/router/` | The route table, and `ProtectedRoute`, which gates every authenticated page |
@@ -78,15 +79,36 @@ Nine contexts, each owning its own vocabulary, plus a cross-cutting `common`.
 
 Five distinct mechanisms, each used for one thing:
 
+The two endpoints reachable without a credential — sign-in and registration — are rate-limited per
+client address by a handler interceptor, which runs before any controller so a refused attempt costs
+no password comparison. The address it counts is the one nginx reported, and only nginx's own address
+is trusted to report one
+([ADR-017](../ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)).
+
 **1. HTTP, browser to API.** Every read and write. JSON in and out, JWT bearer token in the
-`Authorization` header. Same-origin through the proxy, so no CORS preflight in the default setup; the
-`CORS_ALLOWED_ORIGINS` policy exists only for deployments that split the origins.
+`Authorization` header. The token names its account by id in `sub` and carries nothing else that
+identifies it, and it is accepted only under this application's issuer, audience and signing
+algorithm, so one minted by another service that happens to share the secret is refused.
+`BearerTokenAuthenticator` is the single place those rules live — the HTTP filter and the STOMP
+interceptor both authenticate through it, so the two transports cannot drift apart. It re-reads the
+account on every request, so the role it holds and whether it is enabled are decided by the row as
+it stands and never by the token: revoking ADMIN, or switching an account off, takes effect on the
+next request rather than whenever the token happens to lapse. Same-origin
+through the proxy, so no CORS preflight in the default setup; the `CORS_ALLOWED_ORIGINS` policy
+exists only for deployments that split the origins.
 
 **2. STOMP over WebSocket, API to browser.** One-way in practice: the browser connects and subscribes,
 the API pushes. The handshake itself is unauthenticated — a browser cannot set headers on it — so the
 JWT travels in the STOMP `CONNECT` frame and is validated by a channel interceptor, which attaches a
 principal named by user id. Messages are routed to `/user/queue/notifications`, which the broker
 resolves per session using that principal.
+
+The same interceptor authorises the frames that follow, because a session that is merely connected
+can still name any destination it likes. A SUBSCRIBE must come from an authenticated session and
+name `/user/queue/notifications` exactly — the resolved `/queue/notifications-user…` of another
+session, and any `/topic`, are refused — and a SEND is refused outright, the application declaring
+no `@MessageMapping` for one to reach. Heartbeats, UNSUBSCRIBE and DISCONNECT pass untouched:
+they name nothing, and refusing a DISCONNECT would leave sessions to time out rather than close.
 
 The broker is Spring's in-memory simple broker. There is no external broker, so a push reaches only
 clients connected to *this* instance — see "Known constraints" below.
@@ -116,8 +138,9 @@ Derived from the imports, not from intent:
 > **Diagram:** [Bounded-context map](arch-diagrams/README.md#2-bounded-context-map) —
 > generated from the imports, so it is what the code does rather than what was intended.
 
-`upgrade`, `user` and `healtharea` depend on no other context. The graph is acyclic, and ArchUnit
-fails the build if that stops being true.
+`user` and `healtharea` depend on no other context. `upgrade` depends only on `healtharea`, through
+`HealthAreaQuery.ownsArea`, so that an upgrade is filed only under an area the caller owns (BR-18).
+The graph is acyclic, and ArchUnit fails the build if that stops being true.
 
 The one edge that is not obvious is the absent one. An upgrade's response carries its tracking
 configuration, which would mean `upgrade → tracking` — and `tracking → upgrade` already exists for
@@ -140,7 +163,10 @@ Three things in that flow are easy to miss:
 
 - **Ownership is checked by the query, not by a guard.** Every repository lookup is scoped by user id,
   so a row belonging to someone else is indistinguishable from one that does not exist and surfaces as
-  404. There is no role model and no per-resource authorization layer.
+  404. That *is* the per-resource authorization layer; there is no second one. An account's role does
+  not change it — `ADMIN` opens the `/api/admin/**` paths and nothing else, so an administrator
+  reading another account's health data is not a rule that is enforced somewhere, it is a capability
+  that does not exist ([ADR-016](../ADRs/ADR-016-roles-read-from-the-database-on-every-request.md)).
 - **The server decides completion.** The `completed` flag the client sends is advisory; when the
   upgrade has a tracking configuration the entry is re-evaluated against the target, so streaks and
   rates cannot be inflated by a client.
@@ -155,6 +181,60 @@ the weekly rate, and returns a `DashboardView` of domain objects. The web mapper
 response, reusing the upgrade context's own mapper so the embedded upgrades are identical to what
 `/api/upgrades` returns, and mapping each distinct upgrade once so a single batched query resolves
 every tracking configuration rather than one per upgrade.
+
+### A session, end to end
+
+Two credentials with different lifetimes and different hiding places. The short one is in the body
+and lives in the tab's memory; the long one is in a cookie the page cannot read. The server keeps a
+row, which is what makes ending a session mean anything at all — see
+[ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as Browser
+    participant C as AuthController
+    participant S as AuthSessionService
+    participant J as JwtTokenProvider
+    participant DB as auth_sessions
+
+    Note over B,DB: Signing in
+    B->>C: POST /api/auth/login
+    C->>S: open(userId)
+    S->>DB: INSERT — only SHA-256(credential) is stored
+    S-->>C: SessionGrant
+    C->>J: issue(userId, sessionId)
+    C-->>B: 200 { token } · Set-Cookie: HttpOnly, Secure, SameSite=Strict
+
+    Note over B,DB: Renewing, once the access token lapses
+    B->>C: POST /api/auth/refresh — cookie + X-Requested-With
+    C->>S: refresh(credential)
+    S->>DB: SELECT … FOR UPDATE
+    S->>DB: UPDATE — previous := current, current := a new secret
+    S-->>C: Rotated
+    C-->>B: 200 { token } · a new Set-Cookie
+
+    Note over B,DB: The spent credential comes back
+    B->>C: POST /api/auth/refresh — the old cookie
+    C->>S: refresh(spent credential)
+    alt inside the rotation grace window
+        S-->>C: Stale — two tabs, or a retry
+        C-->>B: 409 · try again, nothing revoked
+    else after it
+        S->>DB: UPDATE revoked := true
+        S-->>C: Rejected · audited AUTH_TOKEN_REUSE
+        C-->>B: 401 · cookie cleared
+    end
+```
+
+Three things worth noticing. The row is read **`FOR UPDATE`**, so two tabs refreshing together
+serialise instead of both rotating from the same starting state. The old digest is kept, which is the
+only reason a replay is distinguishable from a guess — and a credential matching *neither* digest
+revokes nothing, because the session id travels in a token claim and is therefore not a secret.
+And the `sid` claim is checked on every authenticated request, which is what turns a revoked row
+into a refused request rather than a wait for the token to expire.
+
+---
 
 ### The record's lifetime
 
@@ -232,8 +312,9 @@ Three places are worth knowing about because they were silent and are no longer:
   minute, all night, and buries the runs that did something.
 - **The security boundary.** A rejected token is DEBUG with its exception type and never its message,
   which can quote the token back. A validly signed token naming an account that no longer exists is
-  WARN: the signature was ours, so this is not ordinary expiry. Neither line names a subject, because
-  the only handle available is the email.
+  WARN: the signature was ours, so this is not ordinary expiry. Neither line names a subject. The
+  token carries a user id and nothing else identifying, and that id is withheld on purpose: writing
+  it down would tie the line to an account whose deletion is the thing the record was meant to end.
 - **A failed real-time push.** It runs from an `afterCommit` callback, so the notification is already
   durable; the failure is now reported at WARN and the caller carries on, where before one unreachable
   session cancelled everybody else's reminders for that minute.
@@ -300,8 +381,9 @@ push service, no analytics, no AI service.
 | Dependency | Used for | How it is reached |
 |---|---|---|
 | **PostgreSQL 15** | All persistent state | JDBC from the backend only. Credentials from `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` |
-| **Flyway** | Schema ownership and migration on startup | Embedded in the backend. `V1` schema, `V2` demo seed, `V3` demo password fix, `V4` notifications |
+| **Flyway** | Schema ownership and migration on startup | Embedded in the backend; `V1`–`V9` apply in order at boot. An applied migration is never edited — Flyway checksums it, comments included — so a correction is another migration |
 | **Browser WebSocket** | Real-time notification delivery | The `/ws` STOMP endpoint, proxied by nginx (or Vite in development) |
+| **nginx** | Serves the built SPA and proxies `/api` and `/ws` | Also where the document's security headers live — the content security policy, framing and referrer rules ([ADR-018](../ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)). Absent from `npm run dev`, which serves no headers |
 | **Browser Notification API** | Desktop notifications when the tab is backgrounded | Optional, permission-gated, and skipped entirely where the API is unavailable |
 
 Integration points a maintainer will need:
@@ -430,14 +512,11 @@ Stated because they are load-bearing, not because they are problems yet:
 - **The backend has no dependency vulnerability audit.** OWASP dependency-check cannot populate its
   database without an `NVD_API_KEY`. ADR-002 records why a check that always fails, or one that cannot
   fail, was judged worse than none.
-- **Two paths carry a trace id in the header but not the body.** An anonymous request to a protected
-  endpoint is rejected inside the Spring Security chain and never reaches `GlobalExceptionHandler`, so
-  it returns Boot's default error body — and as a 403, not a 401, since no `AuthenticationEntryPoint` is
-  configured;
-  and `ServerHttpObservationFilter` is registered for `REQUEST` and `ASYNC` dispatches but not `ERROR`,
-  so a container error dispatch to `/error` runs outside the observation scope entirely. Nothing logs
-  on either path today. Closing the first means configuring an `AuthenticationEntryPoint`, which is its
-  own wire-contract change.
+- **One path carries a trace id in the header but not the body.** `ServerHttpObservationFilter` is
+  registered for `REQUEST` and `ASYNC` dispatches but not `ERROR`, so a container error dispatch to
+  `/error` runs outside the observation scope entirely. Nothing logs on that path today. A refusal
+  inside the security chain is no longer such a path: the entry point and the access-denied handler
+  hand it to `GlobalExceptionHandler` ([ADR-014](../ADRs/ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md))
 - **`docker logs` is the only sink, and its retention is the audit trail's retention.** There is no
   file appender, no log volume and no aggregator, so a line that has aged out of the container's log
   is gone — including the audit entries. That is adequate for diagnosis and is explicitly *not* a
@@ -477,6 +556,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why metrics are a scrape endpoint and not an exporter or a Grafana stack; why the actuator surface is closed by name | [ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md) |
 | Why every page shares one width; why the shell can be trusted not to overflow; why container queries were turned down | [ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md) |
 | Why the dialog traps focus by hand rather than through a native `<dialog>`; why `inert` and not `aria-hidden`; why the overlay is portalled | [ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md) |
+| Why an unauthenticated request is a 401 with the API's own body rather than the framework's 403 | [ADR-014](../ADRs/ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

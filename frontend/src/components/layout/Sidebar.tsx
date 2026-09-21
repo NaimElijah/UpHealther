@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
 
 /** One sidebar entry: where it goes, what it is called, and the emoji standing in for an icon. */
 interface NavItem {
@@ -26,15 +27,29 @@ const navItems: NavItem[] = [
 ];
 
 /**
+ * Entries only an administrator is shown.
+ *
+ * Hiding it is tidiness, not security: the page and every request behind it are refused by the
+ * server for anyone else, whatever this list happens to render.
+ */
+const adminNavItems: NavItem[] = [
+  { to: '/admin/users', label: 'Accounts', icon: '🛡️' },
+];
+
+/**
  * Primary navigation rail, with the current route highlighted.
  *
  * Hidden below the medium breakpoint — on a phone the navbar is the only chrome, and the pages are
  * reachable from the dashboard.
  */
-const Sidebar: React.FC = () => (
+const Sidebar: React.FC = () => {
+  const { user } = useAuth();
+  const items = user?.role === 'ADMIN' ? [...navItems, ...adminNavItems] : navItems;
+
+  return (
   <aside className="w-60 bg-surface border-r border-line min-h-full flex-shrink-0 hidden md:block">
     <nav className="py-4">
-      {navItems.map((item) => (
+      {items.map((item) => (
         <NavLink
           key={item.to}
           to={item.to}
@@ -52,6 +67,7 @@ const Sidebar: React.FC = () => (
       ))}
     </nav>
   </aside>
-);
+  );
+};
 
 export default Sidebar;

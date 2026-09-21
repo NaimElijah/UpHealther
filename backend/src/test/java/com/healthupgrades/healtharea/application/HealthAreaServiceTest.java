@@ -88,6 +88,22 @@ class HealthAreaServiceTest {
     }
 
     @Test
+    void GivenAnAreaTheCallerOwns_WhenOwnershipIsAsked_ThenItIsConfirmed() {
+        when(repository.findByIdAndUserId(areaId, userId)).thenReturn(Optional.of(anArea(userId)));
+
+        assertThat(service.ownsArea(userId, areaId)).isTrue();
+    }
+
+    @Test
+    void GivenAnAreaOwnedBySomebodyElseOrMissing_WhenOwnershipIsAsked_ThenItIsDenied() {
+        // The same scoped query as every other lookup, so "foreign" and "absent" stay indistinguishable
+        // to the upgrade context that asks (BR-18 relies on BR-15 here).
+        when(repository.findByIdAndUserId(areaId, otherUserId)).thenReturn(Optional.empty());
+
+        assertThat(service.ownsArea(otherUserId, areaId)).isFalse();
+    }
+
+    @Test
     void GivenAnOwnedArea_WhenItIsUpdated_ThenItsEditableAttributesAreReplaced() {
         HealthArea area = anArea(userId);
         when(repository.findByIdAndUserId(areaId, userId)).thenReturn(Optional.of(area));

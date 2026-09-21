@@ -28,7 +28,7 @@ from pathlib import Path
 CLASS_DIAGRAM_CONTEXT = "upgrade"
 
 CONTEXTS = [
-    "auth", "user", "healtharea", "upgrade", "tracking",
+    "auth", "user", "admin", "healtharea", "upgrade", "tracking",
     "reflection", "reminder", "dashboard", "notification",
 ]
 
@@ -277,6 +277,10 @@ def class_diagram(types: dict, context: str) -> str:
 
 CREATE_TABLE = re.compile(r"CREATE TABLE (\w+)\s*\((.*?)\n\);", re.DOTALL | re.IGNORECASE)
 
+# A column added to a table that already exists. Each ADD COLUMN is written as its own statement, so
+# a definition never has to be split on a comma and the table-body reader below is reused unchanged.
+ALTER_ADD_COLUMN = re.compile(r"ALTER TABLE (\w+)\s+ADD COLUMN\s+([^;]+);", re.IGNORECASE)
+
 
 def sql_type_token(column_definition: str) -> str:
     head = column_definition.strip().split()
@@ -286,43 +290,59 @@ def sql_type_token(column_definition: str) -> str:
     return SQL_TYPE_TOKENS.get(raw, raw.lower())
 
 
+def table_body_columns(definitions: list, table: str, relations: list) -> list:
+    """Reads columns out of a CREATE TABLE body, or out of a single ADD COLUMN definition."""
+    columns = []
+    for line in definitions:
+        line = line.strip().rstrip(",")
+        if not line or line.upper().startswith("CONSTRAINT"):
+            # A single-column UNIQUE is a property of that column and is marked on it. A
+            # composite one is a property of the pair, and Mermaid has no notation for that —
+            # marking each column UK would claim each is independently unique, which is false.
+            # Composite constraints are described in the prose beside the diagram instead.
+            inner = re.search(r"UNIQUE\s*\(([^)]*)\)", line, re.IGNORECASE)
+            if inner and "," not in inner.group(1):
+                columns.append((inner.group(1).strip(), None, "UK"))
+            continue
+        name = line.split()[0]
+        if name.upper() in ("PRIMARY", "FOREIGN", "UNIQUE", "CHECK"):
+            continue
+        key = "PK" if "PRIMARY KEY" in line.upper() else ("UK" if " UNIQUE" in line.upper() else "")
+        columns.append((name, sql_type_token(line), key))
+
+        reference = re.search(r"REFERENCES\s+(\w+)", line, re.IGNORECASE)
+        if reference:
+            optional = "NOT NULL" not in line.upper()
+            cardinality = "||--o{" if not optional else "|o--o{"
+            relations.append(f"    {reference.group(1)} {cardinality} {table} : \"\"")
+    return columns
+
+
+def merge_columns(target: dict, columns: list) -> None:
+    """Folds columns into a table, letting a later definition fill in what an earlier one left blank."""
+    for name, type_token, key in columns:
+        if name in target:
+            existing_type, existing_key = target[name]
+            target[name] = (existing_type or type_token, existing_key or key)
+        else:
+            target[name] = (type_token, key)
+
+
 def er_diagram() -> str:
     tables, relations = {}, []
     for migration in sorted(MIGRATIONS.glob("V*.sql")):
         sql = migration.read_text(encoding="utf-8")
         for table, block in CREATE_TABLE.findall(sql):
-            columns = []
-            for line in block.splitlines():
-                line = line.strip().rstrip(",")
-                if not line or line.upper().startswith("CONSTRAINT"):
-                    # A single-column UNIQUE is a property of that column and is marked on it. A
-                    # composite one is a property of the pair, and Mermaid has no notation for that —
-                    # marking each column UK would claim each is independently unique, which is false.
-                    # Composite constraints are described in the prose beside the diagram instead.
-                    inner = re.search(r"UNIQUE\s*\(([^)]*)\)", line, re.IGNORECASE)
-                    if inner and "," not in inner.group(1):
-                        columns.append((inner.group(1).strip(), None, "UK"))
-                    continue
-                name = line.split()[0]
-                if name.upper() in ("PRIMARY", "FOREIGN", "UNIQUE", "CHECK"):
-                    continue
-                key = "PK" if "PRIMARY KEY" in line.upper() else ("UK" if " UNIQUE" in line.upper() else "")
-                columns.append((name, sql_type_token(line), key))
-
-                reference = re.search(r"REFERENCES\s+(\w+)", line, re.IGNORECASE)
-                if reference:
-                    optional = "NOT NULL" not in line.upper()
-                    cardinality = "||--o{" if not optional else "|o--o{"
-                    relations.append(f"    {reference.group(1)} {cardinality} {table} : \"\"")
-
-            merged = {}
-            for name, type_token, key in columns:
-                if name in merged:
-                    existing_type, existing_key = merged[name]
-                    merged[name] = (existing_type or type_token, existing_key or key)
-                else:
-                    merged[name] = (type_token, key)
-            tables[table] = merged
+            merge_columns(tables.setdefault(table, {}),
+                          table_body_columns(block.splitlines(), table, relations))
+        # The diagram is of the schema as it stands, not of the order it was built in, so a column
+        # added by a later migration belongs on its table exactly as a declared one does.
+        for table, definition in ALTER_ADD_COLUMN.findall(sql):
+            if table not in tables:
+                raise SystemExit(
+                    f"{migration.name}: ALTER TABLE {table} adds a column to a table no "
+                    f"migration creates")
+            merge_columns(tables[table], table_body_columns([definition], table, relations))
 
     lines = ["erDiagram"]
     lines.extend(sorted(set(relations)))

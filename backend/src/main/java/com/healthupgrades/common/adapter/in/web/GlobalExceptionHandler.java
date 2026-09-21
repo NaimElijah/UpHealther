@@ -50,6 +50,7 @@ import java.util.Map;
  *   <tr><td>{@link TypeMismatchException}</td><td>400 Bad Request</td></tr>
  *   <tr><td>every other Spring MVC exception</td><td>the status Spring defines for it (405, 415, 406, 404, …)</td></tr>
  *   <tr><td>{@link BadCredentialsException} / {@link AccountStatusException}</td><td>401 Unauthorized, message withheld</td></tr>
+ *   <tr><td>{@link AuthenticationRequiredException}</td><td>401 Unauthorized, with a {@code WWW-Authenticate: Bearer} challenge</td></tr>
  *   <tr><td>{@link AccessDeniedException}</td><td>403 Forbidden</td></tr>
  *   <tr><td>anything else</td><td>500 Internal Server Error, message withheld</td></tr>
  * </table>
@@ -79,6 +80,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * or a value that must not reach a client, so no 5xx body is ever built from the exception.
      */
     private static final String INTERNAL_ERROR_MESSAGE = "Internal server error";
+
+    /** RFC 6750 section 3: a request with no credential is told the scheme and nothing else. */
+    private static final String BEARER_CHALLENGE = "Bearer";
+
+    /** RFC 6750 section 3.1: the credential was presented and not accepted. */
+    private static final String INVALID_TOKEN_CHALLENGE = "Bearer error=\"invalid_token\"";
 
     /** Supplies the trace id stamped on every error body; see {@link #body}. */
     private final Tracer tracer;
@@ -134,6 +141,38 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
+     * Maps a collision with a concurrent request to 409, so a client knows to send it again.
+     *
+     * <p>Distinct from the clash above: nothing was modified concurrently and there is no version to
+     * reconcile. The request was simply overtaken, and the same request a moment later will work.
+     */
+    @ExceptionHandler(RetryableConflictException.class)
+    public ResponseEntity<ErrorResponse> handleRetryableConflict(RetryableConflictException ex,
+                                                                 HttpServletRequest req) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(body(HttpStatus.CONFLICT.value(), ex.getMessage(), req.getRequestURI()));
+    }
+
+    /**
+     * Maps a client that has made too many attempts to 429, saying how long to wait.
+     *
+     * <p>{@code Retry-After} is the part that matters. A client told only "no" has nothing to do but
+     * keep asking, which is the behaviour the limit exists to stop; a script that honours the header
+     * stops hammering. The SPA does not read it today — it renders the message below — so the header
+     * is for well-behaved clients rather than for this one. The body says nothing about which limit
+     * was hit or how many attempts remain: an attacker tuning a script is the caller most interested
+     * in that.
+     */
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ResponseEntity<ErrorResponse> handleTooManyRequests(TooManyRequestsException ex,
+                                                               HttpServletRequest req) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.retryAfterSeconds()))
+                .body(body(HttpStatus.TOO_MANY_REQUESTS.value(),
+                        "Too many attempts. Please try again in a moment.", req.getRequestURI()));
+    }
+
+    /**
      * Maps a rejected credential to 401.
      *
      * <p>Reached only from the login endpoint, which authenticates inside a handler method rather than
@@ -159,7 +198,27 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .body(body(HttpStatus.UNAUTHORIZED.value(), "Invalid credentials", req.getRequestURI()));
     }
 
-    /** Maps a Spring Security authorization failure to 403. */
+    /**
+     * Maps a request that reached a protected resource without an accepted token to 401, with the
+     * RFC 6750 challenge that tells a client to authenticate.
+     *
+     * <p>Raised by the security chain's entry point, not by a controller. The challenge distinguishes
+     * "no token" from "a token that was refused", and says nothing more: expired, forged and revoked
+     * are one answer.
+     */
+    @ExceptionHandler(AuthenticationRequiredException.class)
+    public ResponseEntity<ErrorResponse> handleAuthenticationRequired(AuthenticationRequiredException ex,
+                                                                      HttpServletRequest req) {
+        String challenge = ex.tokenPresented() ? INVALID_TOKEN_CHALLENGE : BEARER_CHALLENGE;
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .header(HttpHeaders.WWW_AUTHENTICATE, challenge)
+                .body(body(HttpStatus.UNAUTHORIZED.value(), ex.getMessage(), req.getRequestURI()));
+    }
+
+    /**
+     * Maps a Spring Security authorization failure to 403: the caller is known and still not allowed.
+     * Reached from the security chain's access-denied handler and from method security alike.
+     */
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)

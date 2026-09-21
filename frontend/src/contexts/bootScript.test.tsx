@@ -4,9 +4,7 @@ import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { ThemeProvider } from './ThemeProvider';
 import { useTheme } from '../hooks/useTheme';
 import { installMatchMedia } from '../test/matchMediaStub';
-// Vite's `?raw` rather than `node:fs`: it resolves the file the same way the build does, and it keeps
-// the app's `tsconfig.json` free of Node types — see ADR-004.
-import indexHtml from '../../index.html?raw';
+import { BOOT_SCRIPT } from '../test/inlineBootScript';
 
 /**
  * The contract between the pre-paint boot script in `index.html` and `ThemeProvider`.
@@ -23,19 +21,6 @@ import indexHtml from '../../index.html?raw';
  * The script is read from `index.html` and executed verbatim rather than reimplemented, because a copy
  * of it in this file would be one more thing that can drift.
  */
-const BOOT_SCRIPT = (() => {
-  // The classic inline script, as opposed to the module script that loads the bundle.
-  const inline = [...indexHtml.matchAll(/<script(?![^>]*\b(?:src|type)=)[^>]*>([\s\S]*?)<\/script>/g)];
-
-  if (inline.length !== 1) {
-    throw new Error(
-      `Expected exactly one classic inline script in index.html, found ${inline.length}. ` +
-        'If the boot script moved or was split, this contract test needs to follow it.',
-    );
-  }
-
-  return inline[0][1];
-})();
 
 /**
  * Runs the shipped boot script against the current window.

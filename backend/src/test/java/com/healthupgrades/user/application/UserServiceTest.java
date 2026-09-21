@@ -46,6 +46,22 @@ class UserServiceTest {
     }
 
     @Test
+    void GivenAnExistingId_WhenTheUserIsLookedUp_ThenTheUserIsReturned() {
+        User user = AUser.aUser().build();
+        when(repository.findById(user.getId())).thenReturn(Optional.of(user));
+
+        assertThat(service.findById(user.getId())).contains(user);
+    }
+
+    @Test
+    void GivenAnUnknownId_WhenTheUserIsLookedUp_ThenNothingIsReturnedRatherThanNull() {
+        java.util.UUID unknown = java.util.UUID.randomUUID();
+        when(repository.findById(unknown)).thenReturn(Optional.empty());
+
+        assertThat(service.findById(unknown)).isEmpty();
+    }
+
+    @Test
     void GivenARegisteredEmail_WhenExistenceIsChecked_ThenItIsReportedAsTaken() {
         when(repository.existsByEmail(AUser.EMAIL)).thenReturn(true);
 
@@ -68,5 +84,16 @@ class UserServiceTest {
         when(repository.save(unsaved)).thenReturn(persisted);
 
         assertThat(service.save(unsaved)).isSameAs(persisted);
+    }
+
+    @Test
+    void GivenANewUser_WhenItIsRegistered_ThenItIsWrittenThroughTheFlushingSave() {
+        // Registration must learn about a duplicate address inside the call, not at commit, so it goes
+        // through the port method that flushes rather than the ordinary save.
+        User unsaved = AUser.aUser().id(null).build();
+        User persisted = AUser.aUser().build();
+        when(repository.saveAndFlush(unsaved)).thenReturn(persisted);
+
+        assertThat(service.register(unsaved)).isSameAs(persisted);
     }
 }

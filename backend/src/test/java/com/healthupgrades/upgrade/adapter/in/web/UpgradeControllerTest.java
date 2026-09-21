@@ -3,7 +3,7 @@ package com.healthupgrades.upgrade.adapter.in.web;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.security.JwtAuthenticationFilter;
-import com.healthupgrades.common.security.JwtTokenProvider;
+import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.common.security.SecurityConfig;
 import com.healthupgrades.common.security.UserDetailsServiceImpl;
 import com.healthupgrades.support.AnUpgrade;
@@ -67,7 +67,7 @@ class UpgradeControllerTest {
 
     @MockBean UpgradeService service;
     @MockBean UpgradeTrackingSummaryPort trackingSummaries;
-    @MockBean JwtTokenProvider tokenProvider;
+    @MockBean BearerTokenAuthenticator authenticator;
     @MockBean UserDetailsServiceImpl userDetailsService;
 
     private UUID userId;
@@ -76,7 +76,7 @@ class UpgradeControllerTest {
     @BeforeEach
     void authenticate() {
         userId = UUID.randomUUID();
-        WebSliceSupport.authenticateAs(tokenProvider, userDetailsService, userId);
+        WebSliceSupport.authenticateAs(authenticator, userId);
         when(trackingSummaries.findByUpgradeIds(any())).thenReturn(Map.of());
     }
 

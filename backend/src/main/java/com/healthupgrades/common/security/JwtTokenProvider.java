@@ -1,101 +1,141 @@
 package com.healthupgrades.common.security;
 
-import lombok.extern.slf4j.Slf4j;
-import io.jsonwebtoken.*;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.JwtParser;
+import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Date;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
- * Issues and verifies the HMAC-signed JWTs this API authenticates with.
+ * Issues and verifies the HMAC-signed access tokens this API authenticates with.
  *
- * <p>The token carries the user's email as its subject and nothing else — no roles, no user id. Every
- * request therefore re-loads the user, which keeps a deleted or renamed account from staying usable for
- * the lifetime of an already-issued token.
+ * <p>A token names its account by id ({@code sub}) and nothing else about it. Every request re-loads the
+ * account, which is what lets a deleted account stop working on the next request instead of at expiry.
+ *
+ * <p>Verification is strict about everything the token claims about itself:
+ * <ul>
+ *   <li>the algorithm is pinned to HS256, so a token signed with our key under another algorithm is
+ *       refused, and an unsigned token is refused by JJWT's signed-claims parser;</li>
+ *   <li>{@code iss} and {@code aud} must be this application's, so a token minted by another service
+ *       that happens to share the secret is not accepted here;</li>
+ *   <li>{@code exp} is checked against the injected {@link Clock}, with a small configured skew.</li>
+ * </ul>
  *
  * <p>The signing key is derived from {@code app.jwt.secret}. It must be at least 256 bits, or
- * {@link Keys#hmacShaKeyFor} rejects it at startup — deliberately, so a too-short secret fails the boot
- * rather than weakening every token silently.
+ * {@link Keys#hmacShaKeyFor} rejects it at startup: a too-short secret fails the boot rather than
+ * weakening every token silently (NFR-3).
  */
 @Component
 @Slf4j
 public class JwtTokenProvider {
 
+    /**
+     * The claim naming the session a token was issued within.
+     *
+     * <p>{@code sid} is the name OpenID Connect gives this claim, reused rather than invented so
+     * anybody reading a decoded token recognises it.
+     */
+    static final String SESSION_CLAIM = "sid";
+
     private final SecretKey secretKey;
-    private final long expirationMs;
+    private final Duration accessTokenTtl;
+    private final String issuer;
+    private final String audience;
+    private final Clock clock;
+    private final JwtParser parser;
 
     /**
-     * @param secret       HMAC signing secret, at least 256 bits ({@code app.jwt.secret})
-     * @param expirationMs token lifetime in milliseconds ({@code app.jwt.expiration})
+     * @param properties the validated {@code app.jwt} settings
+     * @param clock      the application clock; issue and expiry are both read from it
      * @throws io.jsonwebtoken.security.WeakKeyException if the secret is shorter than 256 bits
      */
-    public JwtTokenProvider(
-            @Value("${app.jwt.secret}") String secret,
-            @Value("${app.jwt.expiration}") long expirationMs) {
-        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
-        this.expirationMs = expirationMs;
-    }
-
-    /**
-     * Issues a signed token for the given user.
-     *
-     * @param email the user's email, stored as the token subject
-     * @return a compact, signed JWT valid for the configured lifetime
-     */
-    public String generateToken(String email) {
-        return Jwts.builder()
-                .subject(email)
-                .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + expirationMs))
-                .signWith(secretKey)
-                .compact();
-    }
-
-    /**
-     * Reads the subject out of a token, verifying the signature first.
-     *
-     * @param token compact JWT
-     * @return the email the token was issued for
-     * @throws JwtException if the signature, structure or expiry does not check out — callers must
-     *                      therefore call {@link #validateToken} first, or be prepared to handle it
-     */
-    public String extractEmail(String token) {
-        return Jwts.parser()
+    public JwtTokenProvider(JwtProperties properties, Clock clock) {
+        this.secretKey = Keys.hmacShaKeyFor(properties.secret().getBytes(StandardCharsets.UTF_8));
+        this.accessTokenTtl = properties.accessTokenTtl();
+        this.issuer = properties.issuer();
+        this.audience = properties.audience();
+        this.clock = clock;
+        // Built once: the parser is immutable and thread-safe, and every request would otherwise rebuild it.
+        this.parser = Jwts.parser()
                 .verifyWith(secretKey)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload()
-                .getSubject();
+                .sig().clear().add(Jwts.SIG.HS256).and()
+                .requireIssuer(issuer)
+                .requireAudience(audience)
+                .clockSkewSeconds(properties.clockSkew().toSeconds())
+                .clock(() -> Date.from(clock.instant()))
+                .build();
     }
 
     /**
-     * Reports whether a token is well-formed, correctly signed and unexpired.
+     * Issues an access token for an account, within a session.
+     *
+     * @param userId    the account the token is for
+     * @param sessionId the session it belongs to, so revoking that session invalidates this token
+     * @return the signed token and the instant it lapses
+     */
+    public IssuedAccessToken issue(UUID userId, UUID sessionId) {
+        Instant now = clock.instant();
+        Instant expiresAt = now.plus(accessTokenTtl);
+        String token = Jwts.builder()
+                .subject(userId.toString())
+                .claim(SESSION_CLAIM, sessionId.toString())
+                .issuer(issuer)
+                .audience().add(audience).and()
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(expiresAt))
+                .signWith(secretKey, Jwts.SIG.HS256)
+                .compact();
+        return new IssuedAccessToken(token, expiresAt);
+    }
+
+    /**
+     * Verifies a token and reads the account it names.
      *
      * @param token candidate JWT, from an {@code Authorization} header or a STOMP header
-     * @return true if the token can be trusted
+     * @return the verified claims, or empty when the token is malformed, forged, expired, from another
+     *         issuer or audience, signed with another algorithm, names no session, or names something
+     *         that is not an id
      */
-    public boolean validateToken(String token) {
+    public Optional<VerifiedAccessToken> verify(String token) {
         try {
-            Jwts.parser()
-                    .verifyWith(secretKey)
-                    .build()
-                    .parseSignedClaims(token);
-            return true;
-        } catch (JwtException | IllegalArgumentException e) {
-            // A rejected token is an expected outcome on a public endpoint, not a fault: the caller's
-            // contract is a boolean, and the reason is withheld on purpose — telling an unauthenticated
-            // caller whether a token expired or was forged is free information for an attacker.
+            Claims claims = parser.parseSignedClaims(token).getPayload();
+            String sessionId = claims.get(SESSION_CLAIM, String.class);
+            String subject = claims.getSubject();
+            // Both are checked for absence before parsing. UUID.fromString(null) throws a
+            // NullPointerException, which the catch below does not cover - so a signed token with no
+            // subject would escape this method entirely and surface from the filter, outside the
+            // DispatcherServlet and therefore outside GlobalExceptionHandler, as a 500 instead of the
+            // documented 401.
+            if (sessionId == null || subject == null) {
+                // A token minted before sessions existed names no session; one naming no subject is
+                // malformed. Either way there is no account to authenticate and nothing to revoke.
+                log.debug("Rejected a token: it names no session or no subject");
+                return Optional.empty();
+            }
+            return Optional.of(new VerifiedAccessToken(
+                    UUID.fromString(subject), UUID.fromString(sessionId)));
+        } catch (JwtException | IllegalArgumentException rejected) {
+            // A rejected token is an expected outcome on a public endpoint, not a fault, and the reason is
+            // withheld from the caller on purpose: telling an unauthenticated caller whether a token
+            // expired or was forged is free information for an attacker.
             //
-            // Withheld from the caller, not from us. DEBUG, because an expired token is the most
-            // ordinary thing that happens here and this would otherwise be a line per stale tab. The
-            // exception's type distinguishes "expired" from "forged"; its message is not logged,
-            // because a JJWT message can quote the malformed token back.
-            log.debug("Rejected a token: {}", e.getClass().getSimpleName());
-            return false;
+            // Withheld from the caller, not from us. DEBUG, because an expired token is the most ordinary
+            // thing that happens here and this would otherwise be a line per stale tab. The exception's
+            // type distinguishes "expired" from "forged"; its message is not logged, because a JJWT
+            // message can quote the malformed token back.
+            log.debug("Rejected a token: {}", rejected.getClass().getSimpleName());
+            return Optional.empty();
         }
     }
 }

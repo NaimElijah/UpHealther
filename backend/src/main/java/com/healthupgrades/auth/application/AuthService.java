@@ -3,11 +3,15 @@ package com.healthupgrades.auth.application;
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
+import com.healthupgrades.auth.application.port.in.SessionCommand;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
+import com.healthupgrades.common.security.IssuedAccessToken;
 import com.healthupgrades.common.security.JwtTokenProvider;
 import com.healthupgrades.user.application.port.in.UserCommand;
 import com.healthupgrades.user.application.port.in.UserQuery;
+import com.healthupgrades.user.domain.model.EmailAddress;
+import com.healthupgrades.user.domain.model.EmailAlreadyRegisteredException;
 import com.healthupgrades.user.domain.model.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AccountStatusException;
@@ -17,6 +21,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
 
 /**
  * Application service for authentication.
@@ -28,43 +34,58 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AuthService {
 
+    /**
+     * The one wording for a taken address, whichever way it was discovered. It does not quote the
+     * address back: the caller already knows it, and a message is one log line away from a file.
+     */
+    static final String EMAIL_TAKEN = "That email is already registered";
+
     private final UserQuery userQuery; // inbound read port of the user context
     private final UserCommand userCommand; // inbound write port of the user context
     private final PasswordEncoder passwordEncoder; // BCrypt encoder
     private final JwtTokenProvider tokenProvider; // issues JWTs
     private final AuthenticationManager authenticationManager; // verifies credentials on login
+    private final SessionCommand sessions; // opens the server-side session a token belongs to
     private final AuditTrail auditTrail; // records who signed in, and who was turned away
 
     /**
      * Registers a new user and issues a token for them.
      *
      * <p>The password is BCrypt-encoded before the user is saved; the raw value never leaves this method.
+     * The address is compared and stored normalised (FR-4), and the save flushes, so an address taken
+     * by a concurrent registration after the existence check is refused here as the same 422 rather
+     * than failing at commit as a 500.
      *
      * @param name     display name
-     * @param email    login identity, unique across users
+     * @param rawEmail login identity as typed; unique across users once normalised
      * @param password raw password, encoded here
      * @return the issued JWT together with the persisted user
      * @throws BusinessRuleException if the email is already registered
      */
     @Transactional
-    public AuthResult register(String name, String email, String password) {
+    public AuthResult register(String name, String rawEmail, String password) {
+        String email = EmailAddress.normalise(rawEmail);
         // Recorded by hand rather than through AuditTrail.recording, because until the save returns
         // there is no user id to name as the actor, and the email that would identify the attempt is
         // exactly what NFR-6 says must not be written down.
         try {
             if (userQuery.existsByEmail(email)) {
-                throw new BusinessRuleException("Email already registered: " + email);
+                throw new BusinessRuleException(EMAIL_TAKEN);
             }
             User user = User.builder()
                     .name(name)
                     .email(email)
                     .passwordHash(passwordEncoder.encode(password)) // never store the raw password
                     .build();
-            user = userCommand.save(user);
+            try {
+                user = userCommand.register(user);
+            } catch (EmailAlreadyRegisteredException lostTheRace) {
+                throw new BusinessRuleException(EMAIL_TAKEN);
+            }
             // Recorded after the token exists, not before. Issuing it can fail - a secret too short to
             // sign with - and recording ALLOWED first would then put one attempt in the trail twice,
             // once as allowed and once as failed, with the counter double-counting to match.
-            AuthResult result = new AuthResult(tokenProvider.generateToken(user.getEmail()), user);
+            AuthResult result = startSession(user);
             auditTrail.record(AuditEvent.allowed(AuditAction.AUTH_REGISTER, user.getId(), user.getId()));
             return result;
         } catch (RuntimeException thrown) {
@@ -76,21 +97,22 @@ public class AuthService {
     /**
      * Authenticates credentials and issues a token.
      *
-     * @param email    login identity
+     * @param rawEmail login identity as typed; normalised before it is matched
      * @param password raw password, matched against the stored hash by the authentication manager
      * @return the issued JWT together with the authenticated user
      * @throws org.springframework.security.core.AuthenticationException if the credentials do not match
      * @throws BusinessRuleException if the credentials matched but the user has since disappeared —
      *         only reachable if the account is deleted mid-request
      */
-    public AuthResult login(String email, String password) {
+    public AuthResult login(String rawEmail, String password) {
+        String email = EmailAddress.normalise(rawEmail);
         try {
             authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(email, password)); // throws on bad creds
             User user = userQuery.findByEmail(email)
                     .orElseThrow(() -> new BusinessRuleException("User not found"));
             // As in register: after the token, so a signing failure cannot produce two entries for one
             // sign-in attempt.
-            AuthResult result = new AuthResult(tokenProvider.generateToken(user.getEmail()), user);
+            AuthResult result = startSession(user);
             auditTrail.record(AuditEvent.allowed(AuditAction.AUTH_LOGIN, user.getId(), user.getId()));
             return result;
         } catch (BadCredentialsException | AccountStatusException refused) {
@@ -109,14 +131,49 @@ public class AuthService {
     }
 
     /**
-     * Looks up the current user by the email carried as the JWT subject.
+     * Looks up the current user by the id the access token named.
      *
-     * @param email the authenticated principal's email
+     * @param userId the authenticated principal's id
      * @return the domain user
-     * @throws BusinessRuleException if no user has that email
+     * @throws BusinessRuleException if the account has gone since the token was checked, which is only
+     *         reachable if it is deleted mid-request
      */
-    public User getMe(String email) {
-        return userQuery.findByEmail(email)
+    public User getMe(UUID userId) {
+        return userQuery.findById(userId)
                 .orElseThrow(() -> new BusinessRuleException("User not found"));
+    }
+
+    /**
+     * Issues a fresh access token for a session that has just rotated its credential.
+     *
+     * <p>The session was decided before this is called; all that is left is to name the account the
+     * new token is for. Token issuing stays here rather than moving to the controller, so the web
+     * adapter never touches the signing key.
+     *
+     * @param userId the account the rotated session belongs to
+     * @param grant  the session and its new credential
+     * @return the new access token, the account, and the grant to put back in the cookie
+     * @throws BusinessRuleException if the account has gone since the session was read
+     */
+    public AuthResult continueSession(UUID userId, SessionGrant grant) {
+        User user = getMe(userId);
+        return issued(user, grant);
+    }
+
+    /**
+     * Opens a session for an account that has just proved who it is, and issues the first token in it.
+     *
+     * <p>The session has to exist before the token, because the token names it. If issuing then fails,
+     * the session is left behind on the login path, which is not transactional — harmless, because its
+     * credential was never returned to anybody, and the cleanup sweep removes it.
+     */
+    private AuthResult startSession(User user) {
+        return issued(user, sessions.open(user.getId()));
+    }
+
+    /** Mints a token within a session. The one place the two halves of a grant are put together. */
+    private AuthResult issued(User user, SessionGrant grant) {
+        IssuedAccessToken token = tokenProvider.issue(user.getId(), grant.sessionId());
+        return new AuthResult(token.value(), token.expiresAt(), user, grant);
     }
 }

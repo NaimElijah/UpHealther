@@ -109,6 +109,12 @@ public class HealthAreaService implements HealthAreaQuery {
         return repository.findByUserId(userId);
     }
 
+    /** {@inheritDoc} */
+    @Override
+    public boolean ownsArea(UUID userId, UUID areaId) {
+        return repository.findByIdAndUserId(areaId, userId).isPresent();
+    }
+
     /** Single ownership guard: a foreign or missing area is indistinguishable, both are "not found". */
     private HealthArea getOwnedArea(UUID userId, UUID id) {
         return repository.findByIdAndUserId(id, userId)

@@ -21,9 +21,15 @@ and the `*ControllerTest` named against each area pins the status codes.
 | Reminders | `GET POST /api/upgrades/{id}/reminders` · `PUT DELETE /api/reminders/{id}` |
 | Notifications | `GET /api/notifications` · `GET /api/notifications/unread-count` · `POST /api/notifications/{id}/read` · `POST /api/notifications/read-all` |
 | Dashboard | `GET /api/dashboard` |
-| Real-time | STOMP over `/ws`; the client subscribes to `/user/queue/notifications` |
+| Sessions | `POST /api/auth/refresh` · `POST /api/auth/logout` — both act on the refresh cookie, and both require an `X-Requested-With` header |
+| Administration | `GET /api/admin/users` · `POST /api/admin/users/{id}/disable` · `POST /api/admin/users/{id}/enable` · `PUT /api/admin/users/{id}/role` — `ADMIN` only, answered 403 for anyone else. An administrator manages accounts and can read nothing an account owns |
+| Real-time | STOMP over `/ws`. The CONNECT frame carries `Authorization: Bearer <token>`; the client may subscribe to `/user/queue/notifications` and to nothing else, and a SEND is refused |
 
 `GET /api/upgrades` filters on `status`, `type`, `areaId` and `difficulty`.
+
+An email is one identity however it is typed: the API trims and lowercases it before comparing or
+storing it. `POST /api/auth/register` refuses an address already held with `422` and the message
+`That email is already registered`, which does not repeat the address.
 
 ## A created upgrade, in full
 
@@ -75,21 +81,20 @@ and `GlobalExceptionHandler` decides how it surfaces
 | Status | Raised when |
 |---|---|
 | `400` | Failed validation, an unbindable body, or a parameter that will not convert |
-| `401` | Credentials rejected — the response never says which half was wrong |
-| `403` | Access denied |
+| `401` | Credentials rejected — the response never says which half was wrong — or a protected endpoint called without a token the server accepts. The latter carries `WWW-Authenticate: Bearer`, with `error="invalid_token"` when a token was sent; expired, forged and revoked are not told apart |
+| `403` | The caller is authenticated and not allowed |
 | `404` | Not found, **including** a record belonging to another user: ownership is enforced by the query being user-scoped, so a foreign row is indistinguishable from a missing one |
 | `409` | A duplicate progress entry for the same upgrade and date, or a stale optimistic-lock `version` |
-| `422` | A business rule refused the operation — an illegal lifecycle transition, or a fourth concurrent `HARD` upgrade |
+| `422` | A business rule refused the operation — an illegal lifecycle transition, a fourth concurrent `HARD` upgrade, or an `areaId` that is not one of the caller's health areas (refused the same way whether it belongs to somebody else or does not exist) |
 | `405` `415` `406` | The status Spring defines for the framework exception |
 | `500` | A genuine server fault. Carries the status and a trace id, and nothing else |
 
 ## Error body
 
-Every failure that reaches `GlobalExceptionHandler` returns the same shape. `fieldErrors` appears
-only on validation failures and `traceId` only when the request was traced; both are omitted
-otherwise. Two paths do not reach it and so return Boot's default body instead — an anonymous
-request to a protected endpoint, rejected inside the Spring Security chain, and a container error
-dispatch to `/error`. Both still carry the `X-Trace-Id` header.
+Every failure returns the same shape, including a refusal decided inside the security chain.
+`fieldErrors` appears only on validation failures and `traceId` only when the request was traced;
+both are omitted otherwise. One path does not reach the handler and returns Boot's default body
+instead: a container error dispatch to `/error`. It still carries the `X-Trace-Id` header.
 
 ```json
 {

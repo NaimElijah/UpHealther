@@ -12,15 +12,23 @@ enforced mechanically by `HexagonalArchitectureTest` (ArchUnit) — treat that t
 the module boundaries rather than working from a layout described in prose.
 
 The layout is **not** identical across contexts, whatever ADR-001 §3 says: `auth` orchestrates over
-`user` and owns no aggregate, and `dashboard` is a read/composition model with no domain or outbound
-side. Both are deliberate, not drift.
+`user` for identity while owning its own `AuthSession`; `admin` orchestrates over `user` and `auth`
+and owns no aggregate; and `dashboard` is a read/composition model with no domain or outbound side.
+All three are deliberate, not drift.
 
 ## Conventions that span multiple files (follow these)
 
 - **User scoping is enforced at the query layer, not globally.** Controllers take
-  `@AuthenticationPrincipal User user` and pass `user.getId()` down. Repositories scope by user
+  `@AuthenticationPrincipal SecurityUser principal` and pass `principal.getId()` down. `SecurityUser`
+  is the security adapter's principal, not the `user` domain entity. Repositories scope by user
   (`findByIdAndUserId`, `findByUserIdAndStatus`, …). There is no implicit "current user" — always
   thread `userId` through service calls. A missing/foreign row surfaces as `ResourceNotFoundException`.
+
+- **A role opens paths, never rows.** `USER` and `ADMIN` live on the `users` row and are read on every
+  request, never carried in the token, so a revoked role takes effect on the next call. `ADMIN` unlocks
+  `/api/admin/**` and changes no query: the scoping above applies to an administrator exactly as it does
+  to anyone else. Do not put a role check in a service — if one looks necessary, the boundary is wrong
+  (ADR-016).
 
 - **State transitions live on the entity, not in services.** `HealthUpgrade` owns its state machine
   (`plan`, `activate`, `pause`, `complete`, `abandon`, `reschedule`), each guarding the transition and
@@ -53,7 +61,10 @@ side. Both are deliberate, not drift.
 - **Exception → HTTP status is centralized** in the global exception handler. Throw the
   right domain exception rather than building `ResponseEntity` status by hand:
   `ResourceNotFoundException` → 404, `BusinessRuleException` → 422, `DuplicateProgressException` /
-  optimistic-lock → 409, bean-validation → 400 with a field → message map.
+  optimistic-lock → 409, bean-validation → 400 with a field → message map. Refusals decided inside the
+  security chain reach the same handler: `ErrorBodySecurityHandlers` forwards an anonymous request as
+  `AuthenticationRequiredException` (401 with a bearer challenge) and an authorization failure as
+  `AccessDeniedException` (403), so do not write a response body from a filter.
 
   **Framework exceptions are not yours to map.** `GlobalExceptionHandler` extends Spring's
   `ResponseEntityExceptionHandler`, so an unbindable body, a path variable that will not convert, an
@@ -125,8 +136,10 @@ that. Name tests `Given<state>_When<action>_Then<outcome>`.
 - Shared fixtures live in `src/test/java/com/healthupgrades/support/`: `AUser`, `AnUpgrade`,
   `ATrackingConfig`, `AProgressEntry` build entities with the required fields filled in, and
   `WebSliceSupport` wires a `@WebMvcTest` to the **real** `SecurityConfig` and `JwtAuthenticationFilter`
-  — authenticate with `WebSliceSupport.authenticateAs(...)` and `bearer(...)` rather than disabling
-  security, which would assert the opposite of FR-5.
+  — authenticate with `WebSliceSupport.authenticateAs(authenticator, userId)` and `bearer(...)` rather
+  than disabling security, which would assert the opposite of FR-5. A slice mocks
+  `BearerTokenAuthenticator`, not `JwtTokenProvider`: it is the seam both transports authenticate
+  through, so mocking it leaves the filter and the security config real.
 - `mvn test` — unit, web-slice and architecture tests. **No database needed**; keep it that way.
 - `mvn verify` — the above plus the `*IT` integration tests, which boot the application against a real
   PostgreSQL. They **start it themselves**: every `*IT` extends `support/PostgresIT`, which runs a

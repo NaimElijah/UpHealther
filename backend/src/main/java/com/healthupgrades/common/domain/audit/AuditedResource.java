@@ -12,6 +12,9 @@ public enum AuditedResource {
     /** A user account. */
     USER,
 
+    /** A signed-in session: the row that makes signing out, and detecting a replay, possible. */
+    AUTH_SESSION,
+
     /** A health upgrade — the aggregate this application exists to move through a lifecycle. */
     HEALTH_UPGRADE,
 

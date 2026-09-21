@@ -1,9 +1,12 @@
 package com.healthupgrades.common.domain.audit;
 
+import com.healthupgrades.common.domain.exception.AuthenticationRequiredException;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.exception.DuplicateProgressException;
 import com.healthupgrades.common.domain.exception.OptimisticLockException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.common.domain.exception.RetryableConflictException;
+import com.healthupgrades.common.domain.exception.TooManyRequestsException;
 
 /**
  * How an audited attempt ended.
@@ -27,15 +30,16 @@ public enum AuditOutcome {
     /**
      * Classifies the exception an audited operation threw.
      *
-     * <p>The four exceptions in {@code common.domain.exception} are the vocabulary this application
-     * uses for "no", so they are refusals and everything else is a fault. Listing them explicitly
-     * rather than testing a package name keeps the classification greppable, and a fifth exception
+     * <p>The exceptions in {@code common.domain.exception} are the vocabulary this application uses
+     * for "no", so they are refusals and everything else is a fault. Listing them explicitly rather
+     * than testing a package name keeps the classification greppable, and an exception
      * added later and forgotten here is recorded {@link #FAILED} — visibly wrong in a dashboard rather
      * than silently miscounted.
      *
-     * <p>Note what does <em>not</em> arrive here: a {@code @Version} clash decided at commit. No
-     * repository adapter flushes, so that exception is thrown by the transaction proxy after the
-     * service method has returned — outside any call this classifier sees. The audit adapter handles it
+     * <p>Note what does <em>not</em> arrive here: a {@code @Version} clash decided at commit. The only
+     * repository write that flushes is registration's, which translates its own duplicate-address
+     * violation; everywhere else that exception is thrown by the transaction proxy after the service
+     * method has returned — outside any call this classifier sees. The audit adapter handles it
      * on the rollback path instead, which is why {@code OptimisticLockException} being listed below is
      * about keeping this function total over the domain's vocabulary for "no", not about a path that
      * reaches it today.
@@ -45,9 +49,12 @@ public enum AuditOutcome {
      */
     public static AuditOutcome of(RuntimeException thrown) {
         boolean refusal = thrown instanceof BusinessRuleException
+                || thrown instanceof AuthenticationRequiredException
                 || thrown instanceof ResourceNotFoundException
                 || thrown instanceof DuplicateProgressException
-                || thrown instanceof OptimisticLockException;
+                || thrown instanceof OptimisticLockException
+                || thrown instanceof RetryableConflictException
+                || thrown instanceof TooManyRequestsException;
         return refusal ? REFUSED : FAILED;
     }
 }

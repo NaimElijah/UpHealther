@@ -18,8 +18,10 @@ const PASSWORD_MIN_LENGTH = 8;
  *
  * The password rules checked here — matching confirmation, minimum length — are for immediate feedback
  * only; the API is the authority on whether a registration is accepted, and since #54 it genuinely
- * enforces the minimum rather than trusting this page to. A duplicate email is reported as a
- * possibility rather than a fact, so this page does not become a way to test which emails exist.
+ * enforces the minimum rather than trusting this page to. A duplicate email is refused by the API with
+ * a message that confirms the address is taken without repeating it; a registration form with no
+ * email-verification step cannot avoid confirming that much, so it is the server's job to slow down
+ * anyone asking at volume.
  *
  * Signs the new account straight in, since registration returns a token.
  */

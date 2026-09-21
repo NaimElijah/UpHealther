@@ -1,6 +1,7 @@
 package com.healthupgrades.support;
 
 import com.healthupgrades.common.security.SecurityUser;
+import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User;
 
 import java.util.UUID;
@@ -41,13 +42,18 @@ public final class AUser {
         return aUser().id(id).build();
     }
 
+    /** A user with a given id and role, for a test about what a role may reach. */
+    public static User withRole(UUID id, Role role) {
+        return aUser().id(id).role(role).build();
+    }
+
     /** The Spring Security principal a controller would receive for this user. */
     public static SecurityUser principalFor(User user) {
-        return new SecurityUser(user.getId(), user.getEmail(), user.getPasswordHash());
+        return SecurityUser.from(user);
     }
 
     /** The Spring Security principal for a user id, where the rest of the identity does not matter. */
     public static SecurityUser principalFor(UUID userId) {
-        return new SecurityUser(userId, EMAIL, PASSWORD_HASH);
+        return principalFor(withId(userId));
     }
 }
