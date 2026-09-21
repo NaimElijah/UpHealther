@@ -59,7 +59,7 @@ identically.
 
 ## 2. Bounded-context map
 
-The backend is nine bounded contexts over a shared kernel. This graph is read off the `import`
+The backend is ten bounded contexts over a shared kernel. This graph is read off the `import`
 statements — it is what the code does, not what anyone intended.
 
 <!-- generated:context-map -->

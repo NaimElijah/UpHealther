@@ -18,7 +18,7 @@ WebSocket connection that the API uses to push notifications as they are raised.
 same origin: a proxy in front of the SPA forwards `/api` and `/ws` to the API, so the browser makes no
 cross-origin request in the default setup.
 
-Inside the API, the code is organised as nine bounded contexts over a ports-and-adapters core. The
+Inside the API, the code is organised as ten bounded contexts over a ports-and-adapters core. The
 domain and application layers know nothing about HTTP, JPA or Spring's event bus; each of those
 arrives through an adapter. The boundaries are not a convention — they are checked on every build by
 an ArchUnit suite, which is the authority on what the layering permits.
