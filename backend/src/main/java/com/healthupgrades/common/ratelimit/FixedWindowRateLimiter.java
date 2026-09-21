@@ -6,10 +6,11 @@ import org.springframework.stereotype.Component;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Comparator;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Counts attempts per client, in fixed windows, in this process's memory.
@@ -42,6 +43,9 @@ public class FixedWindowRateLimiter {
 
     /** One live window per client key. */
     private final Map<String, Window> windows = new ConcurrentHashMap<>();
+
+    /** When the expired-window sweep last ran, so a full scan cannot happen once per request. */
+    private final AtomicReference<Instant> lastSweep = new AtomicReference<>(Instant.EPOCH);
 
     /**
      * Counts one attempt from a client and says whether it is allowed.
@@ -84,22 +88,44 @@ public class FixedWindowRateLimiter {
      *
      * <p>Only runs when the map is full and the key is new, so the ordinary path — an address already
      * being tracked — costs one lookup and nothing else.
+     *
+     * <p><strong>Both steps are bounded, and that is the point.</strong> An earlier version swept the
+     * whole map and then took a {@code min()} over it on every request once the map was full — which
+     * an attacker reaches deliberately by spraying fresh keys, turning a defence against a denial of
+     * service into a way to spend the server's CPU. The sweep is now throttled to once per window, and
+     * the overflow eviction drops whichever entry the iterator reaches first rather than searching for
+     * the oldest. Evicting an arbitrary window instead of the oldest is a slightly weaker limit for one
+     * client; scanning ten thousand entries per request is a worse problem than the one being solved.
      */
     private void evictIfFull(Instant now, String clientKey) {
         if (windows.size() < properties.maxTrackedClients() || windows.containsKey(clientKey)) {
             return;
         }
-        windows.entrySet().removeIf(entry -> !entry.getValue().covers(now, properties.window()));
+        sweepExpiredAtMostOncePerWindow(now);
         if (windows.size() < properties.maxTrackedClients()) {
             return;
         }
-        // Everything tracked is still live. Drop the window closest to expiring anyway: its holder
-        // gets a fresh allowance sooner than they should, which is a weaker limit rather than a dead
-        // process, and it is the outcome to prefer when the two are the only options.
-        windows.entrySet().stream()
-                .min(Comparator.comparing(entry -> entry.getValue().startedAt()))
-                .map(Map.Entry::getKey)
-                .ifPresent(windows::remove);
+        // Everything tracked is still live, so somebody's count is forgotten either way. A weaker
+        // limit for one client beats an unbounded map or a per-request scan.
+        Iterator<String> keys = windows.keySet().iterator();
+        if (keys.hasNext()) {
+            windows.remove(keys.next());
+        }
+    }
+
+    /**
+     * Removes expired windows, at most once per window length.
+     *
+     * <p>Expired entries are dead weight and there are usually plenty, so this is what normally keeps
+     * the map inside its cap. It is throttled because it is O(n): without the throttle, a full map
+     * would make every request with a new key walk every entry.
+     */
+    private void sweepExpiredAtMostOncePerWindow(Instant now) {
+        Instant previous = lastSweep.get();
+        if (now.isBefore(previous.plus(properties.window())) || !lastSweep.compareAndSet(previous, now)) {
+            return;
+        }
+        windows.entrySet().removeIf(entry -> !entry.getValue().covers(now, properties.window()));
     }
 
     /**
