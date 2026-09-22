@@ -182,6 +182,39 @@ class AuthControllerTest {
     }
 
     @Test
+    void GivenANameLongerThanItsColumn_WhenAVisitorRegisters_ThenItAnswers400NamingTheField() throws Exception {
+        // users.name is VARCHAR(255). Unbounded, an over-long name would reach the flush and come back as
+        // a 500 for input the caller could have corrected. BR-16.
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"" + "n".repeat(AuthController.NAME_MAX + 1)
+                                + "\",\"email\":\"someone@example.com\",\"password\":\"s3cret!42\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.name").exists());
+
+        verify(authService, never()).register(any(), any(), any());
+    }
+
+    @Test
+    void GivenAWellFormedEmailLongerThanItsColumn_WhenAVisitorRegisters_ThenItAnswers400NamingTheBound()
+            throws Exception {
+        // users.email is VARCHAR(255). The address must pass @Email - a 64-character local part and
+        // 63-character labels are the most it allows - or this would pass on the format check and prove
+        // nothing about the bound. Hence the exact message. BR-16.
+        String label = "d".repeat(63);
+        String email = "l".repeat(64) + "@" + label + "." + label + "." + label + ".com";
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Someone\",\"email\":\"" + email + "\",\"password\":\"s3cret!42\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.email")
+                        .value("size must be between 0 and " + AuthController.EMAIL_MAX));
+
+        verify(authService, never()).register(any(), any(), any());
+    }
+
+    @Test
     void GivenAnEmailAlreadyRegistered_WhenAVisitorRegisters_ThenItAnswers422() throws Exception {
         // FR-4 reaching the client. The request was well-formed and the rules refuse it, which is a 422
         // rather than a 400 — the form has nothing to correct.
