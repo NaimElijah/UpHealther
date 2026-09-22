@@ -4,9 +4,17 @@ What UpHealther must do. This document records the requirements the project **cu
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
 rather than trusted. A hundred and twelve of the hundred and twenty entries below name a test —
 ninety-two distinct test classes and files between them. Five of the remaining eight name the command,
-workflow or script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48). The last three — FR-39, NFR-19 and NFR-20 —
-are verified by hand and say so, because each is about a rendered width, a colour or an overflow, and
-jsdom has no layout engine to observe any of them; §6 records what closing that gap would take.
+workflow or script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48). The last three —
+FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is about a rendered width, a
+colour or an overflow, and jsdom has no layout engine to observe any of them; §6 records what closing
+that gap would take.
+
+**A functional requirement is met in the shipped product, not merely in the API.** There is no public
+API (§5.4), so "a user can" means through the interface. Where the implementation falls short of an
+entry — in the interface or anywhere else — the entry is not weakened to match. Its *Enforced by* cell
+says **Known deviation** and links the issue that tracks the gap; the tests named there enforce the
+part that holds. Twenty-nine entries carry one today, and the change that closes an issue takes its
+marker out.
 
 **IDs are permanent.** Tests, code comments, migrations and ADRs cite them, so an ID is never
 renumbered, reused or moved to another prefix. A new entry takes the next free number and is filed
@@ -56,14 +64,14 @@ no way at all — to read another person's health records
 | FR-3 | A signed-in user can retrieve their own profile, so a reloaded page learns who is signed in once the refresh cookie has renewed the session (NFR-38) | `AuthControllerTest`, `AuthContext.test.tsx` |
 | FR-4 | An email may be registered once. Addresses are compared trimmed and case-insensitively, the database refuses any other stored form, and a registration that loses a race for an address is refused like any other duplicate | `AuthServiceTest`, `AuthControllerTest` (422), `EmailAddressTest`, `UserPersistenceIT`, `RegistrationRaceIT` |
 | FR-5 | Every endpoint requires a valid access token except six: registration and sign-in; refresh and sign-out, which act on the refresh cookie and are guarded as NFR-37 states; the actuator, which answers only what NFR-29 leaves open; and the WebSocket handshake, whose STOMP CONNECT is authenticated instead (NFR-32). A request without a token, or with one the server refuses, is answered 401 with a `WWW-Authenticate: Bearer` challenge and the API's error body | `AuthenticatedBoundaryTest` (every protected route, and exactly those six public), `JwtAuthenticationFilterTest`, `ErrorBodySecurityHandlersTest`, `ProtectedRoute.test.tsx` ([ADR-014](../ADRs/ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md)) |
-| FR-48 | A signed-in user can sign out on this device. A sign-out that fails says so and leaves them signed in, rather than appearing to have worked while the session lives on (NFR-35 is how immediately it takes effect) | `AuthControllerTest`, `AuthSessionServiceTest`, `AuthContext.test.tsx` |
+| FR-48 | A signed-in user can sign out on this device. A sign-out that fails says so and leaves them signed in, rather than appearing to have worked while the session lives on (NFR-35 is how immediately it takes effect) | `AuthControllerTest`, `AuthSessionServiceTest`, `AuthContext.test.tsx` — **Known deviation:** [#97](https://github.com/NaimElijah/UpHealther/issues/97), the failure is not shown below 640px |
 
 ### 2.2 Health areas
 
 | ID | Requirement | Enforced by |
 |---|---|---|
-| FR-6 | A user can create, read, update and delete their own health areas | `HealthAreaServiceTest`, `HealthAreaControllerTest` |
-| FR-7 | An area carries a name and optional description, priority, icon and colour | `HealthAreaServiceTest`, `HealthAreaControllerTest` |
+| FR-6 | A user can create, read, update and delete their own health areas | `HealthAreaServiceTest`, `HealthAreaControllerTest` — **Known deviation:** [#97](https://github.com/NaimElijah/UpHealther/issues/97), unreachable below 768px |
+| FR-7 | An area carries a name and optional description, priority, icon and colour | `HealthAreaServiceTest`, `HealthAreaControllerTest` — **Known deviation:** [#91](https://github.com/NaimElijah/UpHealther/issues/91), a priority cannot be set, and an edit clears one |
 | FR-8 | Deleting an area leaves upgrades filed under it intact | `HealthAreaServiceTest`, `HealthAreaPersistenceIT` |
 
 ### 2.3 Upgrades
@@ -71,11 +79,11 @@ no way at all — to read another person's health records
 | ID | Requirement | Enforced by |
 |---|---|---|
 | FR-9 | A user can create an upgrade of any of the eight kinds: habit, one-time action, product replacement, routine, goal, experiment, learning task, medical/preventive | `FrontendEnumContractTest`, `UpgradeControllerTest` |
-| FR-10 | An upgrade carries a title and type, and optionally an area, description, difficulty, planned start, target end, motivation and success criteria | `HealthUpgradeTest`, `UpgradeServiceTest` |
-| FR-11 | A user can list their upgrades, narrowed by status, type, area or difficulty | `UpgradeServiceTest`, `UpgradeControllerTest` |
-| FR-12 | A user can move an upgrade through its lifecycle: plan, activate, pause, complete, abandon, reschedule | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeControllerTest` |
-| FR-13 | A user can edit an upgrade's descriptive fields at any point in its lifecycle | `HealthUpgradeTest`, `UpgradeServiceTest` |
-| FR-14 | A user can delete an upgrade, and with it everything recorded against it: its tracking configuration, progress, reminders and reflections. Its notifications stay, detached from it | `UpgradeServiceTest`, `UpgradeControllerTest`, `UpgradePersistenceIT` |
+| FR-10 | An upgrade carries a title and type, and optionally an area, description, difficulty, planned start, target end, motivation and success criteria | `HealthUpgradeTest`, `UpgradeServiceTest` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), success criteria and both dates cannot be set from the interface |
+| FR-11 | A user can list their upgrades, narrowed by one of status, type, area or difficulty | `UpgradeServiceTest`, `UpgradeControllerTest` — **Known deviation:** [#90](https://github.com/NaimElijah/UpHealther/issues/90), the interface filters by status only |
+| FR-12 | A user can move an upgrade through its lifecycle: plan, activate, pause, complete, abandon, reschedule | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeControllerTest` — **Known deviation:** [#88](https://github.com/NaimElijah/UpHealther/issues/88), [#89](https://github.com/NaimElijah/UpHealther/issues/89), Plan always fails, and abandon and reschedule have no control |
+| FR-13 | A user can edit an upgrade's descriptive fields at any point in its lifecycle | `HealthUpgradeTest`, `UpgradeServiceTest` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), the interface has no edit |
+| FR-14 | A user can delete an upgrade, and with it everything recorded against it: its tracking configuration, progress, reminders and reflections. Its notifications stay, detached from it | `UpgradeServiceTest`, `UpgradeControllerTest`, `UpgradePersistenceIT` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), the interface has no delete |
 | FR-15 | An upgrade's response carries its tracking configuration, so a list view needs no second call | `UpgradeDtoSerializationTest`, `UpgradeControllerTest` |
 
 ### 2.4 Tracking and progress
@@ -84,10 +92,10 @@ no way at all — to read another person's health records
 |---|---|---|
 | FR-16 | A user can configure how an upgrade is measured: boolean, numeric, rating or free text. An upgrade has at most one configuration, and saving another replaces it | `TrackingServiceTest`, `TrackingConfigControllerTest` |
 | FR-17 | A numeric configuration can carry a target value and a unit | `TrackingServiceTest`, `TrackingConfigControllerTest` |
-| FR-18 | A user can log progress for an upgrade on a given day | `TrackingServiceTest`, `ProgressControllerTest` |
-| FR-19 | A user can log progress for every active upgrade in one pass | `DailyCheckinPage.test.tsx` — but see §6 |
-| FR-20 | A user can read an upgrade's progress history, newest first | `TrackingServiceTest`, `ProgressEntryPersistenceIT` |
-| FR-21 | A user can read today's and the last seven days' progress across all upgrades | `TrackingServiceTest`, `ProgressEntryPersistenceIT` |
+| FR-18 | A user can log progress for an upgrade on a given day | `TrackingServiceTest`, `ProgressControllerTest` — **Known deviation:** [#95](https://github.com/NaimElijah/UpHealther/issues/95), the interface dates an entry in UTC |
+| FR-19 | A user can log progress for every active upgrade in one pass | `DailyCheckinPage.test.tsx` — but see §6 — **Known deviation:** [#95](https://github.com/NaimElijah/UpHealther/issues/95), [#55](https://github.com/NaimElijah/UpHealther/issues/55), entries are dated in UTC, and untouched upgrades are logged too |
+| FR-20 | A user can read an upgrade's progress history, newest first | `TrackingServiceTest`, `ProgressEntryPersistenceIT` — **Known deviation:** [#92](https://github.com/NaimElijah/UpHealther/issues/92), the interface lists oldest first |
+| FR-21 | A user can read today's and the last seven days' progress across all upgrades | `TrackingServiceTest`, `ProgressEntryPersistenceIT` — **Known deviation:** [#97](https://github.com/NaimElijah/UpHealther/issues/97), unreachable below 768px |
 | FR-22 | A user can see an upgrade's current and longest streak | `StreakCalculatorTest`, `TrackingServiceTest`, `ProgressControllerTest` |
 
 ### 2.5 Reflections and reminders
@@ -95,21 +103,21 @@ no way at all — to read another person's health records
 | ID | Requirement | Enforced by |
 |---|---|---|
 | FR-23 | A user can write a reflection about an upgrade — ratings for difficulty and benefit, and notes on what worked, what did not, and what to change | `ReflectionServiceTest`, `ReflectionControllerTest` |
-| FR-24 | A user can read an upgrade's reflections, newest first | `ReflectionServiceTest`, `ReflectionControllerTest` |
+| FR-24 | A user can read an upgrade's reflections, newest first | `ReflectionServiceTest`, `ReflectionControllerTest` — **Known deviation:** [#92](https://github.com/NaimElijah/UpHealther/issues/92), the interface lists oldest first |
 | FR-25 | A user can attach reminders to an upgrade, each with a time and a day-of-week filter | `ReminderServiceTest`, `ReminderControllerTest`, `ReminderTest` |
-| FR-26 | A user can reschedule, enable, disable and delete a reminder | `ReminderServiceTest`, `ReminderControllerTest` |
+| FR-26 | A user can reschedule, enable, disable and delete a reminder | `ReminderServiceTest`, `ReminderControllerTest` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), reschedule, enable and disable have no control |
 
 ### 2.6 Dashboard and notifications
 
 | ID | Requirement | Enforced by |
 |---|---|---|
-| FR-27 | A user can see, in one request, their active, planned, due-today, overdue and recently completed upgrades, their weekly completion rate, their streaks and per-area counts | `DashboardAggregationServiceTest`, `DashboardControllerTest` |
+| FR-27 | A user can see, in one request, their active, planned, due-today, overdue and recently completed upgrades, their weekly completion rate, their streaks and per-area counts | `DashboardAggregationServiceTest`, `DashboardControllerTest` — **Known deviation:** [#93](https://github.com/NaimElijah/UpHealther/issues/93), the per-area counts are never shown |
 | FR-28 | A user is notified when an upgrade is created, planned, activated, paused, completed or abandoned, when a reflection is added, and when a streak milestone is reached | `NotificationEventListenerTest` |
-| FR-29 | A user is notified when an active upgrade passes its target date | `UpgradeOverdueSchedulerTest` |
+| FR-29 | A user is notified when an active upgrade passes its target date | `UpgradeOverdueSchedulerTest` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), the interface cannot set a target date |
 | FR-30 | A user with active upgrades and nothing logged is nudged once a day | `NotificationSchedulerTest` |
 | FR-31 | A user's reminders fire at the configured time and day | `NotificationSchedulerTest`, `ReminderTest` |
 | FR-32 | Notifications arrive in real time on a connected client, and are readable afterwards regardless | `StompNotificationPushAdapterTest`, `NotificationServiceTest`, `NotificationProvider.test.tsx` |
-| FR-33 | A user can read their fifty most recent notifications, see an unread count that covers every notification rather than only the fifty listed, and mark one or all as read | `NotificationServiceTest`, `NotificationControllerTest` |
+| FR-33 | A user can read their fifty most recent notifications, see an unread count that covers every notification rather than only the fifty listed, and mark one or all as read | `NotificationServiceTest`, `NotificationControllerTest` — **Known deviation:** [#94](https://github.com/NaimElijah/UpHealther/issues/94), the interface counts only the fifty fetched |
 | FR-49 | A user can opt in to desktop notifications, which are raised only while the tab is in the background — with the tab in view, the in-page notice already says it | `NotificationProvider.test.tsx` |
 
 FR-27's terms are the server's, and `DashboardAggregationServiceTest` pins each. An upgrade is **due
@@ -139,8 +147,8 @@ The role model behind every entry here is [ADR-016](../ADRs/ADR-016-roles-read-f
 
 | ID | Requirement | Enforced by |
 |---|---|---|
-| FR-42 | An administrator can list the accounts on the installation, a page of at most a hundred at a time and oldest first, seeing each one's role and whether it is switched on — and nothing about what it owns | `AdminUserServiceTest`, `AdminUserControllerTest`, `UserPersistenceIT` (the order) |
-| FR-43 | An administrator can switch an account off and back on. Switching it off ends every session it holds and destroys nothing it owns, so switching it back on restores the account exactly as it was | `AdminUserServiceTest`, `AdminUserControllerTest` |
+| FR-42 | An administrator can list the accounts on the installation, a page of at most a hundred at a time and oldest first, seeing each one's role and whether it is switched on — and nothing about what it owns | `AdminUserServiceTest`, `AdminUserControllerTest`, `UserPersistenceIT` (the order) — **Known deviation:** [#97](https://github.com/NaimElijah/UpHealther/issues/97), unreachable below 768px |
+| FR-43 | An administrator can switch an account off and back on. Switching it off ends every session it holds and destroys nothing it owns, so switching it back on restores the account exactly as it was | `AdminUserServiceTest`, `AdminUserControllerTest` — **Known deviation:** [#83](https://github.com/NaimElijah/UpHealther/issues/83), an open WebSocket outlives the switch-off |
 | FR-44 | An administrator can grant and revoke the administrator role. The change is read from the account on its next request, so it takes effect without signing that person out | `AdminUserServiceTest`, `AdminUserControllerTest` |
 | FR-45 | A fresh installation can be given its first administrator through configuration, by account id and only while no *enabled* administrator exists — so it cannot silently re-promote somebody after a deliberate demotion, cannot be claimed by whoever registers an address first, and still recovers an installation whose administrators have disabled each other | `AdminBootstrapRunnerTest` |
 | FR-46 | The account administration screen is offered only to an administrator, in the navigation and at its route, and an administrator's own row offers no controls at all — the server refuses a self-directed change, and a control that can only fail is worse than none | `RequireRole.test.tsx`, `Sidebar.test.tsx`, `AdminUsersPage.test.tsx` |
@@ -161,7 +169,7 @@ The role model behind every entry here is [ADR-016](../ADRs/ADR-016-roles-read-f
 | BR-7 | When an upgrade has a tracking configuration, whether an entry counts as successful is decided by the server from that configuration, not by the client. Without one there is no target to judge against, and the entry keeps the `completed` value its caller sent | `ProgressEvaluationService`, `ProgressEvaluationServiceTest`, `TrackingServiceTest` |
 | BR-8 | A numeric entry counts only when its unit agrees with the target's; an unstated unit is read as the configured one | `ProgressEvaluationServiceTest` |
 | BR-9 | A streak counts consecutive days; a day not yet logged does not break it | `StreakCalculator`, `StreakCalculatorTest` |
-| BR-10 | A streak milestone is announced every seventh day, not every day | `TrackingServiceTest` (7, 14, 21, 70 against 1, 6, 8, 13, 69 — and zero) |
+| BR-10 | A streak milestone is announced every seventh day, not every day | `TrackingServiceTest` (7, 14, 21, 70 against 1, 6, 8, 13, 69 — and zero) — **Known deviation:** [#101](https://github.com/NaimElijah/UpHealther/issues/101), any entry logged while the streak sits on a multiple of seven re-announces it |
 | BR-11 | An overdue upgrade is announced once, however many times the sweep rediscovers it | `NotificationServiceTest`, `NotificationEventListenerTest` |
 | BR-12 | A reminder with no day filter fires every day; an unrecognisable day is rejected when it is sent, never ignored | `ReminderTest`, `ReminderServiceTest`, `ReminderControllerTest` |
 | BR-13 | Reflections are append-only — there is no edit or delete path of their own. They go only with the upgrade they belong to (FR-14) | `ReflectionServiceTest` (asserted against the public surface), `ReflectionControllerTest`, `UpgradePersistenceIT` |
@@ -205,9 +213,9 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-2 | Passwords are stored only as BCrypt hashes; a raw password never leaves the registration call | `AuthServiceTest` (the real BCrypt encoder), `AuthControllerTest` (no password field in any response) |
 | NFR-3 | The token settings are supplied by configuration and validated as the application starts, so a missing one is named at boot rather than surfacing as a null inside the first request that needs it; the signing secret must be at least 256 bits, or the application refuses to start | `JwtTokenProviderTest`, `ApplicationContextIT` |
 | NFR-4 | A token names its account by id and the session it belongs to, never an email, and is accepted only under this application's issuer, audience and signing algorithm. It is valid for `app.jwt.access-token-ttl`, plus `app.jwt.clock-skew` so that two hosts disagreeing by a few seconds do not refuse each other's tokens, and is renewed through the refresh credential rather than by signing in again | `JwtTokenProviderTest`, `AuthSessionFlowIT` |
-| NFR-5 | The session and the account behind a token are both re-loaded on every request, so signing out or disabling an account stops an already-issued token working on the very next request rather than whenever it would have expired | `BearerTokenAuthenticatorTest`, `AuthSessionFlowIT` |
-| NFR-35 | A user can end a session, and ending it takes effect immediately: the access token already issued within it stops working on its next request. Sign-out is per device — it leaves the same account signed in elsewhere | `AuthSessionServiceTest`, `AuthSessionFlowIT`, `AuthControllerTest` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
-| NFR-36 | The long-lived refresh credential is never readable by script and never stored in a form that can be presented: it travels in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie and is held only as a SHA-256 digest. It is replaced on every use. Presenting the credential a rotation replaced, once the grace window has passed, revokes the session and is audited; a credential that neither digest recognises revokes nothing. The cookie is scoped to `/api/auth`, so it is not sent with ordinary API calls, and a session nothing can use any more is deleted by a nightly sweep rather than kept | `AuthSessionTest`, `AuthSessionServiceTest`, `AuthSessionPersistenceIT`, `AuthControllerTest`, `AuthSessionFlowIT`, `AuthSessionCleanupSchedulerTest` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
+| NFR-5 | The session and the account behind a token are both re-loaded on every request, so signing out or disabling an account stops an already-issued token working on the very next request rather than whenever it would have expired | `BearerTokenAuthenticatorTest`, `AuthSessionFlowIT` — **Known deviation:** [#83](https://github.com/NaimElijah/UpHealther/issues/83), an open WebSocket outlives both |
+| NFR-35 | A user can end a session, and ending it takes effect immediately: the access token already issued within it stops working on its next request. Sign-out is per device — it leaves the same account signed in elsewhere | `AuthSessionServiceTest`, `AuthSessionFlowIT`, `AuthControllerTest` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) — **Known deviation:** [#83](https://github.com/NaimElijah/UpHealther/issues/83), an open WebSocket keeps receiving until it reconnects |
+| NFR-36 | The long-lived refresh credential is never readable by script and never stored in a form that can be presented: it travels in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie and is held only as a SHA-256 digest. It is replaced on every use. Presenting the credential a rotation replaced, once the grace window has passed, revokes the session and is audited; a credential that neither digest recognises revokes nothing. The cookie is scoped to `/api/auth`, so it is not sent with ordinary API calls, and a session nothing can use any more is deleted by a nightly sweep rather than kept | `AuthSessionTest`, `AuthSessionServiceTest`, `AuthSessionPersistenceIT`, `AuthControllerTest`, `AuthSessionFlowIT`, `AuthSessionCleanupSchedulerTest` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) — **Known deviation:** [#87](https://github.com/NaimElijah/UpHealther/issues/87), `Secure` is off unless a deployment turns it on |
 | NFR-37 | The two endpoints that act on the cookie alone cannot be driven from another site: the cookie is `SameSite=Strict`, and both additionally require a header that a cross-site form post cannot set, refusing the request before any session is read | `AuthControllerTest`, `AuthSessionFlowIT` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
 | NFR-38 | The access token is never written to browser storage: it is held in memory for the life of the tab, so it cannot be read by injected script and does not outlive the page. A reload restores the session from the refresh cookie instead, and the credentials of an earlier version are removed from storage on load | `tokenStore.test.ts`, `AuthContext.test.tsx`, `client.test.ts` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
 | NFR-39 | An expired access token is renewed and the request retried, rather than ending the session: the renewal is single-flight within a tab and across tabs, so a burst of parallel calls rotates the refresh credential once. A renewal answered 409, because another tab rotated first, is tried once more. Only a refusal from the renewal itself signs the user out, and a 403 never does | `client.test.ts`, `AuthSessionFlowIT` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
@@ -235,8 +243,8 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 |---|---|---|
 | NFR-7 | Every failure maps to a defined HTTP status: 404 not found, 422 rule violation, 409 conflict (including a refresh that lost a rotation race, which the client simply retries), 401 rejected credentials or no accepted token, 400 invalid input (a failed constraint, an unbindable body, a parameter that will not convert), 403 authenticated but not allowed, 429 over a rate limit with `Retry-After`, and the status Spring defines for every other framework exception (405, 415, 406, …). Only a genuine server fault is a 500, and it carries no detail beyond the status and the trace id that finds its log line | `GlobalExceptionHandlerTest`, every `*ControllerTest`, `RateLimitedSignInTest` (429), `AuthControllerTest` (the retryable 409), [ADR-006](../ADRs/ADR-006-framework-exceptions-through-responseentityexceptionhandler.md) |
 | NFR-8 | The database schema is owned by migrations; the application refuses to start against a schema that does not match its entities | `ApplicationContextIT`, Flyway + `ddl-auto: validate` |
-| NFR-14 | List endpoints resolve related data in batch rather than per row | `TrackingServiceTest`, `NotificationSchedulerTest` |
-| NFR-15 | Time-dependent behaviour reads an injected clock, so it is testable and timezone-explicit | `UpgradeOverdueSchedulerTest`, `NotificationSchedulerTest`, `TrackingServiceTest`, `ReflectionServiceTest` |
+| NFR-14 | List endpoints resolve related data in batch rather than per row | `TrackingServiceTest`, `NotificationSchedulerTest` — **Known deviation:** [#99](https://github.com/NaimElijah/UpHealther/issues/99), the dashboard's streaks and the check-in sweep are resolved per row |
+| NFR-15 | Time-dependent behaviour reads an injected clock, so it is testable and timezone-explicit | `UpgradeOverdueSchedulerTest`, `NotificationSchedulerTest`, `TrackingServiceTest`, `ReflectionServiceTest` — **Known deviation:** [#51](https://github.com/NaimElijah/UpHealther/issues/51), [#100](https://github.com/NaimElijah/UpHealther/issues/100), timestamps bypass the clock, and no zone is ever chosen |
 | NFR-26 | A real-time push that cannot be delivered degrades to the stored notification and is reported, rather than failing the work that raised it | `StompNotificationPushAdapterTest` |
 | NFR-49 | A notification is pushed to a connected client only after the transaction that stored it commits, so a client is never told about a row that then rolled back | `NotificationServiceTest` |
 
@@ -245,15 +253,15 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | ID | Requirement | Enforced by |
 |---|---|---|
 | NFR-6 | The application never logs personal data deliberately: event publication logs the type and timestamp only, and a trace id identifies a request rather than a person. The one exception is the stack trace of an unexpected 5xx, logged in full so the fault is diagnosable and withheld from the client | `SpringDomainEventPublisher`, `GlobalExceptionHandlerTest` |
-| NFR-21 | Every log line written while serving a request, running a scheduled job or handling a STOMP frame carries the same trace id; the id is returned as an `X-Trace-Id` response header and on the error body, and an inbound W3C `traceparent` is continued rather than replaced | `RequestCorrelationTest`, `CorrelationIT`, `StompTracingChannelInterceptorTest`, `TraceIdResponseHeaderFilterTest`, `CorrelationIdTest`, `ObservabilityConfigTest` ([ADR-007](../ADRs/ADR-007-request-correlation-through-micrometer-tracing.md)) |
+| NFR-21 | Every log line written while serving a request, running a scheduled job or handling a STOMP frame carries the same trace id; the id is returned as an `X-Trace-Id` response header and on the error body, and an inbound W3C `traceparent` is continued rather than replaced | `RequestCorrelationTest`, `CorrelationIT`, `StompTracingChannelInterceptorTest`, `TraceIdResponseHeaderFilterTest`, `CorrelationIdTest`, `ObservabilityConfigTest` ([ADR-007](../ADRs/ADR-007-request-correlation-through-micrometer-tracing.md)) — **Known deviation:** [#105](https://github.com/NaimElijah/UpHealther/issues/105), a container error dispatch carries no id in the body |
 | NFR-22 | Log output is one JSON object per line in a container and Boot's readable pattern locally, and a line in either format carries its trace id | `LogOutputFormatTest`, `logback-spring.xml` ([ADR-010](../ADRs/ADR-010-structured-logging-and-a-level-policy.md)) |
-| NFR-23 | Every state-changing use case and every authentication outcome records who attempted what, against which record, and whether it was allowed — including the attempts that were refused, and never claiming as allowed work whose transaction then rolled back | `AuditTrailTest`, `AuditOutcomeTest`, `LoggingAuditTrailTest`, `AuditCommitIT`, `UpgradeServiceTest`, `AuthServiceTest` ([ADR-011](../ADRs/ADR-011-audit-as-a-log-stream.md)) |
+| NFR-23 | Every state-changing use case and every authentication outcome records who attempted what, against which record, and whether it was allowed — including the attempts that were refused, and never claiming as allowed work whose transaction then rolled back | `AuditTrailTest`, `AuditOutcomeTest`, `LoggingAuditTrailTest`, `AuditCommitIT`, `UpgradeServiceTest`, `AuthServiceTest` ([ADR-011](../ADRs/ADR-011-audit-as-a-log-stream.md)) — **Known deviation:** [#98](https://github.com/NaimElijah/UpHealther/issues/98), refused refreshes, failed sign-outs, refused CONNECTs and the bootstrap promotion |
 | NFR-24 | An audit entry cannot carry personal data, because it has nowhere to put any: every field is an enum or an identifier, and a refused login is recorded with no subject at all | `AuditEventTest`, `AuthServiceTest` |
 | NFR-25 | Every scheduled run records how long it took, whether it finished, and what it did, so a job that has stopped working is distinguishable from one with nothing to do | `JobMetricsTest`, `NotificationSchedulerTest`, `UpgradeOverdueSchedulerTest`, `AuthSessionCleanupSchedulerTest` |
-| NFR-27 | Liveness and readiness are answerable separately, so "restart the process" and "stop routing to it" are distinguishable, and both images declare a health-check | `ActuatorEndpointsIT`, `backend/Dockerfile`, `docker-compose.yml` ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) |
+| NFR-27 | Liveness and readiness are answerable separately, so "restart the process" and "stop routing to it" are distinguishable, and both images declare a health-check | `ActuatorEndpointsIT`, `backend/Dockerfile`, `docker-compose.yml` ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) — **Known deviation:** [#75](https://github.com/NaimElijah/UpHealther/issues/75), the frontend's health-check can never pass |
 | NFR-28 | Latency, error rate, saturation, connection-pool depth and the domain's own counters are readable from one scrape endpoint, and no metric tag is unbounded | `ActuatorEndpointsIT`, `LoggingAuditTrailTest`, `JobMetricsTest`, `RateLimitInterceptorTest` ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) |
 | NFR-29 | The actuator surface is closed by name: only health, info and the metrics scrape answer, and an endpoint that would expose configuration or process memory does not | `ActuatorEndpointsIT` (env, heapdump, loggers, beans, mappings, configprops, threaddump) ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) |
-| NFR-30 | A request that fails shows the user the trace id that finds it in the log, from the error body or the response header, and offers none when the request never reached the server | `apiError.test.ts`, `ErrorState.test.tsx` |
+| NFR-30 | A request that fails shows the user the trace id that finds it in the log, from the error body or the response header, and offers none when the request never reached the server | `apiError.test.ts`, `ErrorState.test.tsx` — **Known deviation:** [#76](https://github.com/NaimElijah/UpHealther/issues/76), [#96](https://github.com/NaimElijah/UpHealther/issues/96), many mutations fail without a word |
 
 ### 4.5 Interface
 
@@ -308,13 +316,33 @@ Undecided, and owned by the repository owner.
   entry per upgrade per day, an upgrade nobody filled in is therefore recorded as a failure that
   cannot be corrected until tomorrow. `DailyCheckinPage.test.tsx` asserts the behaviour and flags the
   disagreement; which of the two is right — submit-everything or submit-what-was-touched — is a
-  product decision, and FR-19 does not settle it.
+  product decision, and FR-19 does not settle it
+  ([#55](https://github.com/NaimElijah/UpHealther/issues/55)). The page makes the conflict likelier than
+  it needs to be: it never loads today's entries, so it offers an upgrade already logged elsewhere, and
+  it posts every entry at once, so one refusal can leave the rest saved with nothing shown.
+- **Whether reminders should fire for an upgrade that is not active.** They fire today whatever the
+  upgrade's status, paused, completed and abandoned included, and nothing states whether they should
+  ([#102](https://github.com/NaimElijah/UpHealther/issues/102)).
+- **Whether an upgrade overdue a second time is announced again.** BR-11 announces an overdue upgrade
+  once, and that once is permanent: an upgrade whose target date is moved later and missed again gets
+  no second notice ([#103](https://github.com/NaimElijah/UpHealther/issues/103)).
+- **Whether the list filters should combine.** FR-11's filters are alternatives — the API applies the
+  first one it is given and ignores the rest, deliberately. If the interface grows filters, combining
+  them may be what a user expects ([#90](https://github.com/NaimElijah/UpHealther/issues/90)).
+- **Whether a failed entry today breaks a streak today.** BR-9 says a day not yet logged does not
+  break one, and `StreakCalculatorTest` pins that. The calculator also treats a day logged as *not*
+  completed the same way until the day is over, which no test asserts and no requirement states.
+- **There is no accessibility target beyond dialogs and contrast.** FR-40 and NFR-19 are the only
+  accessibility requirements, so the keyboard, labelling and announcement gaps the audit found are not
+  defects against anything. Whether to adopt a target such as WCAG 2.2 AA is undecided
+  ([#104](https://github.com/NaimElijah/UpHealther/issues/104)).
 
 - **The frontend has no accessibility or visual-regression gate.** Contrast ratios in the theme were
   computed by hand; nothing re-checks them when a colour changes, and jsdom cannot — it has no layout
   engine. Closing this needs a real browser in CI; [ADR-004](../ADRs/ADR-004-frontend-test-harness.md)
   records why that was deferred. FR-39 and NFR-20 land in exactly this gap: no test in the suite can
-  observe a width, a wrap or an overflow, so both were verified by hand and neither is enforced.
+  observe a width, a wrap or an overflow, so both were verified by hand and neither is enforced
+  ([#61](https://github.com/NaimElijah/UpHealther/issues/61)).
 - **Nothing verifies that a browser honours the dialog's `inert`.** The focus trap and the inert page
   behind it are built and tested ([ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md)),
   but jsdom implements `inert` not at all, so the tests pin that the attribute is set and cleared on
@@ -322,9 +350,19 @@ Undecided, and owned by the repository owner.
   Two smaller residuals go with it: focus falls back to `<body>` when the element that opened a dialog
   unmounted along with it, which the health-areas delete path does; and a toast raised while a dialog
   is open goes inert with the rest of the page, so it is painted above the dialog and cannot be
-  dismissed.
+  dismissed ([#74](https://github.com/NaimElijah/UpHealther/issues/74)).
 - **The backend has no dependency vulnerability audit.** OWASP dependency-check needs an `NVD_API_KEY`
-  secret; ADR-002 records why a check that cannot fail was judged worse than none.
+  secret; ADR-002 records why a check that cannot fail was judged worse than none, and
+  [#59](https://github.com/NaimElijah/UpHealther/issues/59) that it is no longer the only tool.
+- **Nothing enforces that a rolled-back write raises no notification.** The notification listeners
+  wait for the commit, and `architecture.md` describes the guarantee, but no test would notice a
+  listener that did not. NFR-49 holds only the half that is tested: the live push waits for the commit.
+- **The frontend's copies of the API's shapes are unchecked.** NFR-10 keeps the mirrored enums in step
+  with the backend; the request and response types are written by hand, and nothing notices when one
+  drifts (`architecture.md`, "The frontend's types are hand-written, not generated").
+- **How long the audit trail must be kept is not stated.** The trail is a log stream
+  ([ADR-011](../ADRs/ADR-011-audit-as-a-log-stream.md)), so it lasts as long as `docker logs` keeps a
+  line. That is enough for diagnosis; whether it has to be more is a requirement nobody has set.
 - **No ceiling on the free-text fields.** `description`, `motivation`, `successCriteria`, `note`,
   `whatWorked`, `whatDidNotWork` and `nextAdjustment` are `TEXT`, so BR-16 leaves them alone: nothing
   downstream rejects them and there is no 500 to prevent. What is left is that a single request can
@@ -342,7 +380,8 @@ Undecided, and owned by the repository owner.
 - **No governing jurisdiction is named in the licence** — ADR-003 flags this as the first thing to add
   if the project ever becomes commercially significant.
 - **Requirement priorities and delivery order are not recorded here.** Everything above is already
-  built, so nothing has needed ranking yet.
+  built, so nothing has needed ranking yet. Planned work lives on the project board, starting from
+  [#16](https://github.com/NaimElijah/UpHealther/issues/16).
 
 ---
 
