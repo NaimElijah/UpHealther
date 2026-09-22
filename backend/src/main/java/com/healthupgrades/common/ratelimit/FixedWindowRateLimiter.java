@@ -57,16 +57,20 @@ public class FixedWindowRateLimiter {
         Instant now = clock.instant();
         evictIfFull(now, clientKey);
 
+        // This attempt's own number is taken inside compute's lock. Reading the counter after compute
+        // returns would see later threads' increments too, so the attempt that was tenth could read
+        // eleven and refuse itself: a limit of ten would allow nine under a concurrent burst.
+        int[] attempts = new int[1];
         Window window = windows.compute(clientKey, (key, existing) -> {
             if (existing == null || !existing.covers(now, properties.window())) {
+                attempts[0] = 1;
                 return new Window(now, new AtomicInteger(1));
             }
-            existing.attempts().incrementAndGet();
+            attempts[0] = existing.attempts().incrementAndGet();
             return existing;
         });
 
-        int attempts = window.attempts().get();
-        if (attempts <= properties.limit()) {
+        if (attempts[0] <= properties.limit()) {
             return Decision.allow();
         }
         Duration wait = Duration.between(now, window.startedAt().plus(properties.window()));

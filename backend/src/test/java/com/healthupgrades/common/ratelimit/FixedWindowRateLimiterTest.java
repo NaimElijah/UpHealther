@@ -7,6 +7,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -179,31 +181,48 @@ class FixedWindowRateLimiterTest {
 
     @Test
     void GivenManyThreadsAttemptingTogether_WhenTheLimitIsReached_ThenExactlyTheLimitIsAllowed() {
-        // Read-then-write would let two threads both see the last permitted attempt and both allow it,
-        // which is how a limit of ten quietly becomes a limit of "about ten, under load".
-        FixedWindowRateLimiter limiter = limiter();
+        // Two races, one in each direction. Read-then-write lets two threads both see the last permitted
+        // attempt and both allow it, so a limit of ten becomes "about ten, under load". Reading the count
+        // after compute releases its lock lets the tenth attempt see a later thread's increment and
+        // refuse itself, so ten becomes nine. That second one shipped: one burst passed every time on a
+        // developer machine and failed now and then on a two-core CI runner. A single burst rarely lands
+        // on the losing interleaving, so it is repeated; a correct limiter passes every round.
         int threads = 32;
+        int rounds = 2_000;
         ExecutorService pool = Executors.newFixedThreadPool(threads);
-        CountDownLatch startLine = new CountDownLatch(1);
-        AtomicInteger allowed = new AtomicInteger();
+        List<Integer> wrongRounds = new ArrayList<>();
 
         try {
-            IntStream.range(0, threads).forEach(i -> pool.submit(() -> {
-                startLine.await();
-                if (limiter.check(CLIENT).allowed()) {
-                    allowed.incrementAndGet();
+            for (int round = 0; round < rounds; round++) {
+                FixedWindowRateLimiter limiter = limiter();
+                CountDownLatch startLine = new CountDownLatch(1);
+                CountDownLatch finished = new CountDownLatch(threads);
+                AtomicInteger allowed = new AtomicInteger();
+                IntStream.range(0, threads).forEach(i -> pool.submit(() -> {
+                    try {
+                        startLine.await();
+                        if (limiter.check(CLIENT).allowed()) {
+                            allowed.incrementAndGet();
+                        }
+                    } finally {
+                        finished.countDown();
+                    }
+                    return null;
+                }));
+                startLine.countDown();
+                assertThat(finished.await(10, TimeUnit.SECONDS)).isTrue();
+                if (allowed.get() != LIMIT) {
+                    wrongRounds.add(allowed.get());
                 }
-                return null;
-            }));
-            startLine.countDown();
-            pool.shutdown();
-            assertThat(pool.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+            }
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             throw new AssertionError("interrupted while waiting for the pool", interrupted);
+        } finally {
+            pool.shutdownNow();
         }
 
-        assertThat(allowed.get()).isEqualTo(LIMIT);
+        assertThat(wrongRounds).as("allowed counts in the rounds that were not exactly %d", LIMIT).isEmpty();
     }
 
     /** A clock that can be moved, so a window can pass without anything sleeping. */
