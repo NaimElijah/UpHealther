@@ -13,8 +13,8 @@ import java.util.UUID;
  * invariant beyond "belongs to a user and has a name", so there is nothing for a factory or transition
  * method to protect.
  *
- * <p>An area is referenced by upgrades through its id only, so deleting one leaves those upgrades
- * pointing at a missing area rather than cascading.
+ * <p>An area is referenced by upgrades through its id only. Deleting one does not cascade: the foreign
+ * key sets those upgrades' area to null, so they survive, unfiled (FR-8).
  */
 @Entity
 @Table(name = "health_areas")

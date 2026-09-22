@@ -47,7 +47,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * The HTTP contract of the three endpoints a session begins and resumes through: FR-1 (register),
- * FR-2 (login) and FR-3 (a stored token restores a session, looked up by the id the token names).
+ * FR-2 (login) and FR-3 (the profile a restored session reads, looked up by the id the token names).
  *
  * <p>The response body is the one place a password could leak, so the shape assertions here are about
  * what is <em>absent</em> as much as what is present — {@code TokenPair} carries a {@code UserDto}, and

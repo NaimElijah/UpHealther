@@ -40,7 +40,7 @@ function renderGate(ctx: AuthContextType) {
 /**
  * FR-5's client half: a protected page renders only for a signed-in caller.
  *
- * The interesting state is the third one. A stored token is verified asynchronously on load, so there
+ * The interesting state is the third one. The session is restored asynchronously on load, so there
  * is a window where the caller is neither known-signed-in nor known-signed-out. Treating that window as
  * "not authenticated" bounces a perfectly valid session to the login page on every refresh — a bug that
  * looks like a flaky redirect and is invisible whenever the API answers quickly.
