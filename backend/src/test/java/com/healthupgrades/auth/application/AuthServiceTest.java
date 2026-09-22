@@ -42,7 +42,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Covers the two ways into an authenticated session and the profile read behind them:
- * FR-1 (register), FR-2 (login), FR-3 (restore a session from a stored token), FR-4 (an email may be
+ * FR-1 (register), FR-2 (login), FR-3 (read the profile a restored session belongs to), FR-4 (an email may be
  * registered once, compared case-insensitively) and NFR-2 (a raw password is never stored).
  *
  * <p>The {@link PasswordEncoder} is the real BCrypt one rather than a mock. It is a pure function with no

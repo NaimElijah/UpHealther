@@ -3,6 +3,7 @@ package com.healthupgrades.common.ratelimit;
 import com.healthupgrades.auth.adapter.in.web.AuthController;
 import com.healthupgrades.auth.application.AuthService;
 import com.healthupgrades.auth.application.port.in.SessionCommand;
+import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.common.security.JwtAuthenticationFilter;
 import com.healthupgrades.common.security.SecurityConfig;
@@ -110,6 +111,27 @@ class RateLimitedSignInTest {
     }
 
     @Test
+    void GivenRepeatedRegistrations_WhenTheAllowanceIsSpent_ThenFurtherAttemptsAreRefusedBeforeTheApplication()
+            throws Exception {
+        // Registration is the other anonymous path, and the cheaper one to abuse: every attempt that
+        // reaches the service hashes a password. The login cases above cannot show it is limited too.
+        when(authService.register(anyString(), anyString(), anyString()))
+                .thenThrow(new BusinessRuleException("That email is already registered"));
+        String client = "203.0.113.16";
+
+        for (int attempt = 0; attempt < LIMIT; attempt++) {
+            mockMvc.perform(registerFrom(client)).andExpect(status().isUnprocessableEntity());
+        }
+
+        mockMvc.perform(registerFrom(client))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().exists(HttpHeaders.RETRY_AFTER))
+                .andExpect(jsonPath("$.path").value("/api/auth/register"));
+
+        verify(authService, times(LIMIT)).register(anyString(), anyString(), anyString());
+    }
+
+    @Test
     void GivenOneClientHasSpentItsAllowance_WhenAnotherClientSignsIn_ThenItIsUnaffected() throws Exception {
         // A shared counter would let one attacker lock every other user out of the installation, which
         // is a better attack than the one being prevented.
@@ -156,6 +178,13 @@ class RateLimitedSignInTest {
     /** Asserts a status is anything but the given one, without caring which. */
     private static org.hamcrest.Matcher<Integer> not(int status) {
         return org.hamcrest.Matchers.not(org.hamcrest.Matchers.is(status));
+    }
+
+    private static MockHttpServletRequestBuilder registerFrom(String clientAddress) {
+        return post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\"s3cret!42\"}")
+                .with(from(clientAddress));
     }
 
     private static MockHttpServletRequestBuilder signInFrom(String clientAddress) {

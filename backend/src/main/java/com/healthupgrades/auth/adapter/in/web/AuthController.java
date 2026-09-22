@@ -156,8 +156,8 @@ public class AuthController {
     }
 
     /**
-     * Returns the caller's own profile — the endpoint the frontend uses to restore a session from a
-     * stored token.
+     * Returns the caller's own profile — the endpoint the frontend calls after a reload has renewed
+     * the session from the refresh cookie. The access token itself is never stored (NFR-38).
      *
      * @param principal the authenticated principal, injected by Spring Security from the bearer token
      * @return 200 with the user's public view

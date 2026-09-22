@@ -22,7 +22,7 @@ import org.springframework.stereotype.Component;
  * swallowed or silently reclassified on the way past.
  *
  * <p>The job name is a tag, so it is a closed set by construction: the constants live beside the
- * {@code @Scheduled} methods that use them and there are three of them. Nothing per-user or per-record
+ * {@code @Scheduled} methods that use them and there are four of them. Nothing per-user or per-record
  * may join it — see {@code docs/ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md}.
  */
 @Component

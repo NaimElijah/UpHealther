@@ -105,8 +105,9 @@ public class UpgradeController {
     }
 
     /**
-     * Deletes one of the caller's upgrades, along with nothing else — progress entries and
-     * reflections filed against it are not cascaded.
+     * Deletes one of the caller's upgrades and everything recorded against it — its tracking
+     * configuration, progress entries, reminders and reflections go with it through the foreign keys'
+     * cascade. Its notifications stay, detached from it (FR-14).
      *
      * @param id the upgrade's identifier
      * @return 204 with no body
