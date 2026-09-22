@@ -102,6 +102,12 @@ class AuthSessionPersistenceIT extends PostgresIT {
 
     @Test
     void GivenSessionsThatCanNoLongerBeUsed_WhenTheCleanupRuns_ThenOnlyTheUsableOnesSurvive() {
+        // The sweep deletes every unusable row in the table, and the container is shared by the whole
+        // integration suite. AuthSessionFlowIT commits real sign-outs into it, so whenever that class
+        // ran first, the count below included its revoked sessions. Emptying the table inside this
+        // test's own transaction makes the count mean "this fixture" again, in any order. The
+        // rollback at the end restores what was there.
+        entityManager.getEntityManager().createNativeQuery("DELETE FROM auth_sessions").executeUpdate();
         User owner = persistedUser();
         AuthSession live = repository.save(openedFor(owner, "live"));
         AuthSession signedOut = openedFor(owner, "signed-out");
