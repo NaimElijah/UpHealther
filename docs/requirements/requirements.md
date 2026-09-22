@@ -106,7 +106,7 @@ no way at all — to read another person's health records
 | FR-32 | Notifications arrive in real time on a connected client, and are readable afterwards regardless | `StompNotificationPushAdapterTest`, `NotificationServiceTest`, `NotificationProvider.test.tsx` |
 | FR-33 | A user can read their fifty most recent notifications, see an unread count, and mark one or all as read | `NotificationServiceTest`, `NotificationControllerTest` |
 
-### 2.7 Appearance
+### 2.7 Appearance and accessibility
 
 | ID | Requirement | Enforced by |
 |---|---|---|
@@ -118,6 +118,11 @@ no way at all — to read another person's health records
 | FR-39 | A dialog fits the window at any size: its heading stays put and only its body scrolls | `Modal` — checked by hand, see §6 |
 | FR-40 | A dialog announces itself as a dialog named by its title, takes focus on open, confines Tab to its own controls, restores focus on close, and marks the page behind it inert | `Modal`, `Modal.test.tsx`, [ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md) |
 | FR-41 | A health area whose stored icon cannot be drawn is shown with the default icon, and editing it does not write the undrawable value back | `areaIconGlyph`, `isIconGlyph`, `areaIcon.test.ts` |
+
+### 2.8 Account administration
+
+| ID | Requirement | Enforced by |
+|---|---|---|
 | FR-42 | An administrator can list the accounts on the installation, a page at a time and oldest first, seeing each one's role and whether it is switched on — and nothing about what it owns | `AdminUserServiceTest`, `AdminUserControllerTest` |
 | FR-43 | An administrator can switch an account off and back on. Switching it off ends every session it holds and destroys nothing it owns, so switching it back on restores the account exactly as it was | `AdminUserServiceTest`, `AdminUserControllerTest` |
 | FR-44 | An administrator can grant and revoke the administrator role. The change is read from the account on its next request, so it takes effect without signing that person out | `AdminUserServiceTest`, `AdminUserControllerTest` |
@@ -172,6 +177,8 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 
 ## 4. Non-functional requirements
 
+### 4.1 Sessions and credentials
+
 | ID | Requirement | Enforced by |
 |---|---|---|
 | NFR-1 | The API holds no HTTP session and no conversational state: a request is authenticated by the credential it carries and nothing else, so any instance can serve any request. The signed-in session is a row the token names, not server memory | `AuthenticatedBoundaryTest`, `AuthSessionFlowIT`, `SecurityConfig` (`SessionCreationPolicy.STATELESS`) |
@@ -179,40 +186,19 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-3 | The token settings are supplied by configuration and validated as the application starts, so a missing one is named at boot rather than surfacing as a null inside the first request that needs it; the signing secret must be at least 256 bits, or the application refuses to start | `JwtTokenProviderTest`, `ApplicationContextIT` |
 | NFR-4 | A token names its account by id and the session it belongs to, never an email, and is accepted only under this application's issuer, audience and signing algorithm. It is valid for `app.jwt.access-token-ttl` and is renewed through the refresh credential rather than by signing in again | `JwtTokenProviderTest`, `AuthSessionFlowIT` |
 | NFR-5 | The session and the account behind a token are both re-loaded on every request, so signing out, deleting an account or disabling one stops an already-issued token working on the very next request rather than whenever it would have expired | `BearerTokenAuthenticatorTest`, `AuthSessionFlowIT` |
-| NFR-6 | The application never logs personal data deliberately: event publication logs the type and timestamp only, and a trace id identifies a request rather than a person. The one exception is the stack trace of an unexpected 5xx, logged in full so the fault is diagnosable and withheld from the client | `SpringDomainEventPublisher`, `GlobalExceptionHandlerTest` |
-| NFR-7 | Every failure maps to a defined HTTP status: 404 not found, 422 rule violation, 409 conflict, 401 rejected credentials or no accepted token, 400 invalid input (a failed constraint, an unbindable body, a parameter that will not convert), 403 authenticated but not allowed, and the status Spring defines for every other framework exception (405, 415, 406, …). Only a genuine server fault is a 500, and it carries no detail beyond the status and the trace id that finds its log line | `GlobalExceptionHandlerTest`, every `*ControllerTest`, [ADR-006](../ADRs/ADR-006-framework-exceptions-through-responseentityexceptionhandler.md) |
-| NFR-8 | The database schema is owned by migrations; the application refuses to start against a schema that does not match its entities | `ApplicationContextIT`, Flyway + `ddl-auto: validate` |
-| NFR-9 | Layering is enforced mechanically, not by convention: the domain stays framework-free, the application depends on no adapter, contexts form an acyclic graph, and the administration context cannot reach any context holding a user's own records | `HexagonalArchitectureTest` (twelve rules) |
-| NFR-10 | The frontend's mirrored enums cannot drift from the backend's | `FrontendEnumContractTest` |
-| NFR-11 | The unit test suite runs without a database | `mvn test` — needs neither a database nor Docker |
-| NFR-12 | Every push and pull request is built, tested, linted, and the shipped frontend dependencies audited | `.github/workflows/ci.yml` |
-| NFR-13 | The whole stack starts with one command | `docker-compose up --build` |
-| NFR-14 | List endpoints resolve related data in batch rather than per row | `TrackingServiceTest`, `NotificationSchedulerTest` |
-| NFR-15 | Time-dependent behaviour reads an injected clock, so it is testable and timezone-explicit | `UpgradeOverdueSchedulerTest`, `NotificationSchedulerTest`, `TrackingServiceTest`, `ReflectionServiceTest` |
-| NFR-16 | A user's theme choice survives a reload and is applied before the first paint, so the page never flashes the wrong theme | `bootScript.test.tsx`, `ThemeProvider.test.tsx` |
-| NFR-17 | The interface remains usable where browser storage is blocked or `matchMedia` is unavailable | `ThemeProvider`, `ThemeProvider.test.tsx` |
-| NFR-18 | Every colour in the interface is a semantic token, so no component can hard-code one that survives a theme change | `frontend/scripts/check-colours.mjs`, `.github/workflows/ci.yml` |
-| NFR-19 | Text meets a 4.5:1 contrast ratio and control boundaries 3:1, in both themes | the token values in `frontend/src/index.css` — computed, not automatically re-checked; see §6 |
-| NFR-20 | The interface does not scroll horizontally at any window width from 320px upward, whatever a user has stored in it | the shell's `min-w-0` floors and the truncation rules on every user-supplied string ([ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md)) — checked by hand at 320, 360, 486, 684, 1040 and 1540px, see §6 |
-| NFR-21 | Every log line written while serving a request, running a scheduled job or handling a STOMP frame carries the same trace id; the id is returned as an `X-Trace-Id` response header and on the error body, and an inbound W3C `traceparent` is continued rather than replaced | `RequestCorrelationTest`, `CorrelationIT`, `StompTracingChannelInterceptorTest`, `ObservabilityConfig` ([ADR-007](../ADRs/ADR-007-request-correlation-through-micrometer-tracing.md)) |
-| NFR-22 | Log output is one JSON object per line in a container and Boot's readable pattern locally, and a line in either format carries its trace id | `LogOutputFormatTest`, `logback-spring.xml` ([ADR-010](../ADRs/ADR-010-structured-logging-and-a-level-policy.md)) |
-| NFR-23 | Every state-changing use case and every authentication outcome records who attempted what, against which record, and whether it was allowed — including the attempts that were refused, and never claiming as allowed work whose transaction then rolled back | `AuditTrailTest`, `LoggingAuditTrailTest`, `AuditCommitIT`, `UpgradeServiceTest`, `AuthServiceTest` ([ADR-011](../ADRs/ADR-011-audit-as-a-log-stream.md)) |
-| NFR-24 | An audit entry cannot carry personal data, because it has nowhere to put any: every field is an enum or an identifier, and a refused login is recorded with no subject at all | `AuditEventTest`, `AuthServiceTest` |
-| NFR-25 | Every scheduled run records how long it took, whether it finished, and what it did, so a job that has stopped working is distinguishable from one with nothing to do | `JobMetricsTest`, `NotificationSchedulerTest`, `UpgradeOverdueSchedulerTest` |
-| NFR-26 | A real-time push that cannot be delivered degrades to the stored notification and is reported, rather than failing the work that raised it | `StompNotificationPushAdapterTest` |
-| NFR-27 | Liveness and readiness are answerable separately, so "restart the process" and "stop routing to it" are distinguishable, and both images declare a health-check | `ActuatorEndpointsIT`, `backend/Dockerfile`, `docker-compose.yml` |
-| NFR-28 | Latency, error rate, saturation, connection-pool depth and the domain's own counters are readable from one scrape endpoint, and no metric tag is unbounded | `ActuatorEndpointsIT`, `LoggingAuditTrailTest`, `JobMetricsTest` ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) |
-| NFR-29 | The actuator surface is closed by name: only health, info and the metrics scrape answer, and an endpoint that would expose configuration or process memory does not | `ActuatorEndpointsIT` (env, heapdump, loggers, beans, mappings, configprops, threaddump) |
-| NFR-30 | A request that fails shows the user the trace id that finds it in the log, from the error body or the response header, and offers none when the request never reached the server | `apiError.test.ts`, `ErrorState.test.tsx` |
-| NFR-31 | A render-time error shows a recoverable message rather than blanking the page | `ErrorBoundary.test.tsx` |
-| NFR-32 | A WebSocket session is authorised frame by frame, not only at CONNECT: a subscription must name the one destination the application pushes to, and a SEND is refused, so a connected session cannot read another session's notifications by naming the destination the broker resolved that session's queue to | `JwtChannelInterceptorTest`, `StompNotificationPushAdapterTest` |
-| NFR-33 | An account holds one of two roles, read from the database on every request rather than carried in the token, so granting or revoking ADMIN takes effect on the next request. A role decides which paths answer, never which rows do: the user-scoped queries apply to an administrator exactly as they do to anyone else | `UserTest`, `UserDetailsServiceImplTest`, `BearerTokenAuthenticatorTest`, `AuthenticatedBoundaryTest` ([ADR-016](../ADRs/ADR-016-roles-read-from-the-database-on-every-request.md)) |
-| NFR-34 | An account can be switched off without destroying anything it owns: a disabled account cannot sign in, and a token it was already issued stops working on its next request. The refusal costs the same as a wrong password and reads the same on the wire, so it does not disclose that the account exists | `UserTest`, `DisabledAccountAuthenticationTest`, `BearerTokenAuthenticatorTest` |
 | NFR-35 | A user can end a session, and ending it takes effect immediately: the access token already issued within it stops working on its next request. Sign-out is per device — it leaves the same account signed in elsewhere | `AuthSessionServiceTest`, `AuthSessionFlowIT`, `AuthControllerTest` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
 | NFR-36 | The long-lived refresh credential is never readable by script and never stored in a form that can be presented: it travels in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie and is held only as a SHA-256 digest. It is replaced on every use, and presenting a spent one outside the rotation grace window revokes the session and is audited | `AuthSessionTest`, `AuthSessionServiceTest`, `AuthSessionPersistenceIT`, `AuthControllerTest` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
 | NFR-37 | The two endpoints that act on the cookie alone cannot be driven from another site: the cookie is `SameSite=Strict`, and both additionally require a header that a cross-site form post cannot set, refusing the request before any session is read | `AuthControllerTest`, `AuthSessionFlowIT` |
 | NFR-38 | The access token is never written to browser storage: it is held in memory for the life of the tab, so it cannot be read by injected script and does not outlive the page. A reload restores the session from the refresh cookie instead, and the credentials of an earlier version are removed from storage on load | `tokenStore.test.ts`, `AuthContext.test.tsx`, `client.test.ts` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
 | NFR-39 | An expired access token is renewed and the request retried, rather than ending the session: the renewal is single-flight within a tab and across tabs, so a burst of parallel calls rotates the refresh credential once. Only a refusal from the renewal itself signs the user out | `client.test.ts`, `AuthSessionFlowIT` |
+
+### 4.2 Access control and hardening
+
+| ID | Requirement | Enforced by |
+|---|---|---|
+| NFR-32 | A WebSocket session is authorised frame by frame, not only at CONNECT: a subscription must name the one destination the application pushes to, and a SEND is refused, so a connected session cannot read another session's notifications by naming the destination the broker resolved that session's queue to | `JwtChannelInterceptorTest`, `StompNotificationPushAdapterTest` |
+| NFR-33 | An account holds one of two roles, read from the database on every request rather than carried in the token, so granting or revoking ADMIN takes effect on the next request. A role decides which paths answer, never which rows do: the user-scoped queries apply to an administrator exactly as they do to anyone else | `UserTest`, `UserDetailsServiceImplTest`, `BearerTokenAuthenticatorTest`, `AuthenticatedBoundaryTest` ([ADR-016](../ADRs/ADR-016-roles-read-from-the-database-on-every-request.md)) |
+| NFR-34 | An account can be switched off without destroying anything it owns: a disabled account cannot sign in, and a token it was already issued stops working on its next request. The refusal costs the same as a wrong password and reads the same on the wire, so it does not disclose that the account exists | `UserTest`, `DisabledAccountAuthenticationTest`, `BearerTokenAuthenticatorTest` |
 | NFR-40 | An administrator cannot act on their own account — not disable it, not enable it, not change its role. Each would be unrecoverable from inside the application: the last administrator could lock the installation, or revoke the role nobody is left to grant | `AdminUserServiceTest`, `AdminUserControllerTest` |
 | NFR-41 | The administration context has no dependency on any context holding a user's own records, so "an administrator cannot read your health data" is a property of what the code can reach rather than a check somebody remembered to write | `HexagonalArchitectureTest` |
 | NFR-42 | Sign-in and registration are rate-limited per client address — the only two endpoints reachable without a credential. Over the limit answers 429 with `Retry-After` and never reaches the application, so a refused attempt costs no password comparison. The limit is per address and never per account, so nobody can lock another person out by failing to sign in as them | `FixedWindowRateLimiterTest`, `RateLimitedSignInTest` ([ADR-017](../ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)) |
@@ -220,6 +206,52 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-44 | The rate limiter's memory is bounded, so the defence cannot itself be turned into a denial of service by a caller rotating addresses | `FixedWindowRateLimiterTest` |
 | NFR-45 | The page is served under a content security policy that permits one inline script by hash and no inline script by category, so an injected script does not execute. The policy also forbids framing, plugin content and a rewritten base URL, and every header is sent on error responses as well as successful ones | `bootScriptCsp.test.ts` ([ADR-018](../ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)) |
 | NFR-46 | The hash permitting the inline theme script is recomputed from the shipped file by a test, so editing that script without updating the policy fails the build rather than producing a flash of the wrong theme in production only | `bootScriptCsp.test.ts` |
+
+### 4.3 Data, errors and resilience
+
+| ID | Requirement | Enforced by |
+|---|---|---|
+| NFR-7 | Every failure maps to a defined HTTP status: 404 not found, 422 rule violation, 409 conflict, 401 rejected credentials or no accepted token, 400 invalid input (a failed constraint, an unbindable body, a parameter that will not convert), 403 authenticated but not allowed, and the status Spring defines for every other framework exception (405, 415, 406, …). Only a genuine server fault is a 500, and it carries no detail beyond the status and the trace id that finds its log line | `GlobalExceptionHandlerTest`, every `*ControllerTest`, [ADR-006](../ADRs/ADR-006-framework-exceptions-through-responseentityexceptionhandler.md) |
+| NFR-8 | The database schema is owned by migrations; the application refuses to start against a schema that does not match its entities | `ApplicationContextIT`, Flyway + `ddl-auto: validate` |
+| NFR-14 | List endpoints resolve related data in batch rather than per row | `TrackingServiceTest`, `NotificationSchedulerTest` |
+| NFR-15 | Time-dependent behaviour reads an injected clock, so it is testable and timezone-explicit | `UpgradeOverdueSchedulerTest`, `NotificationSchedulerTest`, `TrackingServiceTest`, `ReflectionServiceTest` |
+| NFR-26 | A real-time push that cannot be delivered degrades to the stored notification and is reported, rather than failing the work that raised it | `StompNotificationPushAdapterTest` |
+
+### 4.4 Observability and audit
+
+| ID | Requirement | Enforced by |
+|---|---|---|
+| NFR-6 | The application never logs personal data deliberately: event publication logs the type and timestamp only, and a trace id identifies a request rather than a person. The one exception is the stack trace of an unexpected 5xx, logged in full so the fault is diagnosable and withheld from the client | `SpringDomainEventPublisher`, `GlobalExceptionHandlerTest` |
+| NFR-21 | Every log line written while serving a request, running a scheduled job or handling a STOMP frame carries the same trace id; the id is returned as an `X-Trace-Id` response header and on the error body, and an inbound W3C `traceparent` is continued rather than replaced | `RequestCorrelationTest`, `CorrelationIT`, `StompTracingChannelInterceptorTest`, `ObservabilityConfig` ([ADR-007](../ADRs/ADR-007-request-correlation-through-micrometer-tracing.md)) |
+| NFR-22 | Log output is one JSON object per line in a container and Boot's readable pattern locally, and a line in either format carries its trace id | `LogOutputFormatTest`, `logback-spring.xml` ([ADR-010](../ADRs/ADR-010-structured-logging-and-a-level-policy.md)) |
+| NFR-23 | Every state-changing use case and every authentication outcome records who attempted what, against which record, and whether it was allowed — including the attempts that were refused, and never claiming as allowed work whose transaction then rolled back | `AuditTrailTest`, `LoggingAuditTrailTest`, `AuditCommitIT`, `UpgradeServiceTest`, `AuthServiceTest` ([ADR-011](../ADRs/ADR-011-audit-as-a-log-stream.md)) |
+| NFR-24 | An audit entry cannot carry personal data, because it has nowhere to put any: every field is an enum or an identifier, and a refused login is recorded with no subject at all | `AuditEventTest`, `AuthServiceTest` |
+| NFR-25 | Every scheduled run records how long it took, whether it finished, and what it did, so a job that has stopped working is distinguishable from one with nothing to do | `JobMetricsTest`, `NotificationSchedulerTest`, `UpgradeOverdueSchedulerTest` |
+| NFR-27 | Liveness and readiness are answerable separately, so "restart the process" and "stop routing to it" are distinguishable, and both images declare a health-check | `ActuatorEndpointsIT`, `backend/Dockerfile`, `docker-compose.yml` |
+| NFR-28 | Latency, error rate, saturation, connection-pool depth and the domain's own counters are readable from one scrape endpoint, and no metric tag is unbounded | `ActuatorEndpointsIT`, `LoggingAuditTrailTest`, `JobMetricsTest` ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) |
+| NFR-29 | The actuator surface is closed by name: only health, info and the metrics scrape answer, and an endpoint that would expose configuration or process memory does not | `ActuatorEndpointsIT` (env, heapdump, loggers, beans, mappings, configprops, threaddump) |
+| NFR-30 | A request that fails shows the user the trace id that finds it in the log, from the error body or the response header, and offers none when the request never reached the server | `apiError.test.ts`, `ErrorState.test.tsx` |
+
+### 4.5 Interface
+
+| ID | Requirement | Enforced by |
+|---|---|---|
+| NFR-16 | A user's theme choice survives a reload and is applied before the first paint, so the page never flashes the wrong theme | `bootScript.test.tsx`, `ThemeProvider.test.tsx` |
+| NFR-17 | The interface remains usable where browser storage is blocked or `matchMedia` is unavailable | `ThemeProvider`, `ThemeProvider.test.tsx` |
+| NFR-18 | Every colour in the interface is a semantic token, so no component can hard-code one that survives a theme change | `frontend/scripts/check-colours.mjs`, `.github/workflows/ci.yml` |
+| NFR-19 | Text meets a 4.5:1 contrast ratio and control boundaries 3:1, in both themes | the token values in `frontend/src/index.css` — computed, not automatically re-checked; see §6 |
+| NFR-20 | The interface does not scroll horizontally at any window width from 320px upward, whatever a user has stored in it | the shell's `min-w-0` floors and the truncation rules on every user-supplied string ([ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md)) — checked by hand at 320, 360, 486, 684, 1040 and 1540px, see §6 |
+| NFR-31 | A render-time error shows a recoverable message rather than blanking the page | `ErrorBoundary.test.tsx` |
+
+### 4.6 Build, test and structure
+
+| ID | Requirement | Enforced by |
+|---|---|---|
+| NFR-9 | Layering is enforced mechanically, not by convention: the domain stays framework-free, the application depends on no adapter, contexts form an acyclic graph, and the administration context cannot reach any context holding a user's own records | `HexagonalArchitectureTest` (twelve rules) |
+| NFR-10 | The frontend's mirrored enums cannot drift from the backend's | `FrontendEnumContractTest` |
+| NFR-11 | The unit test suite runs without a database | `mvn test` — needs neither a database nor Docker |
+| NFR-12 | Every push and pull request is built, tested, linted, and the shipped frontend dependencies audited | `.github/workflows/ci.yml` |
+| NFR-13 | The whole stack starts with one command | `docker-compose up --build` |
 
 ---
 
