@@ -43,7 +43,7 @@ performs the same `/api` and `/ws` proxying itself, so the app behaves identical
 
 ### Backend bounded contexts
 
-Nine contexts, each owning its own vocabulary, plus a cross-cutting `common`.
+Ten contexts, each owning its own vocabulary, plus a cross-cutting `common`.
 
 | Context | Owns | Shape |
 |---|---|---|
@@ -59,7 +59,11 @@ Nine contexts, each owning its own vocabulary, plus a cross-cutting `common`.
 | `dashboard` | The composed dashboard read model | Two-layer: reads through other contexts' ports, persists nothing |
 | `common` | Cross-cutting: the `DomainEvent` marker, shared exceptions, the event-publisher port, the global exception handler, JWT security and the WebSocket configuration | Not a context; a shared kernel plus cross-cutting adapters |
 
-`auth` and `dashboard` being two-layer is deliberate, not drift — see ADR-002.
+The shapes that differ are deliberate, not drift. `dashboard` is two-layer by design
+([ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)); `auth` began
+that way and gained an aggregate with sessions
+([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)); and `admin` owns
+no aggregate at all, orchestrating over `user` and `auth`.
 
 ### Frontend modules
 
