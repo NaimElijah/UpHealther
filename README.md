@@ -116,7 +116,7 @@ so nothing is pushed or persisted as a notification if the transaction rolls bac
 `ABANDONED` is not — rescheduling revives it. At most three `HARD` upgrades may be `ACTIVE` at once,
 checked both when activating one and when promoting a running one to `HARD`.
 
-The layering is **enforced, not documented**: `HexagonalArchitectureTest` runs eleven ArchUnit rules
+The layering is **enforced, not documented**: `HexagonalArchitectureTest` runs twelve ArchUnit rules
 on every `mvn test` — the domain stays framework-free, the application depends on no adapter, and
 Spring Data is confined to the persistence adapters.
 
