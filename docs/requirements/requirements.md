@@ -2,9 +2,9 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. A hundred and four of the hundred and eleven entries below name a test — ninety-two
-distinct test classes and files between them. Four of the remaining seven name the command, workflow or
-script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18). The last three — FR-39, NFR-19 and NFR-20 —
+rather than trusted. A hundred and twelve of the hundred and twenty entries below name a test —
+ninety-two distinct test classes and files between them. Five of the remaining eight name the command,
+workflow or script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48). The last three — FR-39, NFR-19 and NFR-20 —
 are verified by hand and say so, because each is about a rendered width, a colour or an overflow, and
 jsdom has no layout engine to observe any of them; §6 records what closing that gap would take.
 
@@ -56,6 +56,7 @@ no way at all — to read another person's health records
 | FR-3 | A signed-in user can retrieve their own profile, so a reloaded page learns who is signed in once the refresh cookie has renewed the session (NFR-38) | `AuthControllerTest`, `AuthContext.test.tsx` |
 | FR-4 | An email may be registered once. Addresses are compared trimmed and case-insensitively, the database refuses any other stored form, and a registration that loses a race for an address is refused like any other duplicate | `AuthServiceTest`, `AuthControllerTest` (422), `EmailAddressTest`, `UserPersistenceIT`, `RegistrationRaceIT` |
 | FR-5 | Every endpoint requires a valid access token except six: registration and sign-in; refresh and sign-out, which act on the refresh cookie and are guarded as NFR-37 states; the actuator, which answers only what NFR-29 leaves open; and the WebSocket handshake, whose STOMP CONNECT is authenticated instead (NFR-32). A request without a token, or with one the server refuses, is answered 401 with a `WWW-Authenticate: Bearer` challenge and the API's error body | `AuthenticatedBoundaryTest` (every protected route, and exactly those six public), `JwtAuthenticationFilterTest`, `ErrorBodySecurityHandlersTest`, `ProtectedRoute.test.tsx` ([ADR-014](../ADRs/ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md)) |
+| FR-48 | A signed-in user can sign out on this device. A sign-out that fails says so and leaves them signed in, rather than appearing to have worked while the session lives on (NFR-35 is how immediately it takes effect) | `AuthControllerTest`, `AuthSessionServiceTest`, `AuthContext.test.tsx` |
 
 ### 2.2 Health areas
 
@@ -74,14 +75,14 @@ no way at all — to read another person's health records
 | FR-11 | A user can list their upgrades, narrowed by status, type, area or difficulty | `UpgradeServiceTest`, `UpgradeControllerTest` |
 | FR-12 | A user can move an upgrade through its lifecycle: plan, activate, pause, complete, abandon, reschedule | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeControllerTest` |
 | FR-13 | A user can edit an upgrade's descriptive fields at any point in its lifecycle | `HealthUpgradeTest`, `UpgradeServiceTest` |
-| FR-14 | A user can delete an upgrade | `UpgradeServiceTest`, `UpgradeControllerTest` |
+| FR-14 | A user can delete an upgrade, and with it everything recorded against it: its tracking configuration, progress, reminders and reflections. Its notifications stay, detached from it | `UpgradeServiceTest`, `UpgradeControllerTest`, `UpgradePersistenceIT` |
 | FR-15 | An upgrade's response carries its tracking configuration, so a list view needs no second call | `UpgradeDtoSerializationTest`, `UpgradeControllerTest` |
 
 ### 2.4 Tracking and progress
 
 | ID | Requirement | Enforced by |
 |---|---|---|
-| FR-16 | A user can configure how an upgrade is measured: boolean, numeric, rating or free text | `TrackingServiceTest`, `TrackingConfigControllerTest` |
+| FR-16 | A user can configure how an upgrade is measured: boolean, numeric, rating or free text. An upgrade has at most one configuration, and saving another replaces it | `TrackingServiceTest`, `TrackingConfigControllerTest` |
 | FR-17 | A numeric configuration can carry a target value and a unit | `TrackingServiceTest`, `TrackingConfigControllerTest` |
 | FR-18 | A user can log progress for an upgrade on a given day | `TrackingServiceTest`, `ProgressControllerTest` |
 | FR-19 | A user can log progress for every active upgrade in one pass | `DailyCheckinPage.test.tsx` — but see §6 |
@@ -108,7 +109,16 @@ no way at all — to read another person's health records
 | FR-30 | A user with active upgrades and nothing logged is nudged once a day | `NotificationSchedulerTest` |
 | FR-31 | A user's reminders fire at the configured time and day | `NotificationSchedulerTest`, `ReminderTest` |
 | FR-32 | Notifications arrive in real time on a connected client, and are readable afterwards regardless | `StompNotificationPushAdapterTest`, `NotificationServiceTest`, `NotificationProvider.test.tsx` |
-| FR-33 | A user can read their fifty most recent notifications, see an unread count, and mark one or all as read | `NotificationServiceTest`, `NotificationControllerTest` |
+| FR-33 | A user can read their fifty most recent notifications, see an unread count that covers every notification rather than only the fifty listed, and mark one or all as read | `NotificationServiceTest`, `NotificationControllerTest` |
+| FR-49 | A user can opt in to desktop notifications, which are raised only while the tab is in the background — with the tab in view, the in-page notice already says it | `NotificationProvider.test.tsx` |
+
+FR-27's terms are the server's, and `DashboardAggregationServiceTest` pins each. An upgrade is **due
+today** when it is active and today falls between its start and its target end, either of which may be
+open; it is **overdue** when it is active and past its target end. **Recently completed** is the five
+most recently completed, newest first. The **weekly completion rate** is the percentage of entries
+dated in the last seven days, today included, that count as successful (BR-7), and zero when there are
+none. **Streaks** are reported for active upgrades only, and an area's **counts** include every area
+the user has, with zeroes, but no row for upgrades filed under none.
 
 ### 2.7 Appearance and accessibility
 
@@ -129,7 +139,7 @@ The role model behind every entry here is [ADR-016](../ADRs/ADR-016-roles-read-f
 
 | ID | Requirement | Enforced by |
 |---|---|---|
-| FR-42 | An administrator can list the accounts on the installation, a page at a time and oldest first, seeing each one's role and whether it is switched on — and nothing about what it owns | `AdminUserServiceTest`, `AdminUserControllerTest`, `UserPersistenceIT` (the order) |
+| FR-42 | An administrator can list the accounts on the installation, a page of at most a hundred at a time and oldest first, seeing each one's role and whether it is switched on — and nothing about what it owns | `AdminUserServiceTest`, `AdminUserControllerTest`, `UserPersistenceIT` (the order) |
 | FR-43 | An administrator can switch an account off and back on. Switching it off ends every session it holds and destroys nothing it owns, so switching it back on restores the account exactly as it was | `AdminUserServiceTest`, `AdminUserControllerTest` |
 | FR-44 | An administrator can grant and revoke the administrator role. The change is read from the account on its next request, so it takes effect without signing that person out | `AdminUserServiceTest`, `AdminUserControllerTest` |
 | FR-45 | A fresh installation can be given its first administrator through configuration, by account id and only while no *enabled* administrator exists — so it cannot silently re-promote somebody after a deliberate demotion, cannot be claimed by whoever registers an address first, and still recovers an installation whose administrators have disabled each other | `AdminBootstrapRunnerTest` |
@@ -143,7 +153,7 @@ The role model behind every entry here is [ADR-016](../ADRs/ADR-016-roles-read-f
 | ID | Rule | Enforced by |
 |---|---|---|
 | BR-1 | An upgrade is created in `IDEA` and its status changes only through a named transition — never by assignment | `HealthUpgrade` (no setters), `HealthUpgradeTest` |
-| BR-2 | Legal transitions are: `IDEA → PLANNED → ACTIVE ⇄ PAUSED`; `ACTIVE → COMPLETED`; any non-final state `→ ABANDONED`; `ABANDONED --reschedule--> PLANNED` | `HealthUpgrade`, `HealthUpgradeTest` |
+| BR-2 | Legal transitions are: `IDEA → PLANNED → ACTIVE ⇄ PAUSED`; `ACTIVE → COMPLETED`; any non-final state `→ ABANDONED`; `ABANDONED --reschedule--> PLANNED`. Rescheduling moves the dates of an upgrade in any state but `COMPLETED`, and only from `ABANDONED` does it change the status too | `HealthUpgrade`, `HealthUpgradeTest` |
 | BR-3 | `COMPLETED` is terminal — it cannot be reactivated, paused or rescheduled | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeControllerTest` |
 | BR-4 | An upgrade must always have an owner, a title and a type | `HealthUpgradeTest`, `UpgradeServiceTest` |
 | BR-5 | A user may have at most **three** `HARD` upgrades active at once, checked on every route into a running HARD upgrade | `UpgradeSchedulingServiceTest`, `UpgradeServiceTest`, `UpgradeControllerTest` |
@@ -160,6 +170,10 @@ The role model behind every entry here is [ADR-016](../ADRs/ADR-016-roles-read-f
 | BR-16 | A field stored in a bounded column is refused at the boundary when it exceeds that bound, and the response names the field | `ColumnBoundContractTest` (bound vs. column), `UpgradeControllerTest`, `HealthAreaControllerTest`, `ProgressControllerTest`, `TrackingConfigControllerTest`, `AuthControllerTest` |
 | BR-17 | A password is at least 8 characters and at most 72, refused by the API rather than only by the browser | `AuthControllerTest` |
 | BR-18 | An upgrade can be filed only under a health area its owner owns; a foreign area and a missing one are refused alike, with no hint which it was | `UpgradeServiceTest`, `HealthAreaServiceTest` |
+| BR-19 | A rating is a whole number from 1 to 5: a progress entry's rating, and a reflection's difficulty and benefit ratings | `ProgressControllerTest`, `ReflectionControllerTest` |
+| BR-20 | A numeric progress value is never negative | `ProgressControllerTest` |
+| BR-21 | Success is decided per tracking type: a boolean entry counts when marked complete; a numeric one when its value reaches the target in a comparable unit, and never when the configuration has no target; a rating when it is at least 3, the midpoint of the scale; a text entry when its note is not blank | `ProgressEvaluationServiceTest` |
+| BR-22 | Changing a tracking configuration does not rescore entries already logged; it judges only what is logged afterwards | `TrackingServiceTest` |
 
 BR-16 exists because the alternative is a 500. Each bound is taken from the column the field lands in
 (`V1__init_schema.sql`), so the two cannot drift apart in the direction that matters: `@Size` counts
@@ -193,10 +207,12 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-4 | A token names its account by id and the session it belongs to, never an email, and is accepted only under this application's issuer, audience and signing algorithm. It is valid for `app.jwt.access-token-ttl`, plus `app.jwt.clock-skew` so that two hosts disagreeing by a few seconds do not refuse each other's tokens, and is renewed through the refresh credential rather than by signing in again | `JwtTokenProviderTest`, `AuthSessionFlowIT` |
 | NFR-5 | The session and the account behind a token are both re-loaded on every request, so signing out or disabling an account stops an already-issued token working on the very next request rather than whenever it would have expired | `BearerTokenAuthenticatorTest`, `AuthSessionFlowIT` |
 | NFR-35 | A user can end a session, and ending it takes effect immediately: the access token already issued within it stops working on its next request. Sign-out is per device — it leaves the same account signed in elsewhere | `AuthSessionServiceTest`, `AuthSessionFlowIT`, `AuthControllerTest` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
-| NFR-36 | The long-lived refresh credential is never readable by script and never stored in a form that can be presented: it travels in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie and is held only as a SHA-256 digest. It is replaced on every use. Presenting the credential a rotation replaced, once the grace window has passed, revokes the session and is audited; a credential that neither digest recognises revokes nothing | `AuthSessionTest`, `AuthSessionServiceTest`, `AuthSessionPersistenceIT`, `AuthControllerTest` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
+| NFR-36 | The long-lived refresh credential is never readable by script and never stored in a form that can be presented: it travels in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie and is held only as a SHA-256 digest. It is replaced on every use. Presenting the credential a rotation replaced, once the grace window has passed, revokes the session and is audited; a credential that neither digest recognises revokes nothing. The cookie is scoped to `/api/auth`, so it is not sent with ordinary API calls, and a session nothing can use any more is deleted by a nightly sweep rather than kept | `AuthSessionTest`, `AuthSessionServiceTest`, `AuthSessionPersistenceIT`, `AuthControllerTest`, `AuthSessionFlowIT`, `AuthSessionCleanupSchedulerTest` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
 | NFR-37 | The two endpoints that act on the cookie alone cannot be driven from another site: the cookie is `SameSite=Strict`, and both additionally require a header that a cross-site form post cannot set, refusing the request before any session is read | `AuthControllerTest`, `AuthSessionFlowIT` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
 | NFR-38 | The access token is never written to browser storage: it is held in memory for the life of the tab, so it cannot be read by injected script and does not outlive the page. A reload restores the session from the refresh cookie instead, and the credentials of an earlier version are removed from storage on load | `tokenStore.test.ts`, `AuthContext.test.tsx`, `client.test.ts` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
-| NFR-39 | An expired access token is renewed and the request retried, rather than ending the session: the renewal is single-flight within a tab and across tabs, so a burst of parallel calls rotates the refresh credential once. Only a refusal from the renewal itself signs the user out | `client.test.ts`, `AuthSessionFlowIT` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
+| NFR-39 | An expired access token is renewed and the request retried, rather than ending the session: the renewal is single-flight within a tab and across tabs, so a burst of parallel calls rotates the refresh credential once. A renewal answered 409, because another tab rotated first, is tried once more. Only a refusal from the renewal itself signs the user out, and a 403 never does | `client.test.ts`, `AuthSessionFlowIT` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
+
+| NFR-47 | A session ends when it goes unused for `app.auth.session.idle`, and at `app.auth.session.absolute` however often it is refreshed, so neither an abandoned session nor a busy one lives indefinitely | `AuthSessionTest` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
 
 ### 4.2 Access control and hardening
 
@@ -210,7 +226,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-42 | Sign-in and registration are rate-limited per client address — the only two endpoints that take a password. Over the limit answers 429 with `Retry-After` and never reaches the application, so a refused attempt costs no password comparison. The limit is per address and never per account, so nobody can lock another person out by failing to sign in as them | `FixedWindowRateLimiterTest`, `RateLimitedSignInTest` ([ADR-017](../ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)) |
 | NFR-43 | The address a limit counts against cannot be chosen by the caller: the proxy overwrites `X-Forwarded-For` rather than appending to it, and only the proxy's own address is trusted to set it. IPv6 is counted by its /64, so rotating addresses within one allocation buys no extra allowance | `FixedWindowRateLimiterTest`, `nginx.conf`, `server.tomcat.remoteip.internal-proxies` ([ADR-017](../ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)) |
 | NFR-44 | The rate limiter's memory is bounded, so the defence cannot itself be turned into a denial of service by a caller rotating addresses | `FixedWindowRateLimiterTest` ([ADR-017](../ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)) |
-| NFR-45 | The page is served under a content security policy that permits one inline script by hash and no inline script by category, so an injected script does not execute. The policy also forbids framing, plugin content and a rewritten base URL, and every header is sent on error responses as well as successful ones | `bootScriptCsp.test.ts` ([ADR-018](../ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)) |
+| NFR-45 | The page is served under a content security policy that permits one inline script by hash and no inline script by category, so an injected script does not execute. The policy also forbids framing, plugin content and a rewritten base URL. It is sent alongside `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` and `Permissions-Policy`, and every one of these headers is sent on error responses as well as successful ones | `bootScriptCsp.test.ts` ([ADR-018](../ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)) |
 | NFR-46 | The hash permitting the inline theme script is recomputed from the shipped file by a test, so editing that script without updating the policy fails the build rather than producing a flash of the wrong theme in production only | `bootScriptCsp.test.ts` |
 
 ### 4.3 Data, errors and resilience
@@ -222,6 +238,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-14 | List endpoints resolve related data in batch rather than per row | `TrackingServiceTest`, `NotificationSchedulerTest` |
 | NFR-15 | Time-dependent behaviour reads an injected clock, so it is testable and timezone-explicit | `UpgradeOverdueSchedulerTest`, `NotificationSchedulerTest`, `TrackingServiceTest`, `ReflectionServiceTest` |
 | NFR-26 | A real-time push that cannot be delivered degrades to the stored notification and is reported, rather than failing the work that raised it | `StompNotificationPushAdapterTest` |
+| NFR-49 | A notification is pushed to a connected client only after the transaction that stored it commits, so a client is never told about a row that then rolled back | `NotificationServiceTest` |
 
 ### 4.4 Observability and audit
 
@@ -256,8 +273,9 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-9 | Layering is enforced mechanically, not by convention: the domain stays framework-free, the application depends on no adapter, contexts form an acyclic graph, and the administration context is fenced off as NFR-41 states | `HexagonalArchitectureTest` (twelve rules) ([ADR-001](../ADRs/ADR-001-ddd-hexagonal-architecture.md), [ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)) |
 | NFR-10 | The frontend's mirrored enums cannot drift from the backend's | `FrontendEnumContractTest` |
 | NFR-11 | The unit test suite runs without a database | `mvn test` — needs neither a database nor Docker |
-| NFR-12 | Every push and pull request is built, tested, linted, and the shipped frontend dependencies audited | `.github/workflows/ci.yml` |
+| NFR-12 | Every push and pull request is built, tested, linted, and the shipped frontend dependencies audited, and fails when the generated architecture diagrams have drifted from their source | `.github/workflows/ci.yml` |
 | NFR-13 | The whole stack starts with one command | `docker-compose up --build` |
+| NFR-48 | The integration suite starts its own PostgreSQL in a container and never runs against a database it finds already running, so a local one on the same port cannot make it pass against the wrong schema | `mvn verify`, through `support/PostgresIT.java`, which every `*IT` extends ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)) |
 
 ---
 
