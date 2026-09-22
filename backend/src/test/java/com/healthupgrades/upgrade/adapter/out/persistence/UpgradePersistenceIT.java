@@ -34,6 +34,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * are only as safe as these queries; a {@code findById} slipping in where {@code findByIdAndUserId}
  * belongs would pass every service test, because those stub the repository.
  *
+ * <p><strong>FR-14 / BR-13</strong> — deleting an upgrade deletes what was recorded against it,
+ * reflections included, and detaches its notifications. The foreign keys decide that, not the code.
+ *
  * <p>An {@code *IT}, so it runs under {@code verify} against the container {@link PostgresIT} starts.
  * {@code @AutoConfigureTestDatabase(replace = NONE)} is required: {@code @DataJpaTest} would otherwise
  * swap in an embedded database and quietly test a different engine from the one that ships.
@@ -132,6 +135,49 @@ class UpgradePersistenceIT extends PostgresIT {
 
         assertThat(repository.countByUserIdAndStatusAndDifficulty(
                 ownerId, UpgradeStatus.ACTIVE, Difficulty.HARD)).isZero();
+    }
+
+    @Test
+    void GivenAnUpgradeWithEverythingRecordedAgainstIt_WhenItIsDeleted_ThenItsRecordsGoWithItButItsNotificationsStay() {
+        // FR-14 and BR-13 meet here. The cascade is declared by the foreign keys, not by any entity
+        // mapping, so a service test that stubs the repository cannot see it. Notifications are the
+        // exception: they belong to the user's history, not to the upgrade, and are detached instead.
+        UUID id = persistedUpgrade().getId();
+        UUID notificationId = UUID.randomUUID();
+        execute("INSERT INTO tracking_configs (upgrade_id, tracking_type) VALUES (CAST(?1 AS uuid), 'BOOLEAN')", id);
+        execute("INSERT INTO progress_entries (upgrade_id, user_id, date) "
+                + "VALUES (CAST(?1 AS uuid), CAST(?2 AS uuid), DATE '2026-03-02')", id, ownerId);
+        execute("INSERT INTO reminders (upgrade_id) VALUES (CAST(?1 AS uuid))", id);
+        execute("INSERT INTO reflections (upgrade_id, user_id, date) "
+                + "VALUES (CAST(?1 AS uuid), CAST(?2 AS uuid), DATE '2026-03-02')", id, ownerId);
+        execute("INSERT INTO notifications (id, user_id, type, category, title, related_upgrade_id) "
+                + "VALUES (CAST(?1 AS uuid), CAST(?2 AS uuid), 'UPGRADE_CREATED', 'INFO', 'New upgrade idea', "
+                + "CAST(?3 AS uuid))", notificationId, ownerId, id);
+        entityManager.clear();
+
+        repository.delete(repository.findByIdAndUserId(id, ownerId).orElseThrow());
+        entityManager.flush();
+
+        assertThat(count("SELECT count(*) FROM tracking_configs WHERE upgrade_id = CAST(?1 AS uuid)", id)).isZero();
+        assertThat(count("SELECT count(*) FROM progress_entries WHERE upgrade_id = CAST(?1 AS uuid)", id)).isZero();
+        assertThat(count("SELECT count(*) FROM reminders WHERE upgrade_id = CAST(?1 AS uuid)", id)).isZero();
+        assertThat(count("SELECT count(*) FROM reflections WHERE upgrade_id = CAST(?1 AS uuid)", id)).isZero();
+        assertThat(count("SELECT count(*) FROM notifications "
+                + "WHERE id = CAST(?1 AS uuid) AND related_upgrade_id IS NULL", notificationId)).isEqualTo(1);
+    }
+
+    private void execute(String sql, Object... uuids) {
+        var query = entityManager.getEntityManager().createNativeQuery(sql);
+        for (int i = 0; i < uuids.length; i++) {
+            query.setParameter(i + 1, uuids[i].toString());
+        }
+        query.executeUpdate();
+    }
+
+    private long count(String sql, UUID id) {
+        return ((Number) entityManager.getEntityManager().createNativeQuery(sql)
+                .setParameter(1, id.toString())
+                .getSingleResult()).longValue();
     }
 
     private User persistedUser(String email) {
