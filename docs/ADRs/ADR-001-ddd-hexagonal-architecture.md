@@ -12,7 +12,9 @@
 >   `dashboard` are deliberately two-layer. ADR-002 records the real shape.
 > - **"Pragmatic exception"** — withdrawn. No application service uses its own web DTOs any more, and
 >   the ArchUnit rule now forbids it.
-> - **"Enforced rules"** — the list of five is superseded by the ten rules ADR-002 describes.
+> - **"Enforced rules"** — the list of five is superseded by the ten rules ADR-002 describes, which
+>   later changes have extended. `HexagonalArchitectureTest` is the current list, left uncounted here
+>   so that this note cannot go stale again.
 >
 > The core decision — pragmatic Hexagonal + DDD, JPA-annotated entities as the domain model, enforced
 > by ArchUnit in a single Maven module — is unchanged and still in force.

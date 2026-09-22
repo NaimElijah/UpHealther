@@ -9,8 +9,9 @@ import java.util.UUID;
  * How one upgrade is tracked: the measurement type, how often it is expected, and the target to beat.
  *
  * <p>One configuration per upgrade at most, enforced by the unique constraint on {@code upgradeId}. An
- * upgrade with none simply cannot be scored — progress can still be logged against it, and
- * {@code ProgressEvaluationService} reports every such entry as unsuccessful rather than guessing.
+ * upgrade with none simply cannot be scored — progress can still be logged against it, and such an
+ * entry keeps the {@code completed} value its caller supplied, because there is no target to judge it
+ * against (BR-7).
  *
  * <p>Referenced across the context boundary by upgrade responses, but only through
  * {@code UpgradeTrackingSummary}, which restates these fields in the upgrade context's own terms.

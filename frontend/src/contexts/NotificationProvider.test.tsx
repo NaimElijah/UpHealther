@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -111,12 +111,14 @@ const PUSHED: AppNotification = {
 };
 
 function Probe() {
-  const { notifications, unreadCount, connected } = useNotifications();
+  const { notifications, unreadCount, connected, desktopPermission, requestDesktopPermission } = useNotifications();
   return (
     <div>
       <span data-testid="count">{notifications.length}</span>
       <span data-testid="unread">{unreadCount}</span>
       <span data-testid="connected">{String(connected)}</span>
+      <span data-testid="desktop">{desktopPermission}</span>
+      <button onClick={requestDesktopPermission}>Enable desktop alerts</button>
     </div>
   );
 }
@@ -305,5 +307,94 @@ describe('NotificationProvider', () => {
     });
 
     expect(lastClient?.connectHeaders).toEqual({});
+  });
+});
+
+/** Records the desktop notifications the provider raises, in place of the browser's own. */
+class FakeDesktopNotification {
+  static permission: NotificationPermission = 'default';
+  static raised: Array<{ title: string; body?: string }> = [];
+  /** The user says yes: the path FR-49's opt-in exists for. */
+  static requestPermission = () => Promise.resolve<NotificationPermission>('granted');
+  onclick: (() => void) | null = null;
+
+  constructor(title: string, options?: { body?: string }) {
+    FakeDesktopNotification.raised.push({ title, body: options?.body });
+  }
+
+  close() {}
+}
+
+function setTabHidden(hidden: boolean) {
+  Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
+}
+
+/**
+ * FR-49: desktop notifications are opt-in, and raised only while the tab is in the background.
+ *
+ * The background condition is the half worth pinning. With the tab in view the toast already says it,
+ * so raising both would notify the user twice for one event.
+ */
+describe('NotificationProvider desktop notifications', () => {
+  beforeEach(() => {
+    lastClient = undefined;
+    getNotifications.mockReset();
+    getNotifications.mockResolvedValue([]);
+    FakeDesktopNotification.permission = 'default';
+    FakeDesktopNotification.raised = [];
+    vi.stubGlobal('Notification', FakeDesktopNotification);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    // Removes the own property setTabHidden defined, so jsdom's own getter shows through again.
+    Reflect.deleteProperty(document, 'hidden');
+  });
+
+  async function deliverWhileConnected(notification: AppNotification) {
+    renderProvider();
+    await waitFor(() => expect(lastClient).toBeDefined());
+    act(() => lastClient?.connect());
+    act(() => lastClient?.deliver(JSON.stringify(notification)));
+  }
+
+  it('GivenPermissionNotYetAsked_WhenTheUserOptsIn_ThenTheGrantedPermissionIsRecorded', async () => {
+    renderProvider();
+    expect(screen.getByTestId('desktop').textContent).toBe('default');
+
+    await act(async () => {
+      screen.getByRole('button', { name: 'Enable desktop alerts' }).click();
+    });
+
+    expect(screen.getByTestId('desktop').textContent).toBe('granted');
+  });
+
+  it('GivenAHiddenTabAndGrantedPermission_WhenANotificationArrives_ThenADesktopNotificationIsRaised', async () => {
+    FakeDesktopNotification.permission = 'granted';
+    setTabHidden(true);
+
+    await deliverWhileConnected(PUSHED);
+
+    expect(FakeDesktopNotification.raised).toEqual([{ title: 'Upgrade completed', body: 'Congrats!' }]);
+  });
+
+  it('GivenTheTabIsInView_WhenANotificationArrives_ThenItIsListedButNoDesktopNotificationIsRaised', async () => {
+    FakeDesktopNotification.permission = 'granted';
+    setTabHidden(false);
+
+    await deliverWhileConnected(PUSHED);
+
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('1'));
+    expect(FakeDesktopNotification.raised).toEqual([]);
+  });
+
+  it('GivenPermissionWasNeverGranted_WhenANotificationArrivesInAHiddenTab_ThenNoDesktopNotificationIsRaised', async () => {
+    FakeDesktopNotification.permission = 'default';
+    setTabHidden(true);
+
+    await deliverWhileConnected(PUSHED);
+
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('1'));
+    expect(FakeDesktopNotification.raised).toEqual([]);
   });
 });
