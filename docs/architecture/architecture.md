@@ -372,8 +372,9 @@ The exposed endpoint set is stated by name — `health,info,prometheus` — beca
 
 Liveness and readiness are separate, because an orchestrator acts on them differently — a failed
 liveness probe means restart the process, a failed readiness probe means stop sending it traffic, and
-restarting a process that cannot reach its database fixes nothing. Both images declare a `HEALTHCHECK`
-against readiness, and the frontend waits for the backend to be *healthy* rather than merely started.
+restarting a process that cannot reach its database fixes nothing. The backend image's `HEALTHCHECK`
+polls readiness; the frontend image's asks nginx for the page, because a static bundle has no
+readiness of its own. The frontend waits for the backend to be *healthy* rather than merely started.
 [ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md) records the decisions,
 including why the management endpoints are not on a separate port.
 

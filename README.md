@@ -313,7 +313,7 @@ names the test enforcing it ([ADR-009](docs/ADRs/ADR-009-test-levels-boundaries-
 | Concern | Where |
 |---|---|
 | Liveness | `GET /actuator/health/liveness` |
-| Readiness | `GET /actuator/health/readiness` — not ready until Flyway has finished; both images declare a `HEALTHCHECK` against it |
+| Readiness | `GET /actuator/health/readiness` — not ready until Flyway has finished; the backend image's `HEALTHCHECK` polls it |
 | Metrics | `GET /actuator/prometheus` — HTTP latency, error rate, JVM, HikariCP saturation, audit and scheduled-job counters |
 | Traces | Micrometer Tracing over the OpenTelemetry bridge; sampled at 1.0, **no exporter configured**, so no span leaves the process |
 | Logs | `docker logs` only — one JSON object per line under compose, Boot's readable pattern locally |
