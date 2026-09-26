@@ -43,7 +43,9 @@ const DashboardPage: React.FC = () => {
   // Rounded, not scaled: the API sends a percentage already (see DashboardDto.weeklyCompletionRate).
   const completionPct = Math.round(data?.weeklyCompletionRate ?? 0);
   const streakEntries = Object.entries(data?.streaks ?? {});
-  const areaSummary = data?.areaSummary ?? [];
+  // Sorted here because the server's area query has no ORDER BY: without it the rows could shuffle
+  // between refreshes.
+  const areaSummary = [...(data?.areaSummary ?? [])].sort((a, b) => a.areaName.localeCompare(b.areaName));
 
   return (
     <PageContainer className="space-y-6">

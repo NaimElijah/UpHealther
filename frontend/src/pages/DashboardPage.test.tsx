@@ -35,6 +35,18 @@ function renderPage() {
   );
 }
 
+/** The By Area card's rows, once the dashboard has loaded. */
+async function findAreaRows(): Promise<HTMLElement[]> {
+  return within(await screen.findByRole('list', { name: 'Upgrades by area' })).getAllByRole('listitem');
+}
+
+/** The one row that names `areaName`. */
+function rowFor(rows: HTMLElement[], areaName: string): HTMLElement {
+  const row = rows.find((r) => r.firstElementChild?.textContent === areaName);
+  if (!row) throw new Error(`No row for area "${areaName}"`);
+  return row;
+}
+
 /**
  * FR-27 — among what the dashboard shows, per-area counts.
  *
@@ -54,12 +66,25 @@ describe('DashboardPage', () => {
 
     renderPage();
 
-    const areas = within(await screen.findByRole('list', { name: 'Upgrades by area' })).getAllByRole('listitem');
+    const areas = await findAreaRows();
     expect(areas).toHaveLength(2);
-    expect(areas[0].textContent).toContain('Sleep');
-    expect(areas[0].textContent).toContain('2 active · 1 completed · 4 total');
-    expect(areas[1].textContent).toContain('Nutrition');
-    expect(areas[1].textContent).toContain('0 active · 0 completed · 0 total');
+    expect(rowFor(areas, 'Sleep').textContent).toContain('2 active · 1 completed · 4 total');
+    expect(rowFor(areas, 'Nutrition').textContent).toContain('0 active · 0 completed · 0 total');
+  });
+
+  it('GivenAreasInNoParticularOrder_WhenTheDashboardRenders_ThenTheyAreListedByName', async () => {
+    // The server's area query has no ORDER BY, so the same areas can arrive in a different order from
+    // one load to the next. Sorting here keeps the rows from shuffling between refreshes.
+    getDashboard.mockResolvedValue(aDashboard([
+      { areaId: 'area-1', areaName: 'Sleep', totalUpgrades: 0, activeCount: 0, completedCount: 0 },
+      { areaId: 'area-2', areaName: 'Movement', totalUpgrades: 0, activeCount: 0, completedCount: 0 },
+      { areaId: 'area-3', areaName: 'Nutrition', totalUpgrades: 0, activeCount: 0, completedCount: 0 },
+    ]));
+
+    renderPage();
+
+    const names = (await findAreaRows()).map((row) => row.firstElementChild?.textContent);
+    expect(names).toEqual(['Movement', 'Nutrition', 'Sleep']);
   });
 
   it('GivenNoHealthAreas_WhenTheDashboardRenders_ThenNoAreaSectionIsShown', async () => {
