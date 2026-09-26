@@ -80,6 +80,6 @@ public class ReflectionService {
      */
     public List<Reflection> getForUpgrade(UUID userId, UUID upgradeId) {
         upgradeQuery.getOwnedUpgrade(userId, upgradeId);
-        return repository.findByUpgradeIdOrderByDateDesc(upgradeId);
+        return repository.findByUpgradeIdOrderByDateDescCreatedAtDesc(upgradeId);
     }
 }
