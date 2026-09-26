@@ -252,7 +252,7 @@ const UpgradeDetailsPage: React.FC = () => {
           <p className="text-fg-subtle text-sm text-center py-4">No progress logged yet.</p>
         ) : (
           <div className="space-y-2 max-h-64 overflow-y-auto">
-            {[...progress].reverse().map((p) => (
+            {progress.map((p) => (
               <div key={p.id} className="flex items-center justify-between p-3 bg-sunken rounded-lg text-sm">
                 <span className="text-fg-subtle">{new Date(p.date).toLocaleDateString()}</span>
                 <div className="flex items-center gap-3">
@@ -277,7 +277,7 @@ const UpgradeDetailsPage: React.FC = () => {
           <p className="text-fg-subtle text-sm text-center py-4">No reflections yet.</p>
         ) : (
           <div className="space-y-3">
-            {[...reflections].reverse().map((r) => (
+            {reflections.map((r) => (
               <div key={r.id} className="p-3 bg-sunken rounded-lg text-sm space-y-1">
                 <p className="text-fg-faint">{new Date(r.date).toLocaleDateString()}</p>
                 {r.whatWorked && <p><strong>✅ What worked:</strong> {r.whatWorked}</p>}
