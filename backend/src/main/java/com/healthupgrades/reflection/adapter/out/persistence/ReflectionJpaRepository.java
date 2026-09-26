@@ -10,6 +10,7 @@ import java.util.UUID;
  * Spring Data JPA repository backing {@link ReflectionRepositoryAdapter}; package-private internal detail.
  */
 interface ReflectionJpaRepository extends JpaRepository<Reflection, UUID> {
-    List<Reflection> findByUpgradeIdOrderByDateDesc(UUID upgradeId); // derived query, newest first
+    // Derived query. Several reflections may share a date, so createdAt breaks the tie.
+    List<Reflection> findByUpgradeIdOrderByDateDescCreatedAtDesc(UUID upgradeId);
     List<Reflection> findByUserId(UUID userId); // derived query
 }

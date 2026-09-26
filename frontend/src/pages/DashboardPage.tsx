@@ -15,7 +15,8 @@ import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
 
 /**
- * Landing page after sign-in: counts, the weekly rate, streaks, overdue warnings and today's upgrades.
+ * Landing page after sign-in: counts, the weekly rate, streaks, overdue warnings, today's upgrades and
+ * the per-area counts.
  *
  * Everything comes from the single `/api/dashboard` call, so the sections cannot disagree with one
  * another. A transition performed from a card invalidates that one query, which refreshes the whole
@@ -42,6 +43,9 @@ const DashboardPage: React.FC = () => {
   // Rounded, not scaled: the API sends a percentage already (see DashboardDto.weeklyCompletionRate).
   const completionPct = Math.round(data?.weeklyCompletionRate ?? 0);
   const streakEntries = Object.entries(data?.streaks ?? {});
+  // Sorted here because the server's area query has no ORDER BY: without it the rows could shuffle
+  // between refreshes.
+  const areaSummary = [...(data?.areaSummary ?? [])].sort((a, b) => a.areaName.localeCompare(b.areaName));
 
   return (
     <PageContainer className="space-y-6">
@@ -123,6 +127,19 @@ const DashboardPage: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {areaSummary.length > 0 && (
+        <Card header="By Area">
+          <ul role="list" aria-label="Upgrades by area" className="space-y-2">
+            {areaSummary.map((a) => (
+              <li key={a.areaId} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 p-3 rounded-lg bg-sunken text-sm">
+                <span className="min-w-0 break-words font-medium text-fg">{a.areaName}</span>
+                <span className="text-fg-subtle">{a.activeCount} active · {a.completedCount} completed · {a.totalUpgrades} total</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       {streakEntries.length > 0 && (
         <Card header="Current Streaks 🔥">
