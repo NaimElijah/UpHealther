@@ -130,7 +130,7 @@ const DashboardPage: React.FC = () => {
 
       {areaSummary.length > 0 && (
         <Card header="By Area">
-          <ul aria-label="Upgrades by area" className="space-y-2">
+          <ul role="list" aria-label="Upgrades by area" className="space-y-2">
             {areaSummary.map((a) => (
               <li key={a.areaId} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 p-3 rounded-lg bg-sunken text-sm">
                 <span className="min-w-0 break-words font-medium text-fg">{a.areaName}</span>

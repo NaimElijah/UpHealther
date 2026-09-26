@@ -87,6 +87,20 @@ describe('DashboardPage', () => {
     expect(names).toEqual(['Movement', 'Nutrition', 'Sleep']);
   });
 
+  it('GivenAreasInTheSummary_WhenTheDashboardRenders_ThenTheListDeclaresItsRoleExplicitly', async () => {
+    // Tailwind's preflight strips list-style, and WebKit then stops exposing a <ul> as a list, which
+    // takes its aria-label with it. jsdom does not copy that behaviour, so the implicit role would pass
+    // the query above either way. The explicit attribute is what VoiceOver actually relies on.
+    getDashboard.mockResolvedValue(aDashboard([
+      { areaId: 'area-1', areaName: 'Sleep', totalUpgrades: 1, activeCount: 1, completedCount: 0 },
+    ]));
+
+    renderPage();
+
+    const list = await screen.findByRole('list', { name: 'Upgrades by area' });
+    expect(list.getAttribute('role')).toBe('list');
+  });
+
   it('GivenNoHealthAreas_WhenTheDashboardRenders_ThenNoAreaSectionIsShown', async () => {
     getDashboard.mockResolvedValue(aDashboard([]));
 
