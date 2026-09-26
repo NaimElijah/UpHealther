@@ -43,6 +43,7 @@ const DashboardPage: React.FC = () => {
   // Rounded, not scaled: the API sends a percentage already (see DashboardDto.weeklyCompletionRate).
   const completionPct = Math.round(data?.weeklyCompletionRate ?? 0);
   const streakEntries = Object.entries(data?.streaks ?? {});
+  const areaSummary = data?.areaSummary ?? [];
 
   return (
     <PageContainer className="space-y-6">
@@ -125,10 +126,10 @@ const DashboardPage: React.FC = () => {
         )}
       </Card>
 
-      {(data?.areaSummary?.length ?? 0) > 0 && (
+      {areaSummary.length > 0 && (
         <Card header="By Area">
           <ul aria-label="Upgrades by area" className="space-y-2">
-            {data!.areaSummary.map((a) => (
+            {areaSummary.map((a) => (
               <li key={a.areaId} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 p-3 rounded-lg bg-sunken text-sm">
                 <span className="min-w-0 break-words font-medium text-fg">{a.areaName}</span>
                 <span className="text-fg-subtle">{a.activeCount} active · {a.completedCount} completed · {a.totalUpgrades} total</span>
