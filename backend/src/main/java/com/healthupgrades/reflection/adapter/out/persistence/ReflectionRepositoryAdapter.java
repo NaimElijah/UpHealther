@@ -25,7 +25,7 @@ class ReflectionRepositoryAdapter implements ReflectionRepositoryPort {
 
     /** {@inheritDoc} */
     @Override
-    public List<Reflection> findByUpgradeIdOrderByDateDesc(UUID upgradeId) {
-        return jpa.findByUpgradeIdOrderByDateDesc(upgradeId);
+    public List<Reflection> findByUpgradeIdOrderByDateDescCreatedAtDesc(UUID upgradeId) {
+        return jpa.findByUpgradeIdOrderByDateDescCreatedAtDesc(upgradeId);
     }
 }

@@ -13,6 +13,9 @@ public interface ReflectionRepositoryPort {
     /** Persists a new or updated reflection and returns the managed instance. */
     Reflection save(Reflection reflection);
 
-    /** An upgrade's reflections, newest first. */
-    List<Reflection> findByUpgradeIdOrderByDateDesc(UUID upgradeId);
+    /**
+     * An upgrade's reflections, newest first: by date, and by when each was written within a date, since
+     * several reflections may share one.
+     */
+    List<Reflection> findByUpgradeIdOrderByDateDescCreatedAtDesc(UUID upgradeId);
 }

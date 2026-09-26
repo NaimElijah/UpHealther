@@ -151,7 +151,7 @@ class ReflectionServiceTest {
                 Reflection.builder().date(TODAY).build(),
                 Reflection.builder().date(TODAY.minusDays(1)).build());
         when(upgradeQuery.getOwnedUpgrade(userId, upgradeId)).thenReturn(AnUpgrade.active(userId));
-        when(repository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenReturn(newestFirst);
+        when(repository.findByUpgradeIdOrderByDateDescCreatedAtDesc(upgradeId)).thenReturn(newestFirst);
 
         assertThat(service.getForUpgrade(userId, upgradeId)).isEqualTo(newestFirst);
     }
@@ -164,7 +164,7 @@ class ReflectionServiceTest {
         assertThatThrownBy(() -> service.getForUpgrade(userId, upgradeId))
                 .isInstanceOf(ResourceNotFoundException.class);
 
-        verify(repository, never()).findByUpgradeIdOrderByDateDesc(any());
+        verify(repository, never()).findByUpgradeIdOrderByDateDescCreatedAtDesc(any());
     }
 
     @Test
@@ -174,7 +174,7 @@ class ReflectionServiceTest {
         assertThat(publicMethodNames(ReflectionService.class))
                 .containsExactlyInAnyOrder("create", "getForUpgrade");
         assertThat(publicMethodNames(ReflectionRepositoryPort.class))
-                .containsExactlyInAnyOrder("save", "findByUpgradeIdOrderByDateDesc");
+                .containsExactlyInAnyOrder("save", "findByUpgradeIdOrderByDateDescCreatedAtDesc");
     }
 
     private static List<String> publicMethodNames(Class<?> type) {
