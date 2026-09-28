@@ -70,8 +70,7 @@ const UpgradeDetailsPage: React.FC = () => {
     requiredDaily: true,
   });
 
-  const [progressForm, setProgressForm] = useState<CreateProgressRequest>({
-    upgradeId: id ?? '',
+  const [progressForm, setProgressForm] = useState<Omit<CreateProgressRequest, 'upgradeId'>>({
     date: today(),
     completed: false,
     note: '',
@@ -107,7 +106,7 @@ const UpgradeDetailsPage: React.FC = () => {
   });
 
   const progressMutation = useMutation({
-    mutationFn: createProgress,
+    mutationFn: (body: Omit<CreateProgressRequest, 'upgradeId'>) => createProgress({ ...body, upgradeId: id! }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['progress', id] }); qc.invalidateQueries({ queryKey: ['streak', id] }); setProgressOpen(false); },
   });
 

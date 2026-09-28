@@ -92,7 +92,7 @@ no way at all — to read another person's health records
 |---|---|---|
 | FR-16 | A user can configure how an upgrade is measured: boolean, numeric, rating or free text. An upgrade has at most one configuration, and saving another replaces it | `TrackingServiceTest`, `TrackingConfigControllerTest` |
 | FR-17 | A numeric configuration can carry a target value and a unit | `TrackingServiceTest`, `TrackingConfigControllerTest` |
-| FR-18 | A user can log progress for an upgrade on a given day | `TrackingServiceTest`, `ProgressControllerTest` — **Known deviation:** [#95](https://github.com/NaimElijah/UpHealther/issues/95), the interface dates an entry in UTC |
+| FR-18 | A user can log progress for an upgrade on a given day | `TrackingServiceTest`, `ProgressControllerTest`, `UpgradeDetailsPage.test.tsx` — **Known deviation:** [#95](https://github.com/NaimElijah/UpHealther/issues/95), the interface dates an entry in UTC |
 | FR-19 | A user can log progress for every active upgrade in one pass | `DailyCheckinPage.test.tsx` — but see §6 — **Known deviation:** [#95](https://github.com/NaimElijah/UpHealther/issues/95), [#55](https://github.com/NaimElijah/UpHealther/issues/55), entries are dated in UTC, and untouched upgrades are logged too |
 | FR-20 | A user can read an upgrade's progress history, newest first | `TrackingServiceTest`, `ProgressEntryPersistenceIT`, `UpgradeDetailsPage.test.tsx` |
 | FR-21 | A user can read today's and the last seven days' progress across all upgrades | `TrackingServiceTest`, `ProgressEntryPersistenceIT` — **Known deviation:** [#97](https://github.com/NaimElijah/UpHealther/issues/97), unreachable below 768px |

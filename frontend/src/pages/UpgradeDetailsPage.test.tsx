@@ -1,18 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useNavigate, type NavigateFunction } from 'react-router-dom';
 import UpgradeDetailsPage from './UpgradeDetailsPage';
 import type { HealthUpgrade, ProgressEntry, Reflection } from '../types';
 
 const getUpgradeById = vi.fn();
 const getProgressByUpgrade = vi.fn();
+const createProgress = vi.fn();
 const getReflectionsByUpgrade = vi.fn();
 
 vi.mock('../api/upgrades', () => ({ getUpgradeById: (...a: unknown[]) => getUpgradeById(...a) }));
 vi.mock('../api/progress', () => ({
   getProgressByUpgrade: (...a: unknown[]) => getProgressByUpgrade(...a),
-  createProgress: vi.fn(),
+  createProgress: (...a: unknown[]) => createProgress(...a),
   getStreak: () => Promise.resolve({ current: 0, longest: 0 }),
 }));
 vi.mock('../api/reflections', () => ({
@@ -27,12 +28,13 @@ vi.mock('../api/reminders', () => ({
 vi.mock('../api/trackingConfig', () => ({ saveTrackingConfig: vi.fn() }));
 
 const UPGRADE_ID = 'upgrade-1';
+const OTHER_UPGRADE_ID = 'upgrade-2';
 
-function anUpgrade(): HealthUpgrade {
+function anUpgrade(id = UPGRADE_ID, title = 'Cold showers'): HealthUpgrade {
   return {
-    id: UPGRADE_ID,
+    id,
     userId: 'user-1',
-    title: 'Cold showers',
+    title,
     type: 'HABIT',
     status: 'ACTIVE',
     difficulty: 'MEDIUM',
@@ -49,11 +51,20 @@ function aReflection(id: string, date: string, whatWorked: string): Reflection {
   return { id, upgradeId: UPGRADE_ID, userId: 'user-1', date, whatWorked, createdAt: `${date}T20:00:00` };
 }
 
+let navigate: NavigateFunction;
+
+/** Holds on to the router's `navigate` from outside the page's route, where the notification bell sits. */
+function NavigateHandle() {
+  navigate = useNavigate();
+  return null;
+}
+
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[`/upgrades/${UPGRADE_ID}`]}>
+        <NavigateHandle />
         <Routes>
           <Route path="/upgrades/:id" element={<UpgradeDetailsPage />} />
         </Routes>
@@ -79,6 +90,7 @@ describe('UpgradeDetailsPage', () => {
   beforeEach(() => {
     getUpgradeById.mockReset();
     getProgressByUpgrade.mockReset();
+    createProgress.mockReset();
     getReflectionsByUpgrade.mockReset();
     getUpgradeById.mockResolvedValue(anUpgrade());
     getProgressByUpgrade.mockResolvedValue([]);
@@ -112,5 +124,29 @@ describe('UpgradeDetailsPage', () => {
     const newest = await screen.findByText('Went in before breakfast');
     const oldest = screen.getByText('Counted to thirty');
     expect(isBefore(newest, oldest)).toBe(true);
+  });
+
+  /**
+   * FR-18 (#116) — progress is logged against the upgrade the page is showing.
+   *
+   * React Router keeps the same page instance when only `:id` changes, which is what the notification
+   * bell, a toast and the notifications page do. Anything the page captured from the first id would
+   * outlive the move, so the test moves between two upgrades before it logs.
+   */
+  it('GivenTheUserMovedFromOneUpgradeToAnother_WhenTheyLogProgress_ThenItIsPostedAgainstTheUpgradeOnScreen', async () => {
+    getUpgradeById.mockImplementation((id: string) =>
+      Promise.resolve(id === OTHER_UPGRADE_ID ? anUpgrade(OTHER_UPGRADE_ID, 'Evening walk') : anUpgrade()),
+    );
+    createProgress.mockResolvedValue(anEntry('p-1', '2026-03-12', 'logged'));
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    act(() => navigate(`/upgrades/${OTHER_UPGRADE_ID}`));
+    await screen.findByText('Evening walk');
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(createProgress).toHaveBeenCalledTimes(1));
+    expect(createProgress.mock.calls[0][0]).toMatchObject({ upgradeId: OTHER_UPGRADE_ID });
   });
 });
