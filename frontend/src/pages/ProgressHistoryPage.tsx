@@ -48,13 +48,13 @@ const ProgressHistoryPage: React.FC = () => {
                     <p className="text-fg-faint text-xs">{new Date(entry.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
                   </div>
                   <div className="flex items-center gap-2 ml-4">
-                    {entry.completed !== undefined && (
+                    {entry.completed != null && (
                       <Badge variant={entry.completed ? 'green' : 'red'}>{entry.completed ? '✓ Done' : '✗ Missed'}</Badge>
                     )}
-                    {entry.numericValue !== undefined && (
+                    {entry.numericValue != null && (
                       <span className="font-semibold text-fg-muted">{entry.numericValue} {entry.unit}</span>
                     )}
-                    {entry.rating !== undefined && (
+                    {entry.rating != null && (
                       <span>{'⭐'.repeat(entry.rating)}</span>
                     )}
                     {entry.note && (

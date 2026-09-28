@@ -55,7 +55,7 @@ const intOrUndef = (v: string): number | undefined => {
  * is its own query and its own mutation, so saving a reflection does not refetch the progress history;
  * what they share is the upgrade id from the route.
  */
-const UpgradeDetailsPage: React.FC = () => {
+const UpgradeDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -70,8 +70,7 @@ const UpgradeDetailsPage: React.FC = () => {
     requiredDaily: true,
   });
 
-  const [progressForm, setProgressForm] = useState<CreateProgressRequest>({
-    upgradeId: id ?? '',
+  const [progressForm, setProgressForm] = useState<Omit<CreateProgressRequest, 'upgradeId'>>({
     date: today(),
     completed: false,
     note: '',
@@ -107,7 +106,7 @@ const UpgradeDetailsPage: React.FC = () => {
   });
 
   const progressMutation = useMutation({
-    mutationFn: createProgress,
+    mutationFn: (body: Omit<CreateProgressRequest, 'upgradeId'>) => createProgress({ ...body, upgradeId: id! }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['progress', id] }); qc.invalidateQueries({ queryKey: ['streak', id] }); setProgressOpen(false); },
   });
 
@@ -256,9 +255,9 @@ const UpgradeDetailsPage: React.FC = () => {
               <div key={p.id} className="flex items-center justify-between p-3 bg-sunken rounded-lg text-sm">
                 <span className="text-fg-subtle">{new Date(p.date).toLocaleDateString()}</span>
                 <div className="flex items-center gap-3">
-                  {p.completed !== undefined && <Badge variant={p.completed ? 'green' : 'red'}>{p.completed ? 'Done' : 'Missed'}</Badge>}
-                  {p.numericValue !== undefined && <span className="font-medium">{p.numericValue} {p.unit}</span>}
-                  {p.rating !== undefined && <span>⭐ {p.rating}/5</span>}
+                  {p.completed != null && <Badge variant={p.completed ? 'green' : 'red'}>{p.completed ? 'Done' : 'Missed'}</Badge>}
+                  {p.numericValue != null && <span className="font-medium">{p.numericValue} {p.unit}</span>}
+                  {p.rating != null && <span>⭐ {p.rating}/5</span>}
                   {p.note && <span className="text-fg-subtle italic truncate max-w-32">{p.note}</span>}
                 </div>
               </div>
@@ -405,6 +404,20 @@ const UpgradeDetailsPage: React.FC = () => {
       </Modal>
     </PageContainer>
   );
+};
+
+/**
+ * The upgrade page as the router mounts it: one instance per upgrade.
+ *
+ * React Router keeps an element mounted when only `:id` changes, which is how the notification bell, a
+ * toast and the notifications page move between upgrades. Every form, open dialog and in-flight save on
+ * the page belongs to one upgrade, so keying on the id starts each upgrade from a fresh instance instead
+ * of carrying any of them across (#116). An in-flight save then finishes against its own upgrade's
+ * caches, because the instance that started it is the one whose callbacks run.
+ */
+const UpgradeDetailsPage: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  return <UpgradeDetails key={id} />;
 };
 
 export default UpgradeDetailsPage;
