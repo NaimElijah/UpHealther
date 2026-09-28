@@ -163,6 +163,43 @@ describe('UpgradeDetailsPage', () => {
     expect(createProgress.mock.calls[0][0]).toMatchObject({ upgradeId: OTHER_UPGRADE_ID });
   });
 
+  it('GivenAHalfWrittenEntryOnOneUpgrade_WhenTheUserMovesToAnother_ThenNoneOfItCarriesOver', async () => {
+    getUpgradeById.mockImplementation((id: string) =>
+      Promise.resolve(id === OTHER_UPGRADE_ID ? anUpgrade(OTHER_UPGRADE_ID, 'Evening walk') : anUpgrade()),
+    );
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'meant for cold showers' } });
+
+    act(() => navigate(`/upgrades/${OTHER_UPGRADE_ID}`));
+    await screen.findByText('Evening walk');
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    expect((screen.getByLabelText('Note') as HTMLInputElement).value).toBe('');
+  });
+
+  it('GivenASaveStillInFlightForOneUpgrade_WhenTheUserMovesToAnother_ThenItLeavesTheOtherUpgradesDialogAlone', async () => {
+    getUpgradeById.mockImplementation((id: string) =>
+      Promise.resolve(id === OTHER_UPGRADE_ID ? anUpgrade(OTHER_UPGRADE_ID, 'Evening walk') : anUpgrade()),
+    );
+    let answerTheSave: (entry: ProgressEntry) => void = () => {};
+    createProgress.mockReturnValue(new Promise<ProgressEntry>((resolve) => { answerTheSave = resolve; }));
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(createProgress).toHaveBeenCalledTimes(1));
+
+    act(() => navigate(`/upgrades/${OTHER_UPGRADE_ID}`));
+    await screen.findByText('Evening walk');
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    await act(async () => { answerTheSave(anEntry('p-1', '2026-03-12', 'logged')); });
+
+    expect(screen.getByRole('dialog', { name: 'Log Progress' })).toBeDefined();
+  });
+
   // FR-20 (#117) — a history row shows only the values its entry carries. The API sends an unused field
   // as null, so these guard against a check for undefined, which lets null through.
 

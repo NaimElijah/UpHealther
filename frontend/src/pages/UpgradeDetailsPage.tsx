@@ -55,7 +55,7 @@ const intOrUndef = (v: string): number | undefined => {
  * is its own query and its own mutation, so saving a reflection does not refetch the progress history;
  * what they share is the upgrade id from the route.
  */
-const UpgradeDetailsPage: React.FC = () => {
+const UpgradeDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -404,6 +404,20 @@ const UpgradeDetailsPage: React.FC = () => {
       </Modal>
     </PageContainer>
   );
+};
+
+/**
+ * The upgrade page as the router mounts it: one instance per upgrade.
+ *
+ * React Router keeps an element mounted when only `:id` changes, which is how the notification bell, a
+ * toast and the notifications page move between upgrades. Every form, open dialog and in-flight save on
+ * the page belongs to one upgrade, so keying on the id starts each upgrade from a fresh instance instead
+ * of carrying any of them across (#116). An in-flight save then finishes against its own upgrade's
+ * caches, because the instance that started it is the one whose callbacks run.
+ */
+const UpgradeDetailsPage: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  return <UpgradeDetails key={id} />;
 };
 
 export default UpgradeDetailsPage;
