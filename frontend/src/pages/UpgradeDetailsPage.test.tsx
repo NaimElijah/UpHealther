@@ -43,8 +43,21 @@ function anUpgrade(id = UPGRADE_ID, title = 'Cold showers'): HealthUpgrade {
   };
 }
 
-function anEntry(id: string, date: string, note: string): ProgressEntry {
-  return { id, upgradeId: UPGRADE_ID, userId: 'user-1', date, completed: true, note, createdAt: `${date}T20:00:00` };
+/** Built the way the API sends an entry: a field the entry does not use is `null`, not missing. */
+function anEntry(id: string, date: string, note: string, values: Partial<ProgressEntry> = {}): ProgressEntry {
+  return {
+    id,
+    upgradeId: UPGRADE_ID,
+    userId: 'user-1',
+    date,
+    completed: true,
+    numericValue: null,
+    unit: null,
+    rating: null,
+    note,
+    createdAt: `${date}T20:00:00`,
+    ...values,
+  };
 }
 
 function aReflection(id: string, date: string, whatWorked: string): Reflection {
@@ -148,5 +161,45 @@ describe('UpgradeDetailsPage', () => {
 
     await waitFor(() => expect(createProgress).toHaveBeenCalledTimes(1));
     expect(createProgress.mock.calls[0][0]).toMatchObject({ upgradeId: OTHER_UPGRADE_ID });
+  });
+
+  // FR-20 (#117) — a history row shows only the values its entry carries. The API sends an unused field
+  // as null, so these guard against a check for undefined, which lets null through.
+
+  it('GivenAYesNoEntryAsTheApiSendsIt_WhenTheDetailsPageRenders_ThenNoRatingIsShown', async () => {
+    getProgressByUpgrade.mockResolvedValue([anEntry('p-1', '2026-03-12', 'went in')]);
+
+    renderPage();
+
+    await screen.findByText('went in');
+    expect(screen.queryByText(/⭐/)).toBeNull();
+  });
+
+  it('GivenAnEntryWithNoVerdict_WhenTheDetailsPageRenders_ThenNeitherDoneNorMissedIsShown', async () => {
+    getProgressByUpgrade.mockResolvedValue([anEntry('p-1', '2026-03-12', 'went in', { completed: null })]);
+
+    renderPage();
+
+    await screen.findByText('went in');
+    expect(screen.queryByText('Missed')).toBeNull();
+    expect(screen.queryByText('Done')).toBeNull();
+  });
+
+  it('GivenARatedEntry_WhenTheDetailsPageRenders_ThenItsRatingIsShown', async () => {
+    getProgressByUpgrade.mockResolvedValue([anEntry('p-1', '2026-03-12', 'went in', { rating: 4 })]);
+
+    renderPage();
+
+    expect(await screen.findByText('⭐ 4/5')).toBeDefined();
+  });
+
+  it('GivenANumericEntryOfZero_WhenTheDetailsPageRenders_ThenTheZeroIsShown', async () => {
+    getProgressByUpgrade.mockResolvedValue([
+      anEntry('p-1', '2026-03-12', 'rest day', { completed: false, numericValue: 0, unit: 'km' }),
+    ]);
+
+    renderPage();
+
+    expect(await screen.findByText('0 km')).toBeDefined();
   });
 });

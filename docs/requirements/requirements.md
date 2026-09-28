@@ -95,7 +95,7 @@ no way at all — to read another person's health records
 | FR-18 | A user can log progress for an upgrade on a given day | `TrackingServiceTest`, `ProgressControllerTest`, `UpgradeDetailsPage.test.tsx` — **Known deviation:** [#95](https://github.com/NaimElijah/UpHealther/issues/95), the interface dates an entry in UTC |
 | FR-19 | A user can log progress for every active upgrade in one pass | `DailyCheckinPage.test.tsx` — but see §6 — **Known deviation:** [#95](https://github.com/NaimElijah/UpHealther/issues/95), [#55](https://github.com/NaimElijah/UpHealther/issues/55), entries are dated in UTC, and untouched upgrades are logged too |
 | FR-20 | A user can read an upgrade's progress history, newest first | `TrackingServiceTest`, `ProgressEntryPersistenceIT`, `UpgradeDetailsPage.test.tsx` |
-| FR-21 | A user can read today's and the last seven days' progress across all upgrades | `TrackingServiceTest`, `ProgressEntryPersistenceIT` — **Known deviation:** [#97](https://github.com/NaimElijah/UpHealther/issues/97), unreachable below 768px |
+| FR-21 | A user can read today's and the last seven days' progress across all upgrades | `TrackingServiceTest`, `ProgressEntryPersistenceIT`, `ProgressHistoryPage.test.tsx` — **Known deviation:** [#97](https://github.com/NaimElijah/UpHealther/issues/97), unreachable below 768px |
 | FR-22 | A user can see an upgrade's current and longest streak | `StreakCalculatorTest`, `TrackingServiceTest`, `ProgressControllerTest` |
 
 ### 2.5 Reflections and reminders

@@ -255,9 +255,9 @@ const UpgradeDetailsPage: React.FC = () => {
               <div key={p.id} className="flex items-center justify-between p-3 bg-sunken rounded-lg text-sm">
                 <span className="text-fg-subtle">{new Date(p.date).toLocaleDateString()}</span>
                 <div className="flex items-center gap-3">
-                  {p.completed !== undefined && <Badge variant={p.completed ? 'green' : 'red'}>{p.completed ? 'Done' : 'Missed'}</Badge>}
-                  {p.numericValue !== undefined && <span className="font-medium">{p.numericValue} {p.unit}</span>}
-                  {p.rating !== undefined && <span>⭐ {p.rating}/5</span>}
+                  {p.completed != null && <Badge variant={p.completed ? 'green' : 'red'}>{p.completed ? 'Done' : 'Missed'}</Badge>}
+                  {p.numericValue != null && <span className="font-medium">{p.numericValue} {p.unit}</span>}
+                  {p.rating != null && <span>⭐ {p.rating}/5</span>}
                   {p.note && <span className="text-fg-subtle italic truncate max-w-32">{p.note}</span>}
                 </div>
               </div>
