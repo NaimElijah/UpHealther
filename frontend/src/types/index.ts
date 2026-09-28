@@ -175,17 +175,20 @@ export interface StreakSummary {
  *
  * `completed` is the server's verdict rather than what was submitted: for a configured upgrade it is
  * recomputed from the target when the entry is recorded.
+ *
+ * The API always sends every field, and a value the entry does not carry arrives as `null`, never as a
+ * missing key. Test for it with `!= null`: a check for `undefined` lets `null` through (#117).
  */
 export interface ProgressEntry {
   id: string;
   upgradeId: string;
   userId: string;
   date: string;
-  completed?: boolean;
-  numericValue?: number;
-  unit?: string;
-  rating?: number;
-  note?: string;
+  completed: boolean | null;
+  numericValue: number | null;
+  unit: string | null;
+  rating: number | null;
+  note: string | null;
   createdAt: string;
 }
 

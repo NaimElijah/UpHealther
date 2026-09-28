@@ -1,18 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useNavigate, type NavigateFunction } from 'react-router-dom';
 import UpgradeDetailsPage from './UpgradeDetailsPage';
 import type { HealthUpgrade, ProgressEntry, Reflection } from '../types';
 
 const getUpgradeById = vi.fn();
 const getProgressByUpgrade = vi.fn();
+const createProgress = vi.fn();
 const getReflectionsByUpgrade = vi.fn();
 
 vi.mock('../api/upgrades', () => ({ getUpgradeById: (...a: unknown[]) => getUpgradeById(...a) }));
 vi.mock('../api/progress', () => ({
   getProgressByUpgrade: (...a: unknown[]) => getProgressByUpgrade(...a),
-  createProgress: vi.fn(),
+  createProgress: (...a: unknown[]) => createProgress(...a),
   getStreak: () => Promise.resolve({ current: 0, longest: 0 }),
 }));
 vi.mock('../api/reflections', () => ({
@@ -27,12 +28,13 @@ vi.mock('../api/reminders', () => ({
 vi.mock('../api/trackingConfig', () => ({ saveTrackingConfig: vi.fn() }));
 
 const UPGRADE_ID = 'upgrade-1';
+const OTHER_UPGRADE_ID = 'upgrade-2';
 
-function anUpgrade(): HealthUpgrade {
+function anUpgrade(id = UPGRADE_ID, title = 'Cold showers'): HealthUpgrade {
   return {
-    id: UPGRADE_ID,
+    id,
     userId: 'user-1',
-    title: 'Cold showers',
+    title,
     type: 'HABIT',
     status: 'ACTIVE',
     difficulty: 'MEDIUM',
@@ -41,12 +43,33 @@ function anUpgrade(): HealthUpgrade {
   };
 }
 
-function anEntry(id: string, date: string, note: string): ProgressEntry {
-  return { id, upgradeId: UPGRADE_ID, userId: 'user-1', date, completed: true, note, createdAt: `${date}T20:00:00` };
+/** Built the way the API sends an entry: a field the entry does not use is `null`, not missing. */
+function anEntry(id: string, date: string, note: string, values: Partial<ProgressEntry> = {}): ProgressEntry {
+  return {
+    id,
+    upgradeId: UPGRADE_ID,
+    userId: 'user-1',
+    date,
+    completed: true,
+    numericValue: null,
+    unit: null,
+    rating: null,
+    note,
+    createdAt: `${date}T20:00:00`,
+    ...values,
+  };
 }
 
 function aReflection(id: string, date: string, whatWorked: string): Reflection {
   return { id, upgradeId: UPGRADE_ID, userId: 'user-1', date, whatWorked, createdAt: `${date}T20:00:00` };
+}
+
+let navigate: NavigateFunction;
+
+/** Holds on to the router's `navigate` from outside the page's route, where the notification bell sits. */
+function NavigateHandle() {
+  navigate = useNavigate();
+  return null;
 }
 
 function renderPage() {
@@ -54,6 +77,7 @@ function renderPage() {
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[`/upgrades/${UPGRADE_ID}`]}>
+        <NavigateHandle />
         <Routes>
           <Route path="/upgrades/:id" element={<UpgradeDetailsPage />} />
         </Routes>
@@ -79,6 +103,7 @@ describe('UpgradeDetailsPage', () => {
   beforeEach(() => {
     getUpgradeById.mockReset();
     getProgressByUpgrade.mockReset();
+    createProgress.mockReset();
     getReflectionsByUpgrade.mockReset();
     getUpgradeById.mockResolvedValue(anUpgrade());
     getProgressByUpgrade.mockResolvedValue([]);
@@ -112,5 +137,106 @@ describe('UpgradeDetailsPage', () => {
     const newest = await screen.findByText('Went in before breakfast');
     const oldest = screen.getByText('Counted to thirty');
     expect(isBefore(newest, oldest)).toBe(true);
+  });
+
+  /**
+   * FR-18 (#116) — progress is logged against the upgrade the page is showing.
+   *
+   * React Router keeps the same page instance when only `:id` changes, which is what the notification
+   * bell, a toast and the notifications page do. Anything the page captured from the first id would
+   * outlive the move, so the test moves between two upgrades before it logs.
+   */
+  it('GivenTheUserMovedFromOneUpgradeToAnother_WhenTheyLogProgress_ThenItIsPostedAgainstTheUpgradeOnScreen', async () => {
+    getUpgradeById.mockImplementation((id: string) =>
+      Promise.resolve(id === OTHER_UPGRADE_ID ? anUpgrade(OTHER_UPGRADE_ID, 'Evening walk') : anUpgrade()),
+    );
+    createProgress.mockResolvedValue(anEntry('p-1', '2026-03-12', 'logged'));
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    act(() => navigate(`/upgrades/${OTHER_UPGRADE_ID}`));
+    await screen.findByText('Evening walk');
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(createProgress).toHaveBeenCalledTimes(1));
+    expect(createProgress.mock.calls[0][0]).toMatchObject({ upgradeId: OTHER_UPGRADE_ID });
+  });
+
+  it('GivenAHalfWrittenEntryOnOneUpgrade_WhenTheUserMovesToAnother_ThenNoneOfItCarriesOver', async () => {
+    getUpgradeById.mockImplementation((id: string) =>
+      Promise.resolve(id === OTHER_UPGRADE_ID ? anUpgrade(OTHER_UPGRADE_ID, 'Evening walk') : anUpgrade()),
+    );
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'meant for cold showers' } });
+
+    act(() => navigate(`/upgrades/${OTHER_UPGRADE_ID}`));
+    await screen.findByText('Evening walk');
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    expect((screen.getByLabelText('Note') as HTMLInputElement).value).toBe('');
+  });
+
+  it('GivenASaveStillInFlightForOneUpgrade_WhenTheUserMovesToAnother_ThenItLeavesTheOtherUpgradesDialogAlone', async () => {
+    getUpgradeById.mockImplementation((id: string) =>
+      Promise.resolve(id === OTHER_UPGRADE_ID ? anUpgrade(OTHER_UPGRADE_ID, 'Evening walk') : anUpgrade()),
+    );
+    let answerTheSave: (entry: ProgressEntry) => void = () => {};
+    createProgress.mockReturnValue(new Promise<ProgressEntry>((resolve) => { answerTheSave = resolve; }));
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(createProgress).toHaveBeenCalledTimes(1));
+
+    act(() => navigate(`/upgrades/${OTHER_UPGRADE_ID}`));
+    await screen.findByText('Evening walk');
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    await act(async () => { answerTheSave(anEntry('p-1', '2026-03-12', 'logged')); });
+
+    expect(screen.getByRole('dialog', { name: 'Log Progress' })).toBeDefined();
+  });
+
+  // FR-20 (#117) — a history row shows only the values its entry carries. The API sends an unused field
+  // as null, so these guard against a check for undefined, which lets null through.
+
+  it('GivenAYesNoEntryAsTheApiSendsIt_WhenTheDetailsPageRenders_ThenNoRatingIsShown', async () => {
+    getProgressByUpgrade.mockResolvedValue([anEntry('p-1', '2026-03-12', 'went in')]);
+
+    renderPage();
+
+    await screen.findByText('went in');
+    expect(screen.queryByText(/⭐/)).toBeNull();
+  });
+
+  it('GivenAnEntryWithNoVerdict_WhenTheDetailsPageRenders_ThenNeitherDoneNorMissedIsShown', async () => {
+    getProgressByUpgrade.mockResolvedValue([anEntry('p-1', '2026-03-12', 'went in', { completed: null })]);
+
+    renderPage();
+
+    await screen.findByText('went in');
+    expect(screen.queryByText('Missed')).toBeNull();
+    expect(screen.queryByText('Done')).toBeNull();
+  });
+
+  it('GivenARatedEntry_WhenTheDetailsPageRenders_ThenItsRatingIsShown', async () => {
+    getProgressByUpgrade.mockResolvedValue([anEntry('p-1', '2026-03-12', 'went in', { rating: 4 })]);
+
+    renderPage();
+
+    expect(await screen.findByText('⭐ 4/5')).toBeDefined();
+  });
+
+  it('GivenANumericEntryOfZero_WhenTheDetailsPageRenders_ThenTheZeroIsShown', async () => {
+    getProgressByUpgrade.mockResolvedValue([
+      anEntry('p-1', '2026-03-12', 'rest day', { completed: false, numericValue: 0, unit: 'km' }),
+    ]);
+
+    renderPage();
+
+    expect(await screen.findByText('0 km')).toBeDefined();
   });
 });
