@@ -358,16 +358,16 @@ const UpgradeDetails: React.FC = () => {
         <form onSubmit={(e) => { e.preventDefault(); reflectionMutation.mutate(reflectionForm, { onSuccess: () => setReflectionOpen(false) }); }} className="space-y-4">
           <Input label="Date" type="date" value={reflectionForm.date} onChange={(e) => setReflectionForm({ ...reflectionForm, date: e.target.value })} />
           <div>
-            <label className="text-sm font-medium text-fg-muted">What worked?</label>
-            <textarea className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2" rows={2} value={reflectionForm.whatWorked ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, whatWorked: e.target.value })} />
+            <label htmlFor="reflection-what-worked" className="text-sm font-medium text-fg-muted">What worked?</label>
+            <textarea id="reflection-what-worked" className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2" rows={2} value={reflectionForm.whatWorked ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, whatWorked: e.target.value })} />
           </div>
           <div>
-            <label className="text-sm font-medium text-fg-muted">What didn't work?</label>
-            <textarea className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2" rows={2} value={reflectionForm.whatDidNotWork ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, whatDidNotWork: e.target.value })} />
+            <label htmlFor="reflection-what-did-not-work" className="text-sm font-medium text-fg-muted">What didn't work?</label>
+            <textarea id="reflection-what-did-not-work" className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2" rows={2} value={reflectionForm.whatDidNotWork ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, whatDidNotWork: e.target.value })} />
           </div>
           <div>
-            <label className="text-sm font-medium text-fg-muted">Next adjustment?</label>
-            <textarea className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2" rows={2} value={reflectionForm.nextAdjustment ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, nextAdjustment: e.target.value })} />
+            <label htmlFor="reflection-next-adjustment" className="text-sm font-medium text-fg-muted">Next adjustment?</label>
+            <textarea id="reflection-next-adjustment" className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2" rows={2} value={reflectionForm.nextAdjustment ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, nextAdjustment: e.target.value })} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Input label="Difficulty (1-5)" type="number" min={1} max={5} value={reflectionForm.difficultyRating ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, difficultyRating: intOrUndef(e.target.value) })} />

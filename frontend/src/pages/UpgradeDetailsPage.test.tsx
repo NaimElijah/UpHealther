@@ -302,17 +302,29 @@ describe('UpgradeDetailsPage', () => {
     renderPage();
     await screen.findByText('Cold showers');
     fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
-    const [whatWorked] = within(screen.getByRole('dialog', { name: 'Add Reflection' })).getAllByRole('textbox');
-    fireEvent.change(whatWorked, { target: { value: 'Went in before breakfast' } });
+    fireEvent.change(screen.getByLabelText('What worked?'), { target: { value: 'Went in before breakfast' } });
     fireEvent.change(screen.getByLabelText('Difficulty (1-5)'), { target: { value: '5' } });
     fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 
     fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
 
-    const notes = within(screen.getByRole('dialog', { name: 'Add Reflection' })).getAllByRole('textbox');
-    expect(notes.map((n) => (n as HTMLTextAreaElement).value)).toEqual(['', '', '']);
+    for (const note of ['What worked?', "What didn't work?", 'Next adjustment?']) {
+      expect((screen.getByLabelText(note) as HTMLTextAreaElement).value).toBe('');
+    }
     expect((screen.getByLabelText('Difficulty (1-5)') as HTMLInputElement).value).toBe('3');
+  });
+
+  it('GivenAddReflectionIsOpen_WhenItsNoteFieldsAreReached_ThenEachIsNamedByItsLabel', async () => {
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+
+    const dialog = within(screen.getByRole('dialog', { name: 'Add Reflection' }));
+    expect(dialog.getByRole('textbox', { name: 'What worked?' })).toBeDefined();
+    expect(dialog.getByRole('textbox', { name: "What didn't work?" })).toBeDefined();
+    expect(dialog.getByRole('textbox', { name: 'Next adjustment?' })).toBeDefined();
   });
 
   it('GivenAReflectionWasCancelled_WhenAddReflectionIsOpenedAgain_ThenTheFormIsEmpty', async () => {
