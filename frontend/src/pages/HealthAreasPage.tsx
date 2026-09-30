@@ -24,22 +24,31 @@ type AreaForm = Omit<CreateHealthAreaRequest, 'priority'> & { priority: string }
 
 const EMPTY_FORM: AreaForm = { name: '', description: '', priority: '', icon: '', color: '' };
 
-const PRIORITY_NOT_WHOLE = 'Priority must be a whole number.';
+/** Mirror `health_areas.priority INTEGER`, which the API's `Integer` field matches. */
+const PRIORITY_MIN = -2147483648;
+const PRIORITY_MAX = 2147483647;
 
-/** A typed priority either reads as one the request can carry, `undefined` meaning none, or it doesn't. */
-type ParsedPriority = { valid: true; priority: number | undefined } | { valid: false };
+const PRIORITY_NOT_WHOLE = 'Priority must be a whole number.';
+const PRIORITY_OUT_OF_RANGE = `Priority must be between ${PRIORITY_MIN} and ${PRIORITY_MAX}.`;
+
+/** A typed priority either reads as one the request can carry, `undefined` meaning none, or says why not. */
+type ParsedPriority = { valid: true; priority: number | undefined } | { valid: false; problem: string };
 
 /**
- * Reads the typed priority: blank is no priority, and anything else must be a whole number.
+ * Reads the typed priority: blank is no priority, and anything else must be a whole number the column
+ * can hold.
  *
- * Checked here because the API binds an Integer, and Jackson truncates `1.5` to `1` rather than
- * refusing it — the user would save a number they did not type.
+ * Both are checked here because the API gets neither right for the user. Jackson truncates `1.5` to `1`
+ * rather than refusing it, so the user would save a number they did not type; and a number past the
+ * column is refused as a malformed body, which names no field at all.
  */
 const parsePriority = (text: string): ParsedPriority => {
   const trimmed = text.trim();
   if (trimmed === '') return { valid: true, priority: undefined };
   const value = Number(trimmed);
-  return Number.isInteger(value) ? { valid: true, priority: value } : { valid: false };
+  if (!Number.isInteger(value)) return { valid: false, problem: PRIORITY_NOT_WHOLE };
+  if (value < PRIORITY_MIN || value > PRIORITY_MAX) return { valid: false, problem: PRIORITY_OUT_OF_RANGE };
+  return { valid: true, priority: value };
 };
 
 /**
@@ -93,7 +102,7 @@ const HealthAreasPage: React.FC = () => {
     clearErrors();
     if (!form.name.trim()) { setFormError('Name is required.'); return; }
     const parsed = parsePriority(form.priority);
-    if (!parsed.valid) { setPriorityError(PRIORITY_NOT_WHOLE); return; }
+    if (!parsed.valid) { setPriorityError(parsed.problem); return; }
     try {
       await createMutation.mutateAsync({ ...form, priority: parsed.priority });
     } catch (thrown) {
@@ -108,7 +117,7 @@ const HealthAreasPage: React.FC = () => {
     if (!editArea) return;
     clearErrors();
     const parsed = parsePriority(form.priority);
-    if (!parsed.valid) { setPriorityError(PRIORITY_NOT_WHOLE); return; }
+    if (!parsed.valid) { setPriorityError(parsed.problem); return; }
     try {
       // The priority goes out whether or not it was touched: an update is a full replacement, so leaving
       // it out would clear it (#91).

@@ -178,6 +178,37 @@ describe('HealthAreasPage', () => {
     expect(updateHealthArea).not.toHaveBeenCalled();
   });
 
+  // The column is an INTEGER, and so is the API's field. A number past it was sent anyway, refused by
+  // the JSON reader as a malformed body, and reported under Name — the one field that was fine.
+
+  it.each(['2147483648', '-2147483649', '1e21'])(
+    'GivenAPriorityPastTheColumnsRange %s_WhenSubmitted_ThenTheFormRefusesItBesideThePriority',
+    async (priority) => {
+      renderPage();
+      const dialog = await openEdit();
+
+      fireEvent.change(dialog.getByLabelText('Priority'), { target: { value: priority } });
+      fireEvent.submit(dialog.getByRole('button', { name: 'Save Changes' }));
+
+      expect(await dialog.findByText('Priority must be between -2147483648 and 2147483647.')).toBeDefined();
+      expect(updateHealthArea).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([['2147483647', 2147483647], ['-2147483648', -2147483648]])(
+    'GivenAPriorityAtTheColumnsLimit %s_WhenSubmitted_ThenItIsSent',
+    async (typed, sent) => {
+      renderPage();
+      const dialog = await openEdit();
+
+      fireEvent.change(dialog.getByLabelText('Priority'), { target: { value: typed } });
+      fireEvent.submit(dialog.getByRole('button', { name: 'Save Changes' }));
+
+      await waitFor(() => expect(updateHealthArea).toHaveBeenCalledTimes(1));
+      expect(updateHealthArea.mock.calls[0][1].priority).toBe(sent);
+    },
+  );
+
   // Each dialog says why a submit was refused, and only its own refusal. The two dialogs share one form
   // and one pair of messages, so a message left over from the last submit would otherwise open with the
   // next dialog.
