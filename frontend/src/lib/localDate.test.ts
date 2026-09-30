@@ -5,11 +5,14 @@ import { parseLocalDate, todayLocal } from './localDate';
  * FR-18 and FR-19 (#95) — a day is the user's day, not UTC's.
  *
  * The suite runs in America/Los_Angeles (see `vitest.config.ts`), so an instant late in the local
- * evening is already the next day in UTC. That is the moment the old `toISOString()` date got wrong.
+ * evening is already the next day in UTC. That is one of the two moments the old `toISOString()` date
+ * got wrong. The other, just after midnight east of UTC, cannot happen in that zone, so its test moves
+ * the process to another one for its own duration.
  */
 describe('localDate', () => {
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllEnvs();
   });
 
   it('GivenLateEveningWestOfUtc_WhenTodayLocal_ThenItIsTheLocalDay', () => {
@@ -20,11 +23,14 @@ describe('localDate', () => {
     expect(todayLocal()).toBe('2026-03-11');
   });
 
-  it('GivenJustAfterMidnightWestOfUtc_WhenTodayLocal_ThenItIsTheNewLocalDay', () => {
+  it('GivenJustAfterMidnightEastOfUtc_WhenTodayLocal_ThenItIsTheLocalDay', () => {
+    // 00:30 on 1 October in Jerusalem, and still 30 September in UTC. Node re-reads TZ when it is
+    // assigned; unstubAllEnvs puts the suite's zone back before the next test.
+    vi.stubEnv('TZ', 'Asia/Jerusalem');
     vi.useFakeTimers({ toFake: ['Date'] });
-    vi.setSystemTime(new Date(2026, 0, 5, 0, 1));
+    vi.setSystemTime(new Date('2026-09-30T21:30:00Z'));
 
-    expect(todayLocal()).toBe('2026-01-05');
+    expect(todayLocal()).toBe('2026-10-01');
   });
 
   it('GivenADateOnlyString_WhenParsed_ThenItIsThatDayLocally', () => {
