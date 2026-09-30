@@ -239,6 +239,24 @@ describe('UpgradeDetailsPage', () => {
     expect((screen.getByLabelText('Note') as HTMLInputElement).value).toBe('');
   });
 
+  it('GivenASaveStillInFlight_WhenANewProgressEntryIsStarted_ThenTheEarlierSaveLeavesItAlone', async () => {
+    let answerTheSave: (entry: ProgressEntry) => void = () => {};
+    createProgress.mockReturnValue(new Promise<ProgressEntry>((resolve) => { answerTheSave = resolve; }));
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(createProgress).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'second go' } });
+    await act(async () => { answerTheSave(anEntry('p-1', '2026-03-12', 'first go')); });
+
+    expect(screen.getByRole('dialog', { name: 'Log Progress' })).toBeDefined();
+    expect((screen.getByLabelText('Note') as HTMLInputElement).value).toBe('second go');
+  });
+
   it('GivenThePageWasOpenedYesterday_WhenAddReflectionIsOpenedToday_ThenItOffersTodaysDate', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-03-12T12:00:00Z'));
@@ -267,6 +285,24 @@ describe('UpgradeDetailsPage', () => {
     const notes = within(screen.getByRole('dialog', { name: 'Add Reflection' })).getAllByRole('textbox');
     expect(notes.map((n) => (n as HTMLTextAreaElement).value)).toEqual(['', '', '']);
     expect((screen.getByLabelText('Difficulty (1-5)') as HTMLInputElement).value).toBe('3');
+  });
+
+  it('GivenASaveStillInFlight_WhenANewReflectionIsStarted_ThenTheEarlierSaveLeavesItAlone', async () => {
+    let answerTheSave: (reflection: Reflection) => void = () => {};
+    createReflection.mockReturnValue(new Promise<Reflection>((resolve) => { answerTheSave = resolve; }));
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(createReflection).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+    fireEvent.change(screen.getByLabelText('Difficulty (1-5)'), { target: { value: '5' } });
+    await act(async () => { answerTheSave(aReflection('r-1', '2026-03-12', 'Went in before breakfast')); });
+
+    expect(screen.getByRole('dialog', { name: 'Add Reflection' })).toBeDefined();
+    expect((screen.getByLabelText('Difficulty (1-5)') as HTMLInputElement).value).toBe('5');
   });
 
   // FR-20 (#117) — a history row shows only the values its entry carries. The API sends an unused field

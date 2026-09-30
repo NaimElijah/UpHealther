@@ -116,15 +116,36 @@ const UpgradeDetails: React.FC = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['reminders', id] }),
   });
 
+  // Closing the dialog is passed to each `mutate` call rather than set here, because only a call's own
+  // callbacks stop when the opener below resets the mutation; these run for every save that succeeds.
   const progressMutation = useMutation({
     mutationFn: (body: Omit<CreateProgressRequest, 'upgradeId'>) => createProgress({ ...body, upgradeId: id! }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['progress', id] }); qc.invalidateQueries({ queryKey: ['streak', id] }); setProgressOpen(false); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['progress', id] }); qc.invalidateQueries({ queryKey: ['streak', id] }); },
   });
 
   const reflectionMutation = useMutation({
     mutationFn: (body: Omit<CreateReflectionRequest, 'upgradeId'>) => createReflection(id!, body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['reflections', id] }); setReflectionOpen(false); },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['reflections', id] }),
   });
+
+  /**
+   * Starts a new progress entry: fresh defaults, and no tie to an earlier save (#119).
+   *
+   * A save left in flight by Cancel would otherwise close this dialog when it answers and show its
+   * spinner on this one's Save. Resetting detaches it; it still refreshes the history when it lands.
+   */
+  const openProgress = () => {
+    setProgressForm(newProgressForm());
+    progressMutation.reset();
+    setProgressOpen(true);
+  };
+
+  /** Starts a new reflection, on the same terms as {@link openProgress}. */
+  const openReflection = () => {
+    setReflectionForm(newReflectionForm());
+    reflectionMutation.reset();
+    setReflectionOpen(true);
+  };
 
   const trackingMutation = useMutation({
     mutationFn: (req: SaveTrackingConfigRequest) => saveTrackingConfig(id!, req),
@@ -255,7 +276,7 @@ const UpgradeDetails: React.FC = () => {
       <Card header={
         <div className="flex items-center justify-between">
           <span>Progress History ({progress.length})</span>
-          <Button size="sm" onClick={() => { setProgressForm(newProgressForm()); setProgressOpen(true); }}>+ Log Progress</Button>
+          <Button size="sm" onClick={openProgress}>+ Log Progress</Button>
         </div>
       }>
         {progress.length === 0 ? (
@@ -280,7 +301,7 @@ const UpgradeDetails: React.FC = () => {
       <Card header={
         <div className="flex items-center justify-between">
           <span>Reflections ({reflections.length})</span>
-          <Button size="sm" variant="secondary" onClick={() => { setReflectionForm(newReflectionForm()); setReflectionOpen(true); }}>+ Add Reflection</Button>
+          <Button size="sm" variant="secondary" onClick={openReflection}>+ Add Reflection</Button>
         </div>
       }>
         {reflections.length === 0 ? (
@@ -304,7 +325,7 @@ const UpgradeDetails: React.FC = () => {
       </Card>
 
       <Modal isOpen={progressOpen} onClose={() => setProgressOpen(false)} title="Log Progress">
-        <form onSubmit={(e) => { e.preventDefault(); progressMutation.mutate(progressForm); }} className="space-y-4">
+        <form onSubmit={(e) => { e.preventDefault(); progressMutation.mutate(progressForm, { onSuccess: () => setProgressOpen(false) }); }} className="space-y-4">
           <Input label="Date" type="date" value={progressForm.date} onChange={(e) => setProgressForm({ ...progressForm, date: e.target.value })} />
           {(!upgrade.trackingConfig || upgrade.trackingConfig.trackingType === 'BOOLEAN') && (
             <label className="flex items-center gap-2 cursor-pointer">
@@ -334,7 +355,7 @@ const UpgradeDetails: React.FC = () => {
       </Modal>
 
       <Modal isOpen={reflectionOpen} onClose={() => setReflectionOpen(false)} title="Add Reflection">
-        <form onSubmit={(e) => { e.preventDefault(); reflectionMutation.mutate(reflectionForm); }} className="space-y-4">
+        <form onSubmit={(e) => { e.preventDefault(); reflectionMutation.mutate(reflectionForm, { onSuccess: () => setReflectionOpen(false) }); }} className="space-y-4">
           <Input label="Date" type="date" value={reflectionForm.date} onChange={(e) => setReflectionForm({ ...reflectionForm, date: e.target.value })} />
           <div>
             <label className="text-sm font-medium text-fg-muted">What worked?</label>
