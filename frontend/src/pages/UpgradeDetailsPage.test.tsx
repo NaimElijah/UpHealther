@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useNavigate, type NavigateFunction } from 'react-router-dom';
 import UpgradeDetailsPage from './UpgradeDetailsPage';
@@ -9,6 +9,7 @@ const getUpgradeById = vi.fn();
 const getProgressByUpgrade = vi.fn();
 const createProgress = vi.fn();
 const getReflectionsByUpgrade = vi.fn();
+const createReflection = vi.fn();
 
 vi.mock('../api/upgrades', () => ({ getUpgradeById: (...a: unknown[]) => getUpgradeById(...a) }));
 vi.mock('../api/progress', () => ({
@@ -18,7 +19,7 @@ vi.mock('../api/progress', () => ({
 }));
 vi.mock('../api/reflections', () => ({
   getReflectionsByUpgrade: (...a: unknown[]) => getReflectionsByUpgrade(...a),
-  createReflection: vi.fn(),
+  createReflection: (...a: unknown[]) => createReflection(...a),
 }));
 vi.mock('../api/reminders', () => ({
   getReminders: () => Promise.resolve([]),
@@ -105,9 +106,14 @@ describe('UpgradeDetailsPage', () => {
     getProgressByUpgrade.mockReset();
     createProgress.mockReset();
     getReflectionsByUpgrade.mockReset();
+    createReflection.mockReset();
     getUpgradeById.mockResolvedValue(anUpgrade());
     getProgressByUpgrade.mockResolvedValue([]);
     getReflectionsByUpgrade.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('GivenProgressReturnedNewestFirst_WhenTheDetailsPageRenders_ThenTheNewestEntryIsListedFirst', async () => {
@@ -198,6 +204,157 @@ describe('UpgradeDetailsPage', () => {
     await act(async () => { answerTheSave(anEntry('p-1', '2026-03-12', 'logged')); });
 
     expect(screen.getByRole('dialog', { name: 'Log Progress' })).toBeDefined();
+  });
+
+  // FR-18 and FR-23 (#119) — each new entry starts from fresh defaults. The page can stay open across
+  // midnight and is where a second entry in one visit is made, so neither yesterday's date nor the last
+  // entry's values may carry into the next one. The clock is set to noon UTC because the default date is
+  // still taken in UTC (#95), and noon is the same day in every time zone the test might run in.
+
+  it('GivenThePageWasOpenedYesterday_WhenLogProgressIsOpenedToday_ThenItOffersTodaysDate', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-12T12:00:00Z'));
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    vi.setSystemTime(new Date('2026-03-13T12:00:00Z'));
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+
+    expect((screen.getByLabelText('Date') as HTMLInputElement).value).toBe('2026-03-13');
+  });
+
+  it('GivenAProgressEntryWasJustSaved_WhenLogProgressIsOpenedAgain_ThenTheFormIsEmpty', async () => {
+    createProgress.mockResolvedValue(anEntry('p-1', '2026-03-12', 'first go'));
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    fireEvent.click(screen.getByLabelText('Completed'));
+    fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'first go' } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+
+    expect((screen.getByLabelText('Completed') as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByLabelText('Note') as HTMLInputElement).value).toBe('');
+  });
+
+  it('GivenAProgressEntryWasCancelled_WhenLogProgressIsOpenedAgain_ThenTheFormIsEmpty', async () => {
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'changed my mind' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+
+    expect((screen.getByLabelText('Note') as HTMLInputElement).value).toBe('');
+  });
+
+  it('GivenAProgressEntryWasRefused_WhenLogProgressIsOpenedAgain_ThenTheFormIsEmpty', async () => {
+    // The refusal is not shown yet (#76), so Cancel and a fresh start is the only way on.
+    createProgress.mockRejectedValue(new Error('409 Conflict'));
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'already logged' } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(createProgress).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+
+    expect((screen.getByLabelText('Note') as HTMLInputElement).value).toBe('');
+  });
+
+  it('GivenASaveStillInFlight_WhenANewProgressEntryIsStarted_ThenTheEarlierSaveLeavesItAlone', async () => {
+    let answerTheSave: (entry: ProgressEntry) => void = () => {};
+    createProgress.mockReturnValue(new Promise<ProgressEntry>((resolve) => { answerTheSave = resolve; }));
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(createProgress).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'second go' } });
+    await act(async () => { answerTheSave(anEntry('p-1', '2026-03-12', 'first go')); });
+
+    expect(screen.getByRole('dialog', { name: 'Log Progress' })).toBeDefined();
+    expect((screen.getByLabelText('Note') as HTMLInputElement).value).toBe('second go');
+  });
+
+  it('GivenThePageWasOpenedYesterday_WhenAddReflectionIsOpenedToday_ThenItOffersTodaysDate', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-12T12:00:00Z'));
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    vi.setSystemTime(new Date('2026-03-13T12:00:00Z'));
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+
+    expect((screen.getByLabelText('Date') as HTMLInputElement).value).toBe('2026-03-13');
+  });
+
+  it('GivenAReflectionWasJustSaved_WhenAddReflectionIsOpenedAgain_ThenTheFormIsEmpty', async () => {
+    createReflection.mockResolvedValue(aReflection('r-1', '2026-03-12', 'Went in before breakfast'));
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+    fireEvent.change(screen.getByLabelText('What worked?'), { target: { value: 'Went in before breakfast' } });
+    fireEvent.change(screen.getByLabelText('Difficulty (1-5)'), { target: { value: '5' } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+
+    for (const note of ['What worked?', "What didn't work?", 'Next adjustment?']) {
+      expect((screen.getByLabelText(note) as HTMLTextAreaElement).value).toBe('');
+    }
+    expect((screen.getByLabelText('Difficulty (1-5)') as HTMLInputElement).value).toBe('3');
+  });
+
+  it('GivenAddReflectionIsOpen_WhenItsNoteFieldsAreReached_ThenEachIsNamedByItsLabel', async () => {
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+
+    const dialog = within(screen.getByRole('dialog', { name: 'Add Reflection' }));
+    expect(dialog.getByRole('textbox', { name: 'What worked?' })).toBeDefined();
+    expect(dialog.getByRole('textbox', { name: "What didn't work?" })).toBeDefined();
+    expect(dialog.getByRole('textbox', { name: 'Next adjustment?' })).toBeDefined();
+  });
+
+  it('GivenAReflectionWasCancelled_WhenAddReflectionIsOpenedAgain_ThenTheFormIsEmpty', async () => {
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+    fireEvent.change(screen.getByLabelText('Difficulty (1-5)'), { target: { value: '5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+
+    expect((screen.getByLabelText('Difficulty (1-5)') as HTMLInputElement).value).toBe('3');
+  });
+
+  it('GivenASaveStillInFlight_WhenANewReflectionIsStarted_ThenTheEarlierSaveLeavesItAlone', async () => {
+    let answerTheSave: (reflection: Reflection) => void = () => {};
+    createReflection.mockReturnValue(new Promise<Reflection>((resolve) => { answerTheSave = resolve; }));
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(createReflection).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+    fireEvent.change(screen.getByLabelText('Difficulty (1-5)'), { target: { value: '5' } });
+    await act(async () => { answerTheSave(aReflection('r-1', '2026-03-12', 'Went in before breakfast')); });
+
+    expect(screen.getByRole('dialog', { name: 'Add Reflection' })).toBeDefined();
+    expect((screen.getByLabelText('Difficulty (1-5)') as HTMLInputElement).value).toBe('5');
   });
 
   // FR-20 (#117) — a history row shows only the values its entry carries. The API sends an unused field

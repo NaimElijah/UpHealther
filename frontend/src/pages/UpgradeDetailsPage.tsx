@@ -23,6 +23,32 @@ import { toApiError } from '../api/apiError';
 
 /** Today as `YYYY-MM-DD`, the date format the progress and reflection APIs expect. */
 const today = () => new Date().toISOString().split('T')[0];
+
+/**
+ * A blank progress entry for today, set each time **Log Progress** opens (#119).
+ *
+ * Opening is when a new entry starts. Set only at mount, a page left open past midnight offered
+ * yesterday, and a second entry in one visit started from the last one's values.
+ */
+const newProgressForm = (): Omit<CreateProgressRequest, 'upgradeId'> => ({
+  date: today(),
+  completed: false,
+  note: '',
+});
+
+/** Where a new reflection's difficulty and benefit start: the middle of their 1-5 scale. */
+const DEFAULT_REFLECTION_RATING = 3;
+
+/** A blank reflection for today, set each time **Add Reflection** opens; see {@link newProgressForm}. */
+const newReflectionForm = (): Omit<CreateReflectionRequest, 'upgradeId'> => ({
+  date: today(),
+  whatWorked: '',
+  whatDidNotWork: '',
+  nextAdjustment: '',
+  difficultyRating: DEFAULT_REFLECTION_RATING,
+  benefitRating: DEFAULT_REFLECTION_RATING,
+});
+
 /**
  * Day tokens for the reminder day picker, in week order.
  *
@@ -70,20 +96,8 @@ const UpgradeDetails: React.FC = () => {
     requiredDaily: true,
   });
 
-  const [progressForm, setProgressForm] = useState<Omit<CreateProgressRequest, 'upgradeId'>>({
-    date: today(),
-    completed: false,
-    note: '',
-  });
-
-  const [reflectionForm, setReflectionForm] = useState<Omit<CreateReflectionRequest, 'upgradeId'>>({
-    date: today(),
-    whatWorked: '',
-    whatDidNotWork: '',
-    nextAdjustment: '',
-    difficultyRating: 3,
-    benefitRating: 3,
-  });
+  const [progressForm, setProgressForm] = useState(newProgressForm);
+  const [reflectionForm, setReflectionForm] = useState(newReflectionForm);
 
   const [reminderTime, setReminderTime] = useState('09:00');
   const [reminderDays, setReminderDays] = useState<string[]>([]);
@@ -105,15 +119,36 @@ const UpgradeDetails: React.FC = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['reminders', id] }),
   });
 
+  // Closing the dialog is passed to each `mutate` call rather than set here, because only a call's own
+  // callbacks stop when the opener below resets the mutation; these run for every save that succeeds.
   const progressMutation = useMutation({
     mutationFn: (body: Omit<CreateProgressRequest, 'upgradeId'>) => createProgress({ ...body, upgradeId: id! }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['progress', id] }); qc.invalidateQueries({ queryKey: ['streak', id] }); setProgressOpen(false); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['progress', id] }); qc.invalidateQueries({ queryKey: ['streak', id] }); },
   });
 
   const reflectionMutation = useMutation({
     mutationFn: (body: Omit<CreateReflectionRequest, 'upgradeId'>) => createReflection(id!, body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['reflections', id] }); setReflectionOpen(false); },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['reflections', id] }),
   });
+
+  /**
+   * Starts a new progress entry: fresh defaults, and no tie to an earlier save (#119).
+   *
+   * A save left in flight by Cancel would otherwise close this dialog when it answers and show its
+   * spinner on this one's Save. Resetting detaches it; it still refreshes the history when it lands.
+   */
+  const openProgress = () => {
+    setProgressForm(newProgressForm());
+    progressMutation.reset();
+    setProgressOpen(true);
+  };
+
+  /** Starts a new reflection, on the same terms as {@link openProgress}. */
+  const openReflection = () => {
+    setReflectionForm(newReflectionForm());
+    reflectionMutation.reset();
+    setReflectionOpen(true);
+  };
 
   const trackingMutation = useMutation({
     mutationFn: (req: SaveTrackingConfigRequest) => saveTrackingConfig(id!, req),
@@ -244,7 +279,7 @@ const UpgradeDetails: React.FC = () => {
       <Card header={
         <div className="flex items-center justify-between">
           <span>Progress History ({progress.length})</span>
-          <Button size="sm" onClick={() => setProgressOpen(true)}>+ Log Progress</Button>
+          <Button size="sm" onClick={openProgress}>+ Log Progress</Button>
         </div>
       }>
         {progress.length === 0 ? (
@@ -269,7 +304,7 @@ const UpgradeDetails: React.FC = () => {
       <Card header={
         <div className="flex items-center justify-between">
           <span>Reflections ({reflections.length})</span>
-          <Button size="sm" variant="secondary" onClick={() => setReflectionOpen(true)}>+ Add Reflection</Button>
+          <Button size="sm" variant="secondary" onClick={openReflection}>+ Add Reflection</Button>
         </div>
       }>
         {reflections.length === 0 ? (
@@ -293,7 +328,7 @@ const UpgradeDetails: React.FC = () => {
       </Card>
 
       <Modal isOpen={progressOpen} onClose={() => setProgressOpen(false)} title="Log Progress">
-        <form onSubmit={(e) => { e.preventDefault(); progressMutation.mutate(progressForm); }} className="space-y-4">
+        <form onSubmit={(e) => { e.preventDefault(); progressMutation.mutate(progressForm, { onSuccess: () => setProgressOpen(false) }); }} className="space-y-4">
           <Input label="Date" type="date" value={progressForm.date} onChange={(e) => setProgressForm({ ...progressForm, date: e.target.value })} />
           {(!upgrade.trackingConfig || upgrade.trackingConfig.trackingType === 'BOOLEAN') && (
             <label className="flex items-center gap-2 cursor-pointer">
@@ -323,19 +358,19 @@ const UpgradeDetails: React.FC = () => {
       </Modal>
 
       <Modal isOpen={reflectionOpen} onClose={() => setReflectionOpen(false)} title="Add Reflection">
-        <form onSubmit={(e) => { e.preventDefault(); reflectionMutation.mutate(reflectionForm); }} className="space-y-4">
+        <form onSubmit={(e) => { e.preventDefault(); reflectionMutation.mutate(reflectionForm, { onSuccess: () => setReflectionOpen(false) }); }} className="space-y-4">
           <Input label="Date" type="date" value={reflectionForm.date} onChange={(e) => setReflectionForm({ ...reflectionForm, date: e.target.value })} />
           <div>
-            <label className="text-sm font-medium text-fg-muted">What worked?</label>
-            <textarea className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2" rows={2} value={reflectionForm.whatWorked ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, whatWorked: e.target.value })} />
+            <label htmlFor="reflection-what-worked" className="text-sm font-medium text-fg-muted">What worked?</label>
+            <textarea id="reflection-what-worked" className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2" rows={2} value={reflectionForm.whatWorked ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, whatWorked: e.target.value })} />
           </div>
           <div>
-            <label className="text-sm font-medium text-fg-muted">What didn't work?</label>
-            <textarea className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2" rows={2} value={reflectionForm.whatDidNotWork ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, whatDidNotWork: e.target.value })} />
+            <label htmlFor="reflection-what-did-not-work" className="text-sm font-medium text-fg-muted">What didn't work?</label>
+            <textarea id="reflection-what-did-not-work" className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2" rows={2} value={reflectionForm.whatDidNotWork ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, whatDidNotWork: e.target.value })} />
           </div>
           <div>
-            <label className="text-sm font-medium text-fg-muted">Next adjustment?</label>
-            <textarea className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2" rows={2} value={reflectionForm.nextAdjustment ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, nextAdjustment: e.target.value })} />
+            <label htmlFor="reflection-next-adjustment" className="text-sm font-medium text-fg-muted">Next adjustment?</label>
+            <textarea id="reflection-next-adjustment" className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2" rows={2} value={reflectionForm.nextAdjustment ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, nextAdjustment: e.target.value })} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Input label="Difficulty (1-5)" type="number" min={1} max={5} value={reflectionForm.difficultyRating ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, difficultyRating: intOrUndef(e.target.value) })} />

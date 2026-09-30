@@ -42,7 +42,12 @@ const DashboardPage: React.FC = () => {
 
   // Rounded, not scaled: the API sends a percentage already (see DashboardDto.weeklyCompletionRate).
   const completionPct = Math.round(data?.weeklyCompletionRate ?? 0);
-  const streakEntries = Object.entries(data?.streaks ?? {});
+  // The server sends a streak for every active upgrade, zeros included, keyed by id. Walking the active
+  // list instead of the map gives each streak its title and the Active Upgrades order, and a zero is not
+  // a streak (#118).
+  const runningStreaks = (data?.activeUpgrades ?? [])
+    .map((upgrade) => ({ upgrade, days: data?.streaks[upgrade.id] ?? 0 }))
+    .filter(({ days }) => days > 0);
   // Sorted here because the server's area query has no ORDER BY: without it the rows could shuffle
   // between refreshes.
   const areaSummary = [...(data?.areaSummary ?? [])].sort((a, b) => a.areaName.localeCompare(b.areaName));
@@ -84,7 +89,7 @@ const DashboardPage: React.FC = () => {
           <div className="text-sm text-fg-subtle mt-1">Weekly Rate</div>
         </Card>
         <Card className="text-center">
-          <div className="text-3xl font-bold text-streak-fg">{streakEntries.length}</div>
+          <div className="text-3xl font-bold text-streak-fg">{runningStreaks.length}</div>
           <div className="text-sm text-fg-subtle mt-1">Streaks</div>
         </Card>
       </div>
@@ -141,16 +146,17 @@ const DashboardPage: React.FC = () => {
         </Card>
       )}
 
-      {streakEntries.length > 0 && (
+      {runningStreaks.length > 0 && (
         <Card header="Current Streaks 🔥">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {streakEntries.map(([id, count]) => (
-              <div key={id} className="bg-streak-soft rounded-lg p-3 text-center">
-                <div className="text-2xl font-bold text-streak-fg">{count}</div>
-                <div className="text-xs text-fg-subtle mt-1">days</div>
-              </div>
+          <ul role="list" aria-label="Current streaks" className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {runningStreaks.map(({ upgrade, days }) => (
+              <li key={upgrade.id} className="bg-streak-soft rounded-lg p-3 text-center">
+                <div className="text-sm font-medium text-fg break-words">{upgrade.title}</div>
+                <div className="text-2xl font-bold text-streak-fg mt-1">{days}</div>
+                <div className="text-xs text-fg-subtle mt-1">{days === 1 ? 'day' : 'days'}</div>
+              </li>
             ))}
-          </div>
+          </ul>
         </Card>
       )}
 
