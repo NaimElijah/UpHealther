@@ -13,7 +13,7 @@ that gap would take.
 API (§5.4), so "a user can" means through the interface. Where the implementation falls short of an
 entry — in the interface or anywhere else — the entry is not weakened to match. Its *Enforced by* cell
 says **Known deviation** and links the issue that tracks the gap; the tests named there enforce the
-part that holds. Twenty-four entries carry one today, and the change that closes an issue takes its
+part that holds. Twenty-three entries carry one today, and the change that closes an issue takes its
 marker out.
 
 **IDs are permanent.** Tests, code comments, migrations and ADRs cite them, so an ID is never
@@ -71,7 +71,7 @@ no way at all — to read another person's health records
 | ID | Requirement | Enforced by |
 |---|---|---|
 | FR-6 | A user can create, read, update and delete their own health areas | `HealthAreaServiceTest`, `HealthAreaControllerTest` — **Known deviation:** [#97](https://github.com/NaimElijah/UpHealther/issues/97), unreachable below 768px |
-| FR-7 | An area carries a name and optional description, priority, icon and colour | `HealthAreaServiceTest`, `HealthAreaControllerTest` — **Known deviation:** [#91](https://github.com/NaimElijah/UpHealther/issues/91), a priority cannot be set, and an edit clears one |
+| FR-7 | An area carries a name and optional description, priority, icon and colour | `HealthAreaServiceTest`, `HealthAreaControllerTest`, `HealthAreasPage.test.tsx` |
 | FR-8 | Deleting an area leaves upgrades filed under it intact | `HealthAreaServiceTest`, `HealthAreaPersistenceIT` |
 
 ### 2.3 Upgrades

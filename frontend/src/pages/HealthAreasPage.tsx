@@ -15,6 +15,34 @@ import ErrorState from '../components/ui/ErrorState';
 import { toApiError, toFormMessage } from '../api/apiError';
 
 /**
+ * The area dialogs' fields as typed.
+ *
+ * `priority` stays text until submit, because a number input reports a cleared field as `''`, and that
+ * has to reach the request as "no priority" — not as 0, and not as NaN, which serialises to null.
+ */
+type AreaForm = Omit<CreateHealthAreaRequest, 'priority'> & { priority: string };
+
+const EMPTY_FORM: AreaForm = { name: '', description: '', priority: '', icon: '', color: '' };
+
+const PRIORITY_NOT_WHOLE = 'Priority must be a whole number.';
+
+/** A typed priority either reads as one the request can carry, `undefined` meaning none, or it doesn't. */
+type ParsedPriority = { valid: true; priority: number | undefined } | { valid: false };
+
+/**
+ * Reads the typed priority: blank is no priority, and anything else must be a whole number.
+ *
+ * Checked here because the API binds an Integer, and Jackson truncates `1.5` to `1` rather than
+ * refusing it — the user would save a number they did not type.
+ */
+const parsePriority = (text: string): ParsedPriority => {
+  const trimmed = text.trim();
+  if (trimmed === '') return { valid: true, priority: undefined };
+  const value = Number(trimmed);
+  return Number.isInteger(value) ? { valid: true, priority: value } : { valid: false };
+};
+
+/**
  * Manages health areas — the folders upgrades are filed under.
  *
  * Create, edit and delete all go through modals over the same list, and each mutation invalidates the
@@ -26,8 +54,9 @@ const HealthAreasPage: React.FC = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editArea, setEditArea] = useState<HealthArea | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [form, setForm] = useState<CreateHealthAreaRequest>({ name: '', description: '', icon: '', color: '' });
+  const [form, setForm] = useState<AreaForm>(EMPTY_FORM);
   const [formError, setFormError] = useState('');
+  const [priorityError, setPriorityError] = useState('');
 
   const { data: areas = [], isLoading, error } = useQuery({ queryKey: ['healthAreas'], queryFn: getHealthAreas });
 
@@ -47,14 +76,17 @@ const HealthAreasPage: React.FC = () => {
   });
 
   /** Clears the shared form, so opening create after edit does not inherit the edited values. */
-  const resetForm = () => setForm({ name: '', description: '', icon: '', color: '' });
+  const resetForm = () => setForm(EMPTY_FORM);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
+    setPriorityError('');
     if (!form.name.trim()) { setFormError('Name is required.'); return; }
+    const parsed = parsePriority(form.priority);
+    if (!parsed.valid) { setPriorityError(PRIORITY_NOT_WHOLE); return; }
     try {
-      await createMutation.mutateAsync(form);
+      await createMutation.mutateAsync({ ...form, priority: parsed.priority });
     } catch (thrown) {
       // The name, icon and colour are each bounded by their column (BR-16), and the API names whichever
       // failed. Before this the rejection was unhandled and the dialog gave no sign of it.
@@ -66,8 +98,13 @@ const HealthAreasPage: React.FC = () => {
     e.preventDefault();
     if (!editArea) return;
     setFormError('');
+    setPriorityError('');
+    const parsed = parsePriority(form.priority);
+    if (!parsed.valid) { setPriorityError(PRIORITY_NOT_WHOLE); return; }
     try {
-      await updateMutation.mutateAsync({ id: editArea.id, req: form });
+      // The priority goes out whether or not it was touched: an update is a full replacement, so leaving
+      // it out would clear it (#91).
+      await updateMutation.mutateAsync({ id: editArea.id, req: { ...form, priority: parsed.priority } });
     } catch (thrown) {
       setFormError(toFormMessage(toApiError(thrown), 'name'));
     }
@@ -85,6 +122,7 @@ const HealthAreasPage: React.FC = () => {
     setForm({
       name: area.name,
       description: area.description ?? '',
+      priority: area.priority?.toString() ?? '',
       icon: isIconGlyph(area.icon) ? (area.icon ?? '').trim() : '',
       color: area.color ?? '',
     });
@@ -140,6 +178,7 @@ const HealthAreasPage: React.FC = () => {
         <form onSubmit={handleCreate} className="space-y-4">
           <Input label="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Sleep, Nutrition" error={formError} />
           <Input label="Description" value={form.description ?? ''} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Optional description" />
+          <Input label="Priority" type="number" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} placeholder="Optional, e.g. 1" error={priorityError} />
           <Input label="Icon (emoji)" value={form.icon ?? ''} onChange={(e) => setForm({ ...form, icon: e.target.value })} placeholder="e.g. 😴" />
           <Input label="Color (hex)" value={form.color ?? ''} onChange={(e) => setForm({ ...form, color: e.target.value })} placeholder="e.g. #6366f1" />
           <div className="flex gap-2 justify-end">
@@ -153,6 +192,7 @@ const HealthAreasPage: React.FC = () => {
         <form onSubmit={handleUpdate} className="space-y-4">
           <Input label="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <Input label="Description" value={form.description ?? ''} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+          <Input label="Priority" type="number" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} error={priorityError} />
           <Input label="Icon (emoji)" value={form.icon ?? ''} onChange={(e) => setForm({ ...form, icon: e.target.value })} />
           <Input label="Color (hex)" value={form.color ?? ''} onChange={(e) => setForm({ ...form, color: e.target.value })} />
           <div className="flex gap-2 justify-end">
