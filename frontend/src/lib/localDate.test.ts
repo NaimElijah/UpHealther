@@ -33,6 +33,20 @@ describe('localDate', () => {
     expect([parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), parsed.getHours()]).toEqual([2026, 2, 12, 0]);
   });
 
+  it('GivenAYearBelowOneHundred_WhenParsed_ThenItIsThatYearAndNotTheNineteenHundreds', () => {
+    // A legal LocalDate the editable Log Progress date field can store. `new Date(50, 2, 12)` is 1950.
+    const parsed = parseLocalDate('0050-03-12');
+
+    expect([parsed.getFullYear(), parsed.getMonth(), parsed.getDate()]).toEqual([50, 2, 12]);
+  });
+
+  it('GivenAYearPast9999AsTheApiWritesIt_WhenParsed_ThenItIsThatYear', () => {
+    // ISO_LOCAL_DATE, which the API's LocalDate serialiser uses, signs a year of more than four digits.
+    const parsed = parseLocalDate('+10000-01-01');
+
+    expect([parsed.getFullYear(), parsed.getMonth(), parsed.getDate()]).toEqual([10000, 0, 1]);
+  });
+
   it('GivenAParsedDate_WhenFormattedBackToTheApiShape_ThenItRoundTrips', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(parseLocalDate('2026-12-31'));
