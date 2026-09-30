@@ -239,6 +239,34 @@ describe('UpgradeDetailsPage', () => {
     expect((screen.getByLabelText('Note') as HTMLInputElement).value).toBe('');
   });
 
+  it('GivenAProgressEntryWasCancelled_WhenLogProgressIsOpenedAgain_ThenTheFormIsEmpty', async () => {
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'changed my mind' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+
+    expect((screen.getByLabelText('Note') as HTMLInputElement).value).toBe('');
+  });
+
+  it('GivenAProgressEntryWasRefused_WhenLogProgressIsOpenedAgain_ThenTheFormIsEmpty', async () => {
+    // The refusal is not shown yet (#76), so Cancel and a fresh start is the only way on.
+    createProgress.mockRejectedValue(new Error('409 Conflict'));
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'already logged' } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(createProgress).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+
+    expect((screen.getByLabelText('Note') as HTMLInputElement).value).toBe('');
+  });
+
   it('GivenASaveStillInFlight_WhenANewProgressEntryIsStarted_ThenTheEarlierSaveLeavesItAlone', async () => {
     let answerTheSave: (entry: ProgressEntry) => void = () => {};
     createProgress.mockReturnValue(new Promise<ProgressEntry>((resolve) => { answerTheSave = resolve; }));
@@ -284,6 +312,18 @@ describe('UpgradeDetailsPage', () => {
 
     const notes = within(screen.getByRole('dialog', { name: 'Add Reflection' })).getAllByRole('textbox');
     expect(notes.map((n) => (n as HTMLTextAreaElement).value)).toEqual(['', '', '']);
+    expect((screen.getByLabelText('Difficulty (1-5)') as HTMLInputElement).value).toBe('3');
+  });
+
+  it('GivenAReflectionWasCancelled_WhenAddReflectionIsOpenedAgain_ThenTheFormIsEmpty', async () => {
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+    fireEvent.change(screen.getByLabelText('Difficulty (1-5)'), { target: { value: '5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+
     expect((screen.getByLabelText('Difficulty (1-5)') as HTMLInputElement).value).toBe('3');
   });
 
