@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import DashboardPage from './DashboardPage';
-import type { AreaSummary, DashboardDto } from '../types';
+import type { AreaSummary, DashboardDto, HealthUpgrade } from '../types';
 
 const getDashboard = vi.fn();
 
@@ -24,6 +24,27 @@ function aDashboard(areaSummary: AreaSummary[]): DashboardDto {
   };
 }
 
+function anActiveUpgrade(id: string, title: string): HealthUpgrade {
+  return {
+    id,
+    userId: 'user-1',
+    title,
+    type: 'HABIT',
+    status: 'ACTIVE',
+    difficulty: 'MEDIUM',
+    version: 0,
+    createdAt: '2026-03-01T09:00:00',
+  };
+}
+
+/**
+ * A dashboard with these active upgrades and this streak map, shaped the way the server sends it: one
+ * key per active upgrade, zeros included.
+ */
+function aDashboardWithStreaks(activeUpgrades: HealthUpgrade[], streaks: Record<string, number>): DashboardDto {
+  return { ...aDashboard([]), activeUpgrades, streaks };
+}
+
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -38,6 +59,16 @@ function renderPage() {
 /** The By Area card's rows, once the dashboard has loaded. */
 async function findAreaRows(): Promise<HTMLElement[]> {
   return within(await screen.findByRole('list', { name: 'Upgrades by area' })).getAllByRole('listitem');
+}
+
+/** The figure on the summary tile captioned `caption`, once the dashboard has loaded. */
+async function tileFigure(caption: string): Promise<string | null | undefined> {
+  return (await screen.findByText(caption, { selector: 'div' })).previousElementSibling?.textContent;
+}
+
+/** The Current Streaks card's tiles, once the dashboard has loaded. */
+async function findStreakTiles(): Promise<HTMLElement[]> {
+  return within(await screen.findByRole('list', { name: 'Current streaks' })).getAllByRole('listitem');
 }
 
 /** The one row that names `areaName`. */
@@ -108,5 +139,56 @@ describe('DashboardPage', () => {
 
     await screen.findByText('Weekly Completion Rate');
     expect(screen.queryByRole('list', { name: 'Upgrades by area' })).toBeNull();
+  });
+
+  // FR-27 (#118) — among what the dashboard shows, streaks. The server sends one per active upgrade,
+  // zeros included, keyed by id; the page shows only the ones that are running, each under its title.
+
+  it('GivenThreeActiveUpgradesAndOneRunningStreak_WhenTheDashboardRenders_ThenTheStreaksTileCountsOne', async () => {
+    getDashboard.mockResolvedValue(aDashboardWithStreaks(
+      [anActiveUpgrade('u-1', 'Cold showers'), anActiveUpgrade('u-2', 'Evening walk'), anActiveUpgrade('u-3', 'No sugar')],
+      { 'u-1': 5, 'u-2': 0, 'u-3': 0 },
+    ));
+
+    renderPage();
+
+    expect(await tileFigure('Active')).toBe('3');
+    expect(await tileFigure('Streaks')).toBe('1');
+  });
+
+  it('GivenARunningStreak_WhenTheDashboardRenders_ThenItsTileNamesTheUpgrade', async () => {
+    getDashboard.mockResolvedValue(aDashboardWithStreaks(
+      [anActiveUpgrade('u-1', 'Cold showers'), anActiveUpgrade('u-2', 'Evening walk')],
+      { 'u-1': 5, 'u-2': 0 },
+    ));
+
+    renderPage();
+
+    const tiles = await findStreakTiles();
+    expect(tiles).toHaveLength(1);
+    expect(within(tiles[0]).getByText('Cold showers')).toBeDefined();
+    expect(within(tiles[0]).getByText('5')).toBeDefined();
+    expect(within(tiles[0]).getByText('days')).toBeDefined();
+  });
+
+  it('GivenAOneDayStreak_WhenTheDashboardRenders_ThenItReadsOneDay', async () => {
+    getDashboard.mockResolvedValue(aDashboardWithStreaks([anActiveUpgrade('u-1', 'Cold showers')], { 'u-1': 1 }));
+
+    renderPage();
+
+    const [tile] = await findStreakTiles();
+    expect(within(tile).getByText('day')).toBeDefined();
+  });
+
+  it('GivenNoRunningStreak_WhenTheDashboardRenders_ThenNoStreakSectionIsShown', async () => {
+    getDashboard.mockResolvedValue(aDashboardWithStreaks(
+      [anActiveUpgrade('u-1', 'Cold showers'), anActiveUpgrade('u-2', 'Evening walk')],
+      { 'u-1': 0, 'u-2': 0 },
+    ));
+
+    renderPage();
+
+    expect(await tileFigure('Streaks')).toBe('0');
+    expect(screen.queryByRole('list', { name: 'Current streaks' })).toBeNull();
   });
 });
