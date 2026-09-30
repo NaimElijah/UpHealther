@@ -209,6 +209,20 @@ describe('HealthAreasPage', () => {
     },
   );
 
+  it('GivenABlankNameAndAFractionalPriority_WhenANewAreaIsSubmitted_ThenBothAreRefusedAtOnce', async () => {
+    // One submit, both answers: stopping at the name made the user fix it and submit again, only to be
+    // told about the priority the second time.
+    renderPage();
+    const dialog = await openCreate();
+
+    fireEvent.change(dialog.getByLabelText('Priority'), { target: { value: '1.5' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Create' }));
+
+    expect(await dialog.findByText('Name is required.')).toBeDefined();
+    expect(dialog.getByText('Priority must be a whole number.')).toBeDefined();
+    expect(createHealthArea).not.toHaveBeenCalled();
+  });
+
   // Each dialog says why a submit was refused, and only its own refusal. The two dialogs share one form
   // and one pair of messages, so a message left over from the last submit would otherwise open with the
   // next dialog.

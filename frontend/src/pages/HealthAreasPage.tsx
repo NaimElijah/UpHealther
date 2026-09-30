@@ -100,9 +100,12 @@ const HealthAreasPage: React.FC = () => {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     clearErrors();
-    if (!form.name.trim()) { setFormError('Name is required.'); return; }
+    // Both fields are checked before either refusal returns, so one submit reports every problem.
+    const nameMissing = !form.name.trim();
     const parsed = parsePriority(form.priority);
-    if (!parsed.valid) { setPriorityError(parsed.problem); return; }
+    if (nameMissing) setFormError('Name is required.');
+    if (!parsed.valid) setPriorityError(parsed.problem);
+    if (nameMissing || !parsed.valid) return;
     try {
       await createMutation.mutateAsync({ ...form, priority: parsed.priority });
     } catch (thrown) {
