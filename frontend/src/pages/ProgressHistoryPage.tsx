@@ -27,7 +27,8 @@ const ProgressHistoryPage: React.FC = () => {
   const upgradeMap: Record<string, HealthUpgrade> = {};
   upgrades.forEach((u) => { upgradeMap[u.id] = u; });
 
-  const sorted = [...progress].sort((a: ProgressEntry, b: ProgressEntry) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  // `YYYY-MM-DD` sorts as a string; parsing it with `new Date` would read it as UTC (see lib/localDate).
+  const sorted = [...progress].sort((a: ProgressEntry, b: ProgressEntry) => b.date.localeCompare(a.date));
 
   if (pLoading || uLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
   if (pError || uError) return <ErrorState title="Could not load this progress history." error={toApiError(pError ?? uError)} />;

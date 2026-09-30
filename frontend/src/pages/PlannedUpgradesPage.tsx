@@ -32,7 +32,8 @@ const PlannedUpgradesPage: React.FC = () => {
   const sorted = [...upgrades].sort((a, b) => {
     if (!a.plannedStartDate) return 1;
     if (!b.plannedStartDate) return -1;
-    return new Date(a.plannedStartDate).getTime() - new Date(b.plannedStartDate).getTime();
+    // `YYYY-MM-DD` sorts as a string; parsing it with `new Date` would read it as UTC (see lib/localDate).
+    return a.plannedStartDate.localeCompare(b.plannedStartDate);
   });
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
