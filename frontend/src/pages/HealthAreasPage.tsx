@@ -62,7 +62,7 @@ const HealthAreasPage: React.FC = () => {
 
   const createMutation = useMutation({
     mutationFn: createHealthArea,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['healthAreas'] }); setIsCreateOpen(false); resetForm(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['healthAreas'] }); setIsCreateOpen(false); },
   });
 
   const updateMutation = useMutation({
@@ -75,13 +75,22 @@ const HealthAreasPage: React.FC = () => {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['healthAreas'] }); setDeleteId(null); },
   });
 
-  /** Clears the shared form, so opening create after edit does not inherit the edited values. */
-  const resetForm = () => setForm(EMPTY_FORM);
+  /**
+   * Drops the last submit's messages. Both dialogs share them, so without this a dialog could open
+   * showing a refusal that belonged to the other one, or to an attempt already cancelled.
+   */
+  const clearErrors = () => { setFormError(''); setPriorityError(''); };
+
+  /** Opens create on an empty form, so it inherits neither an edited area's values nor its messages. */
+  const openCreate = () => {
+    setForm(EMPTY_FORM);
+    clearErrors();
+    setIsCreateOpen(true);
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFormError('');
-    setPriorityError('');
+    clearErrors();
     if (!form.name.trim()) { setFormError('Name is required.'); return; }
     const parsed = parsePriority(form.priority);
     if (!parsed.valid) { setPriorityError(PRIORITY_NOT_WHOLE); return; }
@@ -97,8 +106,7 @@ const HealthAreasPage: React.FC = () => {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editArea) return;
-    setFormError('');
-    setPriorityError('');
+    clearErrors();
     const parsed = parsePriority(form.priority);
     if (!parsed.valid) { setPriorityError(PRIORITY_NOT_WHOLE); return; }
     try {
@@ -119,6 +127,7 @@ const HealthAreasPage: React.FC = () => {
    */
   const openEdit = (area: HealthArea) => {
     setEditArea(area);
+    clearErrors();
     setForm({
       name: area.name,
       description: area.description ?? '',
@@ -136,7 +145,7 @@ const HealthAreasPage: React.FC = () => {
       <PageHeader
         title="Health Areas"
         subtitle="Organize your upgrades by health focus area"
-        action={<Button onClick={() => { resetForm(); setIsCreateOpen(true); }}>+ New Area</Button>}
+        action={<Button onClick={openCreate}>+ New Area</Button>}
       />
 
       {areas.length === 0 ? (
@@ -144,7 +153,7 @@ const HealthAreasPage: React.FC = () => {
           icon={DEFAULT_AREA_ICON}
           title="No health areas yet"
           description="Create areas like Sleep, Nutrition, Fitness to organize your upgrades."
-          action={<Button onClick={() => setIsCreateOpen(true)}>Create Your First Area</Button>}
+          action={<Button onClick={openCreate}>Create Your First Area</Button>}
         />
       ) : (
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -190,7 +199,7 @@ const HealthAreasPage: React.FC = () => {
 
       <Modal isOpen={!!editArea} onClose={() => setEditArea(null)} title="Edit Health Area">
         <form onSubmit={handleUpdate} className="space-y-4">
-          <Input label="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <Input label="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} error={formError} />
           <Input label="Description" value={form.description ?? ''} onChange={(e) => setForm({ ...form, description: e.target.value })} />
           <Input label="Priority" type="number" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} error={priorityError} />
           <Input label="Icon (emoji)" value={form.icon ?? ''} onChange={(e) => setForm({ ...form, icon: e.target.value })} />

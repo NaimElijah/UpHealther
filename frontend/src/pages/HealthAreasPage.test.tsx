@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import HealthAreasPage from './HealthAreasPage';
 import type { HealthArea } from '../types';
@@ -29,6 +30,13 @@ function anArea(values: Partial<HealthArea> = {}): HealthArea {
     createdAt: '2026-03-01T09:00:00',
     ...values,
   };
+}
+
+/** A refusal shaped the way axios delivers one, so `toApiError` decodes it as it would in production. */
+function apiFailure(status: number, body: unknown): AxiosError {
+  const config = { headers: new AxiosHeaders() } as InternalAxiosRequestConfig;
+  const response = { data: body, status, statusText: '', headers: new AxiosHeaders(), config } as AxiosResponse;
+  return new AxiosError('Request failed', String(status), config, {}, response);
 }
 
 function renderPage() {
@@ -168,5 +176,59 @@ describe('HealthAreasPage', () => {
 
     expect(await dialog.findByText('Priority must be a whole number.')).toBeDefined();
     expect(updateHealthArea).not.toHaveBeenCalled();
+  });
+
+  // Each dialog says why a submit was refused, and only its own refusal. The two dialogs share one form
+  // and one pair of messages, so a message left over from the last submit would otherwise open with the
+  // next dialog.
+
+  it('GivenTheApiRefusesAnEdit_WhenItIsSaved_ThenTheDialogSaysWhy', async () => {
+    updateHealthArea.mockRejectedValue(apiFailure(400, {
+      message: 'Validation failed',
+      fieldErrors: { name: 'size must be between 1 and 255' },
+    }));
+    renderPage();
+    const dialog = await openEdit();
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save Changes' }));
+
+    expect(await dialog.findByText('Size must be between 1 and 255')).toBeDefined();
+  });
+
+  it('GivenACreateWasRefused_WhenTheCreateDialogIsOpenedAgain_ThenItStartsWithoutTheOldMessage', async () => {
+    renderPage();
+    let dialog = await openCreate();
+    fireEvent.submit(dialog.getByRole('button', { name: 'Create' }));
+    await dialog.findByText('Name is required.');
+    fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }));
+
+    dialog = await openCreate();
+
+    expect(dialog.queryByText('Name is required.')).toBeNull();
+  });
+
+  it('GivenACreateWasRefused_WhenAnAreaIsEdited_ThenTheEditDialogStartsWithoutTheOldMessage', async () => {
+    renderPage();
+    const create = await openCreate();
+    fireEvent.submit(create.getByRole('button', { name: 'Create' }));
+    await create.findByText('Name is required.');
+    fireEvent.click(create.getByRole('button', { name: 'Cancel' }));
+
+    const edit = await openEdit();
+
+    expect(edit.queryByText('Name is required.')).toBeNull();
+  });
+
+  it('GivenAPriorityWasRefused_WhenTheEditDialogIsOpenedAgain_ThenItStartsWithoutTheOldMessage', async () => {
+    renderPage();
+    let dialog = await openEdit();
+    fireEvent.change(dialog.getByLabelText('Priority'), { target: { value: '2.5' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save Changes' }));
+    await dialog.findByText('Priority must be a whole number.');
+    fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }));
+
+    dialog = await openEdit();
+
+    expect(dialog.queryByText('Priority must be a whole number.')).toBeNull();
   });
 });
