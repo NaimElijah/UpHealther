@@ -13,7 +13,7 @@ that gap would take.
 API (§5.4), so "a user can" means through the interface. Where the implementation falls short of an
 entry — in the interface or anywhere else — the entry is not weakened to match. Its *Enforced by* cell
 says **Known deviation** and links the issue that tracks the gap; the tests named there enforce the
-part that holds. Twenty-five entries carry one today, and the change that closes an issue takes its
+part that holds. Twenty-three entries carry one today, and the change that closes an issue takes its
 marker out.
 
 **IDs are permanent.** Tests, code comments, migrations and ADRs cite them, so an ID is never
@@ -71,7 +71,7 @@ no way at all — to read another person's health records
 | ID | Requirement | Enforced by |
 |---|---|---|
 | FR-6 | A user can create, read, update and delete their own health areas | `HealthAreaServiceTest`, `HealthAreaControllerTest` — **Known deviation:** [#97](https://github.com/NaimElijah/UpHealther/issues/97), unreachable below 768px |
-| FR-7 | An area carries a name and optional description, priority, icon and colour | `HealthAreaServiceTest`, `HealthAreaControllerTest` — **Known deviation:** [#91](https://github.com/NaimElijah/UpHealther/issues/91), a priority cannot be set, and an edit clears one |
+| FR-7 | An area carries a name and optional description, priority, icon and colour | `HealthAreaServiceTest`, `HealthAreaControllerTest`, `HealthAreasPage.test.tsx` |
 | FR-8 | Deleting an area leaves upgrades filed under it intact | `HealthAreaServiceTest`, `HealthAreaPersistenceIT` |
 
 ### 2.3 Upgrades
@@ -92,8 +92,8 @@ no way at all — to read another person's health records
 |---|---|---|
 | FR-16 | A user can configure how an upgrade is measured: boolean, numeric, rating or free text. An upgrade has at most one configuration, and saving another replaces it | `TrackingServiceTest`, `TrackingConfigControllerTest` |
 | FR-17 | A numeric configuration can carry a target value and a unit | `TrackingServiceTest`, `TrackingConfigControllerTest` |
-| FR-18 | A user can log progress for an upgrade on a given day | `TrackingServiceTest`, `ProgressControllerTest`, `UpgradeDetailsPage.test.tsx` — **Known deviation:** [#95](https://github.com/NaimElijah/UpHealther/issues/95), the interface dates an entry in UTC |
-| FR-19 | A user can log progress for every active upgrade in one pass | `DailyCheckinPage.test.tsx` — but see §6 — **Known deviation:** [#95](https://github.com/NaimElijah/UpHealther/issues/95), [#55](https://github.com/NaimElijah/UpHealther/issues/55), entries are dated in UTC, and untouched upgrades are logged too |
+| FR-18 | A user can log progress for an upgrade on a given day | `TrackingServiceTest`, `ProgressControllerTest`, `UpgradeDetailsPage.test.tsx`, `localDate.test.ts` |
+| FR-19 | A user can log progress for every active upgrade in one pass | `DailyCheckinPage.test.tsx` — but see §6 — **Known deviation:** [#55](https://github.com/NaimElijah/UpHealther/issues/55), untouched upgrades are logged too |
 | FR-20 | A user can read an upgrade's progress history, newest first | `TrackingServiceTest`, `ProgressEntryPersistenceIT`, `UpgradeDetailsPage.test.tsx` |
 | FR-21 | A user can read today's and the last seven days' progress across all upgrades | `TrackingServiceTest`, `ProgressEntryPersistenceIT`, `ProgressHistoryPage.test.tsx` — **Known deviation:** [#97](https://github.com/NaimElijah/UpHealther/issues/97), unreachable below 768px |
 | FR-22 | A user can see an upgrade's current and longest streak | `StreakCalculatorTest`, `TrackingServiceTest`, `ProgressControllerTest` |

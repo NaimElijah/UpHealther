@@ -76,4 +76,14 @@ describe('ProgressHistoryPage', () => {
 
     expect(await screen.findByText('⭐⭐⭐')).toBeDefined();
   });
+
+  it('GivenAnEntryDatedADay_WhenTheWeekIsListed_ThenItShowsThatDay', async () => {
+    // FR-18 (#95). Parsed as UTC midnight, 12 March is the evening of the 11th in Los Angeles, where
+    // the suite runs, and was shown as Wednesday the 11th.
+    getWeekProgress.mockResolvedValue([anEntry({ date: '2026-03-12', completed: true })]);
+
+    renderPage();
+
+    expect(await screen.findByText('Thu, Mar 12')).toBeDefined();
+  });
 });

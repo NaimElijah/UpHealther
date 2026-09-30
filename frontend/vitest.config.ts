@@ -1,6 +1,13 @@
 import { defineConfig, mergeConfig } from 'vitest/config';
 import viteConfig from './vite.config';
 
+// Every test runs in one fixed zone, set here in the main process so the forked workers inherit it.
+// Left to the machine, the suite ran in UTC on CI and in UTC+2/+3 on a developer's laptop, so a bug
+// in how a date is taken or shown passed on one and failed on the other (#95). West of UTC is chosen
+// because that is where both halves of that bug show: the UTC date is tomorrow in the evening, and a
+// `YYYY-MM-DD` parsed as UTC midnight is displayed as the day before.
+process.env.TZ = 'America/Los_Angeles';
+
 /**
  * Test configuration, layered over the real build configuration rather than restating it.
  *
