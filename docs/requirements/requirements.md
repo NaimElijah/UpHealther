@@ -126,7 +126,9 @@ open; it is **overdue** when it is active and past its target end. **Recently co
 most recently completed, newest first. The **weekly completion rate** is the percentage of entries
 dated in the last seven days, today included, that count as successful (BR-7), and zero when there are
 none. **Streaks** are reported for active upgrades only, and an area's **counts** include every area
-the user has, with zeroes, but no row for upgrades filed under none.
+the user has, with zeroes, but no row for upgrades filed under none. The interface counts and lists
+only the streaks that are running — a zero is no streak — and names each by its upgrade's title;
+`DashboardPage.test.tsx` pins that.
 
 ### 2.7 Appearance and accessibility
 
