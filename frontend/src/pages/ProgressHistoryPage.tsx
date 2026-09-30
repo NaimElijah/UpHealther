@@ -11,6 +11,7 @@ import type { ProgressEntry, HealthUpgrade } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
+import { parseLocalDate } from '../lib/localDate';
 
 /**
  * The last seven days of progress across every upgrade, newest first.
@@ -45,7 +46,7 @@ const ProgressHistoryPage: React.FC = () => {
                 <div key={entry.id} className="flex items-center justify-between p-3 bg-sunken rounded-lg text-sm">
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-fg truncate">{upgrade?.title ?? 'Unknown Upgrade'}</p>
-                    <p className="text-fg-faint text-xs">{new Date(entry.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
+                    <p className="text-fg-faint text-xs">{parseLocalDate(entry.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
                   </div>
                   <div className="flex items-center gap-2 ml-4">
                     {entry.completed != null && (

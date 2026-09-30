@@ -76,6 +76,7 @@ no aggregate at all, orchestrating over `user` and `auth`.
 | `src/pages/` | One component per route |
 | `src/components/` | `ui/` primitives — including `PageContainer`, which decides how wide a page may grow — `upgrade/` cards and badges, `notifications/` bell, dropdown, items and toasts, `layout/` navbar and sidebar |
 | `src/types/` | Hand-written mirrors of the backend's response shapes and enums |
+| `src/lib/` | Framework-free helpers shared by several pages. `localDate.ts` turns the API's zone-less `YYYY-MM-DD` dates into the user's own day and back, because JavaScript's shortcuts for both go through UTC |
 
 ---
 

@@ -11,6 +11,7 @@ import type { UpgradeStatus } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
+import { parseLocalDate } from '../lib/localDate';
 
 /**
  * Upgrades committed to a start date but not yet running, soonest first.
@@ -52,7 +53,7 @@ const PlannedUpgradesPage: React.FC = () => {
             <div key={u.id}>
               {u.plannedStartDate && (
                 <p className="text-xs text-fg-faint mb-1 ml-1">
-                  Starts: {new Date(u.plannedStartDate).toLocaleDateString()}
+                  Starts: {parseLocalDate(u.plannedStartDate).toLocaleDateString()}
                 </p>
               )}
               <UpgradeCard upgrade={u} onStatusChange={(id, status) => statusMutation.mutate({ id, status })} />

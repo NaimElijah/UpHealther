@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -65,6 +65,10 @@ describe('DailyCheckinPage', () => {
     getUpgrades.mockReset();
     createProgress.mockReset();
     createProgress.mockResolvedValue({});
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('GivenNoActiveUpgrades_WhenTheCheckinIsOpened_ThenItSaysThereIsNothingToTrack', async () => {
@@ -172,6 +176,21 @@ describe('DailyCheckinPage', () => {
 
     await waitFor(() => expect(createProgress).toHaveBeenCalled());
     expect(createProgress.mock.calls[0][0]).toMatchObject({ rating: 4 });
+  });
+
+  it('GivenLateEveningWestOfUtc_WhenTheCheckinIsSubmitted_ThenTheEntryIsDatedTheLocalDay', async () => {
+    // FR-19 (#95). The suite runs in Los Angeles, where 22:00 on 11 March is already 12 March in UTC.
+    // Dated in UTC, the entry would take tomorrow's one slot (BR-6) and leave today unlogged.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-12T05:00:00Z'));
+    getUpgrades.mockResolvedValue([anUpgrade({ id: 'a' })]);
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Cold showers')).toBeDefined());
+
+    fireEvent.submit(screen.getByRole('button', { name: /submit check-in/i }));
+
+    await waitFor(() => expect(createProgress).toHaveBeenCalled());
+    expect(createProgress.mock.calls[0][0]).toMatchObject({ date: '2026-03-11' });
   });
 
   it('GivenTheCheckinIsSubmitted_WhenEveryEntrySucceeds_ThenTheFormIsReplacedByAConfirmation', async () => {
