@@ -23,6 +23,29 @@ import { toApiError } from '../api/apiError';
 
 /** Today as `YYYY-MM-DD`, the date format the progress and reflection APIs expect. */
 const today = () => new Date().toISOString().split('T')[0];
+
+/**
+ * A blank progress entry for today, set each time **Log Progress** opens (#119).
+ *
+ * Opening is when a new entry starts. Set only at mount, a page left open past midnight offered
+ * yesterday, and a second entry in one visit started from the last one's values.
+ */
+const newProgressForm = (): Omit<CreateProgressRequest, 'upgradeId'> => ({
+  date: today(),
+  completed: false,
+  note: '',
+});
+
+/** A blank reflection for today, set each time **Add Reflection** opens; see {@link newProgressForm}. */
+const newReflectionForm = (): Omit<CreateReflectionRequest, 'upgradeId'> => ({
+  date: today(),
+  whatWorked: '',
+  whatDidNotWork: '',
+  nextAdjustment: '',
+  difficultyRating: 3,
+  benefitRating: 3,
+});
+
 /**
  * Day tokens for the reminder day picker, in week order.
  *
@@ -70,20 +93,8 @@ const UpgradeDetails: React.FC = () => {
     requiredDaily: true,
   });
 
-  const [progressForm, setProgressForm] = useState<Omit<CreateProgressRequest, 'upgradeId'>>({
-    date: today(),
-    completed: false,
-    note: '',
-  });
-
-  const [reflectionForm, setReflectionForm] = useState<Omit<CreateReflectionRequest, 'upgradeId'>>({
-    date: today(),
-    whatWorked: '',
-    whatDidNotWork: '',
-    nextAdjustment: '',
-    difficultyRating: 3,
-    benefitRating: 3,
-  });
+  const [progressForm, setProgressForm] = useState(newProgressForm);
+  const [reflectionForm, setReflectionForm] = useState(newReflectionForm);
 
   const [reminderTime, setReminderTime] = useState('09:00');
   const [reminderDays, setReminderDays] = useState<string[]>([]);
@@ -244,7 +255,7 @@ const UpgradeDetails: React.FC = () => {
       <Card header={
         <div className="flex items-center justify-between">
           <span>Progress History ({progress.length})</span>
-          <Button size="sm" onClick={() => setProgressOpen(true)}>+ Log Progress</Button>
+          <Button size="sm" onClick={() => { setProgressForm(newProgressForm()); setProgressOpen(true); }}>+ Log Progress</Button>
         </div>
       }>
         {progress.length === 0 ? (
@@ -269,7 +280,7 @@ const UpgradeDetails: React.FC = () => {
       <Card header={
         <div className="flex items-center justify-between">
           <span>Reflections ({reflections.length})</span>
-          <Button size="sm" variant="secondary" onClick={() => setReflectionOpen(true)}>+ Add Reflection</Button>
+          <Button size="sm" variant="secondary" onClick={() => { setReflectionForm(newReflectionForm()); setReflectionOpen(true); }}>+ Add Reflection</Button>
         </div>
       }>
         {reflections.length === 0 ? (
