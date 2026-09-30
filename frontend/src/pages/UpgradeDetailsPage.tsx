@@ -36,14 +36,17 @@ const newProgressForm = (): Omit<CreateProgressRequest, 'upgradeId'> => ({
   note: '',
 });
 
+/** Where a new reflection's difficulty and benefit start: the middle of their 1-5 scale. */
+const DEFAULT_REFLECTION_RATING = 3;
+
 /** A blank reflection for today, set each time **Add Reflection** opens; see {@link newProgressForm}. */
 const newReflectionForm = (): Omit<CreateReflectionRequest, 'upgradeId'> => ({
   date: today(),
   whatWorked: '',
   whatDidNotWork: '',
   nextAdjustment: '',
-  difficultyRating: 3,
-  benefitRating: 3,
+  difficultyRating: DEFAULT_REFLECTION_RATING,
+  benefitRating: DEFAULT_REFLECTION_RATING,
 });
 
 /**
