@@ -87,6 +87,15 @@ function renderPage() {
   );
 }
 
+/**
+ * Matches the element reading exactly "`label` `date`", where the label is its own `<span>` and the
+ * date is a bare text node beside it — so no single text node holds both, and a plain string won't do.
+ */
+function labelled(label: string, date: Date) {
+  const expected = `${label} ${date.toLocaleDateString()}`;
+  return (_: string, element: Element | null) => element?.textContent === expected;
+}
+
 /** True when `first` precedes `second` in document order. */
 function isBefore(first: HTMLElement, second: HTMLElement): boolean {
   return (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
@@ -97,8 +106,8 @@ function isBefore(first: HTMLElement, second: HTMLElement): boolean {
  *
  * The API already returns both lists in that order, so what these pin is that the page keeps it. The
  * progress list scrolls inside a fixed height, which is why the order matters: whatever is listed last
- * is out of sight. Order is read from distinctive text rather than from rendered dates, which are
- * parsed as UTC and can show the day before (#95).
+ * is out of sight. Order is read from distinctive text rather than from rendered dates, so a test about
+ * order does not also depend on how a date is formatted.
  */
 describe('UpgradeDetailsPage', () => {
   beforeEach(() => {
@@ -208,8 +217,7 @@ describe('UpgradeDetailsPage', () => {
 
   // FR-18 and FR-23 (#119) — each new entry starts from fresh defaults. The page can stay open across
   // midnight and is where a second entry in one visit is made, so neither yesterday's date nor the last
-  // entry's values may carry into the next one. The clock is set to noon UTC because the default date is
-  // still taken in UTC (#95), and noon is the same day in every time zone the test might run in.
+  // entry's values may carry into the next one.
 
   it('GivenThePageWasOpenedYesterday_WhenLogProgressIsOpenedToday_ThenItOffersTodaysDate', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
@@ -221,6 +229,61 @@ describe('UpgradeDetailsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
 
     expect((screen.getByLabelText('Date') as HTMLInputElement).value).toBe('2026-03-13');
+  });
+
+  // FR-18 (#95) — the default date is the user's day. The suite runs in Los Angeles, where 22:00 on
+  // 11 March is already 12 March in UTC; offered the UTC date, the entry would take tomorrow's one slot
+  // (BR-6) and be refused tomorrow.
+
+  it('GivenLateEveningWestOfUtc_WhenLogProgressIsOpened_ThenItOffersTheLocalDay', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-12T05:00:00Z'));
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+
+    expect((screen.getByLabelText('Date') as HTMLInputElement).value).toBe('2026-03-11');
+  });
+
+  it('GivenLateEveningWestOfUtc_WhenAddReflectionIsOpened_ThenItOffersTheLocalDay', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-12T05:00:00Z'));
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+
+    expect((screen.getByLabelText('Date') as HTMLInputElement).value).toBe('2026-03-11');
+  });
+
+  // FR-18 and FR-23 (#95) — a date the API sends is shown as that day. `new Date('2026-03-12')` is UTC
+  // midnight, which in Los Angeles is the evening of the 11th, and was shown as the 11th.
+
+  it('GivenAnEntryAndAReflectionDatedADay_WhenTheDetailsPageRenders_ThenEachShowsThatDay', async () => {
+    getProgressByUpgrade.mockResolvedValue([anEntry('p-1', '2026-03-12', 'logged')]);
+    getReflectionsByUpgrade.mockResolvedValue([aReflection('r-1', '2026-03-14', 'Went in before breakfast')]);
+
+    renderPage();
+
+    expect(await screen.findByText(new Date(2026, 2, 12).toLocaleDateString())).toBeDefined();
+    expect(screen.getByText(new Date(2026, 2, 14).toLocaleDateString())).toBeDefined();
+  });
+
+  it('GivenAnUpgradeWithItsDates_WhenTheDetailsPageRenders_ThenEachShowsItsOwnDay', async () => {
+    getUpgradeById.mockResolvedValue({
+      ...anUpgrade(),
+      plannedStartDate: '2026-03-01',
+      actualStartDate: '2026-03-02',
+      targetEndDate: '2026-04-30',
+    });
+
+    renderPage();
+
+    await screen.findByText('Cold showers');
+    expect(screen.getByText(labelled('Planned Start:', new Date(2026, 2, 1)))).toBeDefined();
+    expect(screen.getByText(labelled('Actual Start:', new Date(2026, 2, 2)))).toBeDefined();
+    expect(screen.getByText(labelled('Target End:', new Date(2026, 3, 30)))).toBeDefined();
   });
 
   it('GivenAProgressEntryWasJustSaved_WhenLogProgressIsOpenedAgain_ThenTheFormIsEmpty', async () => {

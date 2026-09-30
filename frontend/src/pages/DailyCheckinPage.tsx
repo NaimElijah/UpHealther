@@ -10,12 +10,10 @@ import EmptyState from '../components/ui/EmptyState';
 import { useNavigate } from 'react-router-dom';
 import type { HealthUpgrade, CreateProgressRequest } from '../types';
 import PageContainer from '../components/ui/PageContainer';
+import { todayLocal } from '../lib/localDate';
 
 /** Draft entries being filled in, keyed by upgrade id, until the whole form is submitted. */
 type ProgressMap = Record<string, Partial<CreateProgressRequest>>;
-
-/** Today as `YYYY-MM-DD`, the date format the progress API expects. */
-const today = () => new Date().toISOString().split('T')[0];
 
 /**
  * Parses a numeric field, treating unparseable input as absent.
@@ -61,7 +59,7 @@ const DailyCheckinPage: React.FC = () => {
     e.preventDefault();
     const entries: CreateProgressRequest[] = upgrades.map((u: HealthUpgrade) => ({
       upgradeId: u.id,
-      date: today(),
+      date: todayLocal(),
       ...progressMap[u.id],
     }));
     await submitAll.mutateAsync(entries);

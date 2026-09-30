@@ -20,9 +20,7 @@ import type { CreateProgressRequest, CreateReflectionRequest, TrackingType, Freq
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
-
-/** Today as `YYYY-MM-DD`, the date format the progress and reflection APIs expect. */
-const today = () => new Date().toISOString().split('T')[0];
+import { parseLocalDate, todayLocal } from '../lib/localDate';
 
 /**
  * A blank progress entry for today, set each time **Log Progress** opens (#119).
@@ -31,7 +29,7 @@ const today = () => new Date().toISOString().split('T')[0];
  * yesterday, and a second entry in one visit started from the last one's values.
  */
 const newProgressForm = (): Omit<CreateProgressRequest, 'upgradeId'> => ({
-  date: today(),
+  date: todayLocal(),
   completed: false,
   note: '',
 });
@@ -41,7 +39,7 @@ const DEFAULT_REFLECTION_RATING = 3;
 
 /** A blank reflection for today, set each time **Add Reflection** opens; see {@link newProgressForm}. */
 const newReflectionForm = (): Omit<CreateReflectionRequest, 'upgradeId'> => ({
-  date: today(),
+  date: todayLocal(),
   whatWorked: '',
   whatDidNotWork: '',
   nextAdjustment: '',
@@ -183,9 +181,9 @@ const UpgradeDetails: React.FC = () => {
           </div>
         )}
         <div className="mt-4 grid grid-cols-2 gap-4 text-sm text-fg-subtle">
-          {upgrade.plannedStartDate && <div><span className="font-medium">Planned Start:</span> {new Date(upgrade.plannedStartDate).toLocaleDateString()}</div>}
-          {upgrade.actualStartDate && <div><span className="font-medium">Actual Start:</span> {new Date(upgrade.actualStartDate).toLocaleDateString()}</div>}
-          {upgrade.targetEndDate && <div><span className="font-medium">Target End:</span> {new Date(upgrade.targetEndDate).toLocaleDateString()}</div>}
+          {upgrade.plannedStartDate && <div><span className="font-medium">Planned Start:</span> {parseLocalDate(upgrade.plannedStartDate).toLocaleDateString()}</div>}
+          {upgrade.actualStartDate && <div><span className="font-medium">Actual Start:</span> {parseLocalDate(upgrade.actualStartDate).toLocaleDateString()}</div>}
+          {upgrade.targetEndDate && <div><span className="font-medium">Target End:</span> {parseLocalDate(upgrade.targetEndDate).toLocaleDateString()}</div>}
         </div>
       </Card>
 
@@ -288,7 +286,7 @@ const UpgradeDetails: React.FC = () => {
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {progress.map((p) => (
               <div key={p.id} className="flex items-center justify-between p-3 bg-sunken rounded-lg text-sm">
-                <span className="text-fg-subtle">{new Date(p.date).toLocaleDateString()}</span>
+                <span className="text-fg-subtle">{parseLocalDate(p.date).toLocaleDateString()}</span>
                 <div className="flex items-center gap-3">
                   {p.completed != null && <Badge variant={p.completed ? 'green' : 'red'}>{p.completed ? 'Done' : 'Missed'}</Badge>}
                   {p.numericValue != null && <span className="font-medium">{p.numericValue} {p.unit}</span>}
@@ -313,7 +311,7 @@ const UpgradeDetails: React.FC = () => {
           <div className="space-y-3">
             {reflections.map((r) => (
               <div key={r.id} className="p-3 bg-sunken rounded-lg text-sm space-y-1">
-                <p className="text-fg-faint">{new Date(r.date).toLocaleDateString()}</p>
+                <p className="text-fg-faint">{parseLocalDate(r.date).toLocaleDateString()}</p>
                 {r.whatWorked && <p><strong>✅ What worked:</strong> {r.whatWorked}</p>}
                 {r.whatDidNotWork && <p><strong>❌ What didn't:</strong> {r.whatDidNotWork}</p>}
                 {r.nextAdjustment && <p><strong>🔄 Next:</strong> {r.nextAdjustment}</p>}

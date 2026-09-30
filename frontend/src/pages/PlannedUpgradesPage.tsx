@@ -11,6 +11,7 @@ import type { UpgradeStatus } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
+import { parseLocalDate } from '../lib/localDate';
 
 /**
  * Upgrades committed to a start date but not yet running, soonest first.
@@ -31,7 +32,8 @@ const PlannedUpgradesPage: React.FC = () => {
   const sorted = [...upgrades].sort((a, b) => {
     if (!a.plannedStartDate) return 1;
     if (!b.plannedStartDate) return -1;
-    return new Date(a.plannedStartDate).getTime() - new Date(b.plannedStartDate).getTime();
+    // `YYYY-MM-DD` sorts as a string; parsing it with `new Date` would read it as UTC (see lib/localDate).
+    return a.plannedStartDate.localeCompare(b.plannedStartDate);
   });
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
@@ -52,7 +54,7 @@ const PlannedUpgradesPage: React.FC = () => {
             <div key={u.id}>
               {u.plannedStartDate && (
                 <p className="text-xs text-fg-faint mb-1 ml-1">
-                  Starts: {new Date(u.plannedStartDate).toLocaleDateString()}
+                  Starts: {parseLocalDate(u.plannedStartDate).toLocaleDateString()}
                 </p>
               )}
               <UpgradeCard upgrade={u} onStatusChange={(id, status) => statusMutation.mutate({ id, status })} />

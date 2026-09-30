@@ -11,6 +11,7 @@ import type { ProgressEntry, HealthUpgrade } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
+import { parseLocalDate } from '../lib/localDate';
 
 /**
  * The last seven days of progress across every upgrade, newest first.
@@ -26,7 +27,8 @@ const ProgressHistoryPage: React.FC = () => {
   const upgradeMap: Record<string, HealthUpgrade> = {};
   upgrades.forEach((u) => { upgradeMap[u.id] = u; });
 
-  const sorted = [...progress].sort((a: ProgressEntry, b: ProgressEntry) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  // `YYYY-MM-DD` sorts as a string; parsing it with `new Date` would read it as UTC (see lib/localDate).
+  const sorted = [...progress].sort((a: ProgressEntry, b: ProgressEntry) => b.date.localeCompare(a.date));
 
   if (pLoading || uLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
   if (pError || uError) return <ErrorState title="Could not load this progress history." error={toApiError(pError ?? uError)} />;
@@ -45,7 +47,7 @@ const ProgressHistoryPage: React.FC = () => {
                 <div key={entry.id} className="flex items-center justify-between p-3 bg-sunken rounded-lg text-sm">
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-fg truncate">{upgrade?.title ?? 'Unknown Upgrade'}</p>
-                    <p className="text-fg-faint text-xs">{new Date(entry.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
+                    <p className="text-fg-faint text-xs">{parseLocalDate(entry.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
                   </div>
                   <div className="flex items-center gap-2 ml-4">
                     {entry.completed != null && (

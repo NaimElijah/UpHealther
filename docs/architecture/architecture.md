@@ -76,6 +76,7 @@ no aggregate at all, orchestrating over `user` and `auth`.
 | `src/pages/` | One component per route |
 | `src/components/` | `ui/` primitives — including `PageContainer`, which decides how wide a page may grow — `upgrade/` cards and badges, `notifications/` bell, dropdown, items and toasts, `layout/` navbar and sidebar |
 | `src/types/` | Hand-written mirrors of the backend's response shapes and enums |
+| `src/lib/` | Framework-free helpers shared by several pages. `localDate.ts` turns the API's zone-less `YYYY-MM-DD` dates into the user's own day and back, because JavaScript's shortcuts for both go through UTC |
 
 ---
 
@@ -538,6 +539,15 @@ Stated because they are load-bearing, not because they are problems yet:
   deferred to the commit, so work that rolls back is recorded — but `afterCompletion` does not say why,
   and an optimistic-lock clash, a lost unique-constraint race and an infrastructure failure at commit
   are indistinguishable there. All three are recorded `REFUSED`.
+- **The browser and the server each have their own "today".** The SPA dates an entry by the browser's
+  zone (`src/lib/localDate.ts`). The server reads "today" from its own clock, and a user has no zone
+  ([#100](https://github.com/NaimElijah/UpHealther/issues/100)). That clock decides what counts as
+  today's progress, the seven-day window and where a current streak starts. For as many hours as the
+  two zones are apart, an entry the user made for their today can fall outside the server's today. East
+  of the server just after midnight, the entry sits in the server's tomorrow, so the history and the
+  streak leave it out until the server's day turns. West of it in the evening, it sits in the server's
+  yesterday, so the dashboard counts the upgrade as not yet done today. No write is refused, and the
+  entry is stored on the right day.
 - **A refused login is a rate signal, not an attribution.** The audit entry deliberately names no
   subject, so the trail cannot say whose account was targeted and will not support a lockout policy as
   written.
