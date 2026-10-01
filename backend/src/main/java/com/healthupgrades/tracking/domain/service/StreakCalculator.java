@@ -39,11 +39,14 @@ public class StreakCalculator {
     /**
      * Finds the streak milestone, if any, that logging the entry dated {@code loggedOn} reached (BR-10).
      *
-     * <p>An entry reaches a milestone when it carries the current streak to or past a multiple of seven.
-     * The streak is measured with and without the entry, not only after it: an entry that leaves the
-     * streak where it was — a day that did not count, or one backfilled outside the current run — must
-     * not announce the milestone the streak already sits on (#101). A backfill can join two runs and
-     * jump past a multiple of seven without landing on it; the highest one crossed is the one reached.
+     * <p>An entry reaches a milestone when it carries the current streak to or past a multiple of seven
+     * that no run it joined had already reached. So the streak is measured with and without the entry,
+     * not only after it: an entry that leaves the streak where it was — a day that did not count, or
+     * one backfilled outside the current run — must not announce the milestone the streak already sits
+     * on (#101). And "without" takes the longer of the current streak and the run that ended the day
+     * before the entry, so that logging yesterday before today, or filling in a missed day, does not
+     * announce again a milestone that run had already reached. A backfill can join two runs and jump
+     * past a multiple of seven without landing on it; the highest one crossed is the one reached.
      *
      * @param entries  every entry for the upgrade, the one just logged included
      * @param loggedOn the date of the entry just logged; BR-6 makes it unique among {@code entries}
@@ -59,7 +62,13 @@ public class StreakCalculator {
         Set<LocalDate> completedWithout = new HashSet<>(completedWith);
         completedWithout.remove(loggedOn);
 
-        int milestonesBefore = currentStreak(completedWithout, today) / MILESTONE_INTERVAL_DAYS;
+        // The run ending the day before this entry counts as "before" too. The current streak alone is
+        // not enough: when the logged day is the one the yesterday-fallback counts from, removing it
+        // makes the current streak read zero however long the run behind it was.
+        int longestBefore = Math.max(
+                currentStreak(completedWithout, today),
+                runEndingOn(completedWithout, loggedOn.minusDays(1)));
+        int milestonesBefore = longestBefore / MILESTONE_INTERVAL_DAYS;
         int milestonesAfter = currentStreak(completedWith, today) / MILESTONE_INTERVAL_DAYS;
         return milestonesAfter > milestonesBefore
                 ? OptionalInt.of(milestonesAfter * MILESTONE_INTERVAL_DAYS)

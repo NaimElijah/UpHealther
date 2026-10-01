@@ -184,6 +184,39 @@ class StreakCalculatorTest {
         assertThat(calculator.milestoneReachedBy(entries, longBefore, TODAY)).isEmpty();
     }
 
+    @ParameterizedTest
+    @ValueSource(ints = {8, 9, 13})
+    void GivenARunThatHasPassedSeven_WhenYesterdayIsLoggedBeforeToday_ThenTheSevenDayMilestoneIsNotReachedAgain(int streak) {
+        // The catch-up morning. With today unlogged, the current streak is counted from yesterday — the
+        // very day being logged — so the streak without this entry reads as zero. The run ending the day
+        // before it had already reached 7.
+        LocalDate yesterday = TODAY.minusDays(1);
+        List<ProgressEntry> entries = completedRunEndingOn(yesterday, streak);
+
+        assertThat(calculator.milestoneReachedBy(entries, yesterday, TODAY)).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {7, 14})
+    void GivenARunOneDayShortOfAMultipleOfSeven_WhenYesterdayIsLoggedBeforeTodayAndCompletesIt_ThenThatMilestoneIsReached(int streak) {
+        LocalDate yesterday = TODAY.minusDays(1);
+        List<ProgressEntry> entries = completedRunEndingOn(yesterday, streak);
+
+        assertThat(calculator.milestoneReachedBy(entries, yesterday, TODAY)).hasValue(streak);
+    }
+
+    @Test
+    void GivenAnAnnouncedRunThenAMissedDayThenToday_WhenTheMissedDayIsBackfilled_ThenTheMilestoneIsNotReachedAgain() {
+        // Seven days ending the day before yesterday reached 7 when the seventh was logged. Filling in
+        // the missed day joins that run to today's, making 9 — past 7, but not past anything new.
+        LocalDate missed = TODAY.minusDays(1);
+        List<ProgressEntry> entries = new ArrayList<>(completedRunEndingOn(missed.minusDays(1), 7));
+        entries.add(entry(TODAY, true));
+        entries.add(entry(missed, true));
+
+        assertThat(calculator.milestoneReachedBy(entries, missed, TODAY)).isEmpty();
+    }
+
     @Test
     void GivenTwoRunsOneDayApart_WhenTheGapIsBackfilledAndJoinsThemIntoSeven_ThenTheSevenDayMilestoneIsReached() {
         LocalDate gap = TODAY.minusDays(3);
