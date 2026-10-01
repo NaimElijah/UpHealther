@@ -1,10 +1,23 @@
 # ADR-013: Trap focus with a portal and `inert`, not with a native `<dialog>`
 
-- **Status:** Accepted
+- **Status:** Accepted — superseded in part by
+  [ADR-019](ADR-019-a-toast-stays-live-above-an-open-dialog.md)
 - **Date:** 2026-08-28
 - **Supersedes in part:** [ADR-005](ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md), whose
   "the dialog announces itself but does not contain anything" section recorded the gap this closes
 - **Scope:** `frontend/src/components/ui/Modal.tsx` and its tests. No new dependency.
+
+> **Superseded in part.** The record below stands as written, but two details in it are no longer
+> accurate and are replaced by ADR-019:
+>
+> - **The toast under *What this makes hard*.** A toast no longer goes inert under an open dialog.
+>   `ToastContainer` is portalled to `<body>` and exempt from the walk, so it stays live above the
+>   dialog, by decision.
+> - **`data-modal-overlay`** is now `data-above-modal`, held in `components/ui/aboveModal.ts`, because
+>   it now marks the toasts as well as the overlays.
+>
+> The core decision — a hand-built trap with a portal, a refcounted `inert` walk and a Tab handler on
+> the dialog, rather than a native `<dialog>` — is unchanged and still in force.
 
 ## Context
 

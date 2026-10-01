@@ -100,8 +100,9 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Stre
      * Logs a day's progress against an owned upgrade and announces it.
      *
      * <p>Two things happen that the caller does not ask for. Completion is recomputed from the tracking
-     * configuration, so the stored verdict is the server's rather than the client's; and the resulting
-     * streak is measured, raising {@link StreakAchieved} when it lands on a milestone.
+     * configuration, so the stored verdict is the server's rather than the client's; and the entry's
+     * effect on the streak is measured, raising {@link StreakAchieved} when it carries the streak to or
+     * past a milestone (BR-10).
      *
      * @param userId    the owner
      * @param upgradeId the upgrade being logged against
@@ -145,12 +146,9 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Stre
             eventPublisher.publish(new ProgressEntryRecorded(saved.getId(), upgradeId, userId, date, LocalDateTime.now()));
 
             List<ProgressEntry> allEntries = progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId);
-            int streak = streakCalculator.calculateCurrentStreak(allEntries, LocalDate.now(clock));
-            // Every seventh day only. Announcing each consecutive day would make the milestone worthless
-            // and would put a notification in the user's list once a day per tracked upgrade.
-            if (streak > 0 && streak % 7 == 0) {
-                eventPublisher.publish(new StreakAchieved(upgradeId, userId, streak, LocalDateTime.now()));
-            }
+            streakCalculator.milestoneReachedBy(allEntries, date, LocalDate.now(clock))
+                    .ifPresent(days -> eventPublisher.publish(
+                            new StreakAchieved(upgradeId, userId, days, LocalDateTime.now())));
 
             return saved;
         });

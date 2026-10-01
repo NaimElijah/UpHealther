@@ -1,6 +1,8 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import type { AppNotification } from '../../types';
+import { aboveModalProps } from '../ui/aboveModal';
 import { categoryMeta } from './notificationMeta';
 
 /**
@@ -23,17 +25,31 @@ interface Props {
 }
 
 /**
- * Transient real-time toasts, stacked top-right above everything.
+ * Keeps a pressed toast button from taking focus. The click still acts. Without this, pressing one over
+ * an open dialog moves focus out of the dialog's trap, onto the toast and then to `<body>` once it
+ * unmounts. A keyboard user is unaffected, since Tab focus never goes through mousedown.
+ */
+const keepFocusWhereItIs = (e: React.MouseEvent) => e.preventDefault();
+
+/**
+ * Transient real-time toasts, stacked top-right above everything, an open dialog included.
  *
  * Rendered by the notification provider rather than by any page, so a toast survives navigation. Each
  * is a polite live region: announced when it appears, without interrupting whatever is being read.
+ *
+ * Portalled to `<body>` and marked to stay live above a dialog. An open `Modal` makes every other child
+ * of `<body>` inert, and a toast is a report about what just happened, not part of the page behind. If
+ * it were left in `#root`, it would be painted above the dialog and ignore every click (#74, ADR-019).
+ * Tab stays inside the dialog, so while one is open a toast is reachable by pointer only. It dismisses
+ * itself after a few seconds, and what it says is also in the notification list. Pressing a toast's
+ * buttons acts without taking focus, so the dialog keeps it.
  */
 const ToastContainer: React.FC<Props> = ({ toasts, onDismiss }) => {
   const navigate = useNavigate();
   if (toasts.length === 0) return null;
 
-  return (
-    <div className="fixed top-4 right-4 z-[60] flex flex-col gap-2 w-80 max-w-[calc(100vw-2rem)]">
+  return createPortal(
+    <div {...aboveModalProps} className="fixed top-4 right-4 z-[60] flex flex-col gap-2 w-80 max-w-[calc(100vw-2rem)]">
       {toasts.map((t) => {
         const meta = categoryMeta[t.category];
         return (
@@ -47,6 +63,7 @@ const ToastContainer: React.FC<Props> = ({ toasts, onDismiss }) => {
           >
             <button
               type="button"
+              onMouseDown={keepFocusWhereItIs}
               onClick={() => {
                 if (t.relatedUpgradeId) navigate(`/upgrades/${t.relatedUpgradeId}`);
                 onDismiss(t.id);
@@ -61,6 +78,7 @@ const ToastContainer: React.FC<Props> = ({ toasts, onDismiss }) => {
             </button>
             <button
               type="button"
+              onMouseDown={keepFocusWhereItIs}
               onClick={() => onDismiss(t.id)}
               className="text-fg-faint hover:text-fg-subtle text-lg leading-none shrink-0"
               aria-label="Dismiss notification"
@@ -70,7 +88,8 @@ const ToastContainer: React.FC<Props> = ({ toasts, onDismiss }) => {
           </div>
         );
       })}
-    </div>
+    </div>,
+    document.body,
   );
 };
 

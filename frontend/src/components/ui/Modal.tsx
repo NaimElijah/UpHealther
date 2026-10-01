@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { ABOVE_MODAL_ATTRIBUTE, aboveModalProps } from './aboveModal';
 
 /**
  * @param isOpen   whether the dialog is shown; when false the component renders nothing at all
@@ -43,18 +44,19 @@ const FOCUSABLE = [
  * Marks every other child of `<body>` inert while a dialog is open, refcounted across dialogs.
  *
  * The count is what makes two open dialogs safe: without it, closing the second would un-inert the
- * page while the first is still up. Overlays are skipped by their `data-modal-overlay` attribute,
- * which has to be set in the JSX rather than registered from an effect — React inserts both portals
- * during the mutation phase and runs neither effect until afterwards, so an effect-time registry
- * loses that race and the first dialog marks the second one inert.
+ * page while the first is still up. Overlays and toasts are skipped by `ABOVE_MODAL_ATTRIBUTE`
+ * (`aboveModal.ts`), which has to be set in the JSX rather than registered from an effect — React
+ * inserts both portals during the mutation phase and runs neither effect until afterwards, so an
+ * effect-time registry loses that race and the first dialog marks the second one inert.
  *
  * **The set is snapshotted once, on the 0 -> 1 transition.** Anything appended to `<body>` while a
  * dialog is already open is never marked, and stays reachable behind a dialog claiming nothing behind
- * it is. Nothing does that today — this is the codebase's only portal — so the invariant is stated
- * rather than enforced: a new `createPortal(..., document.body)` either carries `data-modal-overlay`
- * because it belongs above a dialog, or it is mounted where this walk can see it. Watching for it
- * would mean a MutationObserver alive for the lifetime of every dialog, which is a great deal of
- * machinery for a case the codebase does not have.
+ * it is. `ToastContainer` carries the exemption, so a toast is live above a dialog whichever side of the
+ * snapshot it mounts on. The invariant is stated rather than enforced: a new
+ * `createPortal(..., document.body)` either carries `ABOVE_MODAL_ATTRIBUTE` because it belongs above
+ * a dialog, or it is mounted where this walk can see it. Watching for it would mean a
+ * MutationObserver alive for the lifetime of every dialog, which is a great deal of machinery for a
+ * case the codebase does not have.
  */
 let openModals = 0;
 let inerted: Element[] = [];
@@ -62,7 +64,7 @@ let inerted: Element[] = [];
 const acquireInert = () => {
   if (++openModals > 1) return;
   inerted = Array.from(document.body.children).filter(
-    (el) => !el.hasAttribute('data-modal-overlay') && !el.hasAttribute('inert'),
+    (el) => !el.hasAttribute(ABOVE_MODAL_ATTRIBUTE) && !el.hasAttribute('inert'),
   );
   inerted.forEach((el) => el.setAttribute('inert', ''));
 };
@@ -111,8 +113,8 @@ const releaseInert = () => {
  * attribute is set and cleared on the right nodes and nothing more; that a browser then honours it
  * falls in the same gap §6 of the requirements records for contrast and layout. Focus falls back to
  * `<body>` when the element that opened the dialog unmounted along with it, which the health-areas
- * delete path does. And `ToastContainer` lives inside `#root`, so a toast raised while a dialog is
- * open goes inert with the rest of the page — still painted, no longer dismissable.
+ * delete path does. And a toast is deliberately *not* behind the dialog: it stays live above it, so
+ * `aria-modal` holds for the page and not for the toast (ADR-019).
  */
 const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
   // Three modals can share one page, so the title's id has to be unique per instance — a hard-coded
@@ -199,7 +201,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
 
   return createPortal(
     <div
-      data-modal-overlay=""
+      {...aboveModalProps}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
     >
       <div className="absolute inset-0 bg-overlay/50" onClick={onClose} />
