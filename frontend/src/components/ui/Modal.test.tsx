@@ -144,7 +144,7 @@ describe('Modal', () => {
     it('GivenTwoOpenModals_WhenTheyRender_ThenNeitherMarksTheOtherInert', () => {
       render(<TwoModals />);
 
-      const overlays = document.querySelectorAll('[data-modal-overlay]');
+      const overlays = screen.getAllByRole('dialog').map((dialog) => dialog.parentElement!);
       expect(overlays.length).toBe(2);
       overlays.forEach((overlay) => expect(overlay.getAttribute('inert')).toBeNull());
     });
@@ -197,7 +197,7 @@ describe('Modal', () => {
       const trigger = screen.getByRole('button', { name: 'Open' });
       openVia(trigger);
 
-      fireEvent.click(document.querySelector('[data-modal-overlay]')!.firstElementChild!);
+      fireEvent.click(screen.getByRole('dialog').previousElementSibling!);
 
       expect(document.activeElement).toBe(trigger);
     });
@@ -314,13 +314,14 @@ describe('Modal', () => {
     });
 
     // The backdrop is decorative and carries no role, so there is nothing accessible to query it by.
-    // Reached through the overlay's own data attribute rather than through RTL's container, because
-    // the dialog is portalled to <body> and no longer renders inside it.
+    // Reached as the dialog's sibling rather than through RTL's container, because the dialog is
+    // portalled to <body> and no longer renders inside it — and not by the exemption attribute, which
+    // a toast carries too.
     it('GivenAnOpenModal_WhenTheBackdropIsClicked_ThenItCloses', () => {
       const onClose = vi.fn();
       renderModal(onClose);
 
-      fireEvent.click(document.querySelector('[data-modal-overlay]')!.firstElementChild!);
+      fireEvent.click(screen.getByRole('dialog').previousElementSibling!);
 
       expect(onClose).toHaveBeenCalledTimes(1);
     });

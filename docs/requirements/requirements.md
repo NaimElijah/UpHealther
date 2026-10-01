@@ -13,7 +13,7 @@ that gap would take.
 API (§5.4), so "a user can" means through the interface. Where the implementation falls short of an
 entry — in the interface or anywhere else — the entry is not weakened to match. Its *Enforced by* cell
 says **Known deviation** and links the issue that tracks the gap; the tests named there enforce the
-part that holds. Twenty-three entries carry one today, and the change that closes an issue takes its
+part that holds. Twenty-two entries carry one today, and the change that closes an issue takes its
 marker out.
 
 **IDs are permanent.** Tests, code comments, migrations and ADRs cite them, so an ID is never
@@ -140,7 +140,7 @@ only the streaks that are running — a zero is no streak — and names each by 
 | FR-37 | The theme control is reachable before signing in | `LoginPage.test.tsx` |
 | FR-38 | A page's content grows with the browser window, up to one of two caps chosen for readability: `wide` for lists, grids and dashboards, `narrow` for reading and form pages | `PageContainer`, `PageContainer.test.tsx` ([ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md)) |
 | FR-39 | A dialog fits the window at any size: its heading stays put and only its body scrolls | `Modal` — checked by hand, see §6 |
-| FR-40 | A dialog announces itself as a dialog named by its title, takes focus on open, confines Tab to its own controls, restores focus on close, and marks the page behind it inert | `Modal`, `Modal.test.tsx`, [ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md) |
+| FR-40 | A dialog announces itself as a dialog named by its title, takes focus on open, confines Tab to its own controls, restores focus on close, and marks the page behind it inert. A toast is not part of the page behind: it stays above an open dialog and can still be dismissed | `Modal`, `Modal.test.tsx`, `ToastContainer.test.tsx`, [ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md), [ADR-019](../ADRs/ADR-019-a-toast-stays-live-above-an-open-dialog.md) |
 | FR-41 | A health area whose stored icon cannot be drawn is shown with the default icon, and editing it does not write the undrawable value back | `areaIconGlyph`, `isIconGlyph`, `areaIcon.test.ts` |
 
 ### 2.8 Account administration
@@ -171,7 +171,7 @@ The role model behind every entry here is [ADR-016](../ADRs/ADR-016-roles-read-f
 | BR-7 | When an upgrade has a tracking configuration, whether an entry counts as successful is decided by the server from that configuration, not by the client. Without one there is no target to judge against, and the entry keeps the `completed` value its caller sent | `ProgressEvaluationService`, `ProgressEvaluationServiceTest`, `TrackingServiceTest` |
 | BR-8 | A numeric entry counts only when its unit agrees with the target's; an unstated unit is read as the configured one | `ProgressEvaluationServiceTest` |
 | BR-9 | A streak counts consecutive days; a day not yet logged does not break it | `StreakCalculator`, `StreakCalculatorTest` |
-| BR-10 | A streak milestone is announced every seventh day, not every day | `TrackingServiceTest` (7, 14, 21, 70 against 1, 6, 8, 13, 69 — and zero) — **Known deviation:** [#101](https://github.com/NaimElijah/UpHealther/issues/101), any entry logged while the streak sits on a multiple of seven re-announces it |
+| BR-10 | A streak milestone is announced every seventh day, not every day: once, by the entry that carries the current streak to or past a multiple of seven that no run it joined had already reached, naming the highest one crossed. An entry that leaves the streak where it was announces nothing | `StreakCalculator.milestoneReachedBy`, `StreakCalculatorTest` (7, 14, 21, 70 against 1, 6, 8, 13, 69 — and zero; a day that does not count or is backfilled outside the run; yesterday logged before today; a missed day filled in; a backfill that joins two runs), `TrackingServiceTest` |
 | BR-11 | An overdue upgrade is announced once, however many times the sweep rediscovers it | `NotificationServiceTest`, `NotificationEventListenerTest` |
 | BR-12 | A reminder with no day filter fires every day; an unrecognisable day is rejected when it is sent, never ignored | `ReminderTest`, `ReminderServiceTest`, `ReminderControllerTest` |
 | BR-13 | Reflections are append-only — there is no edit or delete path of their own. They go only with the upgrade they belong to (FR-14) | `ReflectionServiceTest` (asserted against the public surface), `ReflectionControllerTest`, `UpgradePersistenceIT` |
@@ -349,10 +349,8 @@ Undecided, and owned by the repository owner.
   behind it are built and tested ([ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md)),
   but jsdom implements `inert` not at all, so the tests pin that the attribute is set and cleared on
   the right nodes and nothing further. This is the same gap as the entry above and closes with it.
-  Two smaller residuals go with it: focus falls back to `<body>` when the element that opened a dialog
-  unmounted along with it, which the health-areas delete path does; and a toast raised while a dialog
-  is open goes inert with the rest of the page, so it is painted above the dialog and cannot be
-  dismissed ([#74](https://github.com/NaimElijah/UpHealther/issues/74)).
+  One smaller residual goes with it: focus falls back to `<body>` when the element that opened a
+  dialog unmounted along with it, which the health-areas delete path does.
 - **The backend has no dependency vulnerability audit.** OWASP dependency-check needs an `NVD_API_KEY`
   secret; ADR-002 records why a check that cannot fail was judged worse than none, and
   [#59](https://github.com/NaimElijah/UpHealther/issues/59) that it is no longer the only tool.
