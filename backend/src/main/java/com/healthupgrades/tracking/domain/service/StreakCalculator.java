@@ -2,6 +2,7 @@ package com.healthupgrades.tracking.domain.service;
 import com.healthupgrades.tracking.domain.model.ProgressEntry;
 
 import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.List;
 import java.util.OptionalInt;
 import java.util.Set;
@@ -32,34 +33,7 @@ public class StreakCalculator {
      */
     public int calculateCurrentStreak(List<ProgressEntry> entries, LocalDate today) {
         if (entries == null || entries.isEmpty()) return 0;
-
-        // Collect the distinct dates the user actually completed the habit.
-        Set<LocalDate> completedDates = entries.stream()
-                .filter(e -> Boolean.TRUE.equals(e.getCompleted()))
-                .map(ProgressEntry::getDate)
-                .collect(Collectors.toSet());
-
-        if (completedDates.isEmpty()) return 0;
-
-        int streak = 0;
-        LocalDate current = today;
-
-        // Walk backwards from today while each day was completed.
-        while (completedDates.contains(current)) {
-            streak++;
-            current = current.minusDays(1);
-        }
-
-        // If today has not been completed yet, count the run ending yesterday instead.
-        if (streak == 0) {
-            current = today.minusDays(1);
-            while (completedDates.contains(current)) {
-                streak++;
-                current = current.minusDays(1);
-            }
-        }
-
-        return streak;
+        return currentStreak(completedDates(entries), today);
     }
 
     /**
@@ -78,14 +52,44 @@ public class StreakCalculator {
      * @return the milestone's length in days, or empty when the entry reached none
      */
     public OptionalInt milestoneReachedBy(List<ProgressEntry> entries, LocalDate loggedOn, LocalDate today) {
-        List<ProgressEntry> withoutIt = entries.stream()
-                .filter(e -> !e.getDate().equals(loggedOn))
-                .toList();
-        int milestonesBefore = calculateCurrentStreak(withoutIt, today) / MILESTONE_INTERVAL_DAYS;
-        int milestonesAfter = calculateCurrentStreak(entries, today) / MILESTONE_INTERVAL_DAYS;
+        Set<LocalDate> completedWith = completedDates(entries);
+        // A day that did not count adds no completed date, so it cannot have moved any streak.
+        if (!completedWith.contains(loggedOn)) return OptionalInt.empty();
+
+        Set<LocalDate> completedWithout = new HashSet<>(completedWith);
+        completedWithout.remove(loggedOn);
+
+        int milestonesBefore = currentStreak(completedWithout, today) / MILESTONE_INTERVAL_DAYS;
+        int milestonesAfter = currentStreak(completedWith, today) / MILESTONE_INTERVAL_DAYS;
         return milestonesAfter > milestonesBefore
                 ? OptionalInt.of(milestonesAfter * MILESTONE_INTERVAL_DAYS)
                 : OptionalInt.empty();
+    }
+
+    /** The distinct days on which the habit was actually completed. */
+    private static Set<LocalDate> completedDates(List<ProgressEntry> entries) {
+        return entries.stream()
+                .filter(e -> Boolean.TRUE.equals(e.getCompleted()))
+                .map(ProgressEntry::getDate)
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * The run ending today, or — while today has not been completed yet — the run ending yesterday, so
+     * an unlogged today does not break the streak prematurely (BR-9).
+     */
+    private static int currentStreak(Set<LocalDate> completedDates, LocalDate today) {
+        int endingToday = runEndingOn(completedDates, today);
+        return endingToday > 0 ? endingToday : runEndingOn(completedDates, today.minusDays(1));
+    }
+
+    /** How many consecutive completed days end on {@code lastDay}; zero if it was not completed. */
+    private static int runEndingOn(Set<LocalDate> completedDates, LocalDate lastDay) {
+        int run = 0;
+        for (LocalDate day = lastDay; completedDates.contains(day); day = day.minusDays(1)) {
+            run++;
+        }
+        return run;
     }
 
     /** Calculates the longest run of consecutive completed days across the entire history. */
