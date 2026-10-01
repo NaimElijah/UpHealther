@@ -44,15 +44,15 @@ const FOCUSABLE = [
  * Marks every other child of `<body>` inert while a dialog is open, refcounted across dialogs.
  *
  * The count is what makes two open dialogs safe: without it, closing the second would un-inert the
- * page while the first is still up. Overlays are skipped by `ABOVE_MODAL_ATTRIBUTE` (`aboveModal.ts`),
- * which has to be set in the JSX rather than registered from an effect — React inserts both portals
- * during the mutation phase and runs neither effect until afterwards, so an effect-time registry
- * loses that race and the first dialog marks the second one inert.
+ * page while the first is still up. Overlays and toasts are skipped by `ABOVE_MODAL_ATTRIBUTE`
+ * (`aboveModal.ts`), which has to be set in the JSX rather than registered from an effect — React
+ * inserts both portals during the mutation phase and runs neither effect until afterwards, so an
+ * effect-time registry loses that race and the first dialog marks the second one inert.
  *
  * **The set is snapshotted once, on the 0 -> 1 transition.** Anything appended to `<body>` while a
  * dialog is already open is never marked, and stays reachable behind a dialog claiming nothing behind
- * it is. The only other portal, `ToastContainer`, carries the exemption, so it is live above a dialog
- * whichever side of the snapshot it mounts on. The invariant is stated rather than enforced: a new
+ * it is. `ToastContainer` carries the exemption, so a toast is live above a dialog whichever side of the
+ * snapshot it mounts on. The invariant is stated rather than enforced: a new
  * `createPortal(..., document.body)` either carries `ABOVE_MODAL_ATTRIBUTE` because it belongs above
  * a dialog, or it is mounted where this walk can see it. Watching for it would mean a
  * MutationObserver alive for the lifetime of every dialog, which is a great deal of machinery for a

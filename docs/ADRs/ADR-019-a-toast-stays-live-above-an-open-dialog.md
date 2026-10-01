@@ -12,13 +12,13 @@
 ## Context
 
 ADR-013 made `aria-modal="true"` honest. `Modal` portals its overlay to `<body>` and, while a dialog
-is open, marks every *other* child of `<body>` `inert`. It skips a node only if the node carries the
-overlay attribute, which is how two open dialogs avoid marking each other.
+is open, marks every *other* child of `<body>` `inert`. It skips a node that carries the overlay
+attribute, which is how two open dialogs avoid marking each other, and one that is already inert.
 
 `ToastContainer` was rendered by `NotificationProvider` inside `#root`. So it went inert with the rest
 of the page, while still painted at `z-[60]` above the dialog's `z-50`. A toast raised while a dialog
-was open was **visible, on top, and unclickable**. Its dismiss button did nothing, and it stayed until its
-six-second timer expired.
+was open was **visible, on top, and unclickable**. An inert node takes no pointer events, so its
+dismiss button could not be pressed, and it stayed until its six-second timer expired.
 
 By the letter of `aria-modal`, that was correct: the page behind a modal dialog is not interactive.
 But a control painted above everything that silently ignores the pointer reads as broken to anyone who
@@ -38,13 +38,17 @@ dialog", not "I am an overlay".
 
 - The name lives once, in `components/ui/aboveModal.ts`. The walk reads it from there, and both
   portals spread it from there.
-- It is a module of its own because `react-refresh/only-export-components` forbids exporting it from
-  `Modal.tsx`.
+- It is a module of its own because `aboveModalProps` is an object.
+  `react-refresh/only-export-components` is configured with `allowConstantExport`, which exempts a
+  string constant but not an object. So exporting it from `Modal.tsx` would warn, and lint runs with
+  `--max-warnings 0`.
 
-The attribute is still set in the JSX, for the reason ADR-013 gives: React inserts portals before it runs
-any effect. It is what covers a toast that is **already showing** when a dialog opens, since the walk
-snapshots `<body>`'s children at that moment. A toast that **arrives** after the dialog opened is
-outside the snapshot either way.
+The attribute is still set in the JSX, for the reason ADR-013 gives: within one commit, React inserts
+every portal before it runs any effect, which matters when two dialogs mount together.
+
+For a toast, the attribute itself is what matters. It covers a toast that is **already showing** when
+a dialog opens, since the walk snapshots `<body>`'s children at that moment. A toast that **arrives**
+after the dialog opened is outside the snapshot either way.
 
 ## Consequences
 
@@ -63,6 +67,9 @@ exist.
   six seconds, and everything it says is also in the notification list.
 - **Pressing a toast's buttons does not take focus.** Their mousedown is prevented. Otherwise a pressed
   toast would take focus out of the dialog's trap, and then drop it on `<body>` once it unmounted.
+- **Following a toast's link from an open dialog leaves the page.** The dialog unmounts with the page,
+  and anything typed into it is lost. Escape and the backdrop discard a dialog the same way, and this
+  app has no unsaved-changes guard anywhere. A toast's link is something the user chose to follow.
 - **Any future portal has to choose.** Spreading `aboveModalProps` means "this stays live above a
   dialog", and that is a claim about the product, not a styling choice.
 

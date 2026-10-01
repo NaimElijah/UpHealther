@@ -480,14 +480,13 @@ open, which is what makes its `aria-modal="true"` true rather than merely assert
 refcounted in module state inside `Modal.tsx`, so two dialogs open at once behave, and the set of
 nodes is snapshotted on the first open.
 
-**The toasts are the other portal, and they are deliberately not behind a dialog.**
-`components/notifications/ToastContainer` portals itself to `<body>` too, and is exempt from the inert
-walk. A toast is a report about what just happened, often the very thing the dialog did, so it stays
+**The toasts are portalled to `<body>` too, and they are deliberately not behind a dialog.**
+`components/notifications/ToastContainer` is exempt from the inert walk. A toast is a report about what just happened, often the very thing the dialog did, so it stays
 live above an open dialog. `aria-modal` then holds for the page and not for the toast, which is
 reachable by pointer only, because Tab stays inside the dialog. See
 [ADR-019](../ADRs/ADR-019-a-toast-stays-live-above-an-open-dialog.md).
 
-Two constraints fall out of that and bind anything added later. **A new `createPortal(...,
+Two constraints fall out of the dialog's walk and bind anything added later. **A new `createPortal(...,
 document.body)` has to declare itself**: it either spreads `aboveModalProps`
 (`components/ui/aboveModal.ts`, the `data-above-modal` attribute), meaning it belongs above a dialog
 and must not be inerted, or it is mounted before a dialog opens so the walk can see it — a portal that
