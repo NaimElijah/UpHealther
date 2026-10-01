@@ -33,6 +33,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -229,6 +230,34 @@ class TrackingServiceTest {
         recordWithMilestone(lastWeek, OptionalInt.empty());
 
         verify(streakCalculator).milestoneReachedBy(any(), eq(lastWeek), eq(today));
+    }
+
+    @Test
+    void GivenSixDaysAlreadyLogged_WhenTheSeventhIsRecordedWithNoDate_ThenTheSevenDayMilestoneIsAnnounced() {
+        // The stubbed verdict above cannot see the wiring around it, and two slips there would each
+        // silence BR-10 without failing those tests: handing the calculator the request's date, which a
+        // caller may leave null, instead of the resolved one; or a history that lacks the entry just
+        // saved. So this one uses a real calculator over a history the save adds to.
+        TrackingService withRealCalculator = new TrackingService(configRepository, progressRepository,
+                upgradeQuery, new StreakCalculator(), evaluationService, eventPublisher, auditTrail, fixedClock);
+        List<ProgressEntry> history = new ArrayList<>();
+        for (int daysAgo = 6; daysAgo >= 1; daysAgo--) {
+            history.add(AProgressEntry.completedOn(upgradeId, userId, today.minusDays(daysAgo), true));
+        }
+        when(progressRepository.existsByUpgradeIdAndDate(upgradeId, today)).thenReturn(false);
+        when(configRepository.findByUpgradeId(upgradeId)).thenReturn(Optional.empty());
+        when(progressRepository.save(any(ProgressEntry.class))).thenAnswer(inv -> {
+            history.add(inv.getArgument(0));
+            return inv.getArgument(0);
+        });
+        when(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenAnswer(inv -> List.copyOf(history));
+
+        withRealCalculator.recordProgress(userId, upgradeId,
+                new ProgressEntryDetails(null, true, null, null, null, null));
+
+        ArgumentCaptor<StreakAchieved> event = ArgumentCaptor.forClass(StreakAchieved.class);
+        verify(eventPublisher).publish(event.capture());
+        assertThat(event.getValue().streakDays()).isEqualTo(7);
     }
 
     // ---- Reading progress ----
