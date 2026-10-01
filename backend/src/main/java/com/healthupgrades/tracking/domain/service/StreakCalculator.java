@@ -51,7 +51,8 @@ public class StreakCalculator {
      * @param entries  every entry for the upgrade, the one just logged included
      * @param loggedOn the date of the entry just logged; BR-6 makes it unique among {@code entries}
      * @param today    the day the current streak is counted back from, as for
-     *                 {@link #calculateCurrentStreak}
+     *                 {@link #calculateCurrentStreak} — unless {@code loggedOn} is later, when the
+     *                 entry is judged from its own date (#100)
      * @return the milestone's length in days, or empty when the entry reached none
      */
     public OptionalInt milestoneReachedBy(List<ProgressEntry> entries, LocalDate loggedOn, LocalDate today) {
@@ -62,14 +63,19 @@ public class StreakCalculator {
         Set<LocalDate> completedWithout = new HashSet<>(completedWith);
         completedWithout.remove(loggedOn);
 
+        // #100: until the server knows the user's zone, an entry dated after the server's today may be
+        // the user's own today. Counted from the server's today it would belong to no streak, and its
+        // milestone would be lost rather than late, so it is judged from its own date.
+        LocalDate countFrom = loggedOn.isAfter(today) ? loggedOn : today;
+
         // The run ending the day before this entry counts as "before" too. The current streak alone is
         // not enough: when the logged day is the one the yesterday-fallback counts from, removing it
         // makes the current streak read zero however long the run behind it was.
         int longestBefore = Math.max(
-                currentStreak(completedWithout, today),
+                currentStreak(completedWithout, countFrom),
                 runEndingOn(completedWithout, loggedOn.minusDays(1)));
         int milestonesBefore = longestBefore / MILESTONE_INTERVAL_DAYS;
-        int milestonesAfter = currentStreak(completedWith, today) / MILESTONE_INTERVAL_DAYS;
+        int milestonesAfter = currentStreak(completedWith, countFrom) / MILESTONE_INTERVAL_DAYS;
         return milestonesAfter > milestonesBefore
                 ? OptionalInt.of(milestonesAfter * MILESTONE_INTERVAL_DAYS)
                 : OptionalInt.empty();

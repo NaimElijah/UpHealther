@@ -240,13 +240,26 @@ class StreakCalculatorTest {
     }
 
     @Test
-    void GivenAStreakOfSix_WhenADayAfterTodayIsLogged_ThenNoMilestoneIsReached() {
-        // The current streak is counted back from today, so a future-dated entry is not part of it.
+    void GivenAStreakOfSix_WhenTheDayAfterTodayIsLogged_ThenItIsJudgedOnItsOwnDayAndReachesSeven() {
+        // #100: the server knows no user's zone, so just after midnight east of it the user's today is
+        // the server's tomorrow. Counted back from the server's today, that entry is part of no streak,
+        // and the milestone it reached would never be announced — not even late, since by the time the
+        // server's day turns the entry is already in "before".
         LocalDate tomorrow = TODAY.plusDays(1);
         List<ProgressEntry> entries = new ArrayList<>(completedRunEndingOn(TODAY, 6));
         entries.add(entry(tomorrow, true));
 
-        assertThat(calculator.milestoneReachedBy(entries, tomorrow, TODAY)).isEmpty();
+        assertThat(calculator.milestoneReachedBy(entries, tomorrow, TODAY)).hasValue(7);
+    }
+
+    @Test
+    void GivenASevenDayRunEndingTomorrow_WhenTheNextDayIsLogged_ThenTheMilestoneIsNotReachedAgain() {
+        // The east-of-the-server user's next morning: day 8, again dated ahead of the server.
+        LocalDate dayAfterTomorrow = TODAY.plusDays(2);
+        List<ProgressEntry> entries = new ArrayList<>(completedRunEndingOn(TODAY.plusDays(1), 7));
+        entries.add(entry(dayAfterTomorrow, true));
+
+        assertThat(calculator.milestoneReachedBy(entries, dayAfterTomorrow, TODAY.plusDays(1))).isEmpty();
     }
 
     /** {@code days} completed entries, one per day, the last of them on {@code lastDay}. */

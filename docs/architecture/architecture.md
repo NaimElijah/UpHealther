@@ -553,9 +553,11 @@ Stated because they are load-bearing, not because they are problems yet:
   today's progress, the seven-day window and where a current streak starts. For as many hours as the
   two zones are apart, an entry the user made for their today can fall outside the server's today. East
   of the server just after midnight, the entry sits in the server's tomorrow, so the history and the
-  streak leave it out until the server's day turns. West of it in the evening, it sits in the server's
-  yesterday, so the dashboard counts the upgrade as not yet done today. No write is refused, and the
-  entry is stored on the right day.
+  streak leave it out until the server's day turns. A streak milestone is the exception: an entry dated
+  after the server's today is judged from its own date, so its milestone is announced when it is made
+  instead of being lost (`StreakCalculator.milestoneReachedBy`, BR-10). West of the server in the
+  evening, the entry sits in the server's yesterday, so the dashboard counts the upgrade as not yet
+  done today. No write is refused, and the entry is stored on the right day.
 - **A refused login is a rate signal, not an attribution.** The audit entry deliberately names no
   subject, so the trail cannot say whose account was targeted and will not support a lockout policy as
   written.
