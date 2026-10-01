@@ -25,6 +25,13 @@ interface Props {
 }
 
 /**
+ * Keeps a pressed toast button from taking focus. The click still acts. Without this, pressing one over
+ * an open dialog moves focus out of the dialog's trap, onto the toast and then to `<body>` once it
+ * unmounts. A keyboard user is unaffected, since Tab focus never goes through mousedown.
+ */
+const keepFocusWhereItIs = (e: React.MouseEvent) => e.preventDefault();
+
+/**
  * Transient real-time toasts, stacked top-right above everything, an open dialog included.
  *
  * Rendered by the notification provider rather than by any page, so a toast survives navigation. Each
@@ -34,7 +41,8 @@ interface Props {
  * of `<body>` inert, and a toast is a report about what just happened, not part of the page behind. If
  * it were left in `#root`, it would be painted above the dialog and ignore every click (#74, ADR-019).
  * Tab stays inside the dialog, so while one is open a toast is reachable by pointer only. It dismisses
- * itself after a few seconds, and what it says is also in the notification list.
+ * itself after a few seconds, and what it says is also in the notification list. Pressing a toast's
+ * buttons acts without taking focus, so the dialog keeps it.
  */
 const ToastContainer: React.FC<Props> = ({ toasts, onDismiss }) => {
   const navigate = useNavigate();
@@ -55,6 +63,7 @@ const ToastContainer: React.FC<Props> = ({ toasts, onDismiss }) => {
           >
             <button
               type="button"
+              onMouseDown={keepFocusWhereItIs}
               onClick={() => {
                 if (t.relatedUpgradeId) navigate(`/upgrades/${t.relatedUpgradeId}`);
                 onDismiss(t.id);
@@ -69,6 +78,7 @@ const ToastContainer: React.FC<Props> = ({ toasts, onDismiss }) => {
             </button>
             <button
               type="button"
+              onMouseDown={keepFocusWhereItIs}
               onClick={() => onDismiss(t.id)}
               className="text-fg-faint hover:text-fg-subtle text-lg leading-none shrink-0"
               aria-label="Dismiss notification"

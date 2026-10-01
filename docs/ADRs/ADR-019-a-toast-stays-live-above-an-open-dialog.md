@@ -61,6 +61,8 @@ exist.
 - **The toast is reachable by pointer only.** Tab stays confined to the dialog by design (ADR-013), so a
   keyboard user cannot reach a toast's buttons while a dialog is open. The toast dismisses itself after
   six seconds, and everything it says is also in the notification list.
+- **Pressing a toast's buttons does not take focus.** Their mousedown is prevented. Otherwise a pressed
+  toast would take focus out of the dialog's trap, and then drop it on `<body>` once it unmounted.
 - **Any future portal has to choose.** Spreading `aboveModalProps` means "this stays live above a
   dialog", and that is a claim about the product, not a styling choice.
 

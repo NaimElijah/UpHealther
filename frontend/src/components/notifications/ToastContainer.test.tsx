@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Modal from '../ui/Modal';
 import ToastContainer, { type ToastData } from './ToastContainer';
@@ -70,6 +70,18 @@ describe('ToastContainer', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Dismiss notification' }));
 
       expect(onDismiss).toHaveBeenCalledWith('toast-1');
+    });
+
+    it('GivenAToastOverAnOpenDialog_WhenItsButtonsArePressed_ThenNeitherTakesFocusOutOfTheDialog', () => {
+      // A pressed button takes focus in Chrome and Firefox, and the trap is the dialog's own onKeyDown,
+      // so focus on a toast — or on <body> once the toast unmounts — would sit outside it. jsdom moves no
+      // focus on mousedown at all, so this pins the mechanism a browser honours: the default is prevented.
+      render(<PageWithDialog dialogOpen toasts={[streakToast]} />);
+
+      const buttons = within(screen.getByRole('status')).getAllByRole('button');
+
+      expect(buttons).toHaveLength(2);
+      buttons.forEach((button) => expect(fireEvent.mouseDown(button)).toBe(false));
     });
   });
 });
