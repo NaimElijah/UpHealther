@@ -209,7 +209,7 @@ class TrackingServiceTest {
 
         ArgumentCaptor<StreakAchieved> event = ArgumentCaptor.forClass(StreakAchieved.class);
         verify(eventPublisher).publish(event.capture());
-        assertThat(event.getValue().streakDays()).isEqualTo(milestone);
+        assertThat(event.getValue().milestoneDays()).isEqualTo(milestone);
         assertThat(event.getValue().upgradeId()).isEqualTo(upgradeId);
         assertThat(event.getValue().userId()).isEqualTo(userId);
     }
@@ -257,7 +257,7 @@ class TrackingServiceTest {
 
         ArgumentCaptor<StreakAchieved> event = ArgumentCaptor.forClass(StreakAchieved.class);
         verify(eventPublisher).publish(event.capture());
-        assertThat(event.getValue().streakDays()).isEqualTo(7);
+        assertThat(event.getValue().milestoneDays()).isEqualTo(7);
     }
 
     // ---- Reading progress ----

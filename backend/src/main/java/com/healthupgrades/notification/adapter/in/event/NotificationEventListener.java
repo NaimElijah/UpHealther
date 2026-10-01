@@ -86,7 +86,7 @@ public class NotificationEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onStreak(StreakAchieved e) {
         notificationService.create(e.userId(), NotificationType.STREAK_ACHIEVED, NotificationCategory.SUCCESS,
-                "🔥 " + e.streakDays() + "-day streak!",
+                "🔥 " + e.milestoneDays() + "-day streak!",
                 "\"" + title(e.upgradeId(), e.userId()) + "\" — keep the momentum going.", e.upgradeId());
     }
 

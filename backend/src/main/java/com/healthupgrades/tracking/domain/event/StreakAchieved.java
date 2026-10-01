@@ -12,10 +12,10 @@ import java.util.UUID;
  * day, which is how a streak stops being an achievement. The milestones, and when an entry has reached
  * one, are decided by {@code StreakCalculator.milestoneReachedBy}.
  *
- * @param upgradeId  the upgrade being kept up
- * @param userId     the owner
- * @param streakDays the milestone reached, a multiple of seven; the streak itself can be longer when a
- *                   backfilled day joined two runs
- * @param occurredAt when the milestone was reached
+ * @param upgradeId     the upgrade being kept up
+ * @param userId        the owner
+ * @param milestoneDays the milestone reached, a multiple of seven. The streak itself can be longer when
+ *                      the entry made a longer run current, for example a backfill that joined two runs
+ * @param occurredAt    when the milestone was reached
  */
-public record StreakAchieved(UUID upgradeId, UUID userId, int streakDays, LocalDateTime occurredAt) implements DomainEvent {}
+public record StreakAchieved(UUID upgradeId, UUID userId, int milestoneDays, LocalDateTime occurredAt) implements DomainEvent {}
