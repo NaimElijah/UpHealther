@@ -10,8 +10,9 @@ import ToastContainer, { type ToastData } from './ToastContainer';
  *
  * An open `Modal` marks every other child of `<body>` inert. A toast is a notification about what just
  * happened rather than part of the page behind, so it has to escape that walk, or it is painted above
- * the dialog and cannot be dismissed. jsdom implements `inert` not at all, so these pin that the attribute
- * is absent from the toast's top-level node and stop there, as `Modal.test.tsx` does.
+ * the dialog and cannot be dismissed. jsdom implements `inert` not at all — it blocks no click and moves
+ * no focus — so these pin that no ancestor of the toast carries the attribute, and stop there, as
+ * `Modal.test.tsx` does.
  */
 
 const streakToast: ToastData = {
@@ -35,39 +36,39 @@ const PageWithDialog: React.FC<{ dialogOpen: boolean; toasts: ToastData[]; onDis
   </MemoryRouter>
 );
 
-/** The direct child of `<body>` holding `el`, which is the level the dialog's inert walk works at. */
-const topLevelNodeOf = (el: Element): Element => {
-  let node = el;
-  while (node.parentElement && node.parentElement !== document.body) node = node.parentElement;
-  return node;
-};
-
 describe('ToastContainer', () => {
   describe('above an open dialog', () => {
     it('GivenAToastShowing_WhenADialogOpens_ThenThePageIsMadeInertButTheToastIsNot', () => {
       // The dialog's walk snapshots <body>'s children as it opens, and a toast already showing is one of
-      // them. Only the exemption keeps it out.
+      // them. Only the exemption keeps it out, so this is the test that pins the attribute.
       const { container, rerender } = render(<PageWithDialog dialogOpen={false} toasts={[streakToast]} />);
 
       rerender(<PageWithDialog dialogOpen toasts={[streakToast]} />);
 
       expect(container.getAttribute('inert')).toBe('');
-      expect(topLevelNodeOf(screen.getByRole('status')).hasAttribute('inert')).toBe(false);
+      expect(screen.getByRole('status').closest('[inert]')).toBeNull();
     });
 
     it('GivenAnOpenDialog_WhenAToastIsRaised_ThenTheToastIsNotInert', () => {
+      // This one pins that the toast is not inside the page. A toast portalled after the dialog opened
+      // is outside the walk's snapshot with or without the exemption, but the old toast, rendered inside
+      // the already-inert #root, was not.
       const { rerender } = render(<PageWithDialog dialogOpen toasts={[]} />);
 
       rerender(<PageWithDialog dialogOpen toasts={[streakToast]} />);
 
-      expect(topLevelNodeOf(screen.getByRole('status')).hasAttribute('inert')).toBe(false);
+      expect(screen.getByRole('status').closest('[inert]')).toBeNull();
     });
 
     it('GivenAToastOverAnOpenDialog_WhenItsDismissIsClicked_ThenThatToastIsDismissed', () => {
+      // jsdom delivers a click inside an inert subtree, so the click alone would pass against the old,
+      // inert toast. The ancestor check is what a browser's refusal of that click turns on.
       const onDismiss = vi.fn();
       render(<PageWithDialog dialogOpen toasts={[streakToast]} onDismiss={onDismiss} />);
+      const dismiss = screen.getByRole('button', { name: 'Dismiss notification' });
 
-      fireEvent.click(screen.getByRole('button', { name: 'Dismiss notification' }));
+      expect(dismiss.closest('[inert]')).toBeNull();
+      fireEvent.click(dismiss);
 
       expect(onDismiss).toHaveBeenCalledWith('toast-1');
     });
