@@ -3,17 +3,22 @@ import com.healthupgrades.tracking.domain.model.ProgressEntry;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Covers streak counting, boundaries included: an unlogged today must not break the run, gaps must end
- * it, and duplicate or unsuccessful entries must not extend it.
+ * it, and duplicate or unsuccessful entries must not extend it. Also BR-10: which milestone, if any, a
+ * newly logged entry reaches.
  */
 class StreakCalculatorTest {
 
@@ -128,5 +133,93 @@ class StreakCalculatorTest {
                 entry(TODAY.minusDays(1), true)
         );
         assertThat(calculator.calculateLongestStreak(entries)).isEqualTo(1);
+    }
+
+    // ---- BR-10: the milestone an entry reaches ----
+
+    @ParameterizedTest
+    @ValueSource(ints = {7, 14, 21, 70})
+    void GivenARunOneDayShortOfAMultipleOfSeven_WhenTodayCompletesIt_ThenThatMilestoneIsReached(int streak) {
+        List<ProgressEntry> entries = completedRunEndingOn(TODAY, streak);
+
+        assertThat(calculator.milestoneReachedBy(entries, TODAY, TODAY)).hasValue(streak);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 6, 8, 13, 69})
+    void GivenARunThatIsNotAMultipleOfSeven_WhenTodayExtendsIt_ThenNoMilestoneIsReached(int streak) {
+        // Announcing every consecutive day would put a notification in the list once a day per tracked
+        // upgrade, which is what makes the milestone worth nothing.
+        List<ProgressEntry> entries = completedRunEndingOn(TODAY, streak);
+
+        assertThat(calculator.milestoneReachedBy(entries, TODAY, TODAY)).isEmpty();
+    }
+
+    @Test
+    void GivenNoStreakAtAll_WhenAnUnsuccessfulDayIsLogged_ThenNoMilestoneIsReached() {
+        // Zero is divisible by seven, so a rule that only asked "is the streak a multiple of seven?"
+        // would announce a milestone for logging a missed day.
+        List<ProgressEntry> entries = List.of(entry(TODAY, false));
+
+        assertThat(calculator.milestoneReachedBy(entries, TODAY, TODAY)).isEmpty();
+    }
+
+    @Test
+    void GivenAStreakOfSevenEndingYesterday_WhenTodayIsLoggedAsNotCompleted_ThenTheMilestoneIsNotReachedAgain() {
+        // #101. An unsuccessful today does not break the run ending yesterday, so the streak is still 7
+        // after this entry — but this entry did not take it there.
+        List<ProgressEntry> entries = new ArrayList<>(completedRunEndingOn(TODAY.minusDays(1), 7));
+        entries.add(entry(TODAY, false));
+
+        assertThat(calculator.milestoneReachedBy(entries, TODAY, TODAY)).isEmpty();
+    }
+
+    @Test
+    void GivenAStreakOfSeven_WhenADayLongBeforeTheRunIsBackfilled_ThenTheMilestoneIsNotReachedAgain() {
+        // #101. A backfilled day outside the current run leaves the streak where it was.
+        LocalDate longBefore = TODAY.minusDays(30);
+        List<ProgressEntry> entries = new ArrayList<>(completedRunEndingOn(TODAY, 7));
+        entries.add(entry(longBefore, true));
+
+        assertThat(calculator.milestoneReachedBy(entries, longBefore, TODAY)).isEmpty();
+    }
+
+    @Test
+    void GivenTwoRunsOneDayApart_WhenTheGapIsBackfilledAndJoinsThemIntoSeven_ThenTheSevenDayMilestoneIsReached() {
+        LocalDate gap = TODAY.minusDays(3);
+        List<ProgressEntry> entries = new ArrayList<>(completedRunEndingOn(TODAY, 3));
+        entries.addAll(completedRunEndingOn(gap.minusDays(1), 3));
+        entries.add(entry(gap, true));
+
+        assertThat(calculator.milestoneReachedBy(entries, gap, TODAY)).hasValue(7);
+    }
+
+    @Test
+    void GivenABackfillThatJoinsTwoRunsPastAMultipleOfSeven_WhenItIsLogged_ThenTheHighestMilestoneCrossedIsReached() {
+        // 3 days, then the gap, then 11 more: the streak goes from 3 to 15, landing on no multiple of
+        // seven but passing both 7 and 14.
+        LocalDate gap = TODAY.minusDays(3);
+        List<ProgressEntry> entries = new ArrayList<>(completedRunEndingOn(TODAY, 3));
+        entries.addAll(completedRunEndingOn(gap.minusDays(1), 11));
+        entries.add(entry(gap, true));
+
+        assertThat(calculator.milestoneReachedBy(entries, gap, TODAY)).hasValue(14);
+    }
+
+    @Test
+    void GivenAStreakOfSix_WhenADayAfterTodayIsLogged_ThenNoMilestoneIsReached() {
+        // The current streak is counted back from today, so a future-dated entry is not part of it.
+        LocalDate tomorrow = TODAY.plusDays(1);
+        List<ProgressEntry> entries = new ArrayList<>(completedRunEndingOn(TODAY, 6));
+        entries.add(entry(tomorrow, true));
+
+        assertThat(calculator.milestoneReachedBy(entries, tomorrow, TODAY)).isEmpty();
+    }
+
+    /** {@code days} completed entries, one per day, the last of them on {@code lastDay}. */
+    private List<ProgressEntry> completedRunEndingOn(LocalDate lastDay, int days) {
+        return IntStream.range(0, days)
+                .mapToObj(i -> entry(lastDay.minusDays(i), true))
+                .toList();
     }
 }

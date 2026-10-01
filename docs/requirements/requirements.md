@@ -13,7 +13,7 @@ that gap would take.
 API (§5.4), so "a user can" means through the interface. Where the implementation falls short of an
 entry — in the interface or anywhere else — the entry is not weakened to match. Its *Enforced by* cell
 says **Known deviation** and links the issue that tracks the gap; the tests named there enforce the
-part that holds. Twenty-three entries carry one today, and the change that closes an issue takes its
+part that holds. Twenty-two entries carry one today, and the change that closes an issue takes its
 marker out.
 
 **IDs are permanent.** Tests, code comments, migrations and ADRs cite them, so an ID is never
@@ -171,7 +171,7 @@ The role model behind every entry here is [ADR-016](../ADRs/ADR-016-roles-read-f
 | BR-7 | When an upgrade has a tracking configuration, whether an entry counts as successful is decided by the server from that configuration, not by the client. Without one there is no target to judge against, and the entry keeps the `completed` value its caller sent | `ProgressEvaluationService`, `ProgressEvaluationServiceTest`, `TrackingServiceTest` |
 | BR-8 | A numeric entry counts only when its unit agrees with the target's; an unstated unit is read as the configured one | `ProgressEvaluationServiceTest` |
 | BR-9 | A streak counts consecutive days; a day not yet logged does not break it | `StreakCalculator`, `StreakCalculatorTest` |
-| BR-10 | A streak milestone is announced every seventh day, not every day | `TrackingServiceTest` (7, 14, 21, 70 against 1, 6, 8, 13, 69 — and zero) — **Known deviation:** [#101](https://github.com/NaimElijah/UpHealther/issues/101), any entry logged while the streak sits on a multiple of seven re-announces it |
+| BR-10 | A streak milestone is announced every seventh day, not every day: once, by the entry that carries the current streak to or past a multiple of seven, naming the highest one crossed. An entry that leaves the streak where it was announces nothing | `StreakCalculatorTest` (7, 14, 21, 70 against 1, 6, 8, 13, 69 — and zero; a day that does not count or is backfilled outside the run; a backfill that joins two runs), `TrackingServiceTest` |
 | BR-11 | An overdue upgrade is announced once, however many times the sweep rediscovers it | `NotificationServiceTest`, `NotificationEventListenerTest` |
 | BR-12 | A reminder with no day filter fires every day; an unrecognisable day is rejected when it is sent, never ignored | `ReminderTest`, `ReminderServiceTest`, `ReminderControllerTest` |
 | BR-13 | Reflections are append-only — there is no edit or delete path of their own. They go only with the upgrade they belong to (FR-14) | `ReflectionServiceTest` (asserted against the public surface), `ReflectionControllerTest`, `UpgradePersistenceIT` |

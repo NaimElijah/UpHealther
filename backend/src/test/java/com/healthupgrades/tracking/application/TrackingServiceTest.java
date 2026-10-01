@@ -35,11 +35,13 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -52,8 +54,8 @@ import static org.mockito.Mockito.when;
  *
  * <p>{@link StreakCalculator} and {@link ProgressEvaluationService} are mocked here even though they are
  * pure domain services with real tests of their own. That is deliberate: this class is about what the
- * service does <em>with</em> their verdicts, and stubbing the verdict is what lets BR-10 be exercised at
- * a streak of exactly 7 without constructing seven days of history that would then be testing
+ * service does <em>with</em> their verdicts, and stubbing the verdict is what lets BR-10's announcement
+ * be exercised without constructing seven days of history that would then be testing
  * {@code StreakCalculator} a second time.
  */
 @ExtendWith(MockitoExtension.class)
@@ -97,7 +99,6 @@ class TrackingServiceTest {
         when(evaluationService.isSuccessful(any(), any())).thenReturn(true);
         when(progressRepository.save(any(ProgressEntry.class))).thenAnswer(inv -> inv.getArgument(0));
         when(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenReturn(List.of());
-        when(streakCalculator.calculateCurrentStreak(any(), any())).thenReturn(3);
 
         ProgressEntry saved = service.recordProgress(userId, upgradeId, req);
 
@@ -128,7 +129,6 @@ class TrackingServiceTest {
         when(evaluationService.isSuccessful(any(), any())).thenReturn(false);
         when(progressRepository.save(any(ProgressEntry.class))).thenAnswer(inv -> inv.getArgument(0));
         when(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenReturn(List.of());
-        when(streakCalculator.calculateCurrentStreak(any(), any())).thenReturn(1);
 
         assertThat(service.recordProgress(userId, upgradeId, req).getCompleted()).isFalse();
     }
@@ -143,7 +143,6 @@ class TrackingServiceTest {
         when(configRepository.findByUpgradeId(upgradeId)).thenReturn(Optional.empty());
         when(progressRepository.save(any(ProgressEntry.class))).thenAnswer(inv -> inv.getArgument(0));
         when(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenReturn(List.of());
-        when(streakCalculator.calculateCurrentStreak(any(), any())).thenReturn(1);
 
         assertThat(service.recordProgress(userId, upgradeId, req).getCompleted()).isTrue();
         verify(evaluationService, never()).isSuccessful(any(), any());
@@ -157,7 +156,6 @@ class TrackingServiceTest {
         when(configRepository.findByUpgradeId(upgradeId)).thenReturn(Optional.empty());
         when(progressRepository.save(any(ProgressEntry.class))).thenAnswer(inv -> inv.getArgument(0));
         when(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenReturn(List.of());
-        when(streakCalculator.calculateCurrentStreak(any(), any())).thenReturn(1);
 
         assertThat(service.recordProgress(userId, upgradeId, req).getDate()).isEqualTo(today);
     }
@@ -175,7 +173,6 @@ class TrackingServiceTest {
             return e;
         });
         when(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenReturn(List.of());
-        when(streakCalculator.calculateCurrentStreak(any(), any())).thenReturn(1);
 
         service.recordProgress(userId, upgradeId, req);
 
@@ -201,35 +198,37 @@ class TrackingServiceTest {
     }
 
     // ---- BR-10: a milestone every seventh day ----
+    // Which lengths qualify, and when an entry has reached one, is StreakCalculatorTest's. These pin
+    // what the service does with that verdict.
 
     @ParameterizedTest
-    @ValueSource(ints = {7, 14, 21, 70})
-    void GivenTheStreakLandsOnASeventhDay_WhenProgressIsRecorded_ThenTheMilestoneIsAnnounced(int streak) {
-        recordWithStreak(streak);
+    @ValueSource(ints = {7, 14, 70})
+    void GivenTheEntryReachesAMilestone_WhenProgressIsRecorded_ThenThatMilestoneIsAnnounced(int milestone) {
+        recordWithMilestone(today, OptionalInt.of(milestone));
 
         ArgumentCaptor<StreakAchieved> event = ArgumentCaptor.forClass(StreakAchieved.class);
         verify(eventPublisher).publish(event.capture());
-        assertThat(event.getValue().streakDays()).isEqualTo(streak);
+        assertThat(event.getValue().streakDays()).isEqualTo(milestone);
         assertThat(event.getValue().upgradeId()).isEqualTo(upgradeId);
+        assertThat(event.getValue().userId()).isEqualTo(userId);
     }
 
-    @ParameterizedTest
-    @ValueSource(ints = {1, 6, 8, 13, 69})
-    void GivenTheStreakIsNotASeventhDay_WhenProgressIsRecorded_ThenNoMilestoneIsAnnounced(int streak) {
-        // Announcing every consecutive day would put a notification in the list once a day per tracked
-        // upgrade, which is what makes the milestone worth nothing.
-        recordWithStreak(streak);
+    @Test
+    void GivenTheEntryReachesNoMilestone_WhenProgressIsRecorded_ThenNothingIsAnnounced() {
+        recordWithMilestone(today, OptionalInt.empty());
 
         verify(eventPublisher, never()).publish(any(StreakAchieved.class));
     }
 
     @Test
-    void GivenNoStreakAtAll_WhenProgressIsRecorded_ThenNoMilestoneIsAnnounced() {
-        // Zero is divisible by seven. Without the `streak > 0` guard, logging a missed day would
-        // announce a milestone.
-        recordWithStreak(0);
+    void GivenABackfilledDay_WhenProgressIsRecorded_ThenTheMilestoneIsJudgedByThatDayAgainstTheClocksToday() {
+        // #101: the milestone depends on what *this* entry did to the streak, so the calculator has to be
+        // told which day was logged, while the streak itself is still counted back from today.
+        LocalDate lastWeek = today.minusDays(7);
 
-        verify(eventPublisher, never()).publish(any(StreakAchieved.class));
+        recordWithMilestone(lastWeek, OptionalInt.empty());
+
+        verify(streakCalculator).milestoneReachedBy(any(), eq(lastWeek), eq(today));
     }
 
     // ---- Reading progress ----
@@ -392,15 +391,15 @@ class TrackingServiceTest {
         assertThat(service.currentStreak(upgradeId)).isEqualTo(5);
     }
 
-    /** Records one entry against a stubbed streak length, which is what the BR-10 cases vary. */
-    private void recordWithStreak(int streak) {
+    /** Records one entry on {@code date} against a stubbed milestone verdict, which is what the BR-10 cases vary. */
+    private void recordWithMilestone(LocalDate date, OptionalInt milestone) {
         when(progressRepository.existsByUpgradeIdAndDate(any(), any())).thenReturn(false);
         when(configRepository.findByUpgradeId(upgradeId)).thenReturn(Optional.empty());
         when(progressRepository.save(any(ProgressEntry.class))).thenAnswer(inv -> inv.getArgument(0));
         when(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenReturn(List.of());
-        when(streakCalculator.calculateCurrentStreak(any(), any())).thenReturn(streak);
+        when(streakCalculator.milestoneReachedBy(any(), any(), any())).thenReturn(milestone);
 
         service.recordProgress(userId, upgradeId,
-                new ProgressEntryDetails(today, true, null, null, null, null));
+                new ProgressEntryDetails(date, true, null, null, null, null));
     }
 }
