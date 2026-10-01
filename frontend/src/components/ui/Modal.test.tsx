@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { createEvent, fireEvent, render, screen } from '@testing-library/react';
 import Modal from './Modal';
+import { ABOVE_MODAL_ATTRIBUTE } from './aboveModal';
 
 /**
  * Two jsdom limits shape how the focus tests below are written, and both are worth knowing before
@@ -144,7 +145,7 @@ describe('Modal', () => {
     it('GivenTwoOpenModals_WhenTheyRender_ThenNeitherMarksTheOtherInert', () => {
       render(<TwoModals />);
 
-      const overlays = document.querySelectorAll('[data-modal-overlay]');
+      const overlays = document.querySelectorAll(`[${ABOVE_MODAL_ATTRIBUTE}]`);
       expect(overlays.length).toBe(2);
       overlays.forEach((overlay) => expect(overlay.getAttribute('inert')).toBeNull());
     });
@@ -197,7 +198,7 @@ describe('Modal', () => {
       const trigger = screen.getByRole('button', { name: 'Open' });
       openVia(trigger);
 
-      fireEvent.click(document.querySelector('[data-modal-overlay]')!.firstElementChild!);
+      fireEvent.click(document.querySelector(`[${ABOVE_MODAL_ATTRIBUTE}]`)!.firstElementChild!);
 
       expect(document.activeElement).toBe(trigger);
     });
@@ -320,7 +321,7 @@ describe('Modal', () => {
       const onClose = vi.fn();
       renderModal(onClose);
 
-      fireEvent.click(document.querySelector('[data-modal-overlay]')!.firstElementChild!);
+      fireEvent.click(document.querySelector(`[${ABOVE_MODAL_ATTRIBUTE}]`)!.firstElementChild!);
 
       expect(onClose).toHaveBeenCalledTimes(1);
     });

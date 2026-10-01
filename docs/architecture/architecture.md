@@ -481,7 +481,7 @@ merely asserted. The marking is refcounted in module state inside `Modal.tsx`, s
 once behave, and the set of nodes is snapshotted on the first open.
 
 Two constraints fall out of that and bind anything added later. **A new `createPortal(...,
-document.body)` has to declare itself**: it either carries `data-modal-overlay`, meaning it belongs
+document.body)` has to declare itself**: it either carries `data-above-modal`, meaning it belongs
 above a dialog and must not be inerted, or it is mounted before a dialog opens so the walk can see it
 — a portal that appears while a dialog is already open is never marked and stays reachable behind one
 that says nothing behind it is. And **`inert` is the mechanism, never `aria-hidden`**: Testing
