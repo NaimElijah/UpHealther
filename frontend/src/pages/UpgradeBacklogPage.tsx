@@ -41,6 +41,13 @@ const difficultyOptions: { value: Difficulty; label: string }[] = [
 ];
 
 /**
+ * A start date the API can read. A date field accepts years past 9999 and gives them unsigned, while
+ * the API's `LocalDate` reads such a year only with a sign (`+20260-01-01`), so it would refuse the body
+ * with no field to name.
+ */
+const FOUR_DIGIT_YEAR_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
  * The idea backlog: every upgrade still in `IDEA`, and the form that creates new ones.
  *
  * This is where upgrades enter the system — creation is not offered on the planned or active pages,
@@ -105,6 +112,7 @@ const UpgradeBacklogPage: React.FC = () => {
     if (!planning) return;
     setPlanError('');
     if (!planDate) { setPlanError('Pick a start date.'); return; }
+    if (!FOUR_DIGIT_YEAR_DATE.test(planDate)) { setPlanError('Pick a date with a four-digit year.'); return; }
     try {
       await planMutation.mutateAsync({ id: planning.id, date: planDate });
     } catch (thrown) {

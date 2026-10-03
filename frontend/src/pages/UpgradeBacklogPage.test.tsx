@@ -128,6 +128,19 @@ describe('UpgradeBacklogPage', () => {
     expect(planUpgrade).not.toHaveBeenCalled();
   });
 
+  it('GivenAFiveDigitYear_WhenThePlanIsSubmitted_ThenNothingIsSentAndTheDialogAsksForFourDigits', async () => {
+    // A date field accepts years past 9999, and gives them without the sign `LocalDate` needs to read
+    // them (`+20260-01-01`), so the API would refuse the body with no field to name.
+    renderPage();
+    const dialog = await openPlan();
+
+    fireEvent.change(dialog.getByLabelText('Start date'), { target: { value: '20260-01-01' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Plan' }));
+
+    expect(await dialog.findByText('Pick a date with a four-digit year.')).toBeDefined();
+    expect(planUpgrade).not.toHaveBeenCalled();
+  });
+
   it('GivenAPlanInFlight_WhenTheDialogIsDismissed_ThenItStaysOpenUntilTheAnswerArrives', async () => {
     // One mutation serves every idea. Dismissed mid-flight, the dialog would let another idea's open
     // before this answer lands; the answer would then close that one, or put this refusal in it.
