@@ -64,11 +64,15 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     enabled: isAuthenticated,
   });
 
-  const { data: unreadCount = 0 } = useQuery({
+  const { data: serverUnread } = useQuery({
     queryKey: UNREAD_KEY,
     queryFn: getUnreadCount,
     enabled: isAuthenticated,
   });
+
+  // Until the server's count is read, or when it cannot be, the unread listed stands in: a lower bound,
+  // where zero would hide the badge and every "Mark all read" while unread rows are on screen.
+  const unreadCount = serverUnread ?? notifications.filter((n) => !n.read).length;
 
   /** Removes one toast, whether it was dismissed by the user or timed out. */
   const dismissToast = useCallback((id: string) => {
@@ -200,7 +204,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     );
     if (wasUnread) {
       await cancelCountFetch();
-      queryClient.setQueryData<number>(UNREAD_KEY, (old = 0) => Math.max(0, old - 1));
+      // A count never read is left unread rather than turned into an invented zero.
+      queryClient.setQueryData<number>(UNREAD_KEY, (old) => (old === undefined ? undefined : Math.max(0, old - 1)));
     }
     try {
       await markNotificationRead(id);

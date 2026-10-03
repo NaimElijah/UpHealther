@@ -271,6 +271,33 @@ describe('NotificationProvider', () => {
     await waitFor(() => expect(screen.getByTestId('unread').textContent).toBe('73'));
   });
 
+  it('GivenTheCountCannotBeRead_WhenTheBadgeIsRead_ThenItFallsBackToTheUnreadListed', async () => {
+    // Read as zero, a failed count hid the badge and every "Mark all read" while unread rows showed.
+    // The unread listed is a lower bound, and what the badge said before the count was the server's.
+    getNotifications.mockResolvedValue([PUSHED, { ...PUSHED, id: 'n-2' }, { ...PUSHED, id: 'n-3', read: true }]);
+    getUnreadCount.mockRejectedValue(new Error('Network Error'));
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('3'));
+    await waitFor(() => expect(getUnreadCount).toHaveBeenCalled());
+    await act(settled);
+
+    expect(screen.getByTestId('unread').textContent).toBe('2');
+  });
+
+  it('GivenTheCountCannotBeRead_WhenANotificationIsMarkedRead_ThenTheBadgeStillCountsTheListed', async () => {
+    // A drop applied to a count never read would invent a zero and hide the controls again.
+    getNotifications.mockResolvedValue([PUSHED, { ...PUSHED, id: 'n-2' }]);
+    getUnreadCount.mockRejectedValue(new Error('Network Error'));
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId('unread').textContent).toBe('2'));
+
+    act(() => screen.getByRole('button', { name: 'Mark read' }).click());
+
+    await waitFor(() => expect(markNotificationRead).toHaveBeenCalledWith(PUSHED.id));
+    await act(settled);
+    expect(screen.getByTestId('unread').textContent).toBe('1');
+  });
+
   it('GivenALiveNotification_WhenItArrives_ThenTheCountIsReadAgainFromTheServer', async () => {
     // Counting it locally instead could count it twice: the server's count may already include a
     // notification whose push arrives after the count was fetched.
