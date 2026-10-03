@@ -149,6 +149,27 @@ describe('UpgradeBacklogPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Plan Upgrade' })).toBeNull());
   });
 
+  it('GivenAPlannedIdea_WhenTheBacklogIsStillRefreshing_ThenTheDialogWaitsForTheNewList', async () => {
+    // Closed any sooner, the dialog would uncover the planned idea still listed with its Plan button,
+    // and planning it again would earn a 422 that reads as though the first plan had failed.
+    let refreshed: (ideas: HealthUpgrade[]) => void = () => {};
+    getUpgrades
+      .mockResolvedValueOnce([anIdea()])
+      .mockImplementationOnce(() => new Promise<HealthUpgrade[]>((resolve) => { refreshed = resolve; }));
+    renderPage();
+    const dialog = await openPlan();
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Plan' }));
+    await waitFor(() => expect(getUpgrades).toHaveBeenCalledTimes(2));
+
+    expect(screen.getByRole('dialog', { name: 'Plan Upgrade' })).toBeDefined();
+
+    await act(async () => refreshed([]));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Plan Upgrade' })).toBeNull());
+    expect(screen.queryByText('Cold showers')).toBeNull();
+  });
+
   it('GivenARefusedPlan_WhenTheDialogIsOpenedAgain_ThenItStartsWithoutTheOldMessage', async () => {
     planUpgrade.mockRejectedValueOnce(apiFailure(422, { status: 422, message: 'Only IDEA upgrades can be planned' }));
     renderPage();

@@ -66,7 +66,9 @@ const UpgradeBacklogPage: React.FC = () => {
 
   const planMutation = useMutation({
     mutationFn: ({ id, date }: { id: string; date: string }) => planUpgrade(id, date),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['upgrades'] }); setPlanning(null); },
+    // Awaited, so the dialog stays pending until the backlog no longer lists the idea; closed sooner it
+    // would uncover a Plan button whose second press earns a 422.
+    onSuccess: async () => { await qc.invalidateQueries({ queryKey: ['upgrades'] }); setPlanning(null); },
   });
 
   const handleCreate = async (e: React.FormEvent) => {
