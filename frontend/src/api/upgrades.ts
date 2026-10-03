@@ -34,11 +34,12 @@ export const updateUpgrade = async (id: string, req: Partial<CreateUpgradeReques
 /**
  * Maps a target UpgradeStatus to the corresponding action endpoint.
  * IDEA is the initial state set at creation and has no action endpoint.
- * Rescheduling ABANDONED upgrades uses rescheduleUpgrade() separately.
+ * Both ways into PLANNED need a date, so neither is here: planning an IDEA goes through planUpgrade(),
+ * and rescheduling an ABANDONED one through rescheduleUpgrade(). A PLANNED target is refused rather
+ * than sent, because these actions post no body and the API answers a dateless plan with a 400 (#88).
  */
 export const performUpgradeAction = async (id: string, status: UpgradeStatus): Promise<HealthUpgrade> => {
   const actionMap: Partial<Record<UpgradeStatus, string>> = {
-    PLANNED: 'plan',
     ACTIVE: 'activate',
     PAUSED: 'pause',
     COMPLETED: 'complete',
@@ -48,6 +49,18 @@ export const performUpgradeAction = async (id: string, status: UpgradeStatus): P
   const action = actionMap[status];
   if (!action) throw new Error(`Unsupported status transition to ${status}`);
   const { data } = await client.post<HealthUpgrade>(`/api/upgrades/${id}/${action}`);
+  return data;
+};
+
+/**
+ * Moves an `IDEA` to `PLANNED`, the only way out of `IDEA`.
+ *
+ * @param plannedStartDate `YYYY-MM-DD`, required by the API and free to be in the past, since users plan
+ *                         retroactively
+ * @throws the API's 422 when the upgrade is no longer an idea, and 404 when it is not the caller's
+ */
+export const planUpgrade = async (id: string, plannedStartDate: string): Promise<HealthUpgrade> => {
+  const { data } = await client.post<HealthUpgrade>(`/api/upgrades/${id}/plan`, { plannedStartDate });
   return data;
 };
 
