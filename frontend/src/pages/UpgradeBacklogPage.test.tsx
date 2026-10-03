@@ -13,7 +13,6 @@ vi.mock('../api/upgrades', () => ({
   getUpgrades: (...a: unknown[]) => getUpgrades(...a),
   planUpgrade: (...a: unknown[]) => planUpgrade(...a),
   createUpgrade: vi.fn(),
-  performUpgradeAction: vi.fn(),
 }));
 
 vi.mock('../api/healthAreas', () => ({

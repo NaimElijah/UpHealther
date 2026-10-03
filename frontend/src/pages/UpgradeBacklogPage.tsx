@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getUpgrades, createUpgrade, performUpgradeAction, planUpgrade } from '../api/upgrades';
+import { getUpgrades, createUpgrade, planUpgrade } from '../api/upgrades';
 import { getHealthAreas } from '../api/healthAreas';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
@@ -10,7 +10,7 @@ import Select from '../components/ui/Select';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import UpgradeCard from '../components/upgrade/UpgradeCard';
-import type { CreateUpgradeRequest, HealthUpgrade, UpgradeType, Difficulty, UpgradeStatus } from '../types';
+import type { CreateUpgradeRequest, HealthUpgrade, UpgradeType, Difficulty } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError, toFormMessage } from '../api/apiError';
@@ -64,11 +64,6 @@ const UpgradeBacklogPage: React.FC = () => {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['upgrades'] }); setIsOpen(false); setForm({ title: '', type: 'HABIT', difficulty: 'MEDIUM' }); },
   });
 
-  const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: UpgradeStatus }) => performUpgradeAction(id, status),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['upgrades'] }),
-  });
-
   const planMutation = useMutation({
     mutationFn: ({ id, date }: { id: string; date: string }) => planUpgrade(id, date),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['upgrades'] }); setPlanning(null); },
@@ -106,13 +101,6 @@ const UpgradeBacklogPage: React.FC = () => {
     }
   };
 
-  // Planning is the one transition that needs an answer from the user first, so it opens a dialog
-  // rather than going straight to the API (#88).
-  const handleStatusChange = (upgrade: HealthUpgrade, status: UpgradeStatus) => {
-    if (status === 'PLANNED') { openPlan(upgrade); return; }
-    statusMutation.mutate({ id: upgrade.id, status });
-  };
-
   const areaOptions = [{ value: '', label: 'No area' }, ...areas.map((a) => ({ value: a.id, label: a.name }))];
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
@@ -130,7 +118,7 @@ const UpgradeBacklogPage: React.FC = () => {
       ) : (
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {upgrades.map((u) => (
-            <UpgradeCard key={u.id} upgrade={u} onStatusChange={(_, status) => handleStatusChange(u, status)} />
+            <UpgradeCard key={u.id} upgrade={u} onPlan={openPlan} />
           ))}
         </div>
       )}

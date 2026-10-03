@@ -7,7 +7,7 @@ import EmptyState from '../components/ui/EmptyState';
 import UpgradeCard from '../components/upgrade/UpgradeCard';
 import Button from '../components/ui/Button';
 import { useNavigate } from 'react-router-dom';
-import type { UpgradeStatus } from '../types';
+import type { ActionTarget } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
@@ -25,7 +25,7 @@ const PlannedUpgradesPage: React.FC = () => {
   const { data: upgrades = [], isLoading, error } = useQuery({ queryKey: ['upgrades', 'PLANNED'], queryFn: () => getUpgrades('PLANNED') });
 
   const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: UpgradeStatus }) => performUpgradeAction(id, status),
+    mutationFn: ({ id, status }: { id: string; status: ActionTarget }) => performUpgradeAction(id, status),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['upgrades'] }),
   });
 

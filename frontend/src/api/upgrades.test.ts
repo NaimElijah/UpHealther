@@ -34,10 +34,14 @@ describe('the upgrades API', () => {
     expect(JSON.parse(sent[0].data as string)).toEqual({ plannedStartDate: '2026-04-01' });
   });
 
-  it('GivenAPlannedTarget_WhenItGoesThroughTheGenericAction_ThenItIsRefusedBeforeAnythingIsSent', async () => {
-    // The generic action posts no body, and the API answers a plan without a date with a 400.
-    await expect(performUpgradeAction('upgrade-1', 'PLANNED')).rejects.toThrow('Unsupported status transition to PLANNED');
+  it('GivenAPlannedTarget_WhenItIsPassedToTheGenericAction_ThenTheBuildRefusesIt', () => {
+    // Enforced by `tsc` in `npm run build`, not by this run: the generic action posts no body, and both
+    // ways into PLANNED carry a date. Should its parameter ever accept PLANNED again, the directive
+    // below goes unused and the build fails. The function is never called, so nothing is sent.
+    const datelessPlan = () =>
+      // @ts-expect-error PLANNED is not an ActionTarget
+      performUpgradeAction('upgrade-1', 'PLANNED');
 
-    expect(sent).toHaveLength(0);
+    expect(datelessPlan).toBeTypeOf('function');
   });
 });

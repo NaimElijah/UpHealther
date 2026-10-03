@@ -1,5 +1,5 @@
 import client from './client';
-import type { HealthUpgrade, CreateUpgradeRequest, UpgradeStatus } from '../types';
+import type { ActionTarget, HealthUpgrade, CreateUpgradeRequest, UpgradeStatus } from '../types';
 
 /** Lists the caller's upgrades, optionally narrowed to one status. */
 export const getUpgrades = async (status?: UpgradeStatus): Promise<HealthUpgrade[]> => {
@@ -32,23 +32,19 @@ export const updateUpgrade = async (id: string, req: Partial<CreateUpgradeReques
 };
 
 /**
- * Maps a target UpgradeStatus to the corresponding action endpoint.
- * IDEA is the initial state set at creation and has no action endpoint.
- * Both ways into PLANNED need a date, so neither is here: planning an IDEA goes through planUpgrade(),
- * and rescheduling an ABANDONED one through rescheduleUpgrade(). A PLANNED target is refused rather
- * than sent, because these actions post no body and the API answers a dateless plan with a 400 (#88).
+ * Moves an upgrade to `status` through that status's action endpoint, which takes no body.
+ *
+ * The parameter type is what keeps `PLANNED` out: both ways into it carry a date, so planning goes
+ * through planUpgrade() and rescheduling through rescheduleUpgrade() (#88).
  */
-export const performUpgradeAction = async (id: string, status: UpgradeStatus): Promise<HealthUpgrade> => {
-  const actionMap: Partial<Record<UpgradeStatus, string>> = {
+export const performUpgradeAction = async (id: string, status: ActionTarget): Promise<HealthUpgrade> => {
+  const actionMap: Record<ActionTarget, string> = {
     ACTIVE: 'activate',
     PAUSED: 'pause',
     COMPLETED: 'complete',
     ABANDONED: 'abandon',
-    // IDEA has no action endpoint — it is the initial state set at creation
   };
-  const action = actionMap[status];
-  if (!action) throw new Error(`Unsupported status transition to ${status}`);
-  const { data } = await client.post<HealthUpgrade>(`/api/upgrades/${id}/${action}`);
+  const { data } = await client.post<HealthUpgrade>(`/api/upgrades/${id}/${actionMap[status]}`);
   return data;
 };
 
