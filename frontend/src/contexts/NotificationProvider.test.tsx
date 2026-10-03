@@ -398,6 +398,21 @@ describe('NotificationProvider', () => {
     await waitFor(() => expect(screen.getByTestId('unread').textContent).toBe('5'));
   });
 
+  it('GivenTheServerRefusesAReadAll_WhenItFails_ThenTheCountIsReadAgain', async () => {
+    // The optimistic zero would otherwise outlive a refusal, and hide the controls until the next push.
+    getNotifications.mockResolvedValue([PUSHED]);
+    getUnreadCount.mockResolvedValue(73);
+    markAllNotificationsRead.mockRejectedValue(new Error('Network Error'));
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId('unread').textContent).toBe('73'));
+
+    act(() => screen.getByRole('button', { name: 'Mark all read' }).click());
+
+    await waitFor(() => expect(getUnreadCount).toHaveBeenCalledTimes(2));
+    await act(settled);
+    expect(screen.getByTestId('unread').textContent).toBe('73');
+  });
+
   it('GivenTheServerRefusesAMarkRead_WhenItFails_ThenTheCountIsReadAgain', async () => {
     getNotifications.mockResolvedValue([PUSHED]);
     getUnreadCount.mockResolvedValue(73);
