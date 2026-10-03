@@ -103,6 +103,15 @@ vi.mock('../api/notifications', () => ({
   markAllNotificationsRead: () => markAllNotificationsRead(),
 }));
 
+/** A count request the server has not answered yet, and in the test never will. */
+const unanswered = () => new Promise<number>(() => {});
+
+/**
+ * Lets every promise chain already started run to its end. Nothing here does real I/O, so by the next
+ * macrotask each one has; `act` alone drains too few microtasks for a write queued behind a cancel.
+ */
+const settled = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
 /** Puts every notification-API double back to a server with nothing in it that answers every call. */
 function resetNotificationApi() {
   for (const fn of [getNotifications, getUnreadCount, markNotificationRead, markAllNotificationsRead]) fn.mockReset();
@@ -276,9 +285,12 @@ describe('NotificationProvider', () => {
     expect(getUnreadCount).toHaveBeenCalledTimes(2);
   });
 
+  // The three below hold the count's re-read after the write unanswered, so what they see is the
+  // optimistic write alone.
+
   it('GivenAnUnreadNotification_WhenItIsMarkedRead_ThenTheCountDropsByOne', async () => {
     getNotifications.mockResolvedValue([PUSHED]);
-    getUnreadCount.mockResolvedValue(73);
+    getUnreadCount.mockResolvedValueOnce(73).mockImplementation(unanswered);
     renderProvider();
     await waitFor(() => expect(screen.getByTestId('unread').textContent).toBe('73'));
 
@@ -290,7 +302,7 @@ describe('NotificationProvider', () => {
 
   it('GivenANotificationAlreadyRead_WhenItIsMarkedReadAgain_ThenTheCountIsUnchanged', async () => {
     getNotifications.mockResolvedValue([{ ...PUSHED, read: true }]);
-    getUnreadCount.mockResolvedValue(5);
+    getUnreadCount.mockResolvedValueOnce(5).mockImplementation(unanswered);
     renderProvider();
     await waitFor(() => expect(screen.getByTestId('unread').textContent).toBe('5'));
 
@@ -304,7 +316,7 @@ describe('NotificationProvider', () => {
     // Zero is right even past the fifty listed: the server marks every notification read, not only
     // the ones this list holds.
     getNotifications.mockResolvedValue([PUSHED]);
-    getUnreadCount.mockResolvedValue(73);
+    getUnreadCount.mockResolvedValueOnce(73).mockImplementation(unanswered);
     renderProvider();
     await waitFor(() => expect(screen.getByTestId('unread').textContent).toBe('73'));
 
@@ -312,6 +324,51 @@ describe('NotificationProvider', () => {
 
     await waitFor(() => expect(screen.getByTestId('unread').textContent).toBe('0'));
     expect(markAllNotificationsRead).toHaveBeenCalledTimes(1);
+  });
+
+  it('GivenACountFetchInFlight_WhenANotificationIsMarkedRead_ThenTheStaleAnswerDoesNotStick', async () => {
+    // A push starts a count fetch, and the server answers it before the mark-read reaches it. Landing
+    // on top of the optimistic write, that answer would put the notification back in the count.
+    getNotifications.mockResolvedValue([PUSHED]);
+    let staleAnswer: (count: number) => void = () => {};
+    getUnreadCount
+      .mockResolvedValueOnce(73)
+      .mockImplementationOnce(() => new Promise<number>((resolve) => { staleAnswer = resolve; }))
+      .mockResolvedValue(72);
+    let confirmRead: () => void = () => {};
+    markNotificationRead.mockImplementation(() => new Promise<void>((resolve) => { confirmRead = resolve; }));
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId('unread').textContent).toBe('73'));
+    act(() => lastClient?.connect());
+    act(() => lastClient?.deliver(JSON.stringify({ ...PUSHED, id: 'n-2' })));
+    await waitFor(() => expect(getUnreadCount).toHaveBeenCalledTimes(2));
+
+    act(() => screen.getByRole('button', { name: 'Mark read' }).click());
+    await act(async () => staleAnswer(73));
+    await act(settled);
+
+    // The stale answer lands while the write is still in flight: only cancelling the fetch keeps it out.
+    expect(screen.getByTestId('unread').textContent).toBe('72');
+
+    await act(async () => confirmRead());
+
+    await waitFor(() => expect(getUnreadCount).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(screen.getByTestId('unread').textContent).toBe('72'));
+  });
+
+  it('GivenTheCountAlreadyExcludesTheNotification_WhenItIsMarkedRead_ThenTheServersCountWins', async () => {
+    // The list can be older than the count, since a push refreshes the count alone. Read in another
+    // tab, the notification is out of the count while this list still says unread, so the optimistic
+    // drop is one too many until the count is read again.
+    getNotifications.mockResolvedValue([PUSHED]);
+    getUnreadCount.mockResolvedValue(5);
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId('unread').textContent).toBe('5'));
+
+    act(() => screen.getByRole('button', { name: 'Mark read' }).click());
+
+    await waitFor(() => expect(getUnreadCount).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByTestId('unread').textContent).toBe('5'));
   });
 
   it('GivenTheServerRefusesAMarkRead_WhenItFails_ThenTheCountIsReadAgain', async () => {

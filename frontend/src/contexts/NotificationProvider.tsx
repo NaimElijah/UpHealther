@@ -172,32 +172,62 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [isAuthenticated, handleIncoming]);
 
   /**
+   * Cancels a count fetch already in flight, before an optimistic write to the count. That fetch was
+   * answered before the write reached the server, so landing afterwards it would undo the write.
+   * Cancelling also reverts the query to its state before that fetch; callers await it, as TanStack's
+   * optimistic-update guide prescribes, so their write lands after the revert rather than under it.
+   */
+  const cancelCountFetch = useCallback(
+    () => queryClient.cancelQueries({ queryKey: UNREAD_KEY }),
+    [queryClient],
+  );
+
+  /**
    * Marks one notification read, updating the cache first and calling the API after.
    *
    * The optimistic write is what makes the badge respond instantly. The count drops only if the
    * notification was unread, since marking a read one again changes nothing on the server. If the call
    * fails the list and the count are invalidated, so the server's answer replaces the guess rather than
    * the UI keeping a lie.
+   *
+   * The count is also read again once the call succeeds, because the drop is a guess made from the list,
+   * and the list can be older than the count: a push refreshes the count alone.
    */
-  const markRead = useCallback((id: string) => {
+  const markRead = useCallback(async (id: string) => {
     const wasUnread = queryClient.getQueryData<AppNotification[]>(NOTIF_KEY)?.some((n) => n.id === id && !n.read);
     queryClient.setQueryData<AppNotification[]>(NOTIF_KEY, (old = []) =>
       old.map((n) => (n.id === id ? { ...n, read: true } : n)),
     );
-    if (wasUnread) queryClient.setQueryData<number>(UNREAD_KEY, (old = 0) => Math.max(0, old - 1));
-    markNotificationRead(id).catch(() => queryClient.invalidateQueries({ queryKey: NOTIF_KEY }));
-  }, [queryClient]);
+    if (wasUnread) {
+      await cancelCountFetch();
+      queryClient.setQueryData<number>(UNREAD_KEY, (old = 0) => Math.max(0, old - 1));
+    }
+    try {
+      await markNotificationRead(id);
+    } catch {
+      await queryClient.invalidateQueries({ queryKey: NOTIF_KEY });
+      return;
+    }
+    await queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
+  }, [queryClient, cancelCountFetch]);
 
   /**
    * Marks every notification read, optimistically and with the same rollback-by-invalidation. The count
    * goes to zero, not merely down by the unread ones listed: the server marks every notification read,
-   * including those past the fifty fetched.
+   * including those past the fifty fetched. It is read again once the call succeeds, as in `markRead`.
    */
-  const markAllRead = useCallback(() => {
+  const markAllRead = useCallback(async () => {
     queryClient.setQueryData<AppNotification[]>(NOTIF_KEY, (old = []) => old.map((n) => ({ ...n, read: true })));
+    await cancelCountFetch();
     queryClient.setQueryData<number>(UNREAD_KEY, 0);
-    markAllNotificationsRead().catch(() => queryClient.invalidateQueries({ queryKey: NOTIF_KEY }));
-  }, [queryClient]);
+    try {
+      await markAllNotificationsRead();
+    } catch {
+      await queryClient.invalidateQueries({ queryKey: NOTIF_KEY });
+      return;
+    }
+    await queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
+  }, [queryClient, cancelCountFetch]);
 
   /**
    * Asks the browser for desktop-notification permission.
