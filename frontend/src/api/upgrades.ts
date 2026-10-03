@@ -1,5 +1,5 @@
 import client from './client';
-import type { HealthUpgrade, CreateUpgradeRequest, UpgradeStatus } from '../types';
+import type { ActionTarget, HealthUpgrade, CreateUpgradeRequest, UpgradeStatus } from '../types';
 
 /** Lists the caller's upgrades, optionally narrowed to one status. */
 export const getUpgrades = async (status?: UpgradeStatus): Promise<HealthUpgrade[]> => {
@@ -32,22 +32,31 @@ export const updateUpgrade = async (id: string, req: Partial<CreateUpgradeReques
 };
 
 /**
- * Maps a target UpgradeStatus to the corresponding action endpoint.
- * IDEA is the initial state set at creation and has no action endpoint.
- * Rescheduling ABANDONED upgrades uses rescheduleUpgrade() separately.
+ * Moves an upgrade to `status` through that status's action endpoint, which takes no body.
+ *
+ * The parameter type is what keeps `PLANNED` out: both ways into it carry a date, so planning goes
+ * through planUpgrade() and rescheduling through rescheduleUpgrade() (#88).
  */
-export const performUpgradeAction = async (id: string, status: UpgradeStatus): Promise<HealthUpgrade> => {
-  const actionMap: Partial<Record<UpgradeStatus, string>> = {
-    PLANNED: 'plan',
+export const performUpgradeAction = async (id: string, status: ActionTarget): Promise<HealthUpgrade> => {
+  const actionMap: Record<ActionTarget, string> = {
     ACTIVE: 'activate',
     PAUSED: 'pause',
     COMPLETED: 'complete',
     ABANDONED: 'abandon',
-    // IDEA has no action endpoint — it is the initial state set at creation
   };
-  const action = actionMap[status];
-  if (!action) throw new Error(`Unsupported status transition to ${status}`);
-  const { data } = await client.post<HealthUpgrade>(`/api/upgrades/${id}/${action}`);
+  const { data } = await client.post<HealthUpgrade>(`/api/upgrades/${id}/${actionMap[status]}`);
+  return data;
+};
+
+/**
+ * Moves an `IDEA` to `PLANNED`, the only way out of `IDEA`.
+ *
+ * @param plannedStartDate `YYYY-MM-DD`, required by the API and free to be in the past, since users plan
+ *                         retroactively
+ * @throws the API's 422 when the upgrade is no longer an idea, and 404 when it is not the caller's
+ */
+export const planUpgrade = async (id: string, plannedStartDate: string): Promise<HealthUpgrade> => {
+  const { data } = await client.post<HealthUpgrade>(`/api/upgrades/${id}/plan`, { plannedStartDate });
   return data;
 };
 

@@ -9,7 +9,7 @@ import Button from '../components/ui/Button';
 import UpgradeCard from '../components/upgrade/UpgradeCard';
 import EmptyState from '../components/ui/EmptyState';
 import { performUpgradeAction } from '../api/upgrades';
-import type { UpgradeStatus } from '../types';
+import type { ActionTarget } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
@@ -32,7 +32,7 @@ const DashboardPage: React.FC = () => {
   });
 
   /** Performs a lifecycle transition from a card, then refetches the dashboard it appeared on. */
-  const handleStatusChange = async (id: string, status: UpgradeStatus) => {
+  const handleStatusChange = async (id: string, status: ActionTarget) => {
     await performUpgradeAction(id, status);
     await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
   };
