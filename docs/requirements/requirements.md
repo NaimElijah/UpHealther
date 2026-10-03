@@ -13,7 +13,7 @@ that gap would take.
 API (§5.4), so "a user can" means through the interface. Where the implementation falls short of an
 entry — in the interface or anywhere else — the entry is not weakened to match. Its *Enforced by* cell
 says **Known deviation** and links the issue that tracks the gap; the tests named there enforce the
-part that holds. Twenty-two entries carry one today, and the change that closes an issue takes its
+part that holds. Twenty-one entries carry one today, and the change that closes an issue takes its
 marker out.
 
 **IDs are permanent.** Tests, code comments, migrations and ADRs cite them, so an ID is never
@@ -117,7 +117,7 @@ no way at all — to read another person's health records
 | FR-30 | A user with active upgrades and nothing logged is nudged once a day | `NotificationSchedulerTest` |
 | FR-31 | A user's reminders fire at the configured time and day | `NotificationSchedulerTest`, `ReminderTest` |
 | FR-32 | Notifications arrive in real time on a connected client, and are readable afterwards regardless | `StompNotificationPushAdapterTest`, `NotificationServiceTest`, `NotificationProvider.test.tsx` |
-| FR-33 | A user can read their fifty most recent notifications, see an unread count that covers every notification rather than only the fifty listed, and mark one or all as read | `NotificationServiceTest`, `NotificationControllerTest` — **Known deviation:** [#94](https://github.com/NaimElijah/UpHealther/issues/94), the interface counts only the fifty fetched |
+| FR-33 | A user can read their fifty most recent notifications, see an unread count that covers every notification rather than only the fifty listed, and mark one or all as read | `NotificationServiceTest`, `NotificationControllerTest`, `NotificationProvider.test.tsx` |
 | FR-49 | A user can opt in to desktop notifications, which are raised only while the tab is in the background — with the tab in view, the in-page notice already says it | `NotificationProvider.test.tsx` |
 
 FR-27's terms are the server's, and `DashboardAggregationServiceTest` pins each. An upgrade is **due
