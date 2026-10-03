@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -126,6 +126,27 @@ describe('UpgradeBacklogPage', () => {
 
     expect(await dialog.findByText('Pick a start date.')).toBeDefined();
     expect(planUpgrade).not.toHaveBeenCalled();
+  });
+
+  it('GivenAPlanInFlight_WhenTheDialogIsDismissed_ThenItStaysOpenUntilTheAnswerArrives', async () => {
+    // One mutation serves every idea. Dismissed mid-flight, the dialog would let another idea's open
+    // before this answer lands; the answer would then close that one, or put this refusal in it.
+    let answer: (planned: HealthUpgrade) => void = () => {};
+    planUpgrade.mockImplementation(() => new Promise<HealthUpgrade>((resolve) => { answer = resolve; }));
+    renderPage();
+    const dialog = await openPlan();
+    fireEvent.submit(dialog.getByRole('button', { name: 'Plan' }));
+    await waitFor(() => expect(planUpgrade).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(dialog.getByRole('button', { name: 'Close modal' }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(screen.getByRole('dialog', { name: 'Plan Upgrade' })).toBeDefined();
+
+    await act(async () => answer(anIdea({ status: 'PLANNED' })));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Plan Upgrade' })).toBeNull());
   });
 
   it('GivenARefusedPlan_WhenTheDialogIsOpenedAgain_ThenItStartsWithoutTheOldMessage', async () => {

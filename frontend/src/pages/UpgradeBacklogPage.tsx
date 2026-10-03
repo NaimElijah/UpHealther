@@ -89,6 +89,15 @@ const UpgradeBacklogPage: React.FC = () => {
     setPlanning(upgrade);
   };
 
+  /**
+   * Closes the plan dialog, but not while its request is in flight. One mutation serves every idea, so
+   * a dialog dismissed mid-flight would let another idea's open before this answer lands, and the
+   * answer would close that one or put this refusal in it.
+   */
+  const closePlan = () => {
+    if (!planMutation.isPending) setPlanning(null);
+  };
+
   const handlePlan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!planning) return;
@@ -138,12 +147,12 @@ const UpgradeBacklogPage: React.FC = () => {
         </form>
       </Modal>
 
-      <Modal isOpen={!!planning} onClose={() => setPlanning(null)} title="Plan Upgrade">
+      <Modal isOpen={!!planning} onClose={closePlan} title="Plan Upgrade">
         <form onSubmit={handlePlan} className="space-y-4">
           <p className="text-fg-subtle">When do you want to start <span className="font-medium text-fg">{planning?.title}</span>?</p>
           <Input label="Start date" type="date" value={planDate} onChange={(e) => setPlanDate(e.target.value)} error={planError} />
           <div className="flex gap-2 justify-end">
-            <Button variant="secondary" type="button" onClick={() => setPlanning(null)}>Cancel</Button>
+            <Button variant="secondary" type="button" onClick={closePlan} disabled={planMutation.isPending}>Cancel</Button>
             <Button type="submit" loading={planMutation.isPending}>Plan</Button>
           </div>
         </form>
