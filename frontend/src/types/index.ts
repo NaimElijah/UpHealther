@@ -112,6 +112,15 @@ export type UpgradeStatus =
   | 'COMPLETED'
   | 'ABANDONED';
 
+/**
+ * A status an upgrade is moved to by an action that carries nothing but the upgrade's id.
+ *
+ * `PLANNED` is not one: both ways into it carry a date (planning an idea, rescheduling an abandoned
+ * upgrade). Leaving it out is what makes a dateless plan impossible to write rather than refused at
+ * runtime (#88). `IDEA` is only ever the starting state.
+ */
+export type ActionTarget = Exclude<UpgradeStatus, 'IDEA' | 'PLANNED'>;
+
 /** How demanding an upgrade is. `HARD` is rationed: at most three may be active at once. */
 export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
 

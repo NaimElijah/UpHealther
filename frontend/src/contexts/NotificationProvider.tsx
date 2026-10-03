@@ -4,13 +4,19 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import { getAccessToken, hasUsableAccessToken } from '../api/tokenStore';
 import { renewSession } from '../api/client';
-import { getNotifications, markNotificationRead, markAllNotificationsRead } from '../api/notifications';
+import { getNotifications, getUnreadCount, markNotificationRead, markAllNotificationsRead } from '../api/notifications';
 import { NotificationContext } from './notificationContextValue';
 import ToastContainer, { type ToastData } from '../components/notifications/ToastContainer';
 import type { AppNotification } from '../types';
 
 /** Query key for the cached notification list, shared by the fetch and every live update below. */
 const NOTIF_KEY = ['notifications'];
+
+/**
+ * Query key for the server's unread count. It sits under `NOTIF_KEY` on purpose: invalidating that
+ * prefix after a failed write refetches the count along with the list.
+ */
+const UNREAD_KEY = [...NOTIF_KEY, 'unread-count'];
 
 /**
  * Builds the WebSocket URL.
@@ -35,6 +41,9 @@ function buildWsUrl(): string {
  * and a STOMP subscription for anything raised while the tab is open. Live arrivals are de-duplicated
  * by id, so a notification that comes in both ways is shown once.
  *
+ * The unread count is the server's, not one counted from the list: the list holds only the fifty most
+ * recent, and the count covers every notification (FR-33, #94).
+ *
  * Mounted inside the router because a toast can navigate, and inside the auth provider because the
  * socket authenticates with an access token. The connection follows the session: it opens when signed
  * in and closes on logout or unmount.
@@ -54,6 +63,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     queryFn: getNotifications,
     enabled: isAuthenticated,
   });
+
+  const { data: serverUnread } = useQuery({
+    queryKey: UNREAD_KEY,
+    queryFn: getUnreadCount,
+    enabled: isAuthenticated,
+  });
+
+  // Until the server's count is read, or when it cannot be, the unread listed stands in: a lower bound,
+  // where zero would hide the badge and every "Mark all read" while unread rows are on screen.
+  const unreadCount = serverUnread ?? notifications.filter((n) => !n.read).length;
 
   /** Removes one toast, whether it was dismissed by the user or timed out. */
   const dismissToast = useCallback((id: string) => {
@@ -83,6 +102,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     queryClient.setQueryData<AppNotification[]>(NOTIF_KEY, (old = []) =>
       old.some((x) => x.id === n.id) ? old : [n, ...old],
     );
+    // Read again rather than incremented: the count already fetched may include this notification.
+    queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
     pushToast(n);
     // OS/desktop notification only when the tab is backgrounded and permission was granted.
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.hidden) {
@@ -155,23 +176,63 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [isAuthenticated, handleIncoming]);
 
   /**
+   * Cancels a count fetch already in flight, before an optimistic write to the count. That fetch was
+   * answered before the write reached the server, so landing afterwards it would undo the write.
+   * Cancelling also reverts the query to its state before that fetch; callers await it, as TanStack's
+   * optimistic-update guide prescribes, so their write lands after the revert rather than under it.
+   */
+  const cancelCountFetch = useCallback(
+    () => queryClient.cancelQueries({ queryKey: UNREAD_KEY }),
+    [queryClient],
+  );
+
+  /**
    * Marks one notification read, updating the cache first and calling the API after.
    *
-   * The optimistic write is what makes the badge respond instantly. If the call fails the cache is
-   * invalidated, so the server's answer replaces the guess rather than the UI keeping a lie.
+   * The optimistic write is what makes the badge respond instantly. The count drops only if the
+   * notification was unread, since marking a read one again changes nothing on the server. If the call
+   * fails the list and the count are invalidated, so the server's answer replaces the guess rather than
+   * the UI keeping a lie.
+   *
+   * The count is also read again once the call succeeds, because the drop is a guess made from the list,
+   * and the list can be older than the count: a push refreshes the count alone.
    */
-  const markRead = useCallback((id: string) => {
+  const markRead = useCallback(async (id: string) => {
+    const wasUnread = queryClient.getQueryData<AppNotification[]>(NOTIF_KEY)?.some((n) => n.id === id && !n.read);
     queryClient.setQueryData<AppNotification[]>(NOTIF_KEY, (old = []) =>
       old.map((n) => (n.id === id ? { ...n, read: true } : n)),
     );
-    markNotificationRead(id).catch(() => queryClient.invalidateQueries({ queryKey: NOTIF_KEY }));
-  }, [queryClient]);
+    if (wasUnread) {
+      await cancelCountFetch();
+      // A count never read is left unread rather than turned into an invented zero.
+      queryClient.setQueryData<number>(UNREAD_KEY, (old) => (old === undefined ? undefined : Math.max(0, old - 1)));
+    }
+    try {
+      await markNotificationRead(id);
+    } catch {
+      await queryClient.invalidateQueries({ queryKey: NOTIF_KEY });
+      return;
+    }
+    await queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
+  }, [queryClient, cancelCountFetch]);
 
-  /** Marks every notification read, optimistically and with the same rollback-by-invalidation. */
-  const markAllRead = useCallback(() => {
+  /**
+   * Marks every notification read, optimistically and with the same rollback-by-invalidation. The count
+   * goes to zero, not merely down by the unread ones listed: the server marks every notification read,
+   * including those past the fifty fetched. It is read again once the call succeeds, as in `markRead`.
+   */
+  const markAllRead = useCallback(async () => {
     queryClient.setQueryData<AppNotification[]>(NOTIF_KEY, (old = []) => old.map((n) => ({ ...n, read: true })));
-    markAllNotificationsRead().catch(() => queryClient.invalidateQueries({ queryKey: NOTIF_KEY }));
-  }, [queryClient]);
+    await cancelCountFetch();
+    queryClient.setQueryData<number>(UNREAD_KEY, 0);
+    try {
+      await markAllNotificationsRead();
+    } catch {
+      await queryClient.invalidateQueries({ queryKey: NOTIF_KEY });
+      return;
+    }
+    await queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
+  }, [queryClient, cancelCountFetch]);
 
   /**
    * Asks the browser for desktop-notification permission.
@@ -183,8 +244,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (typeof Notification === 'undefined') return;
     Notification.requestPermission().then(setDesktopPermission);
   }, []);
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
     <NotificationContext.Provider

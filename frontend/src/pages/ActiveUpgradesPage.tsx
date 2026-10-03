@@ -7,7 +7,7 @@ import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import UpgradeCard from '../components/upgrade/UpgradeCard';
-import type { UpgradeStatus } from '../types';
+import type { ActionTarget } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
@@ -24,7 +24,7 @@ const ActiveUpgradesPage: React.FC = () => {
   const { data: upgrades = [], isLoading, error } = useQuery({ queryKey: ['upgrades', 'ACTIVE'], queryFn: () => getUpgrades('ACTIVE') });
 
   const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: UpgradeStatus }) => performUpgradeAction(id, status),
+    mutationFn: ({ id, status }: { id: string; status: ActionTarget }) => performUpgradeAction(id, status),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['upgrades'] }),
   });
 

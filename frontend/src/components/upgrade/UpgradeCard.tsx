@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { HealthUpgrade } from '../../types';
+import type { ActionTarget, HealthUpgrade } from '../../types';
 import UpgradeStatusBadge from './UpgradeStatusBadge';
 import UpgradeTypeBadge from './UpgradeTypeBadge';
 import Badge from '../ui/Badge';
@@ -11,11 +11,15 @@ import { difficultyBadgeVariant } from './upgradeMeta';
  * @param upgrade        the upgrade to show
  * @param onStatusChange called with the target status when a transition button is pressed; the card
  *                       does not perform the transition itself, so the page decides how to refresh
+ * @param onPlan         called when Plan is pressed on an idea. Separate from `onStatusChange` because
+ *                       planning needs a start date, so the page has to ask for one first (#88); Plan
+ *                       is offered only where this is given
  * @param showActions    hide the transition buttons where the card is read-only
  */
 interface Props {
   upgrade: HealthUpgrade;
-  onStatusChange?: (id: string, status: HealthUpgrade['status']) => void;
+  onStatusChange?: (id: string, status: ActionTarget) => void;
+  onPlan?: (upgrade: HealthUpgrade) => void;
   showActions?: boolean;
 }
 
@@ -26,7 +30,7 @@ interface Props {
  * complete a running one, resume a paused one. Offering only the legal moves is what keeps a user from
  * meeting a 422 they could not have predicted.
  */
-const UpgradeCard: React.FC<Props> = ({ upgrade, onStatusChange, showActions = true }) => {
+const UpgradeCard: React.FC<Props> = ({ upgrade, onStatusChange, onPlan, showActions = true }) => {
   const navigate = useNavigate();
 
   return (
@@ -49,13 +53,15 @@ const UpgradeCard: React.FC<Props> = ({ upgrade, onStatusChange, showActions = t
         <UpgradeTypeBadge type={upgrade.type} />
         <Badge variant={difficultyBadgeVariant(upgrade.difficulty)}>{upgrade.difficulty}</Badge>
       </div>
-      {showActions && onStatusChange && (
+      {showActions && upgrade.status === 'IDEA' && onPlan && (
         <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-line-subtle">
-          {upgrade.status === 'IDEA' && (
-            <Button size="sm" variant="secondary" onClick={() => onStatusChange(upgrade.id, 'PLANNED')}>
-              Plan
-            </Button>
-          )}
+          <Button size="sm" variant="secondary" onClick={() => onPlan(upgrade)}>
+            Plan
+          </Button>
+        </div>
+      )}
+      {showActions && upgrade.status !== 'IDEA' && onStatusChange && (
+        <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-line-subtle">
           {upgrade.status === 'PLANNED' && (
             <Button size="sm" onClick={() => onStatusChange(upgrade.id, 'ACTIVE')}>
               Activate
