@@ -26,6 +26,7 @@ import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -90,8 +91,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     /** Supplies the trace id stamped on every error body; see {@link #body}. */
     private final Tracer tracer;
 
+    /** Supplies the time stamped on every error body (NFR-15); see {@link #body}. */
+    private final Clock clock;
+
     /**
-     * Builds an error body carrying the trace id of the request that failed.
+     * Builds an error body carrying the trace id of the request that failed, stamped by the injected clock.
      *
      * <p>Every response this advice returns goes through here, so the tracer is consulted in exactly
      * one place. The id is what turns "I got a 500 on /api/upgrades" into a single log line; when there
@@ -99,7 +103,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * {@code @JsonInclude(NON_NULL)}.
      */
     private ErrorResponse body(int status, String message, String path) {
-        ErrorResponse body = new ErrorResponse(status, message, path);
+        ErrorResponse body = new ErrorResponse(status, message, path, LocalDateTime.now(clock));
         CorrelationId.of(tracer).ifPresent(body::setTraceId);
         return body;
     }
@@ -348,15 +352,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
          * Private on purpose: {@link GlobalExceptionHandler#body} is the only way to make one, which is
          * what stops a future handler from returning an error body with no trace id on it.
          *
-         * @param status  HTTP status code, repeated in the body for clients that only read the payload
-         * @param message user-facing description of the failure
-         * @param path    request URI that failed, for correlating a report with a log line
+         * @param status    HTTP status code, repeated in the body for clients that only read the payload
+         * @param message   user-facing description of the failure
+         * @param path      request URI that failed, for correlating a report with a log line
+         * @param timestamp when it failed, by the injected clock
          */
-        private ErrorResponse(int status, String message, String path) {
+        private ErrorResponse(int status, String message, String path, LocalDateTime timestamp) {
             this.status = status;
             this.message = message;
             this.path = path;
-            this.timestamp = LocalDateTime.now();
+            this.timestamp = timestamp;
         }
 
         public int getStatus() { return status; }
