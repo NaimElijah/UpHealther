@@ -33,29 +33,24 @@ import org.testcontainers.utility.DockerImageName;
  * run, in an order that depends on how fast the machine is. Raised on this base class rather than on
  * each subclass so every {@code *IT} keeps the same context cache key and the suite still starts one
  * application. {@code RateLimitedSignInTest} is where the limit itself is asserted.
+ *
+ * <p><strong>A cached context keeps one idle connection, not ten.</strong> Spring keeps every distinct
+ * test context alive for the whole run, and each holds its own Hikari pool, whose minimum idle defaults
+ * to its maximum of ten. Every {@code @DataJpaTest} that imports a different adapter is a distinct
+ * context, so idle pools alone outgrew PostgreSQL's hundred connections once one more persistence IT
+ * was added: whichever context started last was refused with "too many clients" and its whole class
+ * errored before an assertion ran. A minimum idle of one bounds what a context holds once its tests are
+ * done, while its pool can still grow to ten for a test that needs them concurrently. Set here, for the
+ * same reason as the rate limit: one value for every {@code *IT}, one context cache key.
  */
-@TestPropertySource(properties = "app.rate-limit.limit=1000000")
+@TestPropertySource(properties = {"app.rate-limit.limit=1000000", "spring.datasource.hikari.minimum-idle=1"})
 public abstract class PostgresIT {
 
     /** Matches the image {@code docker-compose.yml} runs, so tests and production share a dialect. */
     private static final DockerImageName IMAGE = DockerImageName.parse("postgres:15-alpine");
 
-    /**
-     * Room for every application context the run keeps alive at once.
-     *
-     * <p>Spring caches each distinct test context for the whole run, and each holds its own connection
-     * pool — Hikari's default of ten. Every {@code @DataJpaTest} that imports a different adapter is a
-     * distinct context, so the suite outgrows PostgreSQL's default of a hundred as persistence ITs are
-     * added. When it does, whichever context starts last is refused with "too many clients" and its whole
-     * class errors before any assertion runs. Raising the server's limit leaves every pool as production
-     * configures it.
-     */
-    private static final int MAX_CONNECTIONS = 300;
-
-    /** Testcontainers' default command - fsync off, which a throwaway database can afford - plus the limit above. */
     @ServiceConnection
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(IMAGE)
-            .withCommand("postgres", "-c", "fsync=off", "-c", "max_connections=" + MAX_CONNECTIONS);
+    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(IMAGE);
 
     static {
         POSTGRES.start();
