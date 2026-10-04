@@ -11,8 +11,9 @@ import java.time.Clock;
 /**
  * Spring Boot entry point for the HealthUpgrades API.
  *
- * <p>Scheduling is enabled here because two driving adapters are scheduled jobs rather than HTTP
- * endpoints: {@code UpgradeOverdueScheduler} and {@code NotificationScheduler}.
+ * <p>Scheduling is enabled here because three driving adapters are scheduled jobs rather than HTTP
+ * endpoints: {@code UpgradeOverdueScheduler}, {@code NotificationScheduler} and
+ * {@code AuthSessionCleanupScheduler}.
  */
 @SpringBootApplication
 @EnableScheduling

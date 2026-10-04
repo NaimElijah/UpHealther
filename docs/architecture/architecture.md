@@ -133,8 +133,9 @@ it calls that context's `application/port/in` interface and receives domain obje
 repository, never a web DTO. `TrackingService` confirms upgrade ownership this way before recording
 progress.
 
-**5. Scheduled invocation.** Three cron-driven jobs drive the core with no request behind them: the
-overdue sweep, the daily check-in nudge, and the per-minute reminder dispatch.
+**5. Scheduled invocation.** Four cron-driven jobs drive the core with no request behind them: the
+overdue sweep, the daily check-in nudge, the per-minute reminder dispatch, and the nightly sweep of
+sessions nothing can use again.
 
 ### Which contexts depend on which
 
@@ -260,10 +261,11 @@ one and when promoting a running one to HARD.
 | `UpgradeOverdueScheduler` | daily 08:00 | Publishes `UpgradeOverdueDetected` for every active upgrade past its target date. The notification listener creates at most one notification per upgrade, so the repeated detection does not repeat the alert |
 | `NotificationScheduler.notifyDailyCheckin` | daily 18:00 | Nudges users who have active upgrades and have logged nothing today, at most once a day |
 | `NotificationScheduler.dispatchReminders` | every minute | Fires the reminders due this minute. Due-ness is decided by the `Reminder` aggregate; the upgrades behind the due ones are loaded in one batch |
+| `AuthSessionCleanupScheduler` | daily 03:30 | Deletes revoked and expired sessions. Nothing depends on it running: an expired session is already refused by its own timestamps |
 
-All three read the clock through an injected `java.time.Clock`, which is what makes them testable
+All four read the clock through an injected `java.time.Clock`, which is what makes them testable
 without waiting. The clock and every cron keep time in UTC — `ServerZone`, which each `@Scheduled` names
-— so the defaults above are 08:00, 18:00 and the minute in UTC, whatever the host's zone
+— so the defaults above are 08:00, 18:00, the minute and 03:30 in UTC, whatever the host's zone
 ([ADR-020](../ADRs/ADR-020-the-server-keeps-time-in-utc.md)).
 
 ---

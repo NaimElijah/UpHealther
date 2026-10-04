@@ -29,7 +29,7 @@ flowchart LR
     subgraph backend["Backend container · Spring Boot :8080"]
         rest["REST controllers"]
         stomp["STOMP endpoint /ws"]
-        jobs["Scheduled jobs<br/>overdue · check-in · reminders"]
+        jobs["Scheduled jobs<br/>overdue · check-in · reminders · sessions"]
         core["Domain + application core"]
     end
 
