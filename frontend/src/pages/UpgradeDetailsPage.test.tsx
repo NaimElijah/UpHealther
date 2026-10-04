@@ -11,6 +11,7 @@ const getProgressByUpgrade = vi.fn();
 const createProgress = vi.fn();
 const getReflectionsByUpgrade = vi.fn();
 const createReflection = vi.fn();
+const getReminders = vi.fn();
 const createReminder = vi.fn();
 const saveTrackingConfig = vi.fn();
 
@@ -25,7 +26,7 @@ vi.mock('../api/reflections', () => ({
   createReflection: (...a: unknown[]) => createReflection(...a),
 }));
 vi.mock('../api/reminders', () => ({
-  getReminders: () => Promise.resolve([]),
+  getReminders: (...a: unknown[]) => getReminders(...a),
   createReminder: (...a: unknown[]) => createReminder(...a),
   deleteReminder: vi.fn(),
 }));
@@ -158,11 +159,13 @@ describe('UpgradeDetailsPage', () => {
     createProgress.mockReset();
     getReflectionsByUpgrade.mockReset();
     createReflection.mockReset();
+    getReminders.mockReset();
     createReminder.mockReset();
     saveTrackingConfig.mockReset();
     getUpgradeById.mockResolvedValue(anUpgrade());
     getProgressByUpgrade.mockResolvedValue([]);
     getReflectionsByUpgrade.mockResolvedValue([]);
+    getReminders.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -600,10 +603,29 @@ describe('UpgradeDetailsPage', () => {
     fireEvent.submit(screen.getByRole('button', { name: 'Add reminder' }));
     await screen.findByText('Must not be null');
 
+    const fetchesBeforeTheRetry = getReminders.mock.calls.length;
+
     fireEvent.submit(screen.getByRole('button', { name: 'Add reminder' }));
 
-    await waitFor(() => expect(createReminder).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(screen.queryByText('Must not be null')).toBeNull());
+    // A submit clears the message before it is answered, so absence alone proves nothing about the
+    // accepted save. The refetch happens only on success; wait for it, then look.
+    await waitFor(() => expect(getReminders.mock.calls.length).toBeGreaterThan(fetchesBeforeTheRetry));
+    expect(screen.queryByText('Must not be null')).toBeNull();
+  });
+
+  it('GivenTheUpgradeIsGone_WhenAReminderIsAdded_ThenItSaysWhyWithItsReference', async () => {
+    // A refusal that names no field carries the trace id that finds it (NFR-30).
+    createReminder.mockRejectedValue(apiFailure(404, {
+      status: 404,
+      message: 'Upgrade not found: upgrade-1',
+      traceId: 'trace-404',
+    }));
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    fireEvent.submit(screen.getByRole('button', { name: 'Add reminder' }));
+
+    expect(await screen.findByText('Upgrade not found: upgrade-1 (reference trace-404)')).toBeDefined();
   });
 
   it('GivenAProgressEntryWasRefused_WhenLogProgressIsOpenedAgain_ThenTheRefusalIsGone', async () => {
