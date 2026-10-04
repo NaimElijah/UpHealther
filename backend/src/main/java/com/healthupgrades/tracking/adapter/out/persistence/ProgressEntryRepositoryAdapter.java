@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -40,6 +41,12 @@ class ProgressEntryRepositoryAdapter implements ProgressEntryRepositoryPort {
     @Override
     public List<ProgressEntry> findByUpgradeIdOrderByDateDesc(UUID upgradeId) {
         return jpa.findByUpgradeIdOrderByDateDesc(upgradeId);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public List<ProgressEntry> findByUpgradeIdIn(Collection<UUID> upgradeIds) {
+        return jpa.findByUpgradeIdIn(upgradeIds);
     }
 
     /** {@inheritDoc} */

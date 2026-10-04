@@ -183,7 +183,8 @@ Three things in that flow are easy to miss:
 
 `GET /api/dashboard` is the widest read. `DashboardAggregationService` calls four inbound ports —
 upgrades, progress entries, streaks, health areas — buckets the upgrades by status and date, computes
-the weekly rate, and returns a `DashboardView` of domain objects. The web mapper then turns it into the
+the weekly rate, and returns a `DashboardView` of domain objects. The streaks of every active upgrade
+come from one call, which reads all their histories in a single query. The web mapper then turns it into the
 response, reusing the upgrade context's own mapper so the embedded upgrades are identical to what
 `/api/upgrades` returns, and mapping each distinct upgrade once so a single batched query resolves
 every tracking configuration rather than one per upgrade.

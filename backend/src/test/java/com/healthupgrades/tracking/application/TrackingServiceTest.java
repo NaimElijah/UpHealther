@@ -36,6 +36,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
@@ -46,6 +47,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -432,12 +434,45 @@ class TrackingServiceTest {
     }
 
     @Test
-    void GivenAnUpgrade_WhenTheDashboardAsksForItsStreak_ThenItIsMeasuredFromTheInjectedClock() {
-        List<ProgressEntry> entries = List.of(AProgressEntry.completedOn(upgradeId, userId, today, true));
-        when(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenReturn(entries);
-        when(streakCalculator.calculateCurrentStreak(entries, today)).thenReturn(5);
+    void GivenSeveralUpgrades_WhenTheDashboardAsksForTheirStreaks_ThenTheirHistoriesAreFetchedInOneBatch() {
+        // NFR-14 (#99). The dashboard asks for every running upgrade's streak on each load; reading each
+        // history separately made that one query per running upgrade.
+        List<UUID> ids = List.of(upgradeId, UUID.randomUUID(), UUID.randomUUID());
+        when(progressRepository.findByUpgradeIdIn(ids)).thenReturn(List.of());
 
-        assertThat(service.currentStreak(upgradeId)).isEqualTo(5);
+        service.currentStreaks(ids);
+
+        verify(progressRepository).findByUpgradeIdIn(ids);
+        verify(progressRepository, never()).findByUpgradeIdOrderByDateDesc(any());
+    }
+
+    @Test
+    void GivenUpgradesWithAndWithoutHistory_WhenTheirStreaksAreMeasured_ThenEachIsCountedFromItsOwnEntriesAndTheInjectedClock() {
+        // A real calculator, because what can go wrong here is the grouping around it: one upgrade's
+        // entries counted towards another's streak, an upgrade with no history left out of the answer,
+        // or "today" read from the system clock — which, on any day but the fixed one, makes all three 0.
+        TrackingService withRealCalculator = new TrackingService(configRepository, progressRepository,
+                upgradeQuery, new StreakCalculator(), evaluationService, eventPublisher, auditTrail, fixedClock);
+        UUID onceToday = UUID.randomUUID();
+        UUID neverLogged = UUID.randomUUID();
+        List<UUID> ids = List.of(upgradeId, onceToday, neverLogged);
+        when(progressRepository.findByUpgradeIdIn(ids)).thenReturn(List.of(
+                AProgressEntry.completedOn(upgradeId, userId, today, true),
+                AProgressEntry.completedOn(onceToday, userId, today, true),
+                AProgressEntry.completedOn(upgradeId, userId, today.minusDays(1), true),
+                AProgressEntry.completedOn(onceToday, userId, today.minusDays(2), true),
+                AProgressEntry.completedOn(upgradeId, userId, today.minusDays(2), true)));
+
+        assertThat(withRealCalculator.currentStreaks(ids))
+                .containsExactlyInAnyOrderEntriesOf(Map.of(upgradeId, 3, onceToday, 1, neverLogged, 0));
+    }
+
+    @Test
+    void GivenNoUpgrades_WhenTheirStreaksAreAskedFor_ThenNothingIsQueried() {
+        // A dashboard with nothing running asks for no streaks; an empty IN list is not worth a round trip.
+        assertThat(service.currentStreaks(List.of())).isEmpty();
+
+        verifyNoInteractions(progressRepository);
     }
 
     /** Records one entry on {@code date} against a stubbed milestone verdict, which is what the BR-10 cases vary. */

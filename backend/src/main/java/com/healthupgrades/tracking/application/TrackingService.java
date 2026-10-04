@@ -28,9 +28,12 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Application service for tracking configuration and progress logging.
@@ -242,9 +245,19 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Stre
      * already established ownership of the upgrades it is summarising.
      */
     @Override
-    public int currentStreak(UUID upgradeId) {
-        return streakCalculator.calculateCurrentStreak(
-                progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId), LocalDate.now(clock));
+    public Map<UUID, Integer> currentStreaks(Collection<UUID> upgradeIds) {
+        if (upgradeIds.isEmpty()) return Map.of(); // nothing asked for, nothing queried
+        Map<UUID, List<ProgressEntry>> historyByUpgrade = progressRepository.findByUpgradeIdIn(upgradeIds).stream()
+                .collect(Collectors.groupingBy(ProgressEntry::getUpgradeId));
+        LocalDate today = LocalDate.now(clock);
+        // Filled from the ids asked for rather than from the history, so an upgrade with nothing logged
+        // still gets its zero.
+        Map<UUID, Integer> streaks = new HashMap<>();
+        for (UUID upgradeId : upgradeIds) {
+            streaks.put(upgradeId, streakCalculator.calculateCurrentStreak(
+                    historyByUpgrade.getOrDefault(upgradeId, List.of()), today));
+        }
+        return streaks;
     }
 
 }
