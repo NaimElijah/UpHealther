@@ -19,19 +19,29 @@ public interface SessionCommand {
     SessionGrant open(UUID userId);
 
     /**
-     * Exchanges a refresh credential for a new one.
+     * Exchanges a refresh credential for a new one, and audits the attempt whatever its outcome.
      *
-     * @param presentedCredential the raw cookie value, entirely unvalidated
-     * @return what happened. Never throws, so a revocation decided here is not rolled back
+     * @param presentedCredential the raw cookie value, entirely unvalidated. A request that carried no
+     *                            cookie has presented nothing, and is answered without calling this
+     * @return what happened. A refusal is an outcome rather than an exception, so a revocation decided
+     *         here is not rolled back
+     * @throws RuntimeException when something it depends on fails. A failure inside the transaction is
+     *         audited as FAILED before it is rethrown; one that stops the transaction from starting never
+     *         reaches this method and is not audited (#133)
      */
     RefreshOutcome refresh(String presentedCredential);
 
     /**
-     * Ends the one session a credential belongs to, leaving the account signed in on its other devices.
+     * Ends the one session a credential belongs to, leaving the account signed in on its other devices,
+     * and audits the attempt whatever its outcome.
      *
-     * @param presentedCredential the raw cookie value
-     * @return whether a session was actually ended — for the audit trail rather than the caller, which
-     *         is answered the same either way
+     * @param presentedCredential the raw cookie value. A request that carried no cookie has presented
+     *                            nothing, and is answered without calling this
+     * @return whether the credential was accepted, which leaves its session ended — true as well for a
+     *         session that had already lapsed or been revoked. The caller is answered the same either way
+     * @throws RuntimeException when something it depends on fails. A failure inside the transaction is
+     *         audited as FAILED before it is rethrown; one that stops the transaction from starting never
+     *         reaches this method and is not audited (#133)
      */
     boolean revoke(String presentedCredential);
 

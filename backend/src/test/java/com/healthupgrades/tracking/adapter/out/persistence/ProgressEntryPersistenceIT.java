@@ -20,10 +20,12 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 /**
  * BR-6 — at most one progress entry per upgrade per date — proved against the constraint that actually
@@ -118,6 +120,44 @@ class ProgressEntryPersistenceIT extends PostgresIT {
     }
 
     @Test
+    void GivenSeveralUpgradesHistories_WhenTheyAreReadInOneBatch_ThenEveryEntryOfThoseUpgradesAndNoOtherComesBack() {
+        // NFR-14. The dashboard's streaks are counted from what this one query returns, so an entry it
+        // drops is a day missing from a streak, and one it adds from an upgrade not asked for is a day
+        // credited to the wrong one.
+        UUID secondUpgradeId = anotherUpgrade();
+        UUID notAskedFor = anotherUpgrade();
+        repository.save(entry(upgradeId, userId, DAY, true));
+        repository.save(entry(upgradeId, userId, DAY.minusDays(1), true));
+        repository.save(entry(secondUpgradeId, userId, DAY, false));
+        repository.save(entry(notAskedFor, userId, DAY, true));
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(repository.findByUpgradeIdIn(List.of(upgradeId, secondUpgradeId)))
+                .extracting(ProgressEntry::getUpgradeId, ProgressEntry::getDate)
+                .containsExactlyInAnyOrder(
+                        tuple(upgradeId, DAY), tuple(upgradeId, DAY.minusDays(1)), tuple(secondUpgradeId, DAY));
+    }
+
+    @Test
+    void GivenEntriesOnTwoDays_WhenTheUsersWhoLoggedOnOneAreRead_ThenOnlyThatDaysLoggersAreNamed() {
+        // The check-in sweep's "already logged today" guard (FR-30): a user named here is not nudged. So
+        // an entry that did not count still names its user — logging a miss is logging — and a day
+        // leaking into the next would silence the nudge for somebody who has logged nothing yet. The
+        // query reads every user's entries, so the assertions are about this test's users only.
+        UUID loggedYesterday = entityManager.persistAndFlush(
+                AUser.aUser().id(null).email("yesterday-" + UUID.randomUUID() + "@example.com").build()).getId();
+        UUID theirUpgradeId = entityManager.persistAndFlush(
+                AnUpgrade.ownedBy(loggedYesterday).id(null).status(UpgradeStatus.ACTIVE)
+                        .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now()).build()).getId();
+        repository.save(entry(upgradeId, userId, DAY, false));
+        repository.save(entry(theirUpgradeId, loggedYesterday, DAY.minusDays(1), true));
+        entityManager.flush();
+
+        assertThat(repository.findUserIdsWithEntriesOn(DAY)).contains(userId).doesNotContain(loggedYesterday);
+    }
+
+    @Test
     void GivenEntriesInsideAndOutsideTheWeek_WhenTheWeekIsQueried_ThenTheRangeIsInclusiveAtBothEnds() {
         // FR-21. The dashboard's weekly rate is computed over exactly what this query returns, so an
         // exclusive bound at either end quietly changes the number the user sees.
@@ -141,5 +181,12 @@ class ProgressEntryPersistenceIT extends PostgresIT {
         entityManager.flush();
 
         assertThat(repository.findByUserIdAndDate(userId, DAY)).isEmpty();
+    }
+
+    /** A second active upgrade for the same user, so a query can be shown to tell two apart. */
+    private UUID anotherUpgrade() {
+        return entityManager.persistAndFlush(
+                AnUpgrade.ownedBy(userId).id(null).status(UpgradeStatus.ACTIVE)
+                        .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now()).build()).getId();
     }
 }

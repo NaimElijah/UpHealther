@@ -25,6 +25,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -74,29 +75,46 @@ public class NotificationScheduler {
             Map<UUID, List<HealthUpgrade>> activeByUser = upgradeQuery.findByStatus(UpgradeStatus.ACTIVE).stream()
                     .collect(Collectors.groupingBy(HealthUpgrade::getUserId));
 
-            // A count, not a list of user ids: the point is whether the nudge went out at a plausible
-            // volume, and who was nudged is in their own notification list. A plain int in a plain loop -
-            // this map is walked on one thread, and an atomic would advertise a concurrency requirement
-            // that does not exist and send the next reader looking for it.
-            int nudged = 0;
-            for (Map.Entry<UUID, List<HealthUpgrade>> nudgeable : activeByUser.entrySet()) {
-                UUID userId = nudgeable.getKey();
-                List<HealthUpgrade> upgrades = nudgeable.getValue();
-                boolean alreadyNudged = notificationRepository.existsByUserIdAndTypeAndCreatedAtAfter(
-                        userId, NotificationType.CHECKIN_REMINDER, today.atStartOfDay());
-                boolean loggedToday = !progressQuery.findByUserIdAndDate(userId, today).isEmpty();
-                if (!alreadyNudged && !loggedToday) {
-                    nudged++;
-                    notificationService.create(userId, NotificationType.CHECKIN_REMINDER, NotificationCategory.REMINDER,
-                            "Daily check-in ⏳",
-                            "You have " + upgrades.size() + " active upgrade" + (upgrades.size() == 1 ? "" : "s")
-                                    + " to track today.", null);
-                }
-            }
+            // With nobody to nudge, the guards are not worth reading.
+            int nudged = activeByUser.isEmpty() ? 0 : nudge(activeByUser, today);
 
             log.info("{} {} {}", keyValue("job", CHECKIN_JOB),
                     keyValue("usersWithActiveUpgrades", activeByUser.size()), keyValue("nudged", nudged));
         });
+    }
+
+    /**
+     * Nudges each of the given users who has neither been nudged since midnight nor logged anything today.
+     *
+     * <p>Each guard is read once for the whole sweep rather than once per user (NFR-14), which keeps the
+     * sweep at two queries however many users have something running.
+     *
+     * @param activeByUser each user with running upgrades, and those upgrades
+     * @param today        the day the guards are read for
+     * @return how many users were nudged
+     */
+    private int nudge(Map<UUID, List<HealthUpgrade>> activeByUser, LocalDate today) {
+        Set<UUID> alreadyNudged = notificationRepository.findUserIdsNotifiedAfter(
+                NotificationType.CHECKIN_REMINDER, today.atStartOfDay());
+        Set<UUID> loggedToday = progressQuery.findUserIdsWithEntriesOn(today);
+
+        // A count, not a list of user ids: the point is whether the nudge went out at a plausible
+        // volume, and who was nudged is in their own notification list. A plain int in a plain loop -
+        // this map is walked on one thread, and an atomic would advertise a concurrency requirement
+        // that does not exist and send the next reader looking for it.
+        int nudged = 0;
+        for (Map.Entry<UUID, List<HealthUpgrade>> nudgeable : activeByUser.entrySet()) {
+            UUID userId = nudgeable.getKey();
+            List<HealthUpgrade> upgrades = nudgeable.getValue();
+            if (!alreadyNudged.contains(userId) && !loggedToday.contains(userId)) {
+                nudged++;
+                notificationService.create(userId, NotificationType.CHECKIN_REMINDER, NotificationCategory.REMINDER,
+                        "Daily check-in ⏳",
+                        "You have " + upgrades.size() + " active upgrade" + (upgrades.size() == 1 ? "" : "s")
+                                + " to track today.", null);
+            }
+        }
+        return nudged;
     }
 
     /**

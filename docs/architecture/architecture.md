@@ -106,7 +106,11 @@ exists only for deployments that split the origins.
 the API pushes. The handshake itself is unauthenticated — a browser cannot set headers on it — so the
 JWT travels in the STOMP `CONNECT` frame and is validated by a channel interceptor, which attaches a
 principal named by user id. Messages are routed to `/user/queue/notifications`, which the broker
-resolves per session using that principal.
+resolves per session using that principal. Every CONNECT that presents a credential is audited as
+`auth.connect`, allowed or refused (NFR-23), because the socket stays signed in as that user for as long
+as it is open; a refusal names nobody, as a refused login does. A CONNECT with no `Authorization` header
+— what a tab whose session could not be renewed sends every five seconds — presented nothing and is not
+an entry, as a refresh with no cookie is not.
 
 The same interceptor authorises the frames that follow, because a session that is merely connected
 can still name any destination it likes. A SUBSCRIBE must come from an authenticated session and
@@ -114,6 +118,8 @@ name `/user/queue/notifications` exactly — the resolved `/queue/notifications-
 session, and any `/topic`, are refused — and a SEND is refused outright, the application declaring
 no `@MessageMapping` for one to reach. Heartbeats, UNSUBSCRIBE and DISCONNECT pass untouched:
 they name nothing, and refusing a DISCONNECT would leave sessions to time out rather than close.
+A refused SUBSCRIBE or SEND is a WARN line, not an audit entry: it authorises a frame on a connection
+that is already authenticated.
 
 The broker is Spring's in-memory simple broker. There is no external broker, so a push reaches only
 clients connected to *this* instance — see "Known constraints" below.
@@ -183,7 +189,8 @@ Three things in that flow are easy to miss:
 
 `GET /api/dashboard` is the widest read. `DashboardAggregationService` calls four inbound ports —
 upgrades, progress entries, streaks, health areas — buckets the upgrades by status and date, computes
-the weekly rate, and returns a `DashboardView` of domain objects. The web mapper then turns it into the
+the weekly rate, and returns a `DashboardView` of domain objects. The streaks of every active upgrade
+come from one call, which reads all their histories in a single query. The web mapper then turns it into the
 response, reusing the upgrade context's own mapper so the embedded upgrades are identical to what
 `/api/upgrades` returns, and mapping each distinct upgrade once so a single batched query resolves
 every tracking configuration rather than one per upgrade.
@@ -224,7 +231,7 @@ sequenceDiagram
     B->>C: POST /api/auth/refresh — the old cookie
     C->>S: refresh(spent credential)
     alt inside the rotation grace window
-        S-->>C: Stale — two tabs, or a retry
+        S-->>C: Stale — two tabs, or a retry · audited, refused
         C-->>B: 409 · try again, nothing revoked
     else after it
         S->>DB: UPDATE revoked := true
@@ -239,6 +246,14 @@ only reason a replay is distinguishable from a guess — and a credential matchi
 revokes nothing, because the session id travels in a token claim and is therefore not a secret.
 And the `sid` claim is checked on every authenticated request, which is what turns a revoked row
 into a refused request rather than a wait for the token to expire.
+
+Every refresh and every sign-out the service is asked for is audited, as `auth.refresh` and
+`auth.logout`, refused ones included (NFR-23). A refusal names the session whenever the row exists, and
+its owner only when the presented credential is one the session issued — the session id is no secret,
+so a wrong secret says nothing about who sent it. Naming the owner says whose credential it was, not who
+sent it, which is also how the reuse entry names a credential that was probably stolen. A request with no cookie at all has presented
+nothing; the controller answers it without asking the service, so the refresh every signed-out page
+load makes is not an entry.
 
 ---
 
@@ -259,7 +274,7 @@ one and when promoting a running one to HARD.
 | Job | Default schedule | What it does |
 |---|---|---|
 | `UpgradeOverdueScheduler` | daily 08:00 | Publishes `UpgradeOverdueDetected` for every active upgrade past its target date. The notification listener creates at most one notification per upgrade, so the repeated detection does not repeat the alert |
-| `NotificationScheduler.notifyDailyCheckin` | daily 18:00 | Nudges users who have active upgrades and have logged nothing today, at most once a day |
+| `NotificationScheduler.notifyDailyCheckin` | daily 18:00 | Nudges users who have active upgrades and have logged nothing today, at most once a day. Each of its two guards — who was already nudged since midnight, and who has logged today — is one query for the whole sweep |
 | `NotificationScheduler.dispatchReminders` | every minute | Fires the reminders due this minute. Due-ness is decided by the `Reminder` aggregate; the upgrades behind the due ones are loaded in one batch |
 | `AuthSessionCleanupScheduler` | daily 03:30 | Deletes revoked and expired sessions. Nothing depends on it running: an expired session is already refused by its own timestamps |
 
@@ -343,8 +358,9 @@ it becomes a themed, reloadable message instead of a blank page.
 ### Audit
 
 `AuditTrail` is an outbound port in `common/domain/port/out/`, beside `DomainEventPublisher` and
-cross-cutting for the same reason. Every state-changing use case and both authentication outcomes record
-through it; `LoggingAuditTrail` writes them to a logger named `AUDIT` at INFO, and derives the
+cross-cutting for the same reason. Every state-changing use case records through it, as does every
+authentication outcome — a sign-in, a refresh, a sign-out and a STOMP CONNECT, allowed or refused — and
+the bootstrap promotion of the first administrator; `LoggingAuditTrail` writes them to a logger named `AUDIT` at INFO, and derives the
 `audit.events{action,outcome}` counter from the same call so the two cannot disagree.
 
 An entry is `(action, actorUserId, resourceId, outcome)` — two enums and two identifiers, with **nowhere
@@ -358,7 +374,9 @@ There is no audit table. An entry has to outlive the transaction it observes —
 rolls back, and a row written inside it would roll back too — and the trace id already on the line joins
 the entry to its request without a foreign key.
 [ADR-011](../ADRs/ADR-011-audit-as-a-log-stream.md) records the decision, what is deliberately not
-audited, and what would reverse it.
+audited, and what would reverse it;
+[ADR-021](../ADRs/ADR-021-what-a-refused-authentication-names-and-what-is-no-attempt.md) records whom a
+refused refresh, sign-out or CONNECT names, and which requests are no attempt at all.
 
 ### Metrics and health
 
@@ -550,6 +568,12 @@ Stated because they are load-bearing, not because they are problems yet:
   deferred to the commit, so work that rolls back is recorded — but `afterCompletion` does not say why,
   and an optimistic-lock clash, a lost unique-constraint race and an infrastructure failure at commit
   are indistinguishable there. All three are recorded `REFUSED`.
+- **An outage that stops a transaction from starting is not audited at all.** Every use case records
+  from inside its own `@Transactional` method, and with Hikari's default autocommit the connection is
+  taken when the transaction begins — so a database that is down or a pool that is exhausted fails in
+  the transaction proxy, before anything records the attempt. `AuthService.login`, which is not
+  transactional itself, is the one exception. Tracked in
+  [#133](https://github.com/NaimElijah/UpHealther/issues/133).
 - **The browser and the server each have their own "today".** The SPA dates an entry by the browser's
   zone (`src/lib/localDate.ts`). The server reads "today" from its own clock, which keeps UTC
   ([ADR-020](../ADRs/ADR-020-the-server-keeps-time-in-utc.md)), and a user has no zone. That clock
@@ -564,7 +588,8 @@ Stated because they are load-bearing, not because they are problems yet:
   Reminders keep the same clock: one set for 09:00 fires at 09:00 UTC wherever its owner is.
 - **A refused login is a rate signal, not an attribution.** The audit entry deliberately names no
   subject, so the trail cannot say whose account was targeted and will not support a lockout policy as
-  written.
+  written. The same holds for a refused CONNECT, and for a refused refresh or sign-out whose credential
+  the session never issued: that entry names the session, but not who presented the credential.
 
 ---
 
@@ -582,6 +607,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why correlation is Micrometer Tracing rather than a hand-rolled request id; why there is no exporter | [ADR-007](../ADRs/ADR-007-request-correlation-through-micrometer-tracing.md) |
 | Why logs are JSON in a container but not locally; what each level means; why nothing personal may be logged | [ADR-010](../ADRs/ADR-010-structured-logging-and-a-level-policy.md) |
 | Why the audit trail is a log stream rather than a table or Envers; why refusals are recorded; what is not audited | [ADR-011](../ADRs/ADR-011-audit-as-a-log-stream.md) |
+| Whom a refused refresh, sign-out or CONNECT names; why a request with no credential, a per-request token check and a refused SUBSCRIBE are not audited | [ADR-021](../ADRs/ADR-021-what-a-refused-authentication-names-and-what-is-no-attempt.md) |
 | Why metrics are a scrape endpoint and not an exporter or a Grafana stack; why the actuator surface is closed by name | [ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md) |
 | Why every page shares one width; why the shell can be trusted not to overflow; why container queries were turned down | [ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md) |
 | Why the dialog traps focus by hand rather than through a native `<dialog>`; why `inert` and not `aria-hidden`; why the overlay is portalled | [ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md) |

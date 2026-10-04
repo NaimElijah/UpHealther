@@ -1,6 +1,10 @@
 package com.healthupgrades.admin.adapter.in.bootstrap;
 
+import com.healthupgrades.common.domain.audit.AuditAction;
+import com.healthupgrades.common.domain.audit.AuditEvent;
+import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.support.AUser;
+import com.healthupgrades.support.RecordingAuditTrail;
 import com.healthupgrades.user.application.port.in.UserCommand;
 import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.Role;
@@ -9,12 +13,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessResourceFailureException;
 
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -45,6 +51,9 @@ class AdminBootstrapRunnerTest {
     @Mock UserQuery userQuery;
     @Mock UserCommand userCommand;
 
+    /** A real one, not a mock: AuditTrail.recording is a default method, and a mock would skip the work. */
+    private final RecordingAuditTrail auditTrail = new RecordingAuditTrail();
+
     @Test
     void GivenAnInstallationWithNoAdministrator_WhenTheNamedAccountExists_ThenItIsPromoted() {
         User account = AUser.withId(BOOTSTRAP_ID);
@@ -58,6 +67,33 @@ class AdminBootstrapRunnerTest {
     }
 
     @Test
+    void GivenAnInstallationWithNoAdministrator_WhenTheNamedAccountIsPromoted_ThenThePromotionIsAuditedWithNoActor() {
+        // NFR-23. Somebody just gained the power to disable every other account, and until now the only
+        // record of it was the row itself. No person granted it - the deployment did - so no actor is named.
+        when(userQuery.existsEnabledWithRole(Role.ADMIN)).thenReturn(false);
+        when(userQuery.findById(BOOTSTRAP_ID)).thenReturn(Optional.of(AUser.withId(BOOTSTRAP_ID)));
+
+        run(BOOTSTRAP_ID.toString());
+
+        assertThat(auditTrail.only(AuditAction.ADMIN_BOOTSTRAP))
+                .hasValue(AuditEvent.allowed(AuditAction.ADMIN_BOOTSTRAP, null, BOOTSTRAP_ID));
+    }
+
+    @Test
+    void GivenThePromotionCannotBeSaved_WhenTheRunnerRuns_ThenTheAttemptIsAuditedAsFailed() {
+        User account = AUser.withId(BOOTSTRAP_ID);
+        when(userQuery.existsEnabledWithRole(Role.ADMIN)).thenReturn(false);
+        when(userQuery.findById(BOOTSTRAP_ID)).thenReturn(Optional.of(account));
+        when(userCommand.save(account)).thenThrow(new DataAccessResourceFailureException("the database is unreachable"));
+
+        assertThatThrownBy(() -> run(BOOTSTRAP_ID.toString()))
+                .isInstanceOf(DataAccessResourceFailureException.class);
+
+        assertThat(auditTrail.only(AuditAction.ADMIN_BOOTSTRAP)).hasValue(
+                new AuditEvent(AuditAction.ADMIN_BOOTSTRAP, null, BOOTSTRAP_ID, AuditOutcome.FAILED));
+    }
+
+    @Test
     void GivenAnAdministratorAlreadyExists_WhenTheRunnerRuns_ThenNobodyIsPromoted() {
         // The property that makes it safe to leave the variable set: a deliberate demotion is not undone
         // by the next restart.
@@ -66,6 +102,7 @@ class AdminBootstrapRunnerTest {
         run(BOOTSTRAP_ID.toString());
 
         verify(userCommand, never()).save(any());
+        assertThat(auditTrail.recorded()).isEmpty();
     }
 
     @Test
@@ -84,12 +121,29 @@ class AdminBootstrapRunnerTest {
     }
 
     @Test
+    void GivenTheNamedAccountIsDisabled_WhenTheRunnerRuns_ThenItIsNotPromotedAndNothingIsAudited() {
+        // A disabled administrator administers nothing, so promoting one recovers nothing - and while no
+        // enabled administrator exists the runner would do it again on every restart, each time recording
+        // a grant that changed nothing. Found in the review of #132.
+        User disabled = AUser.aUser().id(BOOTSTRAP_ID).enabled(false).build();
+        when(userQuery.existsEnabledWithRole(Role.ADMIN)).thenReturn(false);
+        when(userQuery.findById(BOOTSTRAP_ID)).thenReturn(Optional.of(disabled));
+
+        assertThatCode(() -> run(BOOTSTRAP_ID.toString())).doesNotThrowAnyException();
+
+        assertThat(disabled.getRole()).isNotEqualTo(Role.ADMIN);
+        verify(userCommand, never()).save(any());
+        assertThat(auditTrail.recorded()).isEmpty();
+    }
+
+    @Test
     void GivenNoBootstrapIdIsConfigured_WhenTheRunnerRuns_ThenNothingIsReadOrWritten() {
         // The normal case, on every start of every installation that already has an administrator.
         run("");
 
         verify(userQuery, never()).existsEnabledWithRole(any());
         verify(userCommand, never()).save(any());
+        assertThat(auditTrail.recorded()).isEmpty();
     }
 
     @Test
@@ -100,6 +154,7 @@ class AdminBootstrapRunnerTest {
         assertThatCode(() -> run(BOOTSTRAP_ID.toString())).doesNotThrowAnyException();
 
         verify(userCommand, never()).save(any());
+        assertThat(auditTrail.recorded()).isEmpty();
     }
 
     @Test
@@ -110,9 +165,10 @@ class AdminBootstrapRunnerTest {
 
         verify(userQuery, never()).findById(any());
         verify(userCommand, never()).save(any());
+        assertThat(auditTrail.recorded()).isEmpty();
     }
 
     private void run(String bootstrapUserId) {
-        new AdminBootstrapRunner(userQuery, userCommand, bootstrapUserId).run(null);
+        new AdminBootstrapRunner(userQuery, userCommand, auditTrail, bootstrapUserId).run(null);
     }
 }

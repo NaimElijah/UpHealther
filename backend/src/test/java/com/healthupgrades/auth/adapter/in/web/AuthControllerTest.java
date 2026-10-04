@@ -363,6 +363,20 @@ class AuthControllerTest {
     }
 
     @Test
+    void GivenNoCookieAtAll_WhenARefreshIsAttempted_ThenItAnswers401WithoutConsultingTheSessions()
+            throws Exception {
+        // Every signed-out page load asks once whether there is a session to renew. Nothing was presented,
+        // so there is no session to ask about and no attempt to audit (NFR-23): an entry per anonymous
+        // visit would bury the refusals worth reading.
+        mockMvc.perform(post("/api/auth/refresh")
+                        .header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401));
+
+        verify(sessions, never()).refresh(any());
+    }
+
+    @Test
     void GivenNoRequestedWithHeader_WhenASignOutIsAttempted_ThenItIsRefusedAs400() throws Exception {
         mockMvc.perform(post("/api/auth/logout").cookie(PRESENTED))
                 .andExpect(status().isBadRequest());

@@ -6,6 +6,7 @@ import com.healthupgrades.notification.domain.model.NotificationType; // used by
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -28,8 +29,11 @@ public interface NotificationRepositoryPort {
     /** Dedup guard: whether a system notification of a type already exists for an upgrade. */
     boolean existsByUserIdAndRelatedUpgradeIdAndType(UUID userId, UUID relatedUpgradeId, NotificationType type);
 
-    /** Dedup guard: whether a notification of a type was created for a user after a timestamp. */
-    boolean existsByUserIdAndTypeAndCreatedAtAfter(UUID userId, NotificationType type, LocalDateTime after);
+    /**
+     * Dedup guard for a sweep: every user sent a notification of a type after a timestamp, in one query
+     * rather than one per user (NFR-14).
+     */
+    Set<UUID> findUserIdsNotifiedAfter(NotificationType type, LocalDateTime after);
 
     /** Marks all of a user's unread notifications as read in a single bulk update. */
     void markAllReadForUser(UUID userId);
