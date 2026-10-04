@@ -83,6 +83,14 @@ const DAY_ALREADY_LOGGED = apiFailure(409, {
 });
 const DAY_ALREADY_LOGGED_MESSAGE = 'Progress already recorded for date: 2026-03-12 (reference trace-409)';
 
+/** BR-16's answer to a tracking unit past its column's bound. */
+const OVERLONG_UNIT = apiFailure(400, {
+  status: 400,
+  message: 'Validation failed',
+  fieldErrors: { targetUnit: 'size must be between 0 and 100' },
+});
+const OVERLONG_UNIT_MESSAGE = 'TargetUnit: size must be between 0 and 100.';
+
 /** The API's answer to a reminder sent with its time cleared: `reminderTime` is required. */
 const NO_REMINDER_TIME = apiFailure(400, {
   status: 400,
@@ -477,18 +485,65 @@ describe('UpgradeDetailsPage', () => {
   });
 
   it('GivenAnOverlongUnit_WhenTheTrackingConfigurationIsSaved_ThenTheDialogStaysOpenAndNamesTheField', async () => {
-    saveTrackingConfig.mockRejectedValue(apiFailure(400, {
-      status: 400,
-      message: 'Validation failed',
-      fieldErrors: { targetUnit: 'size must be between 0 and 100' },
-    }));
+    saveTrackingConfig.mockRejectedValue(OVERLONG_UNIT);
     renderPage();
     await screen.findByText('Cold showers');
     fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
     fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
 
     const dialog = await screen.findByRole('dialog', { name: 'Configure Tracking' });
-    expect(await within(dialog).findByText('TargetUnit: size must be between 0 and 100.')).toBeDefined();
+    expect(await within(dialog).findByText(OVERLONG_UNIT_MESSAGE)).toBeDefined();
+  });
+
+  it('GivenAValidConfiguration_WhenTrackingIsSaved_ThenTheDialogCloses', async () => {
+    saveTrackingConfig.mockResolvedValue(anUpgrade());
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('GivenASavedNumericConfiguration_WhenEditIsOpened_ThenTheFormShowsIt', async () => {
+    // Saving starts from what the dialog shows, so defaults here would overwrite the user's target.
+    getUpgradeById.mockResolvedValue({
+      ...anUpgrade(),
+      trackingConfig: {
+        id: 'tc-1',
+        upgradeId: UPGRADE_ID,
+        trackingType: 'NUMERIC',
+        frequency: 'WEEKLY',
+        targetNumericValue: 10,
+        targetUnit: 'minutes',
+        requiredDaily: false,
+      },
+    });
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Configure Tracking' });
+    expect((within(dialog).getByLabelText('Tracking type') as HTMLSelectElement).value).toBe('NUMERIC');
+    expect((within(dialog).getByLabelText('Frequency') as HTMLSelectElement).value).toBe('WEEKLY');
+    expect((within(dialog).getByLabelText('Target value') as HTMLInputElement).value).toBe('10');
+    expect((within(dialog).getByLabelText('Unit') as HTMLInputElement).value).toBe('minutes');
+    expect((within(dialog).getByLabelText('Required daily') as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('GivenATrackingSaveWasRefused_WhenTheDialogIsReopened_ThenTheRefusalIsGone', async () => {
+    saveTrackingConfig.mockRejectedValue(OVERLONG_UNIT);
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText(OVERLONG_UNIT_MESSAGE);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
+
+    expect(screen.queryByText(OVERLONG_UNIT_MESSAGE)).toBeNull();
   });
 
   it('GivenNoTime_WhenAReminderIsAdded_ThenItSaysWhy', async () => {
@@ -560,11 +615,11 @@ describe('UpgradeDetailsPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
     await act(async () => {
-      refuseTheSave(apiFailure(400, { status: 400, message: 'Validation failed', fieldErrors: { targetUnit: 'size must be between 0 and 100' } }));
+      refuseTheSave(OVERLONG_UNIT);
     });
 
     expect(screen.getByRole('dialog', { name: 'Configure Tracking' })).toBeDefined();
-    expect(screen.queryByText('TargetUnit: size must be between 0 and 100.')).toBeNull();
+    expect(screen.queryByText(OVERLONG_UNIT_MESSAGE)).toBeNull();
   });
 
   it('GivenATrackingSaveStillInFlight_WhenTheDialogIsReopenedAndTheSaveSucceeds_ThenTheReopenedDialogStaysOpen', async () => {
