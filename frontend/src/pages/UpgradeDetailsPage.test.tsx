@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useNavigate, type NavigateFunction } from 'react-router-dom';
 import UpgradeDetailsPage from './UpgradeDetailsPage';
@@ -10,6 +11,9 @@ const getProgressByUpgrade = vi.fn();
 const createProgress = vi.fn();
 const getReflectionsByUpgrade = vi.fn();
 const createReflection = vi.fn();
+const getReminders = vi.fn();
+const createReminder = vi.fn();
+const saveTrackingConfig = vi.fn();
 
 vi.mock('../api/upgrades', () => ({ getUpgradeById: (...a: unknown[]) => getUpgradeById(...a) }));
 vi.mock('../api/progress', () => ({
@@ -22,11 +26,11 @@ vi.mock('../api/reflections', () => ({
   createReflection: (...a: unknown[]) => createReflection(...a),
 }));
 vi.mock('../api/reminders', () => ({
-  getReminders: () => Promise.resolve([]),
-  createReminder: vi.fn(),
+  getReminders: (...a: unknown[]) => getReminders(...a),
+  createReminder: (...a: unknown[]) => createReminder(...a),
   deleteReminder: vi.fn(),
 }));
-vi.mock('../api/trackingConfig', () => ({ saveTrackingConfig: vi.fn() }));
+vi.mock('../api/trackingConfig', () => ({ saveTrackingConfig: (...a: unknown[]) => saveTrackingConfig(...a) }));
 
 const UPGRADE_ID = 'upgrade-1';
 const OTHER_UPGRADE_ID = 'upgrade-2';
@@ -64,6 +68,45 @@ function anEntry(id: string, date: string, note: string, values: Partial<Progres
 function aReflection(id: string, date: string, whatWorked: string): Reflection {
   return { id, upgradeId: UPGRADE_ID, userId: 'user-1', date, whatWorked, createdAt: `${date}T20:00:00` };
 }
+
+/** A refusal shaped the way axios delivers one, so `toApiError` decodes it as it would in production. */
+function apiFailure(status: number, body: unknown): AxiosError {
+  const config = { headers: new AxiosHeaders() } as InternalAxiosRequestConfig;
+  const response = { data: body, status, statusText: '', headers: new AxiosHeaders(), config } as AxiosResponse;
+  return new AxiosError('Request failed', String(status), config, {}, response);
+}
+
+/** BR-6's answer to a second entry for one day: a 409 with no field to blame, so it carries its reference. */
+const DAY_ALREADY_LOGGED = apiFailure(409, {
+  status: 409,
+  message: 'Progress already recorded for date: 2026-03-12',
+  traceId: 'trace-409',
+});
+const DAY_ALREADY_LOGGED_MESSAGE = 'Progress already recorded for date: 2026-03-12 (reference trace-409)';
+
+/** A rating outside 1-5. A field refusal names its field instead of a reference, so none is shown. */
+const RATING_OUT_OF_RANGE = apiFailure(400, {
+  status: 400,
+  message: 'Validation failed',
+  fieldErrors: { benefitRating: 'must be less than or equal to 5' },
+  traceId: 'trace-400',
+});
+const RATING_OUT_OF_RANGE_MESSAGE = 'BenefitRating: must be less than or equal to 5.';
+
+/** BR-16's answer to a tracking unit past its column's bound. */
+const OVERLONG_UNIT = apiFailure(400, {
+  status: 400,
+  message: 'Validation failed',
+  fieldErrors: { targetUnit: 'size must be between 0 and 100' },
+});
+const OVERLONG_UNIT_MESSAGE = 'TargetUnit: size must be between 0 and 100.';
+
+/** The API's answer to a reminder sent with its time cleared: `reminderTime` is required. */
+const NO_REMINDER_TIME = apiFailure(400, {
+  status: 400,
+  message: 'Validation failed',
+  fieldErrors: { reminderTime: 'must not be null' },
+});
 
 let navigate: NavigateFunction;
 
@@ -116,9 +159,13 @@ describe('UpgradeDetailsPage', () => {
     createProgress.mockReset();
     getReflectionsByUpgrade.mockReset();
     createReflection.mockReset();
+    getReminders.mockReset();
+    createReminder.mockReset();
+    saveTrackingConfig.mockReset();
     getUpgradeById.mockResolvedValue(anUpgrade());
     getProgressByUpgrade.mockResolvedValue([]);
     getReflectionsByUpgrade.mockResolvedValue([]);
+    getReminders.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -315,14 +362,13 @@ describe('UpgradeDetailsPage', () => {
   });
 
   it('GivenAProgressEntryWasRefused_WhenLogProgressIsOpenedAgain_ThenTheFormIsEmpty', async () => {
-    // The refusal is not shown yet (#76), so Cancel and a fresh start is the only way on.
-    createProgress.mockRejectedValue(new Error('409 Conflict'));
+    createProgress.mockRejectedValue(DAY_ALREADY_LOGGED);
     renderPage();
     await screen.findByText('Cold showers');
     fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
     fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'already logged' } });
     fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(createProgress).toHaveBeenCalledTimes(1));
+    await screen.findByText(DAY_ALREADY_LOGGED_MESSAGE);
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
@@ -418,6 +464,236 @@ describe('UpgradeDetailsPage', () => {
 
     expect(screen.getByRole('dialog', { name: 'Add Reflection' })).toBeDefined();
     expect((screen.getByLabelText('Difficulty (1-5)') as HTMLInputElement).value).toBe('5');
+  });
+
+  // NFR-30 (#76) — a refused save says why, in the form it was made in. Each form shows the message on
+  // its main field; one with no field to blame carries the trace id that finds it in the log.
+
+  it('GivenADayAlreadyLogged_WhenProgressIsSaved_ThenTheDialogStaysOpenAndSaysWhy', async () => {
+    createProgress.mockRejectedValue(DAY_ALREADY_LOGGED);
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Log Progress' });
+    expect(await within(dialog).findByText(DAY_ALREADY_LOGGED_MESSAGE)).toBeDefined();
+  });
+
+  it('GivenARatingOutOfRange_WhenTheReflectionIsSaved_ThenTheDialogStaysOpenAndNamesTheField', async () => {
+    createReflection.mockRejectedValue(RATING_OUT_OF_RANGE);
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Add Reflection' });
+    expect(await within(dialog).findByText(RATING_OUT_OF_RANGE_MESSAGE)).toBeDefined();
+  });
+
+  it('GivenAReflectionWasRefused_WhenAddReflectionIsOpenedAgain_ThenTheRefusalIsGone', async () => {
+    createReflection.mockRejectedValue(RATING_OUT_OF_RANGE);
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText(RATING_OUT_OF_RANGE_MESSAGE);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+
+    expect(screen.queryByText(RATING_OUT_OF_RANGE_MESSAGE)).toBeNull();
+  });
+
+  it('GivenASaveStillInFlight_WhenANewReflectionIsStartedAndTheSaveIsRefused_ThenTheNewOneSaysNothing', async () => {
+    let refuseTheSave: (reason: unknown) => void = () => {};
+    createReflection.mockReturnValue(new Promise<Reflection>((_, reject) => { refuseTheSave = reject; }));
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(createReflection).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+    await act(async () => { refuseTheSave(RATING_OUT_OF_RANGE); });
+
+    expect(screen.getByRole('dialog', { name: 'Add Reflection' })).toBeDefined();
+    expect(screen.queryByText(RATING_OUT_OF_RANGE_MESSAGE)).toBeNull();
+  });
+
+  it('GivenAnOverlongUnit_WhenTheTrackingConfigurationIsSaved_ThenTheDialogStaysOpenAndNamesTheField', async () => {
+    saveTrackingConfig.mockRejectedValue(OVERLONG_UNIT);
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Configure Tracking' });
+    expect(await within(dialog).findByText(OVERLONG_UNIT_MESSAGE)).toBeDefined();
+  });
+
+  it('GivenAValidConfiguration_WhenTrackingIsSaved_ThenTheDialogCloses', async () => {
+    saveTrackingConfig.mockResolvedValue(anUpgrade());
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('GivenASavedNumericConfiguration_WhenEditIsOpened_ThenTheFormShowsIt', async () => {
+    // Saving starts from what the dialog shows, so defaults here would overwrite the user's target.
+    getUpgradeById.mockResolvedValue({
+      ...anUpgrade(),
+      trackingConfig: {
+        id: 'tc-1',
+        upgradeId: UPGRADE_ID,
+        trackingType: 'NUMERIC',
+        frequency: 'WEEKLY',
+        targetNumericValue: 10,
+        targetUnit: 'minutes',
+        requiredDaily: false,
+      },
+    });
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Configure Tracking' });
+    expect((within(dialog).getByLabelText('Tracking type') as HTMLSelectElement).value).toBe('NUMERIC');
+    expect((within(dialog).getByLabelText('Frequency') as HTMLSelectElement).value).toBe('WEEKLY');
+    expect((within(dialog).getByLabelText('Target value') as HTMLInputElement).value).toBe('10');
+    expect((within(dialog).getByLabelText('Unit') as HTMLInputElement).value).toBe('minutes');
+    expect((within(dialog).getByLabelText('Required daily') as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('GivenATrackingSaveWasRefused_WhenTheDialogIsReopened_ThenTheRefusalIsGone', async () => {
+    saveTrackingConfig.mockRejectedValue(OVERLONG_UNIT);
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText(OVERLONG_UNIT_MESSAGE);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
+
+    expect(screen.queryByText(OVERLONG_UNIT_MESSAGE)).toBeNull();
+  });
+
+  it('GivenNoTime_WhenAReminderIsAdded_ThenItSaysWhy', async () => {
+    createReminder.mockRejectedValue(NO_REMINDER_TIME);
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.change(screen.getByLabelText('Time'), { target: { value: '' } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Add reminder' }));
+
+    expect(await screen.findByText('Must not be null')).toBeDefined();
+  });
+
+  it('GivenARefusedReminder_WhenItIsAddedAgainAndAccepted_ThenTheMessageGoes', async () => {
+    createReminder
+      .mockRejectedValueOnce(NO_REMINDER_TIME)
+      .mockResolvedValueOnce({ id: 'r-1', upgradeId: UPGRADE_ID, reminderTime: '09:00:00', daysOfWeek: [], enabled: true });
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.submit(screen.getByRole('button', { name: 'Add reminder' }));
+    await screen.findByText('Must not be null');
+
+    const fetchesBeforeTheRetry = getReminders.mock.calls.length;
+
+    fireEvent.submit(screen.getByRole('button', { name: 'Add reminder' }));
+
+    // A submit clears the message before it is answered, so absence alone proves nothing about the
+    // accepted save. The refetch happens only on success; wait for it, then look.
+    await waitFor(() => expect(getReminders.mock.calls.length).toBeGreaterThan(fetchesBeforeTheRetry));
+    expect(screen.queryByText('Must not be null')).toBeNull();
+  });
+
+  it('GivenTheUpgradeIsGone_WhenAReminderIsAdded_ThenItSaysWhyWithItsReference', async () => {
+    // A refusal that names no field carries the trace id that finds it (NFR-30).
+    createReminder.mockRejectedValue(apiFailure(404, {
+      status: 404,
+      message: 'Upgrade not found: upgrade-1',
+      traceId: 'trace-404',
+    }));
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    fireEvent.submit(screen.getByRole('button', { name: 'Add reminder' }));
+
+    expect(await screen.findByText('Upgrade not found: upgrade-1 (reference trace-404)')).toBeDefined();
+  });
+
+  it('GivenAProgressEntryWasRefused_WhenLogProgressIsOpenedAgain_ThenTheRefusalIsGone', async () => {
+    createProgress.mockRejectedValue(DAY_ALREADY_LOGGED);
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText(DAY_ALREADY_LOGGED_MESSAGE);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+
+    expect(screen.queryByText(DAY_ALREADY_LOGGED_MESSAGE)).toBeNull();
+  });
+
+  it('GivenASaveStillInFlight_WhenANewProgressEntryIsStartedAndTheSaveIsRefused_ThenTheNewEntrySaysNothing', async () => {
+    // The refusal belongs to an entry the user already walked away from.
+    let refuseTheSave: (reason: unknown) => void = () => {};
+    createProgress.mockReturnValue(new Promise<ProgressEntry>((_, reject) => { refuseTheSave = reject; }));
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(createProgress).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    await act(async () => { refuseTheSave(DAY_ALREADY_LOGGED); });
+
+    expect(screen.getByRole('dialog', { name: 'Log Progress' })).toBeDefined();
+    expect(screen.queryByText(DAY_ALREADY_LOGGED_MESSAGE)).toBeNull();
+  });
+
+  it('GivenATrackingSaveStillInFlight_WhenTheDialogIsReopenedAndTheSaveIsRefused_ThenTheReopenedDialogSaysNothing', async () => {
+    let refuseTheSave: (reason: unknown) => void = () => {};
+    saveTrackingConfig.mockReturnValue(new Promise((_, reject) => { refuseTheSave = reject; }));
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(saveTrackingConfig).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
+    await act(async () => {
+      refuseTheSave(OVERLONG_UNIT);
+    });
+
+    expect(screen.getByRole('dialog', { name: 'Configure Tracking' })).toBeDefined();
+    expect(screen.queryByText(OVERLONG_UNIT_MESSAGE)).toBeNull();
+  });
+
+  it('GivenATrackingSaveStillInFlight_WhenTheDialogIsReopenedAndTheSaveSucceeds_ThenTheReopenedDialogStaysOpen', async () => {
+    // Closing on success belongs to the save that asked for it, as it does for progress (#119).
+    let answerTheSave: (upgrade: HealthUpgrade) => void = () => {};
+    saveTrackingConfig.mockReturnValue(new Promise<HealthUpgrade>((resolve) => { answerTheSave = resolve; }));
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(saveTrackingConfig).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
+    await act(async () => { answerTheSave(anUpgrade()); });
+
+    expect(screen.getByRole('dialog', { name: 'Configure Tracking' })).toBeDefined();
   });
 
   // FR-20 (#117) — a history row shows only the values its entry carries. The API sends an unused field

@@ -133,8 +133,9 @@ it calls that context's `application/port/in` interface and receives domain obje
 repository, never a web DTO. `TrackingService` confirms upgrade ownership this way before recording
 progress.
 
-**5. Scheduled invocation.** Three cron-driven jobs drive the core with no request behind them: the
-overdue sweep, the daily check-in nudge, and the per-minute reminder dispatch.
+**5. Scheduled invocation.** Four cron-driven jobs drive the core with no request behind them: the
+overdue sweep, the daily check-in nudge, the per-minute reminder dispatch, and the nightly sweep of
+sessions nothing can use again.
 
 ### Which contexts depend on which
 
@@ -260,9 +261,12 @@ one and when promoting a running one to HARD.
 | `UpgradeOverdueScheduler` | daily 08:00 | Publishes `UpgradeOverdueDetected` for every active upgrade past its target date. The notification listener creates at most one notification per upgrade, so the repeated detection does not repeat the alert |
 | `NotificationScheduler.notifyDailyCheckin` | daily 18:00 | Nudges users who have active upgrades and have logged nothing today, at most once a day |
 | `NotificationScheduler.dispatchReminders` | every minute | Fires the reminders due this minute. Due-ness is decided by the `Reminder` aggregate; the upgrades behind the due ones are loaded in one batch |
+| `AuthSessionCleanupScheduler` | daily 03:30 | Deletes revoked and expired sessions. Nothing depends on it running: an expired session is already refused by its own timestamps |
 
-All three read the clock through an injected `java.time.Clock`, which is what makes them testable
-without waiting.
+All four read the clock through an injected `java.time.Clock`, which is what makes them testable
+without waiting. The clock and every cron keep time in UTC — `ServerZone`, which each `@Scheduled` names
+— so the defaults above are 08:00, 18:00, the minute and 03:30 in UTC, whatever the host's zone
+([ADR-020](../ADRs/ADR-020-the-server-keeps-time-in-utc.md)).
 
 ---
 
@@ -547,16 +551,17 @@ Stated because they are load-bearing, not because they are problems yet:
   and an optimistic-lock clash, a lost unique-constraint race and an infrastructure failure at commit
   are indistinguishable there. All three are recorded `REFUSED`.
 - **The browser and the server each have their own "today".** The SPA dates an entry by the browser's
-  zone (`src/lib/localDate.ts`). The server reads "today" from its own clock, and a user has no zone
-  ([#100](https://github.com/NaimElijah/UpHealther/issues/100)). That clock decides what counts as
-  today's progress, the seven-day window and where a current streak starts. For as many hours as the
-  two zones are apart, an entry the user made for their today can fall outside the server's today. East
-  of the server just after midnight, the entry sits in the server's tomorrow, so the history and the
-  streak leave it out until the server's day turns. A streak milestone is the exception: an entry dated
-  after the server's today is judged from its own date, so its milestone is announced when it is made
-  instead of being lost (`StreakCalculator.milestoneReachedBy`, BR-10). West of the server in the
-  evening, the entry sits in the server's yesterday, so the dashboard counts the upgrade as not yet
-  done today. No write is refused, and the entry is stored on the right day.
+  zone (`src/lib/localDate.ts`). The server reads "today" from its own clock, which keeps UTC
+  ([ADR-020](../ADRs/ADR-020-the-server-keeps-time-in-utc.md)), and a user has no zone. That clock
+  decides what counts as today's progress, the seven-day window and where a current streak starts. For
+  as many hours as the two zones are apart, an entry the user made for their today can fall outside the
+  server's today. East of the server just after midnight, the entry sits in the server's tomorrow, so
+  the history and the streak leave it out until the server's day turns. A streak milestone is the
+  exception: an entry dated after the server's today is judged from its own date, so its milestone is
+  announced when it is made instead of being lost (`StreakCalculator.milestoneReachedBy`, BR-10). West
+  of the server in the evening, the entry sits in the server's yesterday, so the dashboard counts the
+  upgrade as not yet done today. No write is refused, and the entry is stored on the right day.
+  Reminders keep the same clock: one set for 09:00 fires at 09:00 UTC wherever its owner is.
 - **A refused login is a rate signal, not an attribution.** The audit entry deliberately names no
   subject, so the trail cannot say whose account was targeted and will not support a lockout policy as
   written.

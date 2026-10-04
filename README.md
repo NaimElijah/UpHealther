@@ -29,7 +29,7 @@ flowchart LR
     subgraph backend["Backend container · Spring Boot :8080"]
         rest["REST controllers"]
         stomp["STOMP endpoint /ws"]
-        jobs["Scheduled jobs<br/>overdue · check-in · reminders"]
+        jobs["Scheduled jobs<br/>overdue · check-in · reminders · sessions"]
         core["Domain + application core"]
     end
 
@@ -193,7 +193,8 @@ a published value and gives no security.
 Three more live only in `application.yml` — `UPGRADE_OVERDUE_CRON` (`0 0 8 * * *`),
 `NOTIFY_CHECKIN_CRON` (`0 0 18 * * *`) and `NOTIFY_REMINDERS_CRON` (`0 * * * * *`). They are
 absent from `.env.example`, and `docker-compose.yml` does not pass them through, so they take
-effect on a native run only.
+effect on a native run only. Every cron is read in UTC, whatever the host's zone
+([ADR-020](docs/ADRs/ADR-020-the-server-keeps-time-in-utc.md)).
 
 ## 📖 Usage
 
@@ -399,6 +400,9 @@ Known limitations, load-bearing rather than accidental:
   doubles the effective limit. That follows from the single-instance limitation above and is the
   first thing to revisit when it changes
   ([ADR-017](docs/ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)).
+- **Server time is UTC, and a user has no zone.** "Today" turns and reminders fire on UTC's clock, so
+  a reminder set for 09:00 rings at 09:00 UTC wherever its owner is
+  ([ADR-020](docs/ADRs/ADR-020-the-server-keeps-time-in-utc.md)).
 - **The demo account ships with a published password.** It is seeded into every environment by
   migration, which is convenient for a clone and wrong for anything reachable.
 - **No screenshots yet.** The system-context diagram stands in until the UI is captured.

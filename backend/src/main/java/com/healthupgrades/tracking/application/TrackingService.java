@@ -50,7 +50,7 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Stre
     private final ProgressEvaluationService evaluationService; // pure domain service
     private final DomainEventPublisher eventPublisher; // in-process domain events
     private final AuditTrail auditTrail; // records the attempt, allowed or refused
-    private final Clock clock; // single source of "today" for defaulting and streaks
+    private final Clock clock; // single source of "today" for defaulting and streaks, and of event times
 
     /**
      * Creates or replaces the tracking configuration for an owned upgrade.
@@ -143,12 +143,12 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Stre
             }
 
             ProgressEntry saved = progressRepository.save(entry);
-            eventPublisher.publish(new ProgressEntryRecorded(saved.getId(), upgradeId, userId, date, LocalDateTime.now()));
+            eventPublisher.publish(new ProgressEntryRecorded(saved.getId(), upgradeId, userId, date, LocalDateTime.now(clock)));
 
             List<ProgressEntry> allEntries = progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId);
             streakCalculator.milestoneReachedBy(allEntries, date, LocalDate.now(clock))
                     .ifPresent(days -> eventPublisher.publish(
-                            new StreakAchieved(upgradeId, userId, days, LocalDateTime.now())));
+                            new StreakAchieved(upgradeId, userId, days, LocalDateTime.now(clock))));
 
             return saved;
         });
