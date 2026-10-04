@@ -323,6 +323,62 @@ class AuthSessionServiceTest {
         assertThat(service.isActive(opened.sessionId())).isFalse();
     }
 
+    // ---- NFR-23: every sign-out is audited, on the same terms as a refresh ----
+
+    @Test
+    void GivenAnUnparseableCredential_WhenSignOutIsAttempted_ThenTheRefusalIsAuditedWithNoSubject() {
+        service.revoke("not-a-credential");
+
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT))
+                .hasValue(new AuditEvent(AuditAction.AUTH_LOGOUT, null, null, AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenACredentialNamingNoSession_WhenSignOutIsAttempted_ThenTheRefusalIsAuditedWithNoSubject() {
+        service.revoke(UUID.randomUUID() + ".a-secret");
+
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT))
+                .hasValue(new AuditEvent(AuditAction.AUTH_LOGOUT, null, null, AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenACredentialThatDoesNotMatch_WhenSignOutIsAttempted_ThenTheRefusalNamesTheSessionButNoOwner() {
+        // Somebody holding only the session id tried to end it. The id names the session; nothing names
+        // the person who tried.
+        SessionGrant opened = service.open(USER_ID);
+
+        service.revoke(opened.sessionId() + ".not-the-secret");
+
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT)).hasValue(
+                new AuditEvent(AuditAction.AUTH_LOGOUT, null, opened.sessionId(), AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenACredentialRotatedOutLongAgo_WhenItIsUsedToSignOut_ThenTheRefusalNamesTheSessionAndItsOwner() {
+        // Refused, because accepting it would be a way around reuse detection - but the superseded
+        // credential is still proof the session issued it, so its owner is named.
+        SessionGrant opened = service.open(USER_ID);
+        service.refresh(opened.refreshToken());
+        clock.moveTo(START.plus(GRACE).plusSeconds(1));
+
+        service.revoke(opened.refreshToken());
+
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT)).hasValue(
+                new AuditEvent(AuditAction.AUTH_LOGOUT, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenTheSessionStoreIsUnreachable_WhenSignOutIsAttempted_ThenItIsAuditedAsFailedAndTheFaultPropagates() {
+        AuthSessionService broken = new AuthSessionService(new UnreachableSessions(), secrets,
+                new AuthSessionProperties(IDLE, ABSOLUTE, GRACE), auditTrail, clock);
+
+        assertThatThrownBy(() -> broken.revoke(UUID.randomUUID() + ".a-secret"))
+                .isInstanceOf(DataAccessResourceFailureException.class);
+
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT))
+                .hasValue(new AuditEvent(AuditAction.AUTH_LOGOUT, null, null, AuditOutcome.FAILED));
+    }
+
     @Test
     void GivenTwoSessionsForOneAccount_WhenOneSignsOut_ThenTheOtherIsUntouched() {
         // Sign-out is per device. Ending every session because one browser said goodbye would be a

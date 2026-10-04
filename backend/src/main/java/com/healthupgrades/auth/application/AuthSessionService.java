@@ -147,13 +147,25 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
     @Override
     @Transactional
     public boolean revoke(String presentedCredential) {
+        try {
+            return end(presentedCredential);
+        } catch (RuntimeException thrown) {
+            // As in refresh: a fault, recorded as one, naming nothing it cannot be sure of.
+            auditTrail.record(AuditEvent.from(AuditAction.AUTH_LOGOUT, null, null, thrown));
+            throw thrown;
+        }
+    }
+
+    private boolean end(String presentedCredential) {
         Optional<RefreshToken> parsed = RefreshToken.parse(presentedCredential);
         if (parsed.isEmpty()) {
+            recordRefusalOfNothing(AuditAction.AUTH_LOGOUT);
             return false;
         }
         RefreshToken presented = parsed.get();
         Optional<AuthSession> found = sessions.findForUpdate(presented.sessionId());
         if (found.isEmpty()) {
+            recordRefusalOfNothing(AuditAction.AUTH_LOGOUT);
             return false;
         }
 
@@ -169,6 +181,7 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
         // here, ending the victim's session while the counter that should stay at zero never moved.
         if (!session.matchesCurrent(presentedHash)
                 && !session.matchesPreviousWithin(presentedHash, clock.instant(), properties.rotationGrace())) {
+            recordRefusal(AuditAction.AUTH_LOGOUT, session, presentedHash);
             return false;
         }
         session.revoke();

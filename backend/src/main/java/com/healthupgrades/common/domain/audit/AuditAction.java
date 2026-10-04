@@ -32,7 +32,10 @@ public enum AuditAction {
      */
     AUTH_REFRESH("auth.refresh", AuditedResource.AUTH_SESSION),
 
-    /** Somebody signed out, ending one session and leaving their other devices alone. */
+    /**
+     * Somebody signed out, ending one session and leaving their other devices alone — or was refused,
+     * on the same terms as a refused refresh.
+     */
     AUTH_LOGOUT("auth.logout", AuditedResource.AUTH_SESSION),
 
     /**

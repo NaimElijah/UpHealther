@@ -241,11 +241,12 @@ revokes nothing, because the session id travels in a token claim and is therefor
 And the `sid` claim is checked on every authenticated request, which is what turns a revoked row
 into a refused request rather than a wait for the token to expire.
 
-Every refresh the service is asked for is audited as `auth.refresh`, refused ones included (NFR-23). A
-refusal names the session whenever the row exists, and its owner only when the presented credential is
-one the session issued — the session id is no secret, so a wrong secret says nothing about who sent it.
-A request with no cookie at all has presented nothing; the controller answers it without asking the
-service, so the one such request every signed-out page load makes is not an entry.
+Every refresh and every sign-out the service is asked for is audited, as `auth.refresh` and
+`auth.logout`, refused ones included (NFR-23). A refusal names the session whenever the row exists, and
+its owner only when the presented credential is one the session issued — the session id is no secret,
+so a wrong secret says nothing about who sent it. A request with no cookie at all has presented
+nothing; the controller answers it without asking the service, so the refresh every signed-out page
+load makes is not an entry.
 
 ---
 

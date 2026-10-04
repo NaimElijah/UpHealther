@@ -30,11 +30,13 @@ public interface SessionCommand {
     RefreshOutcome refresh(String presentedCredential);
 
     /**
-     * Ends the one session a credential belongs to, leaving the account signed in on its other devices.
+     * Ends the one session a credential belongs to, leaving the account signed in on its other devices,
+     * and audits the attempt whatever its outcome.
      *
-     * @param presentedCredential the raw cookie value
-     * @return whether a session was actually ended — for the audit trail rather than the caller, which
-     *         is answered the same either way
+     * @param presentedCredential the raw cookie value. A request that carried no cookie has presented
+     *                            nothing, and is answered without calling this
+     * @return whether a session was actually ended. The caller is answered the same either way
+     * @throws RuntimeException only when the session store fails, after the failure has been audited
      */
     boolean revoke(String presentedCredential);
 
