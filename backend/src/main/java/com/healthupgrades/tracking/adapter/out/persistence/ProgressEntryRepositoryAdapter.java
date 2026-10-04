@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -53,6 +54,12 @@ class ProgressEntryRepositoryAdapter implements ProgressEntryRepositoryPort {
     @Override
     public List<ProgressEntry> findByUserIdAndDate(UUID userId, LocalDate date) {
         return jpa.findByUserIdAndDate(userId, date);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public Set<UUID> findUserIdsWithEntriesOn(LocalDate date) {
+        return jpa.findUserIdsWithEntriesOn(date);
     }
 
     /** {@inheritDoc} */

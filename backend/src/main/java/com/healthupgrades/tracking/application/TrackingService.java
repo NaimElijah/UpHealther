@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -226,8 +227,8 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Stre
 
     /** {@inheritDoc} */
     @Override
-    public List<ProgressEntry> findByUserIdAndDate(UUID userId, LocalDate date) {
-        return progressRepository.findByUserIdAndDate(userId, date);
+    public Set<UUID> findUserIdsWithEntriesOn(LocalDate date) {
+        return progressRepository.findUserIdsWithEntriesOn(date);
     }
 
     /** {@inheritDoc} */

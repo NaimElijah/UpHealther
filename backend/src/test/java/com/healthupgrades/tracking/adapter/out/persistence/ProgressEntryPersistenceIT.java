@@ -140,6 +140,24 @@ class ProgressEntryPersistenceIT extends PostgresIT {
     }
 
     @Test
+    void GivenEntriesOnTwoDays_WhenTheUsersWhoLoggedOnOneAreRead_ThenOnlyThatDaysLoggersAreNamed() {
+        // The check-in sweep's "already logged today" guard (FR-30): a user named here is not nudged. So
+        // an entry that did not count still names its user — logging a miss is logging — and a day
+        // leaking into the next would silence the nudge for somebody who has logged nothing yet. The
+        // query reads every user's entries, so the assertions are about this test's users only.
+        UUID loggedYesterday = entityManager.persistAndFlush(
+                AUser.aUser().id(null).email("yesterday-" + UUID.randomUUID() + "@example.com").build()).getId();
+        UUID theirUpgradeId = entityManager.persistAndFlush(
+                AnUpgrade.ownedBy(loggedYesterday).id(null).status(UpgradeStatus.ACTIVE)
+                        .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now()).build()).getId();
+        repository.save(entry(upgradeId, userId, DAY, false));
+        repository.save(entry(theirUpgradeId, loggedYesterday, DAY.minusDays(1), true));
+        entityManager.flush();
+
+        assertThat(repository.findUserIdsWithEntriesOn(DAY)).contains(userId).doesNotContain(loggedYesterday);
+    }
+
+    @Test
     void GivenEntriesInsideAndOutsideTheWeek_WhenTheWeekIsQueried_ThenTheRangeIsInclusiveAtBothEnds() {
         // FR-21. The dashboard's weekly rate is computed over exactly what this query returns, so an
         // exclusive bound at either end quietly changes the number the user sees.

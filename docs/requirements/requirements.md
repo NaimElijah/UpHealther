@@ -3,7 +3,7 @@
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
 rather than trusted. A hundred and twelve of the hundred and twenty entries below name a test —
-a hundred and three distinct test classes and files between them. Five of the remaining eight name the command,
+a hundred and four distinct test classes and files between them. Five of the remaining eight name the command,
 workflow or script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48). The last three —
 FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is about a rendered width, a
 colour or an overflow, and jsdom has no layout engine to observe any of them; §6 records what closing
@@ -13,7 +13,7 @@ that gap would take.
 API (§5.4), so "a user can" means through the interface. Where the implementation falls short of an
 entry — in the interface or anywhere else — the entry is not weakened to match. Its *Enforced by* cell
 says **Known deviation** and links the issue that tracks the gap; the tests named there enforce the
-part that holds. Twenty-one entries carry one today, and the change that closes an issue takes its
+part that holds. Twenty entries carry one today, and the change that closes an issue takes its
 marker out.
 
 **IDs are permanent.** Tests, code comments, migrations and ADRs cite them, so an ID is never
@@ -245,7 +245,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 |---|---|---|
 | NFR-7 | Every failure maps to a defined HTTP status: 404 not found, 422 rule violation, 409 conflict (including a refresh that lost a rotation race, which the client simply retries), 401 rejected credentials or no accepted token, 400 invalid input (a failed constraint, an unbindable body, a parameter that will not convert), 403 authenticated but not allowed, 429 over a rate limit with `Retry-After`, and the status Spring defines for every other framework exception (405, 415, 406, …). Only a genuine server fault is a 500, and it carries no detail beyond the status and the trace id that finds its log line | `GlobalExceptionHandlerTest`, every `*ControllerTest`, `RateLimitedSignInTest` (429), `AuthControllerTest` (the retryable 409), [ADR-006](../ADRs/ADR-006-framework-exceptions-through-responseentityexceptionhandler.md) |
 | NFR-8 | The database schema is owned by migrations; the application refuses to start against a schema that does not match its entities | `ApplicationContextIT`, Flyway + `ddl-auto: validate` |
-| NFR-14 | List endpoints resolve related data in batch rather than per row | `TrackingServiceTest`, `DashboardAggregationServiceTest`, `ProgressEntryPersistenceIT`, `NotificationSchedulerTest` — **Known deviation:** [#99](https://github.com/NaimElijah/UpHealther/issues/99), the check-in sweep reads its two guards once per user |
+| NFR-14 | List endpoints resolve related data in batch rather than per row | `TrackingServiceTest`, `DashboardAggregationServiceTest`, `ProgressEntryPersistenceIT`, `NotificationSchedulerTest`, `NotificationPersistenceIT` |
 | NFR-15 | Time-dependent behaviour reads an injected clock, so it is testable and timezone-explicit | `UpgradeOverdueSchedulerTest`, `NotificationSchedulerTest`, `UpgradeServiceTest`, `TrackingServiceTest`, `ReflectionServiceTest`, `GlobalExceptionHandlerTest`, `NotificationServiceTest`, `HealthUpgradesApplicationTest` and `ServerTimeArchitectureTest` (the clock and every cron keep UTC, and nothing outside an entity reads the time around the clock, [ADR-020](../ADRs/ADR-020-the-server-keeps-time-in-utc.md)) — **Known deviation:** [#51](https://github.com/NaimElijah/UpHealther/issues/51), entity timestamps bypass the clock |
 | NFR-26 | A real-time push that cannot be delivered degrades to the stored notification and is reported, rather than failing the work that raised it | `StompNotificationPushAdapterTest` |
 | NFR-49 | A notification is pushed to a connected client only after the transaction that stored it commits, so a client is never told about a row that then rolled back | `NotificationServiceTest` |

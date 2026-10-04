@@ -4,16 +4,20 @@ import com.healthupgrades.tracking.domain.model.ProgressEntry; // returned domai
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
- * Inbound port exposing progress-entry reads as DOMAIN objects for other contexts (dashboard weekly
- * rates, the notification scheduler's daily check-in).
+ * Inbound port exposing progress reads to other contexts: entries as DOMAIN objects for the dashboard's
+ * weekly rate, and who logged on a day for the notification scheduler's daily check-in.
  */
 public interface ProgressQuery {
 
-    /** A user's progress entries on a given date. */
-    List<ProgressEntry> findByUserIdAndDate(UUID userId, LocalDate date);
+    /**
+     * Every user with at least one entry on a date, whether or not it counted — in one query, so a sweep
+     * over all users asks once rather than once per user (NFR-14).
+     */
+    Set<UUID> findUserIdsWithEntriesOn(LocalDate date);
 
     /** A user's progress entries within an inclusive date range. */
     List<ProgressEntry> findByUserIdAndDateBetween(UUID userId, LocalDate start, LocalDate end);

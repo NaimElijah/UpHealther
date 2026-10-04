@@ -5,6 +5,7 @@ import com.healthupgrades.tracking.domain.model.ProgressEntry; // the aggregate 
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -33,6 +34,9 @@ public interface ProgressEntryRepositoryPort {
 
     /** A user's progress entries on a given date. */
     List<ProgressEntry> findByUserIdAndDate(UUID userId, LocalDate date);
+
+    /** The ids of every user with at least one entry on a date. */
+    Set<UUID> findUserIdsWithEntriesOn(LocalDate date);
 
     /** A user's progress entries within an inclusive date range (used for weekly rates). */
     List<ProgressEntry> findByUserIdAndDateBetween(UUID userId, LocalDate start, LocalDate end);
