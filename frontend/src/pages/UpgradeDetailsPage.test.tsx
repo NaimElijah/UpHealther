@@ -83,6 +83,15 @@ const DAY_ALREADY_LOGGED = apiFailure(409, {
 });
 const DAY_ALREADY_LOGGED_MESSAGE = 'Progress already recorded for date: 2026-03-12 (reference trace-409)';
 
+/** A rating outside 1-5. A field refusal names its field instead of a reference, so none is shown. */
+const RATING_OUT_OF_RANGE = apiFailure(400, {
+  status: 400,
+  message: 'Validation failed',
+  fieldErrors: { benefitRating: 'must be less than or equal to 5' },
+  traceId: 'trace-400',
+});
+const RATING_OUT_OF_RANGE_MESSAGE = 'BenefitRating: must be less than or equal to 5.';
+
 /** BR-16's answer to a tracking unit past its column's bound. */
 const OVERLONG_UNIT = apiFailure(400, {
   status: 400,
@@ -469,19 +478,45 @@ describe('UpgradeDetailsPage', () => {
   });
 
   it('GivenARatingOutOfRange_WhenTheReflectionIsSaved_ThenTheDialogStaysOpenAndNamesTheField', async () => {
-    createReflection.mockRejectedValue(apiFailure(400, {
-      status: 400,
-      message: 'Validation failed',
-      fieldErrors: { benefitRating: 'must be less than or equal to 5' },
-      traceId: 'trace-400',
-    }));
+    createReflection.mockRejectedValue(RATING_OUT_OF_RANGE);
     renderPage();
     await screen.findByText('Cold showers');
     fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
     fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
 
     const dialog = await screen.findByRole('dialog', { name: 'Add Reflection' });
-    expect(await within(dialog).findByText('BenefitRating: must be less than or equal to 5.')).toBeDefined();
+    expect(await within(dialog).findByText(RATING_OUT_OF_RANGE_MESSAGE)).toBeDefined();
+  });
+
+  it('GivenAReflectionWasRefused_WhenAddReflectionIsOpenedAgain_ThenTheRefusalIsGone', async () => {
+    createReflection.mockRejectedValue(RATING_OUT_OF_RANGE);
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText(RATING_OUT_OF_RANGE_MESSAGE);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+
+    expect(screen.queryByText(RATING_OUT_OF_RANGE_MESSAGE)).toBeNull();
+  });
+
+  it('GivenASaveStillInFlight_WhenANewReflectionIsStartedAndTheSaveIsRefused_ThenTheNewOneSaysNothing', async () => {
+    let refuseTheSave: (reason: unknown) => void = () => {};
+    createReflection.mockReturnValue(new Promise<Reflection>((_, reject) => { refuseTheSave = reject; }));
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(createReflection).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+    await act(async () => { refuseTheSave(RATING_OUT_OF_RANGE); });
+
+    expect(screen.getByRole('dialog', { name: 'Add Reflection' })).toBeDefined();
+    expect(screen.queryByText(RATING_OUT_OF_RANGE_MESSAGE)).toBeNull();
   });
 
   it('GivenAnOverlongUnit_WhenTheTrackingConfigurationIsSaved_ThenTheDialogStaysOpenAndNamesTheField', async () => {
