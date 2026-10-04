@@ -1,6 +1,7 @@
 package com.healthupgrades.notification.adapter.in.scheduling;
 
 import com.healthupgrades.common.observability.JobMetrics;
+import com.healthupgrades.common.time.ServerZone;
 import com.healthupgrades.notification.application.NotificationService;
 import com.healthupgrades.notification.domain.model.NotificationCategory;
 import com.healthupgrades.notification.domain.model.NotificationType;
@@ -66,7 +67,7 @@ public class NotificationScheduler {
      * skipped, and so is one who has already been nudged since midnight — the second matters because
      * nothing stops this cron from being configured to run more than once a day.
      */
-    @Scheduled(cron = "${app.notifications.schedules.daily-checkin}")
+    @Scheduled(cron = "${app.notifications.schedules.daily-checkin}", zone = ServerZone.ID)
     public void notifyDailyCheckin() {
         jobMetrics.timed(CHECKIN_JOB, () -> {
             LocalDate today = LocalDate.now(clock);
@@ -109,7 +110,7 @@ public class NotificationScheduler {
      * <p>Unlike the check-in nudge there is no dedup guard, and none is needed: a given minute occurs
      * once, so a reminder cannot match twice.
      */
-    @Scheduled(cron = "${app.notifications.schedules.reminders}")
+    @Scheduled(cron = "${app.notifications.schedules.reminders}", zone = ServerZone.ID)
     public void dispatchReminders() {
         jobMetrics.timed(REMINDERS_JOB, () -> {
             LocalTime now = LocalTime.now(clock);

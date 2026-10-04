@@ -1,5 +1,6 @@
 package com.healthupgrades;
 
+import com.healthupgrades.common.time.ServerZone;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
@@ -26,9 +27,14 @@ public class HealthUpgradesApplication {
         SpringApplication.run(HealthUpgradesApplication.class, args);
     }
 
-    /** Injectable clock so time-based logic (schedulers) is timezone-explicit and testable. */
+    /**
+     * The clock every time-dependent decision reads, so each one is testable and its zone explicit
+     * (NFR-15): {@link ServerZone}, never the host's (ADR-020).
+     *
+     * @return the system clock in the server zone
+     */
     @Bean
     public Clock clock() {
-        return Clock.systemDefaultZone();
+        return Clock.system(ServerZone.ZONE);
     }
 }

@@ -93,7 +93,8 @@ and `GlobalExceptionHandler` decides how it surfaces
 
 Every failure returns the same shape, including a refusal decided inside the security chain.
 `fieldErrors` appears only on validation failures and `traceId` only when the request was traced;
-both are omitted otherwise. One path does not reach the handler and returns Boot's default body
+both are omitted otherwise. `timestamp` is UTC, written without an offset
+([ADR-020](ADRs/ADR-020-the-server-keeps-time-in-utc.md)). One path does not reach the handler and returns Boot's default body
 instead: a container error dispatch to `/error`. It still carries the `X-Trace-Id` header.
 
 ```json
