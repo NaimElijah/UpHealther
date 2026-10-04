@@ -355,8 +355,9 @@ it becomes a themed, reloadable message instead of a blank page.
 ### Audit
 
 `AuditTrail` is an outbound port in `common/domain/port/out/`, beside `DomainEventPublisher` and
-cross-cutting for the same reason. Every state-changing use case and both authentication outcomes record
-through it; `LoggingAuditTrail` writes them to a logger named `AUDIT` at INFO, and derives the
+cross-cutting for the same reason. Every state-changing use case records through it, as does every
+authentication outcome — a sign-in, a refresh, a sign-out and a STOMP CONNECT, allowed or refused — and
+the bootstrap promotion of the first administrator; `LoggingAuditTrail` writes them to a logger named `AUDIT` at INFO, and derives the
 `audit.events{action,outcome}` counter from the same call so the two cannot disagree.
 
 An entry is `(action, actorUserId, resourceId, outcome)` — two enums and two identifiers, with **nowhere
@@ -576,7 +577,8 @@ Stated because they are load-bearing, not because they are problems yet:
   Reminders keep the same clock: one set for 09:00 fires at 09:00 UTC wherever its owner is.
 - **A refused login is a rate signal, not an attribution.** The audit entry deliberately names no
   subject, so the trail cannot say whose account was targeted and will not support a lockout policy as
-  written.
+  written. The same holds for a refused CONNECT, and for a refused refresh or sign-out whose credential
+  the session never issued: that entry names the session, but not who presented the credential.
 
 ---
 

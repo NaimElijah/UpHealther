@@ -74,6 +74,14 @@ public enum AuditAction {
     /** An administrator granted or revoked a role. */
     ADMIN_ROLE("admin.role", AuditedResource.USER),
 
+    /**
+     * A fresh installation's first administrator was promoted from configuration at startup.
+     *
+     * <p>Not {@link #ADMIN_ROLE}, which records an administrator acting on someone else's account: here
+     * no person acted — the deployment did — so the entry names the promoted account and no actor.
+     */
+    ADMIN_BOOTSTRAP("admin.bootstrap", AuditedResource.USER),
+
     UPGRADE_CREATE("upgrade.create", AuditedResource.HEALTH_UPGRADE),
     UPGRADE_UPDATE("upgrade.update", AuditedResource.HEALTH_UPGRADE),
     UPGRADE_DELETE("upgrade.delete", AuditedResource.HEALTH_UPGRADE),
