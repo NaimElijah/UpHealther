@@ -43,6 +43,11 @@ import static net.logstash.logback.argument.StructuredArguments.keyValue;
  *   <li><strong>An unrecognised credential revokes nothing.</strong> If neither digest matches, this is
  *       not a credential the session ever issued. Revoking here would let anyone who learned a session
  *       id sign its owner out by guessing at the secret.</li>
+ *   <li><strong>Every attempt is audited, and a refusal names only what it can prove</strong> (NFR-23).
+ *       It names the session whenever the session exists, and the session's owner only when the
+ *       presented credential is one the session issued. The session id is no secret, so a refusal of a
+ *       credential the session never issued says nothing about who sent it, and naming the owner would
+ *       let anybody holding the id put attempts against their name.</li>
  * </ul>
  */
 @Service
@@ -53,7 +58,7 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
     private final AuthSessionRepositoryPort sessions; // outbound persistence port
     private final SecretGeneratorPort secrets; // outbound randomness port
     private final AuthSessionProperties properties; // validated app.auth.session settings
-    private final AuditTrail auditTrail; // records refreshes, sign-outs and detected reuse
+    private final AuditTrail auditTrail; // records every refresh and sign-out, and detected reuse
     private final Clock clock; // injectable, so expiry is testable without waiting
 
     /** {@inheritDoc} */
@@ -78,13 +83,26 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
     @Override
     @Transactional
     public RefreshOutcome refresh(String presentedCredential) {
+        try {
+            return exchange(presentedCredential);
+        } catch (RuntimeException thrown) {
+            // A fault, not a refusal - the distinction AuthService.login draws for a sign-in. Nothing
+            // about the attempt is known for certain once the store has failed, so nothing is named.
+            auditTrail.record(AuditEvent.from(AuditAction.AUTH_REFRESH, null, null, thrown));
+            throw thrown;
+        }
+    }
+
+    private RefreshOutcome exchange(String presentedCredential) {
         Optional<RefreshToken> parsed = RefreshToken.parse(presentedCredential);
         if (parsed.isEmpty()) {
+            recordRefusalOfNothing(AuditAction.AUTH_REFRESH);
             return new RefreshOutcome.Rejected();
         }
         RefreshToken presented = parsed.get();
         Optional<AuthSession> found = sessions.findForUpdate(presented.sessionId());
         if (found.isEmpty()) {
+            recordRefusalOfNothing(AuditAction.AUTH_REFRESH);
             return new RefreshOutcome.Rejected();
         }
 
@@ -93,6 +111,7 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
         byte[] presentedHash = presented.hash();
 
         if (!session.isActive(now)) {
+            recordRefusal(AuditAction.AUTH_REFRESH, session, presentedHash);
             return new RefreshOutcome.Rejected();
         }
         if (session.matchesCurrent(presentedHash)) {
@@ -104,6 +123,7 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
                     new SessionGrant(session.getId(), rotated.value(), session.getAbsoluteExpiresAt()));
         }
         if (session.matchesPreviousWithin(presentedHash, now, properties.rotationGrace())) {
+            recordRefusal(AuditAction.AUTH_REFRESH, session, presentedHash);
             return new RefreshOutcome.Stale();
         }
         if (session.matchesPrevious(presentedHash)) {
@@ -119,6 +139,7 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
                     session.getId(), AuditOutcome.REFUSED));
             return new RefreshOutcome.Rejected();
         }
+        recordRefusal(AuditAction.AUTH_REFRESH, session, presentedHash);
         return new RefreshOutcome.Rejected();
     }
 
@@ -174,6 +195,21 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
         return sessions.findById(sessionId)
                 .map(session -> session.isActive(clock.instant()))
                 .orElse(false);
+    }
+
+    /** Records a refusal of a credential that named no session at all, and so names nobody. */
+    private void recordRefusalOfNothing(AuditAction action) {
+        auditTrail.record(new AuditEvent(action, null, null, AuditOutcome.REFUSED));
+    }
+
+    /**
+     * Records a refusal against an existing session, naming its owner only when the presented credential
+     * is one the session issued, current or superseded - see the class comment for why.
+     */
+    private void recordRefusal(AuditAction action, AuthSession session, byte[] presentedHash) {
+        boolean issuedHere = session.matchesCurrent(presentedHash) || session.matchesPrevious(presentedHash);
+        auditTrail.record(new AuditEvent(action, issuedHere ? session.getUserId() : null, session.getId(),
+                AuditOutcome.REFUSED));
     }
 
     /**

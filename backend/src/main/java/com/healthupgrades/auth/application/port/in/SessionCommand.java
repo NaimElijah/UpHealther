@@ -19,10 +19,13 @@ public interface SessionCommand {
     SessionGrant open(UUID userId);
 
     /**
-     * Exchanges a refresh credential for a new one.
+     * Exchanges a refresh credential for a new one, and audits the attempt whatever its outcome.
      *
-     * @param presentedCredential the raw cookie value, entirely unvalidated
-     * @return what happened. Never throws, so a revocation decided here is not rolled back
+     * @param presentedCredential the raw cookie value, entirely unvalidated. A request that carried no
+     *                            cookie has presented nothing, and is answered without calling this
+     * @return what happened. A refusal is an outcome rather than an exception, so a revocation decided
+     *         here is not rolled back
+     * @throws RuntimeException only when the session store fails, after the failure has been audited
      */
     RefreshOutcome refresh(String presentedCredential);
 

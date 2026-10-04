@@ -117,7 +117,11 @@ public class AuthController {
     public ResponseEntity<TokenPair> refresh(
             @RequestHeader(RefreshCookies.REQUESTED_WITH) String requestedWith,
             HttpServletRequest request, HttpServletResponse response) {
-        RefreshOutcome outcome = sessions.refresh(cookies.read(request).orElse(null));
+        // No cookie is no attempt: every signed-out page load asks once, and auditing each of those
+        // as a refused refresh would bury the refusals worth reading (NFR-23).
+        RefreshOutcome outcome = cookies.read(request)
+                .map(sessions::refresh)
+                .orElseGet(RefreshOutcome.Rejected::new);
         return switch (outcome) {
             case RefreshOutcome.Rotated rotated ->
                     withRefreshCookie(ResponseEntity.ok(),

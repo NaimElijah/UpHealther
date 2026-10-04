@@ -26,7 +26,10 @@ public enum AuditAction {
     /** Somebody presented credentials. Refused as often as allowed, and both are worth knowing. */
     AUTH_LOGIN("auth.login", AuditedResource.USER),
 
-    /** A session exchanged its refresh credential for a new one and carried on. */
+    /**
+     * A session exchanged its refresh credential for a new one and carried on — or was refused, which
+     * names the owner only when the credential proves it was theirs.
+     */
     AUTH_REFRESH("auth.refresh", AuditedResource.AUTH_SESSION),
 
     /** Somebody signed out, ending one session and leaving their other devices alone. */
