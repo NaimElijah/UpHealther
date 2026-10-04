@@ -40,8 +40,22 @@ public abstract class PostgresIT {
     /** Matches the image {@code docker-compose.yml} runs, so tests and production share a dialect. */
     private static final DockerImageName IMAGE = DockerImageName.parse("postgres:15-alpine");
 
+    /**
+     * Room for every application context the run keeps alive at once.
+     *
+     * <p>Spring caches each distinct test context for the whole run, and each holds its own connection
+     * pool — Hikari's default of ten. Every {@code @DataJpaTest} that imports a different adapter is a
+     * distinct context, so the suite outgrows PostgreSQL's default of a hundred as persistence ITs are
+     * added. When it does, whichever context starts last is refused with "too many clients" and its whole
+     * class errors before any assertion runs. Raising the server's limit leaves every pool as production
+     * configures it.
+     */
+    private static final int MAX_CONNECTIONS = 300;
+
+    /** Testcontainers' default command - fsync off, which a throwaway database can afford - plus the limit above. */
     @ServiceConnection
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(IMAGE);
+    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(IMAGE)
+            .withCommand("postgres", "-c", "fsync=off", "-c", "max_connections=" + MAX_CONNECTIONS);
 
     static {
         POSTGRES.start();
