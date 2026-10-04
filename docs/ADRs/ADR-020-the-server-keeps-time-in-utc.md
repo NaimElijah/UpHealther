@@ -57,15 +57,21 @@ the two would drift apart again.
 - **Every user lives on UTC's day and clock.** A 09:00 reminder rings at 09:00 UTC wherever its
   owner is. "Today", the seven-day window and where a streak starts follow UTC's midnight.
   `architecture.md` describes how that meets the browser's own "today".
-  - This is what the container already did. Making it explicit fixes nothing for users and breaks
-    nothing for them.
+  - This is what the container already did, so making it explicit changes nothing for users there.
 - **Changing the zone is a code change.** This is deliberate; see the second alternative.
 
-**Not covered here: entity timestamps.** `createdAt` and `updatedAt` are still stamped in
-`@PrePersist`/`@PreUpdate` from the JVM's default zone, not from this clock. That is #51's item 8, and
-NFR-15 keeps a deviation for it.
+**Entity timestamps, except a notification's, are not covered here.** `createdAt` and `updatedAt`
+are still stamped in `@PrePersist`/`@PreUpdate` from the JVM's default zone, not from this clock. That
+is #51's item 8, and NFR-15 keeps a deviation for it.
 - In the container the two agree, because the JVM default is `GMT`.
 - On a non-UTC developer machine they differ by the host's offset.
+
+**A notification is the exception, because one is compared with the clock.** The daily check-in skips
+a user already nudged since the clock's midnight. With the clock on UTC and the stamp still in the
+host's zone, a nudge sent at 18:00 UTC was stored after local midnight on any host east of UTC+6, and
+the next day's run skipped the user. So `NotificationService.create` stamps `createdAt` from this
+clock, which `Notification.onCreate` keeps. No other entity timestamp is compared with a value the
+clock produced.
 
 ## Alternatives considered
 

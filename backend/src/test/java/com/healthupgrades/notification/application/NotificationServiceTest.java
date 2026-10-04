@@ -6,14 +6,18 @@ import com.healthupgrades.notification.domain.model.NotificationCategory;
 import com.healthupgrades.notification.domain.model.NotificationType;
 import com.healthupgrades.notification.domain.port.out.NotificationPushPort;
 import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -43,10 +47,17 @@ class NotificationServiceTest {
     @Mock NotificationRepositoryPort repository;
     @Mock NotificationPushPort pushPort;
 
-    @InjectMocks NotificationService service;
+    private final Clock fixedClock = Clock.fixed(Instant.parse("2026-03-15T18:00:00Z"), ZoneOffset.UTC);
+
+    private NotificationService service;
 
     private final UUID userId = UUID.randomUUID();
     private final UUID upgradeId = UUID.randomUUID();
+
+    @BeforeEach
+    void setUp() {
+        service = new NotificationService(repository, pushPort, fixedClock);
+    }
 
     @Test
     void GivenANewNotification_WhenItIsCreated_ThenItIsPersistedAndPushedToItsOwner() {
@@ -61,6 +72,18 @@ class NotificationServiceTest {
         verify(repository).save(any(Notification.class));
         // pushed to the user's real-time channel via the outbound push port
         verify(pushPort).push(eq(userId), any(Notification.class));
+    }
+
+    @Test
+    void GivenANewNotification_WhenItIsCreated_ThenItIsStampedFromTheInjectedClock() {
+        // NFR-15, ADR-020. The daily check-in asks whether a nudge was created since the clock's
+        // midnight, so a stamp taken in the host's zone skips users on any host east of UTC+6.
+        when(repository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Notification created = service.create(userId, NotificationType.CHECKIN_REMINDER,
+                NotificationCategory.REMINDER, "Daily check-in", "One active upgrade to track today.", null);
+
+        assertThat(created.getCreatedAt()).isEqualTo(LocalDateTime.now(fixedClock));
     }
 
     @Test
