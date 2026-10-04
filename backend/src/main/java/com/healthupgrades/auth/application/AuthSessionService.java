@@ -90,6 +90,8 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
         } catch (RuntimeException thrown) {
             // A fault, not a refusal - the distinction AuthService.login draws for a sign-in. Nothing
             // about the attempt is known for certain once the store has failed, so nothing is named.
+            // Only a failure inside the transaction gets here: one that stops it from starting is
+            // thrown by the proxy before this method runs, and is not audited (#133).
             auditTrail.record(AuditEvent.from(AuditAction.AUTH_REFRESH, null, null, thrown));
             throw thrown;
         }

@@ -566,6 +566,12 @@ Stated because they are load-bearing, not because they are problems yet:
   deferred to the commit, so work that rolls back is recorded — but `afterCompletion` does not say why,
   and an optimistic-lock clash, a lost unique-constraint race and an infrastructure failure at commit
   are indistinguishable there. All three are recorded `REFUSED`.
+- **An outage that stops a transaction from starting is not audited at all.** Every use case records
+  from inside its own `@Transactional` method, and with Hikari's default autocommit the connection is
+  taken when the transaction begins — so a database that is down or a pool that is exhausted fails in
+  the transaction proxy, before anything records the attempt. `AuthService.login`, which is not
+  transactional itself, is the one exception. Tracked in
+  [#133](https://github.com/NaimElijah/UpHealther/issues/133).
 - **The browser and the server each have their own "today".** The SPA dates an entry by the browser's
   zone (`src/lib/localDate.ts`). The server reads "today" from its own clock, which keeps UTC
   ([ADR-020](../ADRs/ADR-020-the-server-keeps-time-in-utc.md)), and a user has no zone. That clock

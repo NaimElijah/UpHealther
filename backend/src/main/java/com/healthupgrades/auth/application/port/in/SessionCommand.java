@@ -25,7 +25,9 @@ public interface SessionCommand {
      *                            cookie has presented nothing, and is answered without calling this
      * @return what happened. A refusal is an outcome rather than an exception, so a revocation decided
      *         here is not rolled back
-     * @throws RuntimeException only when the session store fails, after the failure has been audited
+     * @throws RuntimeException when something it depends on fails. A failure inside the transaction is
+     *         audited as FAILED before it is rethrown; one that stops the transaction from starting never
+     *         reaches this method and is not audited (#133)
      */
     RefreshOutcome refresh(String presentedCredential);
 
@@ -37,7 +39,9 @@ public interface SessionCommand {
      *                            nothing, and is answered without calling this
      * @return whether the credential was accepted, which leaves its session ended — true as well for a
      *         session that had already lapsed or been revoked. The caller is answered the same either way
-     * @throws RuntimeException only when the session store fails, after the failure has been audited
+     * @throws RuntimeException when something it depends on fails. A failure inside the transaction is
+     *         audited as FAILED before it is rethrown; one that stops the transaction from starting never
+     *         reaches this method and is not audited (#133)
      */
     boolean revoke(String presentedCredential);
 
