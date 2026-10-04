@@ -263,7 +263,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-27 | Liveness and readiness are answerable separately, so "restart the process" and "stop routing to it" are distinguishable, and both images declare a health-check | `ActuatorEndpointsIT`, `backend/Dockerfile`, `frontend/Dockerfile`, `docker-compose.yml` ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) |
 | NFR-28 | Latency, error rate, saturation, connection-pool depth and the domain's own counters are readable from one scrape endpoint, and no metric tag is unbounded | `ActuatorEndpointsIT`, `LoggingAuditTrailTest`, `JobMetricsTest`, `RateLimitInterceptorTest` ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) |
 | NFR-29 | The actuator surface is closed by name: only health, info and the metrics scrape answer, and an endpoint that would expose configuration or process memory does not | `ActuatorEndpointsIT` (env, heapdump, loggers, beans, mappings, configprops, threaddump) ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) |
-| NFR-30 | A request that fails shows the user the trace id that finds it in the log, from the error body or the response header, and offers none when the request never reached the server | `apiError.test.ts`, `ErrorState.test.tsx`, `UpgradeDetailsPage.test.tsx` (its four forms) — **Known deviation:** [#96](https://github.com/NaimElijah/UpHealther/issues/96), many mutations fail without a word |
+| NFR-30 | A request that fails shows the user the trace id that finds it in the log, from the error body or the response header, and offers none when the request never reached the server | `apiError.test.ts`, `ErrorState.test.tsx`, `UpgradeDetailsPage.test.tsx` (its four forms, for a refusal that names no field; see §6) — **Known deviation:** [#96](https://github.com/NaimElijah/UpHealther/issues/96), many mutations fail without a word |
 
 ### 4.5 Interface
 
@@ -331,6 +331,12 @@ Undecided, and owned by the repository owner.
 - **Whether the list filters should combine.** FR-11's filters are alternatives — the API applies the
   first one it is given and ignores the rest, deliberately. If the interface grows filters, combining
   them may be what a user expects ([#90](https://github.com/NaimElijah/UpHealther/issues/90)).
+- **Whether a refusal that names a field should also show its trace id.** NFR-30 says a failed request
+  shows its trace id. Each form built on `toFormMessage` instead shows a validation refusal's field
+  messages and leaves the id out, because `toFormMessage` (`src/api/apiError.ts`) treats "reference
+  7f3a..." as help for a bug report rather than for a form. `apiError.test.ts` and the form tests pin
+  that. Either NFR-30 should say a field refusal names its field instead, or field refusals should
+  carry the id too; the code is evidence of the first, not a decision for it.
 - **Whether a failed entry today breaks a streak today.** BR-9 says a day not yet logged does not
   break one, and `StreakCalculatorTest` pins that. The calculator also treats a day logged as *not*
   completed the same way until the day is over, which no test asserts and no requirement states.
