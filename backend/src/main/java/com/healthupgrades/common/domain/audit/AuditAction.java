@@ -27,6 +27,17 @@ public enum AuditAction {
     AUTH_LOGIN("auth.login", AuditedResource.USER),
 
     /**
+     * Somebody opened a real-time connection with an access token. Shaped like a sign-in, because it is
+     * one: the socket stays authenticated as that user for as long as it is open.
+     *
+     * <p>A refusal names nobody, as a refused login does: a token that does not authenticate proves
+     * nothing about whose it was. A reconnecting client with a stale token is routine, so refusals are
+     * expected traffic rather than a signal to alert on. The frames after a CONNECT are authorised, not
+     * authenticated, and are not audited.
+     */
+    AUTH_CONNECT("auth.connect", AuditedResource.USER),
+
+    /**
      * A session exchanged its refresh credential for a new one and carried on — or was refused, which
      * names the owner only when the credential proves it was theirs.
      */

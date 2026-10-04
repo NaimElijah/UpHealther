@@ -1,5 +1,9 @@
 package com.healthupgrades.common.websocket;
 
+import com.healthupgrades.common.domain.audit.AuditAction;
+import com.healthupgrades.common.domain.audit.AuditEvent;
+import com.healthupgrades.common.domain.audit.AuditOutcome;
+import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.common.security.SecurityUser;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +16,8 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.stereotype.Component;
+
+import java.util.Optional;
 
 /**
  * Authenticates STOMP connections and authorises the frames that follow.
@@ -33,6 +39,11 @@ import org.springframework.stereotype.Component;
  *   <li>heartbeats, UNSUBSCRIBE and DISCONNECT pass — they carry no destination to abuse, and refusing
  *       a DISCONNECT would leave sessions to be torn down by timeout instead of closed cleanly.</li>
  * </ul>
+ *
+ * <p>Every CONNECT is audited as {@code auth.connect}, allowed or refused, because opening a socket is an
+ * authentication outcome (NFR-23): the socket stays signed in as that user for as long as it is open.
+ * The frames after it are not: refusing one is an authorisation decision on a connection already
+ * authenticated, so it stays a WARN line rather than an audit entry.
  */
 @Component
 @RequiredArgsConstructor
@@ -40,6 +51,10 @@ import org.springframework.stereotype.Component;
 public class JwtChannelInterceptor implements ChannelInterceptor {
 
     private static final String BEARER_PREFIX = "Bearer ";
+
+    /** A refused CONNECT names nobody: a token that does not authenticate proves nothing about whose it was. */
+    private static final AuditEvent REFUSED_CONNECT =
+            new AuditEvent(AuditAction.AUTH_CONNECT, null, null, AuditOutcome.REFUSED);
 
     /**
      * The one destination a client may subscribe to.
@@ -52,6 +67,7 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
     public static final String ALLOWED_SUBSCRIPTION = "/user/queue/notifications";
 
     private final BearerTokenAuthenticator authenticator;
+    private final AuditTrail auditTrail; // records every CONNECT, allowed or refused
 
     /**
      * Authenticates a connecting frame and authorises every other frame that can name a destination.
@@ -93,14 +109,32 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
             // missing header is a client bug, an unusable token is a session that ended. Spring turns the
             // exception into a refused connection and does not log one itself.
             log.debug("Refused a STOMP CONNECT: no bearer token");
+            auditTrail.record(REFUSED_CONNECT);
             throw new IllegalArgumentException("Missing or malformed Authorization header on STOMP CONNECT");
         }
-        SecurityUser principal = authenticator.authenticate(authorization.substring(BEARER_PREFIX.length()))
+        SecurityUser principal = authenticateBearer(authorization.substring(BEARER_PREFIX.length()))
                 .orElseThrow(() -> {
                     log.debug("Refused a STOMP CONNECT: the token is not usable");
+                    auditTrail.record(REFUSED_CONNECT);
                     return new IllegalArgumentException("Unusable token on STOMP CONNECT");
                 });
+        auditTrail.record(AuditEvent.allowed(AuditAction.AUTH_CONNECT, principal.getId(), principal.getId()));
         return new StompPrincipal(principal.getId().toString());
+    }
+
+    /**
+     * Authenticates the token, auditing a failure of the authenticator itself as the fault it is.
+     *
+     * <p>The authenticator reads the session and the account on every call, so an exception from it is an
+     * outage rather than a refused token, and recording it as a refusal would hide it in ordinary traffic.
+     */
+    private Optional<SecurityUser> authenticateBearer(String token) {
+        try {
+            return authenticator.authenticate(token);
+        } catch (RuntimeException thrown) {
+            auditTrail.record(AuditEvent.from(AuditAction.AUTH_CONNECT, null, null, thrown));
+            throw thrown;
+        }
     }
 
     private void authoriseSubscription(StompHeaderAccessor accessor) {

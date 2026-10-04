@@ -106,7 +106,9 @@ exists only for deployments that split the origins.
 the API pushes. The handshake itself is unauthenticated — a browser cannot set headers on it — so the
 JWT travels in the STOMP `CONNECT` frame and is validated by a channel interceptor, which attaches a
 principal named by user id. Messages are routed to `/user/queue/notifications`, which the broker
-resolves per session using that principal.
+resolves per session using that principal. Every CONNECT is audited as `auth.connect`, allowed or
+refused (NFR-23), because the socket stays signed in as that user for as long as it is open; a refusal
+names nobody, as a refused login does.
 
 The same interceptor authorises the frames that follow, because a session that is merely connected
 can still name any destination it likes. A SUBSCRIBE must come from an authenticated session and
@@ -114,6 +116,8 @@ name `/user/queue/notifications` exactly — the resolved `/queue/notifications-
 session, and any `/topic`, are refused — and a SEND is refused outright, the application declaring
 no `@MessageMapping` for one to reach. Heartbeats, UNSUBSCRIBE and DISCONNECT pass untouched:
 they name nothing, and refusing a DISCONNECT would leave sessions to time out rather than close.
+A refused SUBSCRIBE or SEND is a WARN line, not an audit entry: it authorises a frame on a connection
+that is already authenticated.
 
 The broker is Spring's in-memory simple broker. There is no external broker, so a push reaches only
 clients connected to *this* instance — see "Known constraints" below.

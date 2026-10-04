@@ -1,12 +1,17 @@
 package com.healthupgrades.common.websocket;
 
+import com.healthupgrades.common.domain.audit.AuditAction;
+import com.healthupgrades.common.domain.audit.AuditEvent;
+import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.support.AUser;
+import com.healthupgrades.support.RecordingAuditTrail;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.stomp.StompCommand;
@@ -45,11 +50,13 @@ class JwtChannelInterceptorTest {
     @Mock BearerTokenAuthenticator authenticator;
 
     private final MessageChannel channel = mock(MessageChannel.class);
+    /** A real one, not a mock: AuditTrail.recording is a default method. */
+    private final RecordingAuditTrail auditTrail = new RecordingAuditTrail();
     private JwtChannelInterceptor interceptor;
 
     @BeforeEach
     void setUp() {
-        interceptor = new JwtChannelInterceptor(authenticator);
+        interceptor = new JwtChannelInterceptor(authenticator, auditTrail);
     }
 
     @Test
@@ -84,6 +91,69 @@ class JwtChannelInterceptorTest {
     void GivenAConnectWithANonBearerCredential_WhenItArrives_ThenTheConnectionIsRefused() {
         assertThatThrownBy(() -> interceptor.preSend(frame(StompCommand.CONNECT, "Basic abc"), channel))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // ---- NFR-23: opening a connection is an authentication outcome, allowed or refused ----
+
+    @Test
+    void GivenAConnectWithAUsableToken_WhenItArrives_ThenTheConnectionIsAuditedAsAllowedForThatUser() {
+        UUID userId = UUID.randomUUID();
+        when(authenticator.authenticate(TOKEN)).thenReturn(Optional.of(AUser.principalFor(userId)));
+
+        interceptor.preSend(frame(StompCommand.CONNECT, "Bearer " + TOKEN), channel);
+
+        assertThat(auditTrail.only(AuditAction.AUTH_CONNECT))
+                .hasValue(AuditEvent.allowed(AuditAction.AUTH_CONNECT, userId, userId));
+    }
+
+    @Test
+    void GivenAConnectWithAnUnusableToken_WhenItArrives_ThenTheRefusalIsAuditedWithNoSubject() {
+        // A token that does not authenticate proves nothing about whose it was - the same reason a
+        // refused login names nobody.
+        when(authenticator.authenticate(TOKEN)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> interceptor.preSend(frame(StompCommand.CONNECT, "Bearer " + TOKEN), channel))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(auditTrail.only(AuditAction.AUTH_CONNECT))
+                .hasValue(new AuditEvent(AuditAction.AUTH_CONNECT, null, null, AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenAConnectWithNoToken_WhenItArrives_ThenTheRefusalIsAuditedWithNoSubject() {
+        assertThatThrownBy(() -> interceptor.preSend(frame(StompCommand.CONNECT, null), channel))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(auditTrail.only(AuditAction.AUTH_CONNECT))
+                .hasValue(new AuditEvent(AuditAction.AUTH_CONNECT, null, null, AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenTheAuthenticatorFails_WhenAConnectArrives_ThenTheAttemptIsAuditedAsFailedAndTheFaultPropagates() {
+        // The authenticator reads the session and the account on every call, so a failure there is an
+        // outage, not a refused token, and counting it as a refusal would hide it in ordinary traffic.
+        when(authenticator.authenticate(TOKEN))
+                .thenThrow(new DataAccessResourceFailureException("the database is unreachable"));
+
+        assertThatThrownBy(() -> interceptor.preSend(frame(StompCommand.CONNECT, "Bearer " + TOKEN), channel))
+                .isInstanceOf(DataAccessResourceFailureException.class);
+
+        assertThat(auditTrail.only(AuditAction.AUTH_CONNECT))
+                .hasValue(new AuditEvent(AuditAction.AUTH_CONNECT, null, null, AuditOutcome.FAILED));
+    }
+
+    @Test
+    void GivenARefusedSubscribeOrSend_WhenItArrives_ThenNothingIsAudited() {
+        // These authorise frames on a connection already authenticated; they are not authentication
+        // outcomes, and they stay WARN lines. Pinned because the decision is deliberate.
+        assertThatThrownBy(() -> interceptor.preSend(
+                frameFrom(StompCommand.SUBSCRIBE, "/topic/notifications", session()), channel))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> interceptor.preSend(
+                frameFrom(StompCommand.SEND, "/app/anything", session()), channel))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(auditTrail.recorded()).isEmpty();
     }
 
     @Test
