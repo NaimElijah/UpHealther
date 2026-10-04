@@ -3,7 +3,7 @@
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
 rather than trusted. A hundred and twelve of the hundred and twenty entries below name a test —
-ninety-six distinct test classes and files between them. Five of the remaining eight name the command,
+a hundred and one distinct test classes and files between them. Five of the remaining eight name the command,
 workflow or script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48). The last three —
 FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is about a rendered width, a
 colour or an overflow, and jsdom has no layout engine to observe any of them; §6 records what closing
