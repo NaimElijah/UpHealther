@@ -92,6 +92,19 @@ and a way to misconfigure a deployment.
 - **Revisit when** a deployment serves users in a single region outside UTC *and* per-user zones are
   not yet built. Then a server-wide zone is a real improvement, and the constant becomes a property.
 
+**Give the task scheduler the clock, instead of naming a zone on each cron.** In spring-context 6.1.6,
+a `@Scheduled` with no `zone` builds a `CronTrigger` with no zone, which then takes its trigger
+context's clock's zone (checked in the bytecode). So a `ThreadPoolTaskSchedulerCustomizer` calling
+`setClock(clock)` would put every cron on the injected clock's zone, with no per-annotation `zone` and
+no ArchUnit rule. It was rejected for two reasons:
+
+- It is invisible at the call site. A reader of `@Scheduled(cron = "0 0 8 * * *")` could not tell
+  which 08:00 it means without finding a customizer somewhere else.
+- It ties the zone to whichever `TaskScheduler` bean runs the jobs, and nothing in the code names that
+  bean. A zone on the annotation holds whatever scheduler that turns out to be.
+
+`ServerTimeArchitectureTest` makes the explicit zone as hard to forget as the customizer would be.
+
 **Keep the host's zone.** This was rejected because it is what NFR-15's "timezone-explicit" rules out.
 The zone would be a property of the machine rather than of the system.
 
