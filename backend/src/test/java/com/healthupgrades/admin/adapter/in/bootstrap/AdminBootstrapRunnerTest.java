@@ -121,6 +121,22 @@ class AdminBootstrapRunnerTest {
     }
 
     @Test
+    void GivenTheNamedAccountIsDisabled_WhenTheRunnerRuns_ThenItIsNotPromotedAndNothingIsAudited() {
+        // A disabled administrator administers nothing, so promoting one recovers nothing - and while no
+        // enabled administrator exists the runner would do it again on every restart, each time recording
+        // a grant that changed nothing. Found in the review of #132.
+        User disabled = AUser.aUser().id(BOOTSTRAP_ID).enabled(false).build();
+        when(userQuery.existsEnabledWithRole(Role.ADMIN)).thenReturn(false);
+        when(userQuery.findById(BOOTSTRAP_ID)).thenReturn(Optional.of(disabled));
+
+        assertThatCode(() -> run(BOOTSTRAP_ID.toString())).doesNotThrowAnyException();
+
+        assertThat(disabled.getRole()).isNotEqualTo(Role.ADMIN);
+        verify(userCommand, never()).save(any());
+        assertThat(auditTrail.recorded()).isEmpty();
+    }
+
+    @Test
     void GivenNoBootstrapIdIsConfigured_WhenTheRunnerRuns_ThenNothingIsReadOrWritten() {
         // The normal case, on every start of every installation that already has an administrator.
         run("");

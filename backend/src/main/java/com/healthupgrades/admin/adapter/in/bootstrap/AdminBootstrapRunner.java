@@ -33,6 +33,9 @@ import static net.logstash.logback.argument.StructuredArguments.keyValue;
  * variable set once would silently re-promote an account every restart, quietly undoing a deliberate
  * demotion. It is a bootstrap, not a policy: once an administrator exists, this does nothing, and the
  * variable can be left in place or removed without effect.
+ *
+ * <p><strong>Only an enabled account.</strong> A disabled one would hold the role and still administer
+ * nothing, and while no enabled administrator existed every start would promote it again.
  */
 @Component
 @Slf4j
@@ -86,6 +89,13 @@ public class AdminBootstrapRunner implements ApplicationRunner {
         Optional<User> account = userQuery.findById(id.get());
         if (account.isEmpty()) {
             log.warn("app.admin.bootstrap-user-id names no account; no administrator was created {}",
+                    keyValue("userId", id.get()));
+            return;
+        }
+        // A disabled administrator administers nothing, so promoting this account would recover nothing
+        // - and with still no enabled administrator, the next start would promote it all over again.
+        if (!account.get().isEnabled()) {
+            log.warn("app.admin.bootstrap-user-id names a disabled account; no administrator was created {}",
                     keyValue("userId", id.get()));
             return;
         }
