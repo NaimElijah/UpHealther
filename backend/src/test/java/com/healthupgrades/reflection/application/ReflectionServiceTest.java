@@ -20,6 +20,7 @@ import java.lang.reflect.Method;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
@@ -129,6 +130,19 @@ class ReflectionServiceTest {
         assertThat(event.getValue().reflectionId()).isEqualTo(reflectionId);
         assertThat(event.getValue().upgradeId()).isEqualTo(upgradeId);
         assertThat(event.getValue().userId()).isEqualTo(userId);
+    }
+
+    @Test
+    void GivenAReflectionIsWritten_WhenItIsAnnounced_ThenTheAnnouncementIsTimedByTheInjectedClock() {
+        // NFR-15 (#100): the wall clock stamps whatever time and zone the host happens to have.
+        when(upgradeQuery.getOwnedUpgrade(userId, upgradeId)).thenReturn(AnUpgrade.active(userId));
+        when(repository.save(any(Reflection.class))).thenAnswer(call -> call.getArgument(0));
+
+        service.create(userId, upgradeId, DETAILS);
+
+        ArgumentCaptor<ReflectionAdded> event = ArgumentCaptor.forClass(ReflectionAdded.class);
+        verify(eventPublisher).publish(event.capture());
+        assertThat(event.getValue().occurredAt()).isEqualTo(LocalDateTime.now(fixedClock));
     }
 
     @Test

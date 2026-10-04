@@ -41,7 +41,7 @@ public class UpgradeService implements UpgradeQuery {
     private final DomainEventPublisher eventPublisher; // in-process domain events
     private final AuditTrail auditTrail; // records the attempt, allowed or refused
     private final HealthAreaQuery healthAreaQuery; // confirms an area is the caller's before filing under it
-    private final Clock clock; // decides the start date an activation defaults to
+    private final Clock clock; // decides the start date an activation defaults to, and every event's time
 
     /**
      * Creates a new upgrade in the IDEA state and announces it.
@@ -59,7 +59,7 @@ public class UpgradeService implements UpgradeQuery {
                     details.type(), details.difficulty(), details.plannedStartDate(), details.targetEndDate(),
                     details.motivation(), details.successCriteria());
             HealthUpgrade saved = repository.save(created);
-            eventPublisher.publish(new HealthUpgradeCreated(saved.getId(), userId, saved.getTitle(), LocalDateTime.now()));
+            eventPublisher.publish(new HealthUpgradeCreated(saved.getId(), userId, saved.getTitle(), LocalDateTime.now(clock)));
             return saved;
         }, HealthUpgrade::getId);
     }
@@ -170,7 +170,7 @@ public class UpgradeService implements UpgradeQuery {
             HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
             upgrade.plan(plannedStartDate);
             HealthUpgrade saved = repository.save(upgrade);
-            eventPublisher.publish(new HealthUpgradePlanned(saved.getId(), userId, plannedStartDate, LocalDateTime.now()));
+            eventPublisher.publish(new HealthUpgradePlanned(saved.getId(), userId, plannedStartDate, LocalDateTime.now(clock)));
             return saved;
         });
     }
@@ -196,7 +196,7 @@ public class UpgradeService implements UpgradeQuery {
             validateHardLimit(userId, upgrade.getDifficulty(), true); // activation always claims a slot
             upgrade.activate(startDate != null ? startDate : LocalDate.now(clock));
             HealthUpgrade saved = repository.save(upgrade);
-            eventPublisher.publish(new HealthUpgradeActivated(saved.getId(), userId, saved.getActualStartDate(), LocalDateTime.now()));
+            eventPublisher.publish(new HealthUpgradeActivated(saved.getId(), userId, saved.getActualStartDate(), LocalDateTime.now(clock)));
             return saved;
         });
     }
@@ -216,7 +216,7 @@ public class UpgradeService implements UpgradeQuery {
             HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
             upgrade.pause();
             HealthUpgrade saved = repository.save(upgrade);
-            eventPublisher.publish(new HealthUpgradePaused(saved.getId(), userId, LocalDateTime.now()));
+            eventPublisher.publish(new HealthUpgradePaused(saved.getId(), userId, LocalDateTime.now(clock)));
             return saved;
         });
     }
@@ -236,7 +236,7 @@ public class UpgradeService implements UpgradeQuery {
             HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
             upgrade.complete();
             HealthUpgrade saved = repository.save(upgrade);
-            eventPublisher.publish(new HealthUpgradeCompleted(saved.getId(), userId, LocalDateTime.now()));
+            eventPublisher.publish(new HealthUpgradeCompleted(saved.getId(), userId, LocalDateTime.now(clock)));
             return saved;
         });
     }
@@ -257,7 +257,7 @@ public class UpgradeService implements UpgradeQuery {
             HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
             upgrade.abandon();
             HealthUpgrade saved = repository.save(upgrade);
-            eventPublisher.publish(new HealthUpgradeAbandoned(saved.getId(), userId, LocalDateTime.now()));
+            eventPublisher.publish(new HealthUpgradeAbandoned(saved.getId(), userId, LocalDateTime.now(clock)));
             return saved;
         });
     }
@@ -283,7 +283,7 @@ public class UpgradeService implements UpgradeQuery {
             // Rescheduling an abandoned upgrade revives it into PLANNED. That is a real lifecycle
             // transition and has to be announced, or listeners see it silently reappear as planned.
             if (saved.getStatus() == UpgradeStatus.PLANNED && statusBefore != UpgradeStatus.PLANNED) {
-                eventPublisher.publish(new HealthUpgradePlanned(saved.getId(), userId, newDate, LocalDateTime.now()));
+                eventPublisher.publish(new HealthUpgradePlanned(saved.getId(), userId, newDate, LocalDateTime.now(clock)));
             }
             return saved;
         });

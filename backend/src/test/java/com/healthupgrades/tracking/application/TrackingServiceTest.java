@@ -32,6 +32,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -186,6 +187,16 @@ class TrackingServiceTest {
     }
 
     @Test
+    void GivenProgressIsRecorded_WhenItIsAnnounced_ThenTheAnnouncementIsTimedByTheInjectedClock() {
+        // NFR-15 (#100): the wall clock stamps whatever time and zone the host happens to have.
+        recordWithMilestone(today, OptionalInt.empty());
+
+        ArgumentCaptor<ProgressEntryRecorded> event = ArgumentCaptor.forClass(ProgressEntryRecorded.class);
+        verify(eventPublisher).publish(event.capture());
+        assertThat(event.getValue().occurredAt()).isEqualTo(LocalDateTime.now(fixedClock));
+    }
+
+    @Test
     void GivenAnUpgradeOwnedBySomebodyElse_WhenProgressIsRecorded_ThenNothingIsStoredOrAnnounced() {
         when(upgradeQuery.getOwnedUpgrade(userId, upgradeId))
                 .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
@@ -212,6 +223,15 @@ class TrackingServiceTest {
         assertThat(event.getValue().milestoneDays()).isEqualTo(milestone);
         assertThat(event.getValue().upgradeId()).isEqualTo(upgradeId);
         assertThat(event.getValue().userId()).isEqualTo(userId);
+    }
+
+    @Test
+    void GivenTheEntryReachesAMilestone_WhenItIsAnnounced_ThenTheAnnouncementIsTimedByTheInjectedClock() {
+        recordWithMilestone(today, OptionalInt.of(7));
+
+        ArgumentCaptor<StreakAchieved> event = ArgumentCaptor.forClass(StreakAchieved.class);
+        verify(eventPublisher).publish(event.capture());
+        assertThat(event.getValue().occurredAt()).isEqualTo(LocalDateTime.now(fixedClock));
     }
 
     @Test
