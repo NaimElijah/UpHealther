@@ -5,7 +5,6 @@ import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPor
 import com.healthupgrades.reminder.application.port.in.ReminderQuery;
 import com.healthupgrades.reminder.domain.model.Reminder;
 import com.healthupgrades.tracking.application.port.in.ProgressQuery;
-import com.healthupgrades.tracking.domain.model.ProgressEntry;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
@@ -23,6 +22,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -30,6 +30,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -97,9 +98,7 @@ class NotificationSchedulerTest {
     @Test
     void GivenAUserWithActiveUpgradesAndNothingLoggedToday_WhenTheCheckinSweepRuns_ThenTheyAreNudged() {
         when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgrade()));
-        when(notificationRepository.existsByUserIdAndTypeAndCreatedAtAfter(
-                eq(userId), eq(NotificationType.CHECKIN_REMINDER), any())).thenReturn(false);
-        when(progressQuery.findByUserIdAndDate(eq(userId), any())).thenReturn(List.of());
+        guards(Set.of(), Set.of());
 
         scheduler.notifyDailyCheckin();
 
@@ -112,8 +111,7 @@ class NotificationSchedulerTest {
         // FR-30 says "once a day", and the cron is configurable — so the guard, not the schedule, is
         // what makes that true.
         when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgrade()));
-        when(notificationRepository.existsByUserIdAndTypeAndCreatedAtAfter(
-                eq(userId), eq(NotificationType.CHECKIN_REMINDER), any())).thenReturn(true);
+        guards(Set.of(userId), Set.of());
 
         scheduler.notifyDailyCheckin();
 
@@ -123,15 +121,30 @@ class NotificationSchedulerTest {
     @Test
     void GivenTheUserHasAlreadyLoggedSomethingToday_WhenTheCheckinSweepRuns_ThenTheyAreNotNudged() {
         when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgrade()));
-        when(notificationRepository.existsByUserIdAndTypeAndCreatedAtAfter(
-                eq(userId), eq(NotificationType.CHECKIN_REMINDER), any())).thenReturn(false);
-        when(progressQuery.findByUserIdAndDate(eq(userId), any()))
-                .thenReturn(List.of(ProgressEntry.builder().id(UUID.randomUUID()).userId(userId)
-                        .upgradeId(upgradeId).date(TODAY).completed(true).build()));
+        guards(Set.of(), Set.of(userId));
 
         scheduler.notifyDailyCheckin();
 
         verify(notificationService, never()).create(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void GivenSeveralUsersWithActiveUpgrades_WhenTheCheckinSweepRuns_ThenEachGuardIsReadOnceForAllOfThem() {
+        // NFR-14 (#99). Both guards used to be asked once per user, so the sweep's cost grew with every
+        // user who had something running.
+        UUID nudgedAlready = UUID.randomUUID();
+        UUID loggedAlready = UUID.randomUUID();
+        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(
+                activeUpgradeOf(nudgedAlready), activeUpgradeOf(loggedAlready), activeUpgrade()));
+        guards(Set.of(nudgedAlready), Set.of(loggedAlready));
+
+        scheduler.notifyDailyCheckin();
+
+        verify(notificationRepository, times(1)).findUserIdsNotifiedAfter(any(), any());
+        verify(progressQuery, times(1)).findUserIdsWithEntriesOn(any());
+        verify(notificationService).create(eq(userId), eq(NotificationType.CHECKIN_REMINDER),
+                any(), any(), any(), eq(null));
+        verifyNoMoreInteractions(notificationService);
     }
 
     @Test
@@ -141,7 +154,8 @@ class NotificationSchedulerTest {
         scheduler.notifyDailyCheckin();
 
         verify(notificationService, never()).create(any(), any(), any(), any(), any(), any());
-        verify(progressQuery, never()).findByUserIdAndDate(any(), any());
+        verify(notificationRepository, never()).findUserIdsNotifiedAfter(any(), any());
+        verify(progressQuery, never()).findUserIdsWithEntriesOn(any());
     }
 
     @Test
@@ -149,13 +163,11 @@ class NotificationSchedulerTest {
         // NFR-15. The "already nudged" guard is a since-midnight window, so a wall-clock read here would
         // make the test's verdict depend on the hour it ran in.
         when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgrade()));
-        when(notificationRepository.existsByUserIdAndTypeAndCreatedAtAfter(any(), any(), any()))
-                .thenReturn(true);
 
         scheduler.notifyDailyCheckin();
 
-        verify(notificationRepository).existsByUserIdAndTypeAndCreatedAtAfter(
-                userId, NotificationType.CHECKIN_REMINDER, TODAY.atStartOfDay());
+        verify(notificationRepository).findUserIdsNotifiedAfter(NotificationType.CHECKIN_REMINDER, TODAY.atStartOfDay());
+        verify(progressQuery).findUserIdsWithEntriesOn(TODAY);
     }
 
     // ---- FR-31: the day filter ----
@@ -221,5 +233,17 @@ class NotificationSchedulerTest {
     private HealthUpgrade activeUpgrade() {
         return HealthUpgrade.builder().id(upgradeId).userId(userId).title("Meditate")
                 .status(UpgradeStatus.ACTIVE).build();
+    }
+
+    private HealthUpgrade activeUpgradeOf(UUID owner) {
+        return HealthUpgrade.builder().id(UUID.randomUUID()).userId(owner).title("Stretch")
+                .status(UpgradeStatus.ACTIVE).build();
+    }
+
+    /** Stubs the check-in sweep's two guards: who was nudged since midnight, and who logged today. */
+    private void guards(Set<UUID> nudgedSinceMidnight, Set<UUID> loggedToday) {
+        when(notificationRepository.findUserIdsNotifiedAfter(NotificationType.CHECKIN_REMINDER, TODAY.atStartOfDay()))
+                .thenReturn(nudgedSinceMidnight);
+        when(progressQuery.findUserIdsWithEntriesOn(TODAY)).thenReturn(loggedToday);
     }
 }

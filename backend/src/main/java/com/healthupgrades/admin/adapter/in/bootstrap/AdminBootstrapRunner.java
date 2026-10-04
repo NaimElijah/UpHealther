@@ -1,5 +1,7 @@
 package com.healthupgrades.admin.adapter.in.bootstrap;
 
+import com.healthupgrades.common.domain.audit.AuditAction;
+import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.user.application.port.in.UserCommand;
 import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.Role;
@@ -31,6 +33,9 @@ import static net.logstash.logback.argument.StructuredArguments.keyValue;
  * variable set once would silently re-promote an account every restart, quietly undoing a deliberate
  * demotion. It is a bootstrap, not a policy: once an administrator exists, this does nothing, and the
  * variable can be left in place or removed without effect.
+ *
+ * <p><strong>Only an enabled account.</strong> A disabled one would hold the role and still administer
+ * nothing, and while no enabled administrator existed every start would promote it again.
  */
 @Component
 @Slf4j
@@ -38,15 +43,17 @@ public class AdminBootstrapRunner implements ApplicationRunner {
 
     private final UserQuery userQuery;
     private final UserCommand userCommand;
+    private final AuditTrail auditTrail; // records the promotion, the one thing this runner changes
     private final String bootstrapUserId;
 
     /**
      * @param bootstrapUserId the account to promote, or blank — the normal case — to do nothing
      */
-    public AdminBootstrapRunner(UserQuery userQuery, UserCommand userCommand,
+    public AdminBootstrapRunner(UserQuery userQuery, UserCommand userCommand, AuditTrail auditTrail,
                                 @Value("${app.admin.bootstrap-user-id:}") String bootstrapUserId) {
         this.userQuery = userQuery;
         this.userCommand = userCommand;
+        this.auditTrail = auditTrail;
         this.bootstrapUserId = bootstrapUserId;
     }
 
@@ -85,13 +92,21 @@ public class AdminBootstrapRunner implements ApplicationRunner {
                     keyValue("userId", id.get()));
             return;
         }
+        // A disabled administrator administers nothing, so promoting this account would recover nothing
+        // - and with still no enabled administrator, the next start would promote it all over again.
+        if (!account.get().isEnabled()) {
+            log.warn("app.admin.bootstrap-user-id names a disabled account; no administrator was created {}",
+                    keyValue("userId", id.get()));
+            return;
+        }
 
         User promoted = account.get();
-        promoted.changeRole(Role.ADMIN);
-        userCommand.save(promoted);
-        // INFO and loud: somebody gained the ability to disable every other account on this
-        // installation, and the only other record of it is the row itself.
-        log.info("Promoted the bootstrap account to administrator {}", keyValue("userId", promoted.getId()));
+        // Audited rather than logged (NFR-23): somebody gained the ability to disable every other account
+        // on this installation. No person granted it - the deployment did - so the entry names no actor.
+        auditTrail.recording(AuditAction.ADMIN_BOOTSTRAP, null, promoted.getId(), () -> {
+            promoted.changeRole(Role.ADMIN);
+            userCommand.save(promoted);
+        });
     }
 
     private static Optional<UUID> parse(String value) {

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -52,8 +53,8 @@ class NotificationRepositoryAdapter implements NotificationRepositoryPort {
 
     /** {@inheritDoc} */
     @Override
-    public boolean existsByUserIdAndTypeAndCreatedAtAfter(UUID userId, NotificationType type, LocalDateTime after) {
-        return jpa.existsByUserIdAndTypeAndCreatedAtAfter(userId, type, after);
+    public Set<UUID> findUserIdsNotifiedAfter(NotificationType type, LocalDateTime after) {
+        return jpa.findUserIdsNotifiedAfter(type, after);
     }
 
     /** {@inheritDoc} */

@@ -15,9 +15,11 @@ import java.util.UUID;
  * and a second timestamp chosen by a caller would only ever be a way for the two to disagree.
  *
  * @param action     what was attempted
- * @param actorUserId the user who attempted it, or {@code null} where the actor is genuinely unknown —
- *                    a refused login is the case that matters, since the submitted email is personal
- *                    data and is therefore never recorded
+ * @param actorUserId the user who attempted it, or {@code null} where there is no one to name: the
+ *                    actor is genuinely unknown — a refused login is the case that matters, since the
+ *                    submitted email is personal data and is therefore never recorded, and a refused
+ *                    credential that proves nothing about whose it is joins it — or no person acted at
+ *                    all, as when the deployment promotes the first administrator
  * @param resourceId  the record acted on, or {@code null} where there is not one: registration has no
  *                    user yet, and a login acts on no record at all
  * @param outcome     how the attempt ended

@@ -12,6 +12,8 @@ import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -19,14 +21,16 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static java.util.Comparator.reverseOrder;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -47,6 +51,7 @@ class DashboardAggregationServiceTest {
     @Mock ProgressQuery progressQuery;
     @Mock StreakQuery streakQuery;
     @Mock HealthAreaQuery healthAreaQuery;
+    @Captor ArgumentCaptor<Collection<UUID>> askedFor;
 
     /** Fixed so the dashboard's "today" buckets are decided here, not by when the suite runs. */
     private final Clock fixedClock = Clock.fixed(Instant.parse("2026-03-15T09:00:00Z"), ZoneOffset.UTC);
@@ -94,7 +99,6 @@ class DashboardAggregationServiceTest {
         // 2 of 4 weekly entries completed -> 50%
         when(progressQuery.findByUserIdAndDateBetween(any(), any(), any()))
                 .thenReturn(List.of(entry(true), entry(true), entry(false), entry(false)));
-        when(streakQuery.currentStreak(any())).thenReturn(4);
         when(healthAreaQuery.listByUser(userId)).thenReturn(List.of());
 
         DashboardView view = service.getDashboard(userId);
@@ -103,8 +107,6 @@ class DashboardAggregationServiceTest {
         assertThat(view.planned()).hasSize(1);
         assertThat(view.recentlyCompleted()).hasSize(1);
         assertThat(view.weeklyCompletionRate()).isEqualTo(50.0);
-        // streaks are computed only for ACTIVE upgrades
-        assertThat(view.streaks()).hasSize(2);
     }
 
     // ---- The weekly completion rate ----
@@ -164,7 +166,6 @@ class DashboardAggregationServiceTest {
                 .id(UUID.randomUUID()).userId(userId).status(UpgradeStatus.ACTIVE)
                 .targetEndDate(today.minusDays(1)).updatedAt(today.atStartOfDay()).build();
         stubEmptyExceptUpgrades(List.of(overdue));
-        when(streakQuery.currentStreak(any())).thenReturn(0);
 
         assertThat(service.getDashboard(userId).overdue()).containsExactly(overdue);
     }
@@ -176,7 +177,6 @@ class DashboardAggregationServiceTest {
                 .actualStartDate(today.minusDays(3)).targetEndDate(today.plusDays(3))
                 .updatedAt(today.atStartOfDay()).build();
         stubEmptyExceptUpgrades(List.of(running));
-        when(streakQuery.currentStreak(any())).thenReturn(0);
 
         assertThat(service.getDashboard(userId).today()).containsExactly(running);
     }
@@ -222,21 +222,27 @@ class DashboardAggregationServiceTest {
     // ---- Streaks ----
 
     @Test
-    void GivenUpgradesThatAreNotActive_WhenTheDashboardIsBuilt_ThenNoStreakIsAskedForThem() {
-        // A streak is a per-upgrade query into the tracking context. Asking for one per upgrade rather
-        // than per active upgrade is a cost paid on every dashboard load.
-        stubEmptyExceptUpgrades(List.of(upgrade(UpgradeStatus.PLANNED), upgrade(UpgradeStatus.PAUSED),
-                upgrade(UpgradeStatus.COMPLETED), upgrade(UpgradeStatus.ABANDONED)));
+    void GivenActiveAndInactiveUpgrades_WhenTheDashboardIsBuilt_ThenStreaksAreAskedForTheActiveOnesInOneCall() {
+        // NFR-14 (#99). A streak is read from the tracking context's history, so asking once per active
+        // upgrade cost a query per running upgrade on every dashboard load; asking for the others too
+        // would pay for streaks the dashboard never shows.
+        HealthUpgrade first = upgrade(UpgradeStatus.ACTIVE);
+        HealthUpgrade second = upgrade(UpgradeStatus.ACTIVE);
+        stubEmptyExceptUpgrades(List.of(first, upgrade(UpgradeStatus.PLANNED), upgrade(UpgradeStatus.PAUSED),
+                second, upgrade(UpgradeStatus.COMPLETED), upgrade(UpgradeStatus.ABANDONED)));
 
-        assertThat(service.getDashboard(userId).streaks()).isEmpty();
-        verify(streakQuery, never()).currentStreak(any());
+        service.getDashboard(userId);
+
+        verify(streakQuery).currentStreaks(askedFor.capture());
+        verifyNoMoreInteractions(streakQuery);
+        assertThat(askedFor.getValue()).containsExactlyInAnyOrder(first.getId(), second.getId());
     }
 
     @Test
     void GivenAnActiveUpgrade_WhenTheDashboardIsBuilt_ThenItsStreakIsKeyedByItsId() {
         HealthUpgrade active = upgrade(UpgradeStatus.ACTIVE);
         stubEmptyExceptUpgrades(List.of(active));
-        when(streakQuery.currentStreak(active.getId())).thenReturn(9);
+        when(streakQuery.currentStreaks(List.of(active.getId()))).thenReturn(Map.of(active.getId(), 9));
 
         assertThat(service.getDashboard(userId).streaks()).containsEntry(active.getId(), 9);
     }
@@ -253,7 +259,6 @@ class DashboardAggregationServiceTest {
                 inArea(areaId, UpgradeStatus.PLANNED));
         when(upgradeQuery.findByUser(userId)).thenReturn(upgrades);
         when(progressQuery.findByUserIdAndDateBetween(any(), any(), any())).thenReturn(List.of());
-        when(streakQuery.currentStreak(any())).thenReturn(0);
         when(healthAreaQuery.listByUser(userId)).thenReturn(List.of(area));
 
         DashboardView.AreaSummary summary = service.getDashboard(userId).areaSummaries().get(0);

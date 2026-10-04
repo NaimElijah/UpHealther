@@ -5,8 +5,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -16,11 +18,16 @@ import java.util.UUID;
 interface ProgressEntryJpaRepository extends JpaRepository<ProgressEntry, UUID> {
     List<ProgressEntry> findByUpgradeId(UUID upgradeId); // derived query
     List<ProgressEntry> findByUpgradeIdOrderByDateDesc(UUID upgradeId); // derived query, newest first
+    List<ProgressEntry> findByUpgradeIdIn(Collection<UUID> upgradeIds); // derived query: batch load
     Optional<ProgressEntry> findByUpgradeIdAndDate(UUID upgradeId, LocalDate date); // derived query
     boolean existsByUpgradeIdAndDate(UUID upgradeId, LocalDate date); // derived existence check
     List<ProgressEntry> findByUserId(UUID userId); // derived query
     List<ProgressEntry> findByUserIdAndDate(UUID userId, LocalDate date); // derived query
     List<ProgressEntry> findByUserIdAndDateBetween(UUID userId, LocalDate start, LocalDate end); // derived range query
+
+    // Who logged anything on a day, across every user: the check-in sweep's guard, read once per run.
+    @Query("SELECT DISTINCT p.userId FROM ProgressEntry p WHERE p.date = :date")
+    Set<UUID> findUserIdsWithEntriesOn(LocalDate date);
 
     // Explicit JPQL range query for a single upgrade, ordered by date.
     @Query("SELECT p FROM ProgressEntry p WHERE p.upgradeId = :upgradeId AND p.date BETWEEN :start AND :end ORDER BY p.date")

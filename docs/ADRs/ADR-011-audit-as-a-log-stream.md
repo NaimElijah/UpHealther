@@ -1,6 +1,7 @@
 # ADR-011: The audit trail is a log stream, not a table
 
-- **Status:** Accepted
+- **Status:** Accepted — extended by [ADR-021](ADR-021-what-a-refused-authentication-names-and-what-is-no-attempt.md)
+  (whom a refused refresh, sign-out or CONNECT names, and what is no attempt at all)
 - **Date:** 2026-08-25
 - **Scope:** `backend/` — one outbound port, one adapter, and a recording call in every state-changing
   use case. No new dependency. No migration. No change to any aggregate.

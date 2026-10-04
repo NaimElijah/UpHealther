@@ -26,10 +26,28 @@ public enum AuditAction {
     /** Somebody presented credentials. Refused as often as allowed, and both are worth knowing. */
     AUTH_LOGIN("auth.login", AuditedResource.USER),
 
-    /** A session exchanged its refresh credential for a new one and carried on. */
+    /**
+     * Somebody opened a real-time connection with an access token. Shaped like a sign-in, because it is
+     * one: the socket stays authenticated as that user for as long as it is open.
+     *
+     * <p>A refusal names nobody, as a refused login does: a token that does not authenticate proves
+     * nothing about whose it was. A reconnecting client with a stale token is routine, so refusals are
+     * expected traffic rather than a signal to alert on. A CONNECT with no {@code Authorization} header
+     * presented nothing and is not recorded, and the frames after a CONNECT are authorised, not
+     * authenticated, so they are not recorded either.
+     */
+    AUTH_CONNECT("auth.connect", AuditedResource.USER),
+
+    /**
+     * A session exchanged its refresh credential for a new one and carried on — or was refused, which
+     * names the owner only when the credential proves it was theirs.
+     */
     AUTH_REFRESH("auth.refresh", AuditedResource.AUTH_SESSION),
 
-    /** Somebody signed out, ending one session and leaving their other devices alone. */
+    /**
+     * Somebody signed out, ending one session and leaving their other devices alone — or was refused,
+     * on the same terms as a refused refresh.
+     */
     AUTH_LOGOUT("auth.logout", AuditedResource.AUTH_SESSION),
 
     /**
@@ -56,6 +74,14 @@ public enum AuditAction {
 
     /** An administrator granted or revoked a role. */
     ADMIN_ROLE("admin.role", AuditedResource.USER),
+
+    /**
+     * A fresh installation's first administrator was promoted from configuration at startup.
+     *
+     * <p>Not {@link #ADMIN_ROLE}, which records an administrator acting on someone else's account: here
+     * no person acted — the deployment did — so the entry names the promoted account and no actor.
+     */
+    ADMIN_BOOTSTRAP("admin.bootstrap", AuditedResource.USER),
 
     UPGRADE_CREATE("upgrade.create", AuditedResource.HEALTH_UPGRADE),
     UPGRADE_UPDATE("upgrade.update", AuditedResource.HEALTH_UPGRADE),

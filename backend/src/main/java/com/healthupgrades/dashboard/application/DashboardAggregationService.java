@@ -17,7 +17,6 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -53,7 +52,7 @@ public class DashboardAggregationService implements DashboardQuery {
         List<HealthUpgrade> overdue = all.stream().filter(u -> u.isOverdue(today)).toList();
 
         double weeklyRate = calculateWeeklyCompletionRate(userId, today);
-        Map<UUID, Integer> streaks = calculateStreaks(all);
+        Map<UUID, Integer> streaks = streakQuery.currentStreaks(active.stream().map(HealthUpgrade::getId).toList());
 
         // The five most recently completed upgrades.
         List<HealthUpgrade> recentlyCompleted = all.stream()
@@ -76,17 +75,6 @@ public class DashboardAggregationService implements DashboardQuery {
         if (weekEntries.isEmpty()) return 0.0;
         long completed = weekEntries.stream().filter(e -> Boolean.TRUE.equals(e.getCompleted())).count();
         return (double) completed / weekEntries.size() * 100.0;
-    }
-
-    /** Current streak per ACTIVE upgrade, obtained from the tracking context. */
-    private Map<UUID, Integer> calculateStreaks(List<HealthUpgrade> upgrades) {
-        Map<UUID, Integer> streaks = new HashMap<>();
-        for (HealthUpgrade upgrade : upgrades) {
-            if (upgrade.getStatus() == UpgradeStatus.ACTIVE) {
-                streaks.put(upgrade.getId(), streakQuery.currentStreak(upgrade.getId()));
-            }
-        }
-        return streaks;
     }
 
     /** Rolls up upgrade counts per health area. */

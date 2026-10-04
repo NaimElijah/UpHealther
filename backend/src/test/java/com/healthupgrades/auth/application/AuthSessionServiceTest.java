@@ -4,10 +4,12 @@ import com.healthupgrades.auth.domain.model.AuthSession;
 import com.healthupgrades.auth.domain.port.out.AuthSessionRepositoryPort;
 import com.healthupgrades.auth.domain.port.out.SecretGeneratorPort;
 import com.healthupgrades.common.domain.audit.AuditAction;
+import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.support.RecordingAuditTrail;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataAccessResourceFailureException;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -22,6 +24,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * The refresh protocol: one use per credential, a short forgiveness window, and a session that ends
@@ -171,6 +174,107 @@ class AuthSessionServiceTest {
         assertThat(service.refresh(grant.refreshToken())).isInstanceOf(RefreshOutcome.Rejected.class);
     }
 
+    // ---- NFR-23: every refresh is audited, and its owner is named only on proof ----
+
+    @Test
+    void GivenAnUnparseableCredential_WhenARefreshIsAttempted_ThenTheRefusalIsAuditedWithNoSubject() {
+        service.refresh("not-a-credential");
+
+        assertThat(auditTrail.only(AuditAction.AUTH_REFRESH))
+                .hasValue(new AuditEvent(AuditAction.AUTH_REFRESH, null, null, AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenACredentialNamingNoSession_WhenARefreshIsAttempted_ThenTheRefusalIsAuditedWithNoSubject() {
+        // The session id is the caller's to choose, so one that names no row names nobody either.
+        service.refresh(UUID.randomUUID() + ".a-secret");
+
+        assertThat(auditTrail.only(AuditAction.AUTH_REFRESH))
+                .hasValue(new AuditEvent(AuditAction.AUTH_REFRESH, null, null, AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenACredentialTheSessionNeverIssued_WhenARefreshIsAttempted_ThenTheRefusalNamesTheSessionButNoOwner() {
+        // The session id is no secret - it travels in an access token claim - so a wrong secret proves
+        // nothing about who is asking. Naming the owner would put an attempt against their name that
+        // anybody holding the id could make.
+        SessionGrant opened = service.open(USER_ID);
+
+        service.refresh(opened.sessionId() + ".not-the-secret");
+
+        assertThat(auditTrail.only(AuditAction.AUTH_REFRESH)).hasValue(
+                new AuditEvent(AuditAction.AUTH_REFRESH, null, opened.sessionId(), AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenASessionPastItsIdleWindow_WhenItsOwnCredentialIsPresented_ThenTheRefusalNamesTheSessionAndItsOwner() {
+        // The commonest refusal there is: a laptop opened after a week away. The credential is proven to
+        // be the session's own, and the nightly sweep deletes the row, so the owner is the name that lasts.
+        SessionGrant opened = service.open(USER_ID);
+        clock.moveTo(START.plus(IDLE).plusSeconds(1));
+
+        service.refresh(opened.refreshToken());
+
+        assertThat(auditTrail.only(AuditAction.AUTH_REFRESH)).hasValue(
+                new AuditEvent(AuditAction.AUTH_REFRESH, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenAnExpiredSession_WhenACredentialItNeverIssuedIsPresented_ThenTheRefusalNamesTheSessionButNoOwner() {
+        // Expiry is checked before the credential is. Who is named has to follow from the proof, not from
+        // which check happened to refuse first.
+        SessionGrant opened = service.open(USER_ID);
+        clock.moveTo(START.plus(IDLE).plusSeconds(1));
+
+        service.refresh(opened.sessionId() + ".not-the-secret");
+
+        assertThat(auditTrail.only(AuditAction.AUTH_REFRESH)).hasValue(
+                new AuditEvent(AuditAction.AUTH_REFRESH, null, opened.sessionId(), AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenACredentialRotatedOutMomentsAgo_WhenItIsPresented_ThenTheStaleRefusalNamesTheSessionAndItsOwner() {
+        // A second tab losing a race is asked to retry, not refused for good - but this request was not
+        // honoured, and the superseded credential proves whose tab it was.
+        SessionGrant opened = service.open(USER_ID);
+        service.refresh(opened.refreshToken());
+        clock.moveTo(START.plus(GRACE));
+
+        service.refresh(opened.refreshToken());
+
+        assertThat(auditTrail.recorded()).endsWith(
+                new AuditEvent(AuditAction.AUTH_REFRESH, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenAReplayAfterTheGraceWindow_WhenItIsRefused_ThenItIsAuditedAsReuseAndNotAlsoAsARefusedRefresh() {
+        // One attempt, one entry. Reuse is the entry that should stay at zero, and a second line for the
+        // same request would make every count of refused refreshes include the thefts as well.
+        SessionGrant opened = service.open(USER_ID);
+        service.refresh(opened.refreshToken());
+        clock.moveTo(START.plus(GRACE).plusSeconds(1));
+
+        service.refresh(opened.refreshToken());
+
+        assertThat(auditTrail.recorded()).endsWith(
+                new AuditEvent(AuditAction.AUTH_TOKEN_REUSE, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+        assertThat(auditTrail.recorded(AuditAction.AUTH_REFRESH, AuditOutcome.REFUSED)).isFalse();
+    }
+
+    @Test
+    void GivenTheSessionStoreIsUnreachable_WhenARefreshIsAttempted_ThenItIsAuditedAsFailedAndTheFaultPropagates() {
+        // A fault is not a refusal: an outage recorded as REFUSED would hide in ordinary traffic, which is
+        // the distinction AuthService.login already draws for a sign-in.
+        AuthSessionService broken = new AuthSessionService(new UnreachableSessions(), secrets,
+                new AuthSessionProperties(IDLE, ABSOLUTE, GRACE), auditTrail, clock);
+
+        assertThatThrownBy(() -> broken.refresh(UUID.randomUUID() + ".a-secret"))
+                .isInstanceOf(DataAccessResourceFailureException.class);
+
+        assertThat(auditTrail.only(AuditAction.AUTH_REFRESH))
+                .hasValue(new AuditEvent(AuditAction.AUTH_REFRESH, null, null, AuditOutcome.FAILED));
+    }
+
     @Test
     void GivenALiveSession_WhenItIsSignedOutOf_ThenItStopsWorkingAndIsAudited() {
         SessionGrant opened = service.open(USER_ID);
@@ -217,6 +321,62 @@ class AuthSessionServiceTest {
         assertThat(service.revoke(opened.refreshToken())).isTrue();
 
         assertThat(service.isActive(opened.sessionId())).isFalse();
+    }
+
+    // ---- NFR-23: every sign-out is audited, on the same terms as a refresh ----
+
+    @Test
+    void GivenAnUnparseableCredential_WhenSignOutIsAttempted_ThenTheRefusalIsAuditedWithNoSubject() {
+        service.revoke("not-a-credential");
+
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT))
+                .hasValue(new AuditEvent(AuditAction.AUTH_LOGOUT, null, null, AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenACredentialNamingNoSession_WhenSignOutIsAttempted_ThenTheRefusalIsAuditedWithNoSubject() {
+        service.revoke(UUID.randomUUID() + ".a-secret");
+
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT))
+                .hasValue(new AuditEvent(AuditAction.AUTH_LOGOUT, null, null, AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenACredentialThatDoesNotMatch_WhenSignOutIsAttempted_ThenTheRefusalNamesTheSessionButNoOwner() {
+        // Somebody holding only the session id tried to end it. The id names the session; nothing names
+        // the person who tried.
+        SessionGrant opened = service.open(USER_ID);
+
+        service.revoke(opened.sessionId() + ".not-the-secret");
+
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT)).hasValue(
+                new AuditEvent(AuditAction.AUTH_LOGOUT, null, opened.sessionId(), AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenACredentialRotatedOutLongAgo_WhenItIsUsedToSignOut_ThenTheRefusalNamesTheSessionAndItsOwner() {
+        // Refused, because accepting it would be a way around reuse detection - but the superseded
+        // credential is still proof the session issued it, so its owner is named.
+        SessionGrant opened = service.open(USER_ID);
+        service.refresh(opened.refreshToken());
+        clock.moveTo(START.plus(GRACE).plusSeconds(1));
+
+        service.revoke(opened.refreshToken());
+
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT)).hasValue(
+                new AuditEvent(AuditAction.AUTH_LOGOUT, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenTheSessionStoreIsUnreachable_WhenSignOutIsAttempted_ThenItIsAuditedAsFailedAndTheFaultPropagates() {
+        AuthSessionService broken = new AuthSessionService(new UnreachableSessions(), secrets,
+                new AuthSessionProperties(IDLE, ABSOLUTE, GRACE), auditTrail, clock);
+
+        assertThatThrownBy(() -> broken.revoke(UUID.randomUUID() + ".a-secret"))
+                .isInstanceOf(DataAccessResourceFailureException.class);
+
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT))
+                .hasValue(new AuditEvent(AuditAction.AUTH_LOGOUT, null, null, AuditOutcome.FAILED));
     }
 
     @Test
@@ -313,6 +473,39 @@ class AuthSessionServiceTest {
 
         List<AuthSession> all() {
             return new ArrayList<>(rows.values());
+        }
+    }
+
+    /** A session store that cannot be reached, for the outcome that is a fault rather than a refusal. */
+    private static final class UnreachableSessions implements AuthSessionRepositoryPort {
+
+        private static DataAccessResourceFailureException down() {
+            return new DataAccessResourceFailureException("the session store is unreachable");
+        }
+
+        @Override
+        public AuthSession save(AuthSession session) {
+            throw down();
+        }
+
+        @Override
+        public Optional<AuthSession> findById(UUID id) {
+            throw down();
+        }
+
+        @Override
+        public Optional<AuthSession> findForUpdate(UUID id) {
+            throw down();
+        }
+
+        @Override
+        public int revokeAllForUser(UUID userId) {
+            throw down();
+        }
+
+        @Override
+        public int deleteUnusableAsOf(Instant now) {
+            throw down();
         }
     }
 
