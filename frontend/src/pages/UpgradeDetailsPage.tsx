@@ -72,6 +72,19 @@ const intOrUndef = (v: string): number | undefined => {
 };
 
 /**
+ * Why a form's last save was refused, for its main field (NFR-30); nothing while there is no refusal.
+ *
+ * Read from the mutation itself rather than copied into state: a new save clears it, and so does an
+ * opener's `reset()`, which also detaches a save still in flight so its refusal cannot reach the next
+ * dialog (#119).
+ *
+ * @param error   the mutation's `error`
+ * @param primary the form's main field, whose own message is shown alone when it is the one refused
+ */
+const refusalMessage = (error: Error | null, primary: string): string | undefined =>
+  error ? toFormMessage(toApiError(error), primary) : undefined;
+
+/**
  * Everything about one upgrade: its details, progress history, streak, reflections, reminders and
  * tracking configuration.
  *
@@ -97,12 +110,6 @@ const UpgradeDetails: React.FC = () => {
   const [progressForm, setProgressForm] = useState(newProgressForm);
   const [reflectionForm, setReflectionForm] = useState(newReflectionForm);
 
-  // Why the last save of each form was refused (NFR-30), shown on that form's main field.
-  const [progressError, setProgressError] = useState('');
-  const [reflectionError, setReflectionError] = useState('');
-  const [trackingError, setTrackingError] = useState('');
-  const [reminderError, setReminderError] = useState('');
-
   const [reminderTime, setReminderTime] = useState('09:00');
   const [reminderDays, setReminderDays] = useState<string[]>([]);
   const toggleDay = (d: string) =>
@@ -123,9 +130,8 @@ const UpgradeDetails: React.FC = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['reminders', id] }),
   });
 
-  // Closing the dialog and showing a refusal are passed to each `mutate` call rather than set here,
-  // because only a call's own callbacks stop when an opener below resets the mutation; these run for
-  // every save that succeeds.
+  // Closing the dialog is passed to each `mutate` call rather than set here, because only a call's own
+  // callbacks stop when an opener below resets the mutation; these run for every save that succeeds.
   const progressMutation = useMutation({
     mutationFn: (body: Omit<CreateProgressRequest, 'upgradeId'>) => createProgress({ ...body, upgradeId: id! }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['progress', id] }); qc.invalidateQueries({ queryKey: ['streak', id] }); },
@@ -144,7 +150,6 @@ const UpgradeDetails: React.FC = () => {
    */
   const openProgress = () => {
     setProgressForm(newProgressForm());
-    setProgressError('');
     progressMutation.reset();
     setProgressOpen(true);
   };
@@ -152,7 +157,6 @@ const UpgradeDetails: React.FC = () => {
   /** Starts a new reflection, on the same terms as {@link openProgress}. */
   const openReflection = () => {
     setReflectionForm(newReflectionForm());
-    setReflectionError('');
     reflectionMutation.reset();
     setReflectionOpen(true);
   };
@@ -171,7 +175,6 @@ const UpgradeDetails: React.FC = () => {
       targetUnit: saved?.targetUnit,
       requiredDaily: saved?.requiredDaily ?? true,
     });
-    setTrackingError('');
     trackingMutation.reset();
     setTrackingOpen(true);
   };
@@ -264,16 +267,10 @@ const UpgradeDetails: React.FC = () => {
           </div>
         )}
         <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            setReminderError('');
-            createReminderMut.mutate(undefined, {
-              onError: (thrown) => setReminderError(toFormMessage(toApiError(thrown), 'reminderTime')),
-            });
-          }}
+          onSubmit={(e) => { e.preventDefault(); createReminderMut.mutate(); }}
           className="flex flex-wrap items-end gap-3 border-t border-line-subtle pt-3"
         >
-          <Input label="Time" type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)} error={reminderError} />
+          <Input label="Time" type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)} error={refusalMessage(createReminderMut.error, 'reminderTime')} />
           <div>
             <label className="text-sm font-medium text-fg-muted block mb-1">Days <span className="text-fg-faint">(none = every day)</span></label>
             <div className="flex gap-1">
@@ -346,18 +343,8 @@ const UpgradeDetails: React.FC = () => {
       </Card>
 
       <Modal isOpen={progressOpen} onClose={() => setProgressOpen(false)} title="Log Progress">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            setProgressError('');
-            progressMutation.mutate(progressForm, {
-              onSuccess: () => setProgressOpen(false),
-              onError: (thrown) => setProgressError(toFormMessage(toApiError(thrown), 'date')),
-            });
-          }}
-          className="space-y-4"
-        >
-          <Input label="Date" type="date" value={progressForm.date} onChange={(e) => setProgressForm({ ...progressForm, date: e.target.value })} error={progressError} />
+        <form onSubmit={(e) => { e.preventDefault(); progressMutation.mutate(progressForm, { onSuccess: () => setProgressOpen(false) }); }} className="space-y-4">
+          <Input label="Date" type="date" value={progressForm.date} onChange={(e) => setProgressForm({ ...progressForm, date: e.target.value })} error={refusalMessage(progressMutation.error, 'date')} />
           {(!upgrade.trackingConfig || upgrade.trackingConfig.trackingType === 'BOOLEAN') && (
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={progressForm.completed ?? false} onChange={(e) => setProgressForm({ ...progressForm, completed: e.target.checked })} className="w-4 h-4 rounded" />
@@ -386,18 +373,8 @@ const UpgradeDetails: React.FC = () => {
       </Modal>
 
       <Modal isOpen={reflectionOpen} onClose={() => setReflectionOpen(false)} title="Add Reflection">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            setReflectionError('');
-            reflectionMutation.mutate(reflectionForm, {
-              onSuccess: () => setReflectionOpen(false),
-              onError: (thrown) => setReflectionError(toFormMessage(toApiError(thrown), 'date')),
-            });
-          }}
-          className="space-y-4"
-        >
-          <Input label="Date" type="date" value={reflectionForm.date} onChange={(e) => setReflectionForm({ ...reflectionForm, date: e.target.value })} error={reflectionError} />
+        <form onSubmit={(e) => { e.preventDefault(); reflectionMutation.mutate(reflectionForm, { onSuccess: () => setReflectionOpen(false) }); }} className="space-y-4">
+          <Input label="Date" type="date" value={reflectionForm.date} onChange={(e) => setReflectionForm({ ...reflectionForm, date: e.target.value })} error={refusalMessage(reflectionMutation.error, 'date')} />
           <div>
             <label htmlFor="reflection-what-worked" className="text-sm font-medium text-fg-muted">What worked?</label>
             <textarea id="reflection-what-worked" className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2" rows={2} value={reflectionForm.whatWorked ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, whatWorked: e.target.value })} />
@@ -422,22 +399,12 @@ const UpgradeDetails: React.FC = () => {
       </Modal>
 
       <Modal isOpen={trackingOpen} onClose={() => setTrackingOpen(false)} title="Configure Tracking">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            setTrackingError('');
-            trackingMutation.mutate(trackingForm, {
-              onSuccess: () => setTrackingOpen(false),
-              onError: (thrown) => setTrackingError(toFormMessage(toApiError(thrown), 'trackingType')),
-            });
-          }}
-          className="space-y-4"
-        >
+        <form onSubmit={(e) => { e.preventDefault(); trackingMutation.mutate(trackingForm, { onSuccess: () => setTrackingOpen(false) }); }} className="space-y-4">
           <Select
             label="Tracking type"
             value={trackingForm.trackingType}
             onChange={(e) => setTrackingForm({ ...trackingForm, trackingType: e.target.value as TrackingType })}
-            error={trackingError}
+            error={refusalMessage(trackingMutation.error, 'trackingType')}
             options={[
               { value: 'BOOLEAN', label: 'Yes / No (did it)' },
               { value: 'NUMERIC', label: 'Numeric (amount vs target)' },
