@@ -106,9 +106,11 @@ exists only for deployments that split the origins.
 the API pushes. The handshake itself is unauthenticated — a browser cannot set headers on it — so the
 JWT travels in the STOMP `CONNECT` frame and is validated by a channel interceptor, which attaches a
 principal named by user id. Messages are routed to `/user/queue/notifications`, which the broker
-resolves per session using that principal. Every CONNECT is audited as `auth.connect`, allowed or
-refused (NFR-23), because the socket stays signed in as that user for as long as it is open; a refusal
-names nobody, as a refused login does.
+resolves per session using that principal. Every CONNECT that presents a credential is audited as
+`auth.connect`, allowed or refused (NFR-23), because the socket stays signed in as that user for as long
+as it is open; a refusal names nobody, as a refused login does. A CONNECT with no `Authorization` header
+— what a tab whose session could not be renewed sends every five seconds — presented nothing and is not
+an entry, as a refresh with no cookie is not.
 
 The same interceptor authorises the frames that follow, because a session that is merely connected
 can still name any destination it likes. A SUBSCRIBE must come from an authenticated session and

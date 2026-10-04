@@ -40,8 +40,9 @@ import java.util.Optional;
  *       a DISCONNECT would leave sessions to be torn down by timeout instead of closed cleanly.</li>
  * </ul>
  *
- * <p>Every CONNECT is audited as {@code auth.connect}, allowed or refused, because opening a socket is an
- * authentication outcome (NFR-23): the socket stays signed in as that user for as long as it is open.
+ * <p>Every CONNECT that presents a credential is audited as {@code auth.connect}, allowed or refused,
+ * because opening a socket is an authentication outcome (NFR-23): the socket stays signed in as that user
+ * for as long as it is open. One that presents none is not an attempt, as a refresh with no cookie is not.
  * The frames after it are not: refusing one is an authorisation decision on a connection already
  * authenticated, so it stays a WARN line rather than an audit entry.
  */
@@ -106,10 +107,15 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
         if (authorization == null || !authorization.startsWith(BEARER_PREFIX)) {
             // DEBUG for both refusals: /ws is a public endpoint and a reconnecting client with a stale
             // token is routine. The reason is recorded because the two are diagnosed differently: a
-            // missing header is a client bug, an unusable token is a session that ended. Spring turns the
-            // exception into a refused connection and does not log one itself.
+            // missing header is a client with no session left to offer, an unusable token is a session
+            // that ended. Spring turns the exception into a refused connection and does not log one itself.
             log.debug("Refused a STOMP CONNECT: no bearer token");
-            auditTrail.record(REFUSED_CONNECT);
+            // Audited only when something was presented. A tab whose session could not be renewed
+            // reconnects with no header at all every five seconds, and that is no more an attempt than a
+            // refresh with no cookie: an entry each time would bury the refusals worth reading.
+            if (authorization != null) {
+                auditTrail.record(REFUSED_CONNECT);
+            }
             throw new IllegalArgumentException("Missing or malformed Authorization header on STOMP CONNECT");
         }
         SecurityUser principal = authenticateBearer(authorization.substring(BEARER_PREFIX.length()))

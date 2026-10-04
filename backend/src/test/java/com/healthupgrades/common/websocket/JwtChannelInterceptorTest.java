@@ -120,8 +120,20 @@ class JwtChannelInterceptorTest {
     }
 
     @Test
-    void GivenAConnectWithNoToken_WhenItArrives_ThenTheRefusalIsAuditedWithNoSubject() {
+    void GivenAConnectWithNoAuthorizationHeader_WhenItArrives_ThenItIsRefusedAndNothingIsAudited() {
+        // What a tab sends every five seconds once its session cannot be renewed. Nothing was presented,
+        // so, like a refresh with no cookie, it is no attempt; an entry each time would bury the
+        // refusals worth reading.
         assertThatThrownBy(() -> interceptor.preSend(frame(StompCommand.CONNECT, null), channel))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(auditTrail.recorded()).isEmpty();
+    }
+
+    @Test
+    void GivenAConnectWithANonBearerCredential_WhenItArrives_ThenTheRefusalIsAuditedWithNoSubject() {
+        // Something was presented, so this one is an attempt - just not with a credential this accepts.
+        assertThatThrownBy(() -> interceptor.preSend(frame(StompCommand.CONNECT, "Basic abc"), channel))
                 .isInstanceOf(IllegalArgumentException.class);
 
         assertThat(auditTrail.only(AuditAction.AUTH_CONNECT))

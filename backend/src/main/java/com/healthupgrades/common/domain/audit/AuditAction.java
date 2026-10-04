@@ -32,8 +32,9 @@ public enum AuditAction {
      *
      * <p>A refusal names nobody, as a refused login does: a token that does not authenticate proves
      * nothing about whose it was. A reconnecting client with a stale token is routine, so refusals are
-     * expected traffic rather than a signal to alert on. The frames after a CONNECT are authorised, not
-     * authenticated, and are not audited.
+     * expected traffic rather than a signal to alert on. A CONNECT with no {@code Authorization} header
+     * presented nothing and is not recorded, and the frames after a CONNECT are authorised, not
+     * authenticated, so they are not recorded either.
      */
     AUTH_CONNECT("auth.connect", AuditedResource.USER),
 
