@@ -40,7 +40,8 @@ user. No server-side choice makes reminders local to users in different places.
 `HealthUpgradesApplicationTest` pins the clock. It gives the host a non-UTC zone, because CI's host
 is UTC already and would not notice a regression. `ServerTimeArchitectureTest` fails the build on a
 `@Scheduled` method that does not name the zone. A fifth scheduler added without it is exactly how
-the two would drift apart again.
+the two would drift apart again. The same class forbids the clock-less `now()` of `LocalDateTime`,
+`LocalDate`, `LocalTime` and `Instant` everywhere but the entities, whose lifecycle hooks are #51's.
 
 ## Consequences
 
