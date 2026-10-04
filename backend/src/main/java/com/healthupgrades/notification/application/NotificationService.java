@@ -12,6 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,6 +31,7 @@ public class NotificationService {
 
     private final NotificationRepositoryPort repository; // outbound persistence port
     private final NotificationPushPort pushPort; // outbound real-time delivery port
+    private final Clock clock; // stamps a notification's time, which the daily check-in compares with its midnight
 
     /**
      * Persist a notification for a user, then push it in real time to any connected session. Offline
@@ -46,6 +49,7 @@ public class NotificationService {
                 .message(message)
                 .relatedUpgradeId(relatedUpgradeId)
                 .read(false)
+                .createdAt(LocalDateTime.now(clock))
                 .build());
 
         pushAfterCommit(userId, notification);

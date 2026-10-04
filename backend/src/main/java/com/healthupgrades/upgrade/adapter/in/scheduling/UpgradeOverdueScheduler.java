@@ -2,6 +2,7 @@ package com.healthupgrades.upgrade.adapter.in.scheduling;
 
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.common.observability.JobMetrics;
+import com.healthupgrades.common.time.ServerZone;
 import com.healthupgrades.upgrade.domain.event.UpgradeOverdueDetected;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
@@ -47,7 +48,7 @@ public class UpgradeOverdueScheduler {
      * nothing because a query silently stopped matching is indistinguishable from a run with nothing to
      * find. Counts only — an upgrade's title is the user's own words about their health.
      */
-    @Scheduled(cron = "${app.upgrades.schedules.overdue}")
+    @Scheduled(cron = "${app.upgrades.schedules.overdue}", zone = ServerZone.ID)
     public void detectOverdueUpgrades() {
         jobMetrics.timed(JOB, () -> {
             LocalDate today = LocalDate.now(clock);

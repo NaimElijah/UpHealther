@@ -32,7 +32,7 @@ public class ReflectionService {
     private final UpgradeQuery upgradeQuery;
     private final DomainEventPublisher eventPublisher;
     private final AuditTrail auditTrail; // records the attempt, allowed or refused
-    private final Clock clock; // decides the date a reflection defaults to
+    private final Clock clock; // decides the date a reflection defaults to, and its event's time
 
     /**
      * Writes a reflection against an owned upgrade and announces it.
@@ -64,7 +64,7 @@ public class ReflectionService {
                     .nextAdjustment(details.nextAdjustment())
                     .build();
             Reflection saved = repository.save(reflection);
-            eventPublisher.publish(new ReflectionAdded(saved.getId(), upgradeId, userId, LocalDateTime.now()));
+            eventPublisher.publish(new ReflectionAdded(saved.getId(), upgradeId, userId, LocalDateTime.now(clock)));
             return saved;
         });
     }

@@ -50,7 +50,7 @@ public class ObservabilityConfig implements SchedulingConfigurer {
      *
      * <p>Spring already does the work — {@code ScheduledMethodRunnable} wraps each invocation in an
      * observation and closes the scope in a {@code finally} — but it needs a registry, and Boot 3.2.5
-     * never supplies one. This one line covers all three jobs and any job added later, which is why the
+     * never supplies one. This one line covers every job, any added later included, which is why the
      * scheduler classes themselves are untouched: nothing for a new job to remember, and no
      * {@code try/finally} for anyone to get wrong.
      */

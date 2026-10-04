@@ -1,5 +1,6 @@
 package com.healthupgrades.upgrade.application;
 
+import com.healthupgrades.common.domain.event.DomainEvent;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradeActivated;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradeCompleted;
@@ -22,6 +23,9 @@ import com.healthupgrades.upgrade.domain.service.UpgradeSchedulingService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -29,10 +33,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -44,8 +50,8 @@ import static org.mockito.Mockito.when;
 /**
  * Covers the upgrade use cases: FR-10 (create), FR-11 (list, narrowed by one filter), FR-12 (the
  * lifecycle transitions and the events they announce), FR-13 (edit at any point), FR-14 (delete),
- * BR-15 (another user's upgrade is absent, not forbidden) and BR-18 (an upgrade is filed only under the
- * caller's own health area).
+ * BR-15 (another user's upgrade is absent, not forbidden), BR-18 (an upgrade is filed only under the
+ * caller's own health area) and NFR-15 (every announcement is timed by the injected clock).
  *
  * <p>Also BR-5, the concurrent-HARD limit, on both routes into a running HARD upgrade — activating one,
  * and promoting an already-active one — because there are two and only one of them is obvious.
@@ -522,5 +528,45 @@ class UpgradeServiceTest {
                 .isInstanceOf(ResourceNotFoundException.class);
 
         assertThat(auditTrail.recorded(AuditAction.UPGRADE_DELETE, AuditOutcome.REFUSED)).isTrue();
+    }
+
+    // ---- NFR-15: an announcement is timed by the injected clock ----
+
+    /** A use case that announces what it did, run against this class's upgrade and owner. */
+    @FunctionalInterface
+    private interface AnnouncingUseCase {
+        void run(UpgradeService service, UUID userId, UUID upgradeId);
+    }
+
+    /** Every use case that publishes, with the status its upgrade has to start in — none for create. */
+    static Stream<Arguments> everyUseCaseThatAnnounces() {
+        LocalDate date = LocalDate.of(2026, 4, 1);
+        return Stream.of(
+                Arguments.of("create", null, (AnnouncingUseCase) (s, user, id) -> s.create(user,
+                        new UpgradeDetails(null, "Cold showers", null, UpgradeType.HABIT, null, null, null, null, null))),
+                Arguments.of("plan", UpgradeStatus.IDEA, (AnnouncingUseCase) (s, user, id) -> s.plan(user, id, date)),
+                Arguments.of("activate", UpgradeStatus.PLANNED, (AnnouncingUseCase) (s, user, id) -> s.activate(user, id, null)),
+                Arguments.of("pause", UpgradeStatus.ACTIVE, (AnnouncingUseCase) (s, user, id) -> s.pause(user, id)),
+                Arguments.of("complete", UpgradeStatus.ACTIVE, (AnnouncingUseCase) (s, user, id) -> s.complete(user, id)),
+                Arguments.of("abandon", UpgradeStatus.ACTIVE, (AnnouncingUseCase) (s, user, id) -> s.abandon(user, id)),
+                Arguments.of("reschedule", UpgradeStatus.ABANDONED, (AnnouncingUseCase) (s, user, id) -> s.reschedule(user, id, date)));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("everyUseCaseThatAnnounces")
+    void GivenAUseCaseThatAnnounces_WhenItRuns_ThenTheAnnouncementIsTimedByTheInjectedClock(
+            String useCase, UpgradeStatus startingStatus, AnnouncingUseCase announcing) {
+        // #100: the wall clock stamps whatever time and zone the host happens to have.
+        if (startingStatus != null) {
+            when(repository.findByIdAndUserId(upgradeId, userId))
+                    .thenReturn(Optional.of(upgradeWith(startingStatus, Difficulty.MEDIUM)));
+        }
+        when(repository.save(any(HealthUpgrade.class))).thenAnswer(call -> call.getArgument(0));
+
+        announcing.run(service, userId, upgradeId);
+
+        ArgumentCaptor<DomainEvent> event = ArgumentCaptor.forClass(DomainEvent.class);
+        verify(eventPublisher).publish(event.capture());
+        assertThat(event.getValue().occurredAt()).isEqualTo(LocalDateTime.now(fixedClock));
     }
 }

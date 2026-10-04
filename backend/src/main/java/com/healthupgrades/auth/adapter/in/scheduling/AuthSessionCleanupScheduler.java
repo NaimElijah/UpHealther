@@ -2,6 +2,7 @@ package com.healthupgrades.auth.adapter.in.scheduling;
 
 import com.healthupgrades.auth.application.AuthSessionService;
 import com.healthupgrades.common.observability.JobMetrics;
+import com.healthupgrades.common.time.ServerZone;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -40,7 +41,7 @@ public class AuthSessionCleanupScheduler {
      * <p>Counts only, and silent when there was nothing to remove: a nightly line saying zero buries the
      * nights that removed thousands.
      */
-    @Scheduled(cron = "${app.auth.schedules.session-cleanup}")
+    @Scheduled(cron = "${app.auth.schedules.session-cleanup}", zone = ServerZone.ID)
     public void deleteUnusableSessions() {
         jobMetrics.timed(JOB, () -> {
             int removed = sessionService.deleteUnusableSessions();

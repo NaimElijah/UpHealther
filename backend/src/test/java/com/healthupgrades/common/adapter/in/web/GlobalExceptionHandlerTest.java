@@ -37,6 +37,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.method.annotation.ExceptionHandlerMethodResolver;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -64,13 +68,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class GlobalExceptionHandlerTest {
 
     private static final String TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736";
+    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-03-15T09:00:00Z"), ZoneOffset.UTC);
 
     private GlobalExceptionHandler handler;
     private HttpServletRequest request;
 
     @BeforeEach
     void setUp() {
-        handler = new GlobalExceptionHandler(Tracer.NOOP);
+        handler = new GlobalExceptionHandler(Tracer.NOOP, CLOCK);
         MockHttpServletRequest mockRequest = new MockHttpServletRequest();
         mockRequest.setRequestURI("/api/upgrades/42");
         request = mockRequest;
@@ -247,12 +252,22 @@ class GlobalExceptionHandlerTest {
 
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response;
         try (Tracer.SpanInScope ignored = tracer.withSpan(span)) {
-            response = new GlobalExceptionHandler(tracer)
+            response = new GlobalExceptionHandler(tracer, CLOCK)
                     .handleNotFound(new ResourceNotFoundException("Upgrade not found: 42"), request);
         }
 
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getTraceId()).isEqualTo(TRACE_ID);
+    }
+
+    @Test
+    void GivenAFailedRequest_WhenItsErrorBodyIsBuilt_ThenItIsStampedFromTheInjectedClock() {
+        // NFR-15: the wall clock stamps whatever time and zone the host happens to have.
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
+                handler.handleNotFound(new ResourceNotFoundException("Upgrade not found: 42"), request);
+
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getTimestamp()).isEqualTo(LocalDateTime.now(CLOCK));
     }
 
     @Test
@@ -290,7 +305,7 @@ class GlobalExceptionHandlerTest {
         private final MockMvc mockMvc = MockMvcBuilders
                 .standaloneSetup(new UpgradeController(mock(UpgradeService.class), mock(UpgradeWebMapper.class)))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
-                .setControllerAdvice(new GlobalExceptionHandler(Tracer.NOOP))
+                .setControllerAdvice(new GlobalExceptionHandler(Tracer.NOOP, CLOCK))
                 .build();
 
         @Test
