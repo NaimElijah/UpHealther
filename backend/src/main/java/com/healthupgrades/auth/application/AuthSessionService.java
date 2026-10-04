@@ -47,7 +47,9 @@ import static net.logstash.logback.argument.StructuredArguments.keyValue;
  *       It names the session whenever the session exists, and the session's owner only when the
  *       presented credential is one the session issued. The session id is no secret, so a refusal of a
  *       credential the session never issued says nothing about who sent it, and naming the owner would
- *       let anybody holding the id put attempts against their name.</li>
+ *       let anybody holding the id put attempts against their name. Naming the owner says whose
+ *       credential it was, not who sent it: a superseded one presented after the grace window has
+ *       probably been stolen, and is named exactly as the reuse entry names it.</li>
  * </ul>
  */
 @Service

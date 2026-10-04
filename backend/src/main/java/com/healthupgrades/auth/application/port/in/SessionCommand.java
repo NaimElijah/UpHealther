@@ -35,7 +35,8 @@ public interface SessionCommand {
      *
      * @param presentedCredential the raw cookie value. A request that carried no cookie has presented
      *                            nothing, and is answered without calling this
-     * @return whether a session was actually ended. The caller is answered the same either way
+     * @return whether the credential was accepted, which leaves its session ended — true as well for a
+     *         session that had already lapsed or been revoked. The caller is answered the same either way
      * @throws RuntimeException only when the session store fails, after the failure has been audited
      */
     boolean revoke(String presentedCredential);

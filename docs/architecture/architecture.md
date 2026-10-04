@@ -250,7 +250,8 @@ into a refused request rather than a wait for the token to expire.
 Every refresh and every sign-out the service is asked for is audited, as `auth.refresh` and
 `auth.logout`, refused ones included (NFR-23). A refusal names the session whenever the row exists, and
 its owner only when the presented credential is one the session issued — the session id is no secret,
-so a wrong secret says nothing about who sent it. A request with no cookie at all has presented
+so a wrong secret says nothing about who sent it. Naming the owner says whose credential it was, not who
+sent it, which is also how the reuse entry names a credential that was probably stolen. A request with no cookie at all has presented
 nothing; the controller answers it without asking the service, so the refresh every signed-out page
 load makes is not an entry.
 
