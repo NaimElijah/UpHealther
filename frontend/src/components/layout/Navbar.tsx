@@ -4,8 +4,12 @@ import { useAuth } from '../../hooks/useAuth';
 import Button from '../ui/Button';
 import NotificationBell from '../notifications/NotificationBell';
 import ThemeToggle from '../theme/ThemeToggle';
+import NavMenu from './NavMenu';
 
-/** Top bar: brand link home, the theme toggle, the notification bell, the signed-in user's name, and logout. */
+/**
+ * Top bar: the phone menu (below `md` only), brand link home, the theme toggle, the notification bell,
+ * the signed-in user's name, and logout.
+ */
 const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
   const [signOutFailed, setSignOutFailed] = useState(false);
@@ -28,10 +32,13 @@ const Navbar: React.FC = () => {
 
   return (
     <nav className="bg-surface border-b border-line h-16 flex items-center gap-4 px-4 sm:px-6 justify-between sticky top-0 z-30">
-      <Link to="/dashboard" className="flex items-center gap-2 min-w-0">
-        <span className="text-2xl shrink-0" aria-hidden="true">💪</span>
-        <span className="font-bold text-fg text-lg truncate">UpHealther</span>
-      </Link>
+      <div className="flex items-center gap-2 min-w-0">
+        <NavMenu />
+        <Link to="/dashboard" className="flex items-center gap-2 min-w-0">
+          <span className="text-2xl shrink-0" aria-hidden="true">💪</span>
+          <span className="font-bold text-fg text-lg truncate">UpHealther</span>
+        </Link>
+      </div>
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
         <ThemeToggle />
         <NotificationBell />

@@ -3,7 +3,7 @@
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
 rather than trusted. A hundred and thirteen of the hundred and twenty-one entries below name a test —
-a hundred and four distinct test classes and files between them. Five of the remaining eight name the command,
+a hundred and five distinct test classes and files between them. Five of the remaining eight name the command,
 workflow or script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48). The last three —
 FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is about a rendered width, a
 colour or an overflow, and jsdom has no layout engine to observe any of them; §6 records what closing
@@ -13,7 +13,7 @@ that gap would take.
 API (§5.4), so "a user can" means through the interface. Where the implementation falls short of an
 entry — in the interface or anywhere else — the entry is not weakened to match. Its *Enforced by* cell
 says **Known deviation** and links the issue that tracks the gap; the tests named there enforce the
-part that holds. Twenty entries carry one today, and the change that closes an issue takes its
+part that holds. Seventeen entries carry one today, and the change that closes an issue takes its
 marker out.
 
 **IDs are permanent.** Tests, code comments, migrations and ADRs cite them, so an ID is never
@@ -70,7 +70,7 @@ no way at all — to read another person's health records
 
 | ID | Requirement | Enforced by |
 |---|---|---|
-| FR-6 | A user can create, read, update and delete their own health areas | `HealthAreaServiceTest`, `HealthAreaControllerTest` — **Known deviation:** [#97](https://github.com/NaimElijah/UpHealther/issues/97), unreachable below 768px |
+| FR-6 | A user can create, read, update and delete their own health areas | `HealthAreaServiceTest`, `HealthAreaControllerTest`, `NavMenu.test.tsx` (reachable on a phone) |
 | FR-7 | An area carries a name and optional description, priority, icon and colour | `HealthAreaServiceTest`, `HealthAreaControllerTest`, `HealthAreasPage.test.tsx` |
 | FR-8 | Deleting an area leaves upgrades filed under it intact | `HealthAreaServiceTest`, `HealthAreaPersistenceIT` |
 
@@ -95,7 +95,7 @@ no way at all — to read another person's health records
 | FR-18 | A user can log progress for an upgrade on a given day | `TrackingServiceTest`, `ProgressControllerTest`, `UpgradeDetailsPage.test.tsx`, `localDate.test.ts` |
 | FR-19 | A user can log progress for every active upgrade in one pass | `DailyCheckinPage.test.tsx` — but see §6 — **Known deviation:** [#55](https://github.com/NaimElijah/UpHealther/issues/55), untouched upgrades are logged too |
 | FR-20 | A user can read an upgrade's progress history, newest first | `TrackingServiceTest`, `ProgressEntryPersistenceIT`, `UpgradeDetailsPage.test.tsx` |
-| FR-21 | A user can read today's and the last seven days' progress across all upgrades | `TrackingServiceTest`, `ProgressEntryPersistenceIT`, `ProgressHistoryPage.test.tsx` — **Known deviation:** [#97](https://github.com/NaimElijah/UpHealther/issues/97), unreachable below 768px |
+| FR-21 | A user can read today's and the last seven days' progress across all upgrades | `TrackingServiceTest`, `ProgressEntryPersistenceIT`, `ProgressHistoryPage.test.tsx`, `NavMenu.test.tsx` (reachable on a phone) |
 | FR-22 | A user can see an upgrade's current and longest streak | `StreakCalculatorTest`, `TrackingServiceTest`, `ProgressControllerTest` |
 
 ### 2.5 Reflections and reminders
@@ -149,11 +149,11 @@ The role model behind every entry here is [ADR-016](../ADRs/ADR-016-roles-read-f
 
 | ID | Requirement | Enforced by |
 |---|---|---|
-| FR-42 | An administrator can list the accounts on the installation, a page of at most a hundred at a time and oldest first, seeing each one's role and whether it is switched on — and nothing about what it owns | `AdminUserServiceTest`, `AdminUserControllerTest`, `UserPersistenceIT` (the order) — **Known deviation:** [#97](https://github.com/NaimElijah/UpHealther/issues/97), unreachable below 768px |
+| FR-42 | An administrator can list the accounts on the installation, a page of at most a hundred at a time and oldest first, seeing each one's role and whether it is switched on — and nothing about what it owns | `AdminUserServiceTest`, `AdminUserControllerTest`, `UserPersistenceIT` (the order), `NavMenu.test.tsx` (reachable on a phone) |
 | FR-43 | An administrator can switch an account off and back on. Switching it off ends every session it holds and destroys nothing it owns, so switching it back on restores the account exactly as it was | `AdminUserServiceTest`, `AdminUserControllerTest` — **Known deviation:** [#83](https://github.com/NaimElijah/UpHealther/issues/83), an open WebSocket outlives the switch-off |
 | FR-44 | An administrator can grant and revoke the administrator role. The change is read from the account on its next request, so it takes effect without signing that person out | `AdminUserServiceTest`, `AdminUserControllerTest` |
 | FR-45 | A fresh installation can be given its first administrator through configuration, by account id and only while no *enabled* administrator exists — so it cannot silently re-promote somebody after a deliberate demotion, cannot be claimed by whoever registers an address first, and still recovers an installation whose administrators have disabled each other | `AdminBootstrapRunnerTest` |
-| FR-46 | The account administration screen is offered only to an administrator, in the navigation and at its route, and an administrator's own row offers no controls at all — the server refuses a self-directed change, and a control that can only fail is worse than none | `RequireRole.test.tsx`, `Sidebar.test.tsx`, `AdminUsersPage.test.tsx` |
+| FR-46 | The account administration screen is offered only to an administrator, in the navigation and at its route, and an administrator's own row offers no controls at all — the server refuses a self-directed change, and a control that can only fail is worse than none | `RequireRole.test.tsx`, `Sidebar.test.tsx`, `NavMenu.test.tsx`, `AdminUsersPage.test.tsx` |
 | FR-47 | Disabling an account and changing a role are confirmed before they happen, and the confirmation says what the change actually does; a change that fails says so rather than appearing to have worked | `AdminUsersPage.test.tsx` |
 
 ---
