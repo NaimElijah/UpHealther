@@ -50,13 +50,23 @@ function renderNavbar(logout: () => Promise<void>) {
 }
 
 /**
- * Whether anything from `el` up to `<body>` is hidden at the narrowest width. Tailwind's breakpoint
- * variants only ever add display back, so a bare `hidden` on the element or an ancestor is what takes
- * it off a phone screen — and a class is the most jsdom, with no layout engine, can observe about it.
+ * Every class form that takes an element off a phone screen: `hidden`, `invisible` or `sr-only`, bare
+ * or under a `max-*` variant (`max-sm:hidden`, `max-[400px]:invisible`). A `min-*` or plain responsive
+ * variant (`sm:hidden`) only hides above the narrowest width, so it does not count.
+ */
+const HIDES_ON_A_PHONE = /^(?:max-[^:]+:)?(?:hidden|invisible|sr-only)$/;
+
+/**
+ * Whether anything from `el` up to `<body>` hides it at the narrowest width.
+ *
+ * This reads class names, which is an implementation detail, and it does so knowingly: jsdom has no
+ * layout engine and runs no Tailwind, so whether a phone *shows* the alert is beyond any test here and
+ * is checked in a browser (§6). What a class check can still catch is the regression's own shape —
+ * `hidden sm:block` is how #97 came about — so it covers every form of it rather than the one literal.
  */
 function hiddenAtTheNarrowestWidth(el: HTMLElement): boolean {
   for (let node: HTMLElement | null = el; node && node !== document.body; node = node.parentElement) {
-    if (node.classList.contains('hidden')) return true;
+    if (Array.from(node.classList).some((cls) => HIDES_ON_A_PHONE.test(cls))) return true;
   }
   return false;
 }
