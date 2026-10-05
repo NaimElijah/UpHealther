@@ -118,7 +118,11 @@ public class NotificationScheduler {
     }
 
     /**
-     * Fires the reminders that are due at this minute.
+     * Fires the reminders that are due at this minute, for the upgrades that are active (BR-23).
+     *
+     * <p>A due reminder on an upgrade in any other state is silenced, not changed: the status is read
+     * on every run, so pausing an upgrade quiets its reminders and activating it again brings them
+     * back exactly as they were.
      *
      * <p>Runs every minute, which is what a reminder configured to the minute requires. It sweeps every
      * enabled reminder each time, so the two costly parts are avoided deliberately: due-ness is decided
@@ -148,22 +152,28 @@ public class NotificationScheduler {
                     .collect(Collectors.toMap(HealthUpgrade::getId, Function.identity()));
 
             int fired = 0;
+            int orphaned = 0;
+            int silenced = 0;
             for (Reminder reminder : due) {
                 HealthUpgrade u = upgrades.get(reminder.getUpgradeId());
-                if (u != null) {
+                if (u == null) {
+                    orphaned++;
+                } else if (u.getStatus() != UpgradeStatus.ACTIVE) {
+                    silenced++;
+                } else {
                     fired++;
                     notificationService.create(u.getUserId(), NotificationType.REMINDER, NotificationCategory.REMINDER,
                             "Reminder ⏰", "Time for \"" + u.getTitle() + "\".", u.getId());
                 }
             }
 
-            log.info("{} {} {}", keyValue("job", REMINDERS_JOB), keyValue("due", due.size()),
-                    keyValue("fired", fired));
+            log.info("{} {} {} {}", keyValue("job", REMINDERS_JOB), keyValue("due", due.size()),
+                    keyValue("fired", fired), keyValue("silenced", silenced));
 
             // A reminder that outlived the upgrade it hangs off. Degraded but still serving, which
             // ADR-010 defines as WARN - leaving it as two INFO fields nobody diffs would report a real
-            // inconsistency at the level reserved for things going normally.
-            int orphaned = due.size() - fired;
+            // inconsistency at the level reserved for things going normally. A silenced reminder is not
+            // one: its upgrade is there, and BR-23 is working.
             if (orphaned > 0) {
                 log.warn("{} {}", keyValue("event", "reminder.orphaned"), keyValue("count", orphaned));
             }
