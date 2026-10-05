@@ -38,10 +38,13 @@ const Navbar: React.FC = () => {
       <nav className="bg-surface border-b border-line h-16 flex items-center gap-4 px-4 sm:px-6 justify-between">
         <div className="flex items-center gap-2 min-w-0">
           <NavMenu />
-          {/* overflow-hidden is the floor that lets the brand give way: at 320px the menu, theme switch,
-              bell and Logout leave it no room, and its shrink-0 emoji would otherwise paint over the
-              theme switch instead of being clipped. */}
-          <Link to="/dashboard" className="flex items-center gap-2 min-w-0 overflow-hidden">
+          {/* The brand gives way to the controls. Below 360px the menu, theme switch, bell and Logout
+              leave it no room, so it is not rendered at all: clipped to nothing it would still be a
+              focusable link with an invisible focus ring (the menu's Dashboard entry stands in for it).
+              360px is where its emoji first fits on a phone; overflow-hidden covers the few pixels a
+              desktop scrollbar takes just above that, so the emoji is clipped rather than painted over
+              the theme switch. */}
+          <Link to="/dashboard" className="hidden min-[360px]:flex items-center gap-2 min-w-0 overflow-hidden">
             <span className="text-2xl shrink-0" aria-hidden="true">💪</span>
             <span className="font-bold text-fg text-lg truncate">UpHealther</span>
           </Link>
