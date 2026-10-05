@@ -70,7 +70,7 @@ no way at all — to read another person's health records
 
 | ID | Requirement | Enforced by |
 |---|---|---|
-| FR-6 | A user can create, read, update and delete their own health areas | `HealthAreaServiceTest`, `HealthAreaControllerTest`, `NavMenu.test.tsx` (reachable on a phone) |
+| FR-6 | A user can create, read, update and delete their own health areas | `HealthAreaServiceTest`, `HealthAreaControllerTest`, `NavMenu.test.tsx` (the phone menu offers it; that the menu is what shows below 768px is checked by hand, see §6) |
 | FR-7 | An area carries a name and optional description, priority, icon and colour | `HealthAreaServiceTest`, `HealthAreaControllerTest`, `HealthAreasPage.test.tsx` |
 | FR-8 | Deleting an area leaves upgrades filed under it intact | `HealthAreaServiceTest`, `HealthAreaPersistenceIT` |
 
@@ -95,7 +95,7 @@ no way at all — to read another person's health records
 | FR-18 | A user can log progress for an upgrade on a given day | `TrackingServiceTest`, `ProgressControllerTest`, `UpgradeDetailsPage.test.tsx`, `localDate.test.ts` |
 | FR-19 | A user can log progress for every active upgrade in one pass | `DailyCheckinPage.test.tsx` — but see §6 — **Known deviation:** [#55](https://github.com/NaimElijah/UpHealther/issues/55), untouched upgrades are logged too |
 | FR-20 | A user can read an upgrade's progress history, newest first | `TrackingServiceTest`, `ProgressEntryPersistenceIT`, `UpgradeDetailsPage.test.tsx` |
-| FR-21 | A user can read today's and the last seven days' progress across all upgrades | `TrackingServiceTest`, `ProgressEntryPersistenceIT`, `ProgressHistoryPage.test.tsx`, `NavMenu.test.tsx` (reachable on a phone) |
+| FR-21 | A user can read today's and the last seven days' progress across all upgrades | `TrackingServiceTest`, `ProgressEntryPersistenceIT`, `ProgressHistoryPage.test.tsx`, `NavMenu.test.tsx` (the phone menu offers it; that the menu is what shows below 768px is checked by hand, see §6) |
 | FR-22 | A user can see an upgrade's current and longest streak | `StreakCalculatorTest`, `TrackingServiceTest`, `ProgressControllerTest` |
 
 ### 2.5 Reflections and reminders
@@ -149,7 +149,7 @@ The role model behind every entry here is [ADR-016](../ADRs/ADR-016-roles-read-f
 
 | ID | Requirement | Enforced by |
 |---|---|---|
-| FR-42 | An administrator can list the accounts on the installation, a page of at most a hundred at a time and oldest first, seeing each one's role and whether it is switched on — and nothing about what it owns | `AdminUserServiceTest`, `AdminUserControllerTest`, `UserPersistenceIT` (the order), `NavMenu.test.tsx` (reachable on a phone) |
+| FR-42 | An administrator can list the accounts on the installation, a page of at most a hundred at a time and oldest first, seeing each one's role and whether it is switched on — and nothing about what it owns | `AdminUserServiceTest`, `AdminUserControllerTest`, `UserPersistenceIT` (the order), `NavMenu.test.tsx` (the phone menu offers it; that the menu is what shows below 768px is checked by hand, see §6) |
 | FR-43 | An administrator can switch an account off and back on. Switching it off ends every session it holds and destroys nothing it owns, so switching it back on restores the account exactly as it was | `AdminUserServiceTest`, `AdminUserControllerTest` — **Known deviation:** [#83](https://github.com/NaimElijah/UpHealther/issues/83), an open WebSocket outlives the switch-off |
 | FR-44 | An administrator can grant and revoke the administrator role. The change is read from the account on its next request, so it takes effect without signing that person out | `AdminUserServiceTest`, `AdminUserControllerTest` |
 | FR-45 | A fresh installation can be given its first administrator through configuration, by account id and only while no *enabled* administrator exists — so it cannot silently re-promote somebody after a deliberate demotion, cannot be claimed by whoever registers an address first, and still recovers an installation whose administrators have disabled each other | `AdminBootstrapRunnerTest` |
@@ -348,7 +348,10 @@ Undecided, and owned by the repository owner.
   engine. Closing this needs a real browser in CI; [ADR-004](../ADRs/ADR-004-frontend-test-harness.md)
   records why that was deferred. FR-39 and NFR-20 land in exactly this gap: no test in the suite can
   observe a width, a wrap or an overflow, so both were verified by hand and neither is enforced
-  ([#61](https://github.com/NaimElijah/UpHealther/issues/61)).
+  ([#61](https://github.com/NaimElijah/UpHealther/issues/61)). The phone navigation sits in the same
+  gap: `NavMenu.test.tsx` pins what the menu offers and `Navbar.test.tsx` that no class hides a failed
+  sign-out on a phone, but that the menu replaces the sidebar below 768px, and that the alert is then
+  on screen, were checked in a browser (FR-6, FR-21, FR-42, FR-48).
 - **Nothing verifies that a browser honours the dialog's `inert`.** The focus trap and the inert page
   behind it are built and tested ([ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md)),
   but jsdom implements `inert` not at all, so the tests pin that the attribute is set and cleared on
