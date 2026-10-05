@@ -66,6 +66,16 @@ describe('Sidebar', () => {
     expect(screen.getByText('Accounts')).toBeDefined();
   });
 
+  it('GivenAWideWindow_WhenTheSidebarRenders_ThenItsLinksAreANamedNavigationLandmark', () => {
+    // The navbar is a <nav> too. Two unnamed navigation landmarks read as "navigation, navigation" in a
+    // screen reader's landmark list, with nothing to tell the pages from the toolbar.
+    renderSidebar(ORDINARY);
+
+    const pages = screen.getByRole('navigation', { name: 'Main' });
+
+    expect(pages.querySelector('a[href="/dashboard"]')).not.toBeNull();
+  });
+
   it('GivenNoUserYet_WhenTheSidebarRenders_ThenNoAccountsLinkIsShown', () => {
     // The window while the session is being restored. Showing it optimistically would flash an entry
     // that then disappears for everybody who is not an administrator.

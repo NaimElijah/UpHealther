@@ -6,12 +6,15 @@ import { navItemsFor } from './navItems';
 /**
  * The signed-in user's navigation entries as links, with the current route highlighted. Rendered by
  * the sidebar on a wide window and by the phone menu on a narrow one, so the two cannot drift apart.
+ *
+ * The landmark is named because the navbar is a `<nav>` as well: two unnamed ones read as
+ * "navigation, navigation" in a screen reader's landmark list.
  */
 const NavLinks: React.FC = () => {
   const { user } = useAuth();
 
   return (
-    <nav className="py-4">
+    <nav aria-label="Main" className="py-4">
       {navItemsFor(user?.role).map((item) => (
         <NavLink
           key={item.to}
