@@ -16,7 +16,8 @@ const SIDEBAR_SHOWN = '(min-width: 768px)';
  *
  * It is the shared `Modal` rather than a slide-in drawer on purpose. The modal already traps focus,
  * marks the page behind it inert, closes on Escape and hands focus back to this button (FR-40, ADR-013);
- * a drawer would need all of that written again for a different shape of panel.
+ * a drawer would need all of that written again for a different shape of panel. ADR-022 records the
+ * choice and what would reopen it.
  *
  * It closes whenever this tab's location changes, whatever changed it: one of its own links, the
  * browser's Back button — the usual way a phone user dismisses an overlay — or anything else that
