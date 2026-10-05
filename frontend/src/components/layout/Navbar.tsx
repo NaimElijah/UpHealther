@@ -38,7 +38,10 @@ const Navbar: React.FC = () => {
       <nav className="bg-surface border-b border-line h-16 flex items-center gap-4 px-4 sm:px-6 justify-between">
         <div className="flex items-center gap-2 min-w-0">
           <NavMenu />
-          <Link to="/dashboard" className="flex items-center gap-2 min-w-0">
+          {/* overflow-hidden is the floor that lets the brand give way: at 320px the menu, theme switch,
+              bell and Logout leave it no room, and its shrink-0 emoji would otherwise paint over the
+              theme switch instead of being clipped. */}
+          <Link to="/dashboard" className="flex items-center gap-2 min-w-0 overflow-hidden">
             <span className="text-2xl shrink-0" aria-hidden="true">💪</span>
             <span className="font-bold text-fg text-lg truncate">UpHealther</span>
           </Link>
