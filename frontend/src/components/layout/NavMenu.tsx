@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import Modal from '../ui/Modal';
 import NavLinks from './NavLinks';
 
@@ -8,12 +9,28 @@ import NavLinks from './NavLinks';
  *
  * It is the shared `Modal` rather than a slide-in drawer on purpose. The modal already traps focus,
  * marks the page behind it inert, closes on Escape and hands focus back to this button (FR-40, ADR-013);
- * a drawer would need all of that written again for a different shape of panel. Following a link
- * closes it, since the user has chosen where to go.
+ * a drawer would need all of that written again for a different shape of panel.
+ *
+ * It closes whenever this tab's location changes, whatever changed it: one of its own links, the
+ * browser's Back button — the usual way a phone user dismisses an overlay — or anything else that
+ * navigates. `Layout` stays mounted across routes, so without this the menu would sit open over the
+ * page it had just been left for. A Ctrl- or Cmd-click opens a link in another tab and moves nothing
+ * here, so the menu rightly stays open for a second choice.
  */
 const NavMenu: React.FC = () => {
+  const { key } = useLocation();
   const [open, setOpen] = useState(false);
+  const [lastKey, setLastKey] = useState(key);
   const close = useCallback(() => setOpen(false), []);
+
+  // Adjusted during render rather than in an effect, so the menu is never painted over the new page
+  // for a frame. It reacts to the key *changing*, rather than storing the key the menu was opened at
+  // and treating that key as "open": Back restores an entry's own key, so the stored-key version would
+  // reopen the menu by itself on the way back.
+  if (key !== lastKey) {
+    setLastKey(key);
+    if (open) setOpen(false);
+  }
 
   return (
     <>
@@ -28,7 +45,7 @@ const NavMenu: React.FC = () => {
         <span aria-hidden="true">☰</span>
       </button>
       <Modal isOpen={open} onClose={close} title="Menu">
-        <NavLinks onNavigate={close} />
+        <NavLinks />
       </Modal>
     </>
   );

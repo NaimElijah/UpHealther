@@ -4,18 +4,10 @@ import { useAuth } from '../../hooks/useAuth';
 import { navItemsFor } from './navItems';
 
 /**
- * @param onNavigate called after a link is followed, for a container that should close once its user
- *                   has chosen where to go
- */
-interface NavLinksProps {
-  onNavigate?: () => void;
-}
-
-/**
  * The signed-in user's navigation entries as links, with the current route highlighted. Rendered by
  * the sidebar on a wide window and by the phone menu on a narrow one, so the two cannot drift apart.
  */
-const NavLinks: React.FC<NavLinksProps> = ({ onNavigate }) => {
+const NavLinks: React.FC = () => {
   const { user } = useAuth();
 
   return (
@@ -24,7 +16,6 @@ const NavLinks: React.FC<NavLinksProps> = ({ onNavigate }) => {
         <NavLink
           key={item.to}
           to={item.to}
-          onClick={onNavigate}
           className={({ isActive }) =>
             `flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors ${
               isActive

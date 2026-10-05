@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate, type NavigateFunction } from 'react-router-dom';
 import NavMenu from './NavMenu';
 import { AuthContext, type AuthContextType } from '../../contexts/authContextValue';
 import type { User } from '../../types';
@@ -18,6 +18,16 @@ const ORDINARY: User = { ...ADMIN, id: 'user-1', email: 'someone@example.com', r
 /** Renders where the router currently is, so a test can see that a link was followed. */
 const LocationProbe = () => <output aria-label="location">{useLocation().pathname}</output>;
 
+/**
+ * The router's `navigate`, captured so a test can move the location from outside the menu — the
+ * stand-in for the browser's Back button, which is how a phone user most often dismisses an overlay.
+ */
+let navigate: NavigateFunction;
+const NavigateHandle = () => {
+  navigate = useNavigate();
+  return null;
+};
+
 function renderMenu(user: User) {
   const ctx: AuthContextType = {
     user,
@@ -29,7 +39,8 @@ function renderMenu(user: User) {
   };
   return render(
     <AuthContext.Provider value={ctx}>
-      <MemoryRouter initialEntries={['/dashboard']}>
+      <MemoryRouter initialEntries={['/progress-history', '/dashboard']} initialIndex={1}>
+        <NavigateHandle />
         <NavMenu />
         <Routes>
           <Route path="*" element={<LocationProbe />} />
@@ -84,6 +95,40 @@ describe('NavMenu', () => {
 
     expect(screen.getByRole('status', { name: 'location' }).textContent).toBe('/health-areas');
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('GivenTheMenuIsOpen_WhenTheBrowserGoesBack_ThenTheMenuCloses', () => {
+    renderMenu(ORDINARY);
+    openMenu();
+
+    act(() => navigate(-1));
+
+    expect(screen.getByRole('status', { name: 'location' }).textContent).toBe('/progress-history');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('GivenTheMenuWasClosedByFollowingALink_WhenTheBrowserGoesBackToWhereItOpened_ThenItStaysClosed', () => {
+    // Going back returns to the same history entry, so a menu remembered against that entry would
+    // reopen there by itself.
+    renderMenu(ORDINARY);
+    fireEvent.click(within(openMenu()).getByRole('link', { name: /Health Areas/ }));
+
+    act(() => navigate(-1));
+
+    expect(screen.getByRole('status', { name: 'location' }).textContent).toBe('/dashboard');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('GivenTheMenuIsOpen_WhenALinkIsCtrlClicked_ThenThisTabStaysAndSoDoesTheMenu', () => {
+    // A modified click opens the page in another tab and leaves this one where it was, so there is
+    // nothing to get out of the way of.
+    renderMenu(ORDINARY);
+    const dialog = openMenu();
+
+    fireEvent.click(within(dialog).getByRole('link', { name: /Health Areas/ }), { ctrlKey: true });
+
+    expect(screen.getByRole('status', { name: 'location' }).textContent).toBe('/dashboard');
+    expect(screen.getByRole('dialog', { name: 'Menu' })).toBeDefined();
   });
 
   it('GivenAnAdministrator_WhenTheMenuIsOpened_ThenTheAccountsLinkIsThere', () => {
