@@ -2,8 +2,8 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. A hundred and twelve of the hundred and twenty entries below name a test —
-a hundred and four distinct test classes and files between them. Five of the remaining eight name the command,
+rather than trusted. A hundred and thirteen of the hundred and twenty-one entries below name a test —
+a hundred and six distinct test classes and files between them. Five of the remaining eight name the command,
 workflow or script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48). The last three —
 FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is about a rendered width, a
 colour or an overflow, and jsdom has no layout engine to observe any of them; §6 records what closing
@@ -13,7 +13,7 @@ that gap would take.
 API (§5.4), so "a user can" means through the interface. Where the implementation falls short of an
 entry — in the interface or anywhere else — the entry is not weakened to match. Its *Enforced by* cell
 says **Known deviation** and links the issue that tracks the gap; the tests named there enforce the
-part that holds. Twenty entries carry one today, and the change that closes an issue takes its
+part that holds. Sixteen entries carry one today, and the change that closes an issue takes its
 marker out.
 
 **IDs are permanent.** Tests, code comments, migrations and ADRs cite them, so an ID is never
@@ -64,13 +64,13 @@ no way at all — to read another person's health records
 | FR-3 | A signed-in user can retrieve their own profile, so a reloaded page learns who is signed in once the refresh cookie has renewed the session (NFR-38) | `AuthControllerTest`, `AuthContext.test.tsx` |
 | FR-4 | An email may be registered once. Addresses are compared trimmed and case-insensitively, the database refuses any other stored form, and a registration that loses a race for an address is refused like any other duplicate | `AuthServiceTest`, `AuthControllerTest` (422), `EmailAddressTest`, `UserPersistenceIT`, `RegistrationRaceIT` |
 | FR-5 | Every endpoint requires a valid access token except six: registration and sign-in; refresh and sign-out, which act on the refresh cookie and are guarded as NFR-37 states; the actuator, which answers only what NFR-29 leaves open; and the WebSocket handshake, whose STOMP CONNECT is authenticated instead (NFR-32). A request without a token, or with one the server refuses, is answered 401 with a `WWW-Authenticate: Bearer` challenge and the API's error body | `AuthenticatedBoundaryTest` (every protected route, and exactly those six public), `JwtAuthenticationFilterTest`, `ErrorBodySecurityHandlersTest`, `ProtectedRoute.test.tsx` ([ADR-014](../ADRs/ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md)) |
-| FR-48 | A signed-in user can sign out on this device. A sign-out that fails says so and leaves them signed in, rather than appearing to have worked while the session lives on (NFR-35 is how immediately it takes effect) | `AuthControllerTest`, `AuthSessionServiceTest`, `AuthContext.test.tsx` — **Known deviation:** [#97](https://github.com/NaimElijah/UpHealther/issues/97), the failure is not shown below 640px |
+| FR-48 | A signed-in user can sign out on this device. A sign-out that fails says so and leaves them signed in, rather than appearing to have worked while the session lives on (NFR-35 is how immediately it takes effect) | `AuthControllerTest`, `AuthSessionServiceTest`, `AuthContext.test.tsx`, `Navbar.test.tsx` |
 
 ### 2.2 Health areas
 
 | ID | Requirement | Enforced by |
 |---|---|---|
-| FR-6 | A user can create, read, update and delete their own health areas | `HealthAreaServiceTest`, `HealthAreaControllerTest` — **Known deviation:** [#97](https://github.com/NaimElijah/UpHealther/issues/97), unreachable below 768px |
+| FR-6 | A user can create, read, update and delete their own health areas | `HealthAreaServiceTest`, `HealthAreaControllerTest`, `NavMenu.test.tsx` (the phone menu offers it; that the menu is what shows below 768px is checked by hand, see §6) |
 | FR-7 | An area carries a name and optional description, priority, icon and colour | `HealthAreaServiceTest`, `HealthAreaControllerTest`, `HealthAreasPage.test.tsx` |
 | FR-8 | Deleting an area leaves upgrades filed under it intact | `HealthAreaServiceTest`, `HealthAreaPersistenceIT` |
 
@@ -95,7 +95,7 @@ no way at all — to read another person's health records
 | FR-18 | A user can log progress for an upgrade on a given day | `TrackingServiceTest`, `ProgressControllerTest`, `UpgradeDetailsPage.test.tsx`, `localDate.test.ts` |
 | FR-19 | A user can log progress for every active upgrade in one pass | `DailyCheckinPage.test.tsx` — but see §6 — **Known deviation:** [#55](https://github.com/NaimElijah/UpHealther/issues/55), untouched upgrades are logged too |
 | FR-20 | A user can read an upgrade's progress history, newest first | `TrackingServiceTest`, `ProgressEntryPersistenceIT`, `UpgradeDetailsPage.test.tsx` |
-| FR-21 | A user can read today's and the last seven days' progress across all upgrades | `TrackingServiceTest`, `ProgressEntryPersistenceIT`, `ProgressHistoryPage.test.tsx` — **Known deviation:** [#97](https://github.com/NaimElijah/UpHealther/issues/97), unreachable below 768px |
+| FR-21 | A user can read today's and the last seven days' progress across all upgrades | `TrackingServiceTest`, `ProgressEntryPersistenceIT`, `ProgressHistoryPage.test.tsx`, `NavMenu.test.tsx` (the phone menu offers it; that the menu is what shows below 768px is checked by hand, see §6) |
 | FR-22 | A user can see an upgrade's current and longest streak | `StreakCalculatorTest`, `TrackingServiceTest`, `ProgressControllerTest` |
 
 ### 2.5 Reflections and reminders
@@ -149,11 +149,11 @@ The role model behind every entry here is [ADR-016](../ADRs/ADR-016-roles-read-f
 
 | ID | Requirement | Enforced by |
 |---|---|---|
-| FR-42 | An administrator can list the accounts on the installation, a page of at most a hundred at a time and oldest first, seeing each one's role and whether it is switched on — and nothing about what it owns | `AdminUserServiceTest`, `AdminUserControllerTest`, `UserPersistenceIT` (the order) — **Known deviation:** [#97](https://github.com/NaimElijah/UpHealther/issues/97), unreachable below 768px |
+| FR-42 | An administrator can list the accounts on the installation, a page of at most a hundred at a time and oldest first, seeing each one's role and whether it is switched on — and nothing about what it owns | `AdminUserServiceTest`, `AdminUserControllerTest`, `UserPersistenceIT` (the order), `NavMenu.test.tsx` (the phone menu offers it; that the menu is what shows below 768px is checked by hand, see §6) |
 | FR-43 | An administrator can switch an account off and back on. Switching it off ends every session it holds and destroys nothing it owns, so switching it back on restores the account exactly as it was | `AdminUserServiceTest`, `AdminUserControllerTest` — **Known deviation:** [#83](https://github.com/NaimElijah/UpHealther/issues/83), an open WebSocket outlives the switch-off |
 | FR-44 | An administrator can grant and revoke the administrator role. The change is read from the account on its next request, so it takes effect without signing that person out | `AdminUserServiceTest`, `AdminUserControllerTest` |
 | FR-45 | A fresh installation can be given its first administrator through configuration, by account id and only while no *enabled* administrator exists — so it cannot silently re-promote somebody after a deliberate demotion, cannot be claimed by whoever registers an address first, and still recovers an installation whose administrators have disabled each other | `AdminBootstrapRunnerTest` |
-| FR-46 | The account administration screen is offered only to an administrator, in the navigation and at its route, and an administrator's own row offers no controls at all — the server refuses a self-directed change, and a control that can only fail is worse than none | `RequireRole.test.tsx`, `Sidebar.test.tsx`, `AdminUsersPage.test.tsx` |
+| FR-46 | The account administration screen is offered only to an administrator, in the navigation and at its route, and an administrator's own row offers no controls at all — the server refuses a self-directed change, and a control that can only fail is worse than none | `RequireRole.test.tsx`, `Sidebar.test.tsx`, `NavMenu.test.tsx`, `AdminUsersPage.test.tsx` |
 | FR-47 | Disabling an account and changing a role are confirmed before they happen, and the confirmation says what the change actually does; a change that fails says so rather than appearing to have worked | `AdminUsersPage.test.tsx` |
 
 ---
@@ -174,6 +174,7 @@ The role model behind every entry here is [ADR-016](../ADRs/ADR-016-roles-read-f
 | BR-10 | A streak milestone is announced every seventh day, not every day: once, by the entry that carries the current streak to or past a multiple of seven that no run it joined had already reached, naming the highest one crossed. An entry that leaves the streak where it was announces nothing | `StreakCalculator.milestoneReachedBy`, `StreakCalculatorTest` (7, 14, 21, 70 against 1, 6, 8, 13, 69 — and zero; a day that does not count or is backfilled outside the run; yesterday logged before today; a missed day filled in; a backfill that joins two runs), `TrackingServiceTest` |
 | BR-11 | An overdue upgrade is announced once, however many times the sweep rediscovers it | `NotificationServiceTest`, `NotificationEventListenerTest` |
 | BR-12 | A reminder with no day filter fires every day; an unrecognisable day is rejected when it is sent, never ignored | `ReminderTest`, `ReminderServiceTest`, `ReminderControllerTest` |
+| BR-23 | A reminder fires only while its upgrade is `ACTIVE`. In any other state it stays silent without being changed, so an upgrade activated again reminds exactly as it did before | `NotificationSchedulerTest` |
 | BR-13 | Reflections are append-only — there is no edit or delete path of their own. They go only with the upgrade they belong to (FR-14) | `ReflectionServiceTest` (asserted against the public surface), `ReflectionControllerTest`, `UpgradePersistenceIT` |
 | BR-14 | Concurrent edits to an upgrade are refused rather than silently merged | `UpgradePersistenceIT`, `GlobalExceptionHandlerTest` |
 | BR-15 | A record is visible only to its owner; another user's record is reported as absent, never as forbidden | `UpgradePersistenceIT`, `HealthAreaPersistenceIT`, `ProgressEntryPersistenceIT`, and every `*ControllerTest` |
@@ -322,9 +323,6 @@ Undecided, and owned by the repository owner.
   ([#55](https://github.com/NaimElijah/UpHealther/issues/55)). The page makes the conflict likelier than
   it needs to be: it never loads today's entries, so it offers an upgrade already logged elsewhere, and
   it posts every entry at once, so one refusal can leave the rest saved with nothing shown.
-- **Whether reminders should fire for an upgrade that is not active.** They fire today whatever the
-  upgrade's status, paused, completed and abandoned included, and nothing states whether they should
-  ([#102](https://github.com/NaimElijah/UpHealther/issues/102)).
 - **Whether an upgrade overdue a second time is announced again.** BR-11 announces an overdue upgrade
   once, and that once is permanent: an upgrade whose target date is moved later and missed again gets
   no second notice ([#103](https://github.com/NaimElijah/UpHealther/issues/103)).
@@ -350,7 +348,10 @@ Undecided, and owned by the repository owner.
   engine. Closing this needs a real browser in CI; [ADR-004](../ADRs/ADR-004-frontend-test-harness.md)
   records why that was deferred. FR-39 and NFR-20 land in exactly this gap: no test in the suite can
   observe a width, a wrap or an overflow, so both were verified by hand and neither is enforced
-  ([#61](https://github.com/NaimElijah/UpHealther/issues/61)).
+  ([#61](https://github.com/NaimElijah/UpHealther/issues/61)). The phone navigation sits in the same
+  gap: `NavMenu.test.tsx` pins what the menu offers and `Navbar.test.tsx` that no class hides a failed
+  sign-out on a phone, but that the menu replaces the sidebar below 768px, and that the alert is then
+  on screen, were checked in a browser (FR-6, FR-21, FR-42, FR-48).
 - **Nothing verifies that a browser honours the dialog's `inert`.** The focus trap and the inert page
   behind it are built and tested ([ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md)),
   but jsdom implements `inert` not at all, so the tests pin that the attribute is set and cleared on

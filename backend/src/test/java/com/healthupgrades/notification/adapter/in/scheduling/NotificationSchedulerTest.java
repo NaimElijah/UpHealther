@@ -1,5 +1,9 @@
 package com.healthupgrades.notification.adapter.in.scheduling;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.healthupgrades.notification.domain.model.NotificationType;
 import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort;
 import com.healthupgrades.reminder.application.port.in.ReminderQuery;
@@ -13,8 +17,11 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -24,7 +31,9 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -34,8 +43,8 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * Covers FR-30 (a user with active upgrades and nothing logged is nudged once a day) and FR-31 (a
- * reminder fires at its configured time and day).
+ * Covers FR-30 (a user with active upgrades and nothing logged is nudged once a day), FR-31 (a
+ * reminder fires at its configured time and day) and BR-23 (only while its upgrade is active).
  *
  * <p>Deterministic through a fixed {@link java.time.Clock} — a scheduler test that read the system clock
  * would pass or fail depending on the minute it ran in.
@@ -62,6 +71,10 @@ class NotificationSchedulerTest {
     private final UUID userId = UUID.randomUUID();
     private final UUID upgradeId = UUID.randomUUID();
 
+    /** The WARN a reminder that outlived its upgrade raises; see {@code dispatchReminders}. */
+    private static final Predicate<ILoggingEvent> ORPHANED_WARNING = event -> event.getLevel() == Level.WARN
+            && event.getFormattedMessage().contains("reminder.orphaned");
+
     @BeforeEach
     void setUp() {
         scheduler = new NotificationScheduler(upgradeQuery, progressQuery, reminderQuery,
@@ -74,8 +87,7 @@ class NotificationSchedulerTest {
         Reminder reminder = Reminder.builder().id(UUID.randomUUID()).upgradeId(upgradeId)
                 .reminderTime(LocalTime.of(9, 0)).daysOfWeek(null).enabled(true).build();
         when(reminderQuery.findEnabled()).thenReturn(List.of(reminder));
-        when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(
-                HealthUpgrade.builder().id(upgradeId).userId(userId).title("Meditate").build()));
+        when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
 
         scheduler.dispatchReminders();
 
@@ -225,14 +237,57 @@ class NotificationSchedulerTest {
                         .reminderTime(LocalTime.of(9, 0)).enabled(true).build()));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of());
 
+        List<ILoggingEvent> logged = logsFromScheduler(scheduler::dispatchReminders);
+
+        verify(notificationService, never()).create(any(), any(), any(), any(), any(), any());
+        assertThat(logged).anyMatch(ORPHANED_WARNING);
+    }
+
+    // ---- BR-23: only an active upgrade reminds ----
+
+    @ParameterizedTest
+    @EnumSource(value = UpgradeStatus.class, names = "ACTIVE", mode = EnumSource.Mode.EXCLUDE)
+    void GivenADueReminderOnAnUpgradeThatIsNotActive_WhenRemindersAreDispatched_ThenNobodyIsNotified(
+            UpgradeStatus status) {
+        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder()));
+        when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(upgradeIn(status)));
+
         scheduler.dispatchReminders();
 
         verify(notificationService, never()).create(any(), any(), any(), any(), any(), any());
     }
 
+    @Test
+    void GivenADueReminderOnAPausedUpgrade_WhenRemindersAreDispatched_ThenTheRunCountsItSilencedNotOrphaned() {
+        // Silenced by its upgrade's status is the rule working, not an inconsistency: a WARN here would
+        // fire every minute a paused upgrade's reminder came due. The run's own line is what says the
+        // rule was applied, so it is asserted positively; an absent WARN alone would also pass a run
+        // that logged nothing at all.
+        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder()));
+        when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(upgradeIn(UpgradeStatus.PAUSED)));
+
+        List<ILoggingEvent> logged = logsFromScheduler(scheduler::dispatchReminders);
+
+        assertThat(logged).noneMatch(ORPHANED_WARNING);
+        assertThat(logged).filteredOn(event -> event.getLevel() == Level.INFO)
+                .singleElement()
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .asString()
+                .contains("due=1", "fired=0", "silenced=1");
+    }
+
+    /** A reminder due at the fixed clock's minute on any day, hanging off {@link #upgradeId}. */
+    private Reminder dueReminder() {
+        return Reminder.builder().id(UUID.randomUUID()).upgradeId(upgradeId)
+                .reminderTime(LocalTime.of(9, 0)).enabled(true).build();
+    }
+
+    private HealthUpgrade upgradeIn(UpgradeStatus status) {
+        return HealthUpgrade.builder().id(upgradeId).userId(userId).title("Meditate").status(status).build();
+    }
+
     private HealthUpgrade activeUpgrade() {
-        return HealthUpgrade.builder().id(upgradeId).userId(userId).title("Meditate")
-                .status(UpgradeStatus.ACTIVE).build();
+        return upgradeIn(UpgradeStatus.ACTIVE);
     }
 
     private HealthUpgrade activeUpgradeOf(UUID owner) {
@@ -245,5 +300,19 @@ class NotificationSchedulerTest {
         when(notificationRepository.findUserIdsNotifiedAfter(NotificationType.CHECKIN_REMINDER, TODAY.atStartOfDay()))
                 .thenReturn(nudgedSinceMidnight);
         when(progressQuery.findUserIdsWithEntriesOn(TODAY)).thenReturn(loggedToday);
+    }
+
+    /** Collects what {@link NotificationScheduler} logs while {@code job} runs. */
+    private static List<ILoggingEvent> logsFromScheduler(Runnable job) {
+        Logger logger = (Logger) LoggerFactory.getLogger(NotificationScheduler.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            job.run();
+        } finally {
+            logger.detachAppender(appender);
+        }
+        return appender.list;
     }
 }
