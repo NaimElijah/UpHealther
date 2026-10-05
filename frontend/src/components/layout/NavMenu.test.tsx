@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation, useNavigate, type NavigateFun
 import NavMenu from './NavMenu';
 import { AuthContext, type AuthContextType } from '../../contexts/authContextValue';
 import type { User } from '../../types';
+import { installMatchMedia } from '../../test/matchMediaStub';
 
 const ADMIN: User = {
   id: 'admin-1',
@@ -129,6 +130,19 @@ describe('NavMenu', () => {
 
     expect(screen.getByRole('status', { name: 'location' }).textContent).toBe('/dashboard');
     expect(screen.getByRole('dialog', { name: 'Menu' })).toBeDefined();
+  });
+
+  it('GivenTheMenuIsOpen_WhenTheWindowWidensToShowTheSidebar_ThenTheMenuCloses', () => {
+    // A tablet rotated to landscape: the sidebar appears and the button that opened the menu is gone,
+    // so a menu left open would sit beside the sidebar with the page still inert.
+    const widthQuery = installMatchMedia(false);
+    renderMenu(ORDINARY);
+    openMenu();
+
+    act(() => widthQuery.setMatches(true));
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(widthQuery.listenerCount()).toBe(0);
   });
 
   it('GivenAnAdministrator_WhenTheMenuIsOpened_ThenTheAccountsLinkIsThere', () => {
