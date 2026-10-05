@@ -258,15 +258,22 @@ class NotificationSchedulerTest {
     }
 
     @Test
-    void GivenADueReminderOnAPausedUpgrade_WhenRemindersAreDispatched_ThenItIsNotReportedAsOrphaned() {
+    void GivenADueReminderOnAPausedUpgrade_WhenRemindersAreDispatched_ThenTheRunCountsItSilencedNotOrphaned() {
         // Silenced by its upgrade's status is the rule working, not an inconsistency: a WARN here would
-        // fire every minute a paused upgrade's reminder came due.
+        // fire every minute a paused upgrade's reminder came due. The run's own line is what says the
+        // rule was applied, so it is asserted positively; an absent WARN alone would also pass a run
+        // that logged nothing at all.
         when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder()));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(upgradeIn(UpgradeStatus.PAUSED)));
 
         List<ILoggingEvent> logged = logsFromScheduler(scheduler::dispatchReminders);
 
         assertThat(logged).noneMatch(ORPHANED_WARNING);
+        assertThat(logged).filteredOn(event -> event.getLevel() == Level.INFO)
+                .singleElement()
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .asString()
+                .contains("due=1", "fired=0", "silenced=1");
     }
 
     /** A reminder due at the fixed clock's minute on any day, hanging off {@link #upgradeId}. */
