@@ -15,6 +15,7 @@ import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.logstash.logback.argument.StructuredArgument;
+import org.springframework.core.NestedExceptionUtils;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.CannotCreateTransactionException;
@@ -236,8 +237,9 @@ public class NotificationScheduler {
          *
          * @param create creates and pushes the notification
          * @param ids    what names the notification in the WARN if it fails: ids only, as
-         *               {@code keyValue} arguments. The failure itself is reduced here to its type, so a
-         *               caller cannot put its message, which can quote the refused row, in a log line (NFR-6)
+         *               {@code keyValue} arguments. The failure itself is reduced here to its type and its
+         *               root cause's type, so a caller cannot put its message, which can quote the refused
+         *               row, in a log line (NFR-6)
          */
         void attempt(Runnable create, StructuredArgument... ids) {
             if (unreachable) {
@@ -264,6 +266,8 @@ public class NotificationScheduler {
             fields.add(keyValue("job", job));
             fields.addAll(Arrays.asList(ids));
             fields.add(keyValue("exception", failure.getClass().getSimpleName()));
+            fields.add(keyValue("rootCause",
+                    NestedExceptionUtils.getMostSpecificCause(failure).getClass().getSimpleName()));
             // One placeholder per field, because each sweep names its notification by different ids.
             log.warn("{} ".repeat(fields.size()).trim(), fields.toArray());
         }

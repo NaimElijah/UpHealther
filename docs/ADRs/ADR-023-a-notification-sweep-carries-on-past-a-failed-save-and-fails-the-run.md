@@ -38,7 +38,9 @@ attempt failed, and it gives up only when the database cannot be reached.**
   the next item. An `Error` is not caught and still ends the sweep where it stands.
 - **Warn by ids, and by the exception's type only.** Each failure writes one WARN line with
   `event=notification.create-failed`, the job, the ids (`reminderId`, `upgradeId`, `userId`, or
-  `userId` alone for the nudge) and `exception=<simple class name>`.
+  `userId` alone for the nudge), `exception=<simple class name>` and `rootCause=<its root cause's
+  simple class name>`. Only the first failure's stack trace reaches the run's ERROR line, so for every
+  later one the root cause's type is what tells a constraint from a dropped connection.
   - The line carries no stack trace and no message. A driver's message can quote the row it refused,
     which NFR-6 forbids. The run's single ERROR line, below, still carries the first failure's
     message, as it did before this change. Whether NFR-6 allows that is

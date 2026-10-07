@@ -337,7 +337,7 @@ Three places are worth knowing about because they were silent and are no longer:
   worse than one. `dispatchReminders` stays silent when nothing is due — otherwise it writes a line a
   minute, all night, and buries the runs that did something.
   The two notification sweeps attempt each notification on its own. One that fails to save is a WARN
-  naming it by ids and exception type, never by message, and the sweep moves on; a transaction that
+  naming it by ids and exception types, never by message, and the sweep moves on; a transaction that
   cannot begin is an outage, and the rest are skipped. The run's INFO line counts `failed` and `skipped`, and
   only then is the first failure rethrown, so the run is still counted `failed` and its stack trace
   is logged once ([ADR-023](../ADRs/ADR-023-a-notification-sweep-carries-on-past-a-failed-save-and-fails-the-run.md)).

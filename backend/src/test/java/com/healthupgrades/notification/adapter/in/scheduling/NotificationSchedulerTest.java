@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.CannotCreateTransactionException;
 
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -363,6 +364,28 @@ class NotificationSchedulerTest {
                         "upgradeId=" + upgradeId, "userId=" + userId, "exception=DataIntegrityViolationException")
                 .doesNotContain("Meditate", "violates");
         assertThat(warning.getThrowableProxy()).isNull();
+    }
+
+    @Test
+    void GivenASaveFailureWithADriverCause_WhenRemindersAreDispatched_ThenTheWarningNamesTheCauseByTypeOnly() {
+        // Only the first failure's stack trace reaches the run's ERROR line. For every later one, the
+        // root cause's type is what tells a constraint from a dropped connection - without its message,
+        // which quotes the row just as the wrapper's does.
+        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder()));
+        when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
+        when(notificationService.create(any(), any(), any(), any(), any(), any()))
+                .thenThrow(new DataIntegrityViolationException("could not execute statement",
+                        new SQLIntegrityConstraintViolationException("Failing row contains (Meditate)")));
+
+        List<ILoggingEvent> logged = logsFromScheduler(() -> catchThrowable(scheduler::dispatchReminders));
+
+        assertThat(logged).filteredOn(CREATE_FAILED_WARNING)
+                .singleElement()
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .asString()
+                .contains("exception=DataIntegrityViolationException",
+                        "rootCause=SQLIntegrityConstraintViolationException")
+                .doesNotContain("Meditate", "Failing row");
     }
 
     @Test
