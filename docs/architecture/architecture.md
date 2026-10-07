@@ -295,7 +295,9 @@ from a different place:
 
 - **HTTP** — `ServerHttpObservationFilter`, from the framework. An inbound W3C `traceparent` continues
   the caller's trace; otherwise a new one starts. `TraceIdResponseHeaderFilter` returns the id as
-  `X-Trace-Id`, and `GlobalExceptionHandler` stamps it on the error body.
+  `X-Trace-Id`, and `GlobalExceptionHandler` stamps it on the error body. The container's error page
+  runs after the scope has closed, so `TraceIdErrorAttributes` puts the id the header carried on its
+  body instead ([ADR-024](../ADRs/ADR-024-the-container-error-page-keeps-its-status-and-carries-the-trace-id.md)).
 - **Scheduled jobs** — `ScheduledMethodRunnable` already wraps each `@Scheduled` invocation in an
   observation; `ObservabilityConfig` supplies the registry that Boot leaves unset, which is the whole of
   it. The scheduler classes know nothing about tracing.
@@ -552,11 +554,12 @@ Stated because they are load-bearing, not because they are problems yet:
 - **The backend has no dependency vulnerability audit.** OWASP dependency-check cannot populate its
   database without an `NVD_API_KEY`. ADR-002 records why a check that always fails, or one that cannot
   fail, was judged worse than none.
-- **One path carries a trace id in the header but not the body.** `ServerHttpObservationFilter` is
-  registered for `REQUEST` and `ASYNC` dispatches but not `ERROR`, so a container error dispatch to
-  `/error` runs outside the observation scope entirely. Nothing logs on that path today. A refusal
-  inside the security chain is no longer such a path: the entry point and the access-denied handler
-  hand it to `GlobalExceptionHandler` ([ADR-014](../ADRs/ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md))
+- **The container's error page runs outside the observation scope.** `ServerHttpObservationFilter`
+  is registered for `REQUEST` and `ASYNC` dispatches but not `ERROR`, so a container error dispatch to
+  `/error` has no span. Its body still carries the id the request's own dispatch saw, through a request
+  attribute ([ADR-024](../ADRs/ADR-024-the-container-error-page-keeps-its-status-and-carries-the-trace-id.md)),
+  but anything logged during it would have none; nothing logs there today. A request Tomcat itself
+  refuses before any filter runs, such as an encoded `/` in the path, carries no id at all.
 - **`docker logs` is the only sink, and its retention is the audit trail's retention.** There is no
   file appender, no log volume and no aggregator, so a line that has aged out of the container's log
   is gone — including the audit entries. That is adequate for diagnosis and is explicitly *not* a

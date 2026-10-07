@@ -96,8 +96,9 @@ Every failure returns the same shape, including a refusal decided inside the sec
 both are omitted otherwise. `timestamp` is UTC, written without an offset
 ([ADR-020](ADRs/ADR-020-the-server-keeps-time-in-utc.md)). One path does not reach the handler and returns Boot's default body
 instead: a container error dispatch to `/error`, which renders a request the firewall refused and an
-exception that escaped a filter. It answers with the status the container chose, and it still carries
-the `X-Trace-Id` header.
+exception that escaped a filter. It answers with the status the container chose, and its body is
+`timestamp`, `status`, `error` and `path`, plus the same `traceId` its `X-Trace-Id` header carries
+([ADR-024](ADRs/ADR-024-the-container-error-page-keeps-its-status-and-carries-the-trace-id.md)).
 
 ```json
 {

@@ -32,12 +32,22 @@ public class TraceIdResponseHeaderFilter extends OncePerRequestFilter {
     /** Response header carrying the trace id. Exposed to cross-origin browsers by {@code SecurityConfig}. */
     public static final String TRACE_ID_HEADER = "X-Trace-Id";
 
+    /**
+     * Request attribute holding the id this filter sent, for {@link TraceIdErrorAttributes}. The
+     * container's error page is rendered by a later dispatch that runs after the request's scope has
+     * closed, so this is the only place it can still find the id the header carried (ADR-024).
+     */
+    static final String TRACE_ID_ATTRIBUTE = TraceIdResponseHeaderFilter.class.getName() + ".traceId";
+
     private final Tracer tracer;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        CorrelationId.of(tracer).ifPresent(traceId -> response.setHeader(TRACE_ID_HEADER, traceId));
+        CorrelationId.of(tracer).ifPresent(traceId -> {
+            response.setHeader(TRACE_ID_HEADER, traceId);
+            request.setAttribute(TRACE_ID_ATTRIBUTE, traceId);
+        });
         chain.doFilter(request, response);
     }
 }

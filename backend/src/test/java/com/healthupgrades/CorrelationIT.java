@@ -118,6 +118,18 @@ class CorrelationIT extends PostgresIT {
         assertThat(traceIdHeader(response)).matches(TRACE_ID_PATTERN);
     }
 
+    @Test
+    void GivenAUrlTheFirewallRejects_WhenTheContainerErrorPageAnswers_ThenTheBodyCarriesTheHeadersTraceId()
+            throws Exception {
+        // #105. The ERROR dispatch runs after the request's observation has closed, so nothing there can
+        // read the id from the tracer; the body has to carry the one the request's own dispatch saw.
+        HttpResponse<String> response = firewallRejected();
+
+        assertThat(json.readTree(response.body()).path("traceId").asText())
+                .matches(TRACE_ID_PATTERN)
+                .isEqualTo(traceIdHeader(response));
+    }
+
     /**
      * A request Spring Security's {@code StrictHttpFirewall} refuses but Tomcat passes on: Tomcat strips a
      * {@code ;} path parameter from the path it matches, while the request URI the firewall reads keeps it.
