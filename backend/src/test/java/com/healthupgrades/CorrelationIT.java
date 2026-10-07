@@ -103,6 +103,37 @@ class CorrelationIT extends PostgresIT {
         assertThat(json.readTree(response.body()).path("traceId").asText()).isEqualTo(traceIdHeader(response));
     }
 
+    @Test
+    void GivenAUrlTheFirewallRejects_WhenTheContainerErrorPageAnswers_ThenItKeepsTheFirewallsStatus()
+            throws Exception {
+        // #105. A firewall rejection is answered by sendError, so it is rendered by a container ERROR
+        // dispatch to /error - the one path that never reaches GlobalExceptionHandler on the request
+        // dispatch. Spring Security authorises that dispatch as well, and it carries no credentials, so
+        // unless it is let through, the client is told 401 - "your session lapsed" - for a URL that was
+        // simply malformed, and the SPA renews a token that was fine.
+        HttpResponse<String> response = firewallRejected();
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.headers().firstValue("WWW-Authenticate")).isEmpty();
+        assertThat(traceIdHeader(response)).matches(TRACE_ID_PATTERN);
+    }
+
+    /**
+     * A request Spring Security's {@code StrictHttpFirewall} refuses but Tomcat passes on: Tomcat strips a
+     * {@code ;} path parameter from the path it matches, while the request URI the firewall reads keeps it.
+     * An encoded {@code /} or {@code \} would not do: Tomcat itself refuses those before any filter runs,
+     * so no trace id is ever attached.
+     */
+    private HttpResponse<String> firewallRejected() throws Exception {
+        return client.send(
+                HttpRequest.newBuilder()
+                        .uri(URI.create("http://localhost:" + port + "/api/upgrades;x=y"))
+                        .header("Accept", "application/json")
+                        .GET()
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+    }
+
     private HttpResponse<String> post(String body, String traceparent) throws Exception {
         HttpRequest.Builder request = HttpRequest.newBuilder()
                 .uri(URI.create("http://localhost:" + port + "/api/auth/login"))

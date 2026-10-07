@@ -95,7 +95,9 @@ Every failure returns the same shape, including a refusal decided inside the sec
 `fieldErrors` appears only on validation failures and `traceId` only when the request was traced;
 both are omitted otherwise. `timestamp` is UTC, written without an offset
 ([ADR-020](ADRs/ADR-020-the-server-keeps-time-in-utc.md)). One path does not reach the handler and returns Boot's default body
-instead: a container error dispatch to `/error`. It still carries the `X-Trace-Id` header.
+instead: a container error dispatch to `/error`, which renders a request the firewall refused and an
+exception that escaped a filter. It answers with the status the container chose, and it still carries
+the `X-Trace-Id` header.
 
 ```json
 {
