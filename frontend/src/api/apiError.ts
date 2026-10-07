@@ -55,10 +55,11 @@ const UNREACHABLE = 'Could not reach the server. Check your connection and try a
 const UNEXPLAINED = 'Something went wrong.';
 
 /**
- * The backend's error body (`GlobalExceptionHandler.ErrorResponse`).
+ * The backend's error body: `GlobalExceptionHandler.ErrorResponse`, or the container's error page, which
+ * has Boot's shape (`timestamp`, `status`, `error`, `path`, `traceId`) and no `message` (ADR-024).
  *
- * Every field is optional here even though the server always sends `status`, `message` and `path`:
- * this is parsing untrusted input, and a proxy returning its own HTML on a 502 is a real case.
+ * Every field is optional here. The error page sends no `message`, and this is parsing untrusted input
+ * anyway: a proxy returning its own HTML on a 502 is a real case.
  */
 interface ErrorResponseBody {
   message?: unknown;
