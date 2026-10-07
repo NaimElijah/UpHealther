@@ -14,6 +14,7 @@ import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.logstash.logback.argument.StructuredArgument;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.CannotCreateTransactionException;
@@ -24,11 +25,12 @@ import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -82,7 +84,7 @@ public class NotificationScheduler {
                     .collect(Collectors.groupingBy(HealthUpgrade::getUserId));
 
             // With nobody to nudge, the guards are not worth reading.
-            Deliveries nudges = activeByUser.isEmpty() ? new Deliveries() : nudge(activeByUser, today);
+            Deliveries nudges = activeByUser.isEmpty() ? new Deliveries(CHECKIN_JOB) : nudge(activeByUser, today);
 
             log.info("{} {} {} {} {}", keyValue("job", CHECKIN_JOB),
                     keyValue("usersWithActiveUpgrades", activeByUser.size()), keyValue("nudged", nudges.delivered),
@@ -108,7 +110,7 @@ public class NotificationScheduler {
 
         // Counts, not lists of user ids: the point is whether the nudge went out at a plausible volume,
         // and who was nudged is in their own notification list.
-        Deliveries nudges = new Deliveries();
+        Deliveries nudges = new Deliveries(CHECKIN_JOB);
         for (Map.Entry<UUID, List<HealthUpgrade>> nudgeable : activeByUser.entrySet()) {
             UUID userId = nudgeable.getKey();
             int upgrades = nudgeable.getValue().size();
@@ -117,9 +119,7 @@ public class NotificationScheduler {
                                 NotificationCategory.REMINDER, "Daily check-in ⏳",
                                 "You have " + upgrades + " active upgrade" + (upgrades == 1 ? "" : "s")
                                         + " to track today.", null),
-                        failure -> log.warn("{} {} {} {}", keyValue("event", CREATE_FAILED),
-                                keyValue("job", CHECKIN_JOB), keyValue("userId", userId),
-                                keyValue("exception", failure.getClass().getSimpleName())));
+                        keyValue("userId", userId));
             }
         }
         return nudges;
@@ -162,7 +162,7 @@ public class NotificationScheduler {
             Map<UUID, HealthUpgrade> upgrades = upgradeQuery.findAllById(upgradeIds).stream()
                     .collect(Collectors.toMap(HealthUpgrade::getId, Function.identity()));
 
-            Deliveries reminders = new Deliveries();
+            Deliveries reminders = new Deliveries(REMINDERS_JOB);
             int orphaned = 0;
             int silenced = 0;
             for (Reminder reminder : due) {
@@ -175,10 +175,8 @@ public class NotificationScheduler {
                     reminders.attempt(() -> notificationService.create(u.getUserId(), NotificationType.REMINDER,
                                     NotificationCategory.REMINDER, "Reminder ⏰", "Time for \"" + u.getTitle() + "\".",
                                     u.getId()),
-                            failure -> log.warn("{} {} {} {} {} {}", keyValue("event", CREATE_FAILED),
-                                    keyValue("job", REMINDERS_JOB), keyValue("reminderId", reminder.getId()),
-                                    keyValue("upgradeId", u.getId()), keyValue("userId", u.getUserId()),
-                                    keyValue("exception", failure.getClass().getSimpleName())));
+                            keyValue("reminderId", reminder.getId()), keyValue("upgradeId", u.getId()),
+                            keyValue("userId", u.getUserId()));
                 }
             }
 
@@ -220,6 +218,7 @@ public class NotificationScheduler {
      * concurrency requirement that does not exist and send the next reader looking for it.
      */
     private static final class Deliveries {
+        private final String job;
         private int delivered;
         private int failed;
         /** Never attempted, because an earlier attempt had found the database out of reach. */
@@ -227,14 +226,20 @@ public class NotificationScheduler {
         private boolean unreachable;
         private RuntimeException firstFailure;
 
+        /** @param job the sweep's job name, written on every WARN it raises */
+        Deliveries(String job) {
+            this.job = job;
+        }
+
         /**
          * Creates one notification, or counts it skipped once the sweep has given up.
          *
          * @param create creates and pushes the notification
-         * @param warn   writes the WARN for a failure; given the failure, it should log its type, never its
-         *               message, which can quote the refused row (NFR-6)
+         * @param ids    what names the notification in the WARN if it fails: ids only, as
+         *               {@code keyValue} arguments. The failure itself is reduced here to its type, so a
+         *               caller cannot put its message, which can quote the refused row, in a log line (NFR-6)
          */
-        void attempt(Runnable create, Consumer<RuntimeException> warn) {
+        void attempt(Runnable create, StructuredArgument... ids) {
             if (unreachable) {
                 skipped++;
                 return;
@@ -247,10 +252,20 @@ public class NotificationScheduler {
                 if (firstFailure == null) {
                     firstFailure = failure;
                 }
-                warn.accept(failure);
+                warn(failure, ids);
                 return;
             }
             delivered++;
+        }
+
+        private void warn(RuntimeException failure, StructuredArgument[] ids) {
+            List<Object> fields = new ArrayList<>();
+            fields.add(keyValue("event", CREATE_FAILED));
+            fields.add(keyValue("job", job));
+            fields.addAll(Arrays.asList(ids));
+            fields.add(keyValue("exception", failure.getClass().getSimpleName()));
+            // One placeholder per field, because each sweep names its notification by different ids.
+            log.warn("{} ".repeat(fields.size()).trim(), fields.toArray());
         }
 
         /** Ends the run as failed if any notification failed; does nothing when every attempt succeeded. */
