@@ -75,9 +75,9 @@ const TRACE_ID_HEADER = 'x-trace-id';
  * One place decodes the wire contract, mirroring how `types/index.ts` mirrors the DTOs — so a change
  * to the error body is a change to this file rather than to each of the pages that renders one.
  *
- * The trace id is read from the body first and the header second. Both carry it and they agree, but
- * the two have different coverage: a request refused inside the security chain never reaches the
- * exception handler that writes the body, and comes back with the header alone.
+ * The trace id is read from the body first and the header second. Every error body the backend builds
+ * carries it, and agrees with the header, so the header is the fallback for a response whose body is
+ * not the API's JSON at all.
  *
  * @param thrown whatever the call rejected with — an axios error, an `Error`, or anything at all
  * @returns a value that is always safe to render

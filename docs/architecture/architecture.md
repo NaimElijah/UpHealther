@@ -358,7 +358,8 @@ than an omission — so a browser-side failure can be *shown* and not *recorded*
 
 What it can do is hand the user something to quote. `api/apiError.ts` decodes the backend's error
 contract once, reading the trace id from the error body and falling back to the `X-Trace-Id` header —
-a request refused inside the security chain carries the header alone. `ui/ErrorState` renders it.
+every error body the backend builds carries the id, so the header covers a body that is not the API's
+JSON at all. `ui/ErrorState` renders it.
 `ErrorBoundary`, mounted inside `ThemeProvider` and around the router, catches a render-time throw so
 it becomes a themed, reloadable message instead of a blank page.
 
