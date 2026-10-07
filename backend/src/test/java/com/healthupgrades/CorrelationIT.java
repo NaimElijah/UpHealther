@@ -103,6 +103,60 @@ class CorrelationIT extends PostgresIT {
         assertThat(json.readTree(response.body()).path("traceId").asText()).isEqualTo(traceIdHeader(response));
     }
 
+    @Test
+    void GivenAUrlTheFirewallRejects_WhenTheContainerErrorPageAnswers_ThenItKeepsTheFirewallsStatus()
+            throws Exception {
+        // #105. A firewall rejection is answered by sendError, so it is rendered by a container ERROR
+        // dispatch to /error - the one path that never reaches GlobalExceptionHandler on the request
+        // dispatch. Spring Security authorises that dispatch as well, and it carries no credentials, so
+        // unless it is let through, the client is told 401 - "your session lapsed" - for a URL that was
+        // simply malformed, and the SPA renews a token that was fine.
+        HttpResponse<String> response = firewallRejected();
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.headers().firstValue("WWW-Authenticate")).isEmpty();
+        assertThat(traceIdHeader(response)).matches(TRACE_ID_PATTERN);
+    }
+
+    @Test
+    void GivenAUrlTheFirewallRejects_WhenTheContainerErrorPageAnswers_ThenTheBodyCarriesTheHeadersTraceId()
+            throws Exception {
+        // #105. The ERROR dispatch runs after the request's observation has closed, so nothing there can
+        // read the id from the tracer; the body has to carry the one the request's own dispatch saw.
+        HttpResponse<String> response = firewallRejected();
+
+        assertThat(json.readTree(response.body()).path("traceId").asText())
+                .matches(TRACE_ID_PATTERN)
+                .isEqualTo(traceIdHeader(response));
+    }
+
+    @Test
+    void GivenAUrlTheFirewallRejects_WhenTheContainerErrorPageAnswers_ThenItsTimestampHasNoOffsetLikeEveryErrorBody()
+            throws Exception {
+        // api.md: a timestamp is UTC, written without an offset. Over the wire, so it is Jackson's view of
+        // the value that is checked, not the value handed to it.
+        HttpResponse<String> response = firewallRejected();
+
+        assertThat(json.readTree(response.body()).path("timestamp").asText())
+                .matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?");
+    }
+
+    /**
+     * A request Spring Security's {@code StrictHttpFirewall} refuses but Tomcat passes on: Tomcat strips a
+     * {@code ;} path parameter from the path it matches, while the request URI the firewall reads keeps it.
+     * An encoded {@code /} or {@code \} would not do: Tomcat itself refuses those before any filter runs,
+     * so no trace id is ever attached.
+     */
+    private HttpResponse<String> firewallRejected() throws Exception {
+        return client.send(
+                HttpRequest.newBuilder()
+                        .uri(URI.create("http://localhost:" + port + "/api/upgrades;x=y"))
+                        .header("Accept", "application/json")
+                        .GET()
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+    }
+
     private HttpResponse<String> post(String body, String traceparent) throws Exception {
         HttpRequest.Builder request = HttpRequest.newBuilder()
                 .uri(URI.create("http://localhost:" + port + "/api/auth/login"))

@@ -15,10 +15,10 @@ import java.io.IOException;
  * key to its own log lines.
  *
  * <p>The header is written <b>before</b> the rest of the chain runs, which is what makes it survive the
- * responses that are not built by {@code GlobalExceptionHandler}: {@code sendError} resets the response
- * buffer but not its headers, so the 403 Spring Security returns for an anonymous request — which never
- * reaches the advice, and is a 403 rather than a 401 because no {@code AuthenticationEntryPoint} is
- * configured — still comes back with an id.
+ * responses that are not built on the request's own dispatch: {@code sendError} resets the response
+ * buffer but not its headers, so a request the firewall refuses, rendered later by the container's error
+ * page, still comes back with an id. The id is also left on the request for that page's body
+ * ({@link TraceIdErrorAttributes}).
  *
  * <p>The header name is ours, not a standard: W3C defines {@code traceparent} for the request side, and
  * its response-side counterpart {@code traceresponse} is still a draft that nothing consumes.
@@ -32,12 +32,22 @@ public class TraceIdResponseHeaderFilter extends OncePerRequestFilter {
     /** Response header carrying the trace id. Exposed to cross-origin browsers by {@code SecurityConfig}. */
     public static final String TRACE_ID_HEADER = "X-Trace-Id";
 
+    /**
+     * Request attribute holding the id this filter sent, for {@link TraceIdErrorAttributes}. The
+     * container's error page is rendered by a later dispatch that runs after the request's scope has
+     * closed, so this is the only place it can still find the id the header carried (ADR-024).
+     */
+    static final String TRACE_ID_ATTRIBUTE = TraceIdResponseHeaderFilter.class.getName() + ".traceId";
+
     private final Tracer tracer;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        CorrelationId.of(tracer).ifPresent(traceId -> response.setHeader(TRACE_ID_HEADER, traceId));
+        CorrelationId.of(tracer).ifPresent(traceId -> {
+            response.setHeader(TRACE_ID_HEADER, traceId);
+            request.setAttribute(TRACE_ID_ATTRIBUTE, traceId);
+        });
         chain.doFilter(request, response);
     }
 }

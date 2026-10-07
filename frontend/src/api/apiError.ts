@@ -55,10 +55,11 @@ const UNREACHABLE = 'Could not reach the server. Check your connection and try a
 const UNEXPLAINED = 'Something went wrong.';
 
 /**
- * The backend's error body (`GlobalExceptionHandler.ErrorResponse`).
+ * The backend's error body: `GlobalExceptionHandler.ErrorResponse`, or the container's error page, which
+ * has Boot's shape (`timestamp`, `status`, `error`, `path`, `traceId`) and no `message` (ADR-024).
  *
- * Every field is optional here even though the server always sends `status`, `message` and `path`:
- * this is parsing untrusted input, and a proxy returning its own HTML on a 502 is a real case.
+ * Every field is optional here. The error page sends no `message`, and this is parsing untrusted input
+ * anyway: a proxy returning its own HTML on a 502 is a real case.
  */
 interface ErrorResponseBody {
   message?: unknown;
@@ -75,9 +76,9 @@ const TRACE_ID_HEADER = 'x-trace-id';
  * One place decodes the wire contract, mirroring how `types/index.ts` mirrors the DTOs — so a change
  * to the error body is a change to this file rather than to each of the pages that renders one.
  *
- * The trace id is read from the body first and the header second. Both carry it and they agree, but
- * the two have different coverage: a request refused inside the security chain never reaches the
- * exception handler that writes the body, and comes back with the header alone.
+ * The trace id is read from the body first and the header second. Every error body the backend builds
+ * carries it, and agrees with the header, so the header is the fallback for a response whose body is
+ * not the API's JSON at all.
  *
  * @param thrown whatever the call rejected with — an axios error, an `Error`, or anything at all
  * @returns a value that is always safe to render
