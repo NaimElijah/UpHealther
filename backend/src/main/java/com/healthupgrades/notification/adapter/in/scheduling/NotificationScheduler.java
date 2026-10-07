@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -52,6 +53,17 @@ public class NotificationScheduler {
     /** Stable across releases: these are metric tags and log fields, so they are a contract. */
     private static final String CHECKIN_JOB = "notification.daily-checkin";
     private static final String REMINDERS_JOB = "notification.reminder-dispatch";
+    private static final String CREATE_FAILED = "notification.create-failed";
+
+    /**
+     * How many saves in a row may fail before a sweep gives up on the rest (ADR-023).
+     *
+     * <p>One failure is a bad row; several in a row is the database being gone, and every further
+     * attempt then waits out the pool's connection timeout (Hikari's default, 30 s) on the one thread
+     * all four jobs share. Without a limit, an outage mid-sweep would hold that thread for a timeout per
+     * remaining item.
+     */
+    private static final int MAX_CONSECUTIVE_FAILURES = 3;
 
     private final UpgradeQuery upgradeQuery; // inbound port: upgrades
     private final ProgressQuery progressQuery; // inbound port: progress entries
@@ -67,6 +79,9 @@ public class NotificationScheduler {
      * <p>Two guards keep this from becoming noise: a user who has already logged something today is
      * skipped, and so is one who has already been nudged since midnight — the second matters because
      * nothing stops this cron from being configured to run more than once a day.
+     *
+     * <p>A nudge that fails to save does not cost the users after it; the run still ends as a failure once
+     * it has logged what it did ({@link Deliveries}).
      */
     @Scheduled(cron = "${app.notifications.schedules.daily-checkin}", zone = ServerZone.ID)
     public void notifyDailyCheckin() {
@@ -76,10 +91,12 @@ public class NotificationScheduler {
                     .collect(Collectors.groupingBy(HealthUpgrade::getUserId));
 
             // With nobody to nudge, the guards are not worth reading.
-            int nudged = activeByUser.isEmpty() ? 0 : nudge(activeByUser, today);
+            Deliveries nudges = activeByUser.isEmpty() ? new Deliveries() : nudge(activeByUser, today);
 
-            log.info("{} {} {}", keyValue("job", CHECKIN_JOB),
-                    keyValue("usersWithActiveUpgrades", activeByUser.size()), keyValue("nudged", nudged));
+            log.info("{} {} {} {} {}", keyValue("job", CHECKIN_JOB),
+                    keyValue("usersWithActiveUpgrades", activeByUser.size()), keyValue("nudged", nudges.delivered),
+                    keyValue("failed", nudges.failed), keyValue("skipped", nudges.skipped));
+            nudges.rethrowFirstFailure();
         });
     }
 
@@ -91,30 +108,30 @@ public class NotificationScheduler {
      *
      * @param activeByUser each user with running upgrades, and those upgrades
      * @param today        the day the guards are read for
-     * @return how many users were nudged
+     * @return how the nudges went: sent, failed, and left unattempted after an outage
      */
-    private int nudge(Map<UUID, List<HealthUpgrade>> activeByUser, LocalDate today) {
+    private Deliveries nudge(Map<UUID, List<HealthUpgrade>> activeByUser, LocalDate today) {
         Set<UUID> alreadyNudged = notificationRepository.findUserIdsNotifiedAfter(
                 NotificationType.CHECKIN_REMINDER, today.atStartOfDay());
         Set<UUID> loggedToday = progressQuery.findUserIdsWithEntriesOn(today);
 
-        // A count, not a list of user ids: the point is whether the nudge went out at a plausible
-        // volume, and who was nudged is in their own notification list. A plain int in a plain loop -
-        // this map is walked on one thread, and an atomic would advertise a concurrency requirement
-        // that does not exist and send the next reader looking for it.
-        int nudged = 0;
+        // Counts, not lists of user ids: the point is whether the nudge went out at a plausible volume,
+        // and who was nudged is in their own notification list.
+        Deliveries nudges = new Deliveries();
         for (Map.Entry<UUID, List<HealthUpgrade>> nudgeable : activeByUser.entrySet()) {
             UUID userId = nudgeable.getKey();
-            List<HealthUpgrade> upgrades = nudgeable.getValue();
+            int upgrades = nudgeable.getValue().size();
             if (!alreadyNudged.contains(userId) && !loggedToday.contains(userId)) {
-                nudged++;
-                notificationService.create(userId, NotificationType.CHECKIN_REMINDER, NotificationCategory.REMINDER,
-                        "Daily check-in ⏳",
-                        "You have " + upgrades.size() + " active upgrade" + (upgrades.size() == 1 ? "" : "s")
-                                + " to track today.", null);
+                nudges.attempt(() -> notificationService.create(userId, NotificationType.CHECKIN_REMINDER,
+                                NotificationCategory.REMINDER, "Daily check-in ⏳",
+                                "You have " + upgrades + " active upgrade" + (upgrades == 1 ? "" : "s")
+                                        + " to track today.", null),
+                        failure -> log.warn("{} {} {} {}", keyValue("event", CREATE_FAILED),
+                                keyValue("job", CHECKIN_JOB), keyValue("userId", userId),
+                                keyValue("exception", failure.getClass().getSimpleName())));
             }
         }
-        return nudged;
+        return nudges;
     }
 
     /**
@@ -131,6 +148,9 @@ public class NotificationScheduler {
      *
      * <p>Unlike the check-in nudge there is no dedup guard, and none is needed: a given minute occurs
      * once, so a reminder cannot match twice.
+     *
+     * <p>For the same reason nothing retries a reminder this run did not send, which is why one that fails
+     * to save must not take the rest of the minute's reminders with it ({@link Deliveries}).
      */
     @Scheduled(cron = "${app.notifications.schedules.reminders}", zone = ServerZone.ID)
     public void dispatchReminders() {
@@ -151,7 +171,7 @@ public class NotificationScheduler {
             Map<UUID, HealthUpgrade> upgrades = upgradeQuery.findAllById(upgradeIds).stream()
                     .collect(Collectors.toMap(HealthUpgrade::getId, Function.identity()));
 
-            int fired = 0;
+            Deliveries reminders = new Deliveries();
             int orphaned = 0;
             int silenced = 0;
             for (Reminder reminder : due) {
@@ -161,14 +181,19 @@ public class NotificationScheduler {
                 } else if (u.getStatus() != UpgradeStatus.ACTIVE) {
                     silenced++;
                 } else {
-                    fired++;
-                    notificationService.create(u.getUserId(), NotificationType.REMINDER, NotificationCategory.REMINDER,
-                            "Reminder ⏰", "Time for \"" + u.getTitle() + "\".", u.getId());
+                    reminders.attempt(() -> notificationService.create(u.getUserId(), NotificationType.REMINDER,
+                                    NotificationCategory.REMINDER, "Reminder ⏰", "Time for \"" + u.getTitle() + "\".",
+                                    u.getId()),
+                            failure -> log.warn("{} {} {} {} {} {}", keyValue("event", CREATE_FAILED),
+                                    keyValue("job", REMINDERS_JOB), keyValue("reminderId", reminder.getId()),
+                                    keyValue("upgradeId", u.getId()), keyValue("userId", u.getUserId()),
+                                    keyValue("exception", failure.getClass().getSimpleName())));
                 }
             }
 
-            log.info("{} {} {} {}", keyValue("job", REMINDERS_JOB), keyValue("due", due.size()),
-                    keyValue("fired", fired), keyValue("silenced", silenced));
+            log.info("{} {} {} {} {} {}", keyValue("job", REMINDERS_JOB), keyValue("due", due.size()),
+                    keyValue("fired", reminders.delivered), keyValue("failed", reminders.failed),
+                    keyValue("skipped", reminders.skipped), keyValue("silenced", silenced));
 
             // A reminder that outlived the upgrade it hangs off. Degraded but still serving, which
             // ADR-010 defines as WARN - leaving it as two INFO fields nobody diffs would report a real
@@ -177,7 +202,65 @@ public class NotificationScheduler {
             if (orphaned > 0) {
                 log.warn("{} {}", keyValue("event", "reminder.orphaned"), keyValue("count", orphaned));
             }
+            reminders.rethrowFirstFailure();
         });
     }
 
+    /**
+     * One sweep's notifications: each is attempted on its own, so one that fails to save does not cost
+     * the ones after it (NFR-50, ADR-023).
+     *
+     * <p>The run still ends as a failure. A failure is warned about by ids as it happens, and the first one
+     * is rethrown by {@link #rethrowFirstFailure()} once the sweep has said what it did, so
+     * {@code JobMetrics} counts the run {@code failed} and Spring's scheduler logs its stack trace once, at
+     * ERROR. The rest are not attached as suppressed: the limit below bounds a streak, not a total, and
+     * every attached one would print its own stack trace inside that single entry.
+     *
+     * <p>Only a {@link RuntimeException} is caught; an {@link Error} still ends the sweep where it stands.
+     *
+     * <p>Plain ints, deliberately: a sweep is walked on one thread, and atomics would advertise a
+     * concurrency requirement that does not exist and send the next reader looking for it.
+     */
+    private static final class Deliveries {
+        private int delivered;
+        private int failed;
+        /** Never attempted, because {@link #MAX_CONSECUTIVE_FAILURES} attempts in a row had failed first. */
+        private int skipped;
+        private int consecutiveFailures;
+        private RuntimeException firstFailure;
+
+        /**
+         * Creates one notification, or counts it skipped once the sweep has given up.
+         *
+         * @param create creates and pushes the notification
+         * @param warn   writes the WARN for a failure; given the failure, it should log its type, never its
+         *               message, which can quote the refused row (NFR-6)
+         */
+        void attempt(Runnable create, Consumer<RuntimeException> warn) {
+            if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+                skipped++;
+                return;
+            }
+            try {
+                create.run();
+            } catch (RuntimeException failure) {
+                failed++;
+                consecutiveFailures++;
+                if (firstFailure == null) {
+                    firstFailure = failure;
+                }
+                warn.accept(failure);
+                return;
+            }
+            delivered++;
+            consecutiveFailures = 0;
+        }
+
+        /** Ends the run as failed if any notification failed; does nothing when every attempt succeeded. */
+        void rethrowFirstFailure() {
+            if (firstFailure != null) {
+                throw firstFailure;
+            }
+        }
+    }
 }

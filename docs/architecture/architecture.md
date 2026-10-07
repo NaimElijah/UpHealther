@@ -274,8 +274,8 @@ one and when promoting a running one to HARD.
 | Job | Default schedule | What it does |
 |---|---|---|
 | `UpgradeOverdueScheduler` | daily 08:00 | Publishes `UpgradeOverdueDetected` for every active upgrade past its target date. The notification listener creates at most one notification per upgrade, so the repeated detection does not repeat the alert |
-| `NotificationScheduler.notifyDailyCheckin` | daily 18:00 | Nudges users who have active upgrades and have logged nothing today, at most once a day. Each of its two guards — who was already nudged since midnight, and who has logged today — is one query for the whole sweep |
-| `NotificationScheduler.dispatchReminders` | every minute | Fires the reminders due this minute whose upgrade is active (BR-23). Due-ness is decided by the `Reminder` aggregate; the upgrades behind the due ones are loaded in one batch, and their status is read there, so a paused upgrade's reminders are silenced without being changed |
+| `NotificationScheduler.notifyDailyCheckin` | daily 18:00 | Nudges users who have active upgrades and have logged nothing today, at most once a day. Each of its two guards — who was already nudged since midnight, and who has logged today — is one query for the whole sweep. A nudge that fails to save does not cost the users after it |
+| `NotificationScheduler.dispatchReminders` | every minute | Fires the reminders due this minute whose upgrade is active (BR-23). Due-ness is decided by the `Reminder` aggregate; the upgrades behind the due ones are loaded in one batch, and their status is read there, so a paused upgrade's reminders are silenced without being changed. A reminder that fails to save does not cost the ones after it |
 | `AuthSessionCleanupScheduler` | daily 03:30 | Deletes revoked and expired sessions. Nothing depends on it running: an expired session is already refused by its own timestamps |
 
 All four read the clock through an injected `java.time.Clock`, which is what makes them testable
@@ -334,6 +334,11 @@ Three places are worth knowing about because they were silent and are no longer:
   handled, because Spring's scheduler already logs a task that threw and two entries for one fault is
   worse than one. `dispatchReminders` stays silent when nothing is due — otherwise it writes a line a
   minute, all night, and buries the runs that did something.
+  The two notification sweeps attempt each notification on its own. One that fails to save is a WARN
+  naming it by ids and exception type, never by message, and the sweep moves on; three failures in a
+  row are an outage, and the rest are skipped. The run's INFO line counts `failed` and `skipped`, and
+  only then is the first failure rethrown, so the run is still counted `failed` and its stack trace
+  is logged once ([ADR-023](../ADRs/ADR-023-a-notification-sweep-carries-on-past-a-failed-save-and-fails-the-run.md)).
 - **The security boundary.** A rejected token is DEBUG with its exception type and never its message,
   which can quote the token back. A validly signed token naming an account that no longer exists is
   WARN: the signature was ours, so this is not ordinary expiry. Neither line names a subject. The

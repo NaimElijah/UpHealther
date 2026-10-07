@@ -2,7 +2,7 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. A hundred and thirteen of the hundred and twenty-one entries below name a test —
+rather than trusted. A hundred and fourteen of the hundred and twenty-two entries below name a test —
 a hundred and six distinct test classes and files between them. Five of the remaining eight name the command,
 workflow or script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48). The last three —
 FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is about a rendered width, a
@@ -249,6 +249,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-14 | List endpoints resolve related data in batch rather than per row | `TrackingServiceTest`, `DashboardAggregationServiceTest`, `ProgressEntryPersistenceIT`, `NotificationSchedulerTest`, `NotificationPersistenceIT` |
 | NFR-15 | Time-dependent behaviour reads an injected clock, so it is testable and timezone-explicit | `UpgradeOverdueSchedulerTest`, `NotificationSchedulerTest`, `UpgradeServiceTest`, `TrackingServiceTest`, `ReflectionServiceTest`, `GlobalExceptionHandlerTest`, `NotificationServiceTest`, `HealthUpgradesApplicationTest` and `ServerTimeArchitectureTest` (the clock and every cron keep UTC, and nothing outside an entity reads the time around the clock, [ADR-020](../ADRs/ADR-020-the-server-keeps-time-in-utc.md)) — **Known deviation:** [#51](https://github.com/NaimElijah/UpHealther/issues/51), entity timestamps bypass the clock |
 | NFR-26 | A real-time push that cannot be delivered degrades to the stored notification and is reported, rather than failing the work that raised it | `StompNotificationPushAdapterTest` |
+| NFR-50 | A notification sweep that fails to save one notification still attempts the rest, and gives up only after three failures in a row; the run then still ends as failed, and its log line says how many were sent, failed and skipped | `NotificationSchedulerTest` ([ADR-023](../ADRs/ADR-023-a-notification-sweep-carries-on-past-a-failed-save-and-fails-the-run.md)) |
 | NFR-49 | A notification is pushed to a connected client only after the transaction that stored it commits, so a client is never told about a row that then rolled back | `NotificationServiceTest` |
 
 ### 4.4 Observability and audit

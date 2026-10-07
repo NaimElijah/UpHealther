@@ -22,6 +22,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -34,6 +35,7 @@ import java.util.UUID;
 import java.util.function.Predicate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -65,8 +67,9 @@ class NotificationSchedulerTest {
     private final Clock fixedClock = Clock.fixed(Instant.parse("2026-06-24T09:00:00Z"), ZoneOffset.UTC);
     private static final LocalDate TODAY = LocalDate.of(2026, 6, 24);
     private NotificationScheduler scheduler;
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
     /** A real one, not a mock: JobMetrics.timed runs the job, so a stub would run nothing. */
-    private final JobMetrics jobMetrics = new JobMetrics(new SimpleMeterRegistry());
+    private final JobMetrics jobMetrics = new JobMetrics(meterRegistry);
 
     private final UUID userId = UUID.randomUUID();
     private final UUID upgradeId = UUID.randomUUID();
@@ -74,6 +77,21 @@ class NotificationSchedulerTest {
     /** The WARN a reminder that outlived its upgrade raises; see {@code dispatchReminders}. */
     private static final Predicate<ILoggingEvent> ORPHANED_WARNING = event -> event.getLevel() == Level.WARN
             && event.getFormattedMessage().contains("reminder.orphaned");
+
+    /** The WARN a notification that could not be created raises; see {@code Deliveries}. */
+    private static final Predicate<ILoggingEvent> CREATE_FAILED_WARNING = event -> event.getLevel() == Level.WARN
+            && event.getFormattedMessage().contains("notification.create-failed");
+
+    /** The run's own INFO line: what the sweep found and what it did. */
+    private static final Predicate<ILoggingEvent> RUN_LINE = event -> event.getLevel() == Level.INFO;
+
+    /**
+     * A save failure whose message quotes a row, as a constraint violation's does. Nothing of it but its
+     * type may reach a log line (NFR-6).
+     */
+    private static DataIntegrityViolationException saveFailure() {
+        return new DataIntegrityViolationException("Key (title)=(Meditate) violates a constraint");
+    }
 
     @BeforeEach
     void setUp() {
@@ -276,10 +294,193 @@ class NotificationSchedulerTest {
                 .contains("due=1", "fired=0", "silenced=1");
     }
 
+    // ---- NFR-50 (#136): one failed save does not stop the rest of a sweep ----
+
+    @Test
+    void GivenTheFirstOfTwoDueRemindersFailsToSave_WhenRemindersAreDispatched_ThenTheSecondIsStillFired() {
+        // A minute does not repeat, so a reminder the sweep never reached is never sent.
+        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder(), dueReminder()));
+        when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
+        when(notificationService.create(any(), any(), any(), any(), any(), any()))
+                .thenThrow(saveFailure())
+                .thenReturn(null);
+
+        catchThrowable(scheduler::dispatchReminders);
+
+        verify(notificationService, times(2)).create(eq(userId), eq(NotificationType.REMINDER), any(), any(), any(),
+                eq(upgradeId));
+    }
+
+    @Test
+    void GivenTwoDueRemindersFailToSave_WhenRemindersAreDispatched_ThenTheRunFailsWithTheFirstFailure() {
+        // The first failure is the one that says why; whatever followed it is most likely the same cause.
+        RuntimeException first = saveFailure();
+        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder(), dueReminder()));
+        when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
+        when(notificationService.create(any(), any(), any(), any(), any(), any()))
+                .thenThrow(first)
+                .thenThrow(saveFailure());
+
+        Throwable thrown = catchThrowable(scheduler::dispatchReminders);
+
+        assertThat(thrown).isSameAs(first);
+    }
+
+    @Test
+    void GivenADueReminderFailsToSave_WhenRemindersAreDispatched_ThenTheRunIsCountedFailed() {
+        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder()));
+        when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
+        when(notificationService.create(any(), any(), any(), any(), any(), any())).thenThrow(saveFailure());
+
+        catchThrowable(scheduler::dispatchReminders);
+
+        assertThat(runs("failed")).isEqualTo(1);
+        assertThat(runs("ok")).isZero();
+    }
+
+    @Test
+    void GivenADueReminderFailsToSave_WhenRemindersAreDispatched_ThenAWarningNamesItByIdsAndTypeOnly() {
+        // No stack trace and no message: the one stack trace belongs to the scheduler's ERROR line, and a
+        // driver's message can quote the row it refused (NFR-6).
+        Reminder reminder = dueReminder();
+        when(reminderQuery.findEnabled()).thenReturn(List.of(reminder));
+        when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
+        when(notificationService.create(any(), any(), any(), any(), any(), any())).thenThrow(saveFailure());
+
+        List<ILoggingEvent> logged = logsFromScheduler(() -> catchThrowable(scheduler::dispatchReminders));
+
+        List<ILoggingEvent> warnings = logged.stream().filter(CREATE_FAILED_WARNING).toList();
+        assertThat(warnings).hasSize(1);
+        ILoggingEvent warning = warnings.get(0);
+        assertThat(warning.getFormattedMessage())
+                .contains("job=notification.reminder-dispatch", "reminderId=" + reminder.getId(),
+                        "upgradeId=" + upgradeId, "userId=" + userId, "exception=DataIntegrityViolationException")
+                .doesNotContain("Meditate", "violates");
+        assertThat(warning.getThrowableProxy()).isNull();
+    }
+
+    @Test
+    void GivenADueReminderFailsToSave_WhenRemindersAreDispatched_ThenTheRunLineCountsItFailedNotFired() {
+        // The run's line is what says how many were lost; it used to be skipped along with the rest.
+        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder(), dueReminder()));
+        when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
+        when(notificationService.create(any(), any(), any(), any(), any(), any()))
+                .thenThrow(saveFailure())
+                .thenReturn(null);
+
+        List<ILoggingEvent> logged = logsFromScheduler(() -> catchThrowable(scheduler::dispatchReminders));
+
+        assertThat(logged).filteredOn(RUN_LINE)
+                .singleElement()
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .asString()
+                .contains("due=2", "fired=1", "failed=1", "silenced=0", "skipped=0");
+    }
+
+    @Test
+    void GivenAFailedReminderAndAnOrphanedOne_WhenRemindersAreDispatched_ThenTheOrphanWarningIsStillWritten() {
+        UUID deletedUpgradeId = UUID.randomUUID();
+        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder(), dueReminderOn(deletedUpgradeId)));
+        when(upgradeQuery.findAllById(List.of(upgradeId, deletedUpgradeId))).thenReturn(List.of(activeUpgrade()));
+        when(notificationService.create(any(), any(), any(), any(), any(), any())).thenThrow(saveFailure());
+
+        List<ILoggingEvent> logged = logsFromScheduler(() -> catchThrowable(scheduler::dispatchReminders));
+
+        assertThat(logged).anyMatch(ORPHANED_WARNING);
+    }
+
+    @Test
+    void GivenEveryDueReminderFailsToSave_WhenRemindersAreDispatched_ThenTheSweepStopsAfterThree() {
+        // Three in a row is an outage, not a bad row. Carrying on would hold the one scheduler thread for
+        // a connection timeout per remaining reminder, and every other job waits behind it.
+        when(reminderQuery.findEnabled()).thenReturn(
+                List.of(dueReminder(), dueReminder(), dueReminder(), dueReminder()));
+        when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
+        when(notificationService.create(any(), any(), any(), any(), any(), any())).thenThrow(saveFailure());
+
+        List<ILoggingEvent> logged = logsFromScheduler(() -> catchThrowable(scheduler::dispatchReminders));
+
+        verify(notificationService, times(3)).create(any(), any(), any(), any(), any(), any());
+        assertThat(logged).filteredOn(RUN_LINE)
+                .singleElement()
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .asString()
+                .contains("due=4", "fired=0", "failed=3", "skipped=1");
+    }
+
+    @Test
+    void GivenFailuresSeparatedByASuccess_WhenRemindersAreDispatched_ThenEveryReminderIsAttempted() {
+        // The cap counts a streak, not a total: a success in between means the database is answering.
+        when(reminderQuery.findEnabled()).thenReturn(
+                List.of(dueReminder(), dueReminder(), dueReminder(), dueReminder(), dueReminder()));
+        when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
+        when(notificationService.create(any(), any(), any(), any(), any(), any()))
+                .thenThrow(saveFailure())
+                .thenThrow(saveFailure())
+                .thenReturn(null)
+                .thenThrow(saveFailure())
+                .thenThrow(saveFailure());
+
+        catchThrowable(scheduler::dispatchReminders);
+
+        verify(notificationService, times(5)).create(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void GivenOneUsersNudgeFailsToSave_WhenTheCheckinSweepRuns_ThenTheOthersAreStillNudgedAndTheRunFails() {
+        UUID failing = UUID.randomUUID();
+        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgradeOf(failing),
+                activeUpgrade()));
+        guards(Set.of(), Set.of());
+        RuntimeException failure = saveFailure();
+        nudgeFailsFor(failing, failure);
+
+        Throwable thrown = catchThrowable(scheduler::notifyDailyCheckin);
+
+        verify(notificationService).create(eq(userId), eq(NotificationType.CHECKIN_REMINDER), any(), any(), any(),
+                eq(null));
+        assertThat(thrown).isSameAs(failure);
+        assertThat(runs("failed")).isEqualTo(1);
+    }
+
+    @Test
+    void GivenANudgeFailsToSave_WhenTheCheckinSweepRuns_ThenTheRunLineCountsItFailed() {
+        UUID failing = UUID.randomUUID();
+        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgradeOf(failing),
+                activeUpgrade()));
+        guards(Set.of(), Set.of());
+        nudgeFailsFor(failing, saveFailure());
+
+        List<ILoggingEvent> logged = logsFromScheduler(() -> catchThrowable(scheduler::notifyDailyCheckin));
+
+        assertThat(logged).filteredOn(CREATE_FAILED_WARNING)
+                .singleElement()
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .asString()
+                .contains("job=notification.daily-checkin", "userId=" + failing);
+        assertThat(logged).filteredOn(RUN_LINE)
+                .singleElement()
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .asString()
+                .contains("nudged=1", "failed=1", "skipped=0");
+    }
+
     /** A reminder due at the fixed clock's minute on any day, hanging off {@link #upgradeId}. */
     private Reminder dueReminder() {
-        return Reminder.builder().id(UUID.randomUUID()).upgradeId(upgradeId)
+        return dueReminderOn(upgradeId);
+    }
+
+    private Reminder dueReminderOn(UUID upgrade) {
+        return Reminder.builder().id(UUID.randomUUID()).upgradeId(upgrade)
                 .reminderTime(LocalTime.of(9, 0)).enabled(true).build();
+    }
+
+    /** How many runs of either job ended with {@code outcome}. */
+    private double runs(String outcome) {
+        return meterRegistry.find("scheduled.job.runs")
+                .tag("outcome", outcome).counters().stream()
+                .mapToDouble(counter -> counter.count())
+                .sum();
     }
 
     private HealthUpgrade upgradeIn(UpgradeStatus status) {
@@ -293,6 +494,19 @@ class NotificationSchedulerTest {
     private HealthUpgrade activeUpgradeOf(UUID owner) {
         return HealthUpgrade.builder().id(UUID.randomUUID()).userId(owner).title("Stretch")
                 .status(UpgradeStatus.ACTIVE).build();
+    }
+
+    /**
+     * Makes the nudge to {@code failing} throw {@code failure} and the nudge to {@link #userId} succeed.
+     *
+     * <p>Stubbed by user, not by call order, because the sweep walks a {@code HashMap}. Both users are
+     * stubbed because strict stubs answer a call that matches no stub with {@code PotentialStubbingProblem},
+     * and the sweep, which carries on past any {@code RuntimeException}, would count that as a second
+     * failed save whenever the map happened to reach {@link #userId} first.
+     */
+    private void nudgeFailsFor(UUID failing, RuntimeException failure) {
+        when(notificationService.create(eq(failing), any(), any(), any(), any(), any())).thenThrow(failure);
+        when(notificationService.create(eq(userId), any(), any(), any(), any(), any())).thenReturn(null);
     }
 
     /** Stubs the check-in sweep's two guards: who was nudged since midnight, and who logged today. */
