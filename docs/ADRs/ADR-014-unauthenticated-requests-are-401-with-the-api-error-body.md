@@ -1,6 +1,6 @@
 # ADR-014: An unauthenticated request is a 401 with the API's error body, not the framework's 403
 
-- **Status:** Accepted
+- **Status:** Accepted — extended by [ADR-024](ADR-024-the-container-error-page-keeps-its-status-and-carries-the-trace-id.md)
 - **Date:** 2026-09-16
 - **Supersedes in part:** [ADR-007](ADR-007-request-correlation-through-micrometer-tracing.md), whose
   "What this does not close" section recorded the 403 and the missing body as known gaps
