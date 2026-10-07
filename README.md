@@ -390,8 +390,6 @@ Known limitations, load-bearing rather than accidental:
 - **Observability stops at the process.** `docker logs` is the only sink, so its retention is the
   audit trail's retention; nothing scrapes `/actuator/prometheus`; no span leaves the process; the
   SPA has no telemetry, so `ErrorBoundary` can show an error and nothing else knows.
-- **One path carries a trace id in the header but not the body** — a container error dispatch
-  outside the observation scope.
 - **A live WebSocket outlives a sign-out until it reconnects.** The session is checked when a frame
   arrives, and a connected socket sends none, so a socket opened before signing out keeps receiving
   until it next reconnects. It only ever receives its own user's notifications, so the exposure is

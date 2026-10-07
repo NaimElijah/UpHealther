@@ -188,6 +188,17 @@ class AuthenticatedBoundaryTest {
     }
 
     @Test
+    void GivenNoToken_WhenTheErrorPathIsRequestedDirectly_ThenItIsRefusedAs401WithAChallenge() throws Exception {
+        // SecurityConfig lets the container's ERROR dispatch through, so the error page keeps the status
+        // the container chose (#105, ADR-024). That opens a dispatcher type, not a path: a client asking
+        // for /error itself makes an ordinary REQUEST dispatch, and that still needs a token. Permitting
+        // the path instead would hand anyone a second, unauthenticated way into Boot's error controller.
+        mockMvc.perform(json(request(HttpMethod.GET, "/error")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, "Bearer"));
+    }
+
+    @Test
     void GivenTheApiSurface_WhenItIsEnumerated_ThenEveryProtectedMethodAndPathIsListedHere() {
         // Keeps the table above from going stale. Compared as METHOD + path rather than path alone:
         // adding a DELETE to an already-listed path leaves the set of paths unchanged, so a

@@ -274,8 +274,8 @@ one and when promoting a running one to HARD.
 | Job | Default schedule | What it does |
 |---|---|---|
 | `UpgradeOverdueScheduler` | daily 08:00 | Publishes `UpgradeOverdueDetected` for every active upgrade past its target date. The notification listener creates at most one notification per upgrade, so the repeated detection does not repeat the alert |
-| `NotificationScheduler.notifyDailyCheckin` | daily 18:00 | Nudges users who have active upgrades and have logged nothing today, at most once a day. Each of its two guards — who was already nudged since midnight, and who has logged today — is one query for the whole sweep |
-| `NotificationScheduler.dispatchReminders` | every minute | Fires the reminders due this minute whose upgrade is active (BR-23). Due-ness is decided by the `Reminder` aggregate; the upgrades behind the due ones are loaded in one batch, and their status is read there, so a paused upgrade's reminders are silenced without being changed |
+| `NotificationScheduler.notifyDailyCheckin` | daily 18:00 | Nudges users who have active upgrades and have logged nothing today, at most once a day. Each of its two guards — who was already nudged since midnight, and who has logged today — is one query for the whole sweep. A nudge that fails to save does not cost the users after it |
+| `NotificationScheduler.dispatchReminders` | every minute | Fires the reminders due this minute whose upgrade is active (BR-23). Due-ness is decided by the `Reminder` aggregate; the upgrades behind the due ones are loaded in one batch, and their status is read there, so a paused upgrade's reminders are silenced without being changed. A reminder that fails to save does not cost the ones after it |
 | `AuthSessionCleanupScheduler` | daily 03:30 | Deletes revoked and expired sessions. Nothing depends on it running: an expired session is already refused by its own timestamps |
 
 All four read the clock through an injected `java.time.Clock`, which is what makes them testable
@@ -295,7 +295,9 @@ from a different place:
 
 - **HTTP** — `ServerHttpObservationFilter`, from the framework. An inbound W3C `traceparent` continues
   the caller's trace; otherwise a new one starts. `TraceIdResponseHeaderFilter` returns the id as
-  `X-Trace-Id`, and `GlobalExceptionHandler` stamps it on the error body.
+  `X-Trace-Id`, and `GlobalExceptionHandler` stamps it on the error body. The container's error page
+  runs after the scope has closed, so `TraceIdErrorAttributes` puts the id the header carried on its
+  body instead ([ADR-024](../ADRs/ADR-024-the-container-error-page-keeps-its-status-and-carries-the-trace-id.md)).
 - **Scheduled jobs** — `ScheduledMethodRunnable` already wraps each `@Scheduled` invocation in an
   observation; `ObservabilityConfig` supplies the registry that Boot leaves unset, which is the whole of
   it. The scheduler classes know nothing about tracing.
@@ -334,6 +336,11 @@ Three places are worth knowing about because they were silent and are no longer:
   handled, because Spring's scheduler already logs a task that threw and two entries for one fault is
   worse than one. `dispatchReminders` stays silent when nothing is due — otherwise it writes a line a
   minute, all night, and buries the runs that did something.
+  The two notification sweeps attempt each notification on its own. One that fails to save is a WARN
+  naming it by ids and exception types, never by message, and the sweep moves on; a transaction that
+  cannot begin is an outage, and the rest are skipped. The run's INFO line counts `failed` and `skipped`, and
+  only then is the first failure rethrown, so the run is still counted `failed` and its stack trace
+  is logged once ([ADR-023](../ADRs/ADR-023-a-notification-sweep-carries-on-past-a-failed-save-and-fails-the-run.md)).
 - **The security boundary.** A rejected token is DEBUG with its exception type and never its message,
   which can quote the token back. A validly signed token naming an account that no longer exists is
   WARN: the signature was ours, so this is not ordinary expiry. Neither line names a subject. The
@@ -351,7 +358,8 @@ than an omission — so a browser-side failure can be *shown* and not *recorded*
 
 What it can do is hand the user something to quote. `api/apiError.ts` decodes the backend's error
 contract once, reading the trace id from the error body and falling back to the `X-Trace-Id` header —
-a request refused inside the security chain carries the header alone. `ui/ErrorState` renders it.
+every error body the backend builds carries the id, so the header covers a body that is not the API's
+JSON at all. `ui/ErrorState` renders it.
 `ErrorBoundary`, mounted inside `ThemeProvider` and around the router, catches a render-time throw so
 it becomes a themed, reloadable message instead of a blank page.
 
@@ -547,11 +555,12 @@ Stated because they are load-bearing, not because they are problems yet:
 - **The backend has no dependency vulnerability audit.** OWASP dependency-check cannot populate its
   database without an `NVD_API_KEY`. ADR-002 records why a check that always fails, or one that cannot
   fail, was judged worse than none.
-- **One path carries a trace id in the header but not the body.** `ServerHttpObservationFilter` is
-  registered for `REQUEST` and `ASYNC` dispatches but not `ERROR`, so a container error dispatch to
-  `/error` runs outside the observation scope entirely. Nothing logs on that path today. A refusal
-  inside the security chain is no longer such a path: the entry point and the access-denied handler
-  hand it to `GlobalExceptionHandler` ([ADR-014](../ADRs/ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md))
+- **The container's error page runs outside the observation scope.** `ServerHttpObservationFilter`
+  is registered for `REQUEST` and `ASYNC` dispatches but not `ERROR`, so a container error dispatch to
+  `/error` has no span. Its body still carries the id the request's own dispatch saw, through a request
+  attribute ([ADR-024](../ADRs/ADR-024-the-container-error-page-keeps-its-status-and-carries-the-trace-id.md)),
+  but anything logged during it would have none; nothing logs there today. A request Tomcat itself
+  refuses before any filter runs, such as an encoded `/` in the path, carries no id at all.
 - **`docker logs` is the only sink, and its retention is the audit trail's retention.** There is no
   file appender, no log volume and no aggregator, so a line that has aged out of the container's log
   is gone — including the audit entries. That is adequate for diagnosis and is explicitly *not* a
@@ -612,6 +621,8 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why every page shares one width; why the shell can be trusted not to overflow; why container queries were turned down | [ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md) |
 | Why the dialog traps focus by hand rather than through a native `<dialog>`; why `inert` and not `aria-hidden`; why the overlay is portalled | [ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md) |
 | Why a phone gets the navigation in the shared dialog rather than a drawer or a tab bar; when the menu closes; why the brand leaves the navbar below 360px | [ADR-022](../ADRs/ADR-022-the-phone-navigation-is-the-shared-dialog-not-a-drawer.md) |
+| Why a notification sweep carries on past a failed save, still fails the run, and gives up only when the database cannot be reached | [ADR-023](../ADRs/ADR-023-a-notification-sweep-carries-on-past-a-failed-save-and-fails-the-run.md) |
+| Why the container's error page is let through security by dispatcher type, and how it gets the trace id the request's own dispatch saw | [ADR-024](../ADRs/ADR-024-the-container-error-page-keeps-its-status-and-carries-the-trace-id.md) |
 | Why an unauthenticated request is a 401 with the API's own body rather than the framework's 403 | [ADR-014](../ADRs/ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |

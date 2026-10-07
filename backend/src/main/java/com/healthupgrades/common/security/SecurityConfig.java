@@ -1,6 +1,7 @@
 package com.healthupgrades.common.security;
 
 import com.healthupgrades.common.observability.TraceIdResponseHeaderFilter;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -83,6 +84,14 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // The container's error page (#105, ADR-024). An exception that escapes a filter,
+                        // or a firewall rejection, is rendered by an ERROR dispatch to /error, which Spring
+                        // Security authorises too - and it carries no credentials, so it was refused and
+                        // every such 400 or 500 reached the client as a 401. This matches the dispatcher
+                        // type, not the path: a client cannot make an ERROR dispatch, and its own GET
+                        // /error is a REQUEST dispatch that still needs a token. What the page may say is
+                        // bounded by Boot's server.error.include-* defaults, none of which is overridden.
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         // Exactly the two endpoints a visitor without a token needs. A blanket
                         // /api/auth/** also opened /api/auth/me, which then dereferenced a null
                         // @AuthenticationPrincipal and answered 500 instead of refusing the request

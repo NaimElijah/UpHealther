@@ -37,8 +37,9 @@ conventions to follow inside `frontend/`.
   `components/ui/ErrorState`. Do not write a hard-coded "Failed to load X." and drop the error — the
   backend puts a **trace id** on every response (`X-Trace-Id`, and `traceId` on the error body) so that
   a user can quote one string that finds their request in the log, and discarding it is what left a
-  support conversation with nothing in it. `toApiError` reads the body first and the header second,
-  because a request refused inside the security chain carries the header alone.
+  support conversation with nothing in it. `toApiError` reads the body first and the header second:
+  every error body the backend builds carries the id, the container's error page included, so the
+  header covers a body that is not the API's JSON at all.
 - **`components/ErrorBoundary`** is mounted in `App.tsx` inside `ThemeProvider` and around the router:
   inside so its fallback is themed, outside so a throw in any page is contained. It has to stay a
   class — `getDerivedStateFromError` has no hooks equivalent. It shows and does not record: there is
