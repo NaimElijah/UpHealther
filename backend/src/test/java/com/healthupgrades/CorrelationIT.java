@@ -130,6 +130,17 @@ class CorrelationIT extends PostgresIT {
                 .isEqualTo(traceIdHeader(response));
     }
 
+    @Test
+    void GivenAUrlTheFirewallRejects_WhenTheContainerErrorPageAnswers_ThenItsTimestampHasNoOffsetLikeEveryErrorBody()
+            throws Exception {
+        // api.md: a timestamp is UTC, written without an offset. Over the wire, so it is Jackson's view of
+        // the value that is checked, not the value handed to it.
+        HttpResponse<String> response = firewallRejected();
+
+        assertThat(json.readTree(response.body()).path("timestamp").asText())
+                .matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?");
+    }
+
     /**
      * A request Spring Security's {@code StrictHttpFirewall} refuses but Tomcat passes on: Tomcat strips a
      * {@code ;} path parameter from the path it matches, while the request URI the firewall reads keeps it.

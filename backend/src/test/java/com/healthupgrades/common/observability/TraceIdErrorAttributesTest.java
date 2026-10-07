@@ -12,6 +12,10 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.web.context.request.ServletWebRequest;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,7 +34,10 @@ class TraceIdErrorAttributesTest {
 
     private final MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/upgrades;x=y");
     private final MockHttpServletResponse response = new MockHttpServletResponse();
-    private final TraceIdErrorAttributes errorAttributes = new TraceIdErrorAttributes();
+    private static final Instant NOW = Instant.parse("2026-10-07T21:01:42.246Z");
+
+    private final TraceIdErrorAttributes errorAttributes =
+            new TraceIdErrorAttributes(Clock.fixed(NOW, ZoneOffset.UTC));
 
     @Test
     void GivenTheRequestWasTraced_WhenItsErrorBodyIsBuiltAfterTheScopeClosed_ThenItCarriesTheHeadersTraceId()
@@ -58,6 +65,16 @@ class TraceIdErrorAttributesTest {
         Map<String, Object> body = errorBodyFor(400);
 
         assertThat(body).doesNotContainKey("traceId");
+    }
+
+    @Test
+    void GivenAnyError_WhenItsBodyIsBuilt_ThenItsTimestampIsTheInjectedClocksUtcTimeLikeEveryOtherErrorBody() {
+        // api.md: every error body's timestamp is UTC, written without an offset, and it is read from the
+        // injected clock (NFR-15). Boot's own is a java.util.Date from the system clock, which Jackson
+        // writes with "+00:00", unlike every body GlobalExceptionHandler builds.
+        Map<String, Object> body = errorBodyFor(400);
+
+        assertThat(body).containsEntry("timestamp", LocalDateTime.ofInstant(NOW, ZoneOffset.UTC));
     }
 
     /** What Boot's error controller would render for this request, given the status the container chose. */

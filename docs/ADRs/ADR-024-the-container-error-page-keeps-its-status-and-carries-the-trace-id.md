@@ -53,6 +53,10 @@ Boot's error body.**
   - Header and body agree by construction: both are the one value read through
     `CorrelationId.of(tracer)` while the request's scope was open.
   - An untraced request gets no `traceId` key, as on every other error body.
+- **Its `timestamp` is the injected clock's UTC time**, replacing Boot's `java.util.Date` from the
+  system clock, which Jackson writes with a `+00:00` offset. `api.md` promises every error body a UTC
+  timestamp without an offset, and NFR-15 promises time read from the injected clock. Found by the
+  review of #138.
 - **Boot's body shape stays.** The SPA reads `traceId` and `message` from any error body. It falls back
   to the header for the id and to a generic sentence for the message, so this page needs no message to
   be useful.

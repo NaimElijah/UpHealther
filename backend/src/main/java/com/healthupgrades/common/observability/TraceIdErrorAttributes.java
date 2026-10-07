@@ -5,6 +5,8 @@ import org.springframework.boot.web.servlet.error.DefaultErrorAttributes;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.WebRequest;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
@@ -20,23 +22,37 @@ import java.util.Map;
  *
  * <p>The key is {@code traceId}, as on every body {@code GlobalExceptionHandler} builds, so a client
  * reads one field whichever path produced the error. It is left out when the request was not traced,
- * rather than sent empty. Everything else is Boot's, bounded by the {@code server.error.include-*}
- * defaults: since the page is reachable without a token, changing one of those is a security decision.
+ * rather than sent empty. The {@code timestamp} is replaced as well, for the same reason. Boot's is a
+ * {@code java.util.Date} from the system clock, which Jackson writes with an offset. This one is
+ * the injected clock's UTC time, written like every other error body's (NFR-15, ADR-020).
+ * Everything else is Boot's, bounded by the {@code server.error.include-*} defaults: since the page is
+ * reachable without a token, changing one of those is a security decision.
  */
 public class TraceIdErrorAttributes extends DefaultErrorAttributes {
 
     private static final String TRACE_ID = "traceId";
+    private static final String TIMESTAMP = "timestamp";
+
+    private final Clock clock;
+
+    /** @param clock the application's clock, which keeps UTC (ADR-020) */
+    public TraceIdErrorAttributes(Clock clock) {
+        this.clock = clock;
+    }
 
     /**
-     * Builds Boot's error attributes and adds the request's trace id when it has one.
+     * Builds Boot's error attributes, stamps them from the clock, and adds the request's trace id when it
+     * has one.
      *
      * @param webRequest the request being rendered by the error page
      * @param options    which of Boot's optional attributes to include
-     * @return Boot's attributes, with {@code traceId} added if {@code X-Trace-Id} was sent
+     * @return Boot's attributes, with the clock's {@code timestamp} and, if {@code X-Trace-Id} was sent,
+     *         {@code traceId}
      */
     @Override
     public Map<String, Object> getErrorAttributes(WebRequest webRequest, ErrorAttributeOptions options) {
         Map<String, Object> attributes = super.getErrorAttributes(webRequest, options);
+        attributes.put(TIMESTAMP, LocalDateTime.now(clock));
         Object traceId = webRequest.getAttribute(TraceIdResponseHeaderFilter.TRACE_ID_ATTRIBUTE,
                 RequestAttributes.SCOPE_REQUEST);
         if (traceId != null) {

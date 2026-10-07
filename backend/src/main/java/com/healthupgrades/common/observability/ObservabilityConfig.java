@@ -10,6 +10,8 @@ import org.springframework.core.Ordered;
 import org.springframework.scheduling.annotation.SchedulingConfigurer;
 import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 
+import java.time.Clock;
+
 /**
  * Wires the response header, the trace id on the container's error page and the scheduled-task
  * observations, none of which Spring Boot wires itself.
@@ -53,8 +55,8 @@ public class ObservabilityConfig implements SchedulingConfigurer {
      * also a {@code HandlerExceptionResolver}, and the dispatcher finds it by that type.
      */
     @Bean
-    public TraceIdErrorAttributes errorAttributes() {
-        return new TraceIdErrorAttributes();
+    public TraceIdErrorAttributes errorAttributes(Clock clock) {
+        return new TraceIdErrorAttributes(clock);
     }
 
     /**
