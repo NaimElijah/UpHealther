@@ -442,6 +442,23 @@ class NotificationSchedulerTest {
     }
 
     @Test
+    void GivenASaveThrowsAnError_WhenRemindersAreDispatched_ThenTheSweepEndsThereAndTheErrorEscapes() {
+        // Carrying on is for a failed row. An Error - a class that will not load, memory gone - is the
+        // JVM saying the next attempt cannot be trusted either, so it is not caught and nothing after it
+        // is tried. Widening the catch to Throwable would fail this test and nothing else.
+        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder(), dueReminder()));
+        when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
+        when(notificationService.create(any(), any(), any(), any(), any(), any()))
+                .thenThrow(new NoClassDefFoundError("com/healthupgrades/Missing"));
+
+        Throwable thrown = catchThrowable(scheduler::dispatchReminders);
+
+        assertThat(thrown).isInstanceOf(NoClassDefFoundError.class);
+        verify(notificationService, times(1)).create(any(), any(), any(), any(), any(), any());
+        assertThat(runs("failed")).isEqualTo(1);
+    }
+
+    @Test
     void GivenTheDatabaseCannotBeReached_WhenRemindersAreDispatched_ThenTheSweepStopsAtTheFirstSuchFailure() {
         // A transaction that cannot begin means the pool waited out its connection timeout. Every further
         // attempt would wait it out again, on the one thread all four jobs share, and push the next
