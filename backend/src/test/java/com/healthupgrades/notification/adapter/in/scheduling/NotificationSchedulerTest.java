@@ -23,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.CannotCreateTransactionException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -91,6 +92,11 @@ class NotificationSchedulerTest {
      */
     private static DataIntegrityViolationException saveFailure() {
         return new DataIntegrityViolationException("Key (title)=(Meditate) violates a constraint");
+    }
+
+    /** What a {@code @Transactional} call throws when the pool cannot hand it a connection. */
+    private static CannotCreateTransactionException unreachable() {
+        return new CannotCreateTransactionException("Could not open JPA EntityManager for transaction");
     }
 
     @BeforeEach
@@ -390,40 +396,62 @@ class NotificationSchedulerTest {
     }
 
     @Test
-    void GivenEveryDueReminderFailsToSave_WhenRemindersAreDispatched_ThenTheSweepStopsAfterThree() {
-        // Three in a row is an outage, not a bad row. Carrying on would hold the one scheduler thread for
-        // a connection timeout per remaining reminder, and every other job waits behind it.
+    void GivenThreeAdjacentRemindersFailToSave_WhenRemindersAreDispatched_ThenTheOnesAfterThemAreStillFired() {
+        // Bad rows can sit next to each other - nothing orders the sweep - and however many there are,
+        // they are a fact about those rows, not about the database. Only an outage stops the sweep.
         when(reminderQuery.findEnabled()).thenReturn(
                 List.of(dueReminder(), dueReminder(), dueReminder(), dueReminder()));
-        when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
-        when(notificationService.create(any(), any(), any(), any(), any(), any())).thenThrow(saveFailure());
-
-        List<ILoggingEvent> logged = logsFromScheduler(() -> catchThrowable(scheduler::dispatchReminders));
-
-        verify(notificationService, times(3)).create(any(), any(), any(), any(), any(), any());
-        assertThat(logged).filteredOn(RUN_LINE)
-                .singleElement()
-                .extracting(ILoggingEvent::getFormattedMessage)
-                .asString()
-                .contains("due=4", "fired=0", "failed=3", "skipped=1");
-    }
-
-    @Test
-    void GivenFailuresSeparatedByASuccess_WhenRemindersAreDispatched_ThenEveryReminderIsAttempted() {
-        // The cap counts a streak, not a total: a success in between means the database is answering.
-        when(reminderQuery.findEnabled()).thenReturn(
-                List.of(dueReminder(), dueReminder(), dueReminder(), dueReminder(), dueReminder()));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
         when(notificationService.create(any(), any(), any(), any(), any(), any()))
                 .thenThrow(saveFailure())
                 .thenThrow(saveFailure())
-                .thenReturn(null)
                 .thenThrow(saveFailure())
-                .thenThrow(saveFailure());
+                .thenReturn(null);
 
-        catchThrowable(scheduler::dispatchReminders);
+        List<ILoggingEvent> logged = logsFromScheduler(() -> catchThrowable(scheduler::dispatchReminders));
 
-        verify(notificationService, times(5)).create(any(), any(), any(), any(), any(), any());
+        verify(notificationService, times(4)).create(any(), any(), any(), any(), any(), any());
+        assertThat(logged).filteredOn(RUN_LINE)
+                .singleElement()
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .asString()
+                .contains("due=4", "fired=1", "failed=3", "skipped=0");
+    }
+
+    @Test
+    void GivenTheDatabaseCannotBeReached_WhenRemindersAreDispatched_ThenTheSweepStopsAtTheFirstSuchFailure() {
+        // A transaction that cannot begin means the pool waited out its connection timeout. Every further
+        // attempt would wait it out again, on the one thread all four jobs share, and push the next
+        // reminder run past its minute.
+        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder(), dueReminder(), dueReminder()));
+        when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
+        when(notificationService.create(any(), any(), any(), any(), any(), any())).thenThrow(unreachable());
+
+        List<ILoggingEvent> logged = logsFromScheduler(() -> catchThrowable(scheduler::dispatchReminders));
+
+        verify(notificationService, times(1)).create(any(), any(), any(), any(), any(), any());
+        assertThat(logged).filteredOn(RUN_LINE)
+                .singleElement()
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .asString()
+                .contains("due=3", "fired=0", "failed=1", "skipped=2");
+    }
+
+    @Test
+    void GivenTheDatabaseCannotBeReached_WhenTheCheckinSweepRuns_ThenTheSweepStopsAtTheFirstSuchFailure() {
+        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgradeOf(UUID.randomUUID()),
+                activeUpgrade()));
+        guards(Set.of(), Set.of());
+        when(notificationService.create(any(), any(), any(), any(), any(), any())).thenThrow(unreachable());
+
+        List<ILoggingEvent> logged = logsFromScheduler(() -> catchThrowable(scheduler::notifyDailyCheckin));
+
+        verify(notificationService, times(1)).create(any(), any(), any(), any(), any(), any());
+        assertThat(logged).filteredOn(RUN_LINE)
+                .singleElement()
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .asString()
+                .contains("nudged=0", "failed=1", "skipped=1");
     }
 
     @Test

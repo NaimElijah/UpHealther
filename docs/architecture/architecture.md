@@ -337,8 +337,8 @@ Three places are worth knowing about because they were silent and are no longer:
   worse than one. `dispatchReminders` stays silent when nothing is due — otherwise it writes a line a
   minute, all night, and buries the runs that did something.
   The two notification sweeps attempt each notification on its own. One that fails to save is a WARN
-  naming it by ids and exception type, never by message, and the sweep moves on; three failures in a
-  row are an outage, and the rest are skipped. The run's INFO line counts `failed` and `skipped`, and
+  naming it by ids and exception type, never by message, and the sweep moves on; a transaction that
+  cannot begin is an outage, and the rest are skipped. The run's INFO line counts `failed` and `skipped`, and
   only then is the first failure rethrown, so the run is still counted `failed` and its stack trace
   is logged once ([ADR-023](../ADRs/ADR-023-a-notification-sweep-carries-on-past-a-failed-save-and-fails-the-run.md)).
 - **The security boundary.** A rejected token is DEBUG with its exception type and never its message,
@@ -621,7 +621,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why every page shares one width; why the shell can be trusted not to overflow; why container queries were turned down | [ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md) |
 | Why the dialog traps focus by hand rather than through a native `<dialog>`; why `inert` and not `aria-hidden`; why the overlay is portalled | [ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md) |
 | Why a phone gets the navigation in the shared dialog rather than a drawer or a tab bar; when the menu closes; why the brand leaves the navbar below 360px | [ADR-022](../ADRs/ADR-022-the-phone-navigation-is-the-shared-dialog-not-a-drawer.md) |
-| Why a notification sweep carries on past a failed save, still fails the run, and gives up after three failures in a row | [ADR-023](../ADRs/ADR-023-a-notification-sweep-carries-on-past-a-failed-save-and-fails-the-run.md) |
+| Why a notification sweep carries on past a failed save, still fails the run, and gives up only when the database cannot be reached | [ADR-023](../ADRs/ADR-023-a-notification-sweep-carries-on-past-a-failed-save-and-fails-the-run.md) |
 | Why the container's error page is let through security by dispatcher type, and how it gets the trace id the request's own dispatch saw | [ADR-024](../ADRs/ADR-024-the-container-error-page-keeps-its-status-and-carries-the-trace-id.md) |
 | Why an unauthenticated request is a 401 with the API's own body rather than the framework's 403 | [ADR-014](../ADRs/ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |

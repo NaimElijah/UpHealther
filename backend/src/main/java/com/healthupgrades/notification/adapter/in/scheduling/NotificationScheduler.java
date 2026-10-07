@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.CannotCreateTransactionException;
 
 import static net.logstash.logback.argument.StructuredArguments.keyValue;
 
@@ -54,16 +55,6 @@ public class NotificationScheduler {
     private static final String CHECKIN_JOB = "notification.daily-checkin";
     private static final String REMINDERS_JOB = "notification.reminder-dispatch";
     private static final String CREATE_FAILED = "notification.create-failed";
-
-    /**
-     * How many saves in a row may fail before a sweep gives up on the rest (ADR-023).
-     *
-     * <p>One failure is a bad row; several in a row is the database being gone, and every further
-     * attempt then waits out the pool's connection timeout (Hikari's default, 30 s) on the one thread
-     * all four jobs share. Without a limit, an outage mid-sweep would hold that thread for a timeout per
-     * remaining item.
-     */
-    private static final int MAX_CONSECUTIVE_FAILURES = 3;
 
     private final UpgradeQuery upgradeQuery; // inbound port: upgrades
     private final ProgressQuery progressQuery; // inbound port: progress entries
@@ -213,8 +204,15 @@ public class NotificationScheduler {
      * <p>The run still ends as a failure. A failure is warned about by ids as it happens, and the first one
      * is rethrown by {@link #rethrowFirstFailure()} once the sweep has said what it did, so
      * {@code JobMetrics} counts the run {@code failed} and Spring's scheduler logs its stack trace once, at
-     * ERROR. The rest are not attached as suppressed: the limit below bounds a streak, not a total, and
-     * every attached one would print its own stack trace inside that single entry.
+     * ERROR. The rest are not attached as suppressed: nothing bounds how many rows can fail, and every
+     * attached one would print its own stack trace inside that single entry.
+     *
+     * <p>The one failure that stops the sweep is the database being out of reach: a
+     * {@link CannotCreateTransactionException}, which is what a {@code @Transactional} call throws once the
+     * pool has waited out its connection timeout (Hikari's default, 30 s). Every further attempt would wait
+     * it out again on the one thread all four jobs share, so the rest are counted {@code skipped} instead.
+     * Any other failure, however many and however adjacent, is a fact about its row, and the sweep goes on
+     * (ADR-023).
      *
      * <p>Only a {@link RuntimeException} is caught; an {@link Error} still ends the sweep where it stands.
      *
@@ -224,9 +222,9 @@ public class NotificationScheduler {
     private static final class Deliveries {
         private int delivered;
         private int failed;
-        /** Never attempted, because {@link #MAX_CONSECUTIVE_FAILURES} attempts in a row had failed first. */
+        /** Never attempted, because an earlier attempt had found the database out of reach. */
         private int skipped;
-        private int consecutiveFailures;
+        private boolean unreachable;
         private RuntimeException firstFailure;
 
         /**
@@ -237,7 +235,7 @@ public class NotificationScheduler {
          *               message, which can quote the refused row (NFR-6)
          */
         void attempt(Runnable create, Consumer<RuntimeException> warn) {
-            if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+            if (unreachable) {
                 skipped++;
                 return;
             }
@@ -245,7 +243,7 @@ public class NotificationScheduler {
                 create.run();
             } catch (RuntimeException failure) {
                 failed++;
-                consecutiveFailures++;
+                unreachable = failure instanceof CannotCreateTransactionException;
                 if (firstFailure == null) {
                     firstFailure = failure;
                 }
@@ -253,7 +251,6 @@ public class NotificationScheduler {
                 return;
             }
             delivered++;
-            consecutiveFailures = 0;
         }
 
         /** Ends the run as failed if any notification failed; does nothing when every attempt succeeded. */
