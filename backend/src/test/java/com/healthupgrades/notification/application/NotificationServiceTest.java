@@ -33,8 +33,9 @@ import static org.mockito.Mockito.when;
 
 /**
  * Covers FR-32 (a notification is readable afterwards however it was delivered), FR-33 (the fifty most
- * recent, an unread count, mark one and mark all) and BR-11 (an overdue upgrade is announced once,
- * however many times the sweep rediscovers it).
+ * recent, an unread count, mark one and mark all) and BR-11 (an overdue upgrade is announced once per
+ * target date, however many times the sweep rediscovers it). Which notices count as "already told" is a
+ * query, so {@code NotificationPersistenceIT} proves the bound; here the service only honours the answer.
  *
  * <p>The push-after-commit rule has its own case below. It is the difference between a client being
  * told about a notification and a client being told about a row that then rolled back, and it is
@@ -48,6 +49,9 @@ class NotificationServiceTest {
     @Mock NotificationPushPort pushPort;
 
     private final Clock fixedClock = Clock.fixed(Instant.parse("2026-03-15T18:00:00Z"), ZoneOffset.UTC);
+
+    /** The bound a dedup query is asked about; its value matters only to the query, not to the service. */
+    private static final LocalDateTime SINCE = LocalDateTime.of(2026, 3, 14, 0, 0);
 
     private NotificationService service;
 
@@ -106,13 +110,14 @@ class NotificationServiceTest {
     }
 
     @Test
-    void GivenAnUpgradeNotYetNotifiedAbout_WhenTheOncePerUpgradeNotificationIsCreated_ThenItIsPersistedAndPushed() {
-        when(repository.existsByUserIdAndRelatedUpgradeIdAndType(
-                userId, upgradeId, NotificationType.UPGRADE_OVERDUE)).thenReturn(false);
+    void GivenNoNoticeSinceTheBound_WhenANoticeIsCreatedUnlessOneExistsSince_ThenItIsPersistedAndPushed() {
+        when(repository.existsForUpgradeSince(userId, upgradeId, NotificationType.UPGRADE_OVERDUE, SINCE))
+                .thenReturn(false);
         when(repository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Optional<Notification> created = service.createOncePerUpgrade(userId, NotificationType.UPGRADE_OVERDUE,
-                NotificationCategory.WARNING, "Upgrade overdue ⏰", () -> "Past its target date.", upgradeId);
+        Optional<Notification> created = service.createUnlessNotifiedSince(userId,
+                NotificationType.UPGRADE_OVERDUE, NotificationCategory.WARNING, "Upgrade overdue ⏰",
+                () -> "Past its target date.", upgradeId, SINCE);
 
         assertThat(created).isPresent();
         verify(repository).save(any(Notification.class));
@@ -120,12 +125,13 @@ class NotificationServiceTest {
     }
 
     @Test
-    void GivenAnUpgradeAlreadyNotifiedAbout_WhenTheOncePerUpgradeNotificationIsCreated_ThenNothingIsSavedOrPushed() {
-        when(repository.existsByUserIdAndRelatedUpgradeIdAndType(
-                userId, upgradeId, NotificationType.UPGRADE_OVERDUE)).thenReturn(true);
+    void GivenANoticeSinceTheBound_WhenANoticeIsCreatedUnlessOneExistsSince_ThenNothingIsSavedOrPushed() {
+        when(repository.existsForUpgradeSince(userId, upgradeId, NotificationType.UPGRADE_OVERDUE, SINCE))
+                .thenReturn(true);
 
-        Optional<Notification> created = service.createOncePerUpgrade(userId, NotificationType.UPGRADE_OVERDUE,
-                NotificationCategory.WARNING, "Upgrade overdue ⏰", () -> "Past its target date.", upgradeId);
+        Optional<Notification> created = service.createUnlessNotifiedSince(userId,
+                NotificationType.UPGRADE_OVERDUE, NotificationCategory.WARNING, "Upgrade overdue ⏰",
+                () -> "Past its target date.", upgradeId, SINCE);
 
         assertThat(created).isEmpty();
         verify(repository, never()).save(any());
@@ -133,16 +139,16 @@ class NotificationServiceTest {
     }
 
     @Test
-    void GivenAnUpgradeAlreadyNotifiedAbout_WhenTheOncePerUpgradeNotificationIsCreated_ThenTheMessageIsNeverBuilt() {
+    void GivenANoticeSinceTheBound_WhenANoticeIsCreatedUnlessOneExistsSince_ThenTheMessageIsNeverBuilt() {
         // Building the message costs a lookup. A permanently-overdue upgrade is rediscovered on every
         // scan, so paying for a message that is then discarded would repeat daily and indefinitely.
-        when(repository.existsByUserIdAndRelatedUpgradeIdAndType(
-                userId, upgradeId, NotificationType.UPGRADE_OVERDUE)).thenReturn(true);
+        when(repository.existsForUpgradeSince(userId, upgradeId, NotificationType.UPGRADE_OVERDUE, SINCE))
+                .thenReturn(true);
         AtomicBoolean messageBuilt = new AtomicBoolean(false);
 
-        service.createOncePerUpgrade(userId, NotificationType.UPGRADE_OVERDUE,
+        service.createUnlessNotifiedSince(userId, NotificationType.UPGRADE_OVERDUE,
                 NotificationCategory.WARNING, "Upgrade overdue ⏰",
-                () -> { messageBuilt.set(true); return "Past its target date."; }, upgradeId);
+                () -> { messageBuilt.set(true); return "Past its target date."; }, upgradeId, SINCE);
 
         assertThat(messageBuilt).isFalse();
     }

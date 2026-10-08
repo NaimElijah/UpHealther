@@ -1,6 +1,8 @@
 # ADR-010: Logs are JSON in a container and readable locally, and each level means one thing
 
-- **Status:** Accepted
+- **Status:** Accepted — extended by
+  [ADR-026](ADR-026-a-scheduled-run-that-threw-is-logged-in-full.md), which lets a scheduled run that
+  threw be logged in full, as an unexpected 5xx is
 - **Date:** 2026-08-25
 - **Scope:** `backend/` — the log format, the level policy and the rule about what may appear in a log
   line. One new compile dependency. No change to any domain type.

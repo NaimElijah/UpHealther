@@ -26,8 +26,17 @@ public interface NotificationRepositoryPort {
     /** Ownership-scoped single lookup by id. */
     Optional<Notification> findByIdAndUserId(UUID id, UUID userId);
 
-    /** Dedup guard: whether a system notification of a type already exists for an upgrade. */
-    boolean existsByUserIdAndRelatedUpgradeIdAndType(UUID userId, UUID relatedUpgradeId, NotificationType type);
+    /**
+     * Dedup guard: whether the user has been sent a notification of a type about an upgrade at or after an
+     * instant.
+     *
+     * @param userId           the owner
+     * @param relatedUpgradeId the upgrade the notification is about
+     * @param type             the kind of notification
+     * @param since            the earliest creation time that counts, inclusive
+     * @return true when at least one such notification exists
+     */
+    boolean existsForUpgradeSince(UUID userId, UUID relatedUpgradeId, NotificationType type, LocalDateTime since);
 
     /**
      * Dedup guard for a sweep: every user sent a notification of a type after a timestamp, in one query

@@ -20,6 +20,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
@@ -100,15 +101,23 @@ public class NotificationEventListener {
     /**
      * A plain listener, not an {@code AFTER_COMMIT} one: the overdue scan runs outside a transaction, so
      * there is no commit to wait for and a transactional listener would never fire. The upgrade stays
-     * overdue until it is dealt with, so the notification is created once per upgrade.
+     * overdue until it is dealt with, so the notification is created once per target date it misses
+     * (BR-11, ADR-025).
      */
     @EventListener
     public void onOverdue(UpgradeOverdueDetected e) {
+        // A notice sent once this date had passed told the user the upgrade was overdue when this date was
+        // already missed, so it covers this date, whichever date it was sent about: a notice sent late,
+        // after a pause, can cover a later date the user moves to. One sent before this date passed was
+        // about an earlier date that has since moved, and must not silence this one. The bound is only
+        // sound because the sweep and NotificationService.create read the same clock (ADR-025).
+        LocalDateTime announcedOnlyFrom = e.targetEndDate().plusDays(1).atStartOfDay();
         // The message is deferred: an overdue upgrade is rediscovered by every scan, so resolving its
         // title eagerly would cost a lookup per upgrade per run for as long as it stays overdue.
-        notificationService.createOncePerUpgrade(e.userId(), NotificationType.UPGRADE_OVERDUE,
+        notificationService.createUnlessNotifiedSince(e.userId(), NotificationType.UPGRADE_OVERDUE,
                 NotificationCategory.WARNING, "Upgrade overdue ⏰",
-                () -> "\"" + title(e.upgradeId(), e.userId()) + "\" is past its target date.", e.upgradeId());
+                () -> "\"" + title(e.upgradeId(), e.userId()) + "\" is past its target date.", e.upgradeId(),
+                announcedOnlyFrom);
     }
 
     /**

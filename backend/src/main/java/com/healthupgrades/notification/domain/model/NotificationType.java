@@ -32,7 +32,7 @@ public enum NotificationType {
     /** A streak reached a milestone length. */
     STREAK_ACHIEVED,
 
-    /** A running upgrade passed its target end date. Raised at most once per upgrade. */
+    /** A running upgrade passed its target end date. Raised at most once per target date it misses. */
     UPGRADE_OVERDUE,
 
     /** A reflection was written. */
