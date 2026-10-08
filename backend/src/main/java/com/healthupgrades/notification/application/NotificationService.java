@@ -69,8 +69,16 @@ public class NotificationService {
      * already-notified case — which is every run after the first, indefinitely — that lookup would be
      * discarded.
      *
-     * @param since the earliest creation time of an existing notification that counts, inclusive
+     * @param userId           the user to notify, and whose earlier notifications are checked
+     * @param type             the kind of notification, both the one created and the one looked for
+     * @param category         how the notification is presented
+     * @param title            its title
+     * @param message          builds its message, called only when the notification is created
+     * @param relatedUpgradeId the upgrade it is about, and the one earlier notifications are matched on
+     * @param since            the earliest creation time of an existing notification that counts, inclusive
      * @return the new notification, or empty when one already existed since {@code since}
+     * @throws org.springframework.dao.DataAccessException when the lookup or the insert fails; the
+     *         transaction rolls back and nothing is pushed
      */
     @Transactional
     public Optional<Notification> createUnlessNotifiedSince(UUID userId, NotificationType type,
