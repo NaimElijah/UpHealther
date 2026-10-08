@@ -20,6 +20,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
@@ -100,15 +101,22 @@ public class NotificationEventListener {
     /**
      * A plain listener, not an {@code AFTER_COMMIT} one: the overdue scan runs outside a transaction, so
      * there is no commit to wait for and a transactional listener would never fire. The upgrade stays
-     * overdue until it is dealt with, so the notification is created once per upgrade.
+     * overdue until it is dealt with, so the notification is created once per target date it misses
+     * (BR-11, ADR-025).
      */
     @EventListener
     public void onOverdue(UpgradeOverdueDetected e) {
+        // A notice about a date can only exist once that date is over: HealthUpgrade.isOverdue is strictly
+        // after it, and the sweep and the notice read the same clock. So one created since the next day
+        // began is about this date. An older one was about a date that has since moved later, and must not
+        // silence this one.
+        LocalDateTime announcedOnlyFrom = e.targetEndDate().plusDays(1).atStartOfDay();
         // The message is deferred: an overdue upgrade is rediscovered by every scan, so resolving its
         // title eagerly would cost a lookup per upgrade per run for as long as it stays overdue.
-        notificationService.createOncePerUpgrade(e.userId(), NotificationType.UPGRADE_OVERDUE,
+        notificationService.createUnlessNotifiedSince(e.userId(), NotificationType.UPGRADE_OVERDUE,
                 NotificationCategory.WARNING, "Upgrade overdue ⏰",
-                () -> "\"" + title(e.upgradeId(), e.userId()) + "\" is past its target date.", e.upgradeId());
+                () -> "\"" + title(e.upgradeId(), e.userId()) + "\" is past its target date.", e.upgradeId(),
+                announcedOnlyFrom);
     }
 
     /**

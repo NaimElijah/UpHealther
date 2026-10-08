@@ -47,8 +47,10 @@ class NotificationRepositoryAdapter implements NotificationRepositoryPort {
 
     /** {@inheritDoc} */
     @Override
-    public boolean existsByUserIdAndRelatedUpgradeIdAndType(UUID userId, UUID relatedUpgradeId, NotificationType type) {
-        return jpa.existsByUserIdAndRelatedUpgradeIdAndType(userId, relatedUpgradeId, type);
+    public boolean existsForUpgradeSince(UUID userId, UUID relatedUpgradeId, NotificationType type,
+                                         LocalDateTime since) {
+        return jpa.existsByUserIdAndRelatedUpgradeIdAndTypeAndCreatedAtGreaterThanEqual(
+                userId, relatedUpgradeId, type, since);
     }
 
     /** {@inheritDoc} */

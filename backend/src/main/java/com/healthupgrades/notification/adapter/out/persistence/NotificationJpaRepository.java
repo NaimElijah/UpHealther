@@ -25,8 +25,9 @@ interface NotificationJpaRepository extends JpaRepository<Notification, UUID> {
 
     Optional<Notification> findByIdAndUserId(UUID id, UUID userId); // derived query: ownership-scoped
 
-    // Dedup guard for system-generated notifications (e.g. only one "overdue" per upgrade).
-    boolean existsByUserIdAndRelatedUpgradeIdAndType(UUID userId, UUID relatedUpgradeId, NotificationType type);
+    // Dedup guard for system-generated notifications (e.g. one "overdue" per upgrade per target date).
+    boolean existsByUserIdAndRelatedUpgradeIdAndTypeAndCreatedAtGreaterThanEqual(
+            UUID userId, UUID relatedUpgradeId, NotificationType type, LocalDateTime since);
 
     // Dedup guard for the once-per-day check-in nudge, for every user at once.
     @Query("select distinct n.userId from Notification n where n.type = :type and n.createdAt > :after")
