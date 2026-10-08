@@ -52,6 +52,10 @@ full, message included, exactly as an unexpected 5xx is.** The owner chose this 
 - A driver's message, which can quote a refused row, can reach the log: once per failed run, at ERROR
   only. That is the exposure the 5xx exception already accepted. The log stays with the operator, kept
   for as long as `docker logs` keeps it, the retention ADR-011 accepted for the audit stream.
+- **This does not cover Hibernate's own line.** `SqlExceptionHelper` writes the driver's message at
+  ERROR on every SQL failure, handled or not, separately from the exception. It predates this decision,
+  falls outside it, and is NFR-6's known deviation,
+  [#142](https://github.com/NaimElijah/UpHealther/issues/142).
 - Nothing changes in code, so no test changes. `NotificationSchedulerTest` keeps pinning the part of
   NFR-6 that code enforces: the per-item WARN carries no message.
 
