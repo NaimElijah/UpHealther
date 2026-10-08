@@ -3,7 +3,7 @@
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
 rather than trusted. A hundred and fourteen of the hundred and twenty-two entries below name a test —
-a hundred and seven distinct test classes and files between them. Five of the remaining eight name the command,
+a hundred and eight distinct test classes and files between them. Five of the remaining eight name the command,
 workflow or script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48). The last three —
 FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is about a rendered width, a
 colour or an overflow, and jsdom has no layout engine to observe any of them; §6 records what closing
@@ -172,7 +172,7 @@ The role model behind every entry here is [ADR-016](../ADRs/ADR-016-roles-read-f
 | BR-8 | A numeric entry counts only when its unit agrees with the target's; an unstated unit is read as the configured one | `ProgressEvaluationServiceTest` |
 | BR-9 | A streak counts consecutive days; a day not yet logged does not break it | `StreakCalculator`, `StreakCalculatorTest` |
 | BR-10 | A streak milestone is announced every seventh day, not every day: once, by the entry that carries the current streak to or past a multiple of seven that no run it joined had already reached, naming the highest one crossed. An entry that leaves the streak where it was announces nothing | `StreakCalculator.milestoneReachedBy`, `StreakCalculatorTest` (7, 14, 21, 70 against 1, 6, 8, 13, 69 — and zero; a day that does not count or is backfilled outside the run; yesterday logged before today; a missed day filled in; a backfill that joins two runs), `TrackingServiceTest` |
-| BR-11 | An overdue upgrade is announced once per target date it misses, however many times the sweep rediscovers it. A notice sent after the current target date passed covers it, so a date moved later and missed again is announced again | `NotificationEventListenerTest`, `NotificationPersistenceIT` (the bound, against the real query), `NotificationServiceTest`, `UpgradeOverdueSchedulerTest` ([ADR-025](../ADRs/ADR-025-an-overdue-upgrade-is-announced-once-per-target-date.md)) |
+| BR-11 | An overdue upgrade is announced once per target date it misses, however many times the sweep rediscovers it. A notice sent after the current target date passed covers it, so a date moved later and missed again is announced again | `OverdueAnnouncementIT` (the rule, from the listener into PostgreSQL), `NotificationEventListenerTest`, `NotificationPersistenceIT` (the bound, against the real query), `NotificationServiceTest`, `UpgradeOverdueSchedulerTest` ([ADR-025](../ADRs/ADR-025-an-overdue-upgrade-is-announced-once-per-target-date.md)) |
 | BR-12 | A reminder with no day filter fires every day; an unrecognisable day is rejected when it is sent, never ignored | `ReminderTest`, `ReminderServiceTest`, `ReminderControllerTest` |
 | BR-23 | A reminder fires only while its upgrade is `ACTIVE`. In any other state it stays silent without being changed, so an upgrade activated again reminds exactly as it did before | `NotificationSchedulerTest` |
 | BR-13 | Reflections are append-only — there is no edit or delete path of their own. They go only with the upgrade they belong to (FR-14) | `ReflectionServiceTest` (asserted against the public surface), `ReflectionControllerTest`, `UpgradePersistenceIT` |

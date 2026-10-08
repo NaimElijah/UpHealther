@@ -39,7 +39,8 @@ passed, that is, at or after the start of the following day.**
   service stays generic: the caller knows when the fact it announces began, and the service does not.
 - **The repository asks `existsByUserIdAndRelatedUpgradeIdAndTypeAndCreatedAtGreaterThanEqual`**, a
   derived query. The bound is inclusive. `NotificationPersistenceIT` proves it against PostgreSQL, on
-  both sides of the bound and for another upgrade and another type.
+  both sides of the bound and for another upgrade and another type. `OverdueAnnouncementIT` drives the
+  rule itself, from the listener through the service into PostgreSQL.
 
 ## Consequences
 
