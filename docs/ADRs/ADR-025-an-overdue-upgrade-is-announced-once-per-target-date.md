@@ -52,6 +52,14 @@ passed, that is, at or after the start of the following day.**
 - **The rule depends on how the notice is created.** If anything ever creates `UPGRADE_OVERDUE` before
   its date has passed, or stamps `createdAt` from a different clock, the inference breaks silently. The
   listener's comment and this record are the guard. No test can see a future second producer.
+  - Today `NotificationService.create` is the only path that builds a notification. It sets
+    `createdAt` from the injected clock, which
+    `NotificationServiceTest.GivenANewNotification_WhenItIsCreated_ThenItIsStampedFromTheInjectedClock`
+    pins.
+  - `Notification`'s `@PrePersist` fallback reads `LocalDateTime.now()` in the host's zone. It never
+    fires today, because every save sets `createdAt` first. It is part of the entity-timestamp deviation
+    against NFR-15 that [#51](https://github.com/NaimElijah/UpHealther/issues/51) tracks, and fixing
+    that removes this gap too.
 
 ## Alternatives considered
 
