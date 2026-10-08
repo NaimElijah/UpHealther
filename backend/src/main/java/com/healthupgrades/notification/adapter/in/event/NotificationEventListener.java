@@ -106,10 +106,11 @@ public class NotificationEventListener {
      */
     @EventListener
     public void onOverdue(UpgradeOverdueDetected e) {
-        // A notice about a date can only exist once that date is over: HealthUpgrade.isOverdue is strictly
-        // after it, and the sweep and the notice read the same clock. So one created since the next day
-        // began is about this date. An older one was about a date that has since moved later, and must not
-        // silence this one.
+        // A notice sent once this date had passed told the user the upgrade was overdue when this date was
+        // already missed, so it covers this date, whichever date it was sent about: a notice sent late,
+        // after a pause, can cover a later date the user moves to. One sent before this date passed was
+        // about an earlier date that has since moved, and must not silence this one. The bound is only
+        // sound because the sweep and NotificationService.create read the same clock (ADR-025).
         LocalDateTime announcedOnlyFrom = e.targetEndDate().plusDays(1).atStartOfDay();
         // The message is deferred: an overdue upgrade is rediscovered by every scan, so resolving its
         // title eagerly would cost a lookup per upgrade per run for as long as it stays overdue.
