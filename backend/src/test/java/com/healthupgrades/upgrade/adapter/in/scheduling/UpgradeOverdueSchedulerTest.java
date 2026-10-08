@@ -80,6 +80,19 @@ class UpgradeOverdueSchedulerTest {
     }
 
     @Test
+    void GivenAnActiveUpgradePastItsTargetDate_WhenTheOverdueSweepRuns_ThenTheAnnouncementNamesTheDateMissed() {
+        // BR-11 announces once per target date, so the listener needs to know which date this is about.
+        LocalDate missed = today.minusDays(3);
+        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgradeEnding(missed)));
+
+        scheduler.detectOverdueUpgrades();
+
+        ArgumentCaptor<UpgradeOverdueDetected> published = ArgumentCaptor.forClass(UpgradeOverdueDetected.class);
+        verify(eventPublisher).publish(published.capture());
+        assertThat(published.getValue().targetEndDate()).isEqualTo(missed);
+    }
+
+    @Test
     void GivenATargetDateStillAhead_WhenTheOverdueSweepRuns_ThenNothingIsAnnounced() {
         when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
                 .thenReturn(List.of(activeUpgradeEnding(today.plusDays(5))));

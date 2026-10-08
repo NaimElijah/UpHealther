@@ -43,7 +43,7 @@ import static org.mockito.Mockito.when;
  *
  * <p>The title source is the part worth pinning. Creation carries the title on the event and must not
  * look it up, while the other events do not and must; and the overdue sweep must notify only once per
- * upgrade however many times it rediscovers the same overdue upgrade.
+ * target date however many times it rediscovers the same overdue upgrade.
  */
 class NotificationEventListenerTest {
 
@@ -147,14 +147,17 @@ class NotificationEventListenerTest {
     }
 
     @Test
-    void GivenAnOverdueUpgrade_WhenTheEventIsHandled_ThenAWarningIsCreatedOncePerUpgrade() {
-        listener.onOverdue(new UpgradeOverdueDetected(upgradeId, userId, LocalDateTime.now()));
+    void GivenATargetDateOfTheFirst_WhenTheOverdueEventIsHandled_ThenOnlyANoticeFromTheSecondOnSilencesIt() {
+        // BR-11, #103. A notice about 1 October can only be created once that day is over, so one created
+        // since the second is about this date. An older one was about a date that has since moved later,
+        // and must not stop this one being announced.
+        listener.onOverdue(new UpgradeOverdueDetected(upgradeId, userId, LocalDate.of(2026, 10, 1),
+                LocalDateTime.of(2026, 10, 5, 8, 0)));
 
-        // The scan rediscovers an overdue upgrade on every run, so the once-per-upgrade entry point is
-        // the one that must be used here.
         ArgumentCaptor<Supplier<String>> message = ArgumentCaptor.forClass(Supplier.class);
-        verify(notificationService).createOncePerUpgrade(eq(userId), eq(NotificationType.UPGRADE_OVERDUE),
-                eq(NotificationCategory.WARNING), any(), message.capture(), eq(upgradeId));
+        verify(notificationService).createUnlessNotifiedSince(eq(userId), eq(NotificationType.UPGRADE_OVERDUE),
+                eq(NotificationCategory.WARNING), any(), message.capture(), eq(upgradeId),
+                eq(LocalDateTime.of(2026, 10, 2, 0, 0)));
 
         // Not resolved yet: no lookup happens unless the notification is actually going to be created.
         verifyNoInteractions(upgradeQuery);

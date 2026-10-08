@@ -3,7 +3,7 @@
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
 rather than trusted. A hundred and fourteen of the hundred and twenty-two entries below name a test —
-a hundred and seven distinct test classes and files between them. Five of the remaining eight name the command,
+a hundred and eight distinct test classes and files between them. Five of the remaining eight name the command,
 workflow or script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48). The last three —
 FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is about a rendered width, a
 colour or an overflow, and jsdom has no layout engine to observe any of them; §6 records what closing
@@ -13,7 +13,7 @@ that gap would take.
 API (§5.4), so "a user can" means through the interface. Where the implementation falls short of an
 entry — in the interface or anywhere else — the entry is not weakened to match. Its *Enforced by* cell
 says **Known deviation** and links the issue that tracks the gap; the tests named there enforce the
-part that holds. Fifteen entries carry one today, and the change that closes an issue takes its
+part that holds. Sixteen entries carry one today, and the change that closes an issue takes its
 marker out.
 
 **IDs are permanent.** Tests, code comments, migrations and ADRs cite them, so an ID is never
@@ -172,7 +172,7 @@ The role model behind every entry here is [ADR-016](../ADRs/ADR-016-roles-read-f
 | BR-8 | A numeric entry counts only when its unit agrees with the target's; an unstated unit is read as the configured one | `ProgressEvaluationServiceTest` |
 | BR-9 | A streak counts consecutive days; a day not yet logged does not break it | `StreakCalculator`, `StreakCalculatorTest` |
 | BR-10 | A streak milestone is announced every seventh day, not every day: once, by the entry that carries the current streak to or past a multiple of seven that no run it joined had already reached, naming the highest one crossed. An entry that leaves the streak where it was announces nothing | `StreakCalculator.milestoneReachedBy`, `StreakCalculatorTest` (7, 14, 21, 70 against 1, 6, 8, 13, 69 — and zero; a day that does not count or is backfilled outside the run; yesterday logged before today; a missed day filled in; a backfill that joins two runs), `TrackingServiceTest` |
-| BR-11 | An overdue upgrade is announced once, however many times the sweep rediscovers it | `NotificationServiceTest`, `NotificationEventListenerTest` |
+| BR-11 | An overdue upgrade is announced once per target date it misses, however many times the sweep rediscovers it. A notice sent after the current target date passed covers it, so a date moved later and missed again is announced again | `OverdueAnnouncementIT` (the rule, from the listener into PostgreSQL), `NotificationEventListenerTest`, `NotificationPersistenceIT` (the bound, against the real query), `NotificationServiceTest`, `UpgradeOverdueSchedulerTest` ([ADR-025](../ADRs/ADR-025-an-overdue-upgrade-is-announced-once-per-target-date.md)) |
 | BR-12 | A reminder with no day filter fires every day; an unrecognisable day is rejected when it is sent, never ignored | `ReminderTest`, `ReminderServiceTest`, `ReminderControllerTest` |
 | BR-23 | A reminder fires only while its upgrade is `ACTIVE`. In any other state it stays silent without being changed, so an upgrade activated again reminds exactly as it did before | `NotificationSchedulerTest` |
 | BR-13 | Reflections are append-only — there is no edit or delete path of their own. They go only with the upgrade they belong to (FR-14) | `ReflectionServiceTest` (asserted against the public surface), `ReflectionControllerTest`, `UpgradePersistenceIT` |
@@ -256,7 +256,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 
 | ID | Requirement | Enforced by |
 |---|---|---|
-| NFR-6 | The application never logs personal data deliberately: event publication logs the type and timestamp only, and a trace id identifies a request rather than a person. The one exception is the stack trace of an unexpected 5xx, logged in full so the fault is diagnosable and withheld from the client | `SpringDomainEventPublisher`, `GlobalExceptionHandlerTest` |
+| NFR-6 | The application never logs personal data deliberately: event publication logs the type and timestamp only, and a trace id identifies a request rather than a person. The one exception is the stack trace of an unexpected fault — a 5xx, or a scheduled run that threw — logged once and in full, message included, so the fault is diagnosable; a 5xx's is withheld from the client. A line that repeats per item, such as a sweep's per-notification warning, names types and ids and never a message | `SpringDomainEventPublisher`, `GlobalExceptionHandlerTest`, `NotificationSchedulerTest` (the per-item warning) ([ADR-026](../ADRs/ADR-026-a-scheduled-run-that-threw-is-logged-in-full.md)) — **Known deviation:** [#142](https://github.com/NaimElijah/UpHealther/issues/142), Hibernate writes the driver's message at ERROR on every SQL failure, so a refused registration logs the email address |
 | NFR-21 | Every log line written while serving a request, running a scheduled job or handling a STOMP frame carries the same trace id; the id is returned as an `X-Trace-Id` response header and on the error body, and an inbound W3C `traceparent` is continued rather than replaced | `RequestCorrelationTest`, `CorrelationIT`, `StompTracingChannelInterceptorTest`, `TraceIdResponseHeaderFilterTest`, `TraceIdErrorAttributesTest`, `CorrelationIdTest`, `ObservabilityConfigTest` ([ADR-007](../ADRs/ADR-007-request-correlation-through-micrometer-tracing.md); the container's error page, [ADR-024](../ADRs/ADR-024-the-container-error-page-keeps-its-status-and-carries-the-trace-id.md)) |
 | NFR-22 | Log output is one JSON object per line in a container and Boot's readable pattern locally, and a line in either format carries its trace id | `LogOutputFormatTest`, `logback-spring.xml` ([ADR-010](../ADRs/ADR-010-structured-logging-and-a-level-policy.md)) |
 | NFR-23 | Every state-changing use case and every authentication outcome — a sign-in, a refresh, a sign-out or a STOMP CONNECT — records who attempted what, against which record, and whether it was allowed — including the attempts that were refused, and never claiming as allowed work whose transaction then rolled back. A request that presents no credential at all is no attempt; and neither re-checking an access token on each request nor authorising a frame on an open socket is an authentication outcome | `AuditTrailTest`, `AuditOutcomeTest`, `LoggingAuditTrailTest`, `AuditCommitIT`, `UpgradeServiceTest`, `AuthServiceTest`, `AuthSessionServiceTest`, `AuthControllerTest`, `JwtChannelInterceptorTest`, `AdminBootstrapRunnerTest` ([ADR-011](../ADRs/ADR-011-audit-as-a-log-stream.md), [ADR-021](../ADRs/ADR-021-what-a-refused-authentication-names-and-what-is-no-attempt.md)) — **Known deviation:** [#133](https://github.com/NaimElijah/UpHealther/issues/133), an outage that stops a transaction from starting leaves no entry |
@@ -324,9 +324,6 @@ Undecided, and owned by the repository owner.
   ([#55](https://github.com/NaimElijah/UpHealther/issues/55)). The page makes the conflict likelier than
   it needs to be: it never loads today's entries, so it offers an upgrade already logged elsewhere, and
   it posts every entry at once, so one refusal can leave the rest saved with nothing shown.
-- **Whether an upgrade overdue a second time is announced again.** BR-11 announces an overdue upgrade
-  once, and that once is permanent: an upgrade whose target date is moved later and missed again gets
-  no second notice ([#103](https://github.com/NaimElijah/UpHealther/issues/103)).
 - **Whether the list filters should combine.** FR-11's filters are alternatives — the API applies the
   first one it is given and ignores the rest, deliberately. If the interface grows filters, combining
   them may be what a user expects ([#90](https://github.com/NaimElijah/UpHealther/issues/90)).

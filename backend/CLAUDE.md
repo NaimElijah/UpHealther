@@ -90,7 +90,10 @@ All three are deliberate, not drift.
 
   **Nothing personal goes in a log line**: ids and enum values, never a title, an email, a reflection
   body, a progress note or an IP address. That is NFR-6, and it applies to the message *and* to
-  anything handed to a `{}` placeholder. The output format is chosen by the `json-logs` profile in
+  anything handed to a `{}` placeholder. The one exception is the single ERROR line that reports an
+  unexpected fault with its stack trace, message included: a 5xx, from `GlobalExceptionHandler`, or a
+  scheduled run that threw, which Spring's scheduler logs (ADR-026). A line that repeats per item names
+  an exception by its type, never its message. The output format is chosen by the `json-logs` profile in
   `src/main/resources/logback-spring.xml`; do not write a `<pattern>` there, because Boot's imported
   `defaults.xml` is what puts the trace id on a plain-text line. See
   `../docs/ADRs/ADR-010-structured-logging-and-a-level-policy.md`.

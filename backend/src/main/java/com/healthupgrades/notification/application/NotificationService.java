@@ -57,22 +57,35 @@ public class NotificationService {
     }
 
     /**
-     * Creates a notification unless the user has already been told this about this upgrade.
+     * Creates a notification unless the user has already been told this about this upgrade since a given
+     * instant.
      *
      * <p>For facts a periodic scan rediscovers on every run — an overdue upgrade stays overdue until it
-     * is dealt with — so the user hears about it once instead of on every sweep.
+     * is dealt with — so the user hears about each one once instead of on every sweep. The caller chooses
+     * {@code since}, because only the caller knows when the fact it is announcing began: a notice from
+     * before then was about something else.
      *
      * <p>The message is a {@link Supplier} because building it usually costs a lookup, and for the
      * already-notified case — which is every run after the first, indefinitely — that lookup would be
      * discarded.
      *
-     * @return the new notification, or empty when one already existed
+     * @param userId           the user to notify, and whose earlier notifications are checked
+     * @param type             the kind of notification, both the one created and the one looked for
+     * @param category         how the notification is presented
+     * @param title            its title
+     * @param message          builds its message, called only when the notification is created
+     * @param relatedUpgradeId the upgrade it is about, and the one earlier notifications are matched on
+     * @param since            the earliest creation time of an existing notification that counts, inclusive
+     * @return the new notification, or empty when one already existed since {@code since}
+     * @throws org.springframework.dao.DataAccessException when the lookup or the insert fails; the
+     *         transaction rolls back and nothing is pushed
      */
     @Transactional
-    public Optional<Notification> createOncePerUpgrade(UUID userId, NotificationType type,
-                                                       NotificationCategory category, String title,
-                                                       Supplier<String> message, UUID relatedUpgradeId) {
-        if (repository.existsByUserIdAndRelatedUpgradeIdAndType(userId, relatedUpgradeId, type)) {
+    public Optional<Notification> createUnlessNotifiedSince(UUID userId, NotificationType type,
+                                                            NotificationCategory category, String title,
+                                                            Supplier<String> message, UUID relatedUpgradeId,
+                                                            LocalDateTime since) {
+        if (repository.existsForUpgradeSince(userId, relatedUpgradeId, type, since)) {
             return Optional.empty();
         }
         return Optional.of(create(userId, type, category, title, message.get(), relatedUpgradeId));

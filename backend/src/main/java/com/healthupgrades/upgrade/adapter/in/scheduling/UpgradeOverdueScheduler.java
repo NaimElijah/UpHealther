@@ -61,7 +61,8 @@ public class UpgradeOverdueScheduler {
                 if (upgrade.isOverdue(today)) {
                     announced++;
                     eventPublisher.publish(
-                            new UpgradeOverdueDetected(upgrade.getId(), upgrade.getUserId(), detectedAt));
+                            new UpgradeOverdueDetected(upgrade.getId(), upgrade.getUserId(),
+                                    upgrade.getTargetEndDate(), detectedAt));
                 }
             }
 

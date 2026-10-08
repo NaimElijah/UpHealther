@@ -273,7 +273,7 @@ one and when promoting a running one to HARD.
 
 | Job | Default schedule | What it does |
 |---|---|---|
-| `UpgradeOverdueScheduler` | daily 08:00 | Publishes `UpgradeOverdueDetected` for every active upgrade past its target date. The notification listener creates at most one notification per upgrade, so the repeated detection does not repeat the alert |
+| `UpgradeOverdueScheduler` | daily 08:00 | Publishes `UpgradeOverdueDetected` for every active upgrade past its target date. The notification listener creates at most one notification per upgrade per target date it misses, so the repeated detection does not repeat the alert ([ADR-025](../ADRs/ADR-025-an-overdue-upgrade-is-announced-once-per-target-date.md)) |
 | `NotificationScheduler.notifyDailyCheckin` | daily 18:00 | Nudges users who have active upgrades and have logged nothing today, at most once a day. Each of its two guards — who was already nudged since midnight, and who has logged today — is one query for the whole sweep. A nudge that fails to save does not cost the users after it |
 | `NotificationScheduler.dispatchReminders` | every minute | Fires the reminders due this minute whose upgrade is active (BR-23). Due-ness is decided by the `Reminder` aggregate; the upgrades behind the due ones are loaded in one batch, and their status is read there, so a paused upgrade's reminders are silenced without being changed. A reminder that fails to save does not cost the ones after it |
 | `AuthSessionCleanupScheduler` | daily 03:30 | Deletes revoked and expired sessions. Nothing depends on it running: an expired session is already refused by its own timestamps |
@@ -324,9 +324,13 @@ import is what carries `${LOG_CORRELATION_PATTERN}` — and therefore the trace 
 Levels are load-bearing rather than decorative: **ERROR** is a fault a person must act on now, **WARN**
 is degraded but still serving, **INFO** is a state transition, and **DEBUG** is for a developer reading
 along. `com.healthupgrades` runs at INFO and is turned up for one run with `LOG_LEVEL_APP`. No log line
-carries personal data — ids and enum values only, never a title, an email, a note or an IP.
+carries personal data — ids and enum values only, never a title, an email, a note or an IP — with one
+exception: the ERROR line that reports an unexpected fault, a 5xx or a scheduled run that threw, carries
+its stack trace and the exception's message, which can quote a stored row. Hibernate's
+`SqlExceptionHelper` also writes the driver's message at ERROR on every SQL failure, handled or not,
+which NFR-6 does not allow ([#142](https://github.com/NaimElijah/UpHealther/issues/142)).
 [ADR-010](../ADRs/ADR-010-structured-logging-and-a-level-policy.md) records the format decision and the
-policy.
+policy, and [ADR-026](../ADRs/ADR-026-a-scheduled-run-that-threw-is-logged-in-full.md) the exception.
 
 Three places are worth knowing about because they were silent and are no longer:
 
