@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../../hooks/useNotifications';
 import NotificationItem from './NotificationItem';
+import ErrorState from '../ui/ErrorState';
 import type { AppNotification } from '../../types';
 
 /** @param onClose called after selecting a notification, and by the bell's outside-click handler */
@@ -15,10 +16,15 @@ interface Props {
  * Selecting one marks it read and navigates to the upgrade it concerns; ones with no related upgrade
  * (the daily check-in nudge) just close the panel. The desktop-permission prompt appears only while the
  * browser's answer is still `default`, so a user who has decided either way is not asked again.
+ *
+ * A list that could not be fetched says so instead of "No notifications yet", and a refused mark-read is
+ * shown at the top, both with the trace id (NFR-30). Selecting one closes the panel, so its refusal is
+ * seen the next time the panel opens.
  */
 const NotificationDropdown: React.FC<Props> = ({ onClose }) => {
-  const { notifications, unreadCount, markRead, markAllRead, desktopPermission, requestDesktopPermission } =
-    useNotifications();
+  const {
+    notifications, unreadCount, loadError, actionError, markRead, markAllRead, desktopPermission, requestDesktopPermission,
+  } = useNotifications();
   const navigate = useNavigate();
   const recent = notifications.slice(0, 8);
 
@@ -50,12 +56,22 @@ const NotificationDropdown: React.FC<Props> = ({ onClose }) => {
         </button>
       )}
 
+      {actionError && (
+        <div className="px-4 py-2 border-b border-line-subtle">
+          <ErrorState inline title="Could not mark your notifications as read." error={actionError} />
+        </div>
+      )}
+
       <div className="max-h-96 overflow-y-auto divide-y divide-line-subtle">
-        {recent.length === 0 ? (
-          <p className="text-sm text-fg-subtle text-center py-8">No notifications yet.</p>
-        ) : (
-          recent.map((n) => <NotificationItem key={n.id} notification={n} onSelect={select} />)
+        {recent.length === 0 && loadError && (
+          <div className="p-4">
+            <ErrorState inline title="Could not load your notifications." error={loadError} />
+          </div>
         )}
+        {recent.length === 0 && !loadError && (
+          <p className="text-sm text-fg-subtle text-center py-8">No notifications yet.</p>
+        )}
+        {recent.map((n) => <NotificationItem key={n.id} notification={n} onSelect={select} />)}
       </div>
 
       <button

@@ -327,10 +327,11 @@ along. `com.healthupgrades` runs at INFO and is turned up for one run with `LOG_
 carries personal data — ids and enum values only, never a title, an email, a note or an IP — with one
 exception: the ERROR line that reports an unexpected fault, a 5xx or a scheduled run that threw, carries
 its stack trace and the exception's message, which can quote a stored row. Hibernate's
-`SqlExceptionHelper` also writes the driver's message at ERROR on every SQL failure, handled or not,
-which NFR-6 does not allow ([#142](https://github.com/NaimElijah/UpHealther/issues/142)).
+`SqlExceptionHelper` is turned off in `application.yml`: it would otherwise write the driver's message,
+row included, at ERROR on every SQL failure, a handled refusal too.
 [ADR-010](../ADRs/ADR-010-structured-logging-and-a-level-policy.md) records the format decision and the
-policy, and [ADR-026](../ADRs/ADR-026-a-scheduled-run-that-threw-is-logged-in-full.md) the exception.
+policy, [ADR-026](../ADRs/ADR-026-a-scheduled-run-that-threw-is-logged-in-full.md) the exception, and
+[ADR-027](../ADRs/ADR-027-hibernates-sql-exception-logger-is-turned-off.md) the silenced logger.
 
 Three places are worth knowing about because they were silent and are no longer:
 
@@ -363,7 +364,11 @@ than an omission — so a browser-side failure can be *shown* and not *recorded*
 What it can do is hand the user something to quote. `api/apiError.ts` decodes the backend's error
 contract once, reading the trace id from the error body and falling back to the `X-Trace-Id` header —
 every error body the backend builds carries the id, so the header covers a body that is not the API's
-JSON at all. `ui/ErrorState` renders it.
+JSON at all. `ui/ErrorState` renders it: in place of a page that could not load, or inline beside the
+control whose action failed — on the upgrade card for a status change, in the dialog for a delete,
+beside the check-in's submit — from the mutation's own `error`. A refused mark-read is the notification
+provider's `actionError`, since those writes are optimistic updates rather than mutations. A few reads
+still render as empty when they fail ([#148](https://github.com/NaimElijah/UpHealther/issues/148)).
 `ErrorBoundary`, mounted inside `ThemeProvider` and around the router, catches a render-time throw so
 it becomes a themed, reloadable message instead of a blank page.
 
@@ -619,6 +624,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Which of the four test levels a new test belongs at, and why coverage is reported rather than gated | [ADR-009](../ADRs/ADR-009-test-levels-boundaries-and-naming.md) |
 | Why correlation is Micrometer Tracing rather than a hand-rolled request id; why there is no exporter | [ADR-007](../ADRs/ADR-007-request-correlation-through-micrometer-tracing.md) |
 | Why logs are JSON in a container but not locally; what each level means; why nothing personal may be logged | [ADR-010](../ADRs/ADR-010-structured-logging-and-a-level-policy.md) |
+| Why Hibernate's SQL exception logger is off, and what a refused write still leaves behind | [ADR-027](../ADRs/ADR-027-hibernates-sql-exception-logger-is-turned-off.md) |
 | Why the audit trail is a log stream rather than a table or Envers; why refusals are recorded; what is not audited | [ADR-011](../ADRs/ADR-011-audit-as-a-log-stream.md) |
 | Whom a refused refresh, sign-out or CONNECT names; why a request with no credential, a per-request token check and a refused SUBSCRIBE are not audited | [ADR-021](../ADRs/ADR-021-what-a-refused-authentication-names-and-what-is-no-attempt.md) |
 | Why metrics are a scrape endpoint and not an exporter or a Grafana stack; why the actuator surface is closed by name | [ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md) |

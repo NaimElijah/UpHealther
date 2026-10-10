@@ -1,14 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import DashboardPage from './DashboardPage';
 import type { AreaSummary, DashboardDto, HealthUpgrade } from '../types';
 
 const getDashboard = vi.fn();
+const performUpgradeAction = vi.fn();
 
 vi.mock('../api/dashboard', () => ({ getDashboard: (...a: unknown[]) => getDashboard(...a) }));
-vi.mock('../api/upgrades', () => ({ performUpgradeAction: vi.fn() }));
+vi.mock('../api/upgrades', () => ({ performUpgradeAction: (...a: unknown[]) => performUpgradeAction(...a) }));
 vi.mock('../hooks/useAuth', () => ({ useAuth: () => ({ user: { name: 'Ada Lovelace' } }) }));
 
 function aDashboard(areaSummary: AreaSummary[]): DashboardDto {
@@ -44,6 +46,19 @@ function anActiveUpgrade(id: string, title: string): HealthUpgrade {
 function aDashboardWithStreaks(activeUpgrades: HealthUpgrade[], streaks: Record<string, number>): DashboardDto {
   return { ...aDashboard([]), activeUpgrades, streaks };
 }
+
+/** A refusal shaped the way axios delivers one, so `toApiError` decodes it as it would in production. */
+function apiFailure(status: number, body: unknown): AxiosError {
+  const config = { headers: new AxiosHeaders() } as InternalAxiosRequestConfig;
+  const response = { data: body, status, statusText: '', headers: new AxiosHeaders(), config } as AxiosResponse;
+  return new AxiosError('Request failed', String(status), config, {}, response);
+}
+
+/**
+ * Lets every promise already started run on: a mutation calls its function a microtask after `mutate`,
+ * so a check that nothing more was sent is only meaningful once that has had its chance.
+ */
+const settled = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -87,6 +102,7 @@ function rowFor(rows: HTMLElement[], areaName: string): HTMLElement {
 describe('DashboardPage', () => {
   beforeEach(() => {
     getDashboard.mockReset();
+    performUpgradeAction.mockReset();
   });
 
   it('GivenAreasInTheSummary_WhenTheDashboardRenders_ThenEachAreaShowsItsCounts', async () => {
@@ -190,5 +206,60 @@ describe('DashboardPage', () => {
 
     expect(await tileFigure('Streaks')).toBe('0');
     expect(screen.queryByRole('list', { name: 'Current streaks' })).toBeNull();
+  });
+
+  // NFR-30 (#96) — a status change from a card that fails says so, with the trace id that finds it.
+  // Before, the handler was an un-awaited async function with no catch: a refusal became an unhandled
+  // rejection and the card simply stayed as it was.
+
+  it('GivenTheApiRefusesAPause_WhenItIsPressedOnACard_ThenTheCardSaysWhyWithTheReference', async () => {
+    getDashboard.mockResolvedValue(aDashboardWithStreaks([anActiveUpgrade('u-1', 'Cold showers')], { 'u-1': 0 }));
+    performUpgradeAction.mockRejectedValue(
+      apiFailure(409, { status: 409, message: 'Resource was modified concurrently. Please retry.', traceId: 'trace-71' }),
+    );
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Pause' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('That change did not go through.');
+    expect(alert.textContent).toContain('Resource was modified concurrently. Please retry.');
+    expect(alert.textContent).toContain('trace-71');
+  });
+
+  it('GivenAChangeInFlight_WhenAnotherCardIsPressed_ThenNothingMoreIsSent', async () => {
+    getDashboard.mockResolvedValue(aDashboardWithStreaks(
+      [anActiveUpgrade('u-1', 'Cold showers'), anActiveUpgrade('u-2', 'Evening walk')],
+      { 'u-1': 0, 'u-2': 0 },
+    ));
+    performUpgradeAction.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    await screen.findByText('Evening walk');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Pause' })[0]);
+    await waitFor(() => expect(performUpgradeAction).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Pause' })[1]);
+
+    await settled();
+    expect(performUpgradeAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('GivenAnUpgradeListedInTwoSections_WhenAPauseIsRefusedInOne_ThenTheRefusalIsShownOnceWithThatCard', async () => {
+    // Today's Health Moves and Active Upgrades can both list one upgrade. The refusal belongs with the card
+    // that was pressed, further down the page than the greeting, and only once.
+    const upgrade = anActiveUpgrade('u-1', 'Cold showers');
+    getDashboard.mockResolvedValue({ ...aDashboardWithStreaks([upgrade], { 'u-1': 0 }), todayUpgrades: [upgrade] });
+    performUpgradeAction.mockRejectedValue(
+      apiFailure(409, { status: 409, message: 'Resource was modified concurrently. Please retry.', traceId: 'trace-72' }),
+    );
+    renderPage();
+    await screen.findByText('Active Upgrades');
+    const [, inActiveSection] = screen.getAllByText('Cold showers');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Pause' })[1]);
+
+    const alert = await screen.findByRole('alert');
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect((inActiveSection.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true);
   });
 });

@@ -17,7 +17,8 @@ import { parseLocalDate } from '../lib/localDate';
  * Upgrades committed to a start date but not yet running, soonest first.
  *
  * Sorted client-side because the API returns them unordered; upgrades with no planned date sort last
- * rather than first, so an unscheduled one does not head a list meant to read as a timeline.
+ * rather than first, so an unscheduled one does not head a list meant to read as a timeline. A refused
+ * activation is shown on its card with the trace id (NFR-30).
  */
 const PlannedUpgradesPage: React.FC = () => {
   const qc = useQueryClient();
@@ -28,6 +29,10 @@ const PlannedUpgradesPage: React.FC = () => {
     mutationFn: ({ id, status }: { id: string; status: ActionTarget }) => performUpgradeAction(id, status),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['upgrades'] }),
   });
+
+  /** The refusal of the last change, for the card it was pressed on: above a long grid it would be out of view. */
+  const refusalFor = (id: string) =>
+    statusMutation.error && statusMutation.variables?.id === id ? toApiError(statusMutation.error) : undefined;
 
   const sorted = [...upgrades].sort((a, b) => {
     if (!a.plannedStartDate) return 1;
@@ -57,7 +62,12 @@ const PlannedUpgradesPage: React.FC = () => {
                   Starts: {parseLocalDate(u.plannedStartDate).toLocaleDateString()}
                 </p>
               )}
-              <UpgradeCard upgrade={u} onStatusChange={(id, status) => statusMutation.mutate({ id, status })} />
+              <UpgradeCard
+                upgrade={u}
+                onStatusChange={(id, status) => statusMutation.mutate({ id, status })}
+                refusal={refusalFor(u.id)}
+                busy={statusMutation.isPending}
+              />
             </div>
           ))}
         </div>

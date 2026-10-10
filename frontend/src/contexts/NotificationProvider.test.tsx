@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
+import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { NotificationProvider } from './NotificationProvider';
 import { AuthContext, type AuthContextType } from './authContextValue';
 import { useNotifications } from '../hooks/useNotifications';
@@ -103,6 +104,13 @@ vi.mock('../api/notifications', () => ({
   markAllNotificationsRead: () => markAllNotificationsRead(),
 }));
 
+/** A refusal shaped the way axios delivers one, so `toApiError` decodes it as it would in production. */
+function apiFailure(status: number, body: unknown): AxiosError {
+  const config = { headers: new AxiosHeaders() } as InternalAxiosRequestConfig;
+  const response = { data: body, status, statusText: '', headers: new AxiosHeaders(), config } as AxiosResponse;
+  return new AxiosError('Request failed', String(status), config, {}, response);
+}
+
 /** A count request the server has not answered yet, and in the test never will. */
 const unanswered = () => new Promise<number>(() => {});
 
@@ -132,17 +140,25 @@ const PUSHED: AppNotification = {
   createdAt: '2026-03-15T09:00:00',
 };
 
+/** A second unread notification, for the cases where two writes overlap. */
+const OTHER: AppNotification = { ...PUSHED, id: 'n-2', title: 'Streak reached' };
+
 function Probe() {
-  const { notifications, unreadCount, connected, desktopPermission, markRead, markAllRead, requestDesktopPermission } =
-    useNotifications();
+  const {
+    notifications, unreadCount, connected, desktopPermission, loadError, actionError,
+    markRead, markAllRead, requestDesktopPermission,
+  } = useNotifications();
   return (
     <div>
       <span data-testid="count">{notifications.length}</span>
+      <span data-testid="load-error">{loadError ? `${loadError.message} ${loadError.traceId}` : ''}</span>
+      <span data-testid="action-error">{actionError ? `${actionError.message} ${actionError.traceId}` : ''}</span>
       <span data-testid="unread">{unreadCount}</span>
       <span data-testid="connected">{String(connected)}</span>
       <span data-testid="desktop">{desktopPermission}</span>
       <button onClick={requestDesktopPermission}>Enable desktop alerts</button>
       <button onClick={() => markRead(PUSHED.id)}>Mark read</button>
+      <button onClick={() => markRead(OTHER.id)}>Mark other read</button>
       <button onClick={markAllRead}>Mark all read</button>
     </div>
   );
@@ -425,6 +441,71 @@ describe('NotificationProvider', () => {
 
     await waitFor(() => expect(getUnreadCount.mock.calls.length).toBeGreaterThan(fetchesBefore));
     await waitFor(() => expect(screen.getByTestId('unread').textContent).toBe('73'));
+  });
+
+  // NFR-30 (#96) — a failed fetch or write is exposed with its trace id, for the bell and the page to
+  // show. Before, a failed fetch looked exactly like an empty list, and a refused write was rolled back
+  // without a word.
+
+  it('GivenTheListCannotBeFetched_WhenTheProviderMounts_ThenItExposesWhyWithTheReference', async () => {
+    getNotifications.mockRejectedValue(apiFailure(500, { status: 500, message: 'Internal server error', traceId: 'trace-101' }));
+
+    renderProvider();
+
+    await waitFor(() => expect(screen.getByTestId('load-error').textContent).toBe('Internal server error trace-101'));
+  });
+
+  it('GivenTheServerRefusesAReadAll_WhenItFails_ThenItExposesWhyWithTheReference', async () => {
+    getNotifications.mockResolvedValue([PUSHED]);
+    markAllNotificationsRead.mockRejectedValue(apiFailure(500, { status: 500, message: 'Internal server error', traceId: 'trace-102' }));
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('1'));
+
+    act(() => screen.getByRole('button', { name: 'Mark all read' }).click());
+
+    await waitFor(() => expect(screen.getByTestId('action-error').textContent).toBe('Internal server error trace-102'));
+  });
+
+  it('GivenAMarkReadWasRefused_WhenAnotherIsMade_ThenTheRefusalIsCleared', async () => {
+    getNotifications.mockResolvedValue([PUSHED]);
+    markNotificationRead
+      .mockRejectedValueOnce(apiFailure(500, { status: 500, message: 'Internal server error', traceId: 'trace-103' }))
+      .mockResolvedValueOnce(undefined);
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('1'));
+    act(() => screen.getByRole('button', { name: 'Mark read' }).click());
+    await waitFor(() => expect(screen.getByTestId('action-error').textContent).toContain('trace-103'));
+
+    act(() => screen.getByRole('button', { name: 'Mark read' }).click());
+
+    await waitFor(() => expect(screen.getByTestId('action-error').textContent).toBe(''));
+  });
+
+  it('GivenTwoMarkReadsOverlap_WhenTheFirstIsRefusedAndTheSecondAccepted_ThenTheRefusalStays', async () => {
+    // A later success says nothing about the earlier write, which is unread again; only a new attempt
+    // makes its refusal stale. From the bell the panel closed on select, so this may be the only trace.
+    getNotifications.mockResolvedValue([PUSHED, OTHER]);
+    let refuseFirst: (reason: unknown) => void = () => {};
+    let acceptSecond: () => void = () => {};
+    markNotificationRead
+      .mockImplementationOnce(() => new Promise((_, reject) => { refuseFirst = reject; }))
+      .mockImplementationOnce(() => new Promise<void>((resolve) => { acceptSecond = resolve; }));
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('2'));
+    act(() => screen.getByRole('button', { name: 'Mark read' }).click());
+    act(() => screen.getByRole('button', { name: 'Mark other read' }).click());
+    await waitFor(() => expect(markNotificationRead).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      refuseFirst(apiFailure(500, { status: 500, message: 'Internal server error', traceId: 'trace-104' }));
+      await settled();
+    });
+    await act(async () => {
+      acceptSecond();
+      await settled();
+    });
+
+    expect(screen.getByTestId('action-error').textContent).toContain('trace-104');
   });
 
   it('GivenTheTokenHasLapsed_WhenTheSocketReconnects_ThenItIsRenewedBeforeTheAttempt', async () => {

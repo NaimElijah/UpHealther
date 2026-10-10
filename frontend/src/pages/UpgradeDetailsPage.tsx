@@ -258,12 +258,19 @@ const UpgradeDetails: React.FC = () => {
                 </div>
                 <button
                   onClick={() => deleteReminderMut.mutate(r.id)}
-                  className="text-danger-fg hover:underline text-xs font-medium"
+                  // A second DELETE would be answered 404, saying "not removed" while the row disappears.
+                  disabled={deleteReminderMut.isPending}
+                  className="text-danger-fg hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Remove
                 </button>
               </div>
             ))}
+          </div>
+        )}
+        {deleteReminderMut.error && (
+          <div className="mb-4">
+            <ErrorState inline title="The reminder was not removed." error={toApiError(deleteReminderMut.error)} />
           </div>
         )}
         <form

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { getDashboard } from '../api/dashboard';
 import { useAuth } from '../hooks/useAuth';
@@ -13,6 +13,9 @@ import type { ActionTarget } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
+
+/** The dashboard sections that list upgrade cards; one upgrade can appear in both. */
+type CardSection = 'today' | 'active';
 
 /**
  * Landing page after sign-in: counts, the weekly rate, streaks, overdue warnings, today's upgrades and
@@ -31,11 +34,22 @@ const DashboardPage: React.FC = () => {
     queryFn: getDashboard,
   });
 
-  /** Performs a lifecycle transition from a card, then refetches the dashboard it appeared on. */
-  const handleStatusChange = async (id: string, status: ActionTarget) => {
-    await performUpgradeAction(id, status);
-    await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-  };
+  /**
+   * Performs a lifecycle transition from a card, then refetches the dashboard it appeared on. A refusal is
+   * shown on the card it was pressed on, with its trace id (NFR-30); before, it was an unhandled
+   * rejection. The section travels with the change because one upgrade can be listed in two of them.
+   */
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: ActionTarget; section: CardSection }) =>
+      performUpgradeAction(id, status),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+  });
+  const changeStatusFrom = (section: CardSection) => (id: string, status: ActionTarget) =>
+    statusMutation.mutate({ id, status, section });
+  const refusalFor = (id: string, section: CardSection) =>
+    statusMutation.error && statusMutation.variables?.id === id && statusMutation.variables.section === section
+      ? toApiError(statusMutation.error)
+      : undefined;
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
   if (error) return <ErrorState title="Could not load your dashboard." error={toApiError(error)} />;
@@ -112,7 +126,7 @@ const DashboardPage: React.FC = () => {
         ) : (
           <div className="space-y-3">
             {data!.todayUpgrades.map((u) => (
-              <UpgradeCard key={u.id} upgrade={u} onStatusChange={handleStatusChange} />
+              <UpgradeCard key={u.id} upgrade={u} onStatusChange={changeStatusFrom('today')} refusal={refusalFor(u.id, 'today')} busy={statusMutation.isPending} />
             ))}
             <Button variant="secondary" onClick={() => navigate('/daily-checkin')} className="w-full mt-2">
               Go to Daily Check-in
@@ -127,7 +141,7 @@ const DashboardPage: React.FC = () => {
         ) : (
           <div className="grid sm:grid-cols-2 gap-4">
             {data!.activeUpgrades.map((u) => (
-              <UpgradeCard key={u.id} upgrade={u} onStatusChange={handleStatusChange} />
+              <UpgradeCard key={u.id} upgrade={u} onStatusChange={changeStatusFrom('active')} refusal={refusalFor(u.id, 'active')} busy={statusMutation.isPending} />
             ))}
           </div>
         )}

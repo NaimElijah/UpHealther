@@ -11,6 +11,8 @@ import { useNavigate } from 'react-router-dom';
 import type { HealthUpgrade, CreateProgressRequest } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import { todayLocal } from '../lib/localDate';
+import ErrorState from '../components/ui/ErrorState';
+import { toApiError } from '../api/apiError';
 
 /** Draft entries being filled in, keyed by upgrade id, until the whole form is submitted. */
 type ProgressMap = Record<string, Partial<CreateProgressRequest>>;
@@ -32,11 +34,16 @@ const numOrUndef = (v: string): number | undefined => {
  * The entries are gathered locally and submitted together, so the user fills the form once rather than
  * saving each upgrade separately. Only upgrades with something entered are sent; an untouched one is
  * left unlogged rather than recorded as missed.
+ *
+ * A failed load or submit is shown with its trace id (NFR-30). A failed load is not the empty state, and
+ * a failed submit keeps the form, saying the check-in was not *fully* saved: one refusal rejects the
+ * whole submit while the other entries may already be stored. Loading today's entries first, so that
+ * conflict cannot arise, is #55's decision.
  */
 const DailyCheckinPage: React.FC = () => {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { data: upgrades = [], isLoading } = useQuery({ queryKey: ['upgrades', 'ACTIVE'], queryFn: () => getUpgrades('ACTIVE') });
+  const { data: upgrades = [], isLoading, error } = useQuery({ queryKey: ['upgrades', 'ACTIVE'], queryFn: () => getUpgrades('ACTIVE') });
   const [progressMap, setProgressMap] = useState<ProgressMap>({});
   const [submitted, setSubmitted] = useState(false);
 
@@ -44,10 +51,10 @@ const DailyCheckinPage: React.FC = () => {
     mutationFn: async (entries: CreateProgressRequest[]) => {
       await Promise.all(entries.map((e) => createProgress(e)));
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['progress'] });
-      setSubmitted(true);
-    },
+    // Settled rather than succeeded: the entries are posted together, so when one is refused the others
+    // may already be stored, and the progress every other page caches is stale either way.
+    onSettled: () => qc.invalidateQueries({ queryKey: ['progress'] }),
+    onSuccess: () => setSubmitted(true),
   });
 
   /** Merges a field change into one upgrade's draft entry, leaving the others untouched. */
@@ -55,19 +62,20 @@ const DailyCheckinPage: React.FC = () => {
     setProgressMap((prev) => ({ ...prev, [id]: { ...prev[id], ...partial } }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const entries: CreateProgressRequest[] = upgrades.map((u: HealthUpgrade) => ({
       upgradeId: u.id,
       date: todayLocal(),
       ...progressMap[u.id],
     }));
-    await submitAll.mutateAsync(entries);
+    submitAll.mutate(entries);
   };
 
   const trackingType = (u: HealthUpgrade) => u.trackingConfig?.trackingType ?? 'BOOLEAN';
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
+  if (error) return <ErrorState title="Could not load your active upgrades." error={toApiError(error)} />;
 
   if (submitted) {
     return (
@@ -154,6 +162,9 @@ const DailyCheckinPage: React.FC = () => {
             </Card>
           ))}
 
+          {submitAll.error && (
+            <ErrorState inline title="Your check-in was not fully saved." error={toApiError(submitAll.error)} />
+          )}
           <Button type="submit" loading={submitAll.isPending} className="w-full" size="lg">
             Submit Check-in
           </Button>
