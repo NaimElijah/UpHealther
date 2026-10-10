@@ -201,6 +201,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
    * and the list can be older than the count: a push refreshes the count alone.
    */
   const markRead = useCallback(async (id: string) => {
+    // Cleared when a write starts, not when one succeeds: a later success says nothing about an earlier
+    // write that was refused, which is unread again.
+    setActionError(undefined);
     const wasUnread = queryClient.getQueryData<AppNotification[]>(NOTIF_KEY)?.some((n) => n.id === id && !n.read);
     queryClient.setQueryData<AppNotification[]>(NOTIF_KEY, (old = []) =>
       old.map((n) => (n.id === id ? { ...n, read: true } : n)),
@@ -217,7 +220,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       await queryClient.invalidateQueries({ queryKey: NOTIF_KEY });
       return;
     }
-    setActionError(undefined);
     await queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
   }, [queryClient, cancelCountFetch]);
 
@@ -227,6 +229,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
    * including those past the fifty fetched. It is read again once the call succeeds, as in `markRead`.
    */
   const markAllRead = useCallback(async () => {
+    setActionError(undefined);
     queryClient.setQueryData<AppNotification[]>(NOTIF_KEY, (old = []) => old.map((n) => ({ ...n, read: true })));
     await cancelCountFetch();
     queryClient.setQueryData<number>(UNREAD_KEY, 0);
@@ -237,7 +240,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       await queryClient.invalidateQueries({ queryKey: NOTIF_KEY });
       return;
     }
-    setActionError(undefined);
     await queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
   }, [queryClient, cancelCountFetch]);
 

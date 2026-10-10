@@ -140,6 +140,9 @@ const PUSHED: AppNotification = {
   createdAt: '2026-03-15T09:00:00',
 };
 
+/** A second unread notification, for the cases where two writes overlap. */
+const OTHER: AppNotification = { ...PUSHED, id: 'n-2', title: 'Streak reached' };
+
 function Probe() {
   const {
     notifications, unreadCount, connected, desktopPermission, loadError, actionError,
@@ -155,6 +158,7 @@ function Probe() {
       <span data-testid="desktop">{desktopPermission}</span>
       <button onClick={requestDesktopPermission}>Enable desktop alerts</button>
       <button onClick={() => markRead(PUSHED.id)}>Mark read</button>
+      <button onClick={() => markRead(OTHER.id)}>Mark other read</button>
       <button onClick={markAllRead}>Mark all read</button>
     </div>
   );
@@ -462,7 +466,7 @@ describe('NotificationProvider', () => {
     await waitFor(() => expect(screen.getByTestId('action-error').textContent).toBe('Internal server error trace-102'));
   });
 
-  it('GivenAMarkReadWasRefused_WhenTheNextOneSucceeds_ThenTheRefusalIsCleared', async () => {
+  it('GivenAMarkReadWasRefused_WhenAnotherIsMade_ThenTheRefusalIsCleared', async () => {
     getNotifications.mockResolvedValue([PUSHED]);
     markNotificationRead
       .mockRejectedValueOnce(apiFailure(500, { status: 500, message: 'Internal server error', traceId: 'trace-103' }))
@@ -475,6 +479,33 @@ describe('NotificationProvider', () => {
     act(() => screen.getByRole('button', { name: 'Mark read' }).click());
 
     await waitFor(() => expect(screen.getByTestId('action-error').textContent).toBe(''));
+  });
+
+  it('GivenTwoMarkReadsOverlap_WhenTheFirstIsRefusedAndTheSecondAccepted_ThenTheRefusalStays', async () => {
+    // A later success says nothing about the earlier write, which is unread again; only a new attempt
+    // makes its refusal stale. From the bell the panel closed on select, so this may be the only trace.
+    getNotifications.mockResolvedValue([PUSHED, OTHER]);
+    let refuseFirst: (reason: unknown) => void = () => {};
+    let acceptSecond: () => void = () => {};
+    markNotificationRead
+      .mockImplementationOnce(() => new Promise((_, reject) => { refuseFirst = reject; }))
+      .mockImplementationOnce(() => new Promise<void>((resolve) => { acceptSecond = resolve; }));
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('2'));
+    act(() => screen.getByRole('button', { name: 'Mark read' }).click());
+    act(() => screen.getByRole('button', { name: 'Mark other read' }).click());
+    await waitFor(() => expect(markNotificationRead).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      refuseFirst(apiFailure(500, { status: 500, message: 'Internal server error', traceId: 'trace-104' }));
+      await settled();
+    });
+    await act(async () => {
+      acceptSecond();
+      await settled();
+    });
+
+    expect(screen.getByTestId('action-error').textContent).toContain('trace-104');
   });
 
   it('GivenTheTokenHasLapsed_WhenTheSocketReconnects_ThenItIsRenewedBeforeTheAttempt', async () => {

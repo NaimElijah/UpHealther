@@ -10,8 +10,8 @@ import type { ApiError } from '../api/apiError';
  * fetches them over REST instead — so this is an indicator, not a gate.
  *
  * `loadError` is why the list could not be fetched; an empty list is then not "no notifications".
- * `actionError` is why the last mark-read or mark-all-read was refused, and the next one that succeeds
- * clears it. Both carry the trace id (NFR-30).
+ * `actionError` is why the last mark-read or mark-all-read was refused, and the next one clears it as it
+ * starts. Both carry the trace id (NFR-30).
  */
 export interface NotificationContextType {
   notifications: AppNotification[];
