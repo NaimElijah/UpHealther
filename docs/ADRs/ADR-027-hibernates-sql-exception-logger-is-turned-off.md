@@ -68,6 +68,10 @@ because the `JDBCException` carries the `SQLException` as its cause.
   message and keeps the SQLState line, so a handled refusal would still log a WARN, which ADR-010
   reserves for "degraded, still serving". The SQLState alone is not the diagnosis anyway: the 5xx stack
   trace carries it.
+- **Redact at the logging boundary**, with a masking encoder or a pattern over each message. Rejected:
+  the driver's text is free-form. A pattern can catch an email address, but not a name, a title or a
+  note inside a `Failing row contains (…)` tuple. The line would also still be a handled refusal at
+  ERROR.
 - **Translate each constraint violation before Hibernate logs it.** Not possible. The helper logs when
   it converts the `SQLException`, before any application code sees the failure.
 
@@ -79,3 +83,6 @@ because the `JDBCException` carries the `SQLException` as its cause.
 - **A database warning needs to be seen.** For example, a PostgreSQL `NOTICE` that a migration or a
   query relies on. Then route `SQLWarning`s somewhere that does not also carry the exception messages.
 - **The Hibernate upgrade in #73** moves or renames this logger. `RegistrationRaceIT` fails if it does.
+- **JDBC batching is turned on** (`hibernate.jdbc.batch_size`). Hibernate's batch logger,
+  `org.hibernate.orm.jdbc.batch`, reports a failed batch itself. Check what it writes before turning
+  batching on.
