@@ -265,7 +265,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-27 | Liveness and readiness are answerable separately, so "restart the process" and "stop routing to it" are distinguishable, and both images declare a health-check | `ActuatorEndpointsIT`, `backend/Dockerfile`, `frontend/Dockerfile`, `docker-compose.yml` ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) |
 | NFR-28 | Latency, error rate, saturation, connection-pool depth and the domain's own counters are readable from one scrape endpoint, and no metric tag is unbounded | `ActuatorEndpointsIT`, `LoggingAuditTrailTest`, `JobMetricsTest`, `RateLimitInterceptorTest` ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) |
 | NFR-29 | The actuator surface is closed by name: only health, info and the metrics scrape answer, and an endpoint that would expose configuration or process memory does not | `ActuatorEndpointsIT` (env, heapdump, loggers, beans, mappings, configprops, threaddump) ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) |
-| NFR-30 | A request that fails shows the user the trace id that finds it in the log, from the error body or the response header, and offers none when the request never reached the server | `apiError.test.ts`, `ErrorState.test.tsx`, `UpgradeDetailsPage.test.tsx` (its four forms, for a refusal that names no field; see §6), `ActiveUpgradesPage.test.tsx`, `PlannedUpgradesPage.test.tsx`, `DashboardPage.test.tsx` (a refused status change), `HealthAreasPage.test.tsx` (a refused delete) — **Known deviation:** [#96](https://github.com/NaimElijah/UpHealther/issues/96), the daily check-in, notifications and reminder removal still fail without a word |
+| NFR-30 | A request that fails shows the user the trace id that finds it in the log, from the error body or the response header, and offers none when the request never reached the server | `apiError.test.ts`, `ErrorState.test.tsx`, `UpgradeDetailsPage.test.tsx` (its four forms, for a refusal that names no field; see §6), `ActiveUpgradesPage.test.tsx`, `PlannedUpgradesPage.test.tsx`, `DashboardPage.test.tsx` (a refused status change), `HealthAreasPage.test.tsx` (a refused delete), `DailyCheckinPage.test.tsx` (a failed load or submit) — **Known deviation:** [#96](https://github.com/NaimElijah/UpHealther/issues/96), notifications and reminder removal still fail without a word |
 
 ### 4.5 Interface
 
@@ -323,7 +323,8 @@ Undecided, and owned by the repository owner.
   product decision, and FR-19 does not settle it
   ([#55](https://github.com/NaimElijah/UpHealther/issues/55)). The page makes the conflict likelier than
   it needs to be: it never loads today's entries, so it offers an upgrade already logged elsewhere, and
-  it posts every entry at once, so one refusal can leave the rest saved with nothing shown.
+  it posts every entry at once, so one refusal can leave the rest saved. The page now says so — "not
+  fully saved", with the trace id — but cannot say which entries were stored.
 - **Whether the list filters should combine.** FR-11's filters are alternatives — the API applies the
   first one it is given and ignores the rest, deliberately. If the interface grows filters, combining
   them may be what a user expects ([#90](https://github.com/NaimElijah/UpHealther/issues/90)).

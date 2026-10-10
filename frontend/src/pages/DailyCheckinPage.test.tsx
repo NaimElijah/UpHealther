@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import DailyCheckinPage from './DailyCheckinPage';
@@ -35,8 +36,14 @@ function anUpgrade(overrides: Partial<HealthUpgrade> = {}): HealthUpgrade {
   } as HealthUpgrade;
 }
 
-function renderPage() {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+/** A refusal shaped the way axios delivers one, so `toApiError` decodes it as it would in production. */
+function apiFailure(status: number, body: unknown): AxiosError {
+  const config = { headers: new AxiosHeaders() } as InternalAxiosRequestConfig;
+  const response = { data: body, status, statusText: '', headers: new AxiosHeaders(), config } as AxiosResponse;
+  return new AxiosError('Request failed', String(status), config, {}, response);
+}
+
+function renderPage(queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
@@ -202,5 +209,57 @@ describe('DailyCheckinPage', () => {
 
     await waitFor(() => expect(screen.getByText('Check-in Complete!')).toBeDefined());
     expect(screen.queryByRole('button', { name: /submit check-in/i })).toBeNull();
+  });
+
+  // NFR-30 (#96) — a check-in that fails says so, with the trace id that finds it. Before, a failed load
+  // rendered as "No active upgrades" and a failed submit was an unhandled rejection that showed nothing.
+
+  it('GivenTheActiveUpgradesCannotBeLoaded_WhenTheCheckinIsOpened_ThenItSaysSoWithTheReferenceRatherThanNothingToTrack', async () => {
+    getUpgrades.mockRejectedValue(apiFailure(500, { status: 500, message: 'Internal server error', traceId: 'trace-91' }));
+
+    renderPage();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('Could not load your active upgrades.');
+    expect(alert.textContent).toContain('trace-91');
+    expect(screen.queryByText('No active upgrades')).toBeNull();
+  });
+
+  it('GivenTheApiRefusesAnEntry_WhenTheCheckinIsSubmitted_ThenThePageSaysSoWithTheReferenceAndKeepsTheForm', async () => {
+    // A 409 is what BR-6 answers when the day was already logged, for example on the details page.
+    getUpgrades.mockResolvedValue([anUpgrade({ id: 'a' })]);
+    createProgress.mockRejectedValue(
+      apiFailure(409, { status: 409, message: 'Progress already recorded for date: 2026-03-15', traceId: 'trace-92' }),
+    );
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    fireEvent.submit(screen.getByRole('button', { name: /submit check-in/i }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('Your check-in was not fully saved.');
+    expect(alert.textContent).toContain('Progress already recorded for date: 2026-03-15');
+    expect(alert.textContent).toContain('trace-92');
+    expect(screen.getByRole('button', { name: /submit check-in/i })).toBeDefined();
+    expect(screen.queryByText('Check-in Complete!')).toBeNull();
+  });
+
+  it('GivenOneEntryOfSeveralIsRefused_WhenTheCheckinIsSubmitted_ThenCachedProgressIsMarkedStale', async () => {
+    // The entries are posted together, so the others may already be stored when one is refused. The
+    // progress cache is shared with every other page and kept for thirty seconds, so it has to be
+    // invalidated on a failure too, or those pages would show the day as not logged.
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(['progress', 'a'], []);
+    getUpgrades.mockResolvedValue([anUpgrade({ id: 'a' }), anUpgrade({ id: 'b', title: 'Evening walk' })]);
+    createProgress
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(apiFailure(409, { status: 409, message: 'Progress already recorded for date: 2026-03-15' }));
+    renderPage(queryClient);
+    await screen.findByText('Evening walk');
+
+    fireEvent.submit(screen.getByRole('button', { name: /submit check-in/i }));
+
+    await screen.findByRole('alert');
+    expect(queryClient.getQueryState(['progress', 'a'])?.isInvalidated).toBe(true);
   });
 });
