@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -33,6 +33,12 @@ function apiFailure(status: number, body: unknown): AxiosError {
   const response = { data: body, status, statusText: '', headers: new AxiosHeaders(), config } as AxiosResponse;
   return new AxiosError('Request failed', String(status), config, {}, response);
 }
+
+/**
+ * Lets every promise already started run on: a mutation calls its function a microtask after `mutate`,
+ * so a check that nothing more was sent is only meaningful once that has had its chance.
+ */
+const settled = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -68,5 +74,17 @@ describe('PlannedUpgradesPage', () => {
     expect(alert.textContent).toContain('trace-61');
     // With the card, below its title, rather than above the list where a long timeline hides it.
     expect((screen.getByText('Run a half marathon').compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true);
+  });
+
+  it('GivenAnActivationInFlight_WhenActivateIsPressedAgain_ThenNothingMoreIsSent', async () => {
+    performUpgradeAction.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Activate' }));
+    await waitFor(() => expect(performUpgradeAction).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activate' }));
+
+    await settled();
+    expect(performUpgradeAction).toHaveBeenCalledTimes(1);
   });
 });

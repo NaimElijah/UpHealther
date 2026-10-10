@@ -645,6 +645,21 @@ describe('UpgradeDetailsPage', () => {
     expect(alert.textContent).toContain('trace-131');
   });
 
+  it('GivenARemovalInFlight_WhenRemoveIsPressedAgain_ThenNothingMoreIsSent', async () => {
+    // A second DELETE would be answered 404 and say "not removed" while the row disappears.
+    getReminders.mockResolvedValue([{ id: 'reminder-1', upgradeId: UPGRADE_ID, reminderTime: '09:00:00', daysOfWeek: [], enabled: true }]);
+    deleteReminder.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(deleteReminder).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+
+    // A mutation calls its function a microtask after `mutate`; give a second call its chance first.
+    await act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+    expect(deleteReminder).toHaveBeenCalledTimes(1);
+  });
+
   it('GivenAProgressEntryWasRefused_WhenLogProgressIsOpenedAgain_ThenTheRefusalIsGone', async () => {
     createProgress.mockRejectedValue(DAY_ALREADY_LOGGED);
     renderPage();

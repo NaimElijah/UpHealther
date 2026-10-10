@@ -53,6 +53,7 @@ const ActiveUpgradesPage: React.FC = () => {
               upgrade={u}
               onStatusChange={(id, status) => statusMutation.mutate({ id, status })}
               refusal={refusalFor(u.id)}
+              busy={statusMutation.isPending}
             />
           ))}
         </div>

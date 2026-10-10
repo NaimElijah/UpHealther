@@ -126,7 +126,7 @@ const DashboardPage: React.FC = () => {
         ) : (
           <div className="space-y-3">
             {data!.todayUpgrades.map((u) => (
-              <UpgradeCard key={u.id} upgrade={u} onStatusChange={changeStatusFrom('today')} refusal={refusalFor(u.id, 'today')} />
+              <UpgradeCard key={u.id} upgrade={u} onStatusChange={changeStatusFrom('today')} refusal={refusalFor(u.id, 'today')} busy={statusMutation.isPending} />
             ))}
             <Button variant="secondary" onClick={() => navigate('/daily-checkin')} className="w-full mt-2">
               Go to Daily Check-in
@@ -141,7 +141,7 @@ const DashboardPage: React.FC = () => {
         ) : (
           <div className="grid sm:grid-cols-2 gap-4">
             {data!.activeUpgrades.map((u) => (
-              <UpgradeCard key={u.id} upgrade={u} onStatusChange={changeStatusFrom('active')} refusal={refusalFor(u.id, 'active')} />
+              <UpgradeCard key={u.id} upgrade={u} onStatusChange={changeStatusFrom('active')} refusal={refusalFor(u.id, 'active')} busy={statusMutation.isPending} />
             ))}
           </div>
         )}

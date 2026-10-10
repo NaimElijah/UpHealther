@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -38,6 +38,12 @@ function apiFailure(status: number, body: unknown): AxiosError {
 function follows(node: Node, anchor: Node): boolean {
   return (anchor.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
 }
+
+/**
+ * Lets every promise already started run on: a mutation calls its function a microtask after `mutate`,
+ * so a check that nothing more was sent is only meaningful once that has had its chance.
+ */
+const settled = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -91,6 +97,23 @@ describe('ActiveUpgradesPage', () => {
     const alert = await screen.findByRole('alert');
     expect(screen.getAllByRole('alert')).toHaveLength(1);
     expect(follows(alert, screen.getByText('Cold showers'))).toBe(true);
+  });
+
+  it('GivenAChangeInFlight_WhenAnotherCardIsPressed_ThenNothingMoreIsSent', async () => {
+    // Overlapping changes would leave only the last one's answer on screen; a second press of the same
+    // card would be refused and say so while the card showed the first one accepted.
+    getUpgrades.mockResolvedValue([anActiveUpgrade('upgrade-1', 'Evening walk'), anActiveUpgrade('upgrade-2', 'Cold showers')]);
+    performUpgradeAction.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Pause' })[0]);
+    await waitFor(() => expect(performUpgradeAction).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Pause' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Complete' })[1]);
+
+    await settled();
+    expect(performUpgradeAction).toHaveBeenCalledTimes(1);
   });
 
   it('GivenAChangeWasRefused_WhenItIsTriedAgainAndAccepted_ThenTheMessageGoes', async () => {

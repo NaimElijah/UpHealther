@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -53,6 +53,12 @@ function apiFailure(status: number, body: unknown): AxiosError {
   const response = { data: body, status, statusText: '', headers: new AxiosHeaders(), config } as AxiosResponse;
   return new AxiosError('Request failed', String(status), config, {}, response);
 }
+
+/**
+ * Lets every promise already started run on: a mutation calls its function a microtask after `mutate`,
+ * so a check that nothing more was sent is only meaningful once that has had its chance.
+ */
+const settled = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -219,6 +225,23 @@ describe('DashboardPage', () => {
     expect(alert.textContent).toContain('That change did not go through.');
     expect(alert.textContent).toContain('Resource was modified concurrently. Please retry.');
     expect(alert.textContent).toContain('trace-71');
+  });
+
+  it('GivenAChangeInFlight_WhenAnotherCardIsPressed_ThenNothingMoreIsSent', async () => {
+    getDashboard.mockResolvedValue(aDashboardWithStreaks(
+      [anActiveUpgrade('u-1', 'Cold showers'), anActiveUpgrade('u-2', 'Evening walk')],
+      { 'u-1': 0, 'u-2': 0 },
+    ));
+    performUpgradeAction.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    await screen.findByText('Evening walk');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Pause' })[0]);
+    await waitFor(() => expect(performUpgradeAction).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Pause' })[1]);
+
+    await settled();
+    expect(performUpgradeAction).toHaveBeenCalledTimes(1);
   });
 
   it('GivenAnUpgradeListedInTwoSections_WhenAPauseIsRefusedInOne_ThenTheRefusalIsShownOnceWithThatCard', async () => {
