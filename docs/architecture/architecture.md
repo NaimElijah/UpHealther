@@ -365,8 +365,10 @@ What it can do is hand the user something to quote. `api/apiError.ts` decodes th
 contract once, reading the trace id from the error body and falling back to the `X-Trace-Id` header —
 every error body the backend builds carries the id, so the header covers a body that is not the API's
 JSON at all. `ui/ErrorState` renders it: in place of a page that could not load, or inline beside the
-control whose action failed — a status change, a delete, a check-in, a mark-read — from that mutation's
-own `error`, so no request fails without showing its id (NFR-30).
+control whose action failed — on the upgrade card for a status change, in the dialog for a delete,
+beside the check-in's submit — from the mutation's own `error`. A refused mark-read is the notification
+provider's `actionError`, since those writes are optimistic updates rather than mutations. A few reads
+still render as empty when they fail ([#148](https://github.com/NaimElijah/UpHealther/issues/148)).
 `ErrorBoundary`, mounted inside `ThemeProvider` and around the router, catches a render-time throw so
 it becomes a themed, reloadable message instead of a blank page.
 
