@@ -37,7 +37,8 @@ because the `JDBCException` carries the `SQLException` as its cause.
 
 - A handled refusal now writes nothing. The audit trail still records it as `outcome=REFUSED`.
 - An unexpected fault is still logged once, in full, by the line ADR-026 describes.
-- The value is quoted, `"OFF"`, because YAML 1.1 reads a bare `OFF` as boolean `false`.
+- The value is quoted, `"OFF"`, so that it stays a level name. YAML 1.1 reads a bare `OFF` as the
+  boolean `false`, which Boot 3.2.5 maps back to `OFF` only through its lenient enum converter's alias.
 - `RegistrationRaceIT` enforces it. That test captures the root logger while the database refuses a
   duplicate address, and fails if any line, or any message in a logged cause chain, carries the address.
   It captures the root logger rather than this one, so another framework logger that starts quoting

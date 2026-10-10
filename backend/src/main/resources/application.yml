@@ -152,6 +152,6 @@ logging:
     com.healthupgrades: ${LOG_LEVEL_APP:INFO}
     # Hibernate writes the driver's message at ERROR on every SQL failure, handled or not, and that
     # message quotes the row: a refused registration logged the email address (NFR-6, #142). A real
-    # fault still reaches the log through the exception's own stack trace. Quoted, because YAML reads a
-    # bare OFF as false. See ADR-027.
+    # fault still reaches the log through the exception's own stack trace. Quoted so that it stays a
+    # level name: YAML reads a bare OFF as false, which Boot maps back only by alias. See ADR-027.
     org.hibernate.engine.jdbc.spi.SqlExceptionHelper: "OFF"
