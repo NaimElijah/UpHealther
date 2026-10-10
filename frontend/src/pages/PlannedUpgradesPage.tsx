@@ -17,7 +17,8 @@ import { parseLocalDate } from '../lib/localDate';
  * Upgrades committed to a start date but not yet running, soonest first.
  *
  * Sorted client-side because the API returns them unordered; upgrades with no planned date sort last
- * rather than first, so an unscheduled one does not head a list meant to read as a timeline.
+ * rather than first, so an unscheduled one does not head a list meant to read as a timeline. A refused
+ * activation is shown above the list with its trace id (NFR-30).
  */
 const PlannedUpgradesPage: React.FC = () => {
   const qc = useQueryClient();
@@ -46,6 +47,11 @@ const PlannedUpgradesPage: React.FC = () => {
         subtitle="Upgrades scheduled to start soon"
         action={<Button onClick={() => navigate('/upgrades/backlog')}>Browse Backlog</Button>}
       />
+      {statusMutation.error && (
+        <div className="mb-4">
+          <ErrorState inline title="That change did not go through." error={toApiError(statusMutation.error)} />
+        </div>
+      )}
       {sorted.length === 0 ? (
         <EmptyState icon="📅" title="No planned upgrades" description="Move ideas from backlog to plan, or create a new upgrade." action={<Button onClick={() => navigate('/upgrades/backlog')}>Go to Backlog</Button>} />
       ) : (

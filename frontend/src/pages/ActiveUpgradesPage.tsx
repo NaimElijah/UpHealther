@@ -16,7 +16,8 @@ import { toApiError } from '../api/apiError';
  * The upgrades currently running, with the transitions available from `ACTIVE`.
  *
  * Invalidates the whole `upgrades` key rather than the active slice, since pausing or completing one
- * moves it onto a list this page does not show.
+ * moves it onto a list this page does not show. A refused transition is shown above the list with its
+ * trace id (NFR-30), and goes away when the next one starts.
  */
 const ActiveUpgradesPage: React.FC = () => {
   const qc = useQueryClient();
@@ -38,6 +39,11 @@ const ActiveUpgradesPage: React.FC = () => {
         subtitle="Upgrades you are currently working on"
         action={<Button variant="secondary" onClick={() => navigate('/daily-checkin')}>Daily Check-in</Button>}
       />
+      {statusMutation.error && (
+        <div className="mb-4">
+          <ErrorState inline title="That change did not go through." error={toApiError(statusMutation.error)} />
+        </div>
+      )}
       {upgrades.length === 0 ? (
         <EmptyState icon="🔥" title="No active upgrades" description="Activate a planned upgrade to start tracking progress." action={<Button onClick={() => navigate('/upgrades/planned')}>View Planned</Button>} />
       ) : (

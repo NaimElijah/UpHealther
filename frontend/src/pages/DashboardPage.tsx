@@ -1,5 +1,5 @@
 import React from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { getDashboard } from '../api/dashboard';
 import { useAuth } from '../hooks/useAuth';
@@ -31,11 +31,15 @@ const DashboardPage: React.FC = () => {
     queryFn: getDashboard,
   });
 
-  /** Performs a lifecycle transition from a card, then refetches the dashboard it appeared on. */
-  const handleStatusChange = async (id: string, status: ActionTarget) => {
-    await performUpgradeAction(id, status);
-    await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-  };
+  /**
+   * Performs a lifecycle transition from a card, then refetches the dashboard it appeared on. A refusal is
+   * shown under the greeting with its trace id (NFR-30); before, it was an unhandled rejection.
+   */
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: ActionTarget }) => performUpgradeAction(id, status),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+  });
+  const handleStatusChange = (id: string, status: ActionTarget) => statusMutation.mutate({ id, status });
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
   if (error) return <ErrorState title="Could not load your dashboard." error={toApiError(error)} />;
@@ -64,6 +68,10 @@ const DashboardPage: React.FC = () => {
         </div>
         <Button className="shrink-0" onClick={() => navigate('/upgrades/backlog')}>+ Add Upgrade</Button>
       </div>
+
+      {statusMutation.error && (
+        <ErrorState inline title="That change did not go through." error={toApiError(statusMutation.error)} />
+      )}
 
       {(data?.overdueUpgrades?.length ?? 0) > 0 && (
         <div className="bg-danger-soft border border-danger-line rounded-xl p-4 flex items-center gap-3">

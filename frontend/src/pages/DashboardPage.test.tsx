@@ -1,14 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import DashboardPage from './DashboardPage';
 import type { AreaSummary, DashboardDto, HealthUpgrade } from '../types';
 
 const getDashboard = vi.fn();
+const performUpgradeAction = vi.fn();
 
 vi.mock('../api/dashboard', () => ({ getDashboard: (...a: unknown[]) => getDashboard(...a) }));
-vi.mock('../api/upgrades', () => ({ performUpgradeAction: vi.fn() }));
+vi.mock('../api/upgrades', () => ({ performUpgradeAction: (...a: unknown[]) => performUpgradeAction(...a) }));
 vi.mock('../hooks/useAuth', () => ({ useAuth: () => ({ user: { name: 'Ada Lovelace' } }) }));
 
 function aDashboard(areaSummary: AreaSummary[]): DashboardDto {
@@ -43,6 +45,13 @@ function anActiveUpgrade(id: string, title: string): HealthUpgrade {
  */
 function aDashboardWithStreaks(activeUpgrades: HealthUpgrade[], streaks: Record<string, number>): DashboardDto {
   return { ...aDashboard([]), activeUpgrades, streaks };
+}
+
+/** A refusal shaped the way axios delivers one, so `toApiError` decodes it as it would in production. */
+function apiFailure(status: number, body: unknown): AxiosError {
+  const config = { headers: new AxiosHeaders() } as InternalAxiosRequestConfig;
+  const response = { data: body, status, statusText: '', headers: new AxiosHeaders(), config } as AxiosResponse;
+  return new AxiosError('Request failed', String(status), config, {}, response);
 }
 
 function renderPage() {
@@ -87,6 +96,7 @@ function rowFor(rows: HTMLElement[], areaName: string): HTMLElement {
 describe('DashboardPage', () => {
   beforeEach(() => {
     getDashboard.mockReset();
+    performUpgradeAction.mockReset();
   });
 
   it('GivenAreasInTheSummary_WhenTheDashboardRenders_ThenEachAreaShowsItsCounts', async () => {
@@ -190,5 +200,24 @@ describe('DashboardPage', () => {
 
     expect(await tileFigure('Streaks')).toBe('0');
     expect(screen.queryByRole('list', { name: 'Current streaks' })).toBeNull();
+  });
+
+  // NFR-30 (#96) — a status change from a card that fails says so, with the trace id that finds it.
+  // Before, the handler was an un-awaited async function with no catch: a refusal became an unhandled
+  // rejection and the card simply stayed as it was.
+
+  it('GivenTheApiRefusesAPause_WhenItIsPressedOnACard_ThenThePageSaysWhyWithTheReference', async () => {
+    getDashboard.mockResolvedValue(aDashboardWithStreaks([anActiveUpgrade('u-1', 'Cold showers')], { 'u-1': 0 }));
+    performUpgradeAction.mockRejectedValue(
+      apiFailure(409, { status: 409, message: 'Resource was modified concurrently. Please retry.', traceId: 'trace-71' }),
+    );
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Pause' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('That change did not go through.');
+    expect(alert.textContent).toContain('Resource was modified concurrently. Please retry.');
+    expect(alert.textContent).toContain('trace-71');
   });
 });
