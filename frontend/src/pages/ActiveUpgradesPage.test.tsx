@@ -14,11 +14,11 @@ vi.mock('../api/upgrades', () => ({
   performUpgradeAction: (...a: unknown[]) => performUpgradeAction(...a),
 }));
 
-function anActiveUpgrade(): HealthUpgrade {
+function anActiveUpgrade(id = 'upgrade-1', title = 'Evening walk'): HealthUpgrade {
   return {
-    id: 'upgrade-1',
+    id,
     userId: 'user-1',
-    title: 'Evening walk',
+    title,
     type: 'HABIT',
     status: 'ACTIVE',
     difficulty: 'MEDIUM',
@@ -32,6 +32,11 @@ function apiFailure(status: number, body: unknown): AxiosError {
   const config = { headers: new AxiosHeaders() } as InternalAxiosRequestConfig;
   const response = { data: body, status, statusText: '', headers: new AxiosHeaders(), config } as AxiosResponse;
   return new AxiosError('Request failed', String(status), config, {}, response);
+}
+
+/** Whether `node` comes after `anchor` in the document - with cards in order, inside the anchor's card. */
+function follows(node: Node, anchor: Node): boolean {
+  return (anchor.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
 }
 
 function renderPage() {
@@ -58,7 +63,7 @@ describe('ActiveUpgradesPage', () => {
     getUpgrades.mockResolvedValue([anActiveUpgrade()]);
   });
 
-  it('GivenTheApiRefusesAPause_WhenItIsPressed_ThenThePageSaysWhyWithTheReference', async () => {
+  it('GivenTheApiRefusesAPause_WhenItIsPressed_ThenTheCardSaysWhyWithTheReference', async () => {
     performUpgradeAction.mockRejectedValue(
       apiFailure(409, { status: 409, message: 'Resource was modified concurrently. Please retry.', traceId: 'trace-51' }),
     );
@@ -70,6 +75,22 @@ describe('ActiveUpgradesPage', () => {
     expect(alert.textContent).toContain('That change did not go through.');
     expect(alert.textContent).toContain('Resource was modified concurrently. Please retry.');
     expect(alert.textContent).toContain('trace-51');
+  });
+
+  it('GivenSeveralCards_WhenAPauseIsRefused_ThenTheRefusalIsShownWithThePressedCard', async () => {
+    // Above the grid it can be scrolled out of view, which looks exactly like a click that did nothing.
+    getUpgrades.mockResolvedValue([anActiveUpgrade('upgrade-1', 'Evening walk'), anActiveUpgrade('upgrade-2', 'Cold showers')]);
+    performUpgradeAction.mockRejectedValue(
+      apiFailure(409, { status: 409, message: 'Resource was modified concurrently. Please retry.', traceId: 'trace-53' }),
+    );
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Pause' })[1]);
+
+    const alert = await screen.findByRole('alert');
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(follows(alert, screen.getByText('Cold showers'))).toBe(true);
   });
 
   it('GivenAChangeWasRefused_WhenItIsTriedAgainAndAccepted_ThenTheMessageGoes', async () => {

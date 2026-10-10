@@ -206,7 +206,7 @@ describe('DashboardPage', () => {
   // Before, the handler was an un-awaited async function with no catch: a refusal became an unhandled
   // rejection and the card simply stayed as it was.
 
-  it('GivenTheApiRefusesAPause_WhenItIsPressedOnACard_ThenThePageSaysWhyWithTheReference', async () => {
+  it('GivenTheApiRefusesAPause_WhenItIsPressedOnACard_ThenTheCardSaysWhyWithTheReference', async () => {
     getDashboard.mockResolvedValue(aDashboardWithStreaks([anActiveUpgrade('u-1', 'Cold showers')], { 'u-1': 0 }));
     performUpgradeAction.mockRejectedValue(
       apiFailure(409, { status: 409, message: 'Resource was modified concurrently. Please retry.', traceId: 'trace-71' }),
@@ -219,5 +219,24 @@ describe('DashboardPage', () => {
     expect(alert.textContent).toContain('That change did not go through.');
     expect(alert.textContent).toContain('Resource was modified concurrently. Please retry.');
     expect(alert.textContent).toContain('trace-71');
+  });
+
+  it('GivenAnUpgradeListedInTwoSections_WhenAPauseIsRefusedInOne_ThenTheRefusalIsShownOnceWithThatCard', async () => {
+    // Today's Health Moves and Active Upgrades can both list one upgrade. The refusal belongs with the card
+    // that was pressed, further down the page than the greeting, and only once.
+    const upgrade = anActiveUpgrade('u-1', 'Cold showers');
+    getDashboard.mockResolvedValue({ ...aDashboardWithStreaks([upgrade], { 'u-1': 0 }), todayUpgrades: [upgrade] });
+    performUpgradeAction.mockRejectedValue(
+      apiFailure(409, { status: 409, message: 'Resource was modified concurrently. Please retry.', traceId: 'trace-72' }),
+    );
+    renderPage();
+    await screen.findByText('Active Upgrades');
+    const [, inActiveSection] = screen.getAllByText('Cold showers');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Pause' })[1]);
+
+    const alert = await screen.findByRole('alert');
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect((inActiveSection.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true);
   });
 });

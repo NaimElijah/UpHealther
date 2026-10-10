@@ -53,7 +53,7 @@ describe('PlannedUpgradesPage', () => {
     getUpgrades.mockResolvedValue([aPlannedHardUpgrade()]);
   });
 
-  it('GivenThreeHardUpgradesAlreadyRunning_WhenAFourthIsActivated_ThenThePageSaysWhyWithTheReference', async () => {
+  it('GivenThreeHardUpgradesAlreadyRunning_WhenAFourthIsActivated_ThenTheCardSaysWhyWithTheReference', async () => {
     // The likeliest refusal on this page: the HARD-slot limit is the one rule a user cannot see coming.
     performUpgradeAction.mockRejectedValue(
       apiFailure(422, { status: 422, message: 'Cannot run more than 3 HARD upgrades simultaneously', traceId: 'trace-61' }),
@@ -66,5 +66,7 @@ describe('PlannedUpgradesPage', () => {
     expect(alert.textContent).toContain('That change did not go through.');
     expect(alert.textContent).toContain('Cannot run more than 3 HARD upgrades simultaneously');
     expect(alert.textContent).toContain('trace-61');
+    // With the card, below its title, rather than above the list where a long timeline hides it.
+    expect((screen.getByText('Run a half marathon').compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true);
   });
 });
