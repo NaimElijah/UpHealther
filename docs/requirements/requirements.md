@@ -13,7 +13,7 @@ that gap would take.
 API (§5.4), so "a user can" means through the interface. Where the implementation falls short of an
 entry — in the interface or anywhere else — the entry is not weakened to match. Its *Enforced by* cell
 says **Known deviation** and links the issue that tracks the gap; the tests named there enforce the
-part that holds. Fifteen entries carry one today, and the change that closes an issue takes its
+part that holds. Sixteen entries carry one today, and the change that closes an issue takes its
 marker out.
 
 **IDs are permanent.** Tests, code comments, migrations and ADRs cite them, so an ID is never
@@ -167,7 +167,7 @@ The role model behind every entry here is [ADR-016](../ADRs/ADR-016-roles-read-f
 | BR-3 | `COMPLETED` is terminal — it cannot be reactivated, paused or rescheduled | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeControllerTest` |
 | BR-4 | An upgrade must always have an owner, a title and a type | `HealthUpgradeTest`, `UpgradeServiceTest` |
 | BR-5 | A user may have at most **three** `HARD` upgrades active at once, checked on every route into a running HARD upgrade | `UpgradeSchedulingServiceTest`, `UpgradeServiceTest`, `UpgradeControllerTest` |
-| BR-6 | At most one progress entry exists per upgrade per date; a second is refused as a conflict | `ProgressEntryPersistenceIT` (the constraint by name), `TrackingServiceTest`, `ProgressControllerTest` (409) |
+| BR-6 | At most one progress entry exists per upgrade per date; a second is refused as a conflict | `ProgressEntryPersistenceIT` (the constraint by name), `TrackingServiceTest`, `ProgressControllerTest` (409) — **Known deviation:** [#146](https://github.com/NaimElijah/UpHealther/issues/146), a second entry that races past the existence check reaches the constraint untranslated and is answered 500 |
 | BR-7 | When an upgrade has a tracking configuration, whether an entry counts as successful is decided by the server from that configuration, not by the client. Without one there is no target to judge against, and the entry keeps the `completed` value its caller sent | `ProgressEvaluationService`, `ProgressEvaluationServiceTest`, `TrackingServiceTest` |
 | BR-8 | A numeric entry counts only when its unit agrees with the target's; an unstated unit is read as the configured one | `ProgressEvaluationServiceTest` |
 | BR-9 | A streak counts consecutive days; a day not yet logged does not break it | `StreakCalculator`, `StreakCalculatorTest` |
