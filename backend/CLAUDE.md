@@ -92,7 +92,9 @@ All three are deliberate, not drift.
   body, a progress note or an IP address. That is NFR-6, and it applies to the message *and* to
   anything handed to a `{}` placeholder. The one exception is the single ERROR line that reports an
   unexpected fault with its stack trace, message included: a 5xx, from `GlobalExceptionHandler`, or a
-  scheduled run that threw, which Spring's scheduler logs (ADR-026). A line that repeats per item names
+  scheduled run that threw, which Spring's scheduler logs (ADR-026). Hibernate's `SqlExceptionHelper`
+  is `OFF` in `application.yml` for this reason: it quotes the refused row on every SQL failure, handled
+  or not. Do not turn it back on (ADR-027). A line that repeats per item names
   an exception by its type, never its message. The output format is chosen by the `json-logs` profile in
   `src/main/resources/logback-spring.xml`; do not write a `<pattern>` there, because Boot's imported
   `defaults.xml` is what puts the trace id on a plain-text line. See

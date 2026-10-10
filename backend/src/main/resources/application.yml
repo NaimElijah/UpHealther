@@ -148,5 +148,10 @@ logging:
     # INFO is what a deployment should run at: DEBUG is written for a developer reading along, and
     # this application's DEBUG lines fire per domain event - every minute, from dispatchReminders.
     # LOG_LEVEL_APP turns it up for one run without a code change. Everything outside this package
-    # stays at Spring's default INFO.
+    # stays at Spring's default INFO, except the one logger below.
     com.healthupgrades: ${LOG_LEVEL_APP:INFO}
+    # Hibernate writes the driver's message at ERROR on every SQL failure, handled or not, and that
+    # message quotes the row: a refused registration logged the email address (NFR-6, #142). A real
+    # fault still reaches the log through the exception's own stack trace. Quoted so that it stays a
+    # level name: YAML reads a bare OFF as false, which Boot maps back only by alias. See ADR-027.
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: "OFF"

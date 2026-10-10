@@ -2,7 +2,9 @@
 
 - **Status:** Accepted — extended by
   [ADR-026](ADR-026-a-scheduled-run-that-threw-is-logged-in-full.md), which lets a scheduled run that
-  threw be logged in full, as an unexpected 5xx is
+  threw be logged in full, as an unexpected 5xx is, and by
+  [ADR-027](ADR-027-hibernates-sql-exception-logger-is-turned-off.md), which turns off Hibernate's
+  SQL exception logger
 - **Date:** 2026-08-25
 - **Scope:** `backend/` — the log format, the level policy and the rule about what may appear in a log
   line. One new compile dependency. No change to any domain type.
