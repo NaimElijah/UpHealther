@@ -23,9 +23,9 @@ Nothing configured that logger, so it ran at Spring's default INFO. The result b
 - **NFR-6.** A refused registration is handled and answered with a 422, yet the email address landed in
   the log at ERROR. ADR-026's exception covers the one line that reports an unexpected fault. This line
   is not that line, and it is not confined to a fault.
-- **ADR-010's level policy.** ERROR means somebody must act now. A duplicate registration, or a
-  duplicate progress entry under BR-6's `uq_progress_upgrade_date`, is a refusal the application
-  answers on purpose. Nobody has to act.
+- **ADR-010's level policy.** ERROR means somebody must act now. A registration that loses the race
+  to the unique constraint is a refusal the application answers on purpose, with a 422. Nobody has to
+  act.
 
 The diagnosis does not need this line. `GlobalExceptionHandler` logs an unexpected 5xx with its cause
 chain, and Spring's scheduler logs a run that threw (ADR-026). The driver's message is in both,
