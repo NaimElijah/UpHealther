@@ -7,6 +7,10 @@
   [ADR-023](ADR-023-a-notification-sweep-carries-on-past-a-failed-save-and-fails-the-run.md) left open.
 - **Issue:** [#139](https://github.com/NaimElijah/UpHealther/issues/139), found in the review of #138
 
+> **Later.** The record below stands as written. Hibernate's `SqlExceptionHelper` line, which the third
+> consequence leaves out as NFR-6's known deviation, has since been turned off by
+> [ADR-027](ADR-027-hibernates-sql-exception-logger-is-turned-off.md).
+
 ## Context
 
 NFR-6 says the application never logs personal data deliberately. It made one exception: "the stack
