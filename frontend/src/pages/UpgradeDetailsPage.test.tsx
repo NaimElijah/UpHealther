@@ -13,6 +13,7 @@ const getReflectionsByUpgrade = vi.fn();
 const createReflection = vi.fn();
 const getReminders = vi.fn();
 const createReminder = vi.fn();
+const deleteReminder = vi.fn();
 const saveTrackingConfig = vi.fn();
 
 vi.mock('../api/upgrades', () => ({ getUpgradeById: (...a: unknown[]) => getUpgradeById(...a) }));
@@ -28,7 +29,7 @@ vi.mock('../api/reflections', () => ({
 vi.mock('../api/reminders', () => ({
   getReminders: (...a: unknown[]) => getReminders(...a),
   createReminder: (...a: unknown[]) => createReminder(...a),
-  deleteReminder: vi.fn(),
+  deleteReminder: (...a: unknown[]) => deleteReminder(...a),
 }));
 vi.mock('../api/trackingConfig', () => ({ saveTrackingConfig: (...a: unknown[]) => saveTrackingConfig(...a) }));
 
@@ -161,6 +162,7 @@ describe('UpgradeDetailsPage', () => {
     createReflection.mockReset();
     getReminders.mockReset();
     createReminder.mockReset();
+    deleteReminder.mockReset();
     saveTrackingConfig.mockReset();
     getUpgradeById.mockResolvedValue(anUpgrade());
     getProgressByUpgrade.mockResolvedValue([]);
@@ -626,6 +628,36 @@ describe('UpgradeDetailsPage', () => {
     fireEvent.submit(screen.getByRole('button', { name: 'Add reminder' }));
 
     expect(await screen.findByText('Upgrade not found: upgrade-1 (reference trace-404)')).toBeDefined();
+  });
+
+  it('GivenTheApiRefusesARemoval_WhenAReminderIsRemoved_ThenTheCardSaysWhyWithItsReference', async () => {
+    // NFR-30 (#96). A 404 is what a reminder already removed from another tab answers. Before, the row
+    // simply stayed where it was.
+    getReminders.mockResolvedValue([{ id: 'reminder-1', upgradeId: UPGRADE_ID, reminderTime: '09:00:00', daysOfWeek: [], enabled: true }]);
+    deleteReminder.mockRejectedValue(apiFailure(404, { status: 404, message: 'Reminder not found', traceId: 'trace-131' }));
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('The reminder was not removed.');
+    expect(alert.textContent).toContain('Reminder not found');
+    expect(alert.textContent).toContain('trace-131');
+  });
+
+  it('GivenARemovalInFlight_WhenRemoveIsPressedAgain_ThenNothingMoreIsSent', async () => {
+    // A second DELETE would be answered 404 and say "not removed" while the row disappears.
+    getReminders.mockResolvedValue([{ id: 'reminder-1', upgradeId: UPGRADE_ID, reminderTime: '09:00:00', daysOfWeek: [], enabled: true }]);
+    deleteReminder.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(deleteReminder).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+
+    // A mutation calls its function a microtask after `mutate`; give a second call its chance first.
+    await act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+    expect(deleteReminder).toHaveBeenCalledTimes(1);
   });
 
   it('GivenAProgressEntryWasRefused_WhenLogProgressIsOpenedAgain_ThenTheRefusalIsGone', async () => {

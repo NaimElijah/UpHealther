@@ -40,4 +40,19 @@ describe('ErrorState', () => {
 
     expect(screen.getByText('Could not load this upgrade.')).toBeDefined();
   });
+
+  it('GivenAFailedActionShownInline_WhenItRenders_ThenItSaysWhatFailedWithTheReferenceAndNoIllustration', () => {
+    // Inline is for a failure beside the control that caused it - a dialog, a card, the bell's panel -
+    // where the page-sized illustration would push everything else out of view.
+    render(<ErrorState inline title="That change did not go through." error={{
+      message: 'Only ACTIVE upgrades can be paused',
+      traceId: 'trace-41',
+    }} />);
+
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toContain('That change did not go through.');
+    expect(alert.textContent).toContain('Only ACTIVE upgrades can be paused');
+    expect(screen.getByText('trace-41')).toBeDefined();
+    expect(alert.textContent).not.toContain('⚠️');
+  });
 });

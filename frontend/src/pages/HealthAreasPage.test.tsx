@@ -8,12 +8,13 @@ import type { HealthArea } from '../types';
 const getHealthAreas = vi.fn();
 const createHealthArea = vi.fn();
 const updateHealthArea = vi.fn();
+const deleteHealthArea = vi.fn();
 
 vi.mock('../api/healthAreas', () => ({
   getHealthAreas: (...a: unknown[]) => getHealthAreas(...a),
   createHealthArea: (...a: unknown[]) => createHealthArea(...a),
   updateHealthArea: (...a: unknown[]) => updateHealthArea(...a),
-  deleteHealthArea: vi.fn(),
+  deleteHealthArea: (...a: unknown[]) => deleteHealthArea(...a),
 }));
 
 const AREA_ID = 'area-1';
@@ -55,6 +56,13 @@ async function openEdit() {
   return within(screen.getByRole('dialog', { name: 'Edit Health Area' }));
 }
 
+/** Opens the delete confirmation for the only area listed, and returns queries scoped to it. */
+async function openDelete() {
+  await screen.findByText('Sleep');
+  fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+  return within(screen.getByRole('dialog', { name: 'Delete Health Area' }));
+}
+
 /** Opens the create dialog, and returns queries scoped to it. */
 async function openCreate() {
   fireEvent.click(await screen.findByRole('button', { name: '+ New Area' }));
@@ -73,6 +81,7 @@ describe('HealthAreasPage', () => {
     getHealthAreas.mockReset();
     createHealthArea.mockReset();
     updateHealthArea.mockReset();
+    deleteHealthArea.mockReset();
     getHealthAreas.mockResolvedValue([anArea()]);
     createHealthArea.mockResolvedValue(anArea());
     updateHealthArea.mockResolvedValue(anArea());
@@ -275,5 +284,35 @@ describe('HealthAreasPage', () => {
     dialog = await openEdit();
 
     expect(dialog.queryByText('Priority must be a whole number.')).toBeNull();
+  });
+
+  // NFR-30 (#96) — a delete that fails says so in the dialog, with the trace id that finds it. Before,
+  // the dialog stayed open and said nothing, which reads as a button that does not work.
+
+  it('GivenTheApiRefusesTheDelete_WhenItIsConfirmed_ThenTheDialogSaysWhyWithTheReference', async () => {
+    // A 404 is what an area already deleted from another tab answers.
+    deleteHealthArea.mockRejectedValue(apiFailure(404, { status: 404, message: 'Health area not found', traceId: 'trace-81' }));
+    renderPage();
+    const dialog = await openDelete();
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Delete' }));
+
+    const alert = await dialog.findByRole('alert');
+    expect(alert.textContent).toContain('The area was not deleted.');
+    expect(alert.textContent).toContain('Health area not found');
+    expect(alert.textContent).toContain('trace-81');
+  });
+
+  it('GivenADeleteWasRefused_WhenTheDialogIsOpenedAgain_ThenItStartsWithoutTheOldMessage', async () => {
+    deleteHealthArea.mockRejectedValue(apiFailure(404, { status: 404, message: 'Health area not found', traceId: 'trace-82' }));
+    renderPage();
+    let dialog = await openDelete();
+    fireEvent.click(dialog.getByRole('button', { name: 'Delete' }));
+    await dialog.findByRole('alert');
+    fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }));
+
+    dialog = await openDelete();
+
+    expect(dialog.queryByRole('alert')).toBeNull();
   });
 });

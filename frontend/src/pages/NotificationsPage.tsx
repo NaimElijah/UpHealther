@@ -7,16 +7,21 @@ import EmptyState from '../components/ui/EmptyState';
 import NotificationItem from '../components/notifications/NotificationItem';
 import type { AppNotification } from '../types';
 import PageContainer from '../components/ui/PageContainer';
+import ErrorState from '../components/ui/ErrorState';
 
 /**
  * The full notification list, with an all/unread filter.
  *
  * Reads from the notification context rather than fetching, so it shows the same list the bell does and
  * updates live while open. Selecting one marks it read and follows it to the upgrade it concerns.
+ *
+ * A list that could not be fetched says so instead of "No notifications yet", and a refused mark-read
+ * is shown above the list, both with the trace id (NFR-30).
  */
 const NotificationsPage: React.FC = () => {
-  const { notifications, unreadCount, markRead, markAllRead, desktopPermission, requestDesktopPermission } =
-    useNotifications();
+  const {
+    notifications, unreadCount, loadError, actionError, markRead, markAllRead, desktopPermission, requestDesktopPermission,
+  } = useNotifications();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
 
@@ -56,7 +61,15 @@ const NotificationsPage: React.FC = () => {
         ))}
       </div>
 
-      {shown.length === 0 ? (
+      {actionError && (
+        <div className="mb-4">
+          <ErrorState inline title="Could not mark your notifications as read." error={actionError} />
+        </div>
+      )}
+
+      {notifications.length === 0 && loadError ? (
+        <ErrorState title="Could not load your notifications." error={loadError} />
+      ) : shown.length === 0 ? (
         <EmptyState
           icon="🔔"
           title={filter === 'unread' ? 'No unread notifications' : 'No notifications yet'}

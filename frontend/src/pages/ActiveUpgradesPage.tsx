@@ -16,7 +16,8 @@ import { toApiError } from '../api/apiError';
  * The upgrades currently running, with the transitions available from `ACTIVE`.
  *
  * Invalidates the whole `upgrades` key rather than the active slice, since pausing or completing one
- * moves it onto a list this page does not show.
+ * moves it onto a list this page does not show. A refused transition is shown on its card with the
+ * trace id (NFR-30), and goes away when the next one starts.
  */
 const ActiveUpgradesPage: React.FC = () => {
   const qc = useQueryClient();
@@ -27,6 +28,10 @@ const ActiveUpgradesPage: React.FC = () => {
     mutationFn: ({ id, status }: { id: string; status: ActionTarget }) => performUpgradeAction(id, status),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['upgrades'] }),
   });
+
+  /** The refusal of the last change, for the card it was pressed on: above a long grid it would be out of view. */
+  const refusalFor = (id: string) =>
+    statusMutation.error && statusMutation.variables?.id === id ? toApiError(statusMutation.error) : undefined;
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
   if (error) return <ErrorState title="Could not load your upgrades." error={toApiError(error)} />;
@@ -47,6 +52,8 @@ const ActiveUpgradesPage: React.FC = () => {
               key={u.id}
               upgrade={u}
               onStatusChange={(id, status) => statusMutation.mutate({ id, status })}
+              refusal={refusalFor(u.id)}
+              busy={statusMutation.isPending}
             />
           ))}
         </div>
