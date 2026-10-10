@@ -17,15 +17,18 @@ import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -91,7 +94,12 @@ class RegistrationRaceIT extends PostgresIT {
 
         register(email.toUpperCase(Locale.ROOT)).andExpect(status().isUnprocessableEntity());
 
+        // The existence check refuses with the same 422, so the answer alone cannot show that the database
+        // refused: the second registration has to have reached the insert.
+        verify(userService, times(2)).register(any());
         List<String> written = appender.list.stream().flatMap(RegistrationRaceIT::everythingWritten).toList();
+        // An empty capture would pass the check below as well; the refusal's own audit line proves it saw.
+        assertThat(written).anyMatch(text -> text.contains("action=auth.register outcome=REFUSED"));
         assertThat(written).noneMatch(text -> text.toLowerCase(Locale.ROOT).contains(email));
     }
 
@@ -101,11 +109,18 @@ class RegistrationRaceIT extends PostgresIT {
                 .content(BODY.formatted(email)));
     }
 
-    /** The event's message and the message of every throwable in its cause chain: all of it reaches the log. */
+    /** The event's message and every message Logback prints with it. */
     private static Stream<String> everythingWritten(ILoggingEvent event) {
-        Stream<String> causes = Stream.iterate(event.getThrowableProxy(), Objects::nonNull, IThrowableProxy::getCause)
-                .map(IThrowableProxy::getMessage)
-                .filter(Objects::nonNull);
-        return Stream.concat(Stream.of(event.getFormattedMessage()), causes);
+        return Stream.concat(Stream.of(event.getFormattedMessage()), messagesOf(event.getThrowableProxy()));
+    }
+
+    /** A throwable's message, then those of its cause and of every suppressed throwable, recursively. */
+    private static Stream<String> messagesOf(IThrowableProxy proxy) {
+        if (proxy == null) {
+            return Stream.empty();
+        }
+        Stream<String> nested = Stream.concat(Stream.of(proxy.getCause()), Arrays.stream(proxy.getSuppressed()))
+                .flatMap(RegistrationRaceIT::messagesOf);
+        return Stream.concat(Stream.ofNullable(proxy.getMessage()), nested);
     }
 }
