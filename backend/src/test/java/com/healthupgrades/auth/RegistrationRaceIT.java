@@ -41,6 +41,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * forced to miss, which is exactly the state the losing request is in, and the real database is left to
  * refuse the insert. Before the save flushed, that refusal happened at commit, outside anything that
  * could translate it, and the caller was answered 500.
+ *
+ * <p>It also holds NFR-6 for that refusal. The driver's message quotes the refused row, so no log line
+ * may carry the address the registration was for (ADR-027).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
