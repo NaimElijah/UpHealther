@@ -1,15 +1,13 @@
 # ADR-026: A scheduled run that threw is logged in full, like an unexpected 5xx
 
-- **Status:** Accepted
+- **Status:** Accepted — extended by
+  [ADR-027](ADR-027-hibernates-sql-exception-logger-is-turned-off.md), which turns off the Hibernate
+  logger the third consequence below leaves as NFR-6's known deviation
 - **Date:** 2026-10-08
 - **Scope:** NFR-6 in `docs/requirements/requirements.md`. No code changes. Extends
   [ADR-010](ADR-010-structured-logging-and-a-level-policy.md), and answers the question
   [ADR-023](ADR-023-a-notification-sweep-carries-on-past-a-failed-save-and-fails-the-run.md) left open.
 - **Issue:** [#139](https://github.com/NaimElijah/UpHealther/issues/139), found in the review of #138
-
-> **Later.** The record below stands as written. Hibernate's `SqlExceptionHelper` line, which the third
-> consequence leaves out as NFR-6's known deviation, has since been turned off by
-> [ADR-027](ADR-027-hibernates-sql-exception-logger-is-turned-off.md).
 
 ## Context
 
