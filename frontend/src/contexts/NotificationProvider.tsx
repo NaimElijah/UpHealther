@@ -8,6 +8,7 @@ import { getNotifications, getUnreadCount, markNotificationRead, markAllNotifica
 import { NotificationContext } from './notificationContextValue';
 import ToastContainer, { type ToastData } from '../components/notifications/ToastContainer';
 import type { AppNotification } from '../types';
+import { toApiError, type ApiError } from '../api/apiError';
 
 /** Query key for the cached notification list, shared by the fetch and every live update below. */
 const NOTIF_KEY = ['notifications'];
@@ -57,8 +58,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     typeof Notification !== 'undefined' ? Notification.permission : 'denied',
   );
   const clientRef = useRef<Client | null>(null);
+  const [actionError, setActionError] = useState<ApiError | undefined>(undefined);
 
-  const { data: notifications = [] } = useQuery({
+  const { data: notifications = [], error: listError } = useQuery({
     queryKey: NOTIF_KEY,
     queryFn: getNotifications,
     enabled: isAuthenticated,
@@ -73,6 +75,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Until the server's count is read, or when it cannot be, the unread listed stands in: a lower bound,
   // where zero would hide the badge and every "Mark all read" while unread rows are on screen.
   const unreadCount = serverUnread ?? notifications.filter((n) => !n.read).length;
+  const loadError = listError ? toApiError(listError) : undefined;
 
   /** Removes one toast, whether it was dismissed by the user or timed out. */
   const dismissToast = useCallback((id: string) => {
@@ -192,7 +195,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
    * The optimistic write is what makes the badge respond instantly. The count drops only if the
    * notification was unread, since marking a read one again changes nothing on the server. If the call
    * fails the list and the count are invalidated, so the server's answer replaces the guess rather than
-   * the UI keeping a lie.
+   * the UI keeping a lie, and the failure is kept as `actionError` for the bell and the page to show.
    *
    * The count is also read again once the call succeeds, because the drop is a guess made from the list,
    * and the list can be older than the count: a push refreshes the count alone.
@@ -209,10 +212,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
     try {
       await markNotificationRead(id);
-    } catch {
+    } catch (thrown) {
+      setActionError(toApiError(thrown));
       await queryClient.invalidateQueries({ queryKey: NOTIF_KEY });
       return;
     }
+    setActionError(undefined);
     await queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
   }, [queryClient, cancelCountFetch]);
 
@@ -227,10 +232,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     queryClient.setQueryData<number>(UNREAD_KEY, 0);
     try {
       await markAllNotificationsRead();
-    } catch {
+    } catch (thrown) {
+      setActionError(toApiError(thrown));
       await queryClient.invalidateQueries({ queryKey: NOTIF_KEY });
       return;
     }
+    setActionError(undefined);
     await queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
   }, [queryClient, cancelCountFetch]);
 
@@ -247,7 +254,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   return (
     <NotificationContext.Provider
-      value={{ notifications, unreadCount, connected, desktopPermission, markRead, markAllRead, requestDesktopPermission }}
+      value={{
+        notifications, unreadCount, connected, desktopPermission, loadError, actionError,
+        markRead, markAllRead, requestDesktopPermission,
+      }}
     >
       {children}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />

@@ -3,7 +3,7 @@
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
 rather than trusted. A hundred and fourteen of the hundred and twenty-two entries below name a test —
-a hundred and ten distinct test classes and files between them. Five of the remaining eight name the command,
+a hundred and twelve distinct test classes and files between them. Five of the remaining eight name the command,
 workflow or script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48). The last three —
 FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is about a rendered width, a
 colour or an overflow, and jsdom has no layout engine to observe any of them; §6 records what closing
@@ -265,7 +265,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-27 | Liveness and readiness are answerable separately, so "restart the process" and "stop routing to it" are distinguishable, and both images declare a health-check | `ActuatorEndpointsIT`, `backend/Dockerfile`, `frontend/Dockerfile`, `docker-compose.yml` ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) |
 | NFR-28 | Latency, error rate, saturation, connection-pool depth and the domain's own counters are readable from one scrape endpoint, and no metric tag is unbounded | `ActuatorEndpointsIT`, `LoggingAuditTrailTest`, `JobMetricsTest`, `RateLimitInterceptorTest` ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) |
 | NFR-29 | The actuator surface is closed by name: only health, info and the metrics scrape answer, and an endpoint that would expose configuration or process memory does not | `ActuatorEndpointsIT` (env, heapdump, loggers, beans, mappings, configprops, threaddump) ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) |
-| NFR-30 | A request that fails shows the user the trace id that finds it in the log, from the error body or the response header, and offers none when the request never reached the server | `apiError.test.ts`, `ErrorState.test.tsx`, `UpgradeDetailsPage.test.tsx` (its four forms, for a refusal that names no field; see §6), `ActiveUpgradesPage.test.tsx`, `PlannedUpgradesPage.test.tsx`, `DashboardPage.test.tsx` (a refused status change), `HealthAreasPage.test.tsx` (a refused delete), `DailyCheckinPage.test.tsx` (a failed load or submit) — **Known deviation:** [#96](https://github.com/NaimElijah/UpHealther/issues/96), notifications and reminder removal still fail without a word |
+| NFR-30 | A request that fails shows the user the trace id that finds it in the log, from the error body or the response header, and offers none when the request never reached the server | `apiError.test.ts`, `ErrorState.test.tsx`, `UpgradeDetailsPage.test.tsx` (its four forms, for a refusal that names no field; see §6), `ActiveUpgradesPage.test.tsx`, `PlannedUpgradesPage.test.tsx`, `DashboardPage.test.tsx` (a refused status change), `HealthAreasPage.test.tsx` (a refused delete), `DailyCheckinPage.test.tsx` (a failed load or submit), `NotificationProvider.test.tsx`, `NotificationDropdown.test.tsx`, `NotificationsPage.test.tsx` (a failed fetch or mark-read) — **Known deviation:** [#96](https://github.com/NaimElijah/UpHealther/issues/96), reminder removal still fails without a word |
 
 ### 4.5 Interface
 
