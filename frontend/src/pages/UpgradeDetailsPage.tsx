@@ -266,6 +266,11 @@ const UpgradeDetails: React.FC = () => {
             ))}
           </div>
         )}
+        {deleteReminderMut.error && (
+          <div className="mb-4">
+            <ErrorState inline title="The reminder was not removed." error={toApiError(deleteReminderMut.error)} />
+          </div>
+        )}
         <form
           onSubmit={(e) => { e.preventDefault(); createReminderMut.mutate(); }}
           className="flex flex-wrap items-end gap-3 border-t border-line-subtle pt-3"
