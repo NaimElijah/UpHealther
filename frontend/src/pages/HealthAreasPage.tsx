@@ -56,7 +56,8 @@ const parsePriority = (text: string): ParsedPriority => {
  *
  * Create, edit and delete all go through modals over the same list, and each mutation invalidates the
  * area query rather than patching local state, so what is shown is always what was saved. Deleting an
- * area does not touch the upgrades filed under it.
+ * area does not touch the upgrades filed under it. A refused delete is shown in its dialog with the
+ * trace id (NFR-30), so the user can retry or cancel.
  */
 const HealthAreasPage: React.FC = () => {
   const qc = useQueryClient();
@@ -131,6 +132,15 @@ const HealthAreasPage: React.FC = () => {
   };
 
   /**
+   * Opens the delete confirmation for one area. The mutation is reset first, so a refusal from an
+   * earlier attempt does not open with this one.
+   */
+  const openDelete = (id: string) => {
+    deleteMutation.reset();
+    setDeleteId(id);
+  };
+
+  /**
    * Opens the edit modal pre-filled from an area; nullable fields become empty strings for the inputs.
    *
    * A stored icon the card cannot draw arrives as empty rather than as itself. Showing `water_drop` in a
@@ -188,7 +198,7 @@ const HealthAreasPage: React.FC = () => {
               {area.description && <p className="text-sm text-fg-subtle mt-2 break-words">{area.description}</p>}
               <div className="flex flex-wrap gap-2 mt-4">
                 <Button size="sm" variant="secondary" onClick={() => openEdit(area)}>Edit</Button>
-                <Button size="sm" variant="danger" onClick={() => setDeleteId(area.id)}>Delete</Button>
+                <Button size="sm" variant="danger" onClick={() => openDelete(area.id)}>Delete</Button>
               </div>
             </Card>
           ))}
@@ -225,6 +235,11 @@ const HealthAreasPage: React.FC = () => {
 
       <Modal isOpen={!!deleteId} onClose={() => setDeleteId(null)} title="Delete Health Area">
         <p className="text-fg-subtle mb-4">Are you sure you want to delete this health area? This action cannot be undone.</p>
+        {deleteMutation.error && (
+          <div className="mb-4">
+            <ErrorState inline title="The area was not deleted." error={toApiError(deleteMutation.error)} />
+          </div>
+        )}
         <div className="flex gap-2 justify-end">
           <Button variant="secondary" onClick={() => setDeleteId(null)}>Cancel</Button>
           <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteId && deleteMutation.mutate(deleteId)}>
