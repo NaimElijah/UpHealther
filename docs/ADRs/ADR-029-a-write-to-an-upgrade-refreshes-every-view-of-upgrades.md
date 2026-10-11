@@ -56,15 +56,24 @@ upgrade's tracking configuration, which the upgrade carries (FR-15).
   one extra request when one of them is next opened, and nothing before.
 - **The list of keys is maintained by hand.** A page that shows upgrades under a key not on the list is
   stale again, and nothing fails until a test like `upgradeViews.test.tsx` covers it.
+- **A reopened page shows the old state for one round trip.** An invalidated query whose page is closed
+  keeps its data. When the page opens, TanStack renders that data at once and refetches in the
+  background, so the old list shows, buttons included, until the answer lands. A button pressed in that
+  moment is refused by the server, and the refusal is shown on its card (NFR-30).
 - **Another tab is still up to thirty seconds behind.** The cache belongs to the tab. A change made
   elsewhere reaches this tab when the window ends, or sooner if the page is reloaded.
 
 ## Alternatives considered
 
-- **`staleTime: 0`.** Every page would refetch every time it opened, so it would never be stale. It was
-  rejected because it gives up what the window is for: navigating between pages without a spinner and a
-  request each time. That is a cost on every navigation, to fix something that happens only after a
-  write.
+- **`staleTime: 0`.** Every page would refetch every time it opened. With data in the cache, TanStack
+  renders it at once and refetches in the background, so a page would still show the old state for one
+  round trip, just as an invalidated page does here. It was rejected because all it adds is a request on
+  every navigation, not only after a write. That cost buys nothing this decision lacks.
+- **Invalidating with `refetchType: 'all'`.** Every cached view would refetch at once, open or not, so a
+  page reopened after the answers land would show the new state with no flash. It was rejected because
+  a write would then cost one request per cached view: every list, the dashboard, and every details page
+  visited. That is a lot to pay to remove a flash of one round trip, whose stale buttons the server
+  already refuses.
 - **Patching the other caches with `setQueryData`.** Each mutation would write the returned upgrade into
   every list and the dashboard. It was rejected because the dashboard's counts, today's list, the
   overdue list and the streaks are computed by the server. Recomputing them in the browser would
@@ -73,8 +82,8 @@ upgrade's tracking configuration, which the upgrade carries (FR-15).
 - **Invalidating from the lifecycle notifications on the WebSocket.** Each `UPGRADE_*` notification
   would invalidate the views, which would also cover a change made in another tab. It was rejected *for
   this change*: it ties freshness to a channel whose delivery is best-effort (ADR-028), and it does
-  nothing for the writes no notification follows, such as an edit or a create. It could be added on top
-  of this decision later.
+  nothing for the writes that raise no event: an edit, a delete, and a tracking-configuration save. It
+  could be added on top of this decision later.
 
 **Revisit when** a list paginates ([#62](https://github.com/NaimElijah/UpHealther/issues/62)), so that
 invalidating a whole prefix refetches pages the user is not looking at. Or when the extra request after
