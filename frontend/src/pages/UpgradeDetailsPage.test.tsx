@@ -1116,14 +1116,35 @@ describe('UpgradeDetailsPage rescheduling an upgrade', () => {
     expect((dialog.getByLabelText('New start date') as HTMLInputElement).value).toBe('2026-03-11');
   });
 
-  it('GivenACompletedUpgrade_WhenItsPageOpens_ThenRescheduleIsNotOffered', async () => {
-    serveUpgrade({ ...anUpgrade(), status: 'COMPLETED' });
-    renderPage();
+  // COMPLETED is terminal (BR-3). An idea is planned rather than rescheduled: rescheduling one would set a
+  // start date and leave it an idea, listed with the ideas, until Plan overwrote the date.
+  it.each<UpgradeStatus>(['IDEA', 'COMPLETED'])(
+    'GivenA%sUpgrade_WhenItsPageOpens_ThenRescheduleIsNotOffered',
+    async (status) => {
+      serveUpgrade({ ...anUpgrade(), status });
+      renderPage();
 
-    await screen.findByRole('button', { name: 'Edit Upgrade' });
+      await screen.findByRole('button', { name: 'Edit Upgrade' });
 
-    expect(screen.queryByRole('button', { name: 'Reschedule' })).toBeNull();
-  });
+      expect(screen.queryByRole('button', { name: 'Reschedule' })).toBeNull();
+    },
+  );
+
+  it.each<UpgradeStatus>(['PLANNED', 'ACTIVE', 'PAUSED', 'ABANDONED'])(
+    'GivenA%sUpgrade_WhenItIsRescheduled_ThenTheNewDateIsSent',
+    async (status) => {
+      serveUpgrade({ ...anUpgrade(), status, plannedStartDate: '2026-10-20' });
+      renderPage();
+      const dialog = await openReschedule();
+
+      fireEvent.change(dialog.getByLabelText('New start date'), { target: { value: '2026-11-01' } });
+      fireEvent.submit(dialog.getByRole('button', { name: 'Reschedule' }));
+
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Reschedule Upgrade' })).toBeNull());
+      expect(rescheduleUpgrade.mock.calls[0]).toEqual([UPGRADE_ID, '2026-11-01']);
+      expect(await screen.findByText(/11\/1\/2026/)).toBeDefined();
+    },
+  );
 
   it('GivenTheDateIsCleared_WhenTheRescheduleIsSubmitted_ThenNothingIsSentAndADateIsAskedFor', async () => {
     serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });

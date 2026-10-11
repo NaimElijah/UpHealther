@@ -34,8 +34,19 @@ const editableFields = (upgrade: HealthUpgrade): CreateUpgradeRequest => ({
 /** The states an upgrade can be abandoned from: every one that is not final (BR-2). */
 const ABANDONABLE: readonly UpgradeStatus[] = ['IDEA', 'PLANNED', 'ACTIVE', 'PAUSED'];
 
-/** The one state that cannot be rescheduled: COMPLETED is terminal (BR-3). */
-const UNRESCHEDULABLE: UpgradeStatus = 'COMPLETED';
+/**
+ * The states Reschedule is offered in. BR-2 also lets the API move an idea's date, but an idea is
+ * *planned*: rescheduling one would set a start date and leave it an idea, listed with the ideas, until
+ * Plan overwrote the date. COMPLETED is terminal (BR-3).
+ */
+const RESCHEDULABLE: readonly UpgradeStatus[] = ['PLANNED', 'ACTIVE', 'PAUSED', 'ABANDONED'];
+
+/** What the reschedule dialog asks, by state: only from ABANDONED does it change more than the date. */
+const rescheduleQuestion = (status: UpgradeStatus): string => {
+  if (status === 'ABANDONED') return 'When do you want to start again? The upgrade goes back to Planned.';
+  if (status === 'PLANNED') return 'When do you want to start instead?';
+  return 'It has already started, so only its planned start date moves. Move it to when?';
+};
 
 /** What the form itself refuses before sending, by field. */
 interface FormCheck {
@@ -50,8 +61,8 @@ interface Props {
 
 /**
  * What can be done to an upgrade as a whole from its own page (#89): edit its descriptive fields, in any
- * state (FR-13), abandon it from any state that is not final, and reschedule it from any state but
- * COMPLETED (FR-12). Rescheduling an abandoned upgrade is also the way back from abandoning it (BR-2).
+ * state (FR-13), abandon it from any state that is not final, and reschedule it once it is past being an
+ * idea (FR-12). Rescheduling an abandoned upgrade is also the way back from abandoning it (BR-2).
  * And delete it, in any state, with everything recorded against it (FR-14).
  *
  * Abandoning and deleting ask first. An abandoned upgrade leaves every list, so a slip would look as
@@ -171,7 +182,7 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
     <>
       <div className="mt-4 flex flex-wrap gap-2 border-t border-line-subtle pt-4">
         <Button size="sm" variant="secondary" onClick={openEdit}>Edit Upgrade</Button>
-        {upgrade.status !== UNRESCHEDULABLE && (
+        {RESCHEDULABLE.includes(upgrade.status) && (
           <Button size="sm" variant="secondary" onClick={openReschedule}>Reschedule</Button>
         )}
         {ABANDONABLE.includes(upgrade.status) && (
@@ -198,11 +209,7 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
 
       <Modal isOpen={rescheduleOpen} onClose={() => setRescheduleOpen(false)} title="Reschedule Upgrade">
         <form onSubmit={submitReschedule} className="space-y-4">
-          <p className="text-fg-subtle">
-            {upgrade.status === 'ABANDONED'
-              ? 'When do you want to start again? The upgrade goes back to Planned.'
-              : 'When do you want to start instead?'}
-          </p>
+          <p className="text-fg-subtle">{rescheduleQuestion(upgrade.status)}</p>
           <Input
             label="New start date"
             type="date"
