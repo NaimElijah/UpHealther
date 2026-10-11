@@ -8,11 +8,12 @@ import type { HealthUpgrade } from '../types';
 
 const getUpgrades = vi.fn();
 const planUpgrade = vi.fn();
+const createUpgrade = vi.fn();
 
 vi.mock('../api/upgrades', () => ({
   getUpgrades: (...a: unknown[]) => getUpgrades(...a),
   planUpgrade: (...a: unknown[]) => planUpgrade(...a),
-  createUpgrade: vi.fn(),
+  createUpgrade: (...a: unknown[]) => createUpgrade(...a),
 }));
 
 vi.mock('../api/healthAreas', () => ({
@@ -51,6 +52,20 @@ function renderPage() {
       </MemoryRouter>
     </QueryClientProvider>,
   );
+}
+
+/**
+ * Lets every promise already started run on: a mutation calls its function a microtask after `mutate`,
+ * so a check that nothing was sent is only meaningful once that has had its chance.
+ */
+const settled = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+
+/** Opens the new-idea dialog with a title typed in, and returns queries scoped to it. */
+async function openCreate(title = 'Run a 5k') {
+  fireEvent.click(await screen.findByRole('button', { name: '+ New Idea' }));
+  const dialog = within(screen.getByRole('dialog', { name: 'New Upgrade Idea' }));
+  fireEvent.change(dialog.getByLabelText('Title'), { target: { value: title } });
+  return dialog;
 }
 
 /** Presses Plan on the only idea listed, and returns queries scoped to the dialog it opens. */
@@ -194,5 +209,62 @@ describe('UpgradeBacklogPage', () => {
     const second = await openPlan();
 
     expect(second.queryByText('Only IDEA upgrades can be planned')).toBeNull();
+  });
+});
+
+/**
+ * FR-10, FR-29 (#89) — a new idea can carry its success criteria and the date it should be done by.
+ *
+ * Neither could be set anywhere in the interface, so no upgrade made through it could ever be overdue
+ * (FR-29), and "how will I know it worked" had nowhere to go.
+ */
+describe('UpgradeBacklogPage creating an idea', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    createUpgrade.mockReset();
+    getUpgrades.mockResolvedValue([]);
+    createUpgrade.mockResolvedValue(anIdea());
+  });
+
+  it('GivenSuccessCriteriaAndATargetEnd_WhenAnIdeaIsCreated_ThenBothAreSent', async () => {
+    renderPage();
+    const dialog = await openCreate();
+    fireEvent.change(dialog.getByLabelText('Success Criteria'), { target: { value: 'Finish under 30 minutes' } });
+    fireEvent.change(dialog.getByLabelText('Target End'), { target: { value: '2026-12-31' } });
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Add Idea' }));
+
+    await waitFor(() => expect(createUpgrade).toHaveBeenCalledTimes(1));
+    expect(createUpgrade.mock.calls[0][0]).toMatchObject({
+      title: 'Run a 5k',
+      successCriteria: 'Finish under 30 minutes',
+      targetEndDate: '2026-12-31',
+    });
+  });
+
+  it('GivenNoTargetEnd_WhenAnIdeaIsCreated_ThenNoDateIsSent', async () => {
+    renderPage();
+    const dialog = await openCreate();
+    fireEvent.change(dialog.getByLabelText('Target End'), { target: { value: '2026-12-31' } });
+    fireEvent.change(dialog.getByLabelText('Target End'), { target: { value: '' } });
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Add Idea' }));
+
+    await waitFor(() => expect(createUpgrade).toHaveBeenCalledTimes(1));
+    expect(createUpgrade.mock.calls[0][0].targetEndDate).toBeUndefined();
+  });
+
+  it('GivenATargetEndWithAFiveDigitYear_WhenAnIdeaIsCreated_ThenNothingIsSentAndTheFieldAsksForFourDigits', async () => {
+    // A date field accepts years past 9999; the API reads one only with a sign, and would refuse the body
+    // without naming the field.
+    renderPage();
+    const dialog = await openCreate();
+    fireEvent.change(dialog.getByLabelText('Target End'), { target: { value: '20260-12-31' } });
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Add Idea' }));
+
+    expect(await dialog.findByText('Pick a date with a four-digit year.')).toBeDefined();
+    await settled();
+    expect(createUpgrade).not.toHaveBeenCalled();
   });
 });

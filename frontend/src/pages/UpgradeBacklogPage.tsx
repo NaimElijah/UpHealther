@@ -29,6 +29,7 @@ const UpgradeBacklogPage: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState<CreateUpgradeRequest>({ title: '', type: 'HABIT', difficulty: 'MEDIUM' });
   const [formError, setFormError] = useState('');
+  const [targetEndError, setTargetEndError] = useState('');
   const [planning, setPlanning] = useState<HealthUpgrade | null>(null);
   const [planDate, setPlanDate] = useState('');
   const [planError, setPlanError] = useState('');
@@ -51,7 +52,9 @@ const UpgradeBacklogPage: React.FC = () => {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
+    setTargetEndError('');
     if (!form.title.trim()) { setFormError('Title is required.'); return; }
+    if (form.targetEndDate && !isFourDigitYearDate(form.targetEndDate)) { setTargetEndError('Pick a date with a four-digit year.'); return; }
     try {
       await createMutation.mutateAsync(form);
     } catch (thrown) {
@@ -112,7 +115,7 @@ const UpgradeBacklogPage: React.FC = () => {
 
       <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="New Upgrade Idea">
         <form onSubmit={handleCreate} className="space-y-4">
-          <UpgradeFormFields value={form} onChange={setForm} areas={areas} titleError={formError} />
+          <UpgradeFormFields value={form} onChange={setForm} areas={areas} titleError={formError} targetEndError={targetEndError} />
           <div className="flex gap-2 justify-end">
             <Button variant="secondary" type="button" onClick={() => setIsOpen(false)}>Cancel</Button>
             <Button type="submit" loading={createMutation.isPending}>Add Idea</Button>

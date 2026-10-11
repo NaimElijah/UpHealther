@@ -28,16 +28,18 @@ const difficultyOptions: { value: Difficulty; label: string }[] = [
 ];
 
 /**
- * @param value      the upgrade as the form currently holds it
- * @param onChange   receives the whole upgrade with one field changed
- * @param areas      the caller's health areas, offered alongside "No area"
- * @param titleError why the last save was refused, shown under the title
+ * @param value          the upgrade as the form currently holds it
+ * @param onChange       receives the whole upgrade with one field changed
+ * @param areas          the caller's health areas, offered alongside "No area"
+ * @param titleError     why the last save was refused, shown under the title
+ * @param targetEndError why the target end cannot be sent, shown under it
  */
 interface Props {
   value: CreateUpgradeRequest;
   onChange: (next: CreateUpgradeRequest) => void;
   areas: HealthArea[];
   titleError?: string;
+  targetEndError?: string;
 }
 
 /**
@@ -47,7 +49,7 @@ interface Props {
  * them, so a new upgrade and an edited one can share what the user fills in without sharing what
  * happens next.
  */
-const UpgradeFormFields: React.FC<Props> = ({ value, onChange, areas, titleError }) => {
+const UpgradeFormFields: React.FC<Props> = ({ value, onChange, areas, titleError, targetEndError }) => {
   const set = (fields: Partial<CreateUpgradeRequest>) => onChange({ ...value, ...fields });
   const areaOptions = [{ value: '', label: 'No area' }, ...areas.map((a) => ({ value: a.id, label: a.name }))];
 
@@ -59,6 +61,9 @@ const UpgradeFormFields: React.FC<Props> = ({ value, onChange, areas, titleError
       <Select label="Difficulty" value={value.difficulty} options={difficultyOptions} onChange={(e) => set({ difficulty: e.target.value as Difficulty })} />
       <Select label="Health Area" value={value.areaId ?? ''} options={areaOptions} onChange={(e) => set({ areaId: e.target.value || undefined })} />
       <Input label="Motivation" value={value.motivation ?? ''} onChange={(e) => set({ motivation: e.target.value })} placeholder="Why do you want this?" />
+      <Input label="Success Criteria" value={value.successCriteria ?? ''} onChange={(e) => set({ successCriteria: e.target.value })} placeholder="How will you know it worked?" />
+      {/* Left out when cleared, not sent empty: an absent date is how the API is told there is none. */}
+      <Input label="Target End" type="date" value={value.targetEndDate ?? ''} onChange={(e) => set({ targetEndDate: e.target.value || undefined })} error={targetEndError} />
     </>
   );
 };

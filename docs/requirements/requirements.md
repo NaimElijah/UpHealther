@@ -13,7 +13,7 @@ that gap would take.
 API (§5.4), so "a user can" means through the interface. Where the implementation falls short of an
 entry — in the interface or anywhere else — the entry is not weakened to match. Its *Enforced by* cell
 says **Known deviation** and links the issue that tracks the gap; the tests named there enforce the
-part that holds. Sixteen entries carry one today, and the change that closes an issue takes its
+part that holds. Fifteen entries carry one today, and the change that closes an issue takes its
 marker out.
 
 **IDs are permanent.** Tests, code comments, migrations and ADRs cite them, so an ID is never
@@ -79,7 +79,7 @@ no way at all — to read another person's health records
 | ID | Requirement | Enforced by |
 |---|---|---|
 | FR-9 | A user can create an upgrade of any of the eight kinds: habit, one-time action, product replacement, routine, goal, experiment, learning task, medical/preventive | `FrontendEnumContractTest`, `UpgradeControllerTest` |
-| FR-10 | An upgrade carries a title and type, and optionally an area, description, difficulty, planned start, target end, motivation and success criteria | `HealthUpgradeTest`, `UpgradeServiceTest` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), success criteria and the target end cannot be set from the interface, and the planned start only by planning an idea |
+| FR-10 | An upgrade carries a title and type, and optionally an area, description, difficulty, planned start, target end, motivation and success criteria | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeBacklogPage.test.tsx` (a new idea's success criteria and target end) — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), the planned start is set only by planning an idea, and cannot be moved afterwards |
 | FR-11 | A user can list their upgrades, narrowed by one of status, type, area or difficulty | `UpgradeServiceTest`, `UpgradeControllerTest` — **Known deviation:** [#90](https://github.com/NaimElijah/UpHealther/issues/90), the interface filters by status only |
 | FR-12 | A user can move an upgrade through its lifecycle: plan, activate, pause, complete, abandon, reschedule | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeControllerTest`, `UpgradeBacklogPage.test.tsx`, `ActiveUpgradesPage.test.tsx` (a paused upgrade is listed and can be resumed), `upgradeViews.test.tsx` (a change made on one page reaches every page that shows the upgrade), `upgrades.test.ts` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), abandon and reschedule have no control |
 | FR-13 | A user can edit an upgrade's descriptive fields at any point in its lifecycle | `HealthUpgradeTest`, `UpgradeServiceTest` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), the interface has no edit |
@@ -113,7 +113,7 @@ no way at all — to read another person's health records
 |---|---|---|
 | FR-27 | A user can see, in one request, their active, planned, due-today, overdue and recently completed upgrades, their weekly completion rate, their streaks and per-area counts | `DashboardAggregationServiceTest`, `DashboardControllerTest`, `DashboardPage.test.tsx` |
 | FR-28 | A user is notified when an upgrade is created, planned, activated, paused, completed or abandoned, when a reflection is added, and when a streak milestone is reached | `NotificationEventListenerTest`, `NotificationCommitIT` (each of them stored once the write commits) |
-| FR-29 | A user is notified when an active upgrade passes its target date | `UpgradeOverdueSchedulerTest` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), the interface cannot set a target date |
+| FR-29 | A user is notified when an active upgrade passes its target date | `UpgradeOverdueSchedulerTest`, `UpgradeBacklogPage.test.tsx` (a target end can be set) |
 | FR-30 | A user with active upgrades and nothing logged is nudged once a day | `NotificationSchedulerTest` |
 | FR-31 | A user's reminders fire at the configured time and day | `NotificationSchedulerTest`, `ReminderTest` |
 | FR-32 | Notifications arrive in real time on a connected client, and are readable afterwards regardless | `StompNotificationPushAdapterTest`, `NotificationServiceTest`, `NotificationCommitIT` (each lifecycle notification is stored, not only pushed), `NotificationProvider.test.tsx` |
