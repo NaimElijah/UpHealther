@@ -13,7 +13,7 @@ that gap would take.
 API (§5.4), so "a user can" means through the interface. Where the implementation falls short of an
 entry — in the interface or anywhere else — the entry is not weakened to match. Its *Enforced by* cell
 says **Known deviation** and links the issue that tracks the gap; the tests named there enforce the
-part that holds. Eleven entries carry one today, and the change that closes an issue takes its
+part that holds. Ten entries carry one today, and the change that closes an issue takes its
 marker out.
 
 **IDs are permanent.** Tests, code comments, migrations and ADRs cite them, so an ID is never
@@ -105,7 +105,7 @@ no way at all — to read another person's health records
 | FR-23 | A user can write a reflection about an upgrade — ratings for difficulty and benefit, and notes on what worked, what did not, and what to change | `ReflectionServiceTest`, `ReflectionControllerTest`, `UpgradeDetailsPage.test.tsx` |
 | FR-24 | A user can read an upgrade's reflections, newest first | `ReflectionServiceTest`, `ReflectionControllerTest`, `ReflectionPersistenceIT` (the order, same-date ties included), `UpgradeDetailsPage.test.tsx` |
 | FR-25 | A user can attach reminders to an upgrade, each with a time and a day-of-week filter | `ReminderServiceTest`, `ReminderControllerTest`, `ReminderTest` |
-| FR-26 | A user can reschedule, enable, disable and delete a reminder | `ReminderServiceTest`, `ReminderControllerTest` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), reschedule, enable and disable have no control |
+| FR-26 | A user can reschedule, enable, disable and delete a reminder | `ReminderServiceTest`, `ReminderControllerTest`, `UpgradeDetailsPage.test.tsx` (a reminder is rescheduled without changing its state, and switched off and on without changing its schedule) |
 
 ### 2.6 Dashboard and notifications
 

@@ -4,7 +4,7 @@ import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequest
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useNavigate, type NavigateFunction } from 'react-router-dom';
 import UpgradeDetailsPage from './UpgradeDetailsPage';
-import type { ActionTarget, CreateUpgradeRequest, HealthArea, HealthUpgrade, ProgressEntry, Reflection, UpgradeStatus } from '../types';
+import type { ActionTarget, CreateReminderRequest, CreateUpgradeRequest, HealthArea, HealthUpgrade, ProgressEntry, Reflection, Reminder, UpgradeStatus } from '../types';
 
 const getUpgradeById = vi.fn();
 const updateUpgrade = vi.fn();
@@ -18,6 +18,7 @@ const createReflection = vi.fn();
 const getReminders = vi.fn();
 const createReminder = vi.fn();
 const deleteReminder = vi.fn();
+const updateReminder = vi.fn();
 const saveTrackingConfig = vi.fn();
 
 vi.mock('../api/upgrades', () => ({
@@ -41,6 +42,7 @@ vi.mock('../api/reminders', () => ({
   getReminders: (...a: unknown[]) => getReminders(...a),
   createReminder: (...a: unknown[]) => createReminder(...a),
   deleteReminder: (...a: unknown[]) => deleteReminder(...a),
+  updateReminder: (...a: unknown[]) => updateReminder(...a),
 }));
 vi.mock('../api/trackingConfig', () => ({ saveTrackingConfig: (...a: unknown[]) => saveTrackingConfig(...a) }));
 
@@ -1234,5 +1236,123 @@ describe('UpgradeDetailsPage deleting an upgrade', () => {
     expect(await dialog.findByText('An unexpected error occurred')).toBeDefined();
     expect(dialog.getByText('trace-delete')).toBeDefined();
     expect(screen.queryByText('The dashboard')).toBeNull();
+  });
+});
+
+/** A reminder as the API sends one: its time with seconds, and its days in week order. */
+function aReminder(values: Partial<Reminder> = {}): Reminder {
+  return { id: 'reminder-1', upgradeId: UPGRADE_ID, reminderTime: '09:00:00', daysOfWeek: ['MON'], enabled: true, ...values };
+}
+
+/**
+ * Answers the upgrade's reminders from `initial` until an update changes one, the way the API would. As
+ * the API does, an update that leaves `enabled` out leaves the reminder's state alone.
+ */
+function serveReminders(...initial: Reminder[]) {
+  let reminders = initial;
+  getReminders.mockImplementation(() => Promise.resolve(reminders));
+  updateReminder.mockImplementation((id: string, req: CreateReminderRequest) => {
+    reminders = reminders.map((r) => (r.id === id
+      ? { ...r, reminderTime: `${req.reminderTime.slice(0, 5)}:00`, daysOfWeek: req.daysOfWeek ?? [], enabled: req.enabled ?? r.enabled }
+      : r));
+    return Promise.resolve(reminders.find((r) => r.id === id));
+  });
+}
+
+/**
+ * FR-26 (#89) — a reminder can be rescheduled, switched off and switched back on from its upgrade's page.
+ *
+ * Each row's controls name the reminder they act on, since an upgrade can have several and the page
+ * already has an "Edit" for its tracking.
+ */
+describe('UpgradeDetailsPage changing a reminder', () => {
+  beforeEach(() => {
+    getUpgradeById.mockReset();
+    getReminders.mockReset();
+    updateReminder.mockReset();
+    createReminder.mockReset();
+    getUpgradeById.mockResolvedValue(anUpgrade());
+    getProgressByUpgrade.mockResolvedValue([]);
+    getReflectionsByUpgrade.mockResolvedValue([]);
+  });
+
+  it('GivenAReminder_WhenItIsRescheduled_ThenItsNewTimeAndDaysAreSentAndItsStateIsLeftAlone', async () => {
+    serveReminders(aReminder({ enabled: false }));
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit the 09:00 reminder' }));
+    expect((screen.getByLabelText('Time') as HTMLInputElement).value).toBe('09:00');
+    fireEvent.change(screen.getByLabelText('Time'), { target: { value: '07:30' } });
+    fireEvent.click(screen.getByTitle('WED'));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save reminder' }));
+
+    expect(await screen.findByRole('button', { name: 'Edit the 07:30 reminder' })).toBeDefined();
+    expect(updateReminder).toHaveBeenCalledTimes(1);
+    expect(updateReminder.mock.calls[0][0]).toBe('reminder-1');
+    expect(updateReminder.mock.calls[0][1]).toEqual({ reminderTime: '07:30', daysOfWeek: ['MON', 'WED'] });
+    expect(screen.getByRole('button', { name: 'Add reminder' })).toBeDefined();
+    expect(createReminder).not.toHaveBeenCalled();
+  });
+
+  it('GivenAReminderBeingRescheduled_WhenTheEditIsCancelled_ThenNothingIsSentAndTheFormAddsAgain', async () => {
+    serveReminders(aReminder());
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit the 09:00 reminder' }));
+    fireEvent.change(screen.getByLabelText('Time'), { target: { value: '07:30' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.getByRole('button', { name: 'Add reminder' })).toBeDefined();
+    expect((screen.getByLabelText('Time') as HTMLInputElement).value).toBe('09:00');
+    await settled();
+    expect(updateReminder).not.toHaveBeenCalled();
+  });
+
+  it('GivenAnEnabledReminder_WhenItIsDisabled_ThenItIsSentDisabledWithItsScheduleUnchanged', async () => {
+    serveReminders(aReminder());
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Disable the 09:00 reminder' }));
+
+    expect(await screen.findByRole('button', { name: 'Enable the 09:00 reminder' })).toBeDefined();
+    expect(updateReminder.mock.calls[0]).toEqual(['reminder-1', { reminderTime: '09:00:00', daysOfWeek: ['MON'], enabled: false }]);
+    expect(screen.getByText('disabled')).toBeDefined();
+  });
+
+  it('GivenADisabledReminder_WhenItIsEnabled_ThenItIsSentEnabled', async () => {
+    serveReminders(aReminder({ enabled: false }));
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Enable the 09:00 reminder' }));
+
+    expect(await screen.findByRole('button', { name: 'Disable the 09:00 reminder' })).toBeDefined();
+    expect(updateReminder.mock.calls[0][1]).toEqual({ reminderTime: '09:00:00', daysOfWeek: ['MON'], enabled: true });
+    expect(screen.queryByText('disabled')).toBeNull();
+  });
+
+  it('GivenTheApiRefusesASwitch_WhenAReminderIsDisabled_ThenTheCardSaysWhyWithItsReference', async () => {
+    serveReminders(aReminder());
+    updateReminder.mockRejectedValue(apiFailure(404, { status: 404, message: 'Reminder not found', traceId: 'trace-switch' }));
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Disable the 09:00 reminder' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('The reminder was not changed.');
+    expect(alert.textContent).toContain('Reminder not found');
+    expect(alert.textContent).toContain('trace-switch');
+  });
+
+  it('GivenTheApiRefusesAReschedule_WhenItIsSaved_ThenTheFormSaysWhyAndKeepsTheEdit', async () => {
+    serveReminders(aReminder());
+    updateReminder.mockRejectedValue(NO_REMINDER_TIME);
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit the 09:00 reminder' }));
+
+    fireEvent.change(screen.getByLabelText('Time'), { target: { value: '' } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Save reminder' }));
+
+    expect(await screen.findByText('Must not be null')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Save reminder' })).toBeDefined();
   });
 });
