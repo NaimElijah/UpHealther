@@ -10,6 +10,7 @@ const getUpgradeById = vi.fn();
 const updateUpgrade = vi.fn();
 const performUpgradeAction = vi.fn();
 const rescheduleUpgrade = vi.fn();
+const deleteUpgrade = vi.fn();
 const getProgressByUpgrade = vi.fn();
 const createProgress = vi.fn();
 const getReflectionsByUpgrade = vi.fn();
@@ -24,6 +25,7 @@ vi.mock('../api/upgrades', () => ({
   updateUpgrade: (...a: unknown[]) => updateUpgrade(...a),
   performUpgradeAction: (...a: unknown[]) => performUpgradeAction(...a),
   rescheduleUpgrade: (...a: unknown[]) => rescheduleUpgrade(...a),
+  deleteUpgrade: (...a: unknown[]) => deleteUpgrade(...a),
 }));
 vi.mock('../api/healthAreas', () => ({ getHealthAreas: () => Promise.resolve([AN_AREA]) }));
 vi.mock('../api/progress', () => ({
@@ -135,6 +137,7 @@ function renderPage() {
         <NavigateHandle />
         <Routes>
           <Route path="/upgrades/:id" element={<UpgradeDetailsPage />} />
+          <Route path="/dashboard" element={<p>The dashboard</p>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -1135,5 +1138,101 @@ describe('UpgradeDetailsPage rescheduling an upgrade', () => {
     fireEvent.submit(dialog.getByRole('button', { name: 'Reschedule' }));
 
     expect(await dialog.findByText('Cannot reschedule a COMPLETED upgrade (reference trace-reschedule)')).toBeDefined();
+  });
+});
+
+/** Presses Delete once the page has loaded, and returns queries scoped to the confirmation it opens. */
+async function openDelete() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+  return within(screen.getByRole('dialog', { name: 'Delete Upgrade' }));
+}
+
+/**
+ * FR-14 (#89) — an upgrade can be deleted from its page, in any state, with everything recorded against
+ * it.
+ *
+ * Deleting cannot be undone, so it asks first and says what goes with the upgrade. Once it is gone its
+ * page has nothing left to show, so the dashboard opens in its place.
+ */
+describe('UpgradeDetailsPage deleting an upgrade', () => {
+  beforeEach(() => {
+    getUpgradeById.mockReset();
+    deleteUpgrade.mockReset();
+    getProgressByUpgrade.mockResolvedValue([]);
+    getReflectionsByUpgrade.mockResolvedValue([]);
+    getReminders.mockResolvedValue([]);
+    deleteUpgrade.mockResolvedValue(undefined);
+  });
+
+  it('GivenAConfirmedDelete_WhenItSucceeds_ThenTheUpgradeIsDeletedAndTheDashboardOpens', async () => {
+    serveUpgrade(anUpgrade());
+    renderPage();
+    const dialog = await openDelete();
+    expect(dialog.getByText(/progress, reminders and reflections/)).toBeDefined();
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Delete' }));
+
+    expect(await screen.findByText('The dashboard')).toBeDefined();
+    expect(deleteUpgrade.mock.calls[0][0]).toBe(UPGRADE_ID);
+    // Read once, to show it: the refresh after the delete must not ask for it again, into a 404.
+    expect(getUpgradeById).toHaveBeenCalledTimes(1);
+  });
+
+  it('GivenACompletedUpgrade_WhenItsPageOpens_ThenItCanStillBeDeleted', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'COMPLETED' });
+    renderPage();
+
+    expect(await screen.findByRole('button', { name: 'Delete' })).toBeDefined();
+  });
+
+  it('GivenTheConfirmationIsCancelled_WhenItCloses_ThenNothingIsDeleted', async () => {
+    serveUpgrade(anUpgrade());
+    renderPage();
+    const dialog = await openDelete();
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete Upgrade' })).toBeNull());
+    await settled();
+    expect(deleteUpgrade).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: 'Cold showers' })).toBeDefined();
+  });
+
+  it('GivenADeleteInFlight_WhenTheDialogIsDismissed_ThenItStaysOpenUntilTheAnswerArrives', async () => {
+    // Dismissed mid-flight, the dialog could be opened again and the delete sent twice; the second would
+    // be answered 404, reading as though the first had failed.
+    let answer: () => void = () => {};
+    deleteUpgrade.mockImplementation(() => new Promise<void>((resolve) => { answer = resolve; }));
+    serveUpgrade(anUpgrade());
+    renderPage();
+    const dialog = await openDelete();
+    fireEvent.click(dialog.getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(deleteUpgrade).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(screen.getByRole('dialog', { name: 'Delete Upgrade' })).toBeDefined();
+
+    await act(async () => answer());
+
+    expect(await screen.findByText('The dashboard')).toBeDefined();
+  });
+
+  it('GivenADeleteTheApiRefuses_WhenItIsConfirmed_ThenTheDialogSaysWhyAndThePageStays', async () => {
+    serveUpgrade(anUpgrade());
+    deleteUpgrade.mockRejectedValue(apiFailure(500, {
+      status: 500,
+      message: 'An unexpected error occurred',
+      traceId: 'trace-delete',
+    }));
+    renderPage();
+    const dialog = await openDelete();
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Delete' }));
+
+    expect(await dialog.findByText('An unexpected error occurred')).toBeDefined();
+    expect(dialog.getByText('trace-delete')).toBeDefined();
+    expect(screen.queryByText('The dashboard')).toBeNull();
   });
 });

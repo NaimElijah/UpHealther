@@ -69,7 +69,10 @@ export const rescheduleUpgrade = async (id: string, newDate: string): Promise<He
   return data;
 };
 
-/** Deletes an upgrade permanently. Its progress entries and reflections are not cascaded. */
+/**
+ * Deletes an upgrade permanently, and with it its tracking configuration, progress, reminders and
+ * reflections (FR-14). Notifications about it stay, no longer linked to it.
+ */
 export const deleteUpgrade = async (id: string): Promise<void> => {
   await client.delete(`/api/upgrades/${id}`);
 };

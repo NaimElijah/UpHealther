@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { performUpgradeAction, rescheduleUpgrade, updateUpgrade } from '../../api/upgrades';
+import { deleteUpgrade, performUpgradeAction, rescheduleUpgrade, updateUpgrade } from '../../api/upgrades';
 import { getHealthAreas } from '../../api/healthAreas';
 import { toApiError, toFormMessage } from '../../api/apiError';
 import { isFourDigitYearDate, todayLocal } from '../../lib/localDate';
@@ -51,9 +52,11 @@ interface Props {
  * What can be done to an upgrade as a whole from its own page (#89): edit its descriptive fields, in any
  * state (FR-13), abandon it from any state that is not final, and reschedule it from any state but
  * COMPLETED (FR-12). Rescheduling an abandoned upgrade is also the way back from abandoning it (BR-2).
+ * And delete it, in any state, with everything recorded against it (FR-14).
  *
- * Abandoning asks first. An abandoned upgrade leaves every list, so a slip would look as though the
- * upgrade had vanished.
+ * Abandoning and deleting ask first. An abandoned upgrade leaves every list, so a slip would look as
+ * though the upgrade had vanished; a deleted one cannot be brought back at all, and its page has nothing
+ * left to show, so the dashboard opens in its place.
  *
  * Separate from the page because each action brings a dialog and a mutation of its own, and the page
  * already holds four of each. A write here refreshes every view of upgrades (ADR-029), the page's own
@@ -61,6 +64,7 @@ interface Props {
  */
 const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { data: areas = [] } = useQuery({ queryKey: ['healthAreas'], queryFn: getHealthAreas });
 
   const [editOpen, setEditOpen] = useState(false);
@@ -112,6 +116,31 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
 
   const rescheduleRefusal = rescheduleMutation.error ? toFormMessage(toApiError(rescheduleMutation.error), 'newDate') : undefined;
 
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteUpgrade(upgrade.id),
+    onSuccess: () => {
+      // Dropped before the refresh, which would otherwise refetch the page's own read into a 404 while
+      // the page is still on screen.
+      qc.removeQueries({ queryKey: ['upgrade', upgrade.id], exact: true });
+      return refreshUpgradeViews(qc);
+    },
+  });
+
+  /** Asks before deleting, without a refusal left over from an earlier attempt. */
+  const openDelete = () => {
+    deleteMutation.reset();
+    setDeleteOpen(true);
+  };
+
+  /**
+   * Closes the confirmation, but not while the delete is in flight. Dismissed sooner, it could be opened
+   * again and the delete sent twice, and the second would be answered 404 as though the first had failed.
+   */
+  const closeDelete = () => {
+    if (!deleteMutation.isPending) setDeleteOpen(false);
+  };
+
   /** Starts an edit from what the upgrade holds now, with nothing left over from an earlier attempt. */
   const openEdit = () => {
     setEditForm(editableFields(upgrade));
@@ -143,6 +172,7 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
         {ABANDONABLE.includes(upgrade.status) && (
           <Button size="sm" variant="secondary" onClick={openAbandon}>Abandon</Button>
         )}
+        <Button size="sm" variant="danger" onClick={openDelete}>Delete</Button>
       </div>
 
       <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Edit Upgrade">
@@ -200,6 +230,28 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
             onClick={() => abandonMutation.mutate(undefined, { onSuccess: () => setAbandonOpen(false) })}
           >
             Abandon
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={deleteOpen} onClose={closeDelete} title="Delete Upgrade">
+        <p className="text-fg-subtle mb-4">
+          Delete <span className="font-medium text-fg break-words">{upgrade.title}</span>? Its tracking, progress,
+          reminders and reflections are deleted with it, and this cannot be undone. Notifications about it stay.
+        </p>
+        {deleteMutation.error && (
+          <div className="mb-4">
+            <ErrorState inline title="The upgrade was not deleted." error={toApiError(deleteMutation.error)} />
+          </div>
+        )}
+        <div className="flex gap-2 justify-end">
+          <Button variant="secondary" onClick={closeDelete} disabled={deleteMutation.isPending}>Cancel</Button>
+          <Button
+            variant="danger"
+            loading={deleteMutation.isPending}
+            onClick={() => deleteMutation.mutate(undefined, { onSuccess: () => navigate('/dashboard', { replace: true }) })}
+          >
+            Delete
           </Button>
         </div>
       </Modal>
