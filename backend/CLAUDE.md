@@ -58,6 +58,12 @@ All three are deliberate, not drift.
   A context's published events are part of its published language, so other contexts may consume them;
   that is why `..domain.event..` is a sanctioned cross-context surface in the ArchUnit rules.
 
+  A `@TransactionalEventListener(phase = AFTER_COMMIT)` that writes must also be
+  `@Transactional(propagation = REQUIRES_NEW)`. Without it, the write joins the transaction that has
+  just committed, and it is silently never stored (#169,
+  `../docs/ADRs/ADR-028-a-raised-notification-is-stored-in-its-own-transaction-after-the-write-commits.md`).
+  A new notification listener also goes into `NotificationCommitIT`'s parameters.
+
 - **Exception → HTTP status is centralized** in the global exception handler. Throw the
   right domain exception rather than building `ResponseEntity` status by hand:
   `ResourceNotFoundException` → 404, `BusinessRuleException` → 422, `DuplicateProgressException` /

@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import ActiveUpgradesPage from './ActiveUpgradesPage';
-import type { HealthUpgrade } from '../types';
+import type { ActionTarget, HealthUpgrade, UpgradeStatus } from '../types';
 
 const getUpgrades = vi.fn();
 const performUpgradeAction = vi.fn();
@@ -25,6 +25,15 @@ function anActiveUpgrade(id = 'upgrade-1', title = 'Evening walk'): HealthUpgrad
     version: 0,
     createdAt: '2026-03-01T09:00:00',
   };
+}
+
+function aPausedUpgrade(id = 'upgrade-9', title = 'Morning stretch'): HealthUpgrade {
+  return { ...anActiveUpgrade(id, title), status: 'PAUSED' };
+}
+
+/** Answers each status from `lists`, the way the API filters by one status at a time (FR-11). */
+function answerByStatus(lists: Partial<Record<UpgradeStatus, HealthUpgrade[]>>) {
+  getUpgrades.mockImplementation((status: UpgradeStatus) => Promise.resolve(lists[status] ?? []));
 }
 
 /** A refusal shaped the way axios delivers one, so `toApiError` decodes it as it would in production. */
@@ -66,7 +75,7 @@ describe('ActiveUpgradesPage', () => {
   beforeEach(() => {
     getUpgrades.mockReset();
     performUpgradeAction.mockReset();
-    getUpgrades.mockResolvedValue([anActiveUpgrade()]);
+    answerByStatus({ ACTIVE: [anActiveUpgrade()] });
   });
 
   it('GivenTheApiRefusesAPause_WhenItIsPressed_ThenTheCardSaysWhyWithTheReference', async () => {
@@ -85,7 +94,7 @@ describe('ActiveUpgradesPage', () => {
 
   it('GivenSeveralCards_WhenAPauseIsRefused_ThenTheRefusalIsShownWithThePressedCard', async () => {
     // Above the grid it can be scrolled out of view, which looks exactly like a click that did nothing.
-    getUpgrades.mockResolvedValue([anActiveUpgrade('upgrade-1', 'Evening walk'), anActiveUpgrade('upgrade-2', 'Cold showers')]);
+    answerByStatus({ ACTIVE: [anActiveUpgrade('upgrade-1', 'Evening walk'), anActiveUpgrade('upgrade-2', 'Cold showers')] });
     performUpgradeAction.mockRejectedValue(
       apiFailure(409, { status: 409, message: 'Resource was modified concurrently. Please retry.', traceId: 'trace-53' }),
     );
@@ -102,7 +111,7 @@ describe('ActiveUpgradesPage', () => {
   it('GivenAChangeInFlight_WhenAnotherCardIsPressed_ThenNothingMoreIsSent', async () => {
     // Overlapping changes would leave only the last one's answer on screen; a second press of the same
     // card would be refused and say so while the card showed the first one accepted.
-    getUpgrades.mockResolvedValue([anActiveUpgrade('upgrade-1', 'Evening walk'), anActiveUpgrade('upgrade-2', 'Cold showers')]);
+    answerByStatus({ ACTIVE: [anActiveUpgrade('upgrade-1', 'Evening walk'), anActiveUpgrade('upgrade-2', 'Cold showers')] });
     performUpgradeAction.mockReturnValue(new Promise(() => {}));
     renderPage();
     await screen.findByText('Cold showers');
@@ -127,5 +136,138 @@ describe('ActiveUpgradesPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
 
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+  });
+});
+
+/**
+ * FR-12 (#176) — a paused upgrade can be resumed.
+ *
+ * Pause was offered on every running card, and Resume was on a paused card that no page rendered, so a
+ * pause could only be undone by hand-crafting a request. The paused upgrades are listed below the
+ * running ones, one section down from where Pause was pressed.
+ */
+describe('ActiveUpgradesPage, paused upgrades', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    performUpgradeAction.mockReset();
+  });
+
+  it('GivenAPausedUpgrade_WhenTheActivePageRenders_ThenItIsListedWithResume', async () => {
+    answerByStatus({ ACTIVE: [anActiveUpgrade()], PAUSED: [aPausedUpgrade()] });
+    renderPage();
+
+    const paused = await screen.findByRole('region', { name: 'Paused' });
+
+    expect(within(paused).getByText('Morning stretch')).toBeDefined();
+    expect(within(paused).getByRole('button', { name: 'Resume' })).toBeDefined();
+    expect(within(paused).queryByText('Evening walk')).toBeNull();
+  });
+
+  it('GivenOnlyPausedUpgrades_WhenTheActivePageRenders_ThenTheyAreListedRatherThanNoActiveUpgrades', async () => {
+    answerByStatus({ PAUSED: [aPausedUpgrade()] });
+    renderPage();
+
+    const paused = await screen.findByRole('region', { name: 'Paused' });
+
+    expect(within(paused).getByText('Morning stretch')).toBeDefined();
+    expect(screen.queryByText('No active upgrades')).toBeNull();
+  });
+
+  it('GivenAPausedUpgrade_WhenResumeIsPressed_ThenItIsActivated', async () => {
+    answerByStatus({ PAUSED: [aPausedUpgrade('upgrade-9')] });
+    performUpgradeAction.mockResolvedValue({ ...aPausedUpgrade('upgrade-9'), status: 'ACTIVE' });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Resume' }));
+
+    await waitFor(() => expect(performUpgradeAction).toHaveBeenCalledWith('upgrade-9', 'ACTIVE'));
+  });
+
+  it('GivenAnActiveUpgrade_WhenItIsPaused_ThenItIsListedUnderPausedWithResume', async () => {
+    // The server is modelled rather than stubbed, so the test sees where the upgrade went: before #176
+    // a pause took it off every list this page shows.
+    let upgrade = anActiveUpgrade();
+    getUpgrades.mockImplementation((status: UpgradeStatus) => Promise.resolve(upgrade.status === status ? [upgrade] : []));
+    performUpgradeAction.mockImplementation((_id: string, status: ActionTarget) => {
+      upgrade = { ...upgrade, status };
+      return Promise.resolve(upgrade);
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Pause' }));
+
+    const paused = await screen.findByRole('region', { name: 'Paused' });
+    expect(within(paused).getByText('Evening walk')).toBeDefined();
+    expect(within(paused).getByRole('button', { name: 'Resume' })).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
+  });
+
+  it('GivenNoActiveOrPausedUpgrades_WhenTheActivePageRenders_ThenNoActiveUpgradesIsShown', async () => {
+    answerByStatus({});
+    renderPage();
+
+    expect(await screen.findByText('No active upgrades')).toBeDefined();
+    expect(screen.queryByRole('region', { name: 'Paused' })).toBeNull();
+  });
+
+  it('GivenThePausedReadIsStillLoading_WhenNothingIsRunning_ThenNoActiveUpgradesIsNotClaimedYet', async () => {
+    // Claiming there is nothing here, then listing a paused upgrade a moment later, is the flash the
+    // page waits for both reads to avoid.
+    getUpgrades.mockImplementation((status: UpgradeStatus) =>
+      status === 'PAUSED' ? new Promise(() => {}) : Promise.resolve([]),
+    );
+    renderPage();
+    await waitFor(() => expect(getUpgrades).toHaveBeenCalledWith('PAUSED'));
+
+    await settled();
+    expect(screen.queryByText('No active upgrades')).toBeNull();
+  });
+
+  it('GivenAPausedUpgrade_WhenItIsResumed_ThenItLeavesThePausedSectionAndRunsAgain', async () => {
+    let upgrade = aPausedUpgrade();
+    getUpgrades.mockImplementation((status: UpgradeStatus) => Promise.resolve(upgrade.status === status ? [upgrade] : []));
+    performUpgradeAction.mockImplementation((_id: string, status: ActionTarget) => {
+      upgrade = { ...upgrade, status };
+      return Promise.resolve(upgrade);
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Resume' }));
+
+    expect(await screen.findByRole('button', { name: 'Pause' })).toBeDefined();
+    expect(screen.queryByRole('region', { name: 'Paused' })).toBeNull();
+  });
+
+  it('GivenTheApiRefusesAResume_WhenItIsPressed_ThenThePausedCardSaysWhyWithTheReference', async () => {
+    // BR-5 can refuse a resume, for example a fourth running HARD upgrade.
+    answerByStatus({ ACTIVE: [anActiveUpgrade()], PAUSED: [aPausedUpgrade()] });
+    performUpgradeAction.mockRejectedValue(
+      apiFailure(422, { status: 422, message: 'Cannot run more than 3 HARD upgrades simultaneously', traceId: 'trace-62' }),
+    );
+    renderPage();
+    const paused = await screen.findByRole('region', { name: 'Paused' });
+
+    fireEvent.click(within(paused).getByRole('button', { name: 'Resume' }));
+
+    const alert = await within(paused).findByRole('alert');
+    expect(alert.textContent).toContain('Cannot run more than 3 HARD upgrades simultaneously');
+    expect(alert.textContent).toContain('trace-62');
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
+  it('GivenThePausedReadFails_WhenTheActivePageRenders_ThenTheRunningOnesStillShowWithTheReference', async () => {
+    getUpgrades.mockImplementation((status: UpgradeStatus) =>
+      status === 'PAUSED'
+        ? Promise.reject(apiFailure(500, { status: 500, message: 'An unexpected error occurred', traceId: 'trace-61' }))
+        : Promise.resolve([anActiveUpgrade()]),
+    );
+    renderPage();
+
+    const paused = await screen.findByRole('region', { name: 'Paused' });
+
+    expect(screen.getByText('Evening walk')).toBeDefined();
+    const alert = within(paused).getByRole('alert');
+    expect(alert.textContent).toContain('Could not load your paused upgrades.');
+    expect(alert.textContent).toContain('trace-61');
   });
 });
