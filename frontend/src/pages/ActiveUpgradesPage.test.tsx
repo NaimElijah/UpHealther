@@ -202,6 +202,42 @@ describe('ActiveUpgradesPage, paused upgrades', () => {
     expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
   });
 
+  it('GivenNoActiveOrPausedUpgrades_WhenTheActivePageRenders_ThenNoActiveUpgradesIsShown', async () => {
+    answerByStatus({});
+    renderPage();
+
+    expect(await screen.findByText('No active upgrades')).toBeDefined();
+    expect(screen.queryByRole('region', { name: 'Paused' })).toBeNull();
+  });
+
+  it('GivenThePausedReadIsStillLoading_WhenNothingIsRunning_ThenNoActiveUpgradesIsNotClaimedYet', async () => {
+    // Claiming there is nothing here, then listing a paused upgrade a moment later, is the flash the
+    // page waits for both reads to avoid.
+    getUpgrades.mockImplementation((status: UpgradeStatus) =>
+      status === 'PAUSED' ? new Promise(() => {}) : Promise.resolve([]),
+    );
+    renderPage();
+    await waitFor(() => expect(getUpgrades).toHaveBeenCalledWith('PAUSED'));
+
+    await settled();
+    expect(screen.queryByText('No active upgrades')).toBeNull();
+  });
+
+  it('GivenAPausedUpgrade_WhenItIsResumed_ThenItLeavesThePausedSectionAndRunsAgain', async () => {
+    let upgrade = aPausedUpgrade();
+    getUpgrades.mockImplementation((status: UpgradeStatus) => Promise.resolve(upgrade.status === status ? [upgrade] : []));
+    performUpgradeAction.mockImplementation((_id: string, status: ActionTarget) => {
+      upgrade = { ...upgrade, status };
+      return Promise.resolve(upgrade);
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Resume' }));
+
+    expect(await screen.findByRole('button', { name: 'Pause' })).toBeDefined();
+    expect(screen.queryByRole('region', { name: 'Paused' })).toBeNull();
+  });
+
   it('GivenThePausedReadFails_WhenTheActivePageRenders_ThenTheRunningOnesStillShowWithTheReference', async () => {
     getUpgrades.mockImplementation((status: UpgradeStatus) =>
       status === 'PAUSED'
