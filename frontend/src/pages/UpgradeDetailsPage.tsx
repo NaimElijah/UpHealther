@@ -14,6 +14,7 @@ import Select from '../components/ui/Select';
 import Modal from '../components/ui/Modal';
 import UpgradeStatusBadge from '../components/upgrade/UpgradeStatusBadge';
 import UpgradeTypeBadge from '../components/upgrade/UpgradeTypeBadge';
+import UpgradeActions from '../components/upgrade/UpgradeActions';
 import Badge from '../components/ui/Badge';
 import { difficultyBadgeVariant } from '../components/upgrade/upgradeMeta';
 import type { CreateProgressRequest, CreateReflectionRequest, TrackingConfig, TrackingType, Frequency } from '../types';
@@ -214,6 +215,7 @@ const UpgradeDetails: React.FC = () => {
           {upgrade.actualStartDate && <div><span className="font-medium">Actual Start:</span> {parseLocalDate(upgrade.actualStartDate).toLocaleDateString()}</div>}
           {upgrade.targetEndDate && <div><span className="font-medium">Target End:</span> {parseLocalDate(upgrade.targetEndDate).toLocaleDateString()}</div>}
         </div>
+        <UpgradeActions upgrade={upgrade} />
       </Card>
 
       {streak.current > 0 && (

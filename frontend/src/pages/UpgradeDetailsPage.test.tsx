@@ -4,9 +4,10 @@ import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequest
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useNavigate, type NavigateFunction } from 'react-router-dom';
 import UpgradeDetailsPage from './UpgradeDetailsPage';
-import type { HealthUpgrade, ProgressEntry, Reflection } from '../types';
+import type { CreateUpgradeRequest, HealthArea, HealthUpgrade, ProgressEntry, Reflection } from '../types';
 
 const getUpgradeById = vi.fn();
+const updateUpgrade = vi.fn();
 const getProgressByUpgrade = vi.fn();
 const createProgress = vi.fn();
 const getReflectionsByUpgrade = vi.fn();
@@ -16,7 +17,11 @@ const createReminder = vi.fn();
 const deleteReminder = vi.fn();
 const saveTrackingConfig = vi.fn();
 
-vi.mock('../api/upgrades', () => ({ getUpgradeById: (...a: unknown[]) => getUpgradeById(...a) }));
+vi.mock('../api/upgrades', () => ({
+  getUpgradeById: (...a: unknown[]) => getUpgradeById(...a),
+  updateUpgrade: (...a: unknown[]) => updateUpgrade(...a),
+}));
+vi.mock('../api/healthAreas', () => ({ getHealthAreas: () => Promise.resolve([AN_AREA]) }));
 vi.mock('../api/progress', () => ({
   getProgressByUpgrade: (...a: unknown[]) => getProgressByUpgrade(...a),
   createProgress: (...a: unknown[]) => createProgress(...a),
@@ -35,6 +40,7 @@ vi.mock('../api/trackingConfig', () => ({ saveTrackingConfig: (...a: unknown[]) 
 
 const UPGRADE_ID = 'upgrade-1';
 const OTHER_UPGRADE_ID = 'upgrade-2';
+const AN_AREA: HealthArea = { id: 'area-1', userId: 'user-1', name: 'Recovery', createdAt: '2026-03-01T09:00:00' };
 
 function anUpgrade(id = UPGRADE_ID, title = 'Cold showers'): HealthUpgrade {
   return {
@@ -766,5 +772,164 @@ describe('UpgradeDetailsPage', () => {
     renderPage();
 
     expect(await screen.findByText('0 km')).toBeDefined();
+  });
+});
+
+/**
+ * Lets every promise already started run on: a mutation calls its function a microtask after `mutate`,
+ * so a check that nothing was sent is only meaningful once that has had its chance.
+ */
+const settled = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+
+/**
+ * Answers the upgrade from `initial` until a write changes it, the way the API would, so the page shows
+ * whatever the last write left.
+ */
+function serveUpgrade(initial: HealthUpgrade) {
+  let current = initial;
+  getUpgradeById.mockImplementation(() => Promise.resolve(current));
+  updateUpgrade.mockImplementation((_id: string, req: CreateUpgradeRequest) => {
+    current = { ...current, ...req };
+    return Promise.resolve(current);
+  });
+}
+
+/** Opens the edit dialog once the page has loaded, and returns queries scoped to it. */
+async function openEdit() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit Upgrade' }));
+  return within(screen.getByRole('dialog', { name: 'Edit Upgrade' }));
+}
+
+/**
+ * FR-13, FR-10 (#89) — an upgrade's descriptive fields can be edited from its page, at any point in its
+ * lifecycle.
+ *
+ * The API replaces every field on a PUT, so the form starts from what the upgrade holds and sends all of
+ * it: a field left out would be stored as empty.
+ */
+describe('UpgradeDetailsPage editing an upgrade', () => {
+  const described: HealthUpgrade = {
+    ...anUpgrade(),
+    areaId: AN_AREA.id,
+    description: 'Two minutes, every morning',
+    motivation: 'Wake up properly',
+    successCriteria: 'Every day for a month',
+    targetEndDate: '2026-06-30',
+  };
+
+  beforeEach(() => {
+    getUpgradeById.mockReset();
+    updateUpgrade.mockReset();
+    getProgressByUpgrade.mockResolvedValue([]);
+    getReflectionsByUpgrade.mockResolvedValue([]);
+    getReminders.mockResolvedValue([]);
+  });
+
+  it('GivenAnUpgrade_WhenItIsEdited_ThenEveryFieldIsSentAndThePageShowsTheChange', async () => {
+    serveUpgrade(described);
+    renderPage();
+    const dialog = await openEdit();
+    await dialog.findByRole('option', { name: AN_AREA.name });
+
+    fireEvent.change(dialog.getByLabelText('Title'), { target: { value: 'Cold plunges' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit Upgrade' })).toBeNull());
+    expect(updateUpgrade).toHaveBeenCalledTimes(1);
+    expect(updateUpgrade.mock.calls[0][0]).toBe(UPGRADE_ID);
+    expect(updateUpgrade.mock.calls[0][1]).toEqual({
+      title: 'Cold plunges',
+      description: 'Two minutes, every morning',
+      type: 'HABIT',
+      difficulty: 'MEDIUM',
+      areaId: AN_AREA.id,
+      motivation: 'Wake up properly',
+      successCriteria: 'Every day for a month',
+      targetEndDate: '2026-06-30',
+    });
+    expect(await screen.findByRole('heading', { name: 'Cold plunges' })).toBeDefined();
+  });
+
+  it('GivenACompletedUpgrade_WhenItsPageOpens_ThenItCanStillBeEdited', async () => {
+    serveUpgrade({ ...described, status: 'COMPLETED' });
+    renderPage();
+
+    const dialog = await openEdit();
+
+    expect((dialog.getByLabelText('Title') as HTMLInputElement).value).toBe('Cold showers');
+  });
+
+  it('GivenALegacyProtocolUpgrade_WhenItIsEdited_ThenItsTypeIsShownAndKept', async () => {
+    // PROTOCOL is no longer offered for new upgrades. Missing from the list, the select would show the
+    // first type instead, and the user would read the upgrade as a habit.
+    serveUpgrade({ ...described, type: 'PROTOCOL' });
+    renderPage();
+    const dialog = await openEdit();
+
+    expect((dialog.getByLabelText('Type') as HTMLSelectElement).value).toBe('PROTOCOL');
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(updateUpgrade).toHaveBeenCalledTimes(1));
+    expect(updateUpgrade.mock.calls[0][1].type).toBe('PROTOCOL');
+  });
+
+  it('GivenTheTitleIsCleared_WhenTheEditIsSaved_ThenNothingIsSentAndTheTitleIsAskedFor', async () => {
+    serveUpgrade(described);
+    renderPage();
+    const dialog = await openEdit();
+
+    fireEvent.change(dialog.getByLabelText('Title'), { target: { value: '  ' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+
+    expect(await dialog.findByText('Title is required.')).toBeDefined();
+    await settled();
+    expect(updateUpgrade).not.toHaveBeenCalled();
+  });
+
+  it('GivenATargetEndWithAFiveDigitYear_WhenTheEditIsSaved_ThenNothingIsSentAndTheFieldAsksForFourDigits', async () => {
+    serveUpgrade(described);
+    renderPage();
+    const dialog = await openEdit();
+
+    fireEvent.change(dialog.getByLabelText('Target End'), { target: { value: '20260-06-30' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+
+    expect(await dialog.findByText('Pick a date with a four-digit year.')).toBeDefined();
+    await settled();
+    expect(updateUpgrade).not.toHaveBeenCalled();
+  });
+
+  it('GivenAnEditTheApiRefuses_WhenItIsSaved_ThenTheDialogSaysWhyWithItsReference', async () => {
+    // BR-5: making a running upgrade HARD can exceed the limit, a refusal that names no field.
+    serveUpgrade(described);
+    updateUpgrade.mockRejectedValue(apiFailure(422, {
+      status: 422,
+      message: 'Cannot have more than 3 HARD upgrades active at once',
+      traceId: 'trace-422',
+    }));
+    renderPage();
+    const dialog = await openEdit();
+
+    fireEvent.change(dialog.getByLabelText('Difficulty'), { target: { value: 'HARD' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+
+    expect(await dialog.findByText('Cannot have more than 3 HARD upgrades active at once (reference trace-422)')).toBeDefined();
+    expect(screen.getByRole('dialog', { name: 'Edit Upgrade' })).toBeDefined();
+  });
+
+  it('GivenARefusedEdit_WhenTheDialogIsOpenedAgain_ThenItStartsFromTheUpgradeWithoutTheOldMessage', async () => {
+    serveUpgrade(described);
+    updateUpgrade.mockRejectedValueOnce(apiFailure(422, { status: 422, message: 'Refused', traceId: 'trace-1' }));
+    renderPage();
+    const first = await openEdit();
+    fireEvent.change(first.getByLabelText('Title'), { target: { value: 'Something else' } });
+    fireEvent.submit(first.getByRole('button', { name: 'Save' }));
+    await first.findByText('Refused (reference trace-1)');
+    fireEvent.click(first.getByRole('button', { name: 'Cancel' }));
+
+    const second = await openEdit();
+
+    expect(second.queryByText('Refused (reference trace-1)')).toBeNull();
+    expect((second.getByLabelText('Title') as HTMLInputElement).value).toBe('Cold showers');
   });
 });

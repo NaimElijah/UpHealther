@@ -51,13 +51,18 @@ interface Props {
  */
 const UpgradeFormFields: React.FC<Props> = ({ value, onChange, areas, titleError, targetEndError }) => {
   const set = (fields: Partial<CreateUpgradeRequest>) => onChange({ ...value, ...fields });
+  // An upgrade of a type no longer offered keeps it as a choice. Missing from the list, the select would
+  // show the first type instead, and read as a different kind of upgrade from the one being edited.
+  const types = typeOptions.some((o) => o.value === value.type)
+    ? typeOptions
+    : [...typeOptions, { value: value.type, label: `${value.type.charAt(0)}${value.type.slice(1).toLowerCase()} (no longer offered)` }];
   const areaOptions = [{ value: '', label: 'No area' }, ...areas.map((a) => ({ value: a.id, label: a.name }))];
 
   return (
     <>
       <Input label="Title" value={value.title} onChange={(e) => set({ title: e.target.value })} placeholder="e.g. Drink 2L water daily" error={titleError} />
       <Input label="Description" value={value.description ?? ''} onChange={(e) => set({ description: e.target.value })} placeholder="Optional details" />
-      <Select label="Type" value={value.type} options={typeOptions} onChange={(e) => set({ type: e.target.value as UpgradeType })} />
+      <Select label="Type" value={value.type} options={types} onChange={(e) => set({ type: e.target.value as UpgradeType })} />
       <Select label="Difficulty" value={value.difficulty} options={difficultyOptions} onChange={(e) => set({ difficulty: e.target.value as Difficulty })} />
       <Select label="Health Area" value={value.areaId ?? ''} options={areaOptions} onChange={(e) => set({ areaId: e.target.value || undefined })} />
       <Input label="Motivation" value={value.motivation ?? ''} onChange={(e) => set({ motivation: e.target.value })} placeholder="Why do you want this?" />

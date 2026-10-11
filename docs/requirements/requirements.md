@@ -13,7 +13,7 @@ that gap would take.
 API (§5.4), so "a user can" means through the interface. Where the implementation falls short of an
 entry — in the interface or anywhere else — the entry is not weakened to match. Its *Enforced by* cell
 says **Known deviation** and links the issue that tracks the gap; the tests named there enforce the
-part that holds. Fifteen entries carry one today, and the change that closes an issue takes its
+part that holds. Fourteen entries carry one today, and the change that closes an issue takes its
 marker out.
 
 **IDs are permanent.** Tests, code comments, migrations and ADRs cite them, so an ID is never
@@ -82,7 +82,7 @@ no way at all — to read another person's health records
 | FR-10 | An upgrade carries a title and type, and optionally an area, description, difficulty, planned start, target end, motivation and success criteria | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeBacklogPage.test.tsx` (a new idea's success criteria and target end) — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), the planned start is set only by planning an idea, and cannot be moved afterwards |
 | FR-11 | A user can list their upgrades, narrowed by one of status, type, area or difficulty | `UpgradeServiceTest`, `UpgradeControllerTest` — **Known deviation:** [#90](https://github.com/NaimElijah/UpHealther/issues/90), the interface filters by status only |
 | FR-12 | A user can move an upgrade through its lifecycle: plan, activate, pause, complete, abandon, reschedule | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeControllerTest`, `UpgradeBacklogPage.test.tsx`, `ActiveUpgradesPage.test.tsx` (a paused upgrade is listed and can be resumed), `upgradeViews.test.tsx` (a change made on one page reaches every page that shows the upgrade), `upgrades.test.ts` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), abandon and reschedule have no control |
-| FR-13 | A user can edit an upgrade's descriptive fields at any point in its lifecycle | `HealthUpgradeTest`, `UpgradeServiceTest` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), the interface has no edit |
+| FR-13 | A user can edit an upgrade's descriptive fields at any point in its lifecycle | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeDetailsPage.test.tsx` (an upgrade's page edits it, completed or not, and sends every field) |
 | FR-14 | A user can delete an upgrade, and with it everything recorded against it: its tracking configuration, progress, reminders and reflections. Its notifications stay, detached from it | `UpgradeServiceTest`, `UpgradeControllerTest`, `UpgradePersistenceIT` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), the interface has no delete |
 | FR-15 | An upgrade's response carries its tracking configuration, so a list view needs no second call | `UpgradeDtoSerializationTest`, `UpgradeControllerTest` |
 
