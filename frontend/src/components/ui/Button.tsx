@@ -29,8 +29,13 @@ const sizeClasses: Record<string, string> = {
   lg: 'px-6 py-3 text-base',
 };
 
-/** The app's button. Disabled while `loading`, which is what prevents duplicate submissions. */
-const Button: React.FC<ButtonProps> = ({
+/**
+ * The app's button. Disabled while `loading`, which is what prevents duplicate submissions.
+ *
+ * Forwards its ref to the `<button>`, so a caller can move focus to it when the control that had focus
+ * is gone.
+ */
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(({
   variant = 'primary',
   size = 'md',
   loading = false,
@@ -38,8 +43,9 @@ const Button: React.FC<ButtonProps> = ({
   disabled,
   className = '',
   ...rest
-}) => (
+}, ref) => (
   <button
+    ref={ref}
     disabled={disabled || loading}
     className={`inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
     {...rest}
@@ -47,6 +53,7 @@ const Button: React.FC<ButtonProps> = ({
     {loading && <LoadingSpinner size="sm" />}
     {children}
   </button>
-);
+));
+Button.displayName = 'Button';
 
 export default Button;

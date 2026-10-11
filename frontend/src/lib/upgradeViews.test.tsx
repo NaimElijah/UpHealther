@@ -17,6 +17,9 @@ const getUpgradeById = vi.fn();
 const createUpgrade = vi.fn();
 const performUpgradeAction = vi.fn();
 const planUpgrade = vi.fn();
+const updateUpgrade = vi.fn();
+const rescheduleUpgrade = vi.fn();
+const deleteUpgrade = vi.fn();
 const getDashboard = vi.fn();
 const saveTrackingConfig = vi.fn();
 
@@ -26,6 +29,9 @@ vi.mock('../api/upgrades', () => ({
   createUpgrade: (...a: unknown[]) => createUpgrade(...a),
   performUpgradeAction: (...a: unknown[]) => performUpgradeAction(...a),
   planUpgrade: (...a: unknown[]) => planUpgrade(...a),
+  updateUpgrade: (...a: unknown[]) => updateUpgrade(...a),
+  rescheduleUpgrade: (...a: unknown[]) => rescheduleUpgrade(...a),
+  deleteUpgrade: (...a: unknown[]) => deleteUpgrade(...a),
 }));
 vi.mock('../api/healthAreas', () => ({ getHealthAreas: () => Promise.resolve([AREA]) }));
 vi.mock('../api/dashboard', () => ({ getDashboard: (...a: unknown[]) => getDashboard(...a) }));
@@ -104,6 +110,16 @@ function serve(...initial: HealthUpgrade[]) {
   performUpgradeAction.mockImplementation((id: string, status: ActionTarget) => Promise.resolve(change(id, { status })));
   planUpgrade.mockImplementation((id: string, plannedStartDate: string) =>
     Promise.resolve(change(id, { status: 'PLANNED', plannedStartDate })));
+  updateUpgrade.mockImplementation((id: string, req: CreateUpgradeRequest) => Promise.resolve(change(id, req)));
+  // BR-2: rescheduling moves the date, and only from ABANDONED changes the status too.
+  rescheduleUpgrade.mockImplementation((id: string, newDate: string) => {
+    const status = upgrades.find((u) => u.id === id)?.status === 'ABANDONED' ? 'PLANNED' : undefined;
+    return Promise.resolve(change(id, { plannedStartDate: newDate, ...(status && { status }) }));
+  });
+  deleteUpgrade.mockImplementation((id: string) => {
+    upgrades = upgrades.filter((u) => u.id !== id);
+    return Promise.resolve();
+  });
   saveTrackingConfig.mockImplementation((upgradeId: string, req: SaveTrackingConfigRequest) => {
     const trackingConfig = { id: 'config-1', upgradeId, ...req, frequency: req.frequency ?? 'DAILY' } as const;
     change(upgradeId, { trackingConfig });
@@ -130,6 +146,7 @@ function renderApp(path: string) {
         <NavigateHandle />
         <Routes>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/upgrades/active" element={<ActiveUpgradesPage />} />
           <Route path="/upgrades/planned" element={<PlannedUpgradesPage />} />
           <Route path="/upgrades/backlog" element={<UpgradeBacklogPage />} />
@@ -167,6 +184,9 @@ describe('a change to an upgrade', () => {
     createUpgrade.mockReset();
     performUpgradeAction.mockReset();
     planUpgrade.mockReset();
+    updateUpgrade.mockReset();
+    rescheduleUpgrade.mockReset();
+    deleteUpgrade.mockReset();
     saveTrackingConfig.mockReset();
     getDashboard.mockReset();
   });
@@ -271,5 +291,70 @@ describe('a change to an upgrade', () => {
     goTo('/');
 
     await waitFor(async () => expect(await areaRow()).toContain('1 total'));
+  });
+
+  // #89's writes, made on an upgrade's own page, reach the lists the user goes back to.
+
+  it('GivenAnUpgradeAbandonedOnItsPage_WhenTheActivePageOpensAgain_ThenItIsNoLongerListed', async () => {
+    serve(anUpgrade('ACTIVE'));
+    renderApp('/upgrades/active');
+    await screen.findByRole('button', { name: 'Pause' });
+
+    goTo(`/upgrades/${UPGRADE_ID}`);
+    fireEvent.click(await screen.findByRole('button', { name: 'Abandon' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Abandon Upgrade' })).getByRole('button', { name: 'Abandon' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Abandon Upgrade' })).toBeNull());
+
+    goTo('/upgrades/active');
+
+    expect(await screen.findByText('No active upgrades')).toBeDefined();
+    expect(screen.queryByText(TITLE)).toBeNull();
+  });
+
+  it('GivenAnAbandonedUpgradeRescheduledOnItsPage_WhenThePlannedPageOpensAgain_ThenItIsListed', async () => {
+    serve(anUpgrade('ABANDONED'));
+    renderApp('/upgrades/planned');
+    await screen.findByText('No planned upgrades');
+
+    goTo(`/upgrades/${UPGRADE_ID}`);
+    fireEvent.click(await screen.findByRole('button', { name: 'Reschedule' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'Reschedule Upgrade' }));
+    fireEvent.change(dialog.getByLabelText('New start date'), { target: { value: '2026-11-01' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Reschedule' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Reschedule Upgrade' })).toBeNull());
+
+    goTo('/upgrades/planned');
+
+    expect(await screen.findByText(TITLE)).toBeDefined();
+  });
+
+  it('GivenAnUpgradeEditedOnItsPage_WhenTheActivePageOpensAgain_ThenItShowsTheNewTitle', async () => {
+    serve(anUpgrade('ACTIVE'));
+    renderApp('/upgrades/active');
+    await screen.findByText(TITLE);
+
+    goTo(`/upgrades/${UPGRADE_ID}`);
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Upgrade' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'Edit Upgrade' }));
+    fireEvent.change(dialog.getByLabelText('Title'), { target: { value: 'Morning walk' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit Upgrade' })).toBeNull());
+
+    goTo('/upgrades/active');
+
+    expect(await screen.findByText('Morning walk')).toBeDefined();
+    expect(screen.queryByText(TITLE)).toBeNull();
+  });
+
+  it('GivenAnUpgradeDeletedOnItsPage_WhenTheDashboardOpens_ThenItsAreaNoLongerCountsIt', async () => {
+    serve({ ...anUpgrade('ACTIVE'), areaId: AREA.id });
+    renderApp('/');
+    expect(await areaRow()).toContain('1 total');
+
+    goTo(`/upgrades/${UPGRADE_ID}`);
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Delete Upgrade' })).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(async () => expect(await areaRow()).toContain('0 total'));
   });
 });

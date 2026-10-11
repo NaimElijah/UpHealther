@@ -6,47 +6,16 @@ import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
-import Select from '../components/ui/Select';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import UpgradeCard from '../components/upgrade/UpgradeCard';
-import type { CreateUpgradeRequest, HealthUpgrade, UpgradeType, Difficulty } from '../types';
+import UpgradeFormFields from '../components/upgrade/UpgradeFormFields';
+import type { CreateUpgradeRequest, HealthUpgrade } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError, toFormMessage } from '../api/apiError';
-import { todayLocal } from '../lib/localDate';
+import { isFourDigitYearDate, todayLocal } from '../lib/localDate';
 import { refreshUpgradeViews } from '../lib/upgradeViews';
-
-/**
- * The upgrade types offered when creating one: the eight kinds the product defines.
- *
- * Deliberately not every value of `UpgradeType` — the legacy `PROTOCOL` still renders on rows that
- * carry it, but is not something to create more of.
- */
-const typeOptions: { value: UpgradeType; label: string }[] = [
-  { value: 'HABIT', label: 'Habit' },
-  { value: 'ONE_TIME_ACTION', label: 'One-Time Action' },
-  { value: 'PRODUCT_REPLACEMENT', label: 'Product Replacement' },
-  { value: 'ROUTINE', label: 'Routine' },
-  { value: 'GOAL', label: 'Goal' },
-  { value: 'EXPERIMENT', label: 'Experiment' },
-  { value: 'LEARNING_TASK', label: 'Learning Task' },
-  { value: 'MEDICAL_PREVENTIVE', label: 'Medical / Preventive' },
-];
-
-/** Difficulty choices. HARD is capped at three concurrently active, and the API enforces that. */
-const difficultyOptions: { value: Difficulty; label: string }[] = [
-  { value: 'EASY', label: 'Easy' },
-  { value: 'MEDIUM', label: 'Medium' },
-  { value: 'HARD', label: 'Hard' },
-];
-
-/**
- * A start date the API can read. A date field accepts years past 9999 and gives them unsigned, while
- * the API's `LocalDate` reads such a year only with a sign (`+20260-01-01`), so it would refuse the body
- * with no field to name.
- */
-const FOUR_DIGIT_YEAR_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * The idea backlog: every upgrade still in `IDEA`, and the form that creates new ones.
@@ -60,6 +29,7 @@ const UpgradeBacklogPage: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState<CreateUpgradeRequest>({ title: '', type: 'HABIT', difficulty: 'MEDIUM' });
   const [formError, setFormError] = useState('');
+  const [targetEndError, setTargetEndError] = useState('');
   const [planning, setPlanning] = useState<HealthUpgrade | null>(null);
   const [planDate, setPlanDate] = useState('');
   const [planError, setPlanError] = useState('');
@@ -82,7 +52,9 @@ const UpgradeBacklogPage: React.FC = () => {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
+    setTargetEndError('');
     if (!form.title.trim()) { setFormError('Title is required.'); return; }
+    if (form.targetEndDate && !isFourDigitYearDate(form.targetEndDate)) { setTargetEndError('Pick a date with a four-digit year.'); return; }
     try {
       await createMutation.mutateAsync(form);
     } catch (thrown) {
@@ -113,15 +85,13 @@ const UpgradeBacklogPage: React.FC = () => {
     if (!planning) return;
     setPlanError('');
     if (!planDate) { setPlanError('Pick a start date.'); return; }
-    if (!FOUR_DIGIT_YEAR_DATE.test(planDate)) { setPlanError('Pick a date with a four-digit year.'); return; }
+    if (!isFourDigitYearDate(planDate)) { setPlanError('Pick a date with a four-digit year.'); return; }
     try {
       await planMutation.mutateAsync({ id: planning.id, date: planDate });
     } catch (thrown) {
       setPlanError(toFormMessage(toApiError(thrown), 'plannedStartDate'));
     }
   };
-
-  const areaOptions = [{ value: '', label: 'No area' }, ...areas.map((a) => ({ value: a.id, label: a.name }))];
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
   if (error) return <ErrorState title="Could not load your backlog." error={toApiError(error)} />;
@@ -145,12 +115,7 @@ const UpgradeBacklogPage: React.FC = () => {
 
       <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="New Upgrade Idea">
         <form onSubmit={handleCreate} className="space-y-4">
-          <Input label="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Drink 2L water daily" error={formError} />
-          <Input label="Description" value={form.description ?? ''} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Optional details" />
-          <Select label="Type" value={form.type} options={typeOptions} onChange={(e) => setForm({ ...form, type: e.target.value as UpgradeType })} />
-          <Select label="Difficulty" value={form.difficulty} options={difficultyOptions} onChange={(e) => setForm({ ...form, difficulty: e.target.value as Difficulty })} />
-          <Select label="Health Area" value={form.areaId ?? ''} options={areaOptions} onChange={(e) => setForm({ ...form, areaId: e.target.value || undefined })} />
-          <Input label="Motivation" value={form.motivation ?? ''} onChange={(e) => setForm({ ...form, motivation: e.target.value })} placeholder="Why do you want this?" />
+          <UpgradeFormFields value={form} onChange={setForm} areas={areas} titleError={formError} targetEndError={targetEndError} />
           <div className="flex gap-2 justify-end">
             <Button variant="secondary" type="button" onClick={() => setIsOpen(false)}>Cancel</Button>
             <Button type="submit" loading={createMutation.isPending}>Add Idea</Button>

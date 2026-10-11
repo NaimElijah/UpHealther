@@ -5,7 +5,7 @@ import { getUpgradeById } from '../api/upgrades';
 import { getProgressByUpgrade, createProgress, getStreak } from '../api/progress';
 import { getReflectionsByUpgrade, createReflection } from '../api/reflections';
 import { saveTrackingConfig, type SaveTrackingConfigRequest } from '../api/trackingConfig';
-import { getReminders, createReminder, deleteReminder } from '../api/reminders';
+import { getReminders, createReminder, deleteReminder, updateReminder } from '../api/reminders';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -14,9 +14,10 @@ import Select from '../components/ui/Select';
 import Modal from '../components/ui/Modal';
 import UpgradeStatusBadge from '../components/upgrade/UpgradeStatusBadge';
 import UpgradeTypeBadge from '../components/upgrade/UpgradeTypeBadge';
+import UpgradeActions from '../components/upgrade/UpgradeActions';
 import Badge from '../components/ui/Badge';
 import { difficultyBadgeVariant } from '../components/upgrade/upgradeMeta';
-import type { CreateProgressRequest, CreateReflectionRequest, TrackingConfig, TrackingType, Frequency } from '../types';
+import type { CreateProgressRequest, CreateReflectionRequest, CreateReminderRequest, Reminder, TrackingConfig, TrackingType, Frequency } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError, toFormMessage } from '../api/apiError';
@@ -55,6 +56,18 @@ const newReflectionForm = (): Omit<CreateReflectionRequest, 'upgradeId'> => ({
  * reminder fires every day.
  */
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+
+/** Where the reminder form's time starts, and returns to once a reminder is added or rescheduled. */
+const DEFAULT_REMINDER_TIME = '09:00';
+
+/** A reminder's time as the form and its controls show it: `HH:mm`, whether or not the API sent seconds. */
+const reminderClock = (reminder: Reminder): string => reminder.reminderTime.slice(0, 5);
+
+/** One reminder's id and the whole schedule to store for it: an update replaces the time and the days. */
+interface ReminderChange {
+  reminderId: string;
+  req: CreateReminderRequest;
+}
 
 /**
  * Parses a decimal field, treating unparseable input as absent.
@@ -111,8 +124,10 @@ const UpgradeDetails: React.FC = () => {
   const [progressForm, setProgressForm] = useState(newProgressForm);
   const [reflectionForm, setReflectionForm] = useState(newReflectionForm);
 
-  const [reminderTime, setReminderTime] = useState('09:00');
+  const [reminderTime, setReminderTime] = useState(DEFAULT_REMINDER_TIME);
   const [reminderDays, setReminderDays] = useState<string[]>([]);
+  // The reminder the form below is rescheduling, or none while it adds a new one.
+  const [editingReminderId, setEditingReminderId] = useState<string | null>(null);
   const toggleDay = (d: string) =>
     setReminderDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
 
@@ -124,12 +139,65 @@ const UpgradeDetails: React.FC = () => {
 
   const createReminderMut = useMutation({
     mutationFn: () => createReminder(id!, { reminderTime, daysOfWeek: reminderDays, enabled: true }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['reminders', id] }); setReminderDays([]); },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['reminders', id] }),
   });
   const deleteReminderMut = useMutation({
     mutationFn: (reminderId: string) => deleteReminder(reminderId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['reminders', id] }),
   });
+  // Two mutations over one endpoint, because their refusals belong in different places: a reschedule's
+  // beside the form that sent it, a switch's beside the list it was pressed in (FR-26, NFR-30).
+  const rescheduleReminderMut = useMutation({
+    mutationFn: ({ reminderId, req }: ReminderChange) => updateReminder(reminderId, req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['reminders', id] }),
+  });
+  const switchReminderMut = useMutation({
+    mutationFn: ({ reminderId, req }: ReminderChange) => updateReminder(reminderId, req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['reminders', id] }),
+  });
+
+  // One write to the reminders at a time. A switch resends the schedule its row shows, and the form
+  // edits from a row, so either one acting while another write is in flight works from a schedule that is
+  // about to change, and the later answer silently undoes the earlier one. It also keeps the form's mode
+  // fixed until an answer lands, so a removal's callback still sees the reminder being edited.
+  const reminderWriteInFlight =
+    createReminderMut.isPending || rescheduleReminderMut.isPending || switchReminderMut.isPending || deleteReminderMut.isPending;
+
+  /**
+   * Loads a reminder into the form below, which then saves it rather than adding a new one. An add's
+   * refusal goes with the add, so it does not reappear when the edit is cancelled.
+   */
+  const editReminder = (reminder: Reminder) => {
+    setReminderTime(reminderClock(reminder));
+    setReminderDays(reminder.daysOfWeek);
+    rescheduleReminderMut.reset();
+    createReminderMut.reset();
+    setEditingReminderId(reminder.id);
+  };
+
+  /** Puts the form back to adding a reminder, from its defaults. */
+  const stopEditingReminder = () => {
+    setEditingReminderId(null);
+    setReminderTime(DEFAULT_REMINDER_TIME);
+    setReminderDays([]);
+  };
+
+  const submitReminder = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingReminderId) { createReminderMut.mutate(undefined, { onSuccess: () => setReminderDays([]) }); return; }
+    // `enabled` is left out, so a disabled reminder stays disabled when its schedule moves.
+    rescheduleReminderMut.mutate(
+      { reminderId: editingReminderId, req: { reminderTime, daysOfWeek: reminderDays } },
+      { onSuccess: stopEditingReminder },
+    );
+  };
+
+  /** Switches a reminder off or back on, keeping its schedule: the update replaces the time and days too. */
+  const switchReminder = (reminder: Reminder) =>
+    switchReminderMut.mutate({
+      reminderId: reminder.id,
+      req: { reminderTime: reminder.reminderTime, daysOfWeek: reminder.daysOfWeek, enabled: !reminder.enabled },
+    });
 
   // Closing the dialog is passed to each `mutate` call rather than set here, because only a call's own
   // callbacks stop when an opener below resets the mutation; these run for every save that succeeds.
@@ -214,6 +282,7 @@ const UpgradeDetails: React.FC = () => {
           {upgrade.actualStartDate && <div><span className="font-medium">Actual Start:</span> {parseLocalDate(upgrade.actualStartDate).toLocaleDateString()}</div>}
           {upgrade.targetEndDate && <div><span className="font-medium">Target End:</span> {parseLocalDate(upgrade.targetEndDate).toLocaleDateString()}</div>}
         </div>
+        <UpgradeActions upgrade={upgrade} />
       </Card>
 
       {streak.current > 0 && (
@@ -259,14 +328,34 @@ const UpgradeDetails: React.FC = () => {
                   <span className="text-fg-subtle">{r.daysOfWeek.length ? r.daysOfWeek.join(', ') : 'Every day'}</span>
                   {!r.enabled && <Badge variant="gray">disabled</Badge>}
                 </div>
-                <button
-                  onClick={() => deleteReminderMut.mutate(r.id)}
-                  // A second DELETE would be answered 404, saying "not removed" while the row disappears.
-                  disabled={deleteReminderMut.isPending}
-                  className="text-danger-fg hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Remove
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => editReminder(r)}
+                    disabled={reminderWriteInFlight}
+                    aria-label={`Edit the ${reminderClock(r)} reminder`}
+                    className="text-brand-fg hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => switchReminder(r)}
+                    disabled={reminderWriteInFlight}
+                    aria-label={`${r.enabled ? 'Disable' : 'Enable'} the ${reminderClock(r)} reminder`}
+                    className="text-fg-subtle hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {r.enabled ? 'Disable' : 'Enable'}
+                  </button>
+                  <button
+                    onClick={() => deleteReminderMut.mutate(r.id, { onSuccess: () => { if (editingReminderId === r.id) stopEditingReminder(); } })}
+                    // A second DELETE would be answered 404, saying "not removed" while the row disappears.
+                    disabled={reminderWriteInFlight}
+                    className="text-danger-fg hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -276,11 +365,19 @@ const UpgradeDetails: React.FC = () => {
             <ErrorState inline title="The reminder was not removed." error={toApiError(deleteReminderMut.error)} />
           </div>
         )}
-        <form
-          onSubmit={(e) => { e.preventDefault(); createReminderMut.mutate(); }}
-          className="flex flex-wrap items-end gap-3 border-t border-line-subtle pt-3"
-        >
-          <Input label="Time" type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)} error={refusalMessage(createReminderMut.error, 'reminderTime')} />
+        {switchReminderMut.error && (
+          <div className="mb-4">
+            <ErrorState inline title="The reminder was not changed." error={toApiError(switchReminderMut.error)} />
+          </div>
+        )}
+        <form onSubmit={submitReminder} className="flex flex-wrap items-end gap-3 border-t border-line-subtle pt-3">
+          <Input
+            label="Time"
+            type="time"
+            value={reminderTime}
+            onChange={(e) => setReminderTime(e.target.value)}
+            error={refusalMessage(editingReminderId ? rescheduleReminderMut.error : createReminderMut.error, 'reminderTime')}
+          />
           <div>
             <label className="text-sm font-medium text-fg-muted block mb-1">Days <span className="text-fg-faint">(none = every day)</span></label>
             <div className="flex gap-1">
@@ -297,7 +394,14 @@ const UpgradeDetails: React.FC = () => {
               ))}
             </div>
           </div>
-          <Button type="submit" loading={createReminderMut.isPending}>Add reminder</Button>
+          {editingReminderId ? (
+            <>
+              <Button type="submit" loading={rescheduleReminderMut.isPending} disabled={reminderWriteInFlight}>Save reminder</Button>
+              <Button type="button" variant="secondary" onClick={stopEditingReminder} disabled={reminderWriteInFlight}>Cancel</Button>
+            </>
+          ) : (
+            <Button type="submit" loading={createReminderMut.isPending} disabled={reminderWriteInFlight}>Add reminder</Button>
+          )}
         </form>
       </Card>
 

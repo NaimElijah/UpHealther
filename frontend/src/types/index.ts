@@ -149,8 +149,8 @@ export interface TrackingConfig {
 /**
  * The core domain object: a planned health improvement.
  *
- * `overdue` is derived server-side, and `version` is the optimistic-lock counter — send back the one
- * that was received or the update is rejected with a 409.
+ * `overdue` is derived server-side, and `version` is the optimistic-lock counter. No request sends it
+ * back yet, so an edit cannot be refused as stale (#194).
  */
 export interface HealthUpgrade {
   id: string;

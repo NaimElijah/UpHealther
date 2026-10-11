@@ -23,10 +23,10 @@ export const createUpgrade = async (req: CreateUpgradeRequest): Promise<HealthUp
 /**
  * Replaces an upgrade's editable fields.
  *
- * A full replacement server-side despite the `Partial` type here: a field left out is stored as null,
- * not left at its previous value.
+ * A full replacement: a field left out is stored as null, not left at its previous value, which is why
+ * the request is the whole set. The planned start is ignored here; plan and reschedule own it.
  */
-export const updateUpgrade = async (id: string, req: Partial<CreateUpgradeRequest>): Promise<HealthUpgrade> => {
+export const updateUpgrade = async (id: string, req: CreateUpgradeRequest): Promise<HealthUpgrade> => {
   const { data } = await client.put<HealthUpgrade>(`/api/upgrades/${id}`, req);
   return data;
 };
@@ -69,7 +69,10 @@ export const rescheduleUpgrade = async (id: string, newDate: string): Promise<He
   return data;
 };
 
-/** Deletes an upgrade permanently. Its progress entries and reflections are not cascaded. */
+/**
+ * Deletes an upgrade permanently, and with it its tracking configuration, progress, reminders and
+ * reflections (FR-14). Notifications about it stay, no longer linked to it.
+ */
 export const deleteUpgrade = async (id: string): Promise<void> => {
   await client.delete(`/api/upgrades/${id}`);
 };

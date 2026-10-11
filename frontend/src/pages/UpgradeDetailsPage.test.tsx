@@ -4,9 +4,14 @@ import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequest
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useNavigate, type NavigateFunction } from 'react-router-dom';
 import UpgradeDetailsPage from './UpgradeDetailsPage';
-import type { HealthUpgrade, ProgressEntry, Reflection } from '../types';
+import type { ActionTarget, CreateReminderRequest, CreateUpgradeRequest, HealthArea, HealthUpgrade, ProgressEntry, Reflection, Reminder, UpgradeStatus } from '../types';
 
 const getUpgradeById = vi.fn();
+const updateUpgrade = vi.fn();
+const getHealthAreas = vi.fn(() => Promise.resolve([AN_AREA]));
+const performUpgradeAction = vi.fn();
+const rescheduleUpgrade = vi.fn();
+const deleteUpgrade = vi.fn();
 const getProgressByUpgrade = vi.fn();
 const createProgress = vi.fn();
 const getReflectionsByUpgrade = vi.fn();
@@ -14,9 +19,17 @@ const createReflection = vi.fn();
 const getReminders = vi.fn();
 const createReminder = vi.fn();
 const deleteReminder = vi.fn();
+const updateReminder = vi.fn();
 const saveTrackingConfig = vi.fn();
 
-vi.mock('../api/upgrades', () => ({ getUpgradeById: (...a: unknown[]) => getUpgradeById(...a) }));
+vi.mock('../api/upgrades', () => ({
+  getUpgradeById: (...a: unknown[]) => getUpgradeById(...a),
+  updateUpgrade: (...a: unknown[]) => updateUpgrade(...a),
+  performUpgradeAction: (...a: unknown[]) => performUpgradeAction(...a),
+  rescheduleUpgrade: (...a: unknown[]) => rescheduleUpgrade(...a),
+  deleteUpgrade: (...a: unknown[]) => deleteUpgrade(...a),
+}));
+vi.mock('../api/healthAreas', () => ({ getHealthAreas: () => getHealthAreas() }));
 vi.mock('../api/progress', () => ({
   getProgressByUpgrade: (...a: unknown[]) => getProgressByUpgrade(...a),
   createProgress: (...a: unknown[]) => createProgress(...a),
@@ -30,11 +43,13 @@ vi.mock('../api/reminders', () => ({
   getReminders: (...a: unknown[]) => getReminders(...a),
   createReminder: (...a: unknown[]) => createReminder(...a),
   deleteReminder: (...a: unknown[]) => deleteReminder(...a),
+  updateReminder: (...a: unknown[]) => updateReminder(...a),
 }));
 vi.mock('../api/trackingConfig', () => ({ saveTrackingConfig: (...a: unknown[]) => saveTrackingConfig(...a) }));
 
 const UPGRADE_ID = 'upgrade-1';
 const OTHER_UPGRADE_ID = 'upgrade-2';
+const AN_AREA: HealthArea = { id: 'area-1', userId: 'user-1', name: 'Recovery', createdAt: '2026-03-01T09:00:00' };
 
 function anUpgrade(id = UPGRADE_ID, title = 'Cold showers'): HealthUpgrade {
   return {
@@ -125,6 +140,7 @@ function renderPage() {
         <NavigateHandle />
         <Routes>
           <Route path="/upgrades/:id" element={<UpgradeDetailsPage />} />
+          <Route path="/dashboard" element={<p>The dashboard</p>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -766,5 +782,734 @@ describe('UpgradeDetailsPage', () => {
     renderPage();
 
     expect(await screen.findByText('0 km')).toBeDefined();
+  });
+});
+
+/**
+ * Lets every promise already started run on: a mutation calls its function a microtask after `mutate`,
+ * so a check that nothing was sent is only meaningful once that has had its chance.
+ */
+const settled = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+
+/**
+ * Answers the upgrade from `initial` until a write changes it, the way the API would, so the page shows
+ * whatever the last write left.
+ */
+function serveUpgrade(initial: HealthUpgrade) {
+  let current = initial;
+  getUpgradeById.mockImplementation(() => Promise.resolve(current));
+  updateUpgrade.mockImplementation((_id: string, req: CreateUpgradeRequest) => {
+    current = { ...current, ...req };
+    return Promise.resolve(current);
+  });
+  performUpgradeAction.mockImplementation((_id: string, status: ActionTarget) => {
+    current = { ...current, status };
+    return Promise.resolve(current);
+  });
+  // BR-2: rescheduling moves the date in any state, and only from ABANDONED changes the status too.
+  rescheduleUpgrade.mockImplementation((_id: string, newDate: string) => {
+    current = { ...current, plannedStartDate: newDate, status: current.status === 'ABANDONED' ? 'PLANNED' : current.status };
+    return Promise.resolve(current);
+  });
+}
+
+/** Opens the edit dialog once the page has loaded, and returns queries scoped to it. */
+async function openEdit() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit Upgrade' }));
+  return within(screen.getByRole('dialog', { name: 'Edit Upgrade' }));
+}
+
+/**
+ * FR-13, FR-10 (#89) — an upgrade's descriptive fields can be edited from its page, at any point in its
+ * lifecycle.
+ *
+ * The API replaces every field on a PUT, so the form starts from what the upgrade holds and sends all of
+ * it: a field left out would be stored as empty.
+ */
+describe('UpgradeDetailsPage editing an upgrade', () => {
+  const described: HealthUpgrade = {
+    ...anUpgrade(),
+    areaId: AN_AREA.id,
+    description: 'Two minutes, every morning',
+    motivation: 'Wake up properly',
+    successCriteria: 'Every day for a month',
+    targetEndDate: '2026-06-30',
+  };
+
+  beforeEach(() => {
+    getUpgradeById.mockReset();
+    updateUpgrade.mockReset();
+    getProgressByUpgrade.mockResolvedValue([]);
+    getReflectionsByUpgrade.mockResolvedValue([]);
+    getReminders.mockResolvedValue([]);
+  });
+
+  it('GivenAnUpgrade_WhenItIsEdited_ThenEveryFieldIsSentAndThePageShowsTheChange', async () => {
+    serveUpgrade(described);
+    renderPage();
+    const dialog = await openEdit();
+    await dialog.findByRole('option', { name: AN_AREA.name });
+
+    fireEvent.change(dialog.getByLabelText('Title'), { target: { value: 'Cold plunges' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit Upgrade' })).toBeNull());
+    expect(updateUpgrade).toHaveBeenCalledTimes(1);
+    expect(updateUpgrade.mock.calls[0][0]).toBe(UPGRADE_ID);
+    expect(updateUpgrade.mock.calls[0][1]).toEqual({
+      title: 'Cold plunges',
+      description: 'Two minutes, every morning',
+      type: 'HABIT',
+      difficulty: 'MEDIUM',
+      areaId: AN_AREA.id,
+      motivation: 'Wake up properly',
+      successCriteria: 'Every day for a month',
+      targetEndDate: '2026-06-30',
+    });
+    expect(await screen.findByRole('heading', { name: 'Cold plunges' })).toBeDefined();
+  });
+
+  it('GivenACompletedUpgrade_WhenItsPageOpens_ThenItCanStillBeEdited', async () => {
+    serveUpgrade({ ...described, status: 'COMPLETED' });
+    renderPage();
+
+    const dialog = await openEdit();
+
+    expect((dialog.getByLabelText('Title') as HTMLInputElement).value).toBe('Cold showers');
+  });
+
+  it('GivenALegacyProtocolUpgrade_WhenItIsEdited_ThenItsTypeIsShownAndKept', async () => {
+    // PROTOCOL is no longer offered for new upgrades. Missing from the list, the select would show the
+    // first type instead, and the user would read the upgrade as a habit.
+    serveUpgrade({ ...described, type: 'PROTOCOL' });
+    renderPage();
+    const dialog = await openEdit();
+
+    expect((dialog.getByLabelText('Type') as HTMLSelectElement).value).toBe('PROTOCOL');
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(updateUpgrade).toHaveBeenCalledTimes(1));
+    expect(updateUpgrade.mock.calls[0][1].type).toBe('PROTOCOL');
+  });
+
+  it('GivenTheTitleIsCleared_WhenTheEditIsSaved_ThenNothingIsSentAndTheTitleIsAskedFor', async () => {
+    serveUpgrade(described);
+    renderPage();
+    const dialog = await openEdit();
+
+    fireEvent.change(dialog.getByLabelText('Title'), { target: { value: '  ' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+
+    expect(await dialog.findByText('Title is required.')).toBeDefined();
+    await settled();
+    expect(updateUpgrade).not.toHaveBeenCalled();
+  });
+
+  it('GivenATargetEndWithAFiveDigitYear_WhenTheEditIsSaved_ThenNothingIsSentAndTheFieldAsksForFourDigits', async () => {
+    serveUpgrade(described);
+    renderPage();
+    const dialog = await openEdit();
+
+    fireEvent.change(dialog.getByLabelText('Target End'), { target: { value: '20260-06-30' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+
+    expect(await dialog.findByText('Pick a date with a four-digit year.')).toBeDefined();
+    await settled();
+    expect(updateUpgrade).not.toHaveBeenCalled();
+  });
+
+  it('GivenTheAreasCannotBeRead_WhenTheEditOpens_ThenTheDialogSaysSoWithItsReference', async () => {
+    // NFR-30: without this the picker offers "No area" alone, as though the upgrade had none.
+    serveUpgrade(described);
+    getHealthAreas.mockRejectedValueOnce(apiFailure(503, { status: 503, message: 'Service unavailable', traceId: 'trace-areas' }));
+    renderPage();
+
+    const dialog = await openEdit();
+
+    expect(await dialog.findByText('Your health areas could not be loaded.')).toBeDefined();
+    expect(dialog.getByText('trace-areas')).toBeDefined();
+  });
+
+  it('GivenAnEditTheApiRefuses_WhenItIsSaved_ThenTheDialogSaysWhyWithItsReference', async () => {
+    // BR-5: making a running upgrade HARD can exceed the limit, a refusal that names no field.
+    serveUpgrade(described);
+    updateUpgrade.mockRejectedValue(apiFailure(422, {
+      status: 422,
+      message: 'Cannot have more than 3 HARD upgrades active at once',
+      traceId: 'trace-422',
+    }));
+    renderPage();
+    const dialog = await openEdit();
+
+    fireEvent.change(dialog.getByLabelText('Difficulty'), { target: { value: 'HARD' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+
+    expect(await dialog.findByText('Cannot have more than 3 HARD upgrades active at once (reference trace-422)')).toBeDefined();
+    expect(screen.getByRole('dialog', { name: 'Edit Upgrade' })).toBeDefined();
+  });
+
+  it('GivenARefusedEdit_WhenTheDialogIsOpenedAgain_ThenItStartsFromTheUpgradeWithoutTheOldMessage', async () => {
+    serveUpgrade(described);
+    updateUpgrade.mockRejectedValueOnce(apiFailure(422, { status: 422, message: 'Refused', traceId: 'trace-1' }));
+    renderPage();
+    const first = await openEdit();
+    fireEvent.change(first.getByLabelText('Title'), { target: { value: 'Something else' } });
+    fireEvent.submit(first.getByRole('button', { name: 'Save' }));
+    await first.findByText('Refused (reference trace-1)');
+    fireEvent.click(first.getByRole('button', { name: 'Cancel' }));
+
+    const second = await openEdit();
+
+    expect(second.queryByText('Refused (reference trace-1)')).toBeNull();
+    expect((second.getByLabelText('Title') as HTMLInputElement).value).toBe('Cold showers');
+  });
+});
+
+/** Presses Abandon once the page has loaded, and returns queries scoped to the confirmation it opens. */
+async function openAbandon() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Abandon' }));
+  return within(screen.getByRole('dialog', { name: 'Abandon Upgrade' }));
+}
+
+/**
+ * FR-12 (#89) — an upgrade can be abandoned from its page, from any state that is not final (BR-2).
+ *
+ * Abandoning asks first: an abandoned upgrade leaves every list, so a slip would look like the upgrade
+ * had vanished.
+ */
+describe('UpgradeDetailsPage abandoning an upgrade', () => {
+  beforeEach(() => {
+    getUpgradeById.mockReset();
+    updateUpgrade.mockReset();
+    performUpgradeAction.mockReset();
+    getProgressByUpgrade.mockResolvedValue([]);
+    getReflectionsByUpgrade.mockResolvedValue([]);
+    getReminders.mockResolvedValue([]);
+  });
+
+  it.each<UpgradeStatus>(['IDEA', 'PLANNED', 'ACTIVE', 'PAUSED'])(
+    'GivenA%sUpgrade_WhenAbandonIsConfirmed_ThenItIsAbandoned',
+    async (status) => {
+      serveUpgrade({ ...anUpgrade(), status });
+      renderPage();
+      const dialog = await openAbandon();
+
+      fireEvent.click(dialog.getByRole('button', { name: 'Abandon' }));
+
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Abandon Upgrade' })).toBeNull());
+      expect(performUpgradeAction).toHaveBeenCalledTimes(1);
+      expect(performUpgradeAction.mock.calls[0]).toEqual([UPGRADE_ID, 'ABANDONED']);
+      expect(await screen.findByText('Abandoned')).toBeDefined();
+    },
+  );
+
+  it.each<UpgradeStatus>(['COMPLETED', 'ABANDONED'])(
+    'GivenA%sUpgrade_WhenItsPageOpens_ThenAbandonIsNotOffered',
+    async (status) => {
+      serveUpgrade({ ...anUpgrade(), status });
+      renderPage();
+
+      await screen.findByRole('button', { name: 'Edit Upgrade' });
+
+      expect(screen.queryByRole('button', { name: 'Abandon' })).toBeNull();
+    },
+  );
+
+  it('GivenTheConfirmationIsCancelled_WhenItCloses_ThenNothingIsAbandoned', async () => {
+    serveUpgrade(anUpgrade());
+    renderPage();
+    const dialog = await openAbandon();
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Abandon Upgrade' })).toBeNull());
+    await settled();
+    expect(performUpgradeAction).not.toHaveBeenCalled();
+  });
+
+  // FR-40: a dialog gives focus back on close. Abandoning removes the button that opened this one, so
+  // focus would fall to <body> and a keyboard user would start again from the top of the page.
+  it('GivenAConfirmedAbandon_WhenTheDialogCloses_ThenFocusIsOnReschedule', async () => {
+    serveUpgrade(anUpgrade());
+    renderPage();
+    const trigger = await screen.findByRole('button', { name: 'Abandon' });
+    // `fireEvent.click` does not move focus in jsdom; a keyboard user's press would.
+    trigger.focus();
+    fireEvent.click(trigger);
+    const dialog = within(screen.getByRole('dialog', { name: 'Abandon Upgrade' }));
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Abandon' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Abandon Upgrade' })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Reschedule' })));
+  });
+
+  it('GivenTheAbandonIsCancelled_WhenTheDialogCloses_ThenFocusReturnsToAbandon', async () => {
+    serveUpgrade(anUpgrade());
+    renderPage();
+    const trigger = await screen.findByRole('button', { name: 'Abandon' });
+    trigger.focus();
+    fireEvent.click(trigger);
+    const dialog = within(screen.getByRole('dialog', { name: 'Abandon Upgrade' }));
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Abandon Upgrade' })).toBeNull());
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('GivenAnAbandonInFlight_WhenTheDialogIsDismissed_ThenItStaysOpenUntilTheAnswerArrives', async () => {
+    // Dismissed mid-flight, it could be opened again and the abandon sent twice; the second would be
+    // refused 422, reading as though the first had failed.
+    let answer: () => void = () => {};
+    serveUpgrade(anUpgrade());
+    performUpgradeAction.mockImplementationOnce(() => new Promise<HealthUpgrade>((resolve) => {
+      answer = () => resolve({ ...anUpgrade(), status: 'ABANDONED' });
+    }));
+    renderPage();
+    const dialog = await openAbandon();
+    fireEvent.click(dialog.getByRole('button', { name: 'Abandon' }));
+    await waitFor(() => expect(performUpgradeAction).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(screen.getByRole('dialog', { name: 'Abandon Upgrade' })).toBeDefined();
+
+    await act(async () => answer());
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Abandon Upgrade' })).toBeNull());
+    expect(performUpgradeAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('GivenAnAbandonTheApiRefuses_WhenItIsConfirmed_ThenTheDialogSaysWhyWithItsReference', async () => {
+    serveUpgrade(anUpgrade());
+    performUpgradeAction.mockRejectedValue(apiFailure(422, {
+      status: 422,
+      message: 'Cannot abandon a COMPLETED upgrade',
+      traceId: 'trace-abandon',
+    }));
+    renderPage();
+    const dialog = await openAbandon();
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Abandon' }));
+
+    expect(await dialog.findByText('Cannot abandon a COMPLETED upgrade')).toBeDefined();
+    expect(dialog.getByText('trace-abandon')).toBeDefined();
+    expect(screen.getByRole('dialog', { name: 'Abandon Upgrade' })).toBeDefined();
+  });
+});
+
+/** Presses Reschedule once the page has loaded, and returns queries scoped to the dialog it opens. */
+async function openReschedule() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Reschedule' }));
+  return within(screen.getByRole('dialog', { name: 'Reschedule Upgrade' }));
+}
+
+/**
+ * FR-12 (#89) — an upgrade can be rescheduled from its page, in any state but COMPLETED (BR-2, BR-3).
+ *
+ * Rescheduling moves the planned start. From ABANDONED it is also the only way back, to PLANNED, which
+ * makes it the one way to undo an abandon.
+ */
+describe('UpgradeDetailsPage rescheduling an upgrade', () => {
+  beforeEach(() => {
+    getUpgradeById.mockReset();
+    rescheduleUpgrade.mockReset();
+    getProgressByUpgrade.mockResolvedValue([]);
+    getReflectionsByUpgrade.mockResolvedValue([]);
+    getReminders.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('GivenAnAbandonedUpgrade_WhenItIsRescheduled_ThenItIsPlannedAgain', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });
+    renderPage();
+    const dialog = await openReschedule();
+    expect(dialog.getByText(/goes back to Planned/)).toBeDefined();
+
+    fireEvent.change(dialog.getByLabelText('New start date'), { target: { value: '2026-11-01' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Reschedule' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Reschedule Upgrade' })).toBeNull());
+    expect(rescheduleUpgrade.mock.calls[0]).toEqual([UPGRADE_ID, '2026-11-01']);
+    expect(await screen.findByText('Planned')).toBeDefined();
+  });
+
+  it('GivenAPlannedUpgrade_WhenRescheduleOpens_ThenItStartsFromThePlannedStart', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'PLANNED', plannedStartDate: '2026-10-20' });
+    renderPage();
+
+    const dialog = await openReschedule();
+
+    expect((dialog.getByLabelText('New start date') as HTMLInputElement).value).toBe('2026-10-20');
+  });
+
+  // The suite runs in Los Angeles, where 05:00 UTC on 12 March is still the evening of 11 March (#95).
+  it('GivenNoPlannedStart_WhenRescheduleOpens_ThenItStartsFromTheUsersToday', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-12T05:00:00Z'));
+    serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });
+    renderPage();
+
+    const dialog = await openReschedule();
+
+    expect((dialog.getByLabelText('New start date') as HTMLInputElement).value).toBe('2026-03-11');
+  });
+
+  // COMPLETED is terminal (BR-3). An idea is planned rather than rescheduled: rescheduling one would set a
+  // start date and leave it an idea, listed with the ideas, until Plan overwrote the date.
+  it.each<UpgradeStatus>(['IDEA', 'COMPLETED'])(
+    'GivenA%sUpgrade_WhenItsPageOpens_ThenRescheduleIsNotOffered',
+    async (status) => {
+      serveUpgrade({ ...anUpgrade(), status });
+      renderPage();
+
+      await screen.findByRole('button', { name: 'Edit Upgrade' });
+
+      expect(screen.queryByRole('button', { name: 'Reschedule' })).toBeNull();
+    },
+  );
+
+  it.each<UpgradeStatus>(['PLANNED', 'ACTIVE', 'PAUSED', 'ABANDONED'])(
+    'GivenA%sUpgrade_WhenItIsRescheduled_ThenTheNewDateIsSent',
+    async (status) => {
+      serveUpgrade({ ...anUpgrade(), status, plannedStartDate: '2026-10-20' });
+      renderPage();
+      const dialog = await openReschedule();
+
+      fireEvent.change(dialog.getByLabelText('New start date'), { target: { value: '2026-11-01' } });
+      fireEvent.submit(dialog.getByRole('button', { name: 'Reschedule' }));
+
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Reschedule Upgrade' })).toBeNull());
+      expect(rescheduleUpgrade.mock.calls[0]).toEqual([UPGRADE_ID, '2026-11-01']);
+      expect(await screen.findByText(/11\/1\/2026/)).toBeDefined();
+    },
+  );
+
+  it('GivenTheDateIsCleared_WhenTheRescheduleIsSubmitted_ThenNothingIsSentAndADateIsAskedFor', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });
+    renderPage();
+    const dialog = await openReschedule();
+
+    fireEvent.change(dialog.getByLabelText('New start date'), { target: { value: '' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Reschedule' }));
+
+    expect(await dialog.findByText('Pick a start date.')).toBeDefined();
+    await settled();
+    expect(rescheduleUpgrade).not.toHaveBeenCalled();
+  });
+
+  it('GivenAFiveDigitYear_WhenTheRescheduleIsSubmitted_ThenNothingIsSentAndTheDialogAsksForFourDigits', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });
+    renderPage();
+    const dialog = await openReschedule();
+
+    fireEvent.change(dialog.getByLabelText('New start date'), { target: { value: '20261-11-01' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Reschedule' }));
+
+    expect(await dialog.findByText('Pick a date with a four-digit year.')).toBeDefined();
+    await settled();
+    expect(rescheduleUpgrade).not.toHaveBeenCalled();
+  });
+
+  it('GivenARescheduleTheApiRefuses_WhenItIsSubmitted_ThenTheDialogSaysWhyWithItsReference', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'PAUSED' });
+    rescheduleUpgrade.mockRejectedValue(apiFailure(422, {
+      status: 422,
+      message: 'Cannot reschedule a COMPLETED upgrade',
+      traceId: 'trace-reschedule',
+    }));
+    renderPage();
+    const dialog = await openReschedule();
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Reschedule' }));
+
+    expect(await dialog.findByText('Cannot reschedule a COMPLETED upgrade (reference trace-reschedule)')).toBeDefined();
+  });
+});
+
+/** Presses Delete once the page has loaded, and returns queries scoped to the confirmation it opens. */
+async function openDelete() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+  return within(screen.getByRole('dialog', { name: 'Delete Upgrade' }));
+}
+
+/**
+ * FR-14 (#89) — an upgrade can be deleted from its page, in any state, with everything recorded against
+ * it.
+ *
+ * Deleting cannot be undone, so it asks first and says what goes with the upgrade. Once it is gone its
+ * page has nothing left to show, so the dashboard opens in its place.
+ */
+describe('UpgradeDetailsPage deleting an upgrade', () => {
+  beforeEach(() => {
+    getUpgradeById.mockReset();
+    deleteUpgrade.mockReset();
+    getProgressByUpgrade.mockResolvedValue([]);
+    getReflectionsByUpgrade.mockResolvedValue([]);
+    getReminders.mockResolvedValue([]);
+    deleteUpgrade.mockResolvedValue(undefined);
+  });
+
+  it('GivenAConfirmedDelete_WhenItSucceeds_ThenTheUpgradeIsDeletedAndTheDashboardOpens', async () => {
+    serveUpgrade(anUpgrade());
+    renderPage();
+    const dialog = await openDelete();
+    expect(dialog.getByText(/progress, reminders and reflections/)).toBeDefined();
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Delete' }));
+
+    expect(await screen.findByText('The dashboard')).toBeDefined();
+    expect(deleteUpgrade.mock.calls[0][0]).toBe(UPGRADE_ID);
+    // Read once, to show it: the refresh after the delete must not ask for it again, into a 404.
+    expect(getUpgradeById).toHaveBeenCalledTimes(1);
+  });
+
+  it.each<UpgradeStatus>(['IDEA', 'PLANNED', 'ACTIVE', 'PAUSED', 'COMPLETED', 'ABANDONED'])(
+    'GivenA%sUpgrade_WhenItIsDeleted_ThenItIsGone',
+    async (status) => {
+      serveUpgrade({ ...anUpgrade(), status });
+      renderPage();
+      const dialog = await openDelete();
+
+      fireEvent.click(dialog.getByRole('button', { name: 'Delete' }));
+
+      expect(await screen.findByText('The dashboard')).toBeDefined();
+      expect(deleteUpgrade.mock.calls[0][0]).toBe(UPGRADE_ID);
+    },
+  );
+
+  it('GivenTheConfirmationIsCancelled_WhenItCloses_ThenNothingIsDeleted', async () => {
+    serveUpgrade(anUpgrade());
+    renderPage();
+    const dialog = await openDelete();
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete Upgrade' })).toBeNull());
+    await settled();
+    expect(deleteUpgrade).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: 'Cold showers' })).toBeDefined();
+  });
+
+  it('GivenADeleteInFlight_WhenTheDialogIsDismissed_ThenItStaysOpenUntilTheAnswerArrives', async () => {
+    // Dismissed mid-flight, the dialog could be opened again and the delete sent twice; the second would
+    // be answered 404, reading as though the first had failed.
+    let answer: () => void = () => {};
+    deleteUpgrade.mockImplementation(() => new Promise<void>((resolve) => { answer = resolve; }));
+    serveUpgrade(anUpgrade());
+    renderPage();
+    const dialog = await openDelete();
+    fireEvent.click(dialog.getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(deleteUpgrade).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(screen.getByRole('dialog', { name: 'Delete Upgrade' })).toBeDefined();
+
+    await act(async () => answer());
+
+    expect(await screen.findByText('The dashboard')).toBeDefined();
+  });
+
+  it('GivenADeleteTheApiRefuses_WhenItIsConfirmed_ThenTheDialogSaysWhyAndThePageStays', async () => {
+    serveUpgrade(anUpgrade());
+    deleteUpgrade.mockRejectedValue(apiFailure(500, {
+      status: 500,
+      message: 'An unexpected error occurred',
+      traceId: 'trace-delete',
+    }));
+    renderPage();
+    const dialog = await openDelete();
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Delete' }));
+
+    expect(await dialog.findByText('An unexpected error occurred')).toBeDefined();
+    expect(dialog.getByText('trace-delete')).toBeDefined();
+    expect(screen.queryByText('The dashboard')).toBeNull();
+  });
+});
+
+/** A reminder as the API sends one: its time with seconds, and its days in week order. */
+function aReminder(values: Partial<Reminder> = {}): Reminder {
+  return { id: 'reminder-1', upgradeId: UPGRADE_ID, reminderTime: '09:00:00', daysOfWeek: ['MON'], enabled: true, ...values };
+}
+
+/**
+ * Answers the upgrade's reminders from `initial` until an update changes one, the way the API would. As
+ * the API does, an update that leaves `enabled` out leaves the reminder's state alone.
+ */
+function serveReminders(...initial: Reminder[]) {
+  let reminders = initial;
+  getReminders.mockImplementation(() => Promise.resolve(reminders));
+  updateReminder.mockImplementation((id: string, req: CreateReminderRequest) => {
+    reminders = reminders.map((r) => (r.id === id
+      ? { ...r, reminderTime: `${req.reminderTime.slice(0, 5)}:00`, daysOfWeek: req.daysOfWeek ?? [], enabled: req.enabled ?? r.enabled }
+      : r));
+    return Promise.resolve(reminders.find((r) => r.id === id));
+  });
+}
+
+/**
+ * FR-26 (#89) — a reminder can be rescheduled, switched off and switched back on from its upgrade's page.
+ *
+ * Edit and the switch name the reminder they act on, since an upgrade can have several and the page
+ * already has an "Edit" for its tracking.
+ */
+describe('UpgradeDetailsPage changing a reminder', () => {
+  beforeEach(() => {
+    getUpgradeById.mockReset();
+    getReminders.mockReset();
+    updateReminder.mockReset();
+    createReminder.mockReset();
+    getUpgradeById.mockResolvedValue(anUpgrade());
+    getProgressByUpgrade.mockResolvedValue([]);
+    getReflectionsByUpgrade.mockResolvedValue([]);
+  });
+
+  it('GivenAReminder_WhenItIsRescheduled_ThenItsNewTimeAndDaysAreSentAndItsStateIsLeftAlone', async () => {
+    serveReminders(aReminder({ enabled: false }));
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit the 09:00 reminder' }));
+    expect((screen.getByLabelText('Time') as HTMLInputElement).value).toBe('09:00');
+    fireEvent.change(screen.getByLabelText('Time'), { target: { value: '07:30' } });
+    fireEvent.click(screen.getByTitle('WED'));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save reminder' }));
+
+    expect(await screen.findByRole('button', { name: 'Edit the 07:30 reminder' })).toBeDefined();
+    expect(updateReminder).toHaveBeenCalledTimes(1);
+    expect(updateReminder.mock.calls[0][0]).toBe('reminder-1');
+    expect(updateReminder.mock.calls[0][1]).toEqual({ reminderTime: '07:30', daysOfWeek: ['MON', 'WED'] });
+    expect(screen.getByRole('button', { name: 'Add reminder' })).toBeDefined();
+    expect(createReminder).not.toHaveBeenCalled();
+  });
+
+  it('GivenAReminderBeingRescheduled_WhenTheEditIsCancelled_ThenNothingIsSentAndTheFormAddsAgain', async () => {
+    serveReminders(aReminder());
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit the 09:00 reminder' }));
+    fireEvent.change(screen.getByLabelText('Time'), { target: { value: '07:30' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.getByRole('button', { name: 'Add reminder' })).toBeDefined();
+    expect((screen.getByLabelText('Time') as HTMLInputElement).value).toBe('09:00');
+    await settled();
+    expect(updateReminder).not.toHaveBeenCalled();
+  });
+
+  it('GivenAnEnabledReminder_WhenItIsDisabled_ThenItIsSentDisabledWithItsScheduleUnchanged', async () => {
+    serveReminders(aReminder());
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Disable the 09:00 reminder' }));
+
+    expect(await screen.findByRole('button', { name: 'Enable the 09:00 reminder' })).toBeDefined();
+    expect(updateReminder.mock.calls[0]).toEqual(['reminder-1', { reminderTime: '09:00:00', daysOfWeek: ['MON'], enabled: false }]);
+    expect(screen.getByText('disabled')).toBeDefined();
+  });
+
+  it('GivenADisabledReminder_WhenItIsEnabled_ThenItIsSentEnabled', async () => {
+    serveReminders(aReminder({ enabled: false }));
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Enable the 09:00 reminder' }));
+
+    expect(await screen.findByRole('button', { name: 'Disable the 09:00 reminder' })).toBeDefined();
+    expect(updateReminder.mock.calls[0][1]).toEqual({ reminderTime: '09:00:00', daysOfWeek: ['MON'], enabled: true });
+    expect(screen.queryByText('disabled')).toBeNull();
+  });
+
+  it('GivenTheApiRefusesASwitch_WhenAReminderIsDisabled_ThenTheCardSaysWhyWithItsReference', async () => {
+    serveReminders(aReminder());
+    updateReminder.mockRejectedValue(apiFailure(404, { status: 404, message: 'Reminder not found', traceId: 'trace-switch' }));
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Disable the 09:00 reminder' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('The reminder was not changed.');
+    expect(alert.textContent).toContain('Reminder not found');
+    expect(alert.textContent).toContain('trace-switch');
+  });
+
+  // One write to the reminders at a time. A switch resends the schedule its row shows, and the form edits
+  // from a row, so either acting while another write is in flight works from a schedule about to change.
+
+  it('GivenARescheduleInFlight_WhenItsReminderIsSwitched_ThenTheSwitchWaitsAndTheRescheduleStands', async () => {
+    serveReminders(aReminder());
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit the 09:00 reminder' }));
+    fireEvent.change(screen.getByLabelText('Time'), { target: { value: '07:30' } });
+    updateReminder.mockImplementationOnce(() => new Promise(() => {}));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save reminder' }));
+    await waitFor(() => expect(updateReminder).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Disable the 09:00 reminder' }));
+
+    await settled();
+    expect(updateReminder).toHaveBeenCalledTimes(1);
+  });
+
+  it('GivenAnAddInFlight_WhenAReminderIsEdited_ThenTheFormKeepsAdding', async () => {
+    // The add's success clears the form's days; an edit opened under it would lose its own.
+    serveReminders(aReminder());
+    createReminder.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    await screen.findByRole('button', { name: 'Edit the 09:00 reminder' });
+    fireEvent.submit(screen.getByRole('button', { name: 'Add reminder' }));
+    await waitFor(() => expect(createReminder).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit the 09:00 reminder' }));
+
+    expect(screen.queryByRole('button', { name: 'Save reminder' })).toBeNull();
+  });
+
+  it('GivenARescheduleInFlight_WhenCancelIsPressed_ThenTheEditStaysUntilTheAnswer', async () => {
+    // Cancelled mid-flight, the save's success would reset whatever had been typed since, and its
+    // refusal would never be shown.
+    serveReminders(aReminder());
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit the 09:00 reminder' }));
+    updateReminder.mockImplementationOnce(() => new Promise(() => {}));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save reminder' }));
+    await waitFor(() => expect(updateReminder).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.getByRole('button', { name: 'Save reminder' })).toBeDefined();
+  });
+
+  it('GivenARefusedAdd_WhenAReminderIsEditedAndTheEditCancelled_ThenTheOldRefusalIsGone', async () => {
+    serveReminders(aReminder());
+    createReminder.mockRejectedValue(NO_REMINDER_TIME);
+    renderPage();
+    await screen.findByRole('button', { name: 'Edit the 09:00 reminder' });
+    fireEvent.submit(screen.getByRole('button', { name: 'Add reminder' }));
+    await screen.findByText('Must not be null');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit the 09:00 reminder' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByText('Must not be null')).toBeNull();
+  });
+
+  it('GivenTheApiRefusesAReschedule_WhenItIsSaved_ThenTheFormSaysWhyAndKeepsTheEdit', async () => {
+    serveReminders(aReminder());
+    updateReminder.mockRejectedValue(NO_REMINDER_TIME);
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit the 09:00 reminder' }));
+
+    fireEvent.change(screen.getByLabelText('Time'), { target: { value: '' } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Save reminder' }));
+
+    expect(await screen.findByText('Must not be null')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Save reminder' })).toBeDefined();
   });
 });

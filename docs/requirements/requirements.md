@@ -13,7 +13,7 @@ that gap would take.
 API (§5.4), so "a user can" means through the interface. Where the implementation falls short of an
 entry — in the interface or anywhere else — the entry is not weakened to match. Its *Enforced by* cell
 says **Known deviation** and links the issue that tracks the gap; the tests named there enforce the
-part that holds. Sixteen entries carry one today, and the change that closes an issue takes its
+part that holds. Eleven entries carry one today, and the change that closes an issue takes its
 marker out.
 
 **IDs are permanent.** Tests, code comments, migrations and ADRs cite them, so an ID is never
@@ -79,11 +79,11 @@ no way at all — to read another person's health records
 | ID | Requirement | Enforced by |
 |---|---|---|
 | FR-9 | A user can create an upgrade of any of the eight kinds: habit, one-time action, product replacement, routine, goal, experiment, learning task, medical/preventive | `FrontendEnumContractTest`, `UpgradeControllerTest` |
-| FR-10 | An upgrade carries a title and type, and optionally an area, description, difficulty, planned start, target end, motivation and success criteria | `HealthUpgradeTest`, `UpgradeServiceTest` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), success criteria and the target end cannot be set from the interface, and the planned start only by planning an idea |
+| FR-10 | An upgrade carries a title and type, and optionally an area, description, difficulty, planned start, target end, motivation and success criteria | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeBacklogPage.test.tsx` (a new idea's success criteria and target end), `UpgradeDetailsPage.test.tsx` (the planned start moved by rescheduling) |
 | FR-11 | A user can list their upgrades, narrowed by one of status, type, area or difficulty | `UpgradeServiceTest`, `UpgradeControllerTest` — **Known deviation:** [#90](https://github.com/NaimElijah/UpHealther/issues/90), the interface filters by status only |
-| FR-12 | A user can move an upgrade through its lifecycle: plan, activate, pause, complete, abandon, reschedule | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeControllerTest`, `UpgradeBacklogPage.test.tsx`, `ActiveUpgradesPage.test.tsx` (a paused upgrade is listed and can be resumed), `upgradeViews.test.tsx` (a change made on one page reaches every page that shows the upgrade), `upgrades.test.ts` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), abandon and reschedule have no control |
-| FR-13 | A user can edit an upgrade's descriptive fields at any point in its lifecycle | `HealthUpgradeTest`, `UpgradeServiceTest` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), the interface has no edit |
-| FR-14 | A user can delete an upgrade, and with it everything recorded against it: its tracking configuration, progress, reminders and reflections. Its notifications stay, detached from it | `UpgradeServiceTest`, `UpgradeControllerTest`, `UpgradePersistenceIT` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), the interface has no delete |
+| FR-12 | A user can move an upgrade through its lifecycle: plan, activate, pause, complete, abandon, reschedule | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeControllerTest`, `UpgradeBacklogPage.test.tsx`, `ActiveUpgradesPage.test.tsx` (a paused upgrade is listed and can be resumed), `upgradeViews.test.tsx` (a change made on one page reaches every page that shows the upgrade), `UpgradeDetailsPage.test.tsx` (an upgrade's page abandons it from any state that is not final, and reschedules it from PLANNED, ACTIVE, PAUSED or ABANDONED; an idea is planned instead), `upgrades.test.ts` |
+| FR-13 | A user can edit an upgrade's descriptive fields at any point in its lifecycle | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeDetailsPage.test.tsx` (an upgrade's page edits it, completed or not, and sends every field) |
+| FR-14 | A user can delete an upgrade, and with it everything recorded against it: its tracking configuration, progress, reminders and reflections. Its notifications stay, detached from it | `UpgradeServiceTest`, `UpgradeControllerTest`, `UpgradePersistenceIT`, `UpgradeDetailsPage.test.tsx` (an upgrade's page deletes it, in any state, after saying what goes with it) |
 | FR-15 | An upgrade's response carries its tracking configuration, so a list view needs no second call | `UpgradeDtoSerializationTest`, `UpgradeControllerTest` |
 
 ### 2.4 Tracking and progress
@@ -105,7 +105,7 @@ no way at all — to read another person's health records
 | FR-23 | A user can write a reflection about an upgrade — ratings for difficulty and benefit, and notes on what worked, what did not, and what to change | `ReflectionServiceTest`, `ReflectionControllerTest`, `UpgradeDetailsPage.test.tsx` |
 | FR-24 | A user can read an upgrade's reflections, newest first | `ReflectionServiceTest`, `ReflectionControllerTest`, `ReflectionPersistenceIT` (the order, same-date ties included), `UpgradeDetailsPage.test.tsx` |
 | FR-25 | A user can attach reminders to an upgrade, each with a time and a day-of-week filter | `ReminderServiceTest`, `ReminderControllerTest`, `ReminderTest` |
-| FR-26 | A user can reschedule, enable, disable and delete a reminder | `ReminderServiceTest`, `ReminderControllerTest` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), reschedule, enable and disable have no control |
+| FR-26 | A user can reschedule, enable, disable and delete a reminder | `ReminderServiceTest`, `ReminderControllerTest`, `UpgradeDetailsPage.test.tsx` (a reminder is rescheduled without changing its state, and switched off and on without changing its schedule) |
 
 ### 2.6 Dashboard and notifications
 
@@ -113,7 +113,7 @@ no way at all — to read another person's health records
 |---|---|---|
 | FR-27 | A user can see, in one request, their active, planned, due-today, overdue and recently completed upgrades, their weekly completion rate, their streaks and per-area counts | `DashboardAggregationServiceTest`, `DashboardControllerTest`, `DashboardPage.test.tsx` |
 | FR-28 | A user is notified when an upgrade is created, planned, activated, paused, completed or abandoned, when a reflection is added, and when a streak milestone is reached | `NotificationEventListenerTest`, `NotificationCommitIT` (each of them stored once the write commits) |
-| FR-29 | A user is notified when an active upgrade passes its target date | `UpgradeOverdueSchedulerTest` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), the interface cannot set a target date |
+| FR-29 | A user is notified when an active upgrade passes its target date | `UpgradeOverdueSchedulerTest`, `UpgradeBacklogPage.test.tsx` (a target end can be set) |
 | FR-30 | A user with active upgrades and nothing logged is nudged once a day | `NotificationSchedulerTest` |
 | FR-31 | A user's reminders fire at the configured time and day | `NotificationSchedulerTest`, `ReminderTest` |
 | FR-32 | Notifications arrive in real time on a connected client, and are readable afterwards regardless | `StompNotificationPushAdapterTest`, `NotificationServiceTest`, `NotificationCommitIT` (each lifecycle notification is stored, not only pushed), `NotificationProvider.test.tsx` |
@@ -140,7 +140,7 @@ only the streaks that are running — a zero is no streak — and names each by 
 | FR-37 | The theme control is reachable before signing in | `LoginPage.test.tsx` |
 | FR-38 | A page's content grows with the browser window, up to one of two caps chosen for readability: `wide` for lists, grids and dashboards, `narrow` for reading and form pages | `PageContainer`, `PageContainer.test.tsx` ([ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md)) |
 | FR-39 | A dialog fits the window at any size: its heading stays put and only its body scrolls | `Modal` — checked by hand, see §6 |
-| FR-40 | A dialog announces itself as a dialog named by its title, takes focus on open, confines Tab to its own controls, restores focus on close, and marks the page behind it inert. A toast is not part of the page behind: it stays above an open dialog and can still be dismissed | `Modal`, `Modal.test.tsx`, `ToastContainer.test.tsx`, [ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md), [ADR-019](../ADRs/ADR-019-a-toast-stays-live-above-an-open-dialog.md) |
+| FR-40 | A dialog announces itself as a dialog named by its title, takes focus on open, confines Tab to its own controls, restores focus on close, and marks the page behind it inert. A toast is not part of the page behind: it stays above an open dialog and can still be dismissed | `Modal`, `Modal.test.tsx`, `ToastContainer.test.tsx`, `UpgradeDetailsPage.test.tsx` (focus lands on Reschedule once an abandon removes the button that opened its dialog), [ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md), [ADR-019](../ADRs/ADR-019-a-toast-stays-live-above-an-open-dialog.md) |
 | FR-41 | A health area whose stored icon cannot be drawn is shown with the default icon, and editing it does not write the undrawable value back | `areaIconGlyph`, `isIconGlyph`, `areaIcon.test.ts` |
 
 ### 2.8 Account administration
@@ -176,7 +176,7 @@ The role model behind every entry here is [ADR-016](../ADRs/ADR-016-roles-read-f
 | BR-12 | A reminder with no day filter fires every day; an unrecognisable day is rejected when it is sent, never ignored | `ReminderTest`, `ReminderServiceTest`, `ReminderControllerTest` |
 | BR-23 | A reminder fires only while its upgrade is `ACTIVE`. In any other state it stays silent without being changed, so an upgrade activated again reminds exactly as it did before | `NotificationSchedulerTest` |
 | BR-13 | Reflections are append-only — there is no edit or delete path of their own. They go only with the upgrade they belong to (FR-14) | `ReflectionServiceTest` (asserted against the public surface), `ReflectionControllerTest`, `UpgradePersistenceIT` |
-| BR-14 | Concurrent edits to an upgrade are refused rather than silently merged | `UpgradePersistenceIT`, `GlobalExceptionHandlerTest` |
+| BR-14 | Concurrent edits to an upgrade are refused rather than silently merged | `UpgradePersistenceIT`, `GlobalExceptionHandlerTest` — **Known deviation:** [#194](https://github.com/NaimElijah/UpHealther/issues/194), only saves that overlap inside the server clash; an edit sent from a page opened before another edit carries no version, and replaces it |
 | BR-15 | A record is visible only to its owner; another user's record is reported as absent, never as forbidden | `UpgradePersistenceIT`, `HealthAreaPersistenceIT`, `ProgressEntryPersistenceIT`, and every `*ControllerTest` |
 | BR-16 | A field stored in a bounded column is refused at the boundary when it exceeds that bound, and the response names the field | `ColumnBoundContractTest` (bound vs. column), `UpgradeControllerTest`, `HealthAreaControllerTest`, `ProgressControllerTest`, `TrackingConfigControllerTest`, `AuthControllerTest` |
 | BR-17 | A password is at least 8 characters and at most 72, refused by the API rather than only by the browser | `AuthControllerTest` |
