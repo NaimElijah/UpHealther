@@ -61,8 +61,20 @@ that point still participates in the finished transaction, unless it runs as `PR
 - **The other side of that: a notification can be lost.** If the second transaction fails, for
   example because the database dropped the connection between the two commits, the write stands and
   its notification does not exist. Nothing retries it, and the ERROR line is the only trace.
-- Each notified write costs a second transaction, and with it a second pooled connection for its
-  duration. That is negligible at this application's load.
+- **Each notified write holds two pooled connections at once.**
+  - The listener runs before the committed transaction lets go of its connection:
+    `processCommit` calls `triggerAfterCompletion` before `cleanupAfterCompletion`.
+  - `open-in-view` is left at its default, so a web request's `EntityManager` keeps its connection for
+    the whole request anyway.
+  - So the new transaction takes a second connection while the first is still held. Before this
+    decision no second connection was needed.
+- **That can exhaust the pool.** The pool is Hikari's default of ten, and no `maximum-pool-size` is
+  set.
+  - About ten notified writes in flight at once can each hold one connection and wait for a second.
+  - Each waits out the 30-second connection timeout. The new transaction then fails, the failure is
+    logged as above, and every one of those notifications is lost.
+  - At this application's load that is far off, and `hikaricp_connections_pending` (NFR-28) shows it
+    coming.
 - Nothing mechanical requires a new listener method to carry the annotation. A method added without
   it stores nothing, and only `NotificationCommitIT` would notice, once the method is in its
   parameters.
@@ -90,6 +102,9 @@ that point still participates in the finished transaction, unless it runs as `PR
 - **A notification starts driving something off the process**, such as email (#152) or Web Push
   (#157), where a lost notification means a lost message the user was promised. An outbox then earns
   its cost.
+- **`hikaricp_connections_pending` is above zero under ordinary traffic**, or the number of writes in
+  flight at once approaches the pool size. Then either size the pool for two connections per notified
+  write, or take the notification off the request thread through an outbox.
 - **The backend runs as more than one instance.** The push then needs a broker anyway (see
   `architecture.md`, "Known constraints"), and moving the event through an outbox and that broker is
   one change.
