@@ -17,6 +17,8 @@ import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
@@ -30,6 +32,12 @@ import java.util.UUID;
  * a plain listener. The remaining time-based notifications (check-in, reminders) are produced directly
  * by {@code NotificationScheduler}. Per-progress entries are intentionally not notified (too frequent) —
  * streak milestones cover that.
+ *
+ * <p>Each {@code AFTER_COMMIT} method runs in a transaction of its own ({@code REQUIRES_NEW}). It runs
+ * while the committed transaction's resources are still bound to the thread, so a plain
+ * {@code @Transactional} call joins a transaction that will never commit again: the notification is
+ * never stored, yet its push still goes out (#169). The new transaction is what stores it, and the push
+ * waits for that commit. See ADR-028.
  */
 @Component
 @RequiredArgsConstructor
@@ -40,6 +48,7 @@ public class NotificationEventListener {
 
     /** Tells the user their idea was captured. Titles come off the event, so no lookup is needed. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onCreated(HealthUpgradeCreated e) {
         notificationService.create(e.userId(), NotificationType.UPGRADE_CREATED, NotificationCategory.INFO,
                 "New upgrade idea", "\"" + e.title() + "\" was added to your backlog.", e.upgradeId());
@@ -47,6 +56,7 @@ public class NotificationEventListener {
 
     /** Confirms the start date the user committed to. Also fires when an abandoned upgrade is revived. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onPlanned(HealthUpgradePlanned e) {
         notificationService.create(e.userId(), NotificationType.UPGRADE_PLANNED, NotificationCategory.INFO,
                 "Upgrade planned", "\"" + title(e.upgradeId(), e.userId()) + "\" is planned to start "
@@ -55,6 +65,7 @@ public class NotificationEventListener {
 
     /** Marks the start of a run, or its resumption after a pause. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onActivated(HealthUpgradeActivated e) {
         notificationService.create(e.userId(), NotificationType.UPGRADE_ACTIVATED, NotificationCategory.SUCCESS,
                 "Upgrade activated 💪", "You activated \"" + title(e.upgradeId(), e.userId()) + "\". Let's go!",
@@ -63,6 +74,7 @@ public class NotificationEventListener {
 
     /** Acknowledges a pause without editorialising: stopping for a while is not a failure. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onPaused(HealthUpgradePaused e) {
         notificationService.create(e.userId(), NotificationType.UPGRADE_PAUSED, NotificationCategory.INFO,
                 "Upgrade paused", "\"" + title(e.upgradeId(), e.userId()) + "\" is paused.", e.upgradeId());
@@ -70,6 +82,7 @@ public class NotificationEventListener {
 
     /** Celebrates a finished upgrade. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onCompleted(HealthUpgradeCompleted e) {
         notificationService.create(e.userId(), NotificationType.UPGRADE_COMPLETED, NotificationCategory.SUCCESS,
                 "Upgrade completed 🎉", "Congrats! You completed \"" + title(e.upgradeId(), e.userId()) + "\".",
@@ -78,6 +91,7 @@ public class NotificationEventListener {
 
     /** Records an abandonment neutrally — this is a lifestyle tool, not a disciplinarian. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onAbandoned(HealthUpgradeAbandoned e) {
         notificationService.create(e.userId(), NotificationType.UPGRADE_ABANDONED, NotificationCategory.INFO,
                 "Upgrade abandoned", "\"" + title(e.upgradeId(), e.userId()) + "\" was abandoned.", e.upgradeId());
@@ -85,6 +99,7 @@ public class NotificationEventListener {
 
     /** Celebrates a streak milestone. The tracking context decides which lengths qualify. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onStreak(StreakAchieved e) {
         notificationService.create(e.userId(), NotificationType.STREAK_ACHIEVED, NotificationCategory.SUCCESS,
                 "🔥 " + e.milestoneDays() + "-day streak!",
@@ -93,6 +108,7 @@ public class NotificationEventListener {
 
     /** Confirms a reflection was saved. The event carries no content, and neither does this. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onReflection(ReflectionAdded e) {
         notificationService.create(e.userId(), NotificationType.REFLECTION_ADDED, NotificationCategory.INFO,
                 "Reflection added", "You reflected on \"" + title(e.upgradeId(), e.userId()) + "\".", e.upgradeId());
