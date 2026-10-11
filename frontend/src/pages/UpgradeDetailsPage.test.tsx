@@ -8,6 +8,7 @@ import type { ActionTarget, CreateReminderRequest, CreateUpgradeRequest, HealthA
 
 const getUpgradeById = vi.fn();
 const updateUpgrade = vi.fn();
+const getHealthAreas = vi.fn(() => Promise.resolve([AN_AREA]));
 const performUpgradeAction = vi.fn();
 const rescheduleUpgrade = vi.fn();
 const deleteUpgrade = vi.fn();
@@ -28,7 +29,7 @@ vi.mock('../api/upgrades', () => ({
   rescheduleUpgrade: (...a: unknown[]) => rescheduleUpgrade(...a),
   deleteUpgrade: (...a: unknown[]) => deleteUpgrade(...a),
 }));
-vi.mock('../api/healthAreas', () => ({ getHealthAreas: () => Promise.resolve([AN_AREA]) }));
+vi.mock('../api/healthAreas', () => ({ getHealthAreas: () => getHealthAreas() }));
 vi.mock('../api/progress', () => ({
   getProgressByUpgrade: (...a: unknown[]) => getProgressByUpgrade(...a),
   createProgress: (...a: unknown[]) => createProgress(...a),
@@ -915,6 +916,18 @@ describe('UpgradeDetailsPage editing an upgrade', () => {
     expect(await dialog.findByText('Pick a date with a four-digit year.')).toBeDefined();
     await settled();
     expect(updateUpgrade).not.toHaveBeenCalled();
+  });
+
+  it('GivenTheAreasCannotBeRead_WhenTheEditOpens_ThenTheDialogSaysSoWithItsReference', async () => {
+    // NFR-30: without this the picker offers "No area" alone, as though the upgrade had none.
+    serveUpgrade(described);
+    getHealthAreas.mockRejectedValueOnce(apiFailure(503, { status: 503, message: 'Service unavailable', traceId: 'trace-areas' }));
+    renderPage();
+
+    const dialog = await openEdit();
+
+    expect(await dialog.findByText('Your health areas could not be loaded.')).toBeDefined();
+    expect(dialog.getByText('trace-areas')).toBeDefined();
   });
 
   it('GivenAnEditTheApiRefuses_WhenItIsSaved_ThenTheDialogSaysWhyWithItsReference', async () => {

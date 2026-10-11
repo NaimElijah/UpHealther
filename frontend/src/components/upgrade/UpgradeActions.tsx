@@ -76,7 +76,7 @@ interface Props {
 const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { data: areas = [] } = useQuery({ queryKey: ['healthAreas'], queryFn: getHealthAreas });
+  const { data: areas = [], error: areasError } = useQuery({ queryKey: ['healthAreas'], queryFn: getHealthAreas });
 
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState<CreateUpgradeRequest>(() => editableFields(upgrade));
@@ -206,6 +206,9 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
 
       <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Edit Upgrade">
         <form onSubmit={submitEdit} className="space-y-4">
+          {/* Without it the picker offers "No area" alone, as though the upgrade had none (NFR-30). The
+              area the upgrade has is still sent back unchanged. */}
+          {areasError && <ErrorState inline title="Your health areas could not be loaded." error={toApiError(areasError)} />}
           <UpgradeFormFields
             value={editForm}
             onChange={setEditForm}
