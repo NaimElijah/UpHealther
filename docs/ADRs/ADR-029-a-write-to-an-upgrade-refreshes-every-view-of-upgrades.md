@@ -16,7 +16,7 @@ An upgrade is shown under several keys, one per kind of page:
 
 | Key | Page |
 |---|---|
-| `['upgrades', <status>]` | the Backlog, Planned and Active pages, and the daily check-in |
+| `['upgrades', <status>]` | the Backlog, Planned and Active pages, and the daily check-in, which picks each entry's input from the upgrade's tracking configuration |
 | `['dashboard']` | the dashboard, which carries the active and planned upgrades in one response |
 | `['upgrade', <id>]` | one upgrade's details |
 | `['allUpgrades']` | the progress history, which looks up each entry's upgrade title |
@@ -30,7 +30,8 @@ direction.
 
 **A write that changes an upgrade invalidates every key that shows one.**
 `refreshUpgradeViews(queryClient)` holds the list of keys, and every such mutation calls it on success
-in place of invalidating its own key.
+in place of invalidating its own key. Such a write is a transition, a create, or a save of the
+upgrade's tracking configuration, which the upgrade carries (FR-15).
 
 - The keys are prefixes. `['upgrades']` covers every status, and `['upgrade']` every upgrade's details.
 - Invalidation refetches only the queries a mounted page is using, and marks the rest stale, to be
@@ -46,7 +47,8 @@ in place of invalidating its own key.
 - A new page that shows upgrades under a new key needs one line, in one place.
 - A new mutation needs one call, and cannot refresh the wrong subset.
 - `upgradeViews.test.tsx` drives two pages over one cache built as the app builds it. It pins the transitions
-  made on the dashboard and on the Active, Planned and Backlog pages.
+  made on the dashboard and on the Active, Planned and Backlog pages, and a tracking-configuration
+  save on an upgrade's page.
 
 **What this makes hard.**
 

@@ -7,14 +7,17 @@ import ActiveUpgradesPage from '../pages/ActiveUpgradesPage';
 import PlannedUpgradesPage from '../pages/PlannedUpgradesPage';
 import UpgradeDetailsPage from '../pages/UpgradeDetailsPage';
 import UpgradeBacklogPage from '../pages/UpgradeBacklogPage';
+import DailyCheckinPage from '../pages/DailyCheckinPage';
 import { createQueryClient } from './queryClient';
 import type { ActionTarget, DashboardDto, HealthUpgrade, UpgradeStatus } from '../types';
+import type { SaveTrackingConfigRequest } from '../api/trackingConfig';
 
 const getUpgrades = vi.fn();
 const getUpgradeById = vi.fn();
 const performUpgradeAction = vi.fn();
 const planUpgrade = vi.fn();
 const getDashboard = vi.fn();
+const saveTrackingConfig = vi.fn();
 
 vi.mock('../api/upgrades', () => ({
   getUpgrades: (...a: unknown[]) => getUpgrades(...a),
@@ -37,7 +40,7 @@ vi.mock('../api/reminders', () => ({
   createReminder: vi.fn(),
   deleteReminder: vi.fn(),
 }));
-vi.mock('../api/trackingConfig', () => ({ saveTrackingConfig: vi.fn() }));
+vi.mock('../api/trackingConfig', () => ({ saveTrackingConfig: (...a: unknown[]) => saveTrackingConfig(...a) }));
 
 const UPGRADE_ID = 'upgrade-1';
 const TITLE = 'Evening walk';
@@ -81,6 +84,10 @@ function serve(initial: HealthUpgrade) {
     upgrade = { ...upgrade, status: 'PLANNED', plannedStartDate };
     return Promise.resolve(upgrade);
   });
+  saveTrackingConfig.mockImplementation((upgradeId: string, req: SaveTrackingConfigRequest) => {
+    upgrade = { ...upgrade, trackingConfig: { id: 'config-1', upgradeId, ...req, frequency: req.frequency ?? 'DAILY' } };
+    return Promise.resolve(upgrade.trackingConfig);
+  });
 }
 
 let navigate: NavigateFunction;
@@ -105,6 +112,7 @@ function renderApp(path: string) {
           <Route path="/upgrades/active" element={<ActiveUpgradesPage />} />
           <Route path="/upgrades/planned" element={<PlannedUpgradesPage />} />
           <Route path="/upgrades/backlog" element={<UpgradeBacklogPage />} />
+          <Route path="/daily-checkin" element={<DailyCheckinPage />} />
           <Route path="/upgrades/:id" element={<UpgradeDetailsPage />} />
         </Routes>
       </MemoryRouter>
@@ -132,6 +140,7 @@ describe('a change to an upgrade', () => {
     getUpgradeById.mockReset();
     performUpgradeAction.mockReset();
     planUpgrade.mockReset();
+    saveTrackingConfig.mockReset();
     getDashboard.mockReset();
   });
 
@@ -195,5 +204,25 @@ describe('a change to an upgrade', () => {
     goTo('/');
 
     await waitFor(async () => expect(await tileFigure('Planned')).toBe('1'));
+  });
+
+  // The upgrade carries its tracking configuration (FR-15), and the check-in picks each entry's input
+  // from it; a stale one is scored against the saved configuration, as a miss that cannot be undone.
+  it('GivenATrackingTypeChangedOnTheDetailsPage_WhenTheDailyCheckinOpensAgain_ThenItAsksForTheNewKindOfEntry', async () => {
+    serve(anUpgrade('ACTIVE'));
+    renderApp('/daily-checkin');
+    await screen.findByText('Completed today');
+
+    goTo(`/upgrades/${UPGRADE_ID}`);
+    fireEvent.click(await screen.findByRole('button', { name: 'Configure' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'Configure Tracking' }));
+    fireEvent.change(dialog.getByLabelText('Tracking type'), { target: { value: 'NUMERIC' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Configure Tracking' })).toBeNull());
+
+    goTo('/daily-checkin');
+
+    expect(await screen.findByRole('spinbutton')).toBeDefined();
+    expect(screen.queryByText('Completed today')).toBeNull();
   });
 });
