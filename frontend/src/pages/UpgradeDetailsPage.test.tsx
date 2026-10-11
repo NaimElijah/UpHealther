@@ -9,6 +9,7 @@ import type { ActionTarget, CreateUpgradeRequest, HealthArea, HealthUpgrade, Pro
 const getUpgradeById = vi.fn();
 const updateUpgrade = vi.fn();
 const performUpgradeAction = vi.fn();
+const rescheduleUpgrade = vi.fn();
 const getProgressByUpgrade = vi.fn();
 const createProgress = vi.fn();
 const getReflectionsByUpgrade = vi.fn();
@@ -22,6 +23,7 @@ vi.mock('../api/upgrades', () => ({
   getUpgradeById: (...a: unknown[]) => getUpgradeById(...a),
   updateUpgrade: (...a: unknown[]) => updateUpgrade(...a),
   performUpgradeAction: (...a: unknown[]) => performUpgradeAction(...a),
+  rescheduleUpgrade: (...a: unknown[]) => rescheduleUpgrade(...a),
 }));
 vi.mock('../api/healthAreas', () => ({ getHealthAreas: () => Promise.resolve([AN_AREA]) }));
 vi.mock('../api/progress', () => ({
@@ -798,6 +800,11 @@ function serveUpgrade(initial: HealthUpgrade) {
     current = { ...current, status };
     return Promise.resolve(current);
   });
+  // BR-2: rescheduling moves the date in any state, and only from ABANDONED changes the status too.
+  rescheduleUpgrade.mockImplementation((_id: string, newDate: string) => {
+    current = { ...current, plannedStartDate: newDate, status: current.status === 'ABANDONED' ? 'PLANNED' : current.status };
+    return Promise.resolve(current);
+  });
 }
 
 /** Opens the edit dialog once the page has loaded, and returns queries scoped to it. */
@@ -1017,5 +1024,116 @@ describe('UpgradeDetailsPage abandoning an upgrade', () => {
     expect(await dialog.findByText('Cannot abandon a COMPLETED upgrade')).toBeDefined();
     expect(dialog.getByText('trace-abandon')).toBeDefined();
     expect(screen.getByRole('dialog', { name: 'Abandon Upgrade' })).toBeDefined();
+  });
+});
+
+/** Presses Reschedule once the page has loaded, and returns queries scoped to the dialog it opens. */
+async function openReschedule() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Reschedule' }));
+  return within(screen.getByRole('dialog', { name: 'Reschedule Upgrade' }));
+}
+
+/**
+ * FR-12 (#89) — an upgrade can be rescheduled from its page, in any state but COMPLETED (BR-2, BR-3).
+ *
+ * Rescheduling moves the planned start. From ABANDONED it is also the only way back, to PLANNED, which
+ * makes it the one way to undo an abandon.
+ */
+describe('UpgradeDetailsPage rescheduling an upgrade', () => {
+  beforeEach(() => {
+    getUpgradeById.mockReset();
+    rescheduleUpgrade.mockReset();
+    getProgressByUpgrade.mockResolvedValue([]);
+    getReflectionsByUpgrade.mockResolvedValue([]);
+    getReminders.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('GivenAnAbandonedUpgrade_WhenItIsRescheduled_ThenItIsPlannedAgain', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });
+    renderPage();
+    const dialog = await openReschedule();
+    expect(dialog.getByText(/goes back to Planned/)).toBeDefined();
+
+    fireEvent.change(dialog.getByLabelText('New start date'), { target: { value: '2026-11-01' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Reschedule' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Reschedule Upgrade' })).toBeNull());
+    expect(rescheduleUpgrade.mock.calls[0]).toEqual([UPGRADE_ID, '2026-11-01']);
+    expect(await screen.findByText('Planned')).toBeDefined();
+  });
+
+  it('GivenAPlannedUpgrade_WhenRescheduleOpens_ThenItStartsFromThePlannedStart', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'PLANNED', plannedStartDate: '2026-10-20' });
+    renderPage();
+
+    const dialog = await openReschedule();
+
+    expect((dialog.getByLabelText('New start date') as HTMLInputElement).value).toBe('2026-10-20');
+  });
+
+  // The suite runs in Los Angeles, where 05:00 UTC on 12 March is still the evening of 11 March (#95).
+  it('GivenNoPlannedStart_WhenRescheduleOpens_ThenItStartsFromTheUsersToday', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-12T05:00:00Z'));
+    serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });
+    renderPage();
+
+    const dialog = await openReschedule();
+
+    expect((dialog.getByLabelText('New start date') as HTMLInputElement).value).toBe('2026-03-11');
+  });
+
+  it('GivenACompletedUpgrade_WhenItsPageOpens_ThenRescheduleIsNotOffered', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'COMPLETED' });
+    renderPage();
+
+    await screen.findByRole('button', { name: 'Edit Upgrade' });
+
+    expect(screen.queryByRole('button', { name: 'Reschedule' })).toBeNull();
+  });
+
+  it('GivenTheDateIsCleared_WhenTheRescheduleIsSubmitted_ThenNothingIsSentAndADateIsAskedFor', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });
+    renderPage();
+    const dialog = await openReschedule();
+
+    fireEvent.change(dialog.getByLabelText('New start date'), { target: { value: '' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Reschedule' }));
+
+    expect(await dialog.findByText('Pick a start date.')).toBeDefined();
+    await settled();
+    expect(rescheduleUpgrade).not.toHaveBeenCalled();
+  });
+
+  it('GivenAFiveDigitYear_WhenTheRescheduleIsSubmitted_ThenNothingIsSentAndTheDialogAsksForFourDigits', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });
+    renderPage();
+    const dialog = await openReschedule();
+
+    fireEvent.change(dialog.getByLabelText('New start date'), { target: { value: '20261-11-01' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Reschedule' }));
+
+    expect(await dialog.findByText('Pick a date with a four-digit year.')).toBeDefined();
+    await settled();
+    expect(rescheduleUpgrade).not.toHaveBeenCalled();
+  });
+
+  it('GivenARescheduleTheApiRefuses_WhenItIsSubmitted_ThenTheDialogSaysWhyWithItsReference', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'PAUSED' });
+    rescheduleUpgrade.mockRejectedValue(apiFailure(422, {
+      status: 422,
+      message: 'Cannot reschedule a COMPLETED upgrade',
+      traceId: 'trace-reschedule',
+    }));
+    renderPage();
+    const dialog = await openReschedule();
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Reschedule' }));
+
+    expect(await dialog.findByText('Cannot reschedule a COMPLETED upgrade (reference trace-reschedule)')).toBeDefined();
   });
 });

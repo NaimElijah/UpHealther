@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { performUpgradeAction, updateUpgrade } from '../../api/upgrades';
+import { performUpgradeAction, rescheduleUpgrade, updateUpgrade } from '../../api/upgrades';
 import { getHealthAreas } from '../../api/healthAreas';
 import { toApiError, toFormMessage } from '../../api/apiError';
-import { isFourDigitYearDate } from '../../lib/localDate';
+import { isFourDigitYearDate, todayLocal } from '../../lib/localDate';
 import { refreshUpgradeViews } from '../../lib/upgradeViews';
 import Button from '../ui/Button';
 import Modal from '../ui/Modal';
+import Input from '../ui/Input';
 import ErrorState from '../ui/ErrorState';
 import UpgradeFormFields from './UpgradeFormFields';
 import type { CreateUpgradeRequest, HealthUpgrade, UpgradeStatus } from '../../types';
@@ -32,6 +33,9 @@ const editableFields = (upgrade: HealthUpgrade): CreateUpgradeRequest => ({
 /** The states an upgrade can be abandoned from: every one that is not final (BR-2). */
 const ABANDONABLE: readonly UpgradeStatus[] = ['IDEA', 'PLANNED', 'ACTIVE', 'PAUSED'];
 
+/** The one state that cannot be rescheduled: COMPLETED is terminal (BR-3). */
+const UNRESCHEDULABLE: UpgradeStatus = 'COMPLETED';
+
 /** What the form itself refuses before sending, by field. */
 interface FormCheck {
   title?: string;
@@ -45,7 +49,8 @@ interface Props {
 
 /**
  * What can be done to an upgrade as a whole from its own page (#89): edit its descriptive fields, in any
- * state (FR-13), and abandon it from any state that is not final (FR-12).
+ * state (FR-13), abandon it from any state that is not final, and reschedule it from any state but
+ * COMPLETED (FR-12). Rescheduling an abandoned upgrade is also the way back from abandoning it (BR-2).
  *
  * Abandoning asks first. An abandoned upgrade leaves every list, so a slip would look as though the
  * upgrade had vanished.
@@ -81,6 +86,32 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
     setAbandonOpen(true);
   };
 
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [newDate, setNewDate] = useState('');
+  const [dateCheck, setDateCheck] = useState('');
+  const rescheduleMutation = useMutation({
+    mutationFn: (date: string) => rescheduleUpgrade(upgrade.id, date),
+    onSuccess: () => refreshUpgradeViews(qc),
+  });
+
+  /** Opens on the planned start, or on the user's today when there is none. */
+  const openReschedule = () => {
+    setNewDate(upgrade.plannedStartDate ?? todayLocal());
+    setDateCheck('');
+    rescheduleMutation.reset();
+    setRescheduleOpen(true);
+  };
+
+  const submitReschedule = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDate) { setDateCheck('Pick a start date.'); return; }
+    if (!isFourDigitYearDate(newDate)) { setDateCheck('Pick a date with a four-digit year.'); return; }
+    setDateCheck('');
+    rescheduleMutation.mutate(newDate, { onSuccess: () => setRescheduleOpen(false) });
+  };
+
+  const rescheduleRefusal = rescheduleMutation.error ? toFormMessage(toApiError(rescheduleMutation.error), 'newDate') : undefined;
+
   /** Starts an edit from what the upgrade holds now, with nothing left over from an earlier attempt. */
   const openEdit = () => {
     setEditForm(editableFields(upgrade));
@@ -106,6 +137,9 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
     <>
       <div className="mt-4 flex flex-wrap gap-2 border-t border-line-subtle pt-4">
         <Button size="sm" variant="secondary" onClick={openEdit}>Edit Upgrade</Button>
+        {upgrade.status !== UNRESCHEDULABLE && (
+          <Button size="sm" variant="secondary" onClick={openReschedule}>Reschedule</Button>
+        )}
         {ABANDONABLE.includes(upgrade.status) && (
           <Button size="sm" variant="secondary" onClick={openAbandon}>Abandon</Button>
         )}
@@ -127,10 +161,31 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
         </form>
       </Modal>
 
+      <Modal isOpen={rescheduleOpen} onClose={() => setRescheduleOpen(false)} title="Reschedule Upgrade">
+        <form onSubmit={submitReschedule} className="space-y-4">
+          <p className="text-fg-subtle">
+            {upgrade.status === 'ABANDONED'
+              ? 'When do you want to start again? The upgrade goes back to Planned.'
+              : 'When do you want to start instead?'}
+          </p>
+          <Input
+            label="New start date"
+            type="date"
+            value={newDate}
+            onChange={(e) => setNewDate(e.target.value)}
+            error={dateCheck || rescheduleRefusal}
+          />
+          <div className="flex gap-2 justify-end">
+            <Button variant="secondary" type="button" onClick={() => setRescheduleOpen(false)}>Cancel</Button>
+            <Button type="submit" loading={rescheduleMutation.isPending}>Reschedule</Button>
+          </div>
+        </form>
+      </Modal>
+
       <Modal isOpen={abandonOpen} onClose={() => setAbandonOpen(false)} title="Abandon Upgrade">
         <p className="text-fg-subtle mb-4">
           Abandon <span className="font-medium text-fg break-words">{upgrade.title}</span>? It leaves your lists of
-          ideas, planned and active upgrades.
+          ideas, planned and active upgrades. Reschedule it from this page to plan it again.
         </p>
         {abandonMutation.error && (
           <div className="mb-4">
