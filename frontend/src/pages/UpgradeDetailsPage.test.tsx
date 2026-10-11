@@ -1014,6 +1014,37 @@ describe('UpgradeDetailsPage abandoning an upgrade', () => {
     expect(performUpgradeAction).not.toHaveBeenCalled();
   });
 
+  // FR-40: a dialog gives focus back on close. Abandoning removes the button that opened this one, so
+  // focus would fall to <body> and a keyboard user would start again from the top of the page.
+  it('GivenAConfirmedAbandon_WhenTheDialogCloses_ThenFocusIsOnReschedule', async () => {
+    serveUpgrade(anUpgrade());
+    renderPage();
+    const trigger = await screen.findByRole('button', { name: 'Abandon' });
+    // `fireEvent.click` does not move focus in jsdom; a keyboard user's press would.
+    trigger.focus();
+    fireEvent.click(trigger);
+    const dialog = within(screen.getByRole('dialog', { name: 'Abandon Upgrade' }));
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Abandon' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Abandon Upgrade' })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Reschedule' })));
+  });
+
+  it('GivenTheAbandonIsCancelled_WhenTheDialogCloses_ThenFocusReturnsToAbandon', async () => {
+    serveUpgrade(anUpgrade());
+    renderPage();
+    const trigger = await screen.findByRole('button', { name: 'Abandon' });
+    trigger.focus();
+    fireEvent.click(trigger);
+    const dialog = within(screen.getByRole('dialog', { name: 'Abandon Upgrade' }));
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Abandon Upgrade' })).toBeNull());
+    expect(document.activeElement).toBe(trigger);
+  });
+
   it('GivenAnAbandonInFlight_WhenTheDialogIsDismissed_ThenItStaysOpenUntilTheAnswerArrives', async () => {
     // Dismissed mid-flight, it could be opened again and the abandon sent twice; the second would be
     // refused 422, reading as though the first had failed.

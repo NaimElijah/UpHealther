@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { deleteUpgrade, performUpgradeAction, rescheduleUpgrade, updateUpgrade } from '../../api/upgrades';
@@ -90,6 +90,19 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
   });
 
   const [abandonOpen, setAbandonOpen] = useState(false);
+  const rescheduleButton = useRef<HTMLButtonElement>(null);
+  // Set by a confirmed abandon, and acted on once the dialog has closed and released the page.
+  const [focusRescheduleNext, setFocusRescheduleNext] = useState(false);
+
+  // Abandoning removes the Abandon button that opened the dialog, so the dialog has nothing to give
+  // focus back to and it would fall to <body> (FR-40). Reschedule is the way back the dialog points to,
+  // and the abandoned upgrade offers it. This runs after the dialog's own cleanup, which releases the
+  // page, because a child's effects run before its parent's.
+  useEffect(() => {
+    if (!focusRescheduleNext || abandonOpen) return;
+    rescheduleButton.current?.focus();
+    setFocusRescheduleNext(false);
+  }, [focusRescheduleNext, abandonOpen]);
   const abandonMutation = useMutation({
     mutationFn: () => performUpgradeAction(upgrade.id, 'ABANDONED'),
     onSuccess: () => refreshUpgradeViews(qc),
@@ -183,7 +196,7 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
       <div className="mt-4 flex flex-wrap gap-2 border-t border-line-subtle pt-4">
         <Button size="sm" variant="secondary" onClick={openEdit}>Edit Upgrade</Button>
         {RESCHEDULABLE.includes(upgrade.status) && (
-          <Button size="sm" variant="secondary" onClick={openReschedule}>Reschedule</Button>
+          <Button ref={rescheduleButton} size="sm" variant="secondary" onClick={openReschedule}>Reschedule</Button>
         )}
         {ABANDONABLE.includes(upgrade.status) && (
           <Button size="sm" variant="secondary" onClick={openAbandon}>Abandon</Button>
@@ -239,7 +252,9 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
           <Button
             variant="danger"
             loading={abandonMutation.isPending}
-            onClick={() => abandonMutation.mutate(undefined, { onSuccess: () => setAbandonOpen(false) })}
+            onClick={() => abandonMutation.mutate(undefined, {
+              onSuccess: () => { setAbandonOpen(false); setFocusRescheduleNext(true); },
+            })}
           >
             Abandon
           </Button>
