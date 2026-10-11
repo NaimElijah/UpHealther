@@ -128,7 +128,10 @@ clients connected to *this* instance — see "Known constraints" below.
 implementing `DomainEvent` through the `DomainEventPublisher` port. The adapter behind it delegates to
 Spring's `ApplicationEventPublisher`, so consumers can bind to the transaction:
 `@TransactionalEventListener(AFTER_COMMIT)` means a notification is never raised for a write that then
-rolls back. Events raised outside a transaction — by the scheduled sweeps — use a plain `@EventListener`,
+rolls back. Such a listener stores its notification in a transaction of its own (`REQUIRES_NEW`): the
+committed transaction is still bound to the thread when the listener runs, and an insert that joined it
+would never be committed ([ADR-028](../ADRs/ADR-028-a-raised-notification-is-stored-in-its-own-transaction-after-the-write-commits.md)).
+Events raised outside a transaction — by the scheduled sweeps — use a plain `@EventListener`,
 because there is no commit for a transactional listener to wait for.
 
 Events are asynchronous only in the sense of being decoupled; they are delivered in the same process,
@@ -632,6 +635,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the dialog traps focus by hand rather than through a native `<dialog>`; why `inert` and not `aria-hidden`; why the overlay is portalled | [ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md) |
 | Why a phone gets the navigation in the shared dialog rather than a drawer or a tab bar; when the menu closes; why the brand leaves the navbar below 360px | [ADR-022](../ADRs/ADR-022-the-phone-navigation-is-the-shared-dialog-not-a-drawer.md) |
 | Why a notification sweep carries on past a failed save, still fails the run, and gives up only when the database cannot be reached | [ADR-023](../ADRs/ADR-023-a-notification-sweep-carries-on-past-a-failed-save-and-fails-the-run.md) |
+| Why a lifecycle notification is stored in its own transaction after the write commits, and why a failed one can be lost but never fails the write | [ADR-028](../ADRs/ADR-028-a-raised-notification-is-stored-in-its-own-transaction-after-the-write-commits.md) |
 | Why the container's error page is let through security by dispatcher type, and how it gets the trace id the request's own dispatch saw | [ADR-024](../ADRs/ADR-024-the-container-error-page-keeps-its-status-and-carries-the-trace-id.md) |
 | Why an unauthenticated request is a 401 with the API's own body rather than the framework's 403 | [ADR-014](../ADRs/ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |

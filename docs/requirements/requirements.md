@@ -3,7 +3,7 @@
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
 rather than trusted. A hundred and fourteen of the hundred and twenty-two entries below name a test —
-a hundred and twelve distinct test classes and files between them. Five of the remaining eight name the command,
+a hundred and thirteen distinct test classes and files between them. Five of the remaining eight name the command,
 workflow or script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48). The last three —
 FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is about a rendered width, a
 colour or an overflow, and jsdom has no layout engine to observe any of them; §6 records what closing
@@ -112,11 +112,11 @@ no way at all — to read another person's health records
 | ID | Requirement | Enforced by |
 |---|---|---|
 | FR-27 | A user can see, in one request, their active, planned, due-today, overdue and recently completed upgrades, their weekly completion rate, their streaks and per-area counts | `DashboardAggregationServiceTest`, `DashboardControllerTest`, `DashboardPage.test.tsx` |
-| FR-28 | A user is notified when an upgrade is created, planned, activated, paused, completed or abandoned, when a reflection is added, and when a streak milestone is reached | `NotificationEventListenerTest` |
+| FR-28 | A user is notified when an upgrade is created, planned, activated, paused, completed or abandoned, when a reflection is added, and when a streak milestone is reached | `NotificationEventListenerTest`, `NotificationCommitIT` (each of them stored once the write commits) |
 | FR-29 | A user is notified when an active upgrade passes its target date | `UpgradeOverdueSchedulerTest` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), the interface cannot set a target date |
 | FR-30 | A user with active upgrades and nothing logged is nudged once a day | `NotificationSchedulerTest` |
 | FR-31 | A user's reminders fire at the configured time and day | `NotificationSchedulerTest`, `ReminderTest` |
-| FR-32 | Notifications arrive in real time on a connected client, and are readable afterwards regardless | `StompNotificationPushAdapterTest`, `NotificationServiceTest`, `NotificationProvider.test.tsx` |
+| FR-32 | Notifications arrive in real time on a connected client, and are readable afterwards regardless | `StompNotificationPushAdapterTest`, `NotificationServiceTest`, `NotificationCommitIT` (each lifecycle notification is stored, not only pushed), `NotificationProvider.test.tsx` |
 | FR-33 | A user can read their fifty most recent notifications, see an unread count that covers every notification rather than only the fifty listed, and mark one or all as read | `NotificationServiceTest`, `NotificationControllerTest`, `NotificationProvider.test.tsx` |
 | FR-49 | A user can opt in to desktop notifications, which are raised only while the tab is in the background — with the tab in view, the in-page notice already says it | `NotificationProvider.test.tsx` |
 
@@ -250,7 +250,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-15 | Time-dependent behaviour reads an injected clock, so it is testable and timezone-explicit | `UpgradeOverdueSchedulerTest`, `NotificationSchedulerTest`, `UpgradeServiceTest`, `TrackingServiceTest`, `ReflectionServiceTest`, `GlobalExceptionHandlerTest`, `NotificationServiceTest`, `TraceIdErrorAttributesTest` (the container's error page), `HealthUpgradesApplicationTest` and `ServerTimeArchitectureTest` (the clock and every cron keep UTC, and nothing outside an entity reads the time around the clock, [ADR-020](../ADRs/ADR-020-the-server-keeps-time-in-utc.md)) — **Known deviation:** [#51](https://github.com/NaimElijah/UpHealther/issues/51), entity timestamps bypass the clock |
 | NFR-26 | A real-time push that cannot be delivered degrades to the stored notification and is reported, rather than failing the work that raised it | `StompNotificationPushAdapterTest` |
 | NFR-50 | A notification sweep that fails to save one notification still attempts the rest, and gives up only when the database cannot be reached; the run then still ends as failed, and its log line says how many were sent, failed and skipped | `NotificationSchedulerTest` ([ADR-023](../ADRs/ADR-023-a-notification-sweep-carries-on-past-a-failed-save-and-fails-the-run.md)) |
-| NFR-49 | A notification is pushed to a connected client only after the transaction that stored it commits, so a client is never told about a row that then rolled back | `NotificationServiceTest` |
+| NFR-49 | A notification raised by a write is stored and pushed only once that write commits, and a write that rolls back raises none. The push waits for the notification's own commit, so a client is never told about a row that then rolled back | `NotificationServiceTest`, `NotificationCommitIT` ([ADR-028](../ADRs/ADR-028-a-raised-notification-is-stored-in-its-own-transaction-after-the-write-commits.md)) |
 
 ### 4.4 Observability and audit
 
@@ -360,9 +360,6 @@ Undecided, and owned by the repository owner.
 - **The backend has no dependency vulnerability audit.** OWASP dependency-check needs an `NVD_API_KEY`
   secret; ADR-002 records why a check that cannot fail was judged worse than none, and
   [#59](https://github.com/NaimElijah/UpHealther/issues/59) that it is no longer the only tool.
-- **Nothing enforces that a rolled-back write raises no notification.** The notification listeners
-  wait for the commit, and `architecture.md` describes the guarantee, but no test would notice a
-  listener that did not. NFR-49 holds only the half that is tested: the live push waits for the commit.
 - **The frontend's copies of the API's shapes are unchecked.** NFR-10 keeps the mirrored enums in step
   with the backend; the request and response types are written by hand, and nothing notices when one
   drifts (`architecture.md`, "The frontend's types are hand-written, not generated").
