@@ -3,7 +3,7 @@
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
 rather than trusted. A hundred and fourteen of the hundred and twenty-two entries below name a test —
-a hundred and thirteen distinct test classes and files between them. Five of the remaining eight name the command,
+a hundred and fourteen distinct test classes and files between them. Five of the remaining eight name the command,
 workflow or script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48). The last three —
 FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is about a rendered width, a
 colour or an overflow, and jsdom has no layout engine to observe any of them; §6 records what closing
@@ -81,7 +81,7 @@ no way at all — to read another person's health records
 | FR-9 | A user can create an upgrade of any of the eight kinds: habit, one-time action, product replacement, routine, goal, experiment, learning task, medical/preventive | `FrontendEnumContractTest`, `UpgradeControllerTest` |
 | FR-10 | An upgrade carries a title and type, and optionally an area, description, difficulty, planned start, target end, motivation and success criteria | `HealthUpgradeTest`, `UpgradeServiceTest` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), success criteria and the target end cannot be set from the interface, and the planned start only by planning an idea |
 | FR-11 | A user can list their upgrades, narrowed by one of status, type, area or difficulty | `UpgradeServiceTest`, `UpgradeControllerTest` — **Known deviation:** [#90](https://github.com/NaimElijah/UpHealther/issues/90), the interface filters by status only |
-| FR-12 | A user can move an upgrade through its lifecycle: plan, activate, pause, complete, abandon, reschedule | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeControllerTest`, `UpgradeBacklogPage.test.tsx`, `ActiveUpgradesPage.test.tsx` (a paused upgrade is listed and can be resumed), `upgrades.test.ts` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), abandon and reschedule have no control |
+| FR-12 | A user can move an upgrade through its lifecycle: plan, activate, pause, complete, abandon, reschedule | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeControllerTest`, `UpgradeBacklogPage.test.tsx`, `ActiveUpgradesPage.test.tsx` (a paused upgrade is listed and can be resumed), `upgradeViews.test.tsx` (a change made on one page reaches every page that shows the upgrade), `upgrades.test.ts` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), abandon and reschedule have no control |
 | FR-13 | A user can edit an upgrade's descriptive fields at any point in its lifecycle | `HealthUpgradeTest`, `UpgradeServiceTest` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), the interface has no edit |
 | FR-14 | A user can delete an upgrade, and with it everything recorded against it: its tracking configuration, progress, reminders and reflections. Its notifications stay, detached from it | `UpgradeServiceTest`, `UpgradeControllerTest`, `UpgradePersistenceIT` — **Known deviation:** [#89](https://github.com/NaimElijah/UpHealther/issues/89), the interface has no delete |
 | FR-15 | An upgrade's response carries its tracking configuration, so a list view needs no second call | `UpgradeDtoSerializationTest`, `UpgradeControllerTest` |

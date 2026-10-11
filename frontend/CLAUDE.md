@@ -47,7 +47,14 @@ conventions to follow inside `frontend/`.
   class — `getDerivedStateFromError` has no hooks equivalent. It shows and does not record: there is
   no sink to record to, and adding one is a decision about sending user data off the device.
 - **Server state** is managed by TanStack Query (`@tanstack/react-query`); avoid duplicating it in
-  local React state.
+  local React state. The cache is built by `src/lib/queryClient.ts`, so a test can run with the app's
+  own thirty-second staleness window.
+- **A write that changes an upgrade calls `refreshUpgradeViews(queryClient)`** (`src/lib/upgradeViews.ts`),
+  not `invalidateQueries` on its own page's key. A tracking-configuration save is one: the upgrade
+  carries its configuration, and the daily check-in picks each entry's input from it. An upgrade shows on several pages under different
+  keys, and a page opened again within the staleness window renders from the cache, so refreshing one
+  key left the others showing a state the upgrade had left (#189). A new page that shows upgrades under
+  a new key adds that key there ([ADR-029](../docs/ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)).
 - **Auth** flows through `contexts/AuthContext.tsx` (the context object lives in `contexts/authContextValue.ts`)
   + `hooks/useAuth.ts`; routes are gated by `router/ProtectedRoute.tsx`. Routing is React Router 6.
 - **Theme** flows through `contexts/ThemeProvider.tsx` (context object in `contexts/themeContextValue.ts`)

@@ -15,6 +15,7 @@ import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError, toFormMessage } from '../api/apiError';
 import { todayLocal } from '../lib/localDate';
+import { refreshUpgradeViews } from '../lib/upgradeViews';
 
 /**
  * The upgrade types offered when creating one: the eight kinds the product defines.
@@ -68,14 +69,14 @@ const UpgradeBacklogPage: React.FC = () => {
 
   const createMutation = useMutation({
     mutationFn: createUpgrade,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['upgrades'] }); setIsOpen(false); setForm({ title: '', type: 'HABIT', difficulty: 'MEDIUM' }); },
+    onSuccess: () => { refreshUpgradeViews(qc); setIsOpen(false); setForm({ title: '', type: 'HABIT', difficulty: 'MEDIUM' }); },
   });
 
   const planMutation = useMutation({
     mutationFn: ({ id, date }: { id: string; date: string }) => planUpgrade(id, date),
     // Awaited, so the dialog stays pending until the backlog no longer lists the idea; closed sooner it
     // would uncover a Plan button whose second press earns a 422.
-    onSuccess: async () => { await qc.invalidateQueries({ queryKey: ['upgrades'] }); setPlanning(null); },
+    onSuccess: async () => { await refreshUpgradeViews(qc); setPlanning(null); },
   });
 
   const handleCreate = async (e: React.FormEvent) => {

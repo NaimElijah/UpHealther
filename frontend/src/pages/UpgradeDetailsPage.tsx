@@ -21,6 +21,7 @@ import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError, toFormMessage } from '../api/apiError';
 import { parseLocalDate, todayLocal } from '../lib/localDate';
+import { refreshUpgradeViews } from '../lib/upgradeViews';
 
 /**
  * A blank progress entry for today, set each time **Log Progress** opens (#119).
@@ -161,9 +162,11 @@ const UpgradeDetails: React.FC = () => {
     setReflectionOpen(true);
   };
 
+  // Every view of upgrades, not just this one: an upgrade carries its tracking configuration (FR-15), and
+  // the daily check-in picks each entry's input from it (#189).
   const trackingMutation = useMutation({
     mutationFn: (req: SaveTrackingConfigRequest) => saveTrackingConfig(id!, req),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['upgrade', id] }),
+    onSuccess: () => refreshUpgradeViews(qc),
   });
 
   /** Edits the tracking configuration from what is saved, on the same terms as {@link openProgress}. */
