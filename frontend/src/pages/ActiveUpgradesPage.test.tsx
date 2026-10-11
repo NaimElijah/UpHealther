@@ -238,6 +238,23 @@ describe('ActiveUpgradesPage, paused upgrades', () => {
     expect(screen.queryByRole('region', { name: 'Paused' })).toBeNull();
   });
 
+  it('GivenTheApiRefusesAResume_WhenItIsPressed_ThenThePausedCardSaysWhyWithTheReference', async () => {
+    // BR-5 can refuse a resume, for example a fourth running HARD upgrade.
+    answerByStatus({ ACTIVE: [anActiveUpgrade()], PAUSED: [aPausedUpgrade()] });
+    performUpgradeAction.mockRejectedValue(
+      apiFailure(422, { status: 422, message: 'Cannot run more than 3 HARD upgrades simultaneously', traceId: 'trace-62' }),
+    );
+    renderPage();
+    const paused = await screen.findByRole('region', { name: 'Paused' });
+
+    fireEvent.click(within(paused).getByRole('button', { name: 'Resume' }));
+
+    const alert = await within(paused).findByRole('alert');
+    expect(alert.textContent).toContain('Cannot run more than 3 HARD upgrades simultaneously');
+    expect(alert.textContent).toContain('trace-62');
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
   it('GivenThePausedReadFails_WhenTheActivePageRenders_ThenTheRunningOnesStillShowWithTheReference', async () => {
     getUpgrades.mockImplementation((status: UpgradeStatus) =>
       status === 'PAUSED'
