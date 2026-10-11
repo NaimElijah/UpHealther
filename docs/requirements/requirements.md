@@ -13,7 +13,7 @@ that gap would take.
 API (§5.4), so "a user can" means through the interface. Where the implementation falls short of an
 entry — in the interface or anywhere else — the entry is not weakened to match. Its *Enforced by* cell
 says **Known deviation** and links the issue that tracks the gap; the tests named there enforce the
-part that holds. Ten entries carry one today, and the change that closes an issue takes its
+part that holds. Eleven entries carry one today, and the change that closes an issue takes its
 marker out.
 
 **IDs are permanent.** Tests, code comments, migrations and ADRs cite them, so an ID is never
@@ -176,7 +176,7 @@ The role model behind every entry here is [ADR-016](../ADRs/ADR-016-roles-read-f
 | BR-12 | A reminder with no day filter fires every day; an unrecognisable day is rejected when it is sent, never ignored | `ReminderTest`, `ReminderServiceTest`, `ReminderControllerTest` |
 | BR-23 | A reminder fires only while its upgrade is `ACTIVE`. In any other state it stays silent without being changed, so an upgrade activated again reminds exactly as it did before | `NotificationSchedulerTest` |
 | BR-13 | Reflections are append-only — there is no edit or delete path of their own. They go only with the upgrade they belong to (FR-14) | `ReflectionServiceTest` (asserted against the public surface), `ReflectionControllerTest`, `UpgradePersistenceIT` |
-| BR-14 | Concurrent edits to an upgrade are refused rather than silently merged | `UpgradePersistenceIT`, `GlobalExceptionHandlerTest` |
+| BR-14 | Concurrent edits to an upgrade are refused rather than silently merged | `UpgradePersistenceIT`, `GlobalExceptionHandlerTest` — **Known deviation:** [#194](https://github.com/NaimElijah/UpHealther/issues/194), only saves that overlap inside the server clash; an edit sent from a page opened before another edit carries no version, and replaces it |
 | BR-15 | A record is visible only to its owner; another user's record is reported as absent, never as forbidden | `UpgradePersistenceIT`, `HealthAreaPersistenceIT`, `ProgressEntryPersistenceIT`, and every `*ControllerTest` |
 | BR-16 | A field stored in a bounded column is refused at the boundary when it exceeds that bound, and the response names the field | `ColumnBoundContractTest` (bound vs. column), `UpgradeControllerTest`, `HealthAreaControllerTest`, `ProgressControllerTest`, `TrackingConfigControllerTest`, `AuthControllerTest` |
 | BR-17 | A password is at least 8 characters and at most 72, refused by the API rather than only by the browser | `AuthControllerTest` |
