@@ -11,6 +11,7 @@ import type { ActionTarget, HealthUpgrade } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
+import { refreshUpgradeViews } from '../lib/upgradeViews';
 
 /**
  * The upgrades currently running, with the transitions available from `ACTIVE`, and below them the
@@ -20,8 +21,8 @@ import { toApiError } from '../api/apiError';
  * section a pause could not be undone (#176). The API filters by one status at a time, hence two reads.
  * A failed paused read is shown inside its own section, so the running upgrades still render.
  *
- * Invalidates the whole `upgrades` key, since a transition moves an upgrade between this page's lists
- * or onto one it does not show. A refused transition is shown on its card with the trace id (NFR-30),
+ * A transition refreshes every view of upgrades, since it moves an upgrade between this page's lists or
+ * onto one it does not show, and changes what the dashboard and the upgrade's own page say (#189). A refused transition is shown on its card with the trace id (NFR-30),
  * and goes away when the next one starts.
  */
 const ActiveUpgradesPage: React.FC = () => {
@@ -35,7 +36,7 @@ const ActiveUpgradesPage: React.FC = () => {
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: ActionTarget }) => performUpgradeAction(id, status),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['upgrades'] }),
+    onSuccess: () => refreshUpgradeViews(qc),
   });
 
   /** The refusal of the last change, for the card it was pressed on: above a long grid it would be out of view. */

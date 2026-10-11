@@ -13,6 +13,7 @@ import type { ActionTarget } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
+import { refreshUpgradeViews } from '../lib/upgradeViews';
 
 /** The dashboard sections that list upgrade cards; one upgrade can appear in both. */
 type CardSection = 'today' | 'active';
@@ -22,8 +23,8 @@ type CardSection = 'today' | 'active';
  * the per-area counts.
  *
  * Everything comes from the single `/api/dashboard` call, so the sections cannot disagree with one
- * another. A transition performed from a card invalidates that one query, which refreshes the whole
- * page at once.
+ * another. A transition performed from a card refreshes that one query, which redraws the whole page
+ * at once, and marks the other pages' views of upgrades out of date with it (#189).
  */
 const DashboardPage: React.FC = () => {
   const { user } = useAuth();
@@ -35,14 +36,14 @@ const DashboardPage: React.FC = () => {
   });
 
   /**
-   * Performs a lifecycle transition from a card, then refetches the dashboard it appeared on. A refusal is
+   * Performs a lifecycle transition from a card, then refreshes every view of upgrades, this one included. A refusal is
    * shown on the card it was pressed on, with its trace id (NFR-30); before, it was an unhandled
    * rejection. The section travels with the change because one upgrade can be listed in two of them.
    */
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: ActionTarget; section: CardSection }) =>
       performUpgradeAction(id, status),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+    onSuccess: () => refreshUpgradeViews(queryClient),
   });
   const changeStatusFrom = (section: CardSection) => (id: string, status: ActionTarget) =>
     statusMutation.mutate({ id, status, section });

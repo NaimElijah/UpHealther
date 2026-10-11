@@ -12,6 +12,7 @@ import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
 import { parseLocalDate } from '../lib/localDate';
+import { refreshUpgradeViews } from '../lib/upgradeViews';
 
 /**
  * Upgrades committed to a start date but not yet running, soonest first.
@@ -27,7 +28,7 @@ const PlannedUpgradesPage: React.FC = () => {
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: ActionTarget }) => performUpgradeAction(id, status),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['upgrades'] }),
+    onSuccess: () => refreshUpgradeViews(qc),
   });
 
   /** The refusal of the last change, for the card it was pressed on: above a long grid it would be out of view. */
