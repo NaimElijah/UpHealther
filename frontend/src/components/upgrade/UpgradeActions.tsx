@@ -70,7 +70,7 @@ interface Props {
  * left to show, so the dashboard opens in its place.
  *
  * Separate from the page because each action brings a dialog and a mutation of its own, and the page
- * already holds four of each. A write here refreshes every view of upgrades (ADR-029), the page's own
+ * already holds several of each. A write here refreshes every view of upgrades (ADR-029), the page's own
  * included.
  */
 const UpgradeActions: React.FC<Props> = ({ upgrade }) => {

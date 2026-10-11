@@ -483,8 +483,11 @@ records from `application/port/in` and return domain objects; a `*WebMapper` per
 both directions. A wire-format change therefore cannot reach a use-case signature. `UpgradeTrackingConfigDto`
 duplicating `TrackingConfigDto` field for field is the visible cost, and is intentional.
 
-**Optimistic locking is on one aggregate.** Only `HealthUpgrade` carries `@Version`; a concurrent edit
-returns 409. Nothing else is version-checked, because nothing else is edited from two places at once.
+**Optimistic locking is on one aggregate.** Only `HealthUpgrade` carries `@Version`. Two saves that
+overlap inside the server clash, and the later one is answered 409. No request carries the version back,
+though, so an edit sent from a page opened before another edit replaces that edit instead of being
+refused ([#194](https://github.com/NaimElijah/UpHealther/issues/194)). Nothing else is version-checked,
+because nothing else is edited from two places at once.
 
 **Exception to HTTP status is decided in exactly one class.** Controllers and services throw domain
 exceptions and never build a status by hand. The mapping is pinned by a test.

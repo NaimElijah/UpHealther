@@ -1358,7 +1358,7 @@ function serveReminders(...initial: Reminder[]) {
 /**
  * FR-26 (#89) — a reminder can be rescheduled, switched off and switched back on from its upgrade's page.
  *
- * Each row's controls name the reminder they act on, since an upgrade can have several and the page
+ * Edit and the switch name the reminder they act on, since an upgrade can have several and the page
  * already has an "Edit" for its tracking.
  */
 describe('UpgradeDetailsPage changing a reminder', () => {

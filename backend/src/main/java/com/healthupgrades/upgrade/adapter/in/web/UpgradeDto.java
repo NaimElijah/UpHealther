@@ -14,7 +14,8 @@ import java.util.UUID;
  * <p>Two fields are not stored on the aggregate: {@code overdue} is derived at mapping time from the
  * target date and the current status, and {@code trackingConfig} is composed in through
  * {@code UpgradeTrackingSummaryPort} — null when the upgrade has no tracking set up. {@code version}
- * is the optimistic-lock counter; a client that echoes a stale one back gets a 409.
+ * is the optimistic-lock counter. No request takes it back yet (#194), so it guards only saves that
+ * overlap inside the server.
  *
  * <p>The field order is part of the contract in practice and is pinned by
  * {@code UpgradeDtoSerializationTest}.
