@@ -1343,6 +1343,67 @@ describe('UpgradeDetailsPage changing a reminder', () => {
     expect(alert.textContent).toContain('trace-switch');
   });
 
+  // One write to the reminders at a time. A switch resends the schedule its row shows, and the form edits
+  // from a row, so either acting while another write is in flight works from a schedule about to change.
+
+  it('GivenARescheduleInFlight_WhenItsReminderIsSwitched_ThenTheSwitchWaitsAndTheRescheduleStands', async () => {
+    serveReminders(aReminder());
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit the 09:00 reminder' }));
+    fireEvent.change(screen.getByLabelText('Time'), { target: { value: '07:30' } });
+    updateReminder.mockImplementationOnce(() => new Promise(() => {}));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save reminder' }));
+    await waitFor(() => expect(updateReminder).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Disable the 09:00 reminder' }));
+
+    await settled();
+    expect(updateReminder).toHaveBeenCalledTimes(1);
+  });
+
+  it('GivenAnAddInFlight_WhenAReminderIsEdited_ThenTheFormKeepsAdding', async () => {
+    // The add's success clears the form's days; an edit opened under it would lose its own.
+    serveReminders(aReminder());
+    createReminder.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    await screen.findByRole('button', { name: 'Edit the 09:00 reminder' });
+    fireEvent.submit(screen.getByRole('button', { name: 'Add reminder' }));
+    await waitFor(() => expect(createReminder).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit the 09:00 reminder' }));
+
+    expect(screen.queryByRole('button', { name: 'Save reminder' })).toBeNull();
+  });
+
+  it('GivenARescheduleInFlight_WhenCancelIsPressed_ThenTheEditStaysUntilTheAnswer', async () => {
+    // Cancelled mid-flight, the save's success would reset whatever had been typed since, and its
+    // refusal would never be shown.
+    serveReminders(aReminder());
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit the 09:00 reminder' }));
+    updateReminder.mockImplementationOnce(() => new Promise(() => {}));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save reminder' }));
+    await waitFor(() => expect(updateReminder).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.getByRole('button', { name: 'Save reminder' })).toBeDefined();
+  });
+
+  it('GivenARefusedAdd_WhenAReminderIsEditedAndTheEditCancelled_ThenTheOldRefusalIsGone', async () => {
+    serveReminders(aReminder());
+    createReminder.mockRejectedValue(NO_REMINDER_TIME);
+    renderPage();
+    await screen.findByRole('button', { name: 'Edit the 09:00 reminder' });
+    fireEvent.submit(screen.getByRole('button', { name: 'Add reminder' }));
+    await screen.findByText('Must not be null');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit the 09:00 reminder' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByText('Must not be null')).toBeNull();
+  });
+
   it('GivenTheApiRefusesAReschedule_WhenItIsSaved_ThenTheFormSaysWhyAndKeepsTheEdit', async () => {
     serveReminders(aReminder());
     updateReminder.mockRejectedValue(NO_REMINDER_TIME);

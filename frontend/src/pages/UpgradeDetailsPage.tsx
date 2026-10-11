@@ -139,7 +139,7 @@ const UpgradeDetails: React.FC = () => {
 
   const createReminderMut = useMutation({
     mutationFn: () => createReminder(id!, { reminderTime, daysOfWeek: reminderDays, enabled: true }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['reminders', id] }); setReminderDays([]); },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['reminders', id] }),
   });
   const deleteReminderMut = useMutation({
     mutationFn: (reminderId: string) => deleteReminder(reminderId),
@@ -156,11 +156,22 @@ const UpgradeDetails: React.FC = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['reminders', id] }),
   });
 
-  /** Loads a reminder into the form below, which then saves it rather than adding a new one. */
+  // One write to the reminders at a time. A switch resends the schedule its row shows, and the form
+  // edits from a row, so either one acting while another write is in flight works from a schedule that is
+  // about to change, and the later answer silently undoes the earlier one. It also keeps the form's mode
+  // fixed until an answer lands, so a removal's callback still sees the reminder being edited.
+  const reminderWriteInFlight =
+    createReminderMut.isPending || rescheduleReminderMut.isPending || switchReminderMut.isPending || deleteReminderMut.isPending;
+
+  /**
+   * Loads a reminder into the form below, which then saves it rather than adding a new one. An add's
+   * refusal goes with the add, so it does not reappear when the edit is cancelled.
+   */
   const editReminder = (reminder: Reminder) => {
     setReminderTime(reminderClock(reminder));
     setReminderDays(reminder.daysOfWeek);
     rescheduleReminderMut.reset();
+    createReminderMut.reset();
     setEditingReminderId(reminder.id);
   };
 
@@ -173,7 +184,7 @@ const UpgradeDetails: React.FC = () => {
 
   const submitReminder = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingReminderId) { createReminderMut.mutate(); return; }
+    if (!editingReminderId) { createReminderMut.mutate(undefined, { onSuccess: () => setReminderDays([]) }); return; }
     // `enabled` is left out, so a disabled reminder stays disabled when its schedule moves.
     rescheduleReminderMut.mutate(
       { reminderId: editingReminderId, req: { reminderTime, daysOfWeek: reminderDays } },
@@ -321,15 +332,16 @@ const UpgradeDetails: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => editReminder(r)}
+                    disabled={reminderWriteInFlight}
                     aria-label={`Edit the ${reminderClock(r)} reminder`}
-                    className="text-brand-fg hover:underline text-xs font-medium"
+                    className="text-brand-fg hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Edit
                   </button>
                   <button
                     type="button"
                     onClick={() => switchReminder(r)}
-                    disabled={switchReminderMut.isPending}
+                    disabled={reminderWriteInFlight}
                     aria-label={`${r.enabled ? 'Disable' : 'Enable'} the ${reminderClock(r)} reminder`}
                     className="text-fg-subtle hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
@@ -338,7 +350,7 @@ const UpgradeDetails: React.FC = () => {
                   <button
                     onClick={() => deleteReminderMut.mutate(r.id, { onSuccess: () => { if (editingReminderId === r.id) stopEditingReminder(); } })}
                     // A second DELETE would be answered 404, saying "not removed" while the row disappears.
-                    disabled={deleteReminderMut.isPending}
+                    disabled={reminderWriteInFlight}
                     className="text-danger-fg hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Remove
@@ -384,11 +396,11 @@ const UpgradeDetails: React.FC = () => {
           </div>
           {editingReminderId ? (
             <>
-              <Button type="submit" loading={rescheduleReminderMut.isPending}>Save reminder</Button>
-              <Button type="button" variant="secondary" onClick={stopEditingReminder}>Cancel</Button>
+              <Button type="submit" loading={rescheduleReminderMut.isPending} disabled={reminderWriteInFlight}>Save reminder</Button>
+              <Button type="button" variant="secondary" onClick={stopEditingReminder} disabled={reminderWriteInFlight}>Cancel</Button>
             </>
           ) : (
-            <Button type="submit" loading={createReminderMut.isPending}>Add reminder</Button>
+            <Button type="submit" loading={createReminderMut.isPending} disabled={reminderWriteInFlight}>Add reminder</Button>
           )}
         </form>
       </Card>
