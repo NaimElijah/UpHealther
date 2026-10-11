@@ -4,10 +4,11 @@ import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequest
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useNavigate, type NavigateFunction } from 'react-router-dom';
 import UpgradeDetailsPage from './UpgradeDetailsPage';
-import type { CreateUpgradeRequest, HealthArea, HealthUpgrade, ProgressEntry, Reflection } from '../types';
+import type { ActionTarget, CreateUpgradeRequest, HealthArea, HealthUpgrade, ProgressEntry, Reflection, UpgradeStatus } from '../types';
 
 const getUpgradeById = vi.fn();
 const updateUpgrade = vi.fn();
+const performUpgradeAction = vi.fn();
 const getProgressByUpgrade = vi.fn();
 const createProgress = vi.fn();
 const getReflectionsByUpgrade = vi.fn();
@@ -20,6 +21,7 @@ const saveTrackingConfig = vi.fn();
 vi.mock('../api/upgrades', () => ({
   getUpgradeById: (...a: unknown[]) => getUpgradeById(...a),
   updateUpgrade: (...a: unknown[]) => updateUpgrade(...a),
+  performUpgradeAction: (...a: unknown[]) => performUpgradeAction(...a),
 }));
 vi.mock('../api/healthAreas', () => ({ getHealthAreas: () => Promise.resolve([AN_AREA]) }));
 vi.mock('../api/progress', () => ({
@@ -792,6 +794,10 @@ function serveUpgrade(initial: HealthUpgrade) {
     current = { ...current, ...req };
     return Promise.resolve(current);
   });
+  performUpgradeAction.mockImplementation((_id: string, status: ActionTarget) => {
+    current = { ...current, status };
+    return Promise.resolve(current);
+  });
 }
 
 /** Opens the edit dialog once the page has loaded, and returns queries scoped to it. */
@@ -931,5 +937,85 @@ describe('UpgradeDetailsPage editing an upgrade', () => {
 
     expect(second.queryByText('Refused (reference trace-1)')).toBeNull();
     expect((second.getByLabelText('Title') as HTMLInputElement).value).toBe('Cold showers');
+  });
+});
+
+/** Presses Abandon once the page has loaded, and returns queries scoped to the confirmation it opens. */
+async function openAbandon() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Abandon' }));
+  return within(screen.getByRole('dialog', { name: 'Abandon Upgrade' }));
+}
+
+/**
+ * FR-12 (#89) — an upgrade can be abandoned from its page, from any state that is not final (BR-2).
+ *
+ * Abandoning asks first: an abandoned upgrade leaves every list, so a slip would look like the upgrade
+ * had vanished.
+ */
+describe('UpgradeDetailsPage abandoning an upgrade', () => {
+  beforeEach(() => {
+    getUpgradeById.mockReset();
+    updateUpgrade.mockReset();
+    performUpgradeAction.mockReset();
+    getProgressByUpgrade.mockResolvedValue([]);
+    getReflectionsByUpgrade.mockResolvedValue([]);
+    getReminders.mockResolvedValue([]);
+  });
+
+  it.each<UpgradeStatus>(['IDEA', 'PLANNED', 'ACTIVE', 'PAUSED'])(
+    'GivenA%sUpgrade_WhenAbandonIsConfirmed_ThenItIsAbandoned',
+    async (status) => {
+      serveUpgrade({ ...anUpgrade(), status });
+      renderPage();
+      const dialog = await openAbandon();
+
+      fireEvent.click(dialog.getByRole('button', { name: 'Abandon' }));
+
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Abandon Upgrade' })).toBeNull());
+      expect(performUpgradeAction).toHaveBeenCalledTimes(1);
+      expect(performUpgradeAction.mock.calls[0]).toEqual([UPGRADE_ID, 'ABANDONED']);
+      expect(await screen.findByText('Abandoned')).toBeDefined();
+    },
+  );
+
+  it.each<UpgradeStatus>(['COMPLETED', 'ABANDONED'])(
+    'GivenA%sUpgrade_WhenItsPageOpens_ThenAbandonIsNotOffered',
+    async (status) => {
+      serveUpgrade({ ...anUpgrade(), status });
+      renderPage();
+
+      await screen.findByRole('button', { name: 'Edit Upgrade' });
+
+      expect(screen.queryByRole('button', { name: 'Abandon' })).toBeNull();
+    },
+  );
+
+  it('GivenTheConfirmationIsCancelled_WhenItCloses_ThenNothingIsAbandoned', async () => {
+    serveUpgrade(anUpgrade());
+    renderPage();
+    const dialog = await openAbandon();
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Abandon Upgrade' })).toBeNull());
+    await settled();
+    expect(performUpgradeAction).not.toHaveBeenCalled();
+  });
+
+  it('GivenAnAbandonTheApiRefuses_WhenItIsConfirmed_ThenTheDialogSaysWhyWithItsReference', async () => {
+    serveUpgrade(anUpgrade());
+    performUpgradeAction.mockRejectedValue(apiFailure(422, {
+      status: 422,
+      message: 'Cannot abandon a COMPLETED upgrade',
+      traceId: 'trace-abandon',
+    }));
+    renderPage();
+    const dialog = await openAbandon();
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Abandon' }));
+
+    expect(await dialog.findByText('Cannot abandon a COMPLETED upgrade')).toBeDefined();
+    expect(dialog.getByText('trace-abandon')).toBeDefined();
+    expect(screen.getByRole('dialog', { name: 'Abandon Upgrade' })).toBeDefined();
   });
 });

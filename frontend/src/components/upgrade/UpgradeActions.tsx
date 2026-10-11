@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { updateUpgrade } from '../../api/upgrades';
+import { performUpgradeAction, updateUpgrade } from '../../api/upgrades';
 import { getHealthAreas } from '../../api/healthAreas';
 import { toApiError, toFormMessage } from '../../api/apiError';
 import { isFourDigitYearDate } from '../../lib/localDate';
 import { refreshUpgradeViews } from '../../lib/upgradeViews';
 import Button from '../ui/Button';
 import Modal from '../ui/Modal';
+import ErrorState from '../ui/ErrorState';
 import UpgradeFormFields from './UpgradeFormFields';
-import type { CreateUpgradeRequest, HealthUpgrade } from '../../types';
+import type { CreateUpgradeRequest, HealthUpgrade, UpgradeStatus } from '../../types';
 
 /**
  * The fields an edit replaces, as the upgrade holds them now.
@@ -28,6 +29,9 @@ const editableFields = (upgrade: HealthUpgrade): CreateUpgradeRequest => ({
   targetEndDate: upgrade.targetEndDate,
 });
 
+/** The states an upgrade can be abandoned from: every one that is not final (BR-2). */
+const ABANDONABLE: readonly UpgradeStatus[] = ['IDEA', 'PLANNED', 'ACTIVE', 'PAUSED'];
+
 /** What the form itself refuses before sending, by field. */
 interface FormCheck {
   title?: string;
@@ -41,7 +45,10 @@ interface Props {
 
 /**
  * What can be done to an upgrade as a whole from its own page (#89): edit its descriptive fields, in any
- * state (FR-13).
+ * state (FR-13), and abandon it from any state that is not final (FR-12).
+ *
+ * Abandoning asks first. An abandoned upgrade leaves every list, so a slip would look as though the
+ * upgrade had vanished.
  *
  * Separate from the page because each action brings a dialog and a mutation of its own, and the page
  * already holds four of each. A write here refreshes every view of upgrades (ADR-029), the page's own
@@ -61,6 +68,18 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
     mutationFn: (req: CreateUpgradeRequest) => updateUpgrade(upgrade.id, req),
     onSuccess: () => refreshUpgradeViews(qc),
   });
+
+  const [abandonOpen, setAbandonOpen] = useState(false);
+  const abandonMutation = useMutation({
+    mutationFn: () => performUpgradeAction(upgrade.id, 'ABANDONED'),
+    onSuccess: () => refreshUpgradeViews(qc),
+  });
+
+  /** Asks before abandoning, without a refusal left over from an earlier attempt. */
+  const openAbandon = () => {
+    abandonMutation.reset();
+    setAbandonOpen(true);
+  };
 
   /** Starts an edit from what the upgrade holds now, with nothing left over from an earlier attempt. */
   const openEdit = () => {
@@ -87,6 +106,9 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
     <>
       <div className="mt-4 flex flex-wrap gap-2 border-t border-line-subtle pt-4">
         <Button size="sm" variant="secondary" onClick={openEdit}>Edit Upgrade</Button>
+        {ABANDONABLE.includes(upgrade.status) && (
+          <Button size="sm" variant="secondary" onClick={openAbandon}>Abandon</Button>
+        )}
       </div>
 
       <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Edit Upgrade">
@@ -103,6 +125,28 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
             <Button type="submit" loading={editMutation.isPending}>Save</Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal isOpen={abandonOpen} onClose={() => setAbandonOpen(false)} title="Abandon Upgrade">
+        <p className="text-fg-subtle mb-4">
+          Abandon <span className="font-medium text-fg break-words">{upgrade.title}</span>? It leaves your lists of
+          ideas, planned and active upgrades.
+        </p>
+        {abandonMutation.error && (
+          <div className="mb-4">
+            <ErrorState inline title="The upgrade was not abandoned." error={toApiError(abandonMutation.error)} />
+          </div>
+        )}
+        <div className="flex gap-2 justify-end">
+          <Button variant="secondary" onClick={() => setAbandonOpen(false)}>Cancel</Button>
+          <Button
+            variant="danger"
+            loading={abandonMutation.isPending}
+            onClick={() => abandonMutation.mutate(undefined, { onSuccess: () => setAbandonOpen(false) })}
+          >
+            Abandon
+          </Button>
+        </div>
       </Modal>
     </>
   );
