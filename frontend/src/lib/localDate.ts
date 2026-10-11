@@ -14,6 +14,9 @@
  */
 const DATE_ONLY = /^([+-]?\d{4,})-(\d{2})-(\d{2})$/;
 
+/** `YYYY-MM-DD` with exactly four year digits, the only shape {@link isFourDigitYearDate} accepts. */
+const FOUR_DIGIT_YEAR_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 /** Left-pads a month or day to the two digits the `YYYY-MM-DD` shape requires. */
 const twoDigits = (n: number): string => String(n).padStart(2, '0');
 
@@ -55,4 +58,18 @@ export function parseLocalDate(isoDate: string): Date {
     throw new RangeError(`"${isoDate}" is not a calendar date`);
   }
   return parsed;
+}
+
+/**
+ * Whether a date field's value is one the API can read.
+ *
+ * A date field accepts years past 9999 and gives them unsigned, while the API's `LocalDate` reads such
+ * a year only with a sign (`+20260-01-01`), so it would refuse the body with no field to name. Checked
+ * before sending, so the form can say which field is wrong.
+ *
+ * @param value a date field's `YYYY-MM-DD` value
+ * @returns true when the year has exactly four digits
+ */
+export function isFourDigitYearDate(value: string): boolean {
+  return FOUR_DIGIT_YEAR_DATE.test(value);
 }
