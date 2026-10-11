@@ -46,9 +46,9 @@ upgrade's tracking configuration, which the upgrade carries (FR-15).
 
 - A new page that shows upgrades under a new key needs one line, in one place.
 - A new mutation needs one call, and cannot refresh the wrong subset.
-- `upgradeViews.test.tsx` drives two pages over one cache built as the app builds it. It pins the transitions
-  made on the dashboard and on the Active, Planned and Backlog pages, and a tracking-configuration
-  save on an upgrade's page.
+- `upgradeViews.test.tsx` drives two pages over one cache built as the app builds it. It pins every write
+  that calls the helper today: the transitions made on the dashboard and on the Active, Planned and
+  Backlog pages, a create on the Backlog, and a tracking-configuration save on an upgrade's page.
 
 **What this makes hard.**
 

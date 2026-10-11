@@ -9,11 +9,12 @@ import UpgradeDetailsPage from '../pages/UpgradeDetailsPage';
 import UpgradeBacklogPage from '../pages/UpgradeBacklogPage';
 import DailyCheckinPage from '../pages/DailyCheckinPage';
 import { createQueryClient } from './queryClient';
-import type { ActionTarget, DashboardDto, HealthUpgrade, UpgradeStatus } from '../types';
+import type { ActionTarget, CreateUpgradeRequest, DashboardDto, HealthArea, HealthUpgrade, UpgradeStatus } from '../types';
 import type { SaveTrackingConfigRequest } from '../api/trackingConfig';
 
 const getUpgrades = vi.fn();
 const getUpgradeById = vi.fn();
+const createUpgrade = vi.fn();
 const performUpgradeAction = vi.fn();
 const planUpgrade = vi.fn();
 const getDashboard = vi.fn();
@@ -22,11 +23,11 @@ const saveTrackingConfig = vi.fn();
 vi.mock('../api/upgrades', () => ({
   getUpgrades: (...a: unknown[]) => getUpgrades(...a),
   getUpgradeById: (...a: unknown[]) => getUpgradeById(...a),
+  createUpgrade: (...a: unknown[]) => createUpgrade(...a),
   performUpgradeAction: (...a: unknown[]) => performUpgradeAction(...a),
   planUpgrade: (...a: unknown[]) => planUpgrade(...a),
-  createUpgrade: vi.fn(),
 }));
-vi.mock('../api/healthAreas', () => ({ getHealthAreas: () => Promise.resolve([]) }));
+vi.mock('../api/healthAreas', () => ({ getHealthAreas: () => Promise.resolve([AREA]) }));
 vi.mock('../api/dashboard', () => ({ getDashboard: (...a: unknown[]) => getDashboard(...a) }));
 vi.mock('../hooks/useAuth', () => ({ useAuth: () => ({ user: { name: 'Ada Lovelace' } }) }));
 vi.mock('../api/progress', () => ({
@@ -44,6 +45,7 @@ vi.mock('../api/trackingConfig', () => ({ saveTrackingConfig: (...a: unknown[]) 
 
 const UPGRADE_ID = 'upgrade-1';
 const TITLE = 'Evening walk';
+const AREA: HealthArea = { id: 'area-1', userId: 'user-1', name: 'Movement', createdAt: '2026-03-01T09:00:00' };
 
 function anUpgrade(status: UpgradeStatus): HealthUpgrade {
   return {
@@ -59,34 +61,53 @@ function anUpgrade(status: UpgradeStatus): HealthUpgrade {
 }
 
 /**
- * Stands in for the API with one upgrade whose status every endpoint agrees on, so a page that shows a
- * different status is showing a cached answer, not a different truth.
+ * Stands in for the API, holding the upgrades every endpoint answers from, so a page that shows
+ * something else is showing a cached answer, not a different truth.
+ *
+ * The dashboard is computed from them as the server computes it, for the sections the tests read: the
+ * active and planned lists, and the one area's counts.
  */
-function serve(initial: HealthUpgrade) {
-  let upgrade = initial;
-  getUpgrades.mockImplementation((status: UpgradeStatus) => Promise.resolve(upgrade.status === status ? [upgrade] : []));
-  getUpgradeById.mockImplementation(() => Promise.resolve(upgrade));
-  getDashboard.mockImplementation((): Promise<DashboardDto> => Promise.resolve({
-    activeUpgrades: upgrade.status === 'ACTIVE' ? [upgrade] : [],
-    plannedUpgrades: upgrade.status === 'PLANNED' ? [upgrade] : [],
-    todayUpgrades: [],
-    overdueUpgrades: [],
-    weeklyCompletionRate: 0,
-    streaks: {},
-    recentlyCompleted: [],
-    areaSummary: [],
-  }));
-  performUpgradeAction.mockImplementation((_id: string, status: ActionTarget) => {
-    upgrade = { ...upgrade, status };
-    return Promise.resolve(upgrade);
+function serve(...initial: HealthUpgrade[]) {
+  let upgrades = initial;
+  const withStatus = (status: UpgradeStatus) => upgrades.filter((u) => u.status === status);
+  const change = (id: string, fields: Partial<HealthUpgrade>): HealthUpgrade => {
+    upgrades = upgrades.map((u) => (u.id === id ? { ...u, ...fields } : u));
+    return upgrades.find((u) => u.id === id)!;
+  };
+
+  getUpgrades.mockImplementation((status: UpgradeStatus) => Promise.resolve(withStatus(status)));
+  getUpgradeById.mockImplementation((id: string) => Promise.resolve(upgrades.find((u) => u.id === id)));
+  getDashboard.mockImplementation((): Promise<DashboardDto> => {
+    const filed = upgrades.filter((u) => u.areaId === AREA.id);
+    return Promise.resolve({
+      activeUpgrades: withStatus('ACTIVE'),
+      plannedUpgrades: withStatus('PLANNED'),
+      todayUpgrades: [],
+      overdueUpgrades: [],
+      weeklyCompletionRate: 0,
+      streaks: {},
+      recentlyCompleted: [],
+      areaSummary: [{
+        areaId: AREA.id,
+        areaName: AREA.name,
+        totalUpgrades: filed.length,
+        activeCount: filed.filter((u) => u.status === 'ACTIVE').length,
+        completedCount: filed.filter((u) => u.status === 'COMPLETED').length,
+      }],
+    });
   });
-  planUpgrade.mockImplementation((_id: string, plannedStartDate: string) => {
-    upgrade = { ...upgrade, status: 'PLANNED', plannedStartDate };
-    return Promise.resolve(upgrade);
+  createUpgrade.mockImplementation((req: CreateUpgradeRequest) => {
+    const created: HealthUpgrade = { ...anUpgrade('IDEA'), ...req, id: `upgrade-${upgrades.length + 1}` };
+    upgrades = [...upgrades, created];
+    return Promise.resolve(created);
   });
+  performUpgradeAction.mockImplementation((id: string, status: ActionTarget) => Promise.resolve(change(id, { status })));
+  planUpgrade.mockImplementation((id: string, plannedStartDate: string) =>
+    Promise.resolve(change(id, { status: 'PLANNED', plannedStartDate })));
   saveTrackingConfig.mockImplementation((upgradeId: string, req: SaveTrackingConfigRequest) => {
-    upgrade = { ...upgrade, trackingConfig: { id: 'config-1', upgradeId, ...req, frequency: req.frequency ?? 'DAILY' } };
-    return Promise.resolve(upgrade.trackingConfig);
+    const trackingConfig = { id: 'config-1', upgradeId, ...req, frequency: req.frequency ?? 'DAILY' } as const;
+    change(upgradeId, { trackingConfig });
+    return Promise.resolve(trackingConfig);
   });
 }
 
@@ -127,6 +148,11 @@ async function tileFigure(caption: string): Promise<string | null | undefined> {
   return (await screen.findByText(caption, { selector: 'div' })).previousElementSibling?.textContent;
 }
 
+/** What the dashboard's By Area card says about the one area, once the dashboard has loaded. */
+async function areaRow(): Promise<string | null> {
+  return within(await screen.findByRole('list', { name: 'Upgrades by area' })).getByRole('listitem').textContent;
+}
+
 /**
  * FR-12 (#189) — a change made on one page reaches every other page that shows the upgrade.
  *
@@ -138,6 +164,7 @@ describe('a change to an upgrade', () => {
   beforeEach(() => {
     getUpgrades.mockReset();
     getUpgradeById.mockReset();
+    createUpgrade.mockReset();
     performUpgradeAction.mockReset();
     planUpgrade.mockReset();
     saveTrackingConfig.mockReset();
@@ -224,5 +251,25 @@ describe('a change to an upgrade', () => {
 
     expect(await screen.findByRole('spinbutton')).toBeDefined();
     expect(screen.queryByText('Completed today')).toBeNull();
+  });
+
+  // The dashboard counts every upgrade filed under an area, in any state, so a new idea changes it.
+  it('GivenAnIdeaCreatedWithAnAreaOnTheBacklog_WhenTheDashboardOpensAgain_ThenItsAreaCountsIt', async () => {
+    serve();
+    renderApp('/');
+    expect(await areaRow()).toContain('0 total');
+
+    goTo('/upgrades/backlog');
+    fireEvent.click(await screen.findByRole('button', { name: '+ New Idea' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'New Upgrade Idea' }));
+    fireEvent.change(dialog.getByLabelText('Title'), { target: { value: 'Stretch at lunch' } });
+    await dialog.findByRole('option', { name: AREA.name });
+    fireEvent.change(dialog.getByLabelText('Health Area'), { target: { value: AREA.id } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Add Idea' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New Upgrade Idea' })).toBeNull());
+
+    goTo('/');
+
+    await waitFor(async () => expect(await areaRow()).toContain('1 total'));
   });
 });
