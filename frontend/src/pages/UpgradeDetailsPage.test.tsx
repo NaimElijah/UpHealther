@@ -1014,6 +1014,30 @@ describe('UpgradeDetailsPage abandoning an upgrade', () => {
     expect(performUpgradeAction).not.toHaveBeenCalled();
   });
 
+  it('GivenAnAbandonInFlight_WhenTheDialogIsDismissed_ThenItStaysOpenUntilTheAnswerArrives', async () => {
+    // Dismissed mid-flight, it could be opened again and the abandon sent twice; the second would be
+    // refused 422, reading as though the first had failed.
+    let answer: () => void = () => {};
+    serveUpgrade(anUpgrade());
+    performUpgradeAction.mockImplementationOnce(() => new Promise<HealthUpgrade>((resolve) => {
+      answer = () => resolve({ ...anUpgrade(), status: 'ABANDONED' });
+    }));
+    renderPage();
+    const dialog = await openAbandon();
+    fireEvent.click(dialog.getByRole('button', { name: 'Abandon' }));
+    await waitFor(() => expect(performUpgradeAction).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(screen.getByRole('dialog', { name: 'Abandon Upgrade' })).toBeDefined();
+
+    await act(async () => answer());
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Abandon Upgrade' })).toBeNull());
+    expect(performUpgradeAction).toHaveBeenCalledTimes(1);
+  });
+
   it('GivenAnAbandonTheApiRefuses_WhenItIsConfirmed_ThenTheDialogSaysWhyWithItsReference', async () => {
     serveUpgrade(anUpgrade());
     performUpgradeAction.mockRejectedValue(apiFailure(422, {

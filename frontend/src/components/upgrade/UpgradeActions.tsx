@@ -90,6 +90,11 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
     setAbandonOpen(true);
   };
 
+  /** Closes the confirmation, but not while the abandon is in flight, for the reason {@link closeDelete} gives. */
+  const closeAbandon = () => {
+    if (!abandonMutation.isPending) setAbandonOpen(false);
+  };
+
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [newDate, setNewDate] = useState('');
   const [dateCheck, setDateCheck] = useState('');
@@ -212,7 +217,7 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
         </form>
       </Modal>
 
-      <Modal isOpen={abandonOpen} onClose={() => setAbandonOpen(false)} title="Abandon Upgrade">
+      <Modal isOpen={abandonOpen} onClose={closeAbandon} title="Abandon Upgrade">
         <p className="text-fg-subtle mb-4">
           Abandon <span className="font-medium text-fg break-words">{upgrade.title}</span>? It leaves your lists of
           ideas, planned and active upgrades. Reschedule it from this page to plan it again.
@@ -223,7 +228,7 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
           </div>
         )}
         <div className="flex gap-2 justify-end">
-          <Button variant="secondary" onClick={() => setAbandonOpen(false)}>Cancel</Button>
+          <Button variant="secondary" onClick={closeAbandon} disabled={abandonMutation.isPending}>Cancel</Button>
           <Button
             variant="danger"
             loading={abandonMutation.isPending}
