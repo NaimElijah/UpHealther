@@ -1269,12 +1269,19 @@ describe('UpgradeDetailsPage deleting an upgrade', () => {
     expect(getUpgradeById).toHaveBeenCalledTimes(1);
   });
 
-  it('GivenACompletedUpgrade_WhenItsPageOpens_ThenItCanStillBeDeleted', async () => {
-    serveUpgrade({ ...anUpgrade(), status: 'COMPLETED' });
-    renderPage();
+  it.each<UpgradeStatus>(['IDEA', 'PLANNED', 'ACTIVE', 'PAUSED', 'COMPLETED', 'ABANDONED'])(
+    'GivenA%sUpgrade_WhenItIsDeleted_ThenItIsGone',
+    async (status) => {
+      serveUpgrade({ ...anUpgrade(), status });
+      renderPage();
+      const dialog = await openDelete();
 
-    expect(await screen.findByRole('button', { name: 'Delete' })).toBeDefined();
-  });
+      fireEvent.click(dialog.getByRole('button', { name: 'Delete' }));
+
+      expect(await screen.findByText('The dashboard')).toBeDefined();
+      expect(deleteUpgrade.mock.calls[0][0]).toBe(UPGRADE_ID);
+    },
+  );
 
   it('GivenTheConfirmationIsCancelled_WhenItCloses_ThenNothingIsDeleted', async () => {
     serveUpgrade(anUpgrade());
