@@ -7,6 +7,7 @@ import com.healthupgrades.notification.domain.model.NotificationType;
 import com.healthupgrades.notification.domain.port.out.NotificationPushPort;
 import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort;
 import com.healthupgrades.reflection.domain.event.ReflectionAdded;
+import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.AnUpgrade;
 import com.healthupgrades.support.PostgresIT;
 import com.healthupgrades.tracking.domain.event.StreakAchieved;
@@ -18,7 +19,6 @@ import com.healthupgrades.upgrade.domain.event.HealthUpgradePaused;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradePlanned;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import com.healthupgrades.user.application.port.in.UserCommand;
-import com.healthupgrades.user.domain.model.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -76,11 +76,8 @@ class NotificationCommitIT extends PostgresIT {
 
     @BeforeEach
     void anUpgradeOwnedByAFreshUser() {
-        userId = userCommand.save(User.builder()
-                .name("Someone")
-                .email(UUID.randomUUID() + "@example.com")
-                .passwordHash("$2a$10$abcdefghijklmnopqrstuvwxyz012345678901234567890123456")
-                .build()).getId();
+        userId = userCommand.save(
+                AUser.aUser().id(null).email(UUID.randomUUID() + "@example.com").build()).getId();
         // Saved through the port rather than the service, so creating it raises no event of its own.
         upgradeId = upgradeRepository.save(AnUpgrade.ownedBy(userId).id(null).build()).getId();
     }
