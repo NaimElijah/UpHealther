@@ -22,8 +22,9 @@ import { refreshUpgradeViews } from '../lib/upgradeViews';
  * A failed paused read is shown inside its own section, so the running upgrades still render.
  *
  * A transition refreshes every view of upgrades, since it moves an upgrade between this page's lists or
- * onto one it does not show, and changes what the dashboard and the upgrade's own page say (#189). A refused transition is shown on its card with the trace id (NFR-30),
- * and goes away when the next one starts.
+ * onto one it does not show, and changes what the dashboard and the upgrade's own page say (#189). A
+ * refused transition is shown on its card with the trace id (NFR-30), and goes away when the next one
+ * starts.
  */
 const ActiveUpgradesPage: React.FC = () => {
   const qc = useQueryClient();

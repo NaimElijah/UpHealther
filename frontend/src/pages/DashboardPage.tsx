@@ -36,9 +36,10 @@ const DashboardPage: React.FC = () => {
   });
 
   /**
-   * Performs a lifecycle transition from a card, then refreshes every view of upgrades, this one included. A refusal is
-   * shown on the card it was pressed on, with its trace id (NFR-30); before, it was an unhandled
-   * rejection. The section travels with the change because one upgrade can be listed in two of them.
+   * Performs a lifecycle transition from a card, then refreshes every view of upgrades, this one
+   * included. A refusal is shown on the card it was pressed on, with its trace id (NFR-30); before, it
+   * was an unhandled rejection. The section travels with the change because one upgrade can be listed in
+   * two of them.
    */
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: ActionTarget; section: CardSection }) =>
