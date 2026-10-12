@@ -249,7 +249,7 @@ Running natively needs **JDK 21**, **Maven 3.8+**, **Node 20+**, and a PostgreSQ
 docker compose up -d postgres               # or bring your own PostgreSQL
 
 cd backend  && mvn spring-boot:run          # terminal 1 — :8080, migrates on start
-cd frontend && npm install && npm run dev   # terminal 2 — :3000, proxies /api to :8080
+cd frontend && npm install && npm run dev   # terminal 2 — :3000, proxies /api and /ws to :8080
 ```
 
 The backend falls back to the development defaults in `application.yml`, so a fresh clone runs

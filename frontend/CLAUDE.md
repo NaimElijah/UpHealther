@@ -5,7 +5,7 @@ expected to respect. `../docs/architecture/architecture.md` describes how the SP
 system — the proxy, the two transports, and what the backend guarantees. This file covers the
 conventions to follow inside `frontend/`.
 
-`npm run dev` serves on :3000 and proxies `/api` → `http://localhost:8080` (see `vite.config.ts`).
+`npm run dev` serves on :3000 and proxies `/api` and `/ws` → `http://localhost:8080` (see `vite.config.ts`).
 
 - **Tests** are Vitest on jsdom ([ADR-004](../docs/ADRs/ADR-004-frontend-test-harness.md)), colocated
   beside what they test, and named `Given<state>_When<action>_Then<outcome>`
