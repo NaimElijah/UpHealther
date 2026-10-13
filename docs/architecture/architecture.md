@@ -443,9 +443,11 @@ Integration points a maintainer will need:
   real deployment; `CORS_ALLOWED_ORIGINS` and `VITE_API_URL` only matter when frontend and API are on
   different origins. The cron expressions are overridable per environment. `.env.example` lists them
   all with safe values.
-- **CI** — GitHub Actions on every push and PR to `main` and `dev`: the backend runs `mvn verify`
-  against a PostgreSQL service container, the frontend lints, tests, audits its shipped dependencies
-  and builds.
+- **CI** — GitHub Actions on every push and PR to `main` and `dev`: the backend runs `mvn verify`,
+  whose integration tests start their own PostgreSQL through Testcontainers
+  ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)); the generated
+  diagrams are checked against their source; the frontend lints, tests, audits its shipped
+  dependencies and builds.
 
 ---
 
