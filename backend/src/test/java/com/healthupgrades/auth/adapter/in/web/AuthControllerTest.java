@@ -192,7 +192,8 @@ class AuthControllerTest {
                         .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\""
                                 + "\\u00e9".repeat(37) + "\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fieldErrors.password").exists());
+                .andExpect(jsonPath("$.fieldErrors.password")
+                        .value("must be at most 72 bytes; an accented letter takes two and an emoji four"));
 
         verify(authService, never()).register(any(), any(), any());
     }

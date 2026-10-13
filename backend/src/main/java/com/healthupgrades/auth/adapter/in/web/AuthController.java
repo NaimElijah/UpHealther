@@ -60,10 +60,14 @@ public class AuthController {
      * Where BCrypt stops reading, in bytes of UTF-8. Up to Spring Security 6.4.3 (and 6.3.7),
      * {@code BCryptPasswordEncoder} silently dropped everything past it, so a longer password was
      * indistinguishable from its own prefix. From 6.4.4 and 6.3.8, the fixes for CVE-2025-22228, it throws
-     * instead, which would surface as a 500.
-     * Either way the API refuses the input first, as a 400 the user can act on. It is bounded twice:
-     * {@code @Size} in characters, for the message everyone recognises, and {@link MaxUtf8Bytes} in the
-     * bytes BCrypt actually counts, which a password of accented letters or emoji reaches sooner. BR-17.
+     * instead, which would surface as a 500. Either way the API refuses the input first, as a 400 the user
+     * can act on. BR-17.
+     *
+     * <p>{@link MaxUtf8Bytes} is what enforces it, in the bytes BCrypt counts. {@code @Size} carries it too,
+     * but only so that a password under the minimum is told the range it must fall in: UTF-8 never takes
+     * fewer bytes than a password has characters, so an over-long password always breaks the byte rule as
+     * well, and its message is the one reported. The error handler keeps the alphabetically first message
+     * per field, so the same text answers a password that is long and blank at once.
      */
     public static final int PASSWORD_MAX = 72;
 
