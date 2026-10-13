@@ -20,13 +20,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>The embedded tracking configuration used to be typed by the tracking context's own DTO, which made
  * a rename there a breaking change here and forced a dependency that closed a cycle between the two
- * contexts. It is now an upgrade-owned record whose field names and rendered values are deliberately
- * identical, so the frontend sees no difference. This test is what makes "identical" checkable rather
- * than merely claimed.
+ * contexts. It is now an upgrade-owned record whose field names, order and rendered values are
+ * deliberately identical, so the frontend sees no difference. This test is what makes "identical"
+ * checkable rather than merely claimed.
  *
  * <p>It serialises through the mapper Spring Boot configures, which is the one every response goes
- * through; a mapper built here would pin a contract nobody is sent. The set of names is exact, but
- * their order is not asserted: a JSON object is unordered, and the frontend reads each field by name.
+ * through; a mapper built here would pin a contract nobody is sent. Records keep their declaration order
+ * under that mapper, Jackson 3 included, so the order is asserted too.
  */
 @JsonTest
 class UpgradeDtoSerializationTest {
@@ -54,7 +54,7 @@ class UpgradeDtoSerializationTest {
         JsonNode node = json.get("trackingConfig");
 
         assertThat(node).isNotNull();
-        assertThat(node.propertyNames()).containsExactlyInAnyOrder(
+        assertThat(node.propertyNames()).containsExactly(
                 "id", "upgradeId", "trackingType", "frequency",
                 "targetNumericValue", "targetUnit", "requiredDaily");
     }
