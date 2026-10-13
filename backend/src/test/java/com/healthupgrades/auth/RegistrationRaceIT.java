@@ -90,7 +90,8 @@ class RegistrationRaceIT extends PostgresIT {
     void GivenTheDatabaseRefusesADuplicateEmail_WhenTheRegistrationIsAnswered_ThenNoLogLineCarriesTheAddress()
             throws Exception {
         // NFR-6. The refusal is handled and answered 422, so no line has a fault to excuse it - yet
-        // Hibernate's SqlExceptionHelper wrote the driver's "Key (email)=(...) already exists" at ERROR (#142).
+        // Hibernate's SQL exception logger wrote the driver's "Key (email)=(...) already exists" at ERROR
+        // (#142). It is renamed between Hibernate versions, which this test is what catches (ADR-032).
         String email = "racer-" + UUID.randomUUID() + "@example.com";
         register(email).andExpect(status().isCreated());
         doReturn(false).when(userService).existsByEmail(anyString());
