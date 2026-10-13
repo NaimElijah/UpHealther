@@ -115,14 +115,27 @@ class ContainerImagesArePinnedTest {
 
     /** The image's tag: {@code 15.19-alpine3.24} for {@code postgres:15.19-alpine3.24}; empty if it has none. */
     private static String tag(String image) {
-        int colon = image.lastIndexOf(':');
-        return colon < 0 || image.indexOf('/', colon) >= 0 ? "" : image.substring(colon + 1);
+        String nameAndTag = lastPathSegment(image);
+        int colon = nameAndTag.indexOf(':');
+        return colon < 0 ? "" : nameAndTag.substring(colon + 1);
     }
 
     /** The image's name without registry, tag or digest: {@code postgres} for {@code postgres:15.19}. */
     private static String repository(String image) {
-        String withoutTag = image.contains(":") ? image.substring(0, image.lastIndexOf(':')) : image;
-        return withoutTag.substring(withoutTag.lastIndexOf('/') + 1);
+        String nameAndTag = lastPathSegment(image);
+        int colon = nameAndTag.indexOf(':');
+        return colon < 0 ? nameAndTag : nameAndTag.substring(0, colon);
+    }
+
+    /**
+     * The reference after its registry and namespace, with any digest cut off: {@code postgres:15.19}
+     * for {@code docker.io/library/postgres:15.19@sha256:…}. A colon before the last slash is a registry
+     * port, never a tag, which is why the slash is found first.
+     */
+    private static String lastPathSegment(String image) {
+        int at = image.indexOf('@');
+        String withoutDigest = at < 0 ? image : image.substring(0, at);
+        return withoutDigest.substring(withoutDigest.lastIndexOf('/') + 1);
     }
 
     /** Every image named by a Dockerfile or compose file at the root or in a module. */
