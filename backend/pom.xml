@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.5</version>
+        <version>4.1.1</version>
         <relativePath/>
     </parent>
 
@@ -22,26 +22,18 @@
         <jjwt.version>0.12.3</jjwt.version>
         <jacoco.version>0.8.12</jacoco.version>
         <!--
-          Overrides the Testcontainers version the Boot BOM manages (1.19.7). That release ships a
-          docker-java that negotiates Docker API 1.32, and Docker Engine 29 refuses anything below 1.40
-          outright - "client version 1.32 is too old". The failure is a container that never starts, so
-          every *IT errors before its first assertion. Staying on 1.x deliberately: Testcontainers 2.0 is
-          a major release and spring-boot-testcontainers 3.2.5 is built against 1.x. See ADR-008.
+          Not managed by spring-boot-dependencies, so the version is ours to keep correct. 9.x is the line
+          built against Jackson 3, which Boot 4 uses; 8.x is Jackson 2's. Re-check this pin on any Boot
+          upgrade. See ADR-010 and ADR-032.
         -->
-        <testcontainers.version>1.21.4</testcontainers.version>
-        <!--
-          Not managed by spring-boot-dependencies, so the version is ours to keep correct. 7.4 is the
-          last release built against logback 1.3/1.4; 8.x compiles against logback 1.5, which Boot 3.2.5
-          does not ship (it resolves logback 1.4.14). Re-check this pin on any Boot upgrade. See ADR-010.
-        -->
-        <logstash.encoder.version>7.4</logstash.encoder.version>
+        <logstash.encoder.version>9.0</logstash.encoder.version>
     </properties>
 
     <dependencies>
         <!-- Spring Boot Starters -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -89,14 +81,16 @@
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <!-- Boot 4 configures Flyway only through its own module, which brings flyway-core with it. -->
         <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-core</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
         </dependency>
+        <!-- Versioned by the Boot BOM with flyway-core; an explicit version here once paired Flyway 10's
+             PostgreSQL module with Flyway 9's core. -->
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-database-postgresql</artifactId>
-            <version>10.12.0</version>
         </dependency>
 
         <!-- Lombok -->
@@ -115,6 +109,15 @@
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-tracing-bridge-otel</artifactId>
+        </dependency>
+        <!--
+          Boot 4's own tracing module for that bridge: the auto-configuration that builds the tracer and
+          the propagator, and puts the trace id into the MDC. Not the OpenTelemetry starter, which would
+          add OTLP exporters this application deliberately does not have.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-tracing-opentelemetry</artifactId>
         </dependency>
 
         <!--
@@ -140,9 +143,36 @@
         </dependency>
 
         <!-- Test -->
+        <!-- Boot 4 splits its test support by technology: one starter per slice this suite uses. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
+            <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!--
+          Puts the security filter chain into @WebMvcTest at its real order. Without it the slice still
+          finds the chain as a plain Filter bean but registers it after JwtAuthenticationFilter, whose
+          authentication the chain then discards: every authenticated slice request answered 401.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- @AutoConfigureTracing and @AutoConfigureMetrics, for the ITs that assert on both. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-tracing-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-metrics-test</artifactId>
             <scope>test</scope>
         </dependency>
         <!-- SimpleTracer: lets a test assert on spans without booting a tracing backend. -->
@@ -159,8 +189,8 @@
         <!-- ArchUnit: enforces the hexagonal (ports & adapters) dependency rules as unit tests -->
         <dependency>
             <groupId>com.tngtech.archunit</groupId>
-            <artifactId>archunit-junit5</artifactId>
-            <version>1.3.0</version>
+            <artifactId>archunit-junit6</artifactId>
+            <version>1.5.1</version>
             <scope>test</scope>
         </dependency>
 
@@ -168,8 +198,10 @@
           Testcontainers: the *IT suite starts its own PostgreSQL instead of being handed one. A
           developer-supplied database can be the wrong database - anything already listening on 5432 is
           accepted silently - and the tests then validate a schema nobody meant to test. See ADR-008.
-          Versions come from the testcontainers.version property above, not the Boot BOM's default;
-          @ServiceConnection comes from spring-boot-testcontainers.
+          Versions come from the Boot BOM (Testcontainers 2), whose docker-java negotiates a Docker API
+          that Docker Engine 29 accepts (it refuses anything below 1.40). @ServiceConnection comes from
+          spring-boot-testcontainers. The singleton container in PostgresIT needs no JUnit extension, so
+          testcontainers-junit-jupiter is not a dependency.
         -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -178,12 +210,7 @@
         </dependency>
         <dependency>
             <groupId>org.testcontainers</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>postgresql</artifactId>
+            <artifactId>testcontainers-postgresql</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -201,6 +228,39 @@
                         </exclude>
                     </excludes>
                 </configuration>
+            </plugin>
+
+            <!--
+              Refuses a toolchain other than the one the repository pins (ADR-030, NFR-51), at
+              `validate`, before anything compiles. Java is held to 21 exactly, not "21 or newer": the
+              runtime image is a JRE 21, so tests run on a newer JDK would test what is not shipped.
+              Maven is held to the wrapper's version or newer within 3.x, so a bare older `mvn` fails
+              here by name instead of building with something unrecorded. The plugin version is the one
+              the Boot parent manages.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-pinned-toolchain</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <version>[21,22)</version>
+                                    <message>This build needs JDK 21: the runtime image is a JRE 21, so the tests must run on 21 (ADR-030).</message>
+                                </requireJavaVersion>
+                                <requireMavenVersion>
+                                    <version>[3.9.16,4)</version>
+                                    <message>Build with ./mvnw (mvnw.cmd on Windows), which runs the Maven version the repository pins (ADR-030).</message>
+                                </requireMavenVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
 
             <!--

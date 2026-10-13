@@ -2,7 +2,7 @@ package com.healthupgrades.support;
 
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.test.context.TestPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
@@ -17,7 +17,8 @@ import org.testcontainers.utility.DockerImageName;
  * <p>The image matches {@code docker-compose.yml} deliberately: the schema is owned by Flyway migrations
  * written for PostgreSQL and Hibernate boots with {@code ddl-auto: validate}, so testing against a
  * different engine — or a different major version — would validate against a dialect production never
- * sees.
+ * sees. The tag lives in {@link PostgresImage}, and {@code ContainerImagesArePinnedTest} fails the build
+ * if compose names a different one.
  *
  * <p><strong>Singleton, not {@code @Container}.</strong> The field is started once in a static
  * initialiser and deliberately left unmanaged by the Testcontainers JUnit extension, so all the
@@ -46,11 +47,11 @@ import org.testcontainers.utility.DockerImageName;
 @TestPropertySource(properties = {"app.rate-limit.limit=1000000", "spring.datasource.hikari.minimum-idle=1"})
 public abstract class PostgresIT {
 
-    /** Matches the image {@code docker-compose.yml} runs, so tests and production share a dialect. */
-    private static final DockerImageName IMAGE = DockerImageName.parse("postgres:15-alpine");
+    /** The image {@code docker-compose.yml} runs too, so tests and production share a dialect. */
+    private static final DockerImageName IMAGE = DockerImageName.parse(PostgresImage.NAME);
 
     @ServiceConnection
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(IMAGE);
+    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(IMAGE);
 
     static {
         POSTGRES.start();

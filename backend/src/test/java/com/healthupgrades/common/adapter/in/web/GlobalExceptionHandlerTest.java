@@ -99,7 +99,7 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
                 handler.handleBusinessRule(new BusinessRuleException("Only ACTIVE upgrades can be paused"), request);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getMessage()).isEqualTo("Only ACTIVE upgrades can be paused");
     }
@@ -342,6 +342,7 @@ class GlobalExceptionHandlerTest {
             assertThat(body)
                     .doesNotContain("NOT_A_TYPE")
                     .doesNotContain("com.fasterxml")
+                    .doesNotContain("tools.jackson")
                     .doesNotContain("UpgradeType");
         }
 

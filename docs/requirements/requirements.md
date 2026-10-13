@@ -2,8 +2,8 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. A hundred and fourteen of the hundred and twenty-two entries below name a test —
-a hundred and fourteen distinct test classes and files between them. Five of the remaining eight name the command,
+rather than trusted. A hundred and fifteen of the hundred and twenty-three entries below name a test —
+a hundred and fifteen distinct test classes and files between them. Five of the remaining eight name the command,
 workflow or script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48). The last three —
 FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is about a rendered width, a
 colour or an overflow, and jsdom has no layout engine to observe any of them; §6 records what closing
@@ -179,7 +179,7 @@ The role model behind every entry here is [ADR-016](../ADRs/ADR-016-roles-read-f
 | BR-14 | Concurrent edits to an upgrade are refused rather than silently merged | `UpgradePersistenceIT`, `GlobalExceptionHandlerTest` — **Known deviation:** [#194](https://github.com/NaimElijah/UpHealther/issues/194), only saves that overlap inside the server clash; an edit sent from a page opened before another edit carries no version, and replaces it |
 | BR-15 | A record is visible only to its owner; another user's record is reported as absent, never as forbidden | `UpgradePersistenceIT`, `HealthAreaPersistenceIT`, `ProgressEntryPersistenceIT`, and every `*ControllerTest` |
 | BR-16 | A field stored in a bounded column is refused at the boundary when it exceeds that bound, and the response names the field | `ColumnBoundContractTest` (bound vs. column), `UpgradeControllerTest`, `HealthAreaControllerTest`, `ProgressControllerTest`, `TrackingConfigControllerTest`, `AuthControllerTest` |
-| BR-17 | A password is at least 8 characters and at most 72, refused by the API rather than only by the browser | `AuthControllerTest` |
+| BR-17 | A password is at least 8 characters, and at most 72 characters and 72 bytes of UTF-8, refused by the API rather than only by the browser | `AuthControllerTest` |
 | BR-18 | An upgrade can be filed only under a health area its owner owns; a foreign area and a missing one are refused alike, with no hint which it was | `UpgradeServiceTest`, `HealthAreaServiceTest` |
 | BR-19 | A rating is a whole number from 1 to 5: a progress entry's rating, and a reflection's difficulty and benefit ratings | `ProgressControllerTest`, `ReflectionControllerTest` |
 | BR-20 | A numeric progress value is never negative | `ProgressControllerTest` |
@@ -193,12 +193,12 @@ column for an astral-plane character such as an emoji, and never looser. Fields 
 columns are deliberately unbounded — nothing rejects them downstream, so a ceiling there is a product
 decision rather than a defect, and §6 records it as open.
 
-BR-17's upper bound is BCrypt's, not a policy: `BCryptPasswordEncoder` reads 72 bytes and silently
-drops the rest, so a longer password and its own prefix would be the same password and nobody would be
-told. The bound cannot close that gap completely — it counts UTF-16 code units where BCrypt counts
-bytes — but it removes the case anyone will actually hit. The minimum applies at registration, which is
-the only route by which a password reaches the system; the seeded demo account is inserted as a hash by
-Flyway and never passes through it.
+BR-17's upper bound is BCrypt's, not a policy. BCrypt reads 72 bytes. Up to Spring Security 6.4.3,
+`BCryptPasswordEncoder` silently dropped the rest, so a longer password and its own prefix were the same
+password and nobody was told. From 6.4.4 (the fix for CVE-2025-22228) it throws instead. The bound is
+stated in both units because they differ: a character count alone let 37 accented letters (74 bytes)
+through. The minimum applies at registration, which is the only route by which a password reaches the
+system; the seeded demo account is inserted as a hash by Flyway and never passes through it.
 
 BR-18 is checked when an area is set, not on every write: an update that leaves `areaId` as it was does
 not re-check it, so an upgrade filed before the rule existed stays editable. The rule does not rewrite
@@ -284,10 +284,11 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 |---|---|---|
 | NFR-9 | Layering is enforced mechanically, not by convention: the domain stays framework-free, the application depends on no adapter, contexts form an acyclic graph, and the administration context is fenced off as NFR-41 states | `HexagonalArchitectureTest` (twelve rules) ([ADR-001](../ADRs/ADR-001-ddd-hexagonal-architecture.md), [ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)) |
 | NFR-10 | The frontend's mirrored enums cannot drift from the backend's | `FrontendEnumContractTest` |
-| NFR-11 | The unit test suite runs without a database | `mvn test` — needs neither a database nor Docker |
+| NFR-11 | The unit test suite runs without a database | `./mvnw test` — needs neither a database nor Docker |
 | NFR-12 | Every push and pull request is built, tested, linted, and the shipped frontend dependencies audited, and fails when the generated architecture diagrams have drifted from their source | `.github/workflows/ci.yml` |
 | NFR-13 | The whole stack starts with one command | `docker-compose up --build` |
-| NFR-48 | The integration suite starts its own PostgreSQL in a container and never runs against a database it finds already running, so a local one on the same port cannot make it pass against the wrong schema | `mvn verify`, through `support/PostgresIT.java`, which every `*IT` extends ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)) |
+| NFR-48 | The integration suite starts its own PostgreSQL in a container and never runs against a database it finds already running, so a local one on the same port cannot make it pass against the wrong schema | `./mvnw verify`, through `support/PostgresIT.java`, which every `*IT` extends ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)) |
+| NFR-51 | The build uses the toolchain versions the repository records: a JDK, a Maven or a Node outside them is refused before anything compiles or installs, and every container image names an exact version | `ContainerImagesArePinnedTest`, which also holds compose's PostgreSQL to the integration tests' and the frontend image's Node to `frontend/.nvmrc`; `backend/pom.xml` (`maven-enforcer-plugin`), run through `./mvnw`, which downloads the pinned Maven and checks its checksum; `frontend/.npmrc` (`engine-strict`) against the `engines` range in `frontend/package.json`, with CI and the image building on `frontend/.nvmrc`'s release ([ADR-030](../ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md), [ADR-031](../ADRs/ADR-031-the-frontend-toolchain-runs-on-node-24-lts.md)) |
 
 ---
 

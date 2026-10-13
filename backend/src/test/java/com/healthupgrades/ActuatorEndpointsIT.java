@@ -1,11 +1,12 @@
 package com.healthupgrades;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.healthupgrades.support.PostgresIT;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
+import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfigureMetrics;
+import org.springframework.boot.micrometer.tracing.test.autoconfigure.AutoConfigureTracing;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
@@ -32,11 +33,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  * mapping. A `@WebMvcTest` would have to stub every one of those and would then be asserting its own
  * stubs.
  *
- * <p>{@code @AutoConfigureObservability} is required for the same reason it is in {@code CorrelationIT}:
- * {@code @SpringBootTest} disables metrics export by default, so without it {@code /actuator/prometheus}
+ * <p>{@code @AutoConfigureMetrics} is required for the same reason {@code CorrelationIT} needs tracing:
+ * {@code @SpringBootTest} turns metrics export off by default
+ * ({@code management.defaults.metrics.export.enabled=false}), so without it {@code /actuator/prometheus}
  * would be absent for a reason that has nothing to do with this application's configuration.
+ * {@code @AutoConfigureTracing} is here only so that the two classes declare the same context and share
+ * one.
  */
-@AutoConfigureObservability
+@AutoConfigureTracing
+@AutoConfigureMetrics
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ActuatorEndpointsIT extends PostgresIT {
 
@@ -52,7 +57,7 @@ class ActuatorEndpointsIT extends PostgresIT {
         HttpResponse<String> response = get("/actuator/health");
 
         assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(json.readTree(response.body()).path("status").asText()).isEqualTo("UP");
+        assertThat(json.readTree(response.body()).path("status").asString()).isEqualTo("UP");
     }
 
     /**
@@ -68,7 +73,7 @@ class ActuatorEndpointsIT extends PostgresIT {
         HttpResponse<String> response = get(probe);
 
         assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(json.readTree(response.body()).path("status").asText()).isEqualTo("UP");
+        assertThat(json.readTree(response.body()).path("status").asString()).isEqualTo("UP");
     }
 
     @Test

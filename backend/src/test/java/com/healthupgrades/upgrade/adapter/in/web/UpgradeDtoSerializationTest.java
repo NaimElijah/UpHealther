@@ -1,12 +1,13 @@
 package com.healthupgrades.upgrade.adapter.in.web;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.healthupgrades.upgrade.domain.model.Difficulty;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.model.UpgradeType;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.json.JsonTest;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -22,10 +23,16 @@ import static org.assertj.core.api.Assertions.assertThat;
  * contexts. It is now an upgrade-owned record whose field names, order and rendered values are
  * deliberately identical, so the frontend sees no difference. This test is what makes "identical"
  * checkable rather than merely claimed.
+ *
+ * <p>It serialises through the mapper Spring Boot configures, which is the one every response goes
+ * through; a mapper built here would pin a contract nobody is sent. Records keep their declaration order
+ * under that mapper, Jackson 3 included, so the order is asserted too.
  */
+@JsonTest
 class UpgradeDtoSerializationTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    @Autowired
+    private ObjectMapper objectMapper;
 
     private UpgradeDto sampleDto(UpgradeTrackingConfigDto trackingConfig) {
         return new UpgradeDto(
@@ -47,7 +54,7 @@ class UpgradeDtoSerializationTest {
         JsonNode node = json.get("trackingConfig");
 
         assertThat(node).isNotNull();
-        assertThat(node.fieldNames()).toIterable().containsExactly(
+        assertThat(node.propertyNames()).containsExactly(
                 "id", "upgradeId", "trackingType", "frequency",
                 "targetNumericValue", "targetUnit", "requiredDaily");
     }
@@ -62,10 +69,10 @@ class UpgradeDtoSerializationTest {
         JsonNode node = objectMapper.readTree(objectMapper.writeValueAsString(sampleDto(config)))
                 .get("trackingConfig");
 
-        assertThat(node.get("trackingType").asText()).isEqualTo("NUMERIC");
-        assertThat(node.get("frequency").asText()).isEqualTo("WEEKLY");
+        assertThat(node.get("trackingType").asString()).isEqualTo("NUMERIC");
+        assertThat(node.get("frequency").asString()).isEqualTo("WEEKLY");
         assertThat(node.get("targetNumericValue").asDouble()).isEqualTo(5.0);
-        assertThat(node.get("targetUnit").asText()).isEqualTo("km");
+        assertThat(node.get("targetUnit").asString()).isEqualTo("km");
         assertThat(node.get("requiredDaily").asBoolean()).isFalse();
     }
 
@@ -82,7 +89,7 @@ class UpgradeDtoSerializationTest {
     void GivenTheFrontendUpgradeType_WhenTheResponseIsSerialised_ThenEveryFieldItDeclaresIsPresent() throws Exception {
         JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(sampleDto(null)));
 
-        assertThat(json.fieldNames()).toIterable().contains(
+        assertThat(json.propertyNames()).contains(
                 "id", "userId", "areaId", "title", "description", "type", "status", "difficulty",
                 "plannedStartDate", "actualStartDate", "targetEndDate", "motivation", "successCriteria",
                 "overdue", "version", "trackingConfig", "createdAt", "updatedAt");
