@@ -2,11 +2,12 @@ package com.healthupgrades.upgrade.adapter.in.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.healthupgrades.upgrade.domain.model.Difficulty;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.model.UpgradeType;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.json.JsonTest;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -19,13 +20,19 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>The embedded tracking configuration used to be typed by the tracking context's own DTO, which made
  * a rename there a breaking change here and forced a dependency that closed a cycle between the two
- * contexts. It is now an upgrade-owned record whose field names, order and rendered values are
- * deliberately identical, so the frontend sees no difference. This test is what makes "identical"
- * checkable rather than merely claimed.
+ * contexts. It is now an upgrade-owned record whose field names and rendered values are deliberately
+ * identical, so the frontend sees no difference. This test is what makes "identical" checkable rather
+ * than merely claimed.
+ *
+ * <p>It serialises through the mapper Spring Boot configures, which is the one every response goes
+ * through; a mapper built here would pin a contract nobody is sent. The set of names is exact, but
+ * their order is not asserted: a JSON object is unordered, and the frontend reads each field by name.
  */
+@JsonTest
 class UpgradeDtoSerializationTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    @Autowired
+    private ObjectMapper objectMapper;
 
     private UpgradeDto sampleDto(UpgradeTrackingConfigDto trackingConfig) {
         return new UpgradeDto(
@@ -47,7 +54,7 @@ class UpgradeDtoSerializationTest {
         JsonNode node = json.get("trackingConfig");
 
         assertThat(node).isNotNull();
-        assertThat(node.fieldNames()).toIterable().containsExactly(
+        assertThat(node.fieldNames()).toIterable().containsExactlyInAnyOrder(
                 "id", "upgradeId", "trackingType", "frequency",
                 "targetNumericValue", "targetUnit", "requiredDaily");
     }
