@@ -11,6 +11,8 @@ import org.springframework.boot.micrometer.tracing.autoconfigure.MicrometerTraci
 import org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure.OpenTelemetryEventPublisherBeansApplicationListener;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.ApplicationListener;
+import org.springframework.core.io.support.SpringFactoriesLoader;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -55,10 +57,14 @@ class RequestCorrelationTest {
                     org.springframework.boot.opentelemetry.autoconfigure.OpenTelemetrySdkAutoConfiguration.class,
                     org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure.OpenTelemetryTracingAutoConfiguration.class,
                     MicrometerTracingAutoConfiguration.class))
-            // A SpringApplication registers this listener from spring.factories; a context runner does not,
-            // and without it the context's Slf4JEventListener never reaches the MDC bridge.
-            .withInitializer(context -> context.addApplicationListener(
-                    new OpenTelemetryEventPublisherBeansApplicationListener()))
+            // The listener that connects the context's Slf4JEventListener to the MDC bridge. A SpringApplication
+            // loads it from spring.factories; a context runner loads nothing from there, so it is loaded here the
+            // same way. Constructing it by hand would keep this test green if Boot ever stopped registering it,
+            // and every log line would lose its trace id.
+            .withInitializer(context -> SpringFactoriesLoader.forDefaultResourceLocation(context.getClassLoader())
+                    .load(ApplicationListener.class).stream()
+                    .filter(OpenTelemetryEventPublisherBeansApplicationListener.class::isInstance)
+                    .forEach(context::addApplicationListener))
             .withPropertyValues("management.tracing.sampling.probability=1.0");
 
     @Test
