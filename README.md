@@ -284,8 +284,8 @@ the wrong way.
 
 ```bash
 cd backend
-mvn test        # 642 unit and structural tests — no database, no Docker
-mvn verify      # the above plus 57 integration tests in 12 *IT classes — needs Docker
+mvn test        # 746 unit and structural tests — no database, no Docker
+mvn verify      # the above plus 95 integration tests in 15 *IT classes — needs Docker
 
 cd ../frontend
 npm run lint && npm run check:colours && npm run test
