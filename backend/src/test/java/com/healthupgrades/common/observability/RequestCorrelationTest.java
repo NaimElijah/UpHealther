@@ -6,9 +6,9 @@ import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
-import org.springframework.boot.actuate.autoconfigure.observation.ObservationAutoConfiguration;
-import org.springframework.boot.actuate.autoconfigure.tracing.MicrometerTracingAutoConfiguration;
-import org.springframework.boot.actuate.autoconfigure.tracing.OpenTelemetryEventPublisherBeansApplicationListener;
+import org.springframework.boot.micrometer.observation.autoconfigure.ObservationAutoConfiguration;
+import org.springframework.boot.micrometer.tracing.autoconfigure.MicrometerTracingAutoConfiguration;
+import org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure.OpenTelemetryEventPublisherBeansApplicationListener;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.mock.web.MockFilterChain;
@@ -52,8 +52,8 @@ class RequestCorrelationTest {
     private final ApplicationContextRunner tracing = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(
                     ObservationAutoConfiguration.class,
-                    org.springframework.boot.actuate.autoconfigure.opentelemetry.OpenTelemetryAutoConfiguration.class,
-                    org.springframework.boot.actuate.autoconfigure.tracing.OpenTelemetryTracingAutoConfiguration.class,
+                    org.springframework.boot.opentelemetry.autoconfigure.OpenTelemetrySdkAutoConfiguration.class,
+                    org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure.OpenTelemetryTracingAutoConfiguration.class,
                     MicrometerTracingAutoConfiguration.class))
             // A SpringApplication registers this listener from spring.factories; a context runner does not,
             // and without it the context's Slf4JEventListener never reaches the MDC bridge.

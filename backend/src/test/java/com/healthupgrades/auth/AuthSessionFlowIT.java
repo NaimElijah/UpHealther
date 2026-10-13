@@ -1,7 +1,7 @@
 package com.healthupgrades.auth;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.healthupgrades.auth.adapter.in.web.RefreshCookies;
 import com.healthupgrades.support.PostgresIT;
 import org.junit.jupiter.api.Test;
@@ -50,7 +50,7 @@ class AuthSessionFlowIT extends PostgresIT {
         HttpResponse<String> registered = register();
 
         assertThat(registered.statusCode()).isEqualTo(201);
-        assertThat(body(registered).get("accessToken").asText()).isNotBlank();
+        assertThat(body(registered).get("accessToken").asString()).isNotBlank();
         assertThat(setCookie(registered))
                 .as("the credential must not be reachable from script, on any deployment")
                 .contains("HttpOnly")
@@ -66,7 +66,7 @@ class AuthSessionFlowIT extends PostgresIT {
         HttpResponse<String> refreshed = refresh(first);
 
         assertThat(refreshed.statusCode()).isEqualTo(200);
-        assertThat(body(refreshed).get("accessToken").asText()).isNotBlank();
+        assertThat(body(refreshed).get("accessToken").asString()).isNotBlank();
         assertThat(credential(refreshed))
                 .as("a credential is good for one exchange and no more")
                 .isNotEqualTo(first);
@@ -96,7 +96,7 @@ class AuthSessionFlowIT extends PostgresIT {
         // The reason a token carries a sid claim at all. Without it, signing out would be a suggestion
         // until the token expired on its own.
         HttpResponse<String> registered = register();
-        String accessToken = body(registered).get("accessToken").asText();
+        String accessToken = body(registered).get("accessToken").asString();
         assertThat(me(accessToken).statusCode()).isEqualTo(200);
 
         logout(credential(registered));

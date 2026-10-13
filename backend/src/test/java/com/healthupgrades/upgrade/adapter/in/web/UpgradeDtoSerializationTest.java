@@ -1,7 +1,7 @@
 package com.healthupgrades.upgrade.adapter.in.web;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.healthupgrades.upgrade.domain.model.Difficulty;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.model.UpgradeType;
@@ -54,7 +54,7 @@ class UpgradeDtoSerializationTest {
         JsonNode node = json.get("trackingConfig");
 
         assertThat(node).isNotNull();
-        assertThat(node.fieldNames()).toIterable().containsExactlyInAnyOrder(
+        assertThat(node.propertyNames()).containsExactlyInAnyOrder(
                 "id", "upgradeId", "trackingType", "frequency",
                 "targetNumericValue", "targetUnit", "requiredDaily");
     }
@@ -69,10 +69,10 @@ class UpgradeDtoSerializationTest {
         JsonNode node = objectMapper.readTree(objectMapper.writeValueAsString(sampleDto(config)))
                 .get("trackingConfig");
 
-        assertThat(node.get("trackingType").asText()).isEqualTo("NUMERIC");
-        assertThat(node.get("frequency").asText()).isEqualTo("WEEKLY");
+        assertThat(node.get("trackingType").asString()).isEqualTo("NUMERIC");
+        assertThat(node.get("frequency").asString()).isEqualTo("WEEKLY");
         assertThat(node.get("targetNumericValue").asDouble()).isEqualTo(5.0);
-        assertThat(node.get("targetUnit").asText()).isEqualTo("km");
+        assertThat(node.get("targetUnit").asString()).isEqualTo("km");
         assertThat(node.get("requiredDaily").asBoolean()).isFalse();
     }
 
@@ -89,7 +89,7 @@ class UpgradeDtoSerializationTest {
     void GivenTheFrontendUpgradeType_WhenTheResponseIsSerialised_ThenEveryFieldItDeclaresIsPresent() throws Exception {
         JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(sampleDto(null)));
 
-        assertThat(json.fieldNames()).toIterable().contains(
+        assertThat(json.propertyNames()).contains(
                 "id", "userId", "areaId", "title", "description", "type", "status", "difficulty",
                 "plannedStartDate", "actualStartDate", "targetEndDate", "motivation", "successCriteria",
                 "overdue", "version", "trackingConfig", "createdAt", "updatedAt");

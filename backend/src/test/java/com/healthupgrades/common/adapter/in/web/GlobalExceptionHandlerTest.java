@@ -342,6 +342,7 @@ class GlobalExceptionHandlerTest {
             assertThat(body)
                     .doesNotContain("NOT_A_TYPE")
                     .doesNotContain("com.fasterxml")
+                    .doesNotContain("tools.jackson")
                     .doesNotContain("UpgradeType");
         }
 

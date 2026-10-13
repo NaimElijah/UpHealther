@@ -128,18 +128,18 @@ Seven diagrams, outside in: [arch-diagrams](docs/architecture/arch-diagrams/READ
 | Layer | Technology | Version | Why |
 |:---|:---|---:|:---|
 | Language | Java | 21 | Records carry the command, port and DTO layer, which is most of the boundary code |
-| Framework | Spring Boot | 3.5.16 | Confined to the adapters; ArchUnit keeps it out of the domain |
+| Framework | Spring Boot | 4.1.1 | Confined to the adapters; ArchUnit keeps it out of the domain |
 | Backend build | Maven, through `./mvnw` | 3.9.16 | The wrapper downloads and checksums the pinned version, so no machine builds with its own ([ADR-030](docs/ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md)) |
 | Auth | Spring Security + JJWT | Boot-managed / 0.12.3 | A short-lived bearer token held in memory, renewed from a rotating refresh cookie against a server-side session row, so signing out and revoking both take effect on the next request ([ADR-015](docs/ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
 | Database | PostgreSQL | 15 | The partial unique constraint and optimistic locking the domain relies on are real constraints, not application checks |
-| Migrations | Flyway | 11.7.2 | Flyway owns the schema; Hibernate runs `ddl-auto: validate` and refuses to start against one that does not match |
-| Observability | Micrometer Tracing, Prometheus registry, Logstash encoder | Boot-managed / 8.1 | W3C `traceparent` on the wire and vendor-neutral; JSON logs whose trace id is a field, not a substring |
+| Migrations | Flyway | 12.4.0 | Flyway owns the schema; Hibernate runs `ddl-auto: validate` and refuses to start against one that does not match |
+| Observability | Micrometer Tracing, Prometheus registry, Logstash encoder | Boot-managed / 9.0 | W3C `traceparent` on the wire and vendor-neutral; JSON logs whose trace id is a field, not a substring |
 | Frontend | React + TypeScript | 18.3.1 / 5.9.3 | Enums mirrored from the backend, with a test that fails when they drift |
 | Build | Vite | 5.4.21 | Same `/api` proxy in dev as nginx serves in prod, so both sides behave identically |
 | Data fetching | TanStack Query | 5.100.10 | Cache invalidation per mutation instead of hand-rolled refetching |
 | Styling | Tailwind CSS | 3.4.19 | Semantic tokens only — `npm run check:colours` fails on a raw palette colour |
 | Real-time | STOMP over WebSocket | 7.3.0 | Push reuses the JWT via a channel interceptor rather than a second auth scheme |
-| Tests | JUnit 5, ArchUnit, Testcontainers / Vitest | 1.3.0 / 1.21.4 / 3.2.7 | Real PostgreSQL in the integration suite; architecture rules as ordinary tests |
+| Tests | JUnit 6, ArchUnit, Testcontainers / Vitest | 1.5.1 / 2.0.5 / 3.2.7 | Real PostgreSQL in the integration suite; architecture rules as ordinary tests |
 
 ## 🚀 Quick start
 

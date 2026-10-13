@@ -49,6 +49,7 @@ class HexagonalArchitectureTest {
                             "jakarta.validation..",
                             "jakarta.servlet..",
                             "com.fasterxml.jackson..",
+                            "tools.jackson..",
                             "org.hibernate..",
                             "org.slf4j..",
                             "io.micrometer..",

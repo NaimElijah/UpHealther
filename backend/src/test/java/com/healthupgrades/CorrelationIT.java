@@ -1,11 +1,12 @@
 package com.healthupgrades;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.healthupgrades.support.PostgresIT;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
+import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfigureMetrics;
+import org.springframework.boot.micrometer.tracing.test.autoconfigure.AutoConfigureTracing;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
@@ -31,15 +32,18 @@ import static org.assertj.core.api.Assertions.assertThat;
  * assertion into a test of Spring's client instrumentation rather than of this application. An
  * uninstrumented client is the only way to send a header the server actually receives.
  *
- * <p>{@code @AutoConfigureObservability} is required, not decorative: {@code @SpringBootTest} sets
- * {@code management.tracing.enabled=false} by default, which leaves the context in a state production
- * never sees — a tracer that still mints ids, but a no-op propagator that extracts nothing. Without the
- * annotation this class would report a healthy {@code X-Trace-Id} while silently proving nothing about
- * inbound propagation.
+ * <p>{@code @AutoConfigureTracing} is required, not decorative. {@code @SpringBootTest} otherwise switches
+ * tracing down to something production never runs: Boot 4 turns its export off
+ * ({@code management.tracing.export.enabled=false}), and Boot 3 turned tracing off altogether, leaving a
+ * tracer that still minted ids but a no-op propagator that extracted nothing. In that state this class
+ * would report a healthy {@code X-Trace-Id} while proving nothing about inbound propagation. The
+ * annotation rules it out whatever a given version switches off. {@code @AutoConfigureMetrics} is here
+ * only so that this class and {@code ActuatorEndpointsIT} declare the same context and share one.
  *
  * <p>Every endpoint used here is {@code permitAll}, so nothing depends on a seeded account or a token.
  */
-@AutoConfigureObservability
+@AutoConfigureTracing
+@AutoConfigureMetrics
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class CorrelationIT extends PostgresIT {
 
@@ -79,7 +83,7 @@ class CorrelationIT extends PostgresIT {
 
         assertThat(response.statusCode()).isEqualTo(400);
         JsonNode body = json.readTree(response.body());
-        assertThat(body.path("traceId").asText())
+        assertThat(body.path("traceId").asString())
                 .matches(TRACE_ID_PATTERN)
                 .isEqualTo(traceIdHeader(response));
     }
@@ -100,7 +104,7 @@ class CorrelationIT extends PostgresIT {
         assertThat(response.statusCode()).isEqualTo(401);
         assertThat(response.headers().firstValue("WWW-Authenticate")).hasValue("Bearer");
         assertThat(traceIdHeader(response)).matches(TRACE_ID_PATTERN);
-        assertThat(json.readTree(response.body()).path("traceId").asText()).isEqualTo(traceIdHeader(response));
+        assertThat(json.readTree(response.body()).path("traceId").asString()).isEqualTo(traceIdHeader(response));
     }
 
     @Test
@@ -125,7 +129,7 @@ class CorrelationIT extends PostgresIT {
         // read the id from the tracer; the body has to carry the one the request's own dispatch saw.
         HttpResponse<String> response = firewallRejected();
 
-        assertThat(json.readTree(response.body()).path("traceId").asText())
+        assertThat(json.readTree(response.body()).path("traceId").asString())
                 .matches(TRACE_ID_PATTERN)
                 .isEqualTo(traceIdHeader(response));
     }
@@ -137,7 +141,7 @@ class CorrelationIT extends PostgresIT {
         // the value that is checked, not the value handed to it.
         HttpResponse<String> response = firewallRejected();
 
-        assertThat(json.readTree(response.body()).path("timestamp").asText())
+        assertThat(json.readTree(response.body()).path("timestamp").asString())
                 .matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?");
     }
 
