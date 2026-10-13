@@ -331,7 +331,7 @@ carries personal data — ids and enum values only, never a title, an email, a n
 exception: the ERROR line that reports an unexpected fault, a 5xx or a scheduled run that threw, carries
 its stack trace and the exception's message, which can quote a stored row. Hibernate's SQL exception
 logger, `org.hibernate.orm.jdbc.error`, is turned off in `application.yml`: it would otherwise write the
-driver's message, row included, at ERROR on every SQL failure, a handled refusal too.
+driver's message, row included, on every SQL failure, a handled refusal too.
 [ADR-010](../ADRs/ADR-010-structured-logging-and-a-level-policy.md) records the format decision and the
 policy, [ADR-026](../ADRs/ADR-026-a-scheduled-run-that-threw-is-logged-in-full.md) the exception, and
 [ADR-027](../ADRs/ADR-027-hibernates-sql-exception-logger-is-turned-off.md) the silenced logger.
