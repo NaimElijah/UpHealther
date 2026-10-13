@@ -18,9 +18,11 @@ import java.time.Clock;
  *
  * <p>The other hand-wired piece, STOMP, is registered from {@code WebSocketConfig} because that is where
  * the channels are configured — look there too when auditing correlation coverage. Everything else comes
- * from the {@code micrometer-tracing-bridge-otel} dependency alone: the trace id in the log pattern, the
- * W3C {@code traceparent} propagation, the per-request scope. See
- * {@code docs/ADRs/ADR-007-request-correlation-through-micrometer-tracing.md}.
+ * from two dependencies, with no code here: the {@code micrometer-tracing-bridge-otel} bridge and Boot's
+ * {@code spring-boot-micrometer-tracing-opentelemetry} module, which auto-configures it. Together they
+ * provide the trace id in the log pattern, the W3C {@code traceparent} propagation and the per-request
+ * scope. Boot 4 needs the module as well; the bridge alone no longer configures anything. See
+ * {@code docs/ADRs/ADR-007-request-correlation-through-micrometer-tracing.md} and ADR-032.
  */
 @Configuration
 @RequiredArgsConstructor
