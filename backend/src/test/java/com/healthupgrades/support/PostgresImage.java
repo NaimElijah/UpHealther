@@ -3,9 +3,11 @@ package com.healthupgrades.support;
 /**
  * The PostgreSQL image the integration tests run, and the one {@code docker-compose.yml} must run too.
  *
- * <p>Held apart from {@link PostgresIT} because reading anything from that class initialises it, and
- * its initialiser starts the container. {@code ContainerImagesArePinnedTest} compares this name with
- * compose's in the unit suite, which must not need Docker (NFR-11).
+ * <p>{@code ContainerImagesArePinnedTest} compares this name with compose's in the unit suite, which
+ * must not need Docker (NFR-11). On {@link PostgresIT} that comparison would be safe only for as long
+ * as the name stayed a compile-time constant. Reading a constant does not initialise a class, but
+ * reading anything else does, and {@code PostgresIT}'s initialiser starts the container. A class of its
+ * own has no initialiser to run.
  */
 public final class PostgresImage {
 
