@@ -2,7 +2,7 @@ package com.healthupgrades.support;
 
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.test.context.TestPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
@@ -51,7 +51,7 @@ public abstract class PostgresIT {
     private static final DockerImageName IMAGE = DockerImageName.parse(PostgresImage.NAME);
 
     @ServiceConnection
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(IMAGE);
+    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(IMAGE);
 
     static {
         POSTGRES.start();

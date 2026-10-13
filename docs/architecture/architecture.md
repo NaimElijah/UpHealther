@@ -35,7 +35,7 @@ an ArchUnit suite, which is the authority on what the layering permits.
 | Component | What it is | Responsible for |
 |---|---|---|
 | **Frontend** | nginx serving a Vite production build (container port 80, published on 3000) | Serving the SPA, and proxying `/api` and `/ws` to the backend so the browser stays same-origin |
-| **Backend** | Spring Boot 3.2 on Java 21, executable jar (port 8080) | The whole domain: authentication, the upgrade lifecycle, tracking, reflections, reminders, the dashboard read model, notifications, and the scheduled jobs |
+| **Backend** | Spring Boot 4.1 on Java 21, executable jar (port 8080) | The whole domain: authentication, the upgrade lifecycle, tracking, reflections, reminders, the dashboard read model, notifications, and the scheduled jobs |
 | **Database** | PostgreSQL 15 (port 5432, volume `postgres_data`) | Every piece of persistent state. Schema owned by Flyway |
 
 In development the nginx container is not involved: the Vite dev server serves the SPA on 3000 and
@@ -329,9 +329,9 @@ is degraded but still serving, **INFO** is a state transition, and **DEBUG** is 
 along. `com.healthupgrades` runs at INFO and is turned up for one run with `LOG_LEVEL_APP`. No log line
 carries personal data — ids and enum values only, never a title, an email, a note or an IP — with one
 exception: the ERROR line that reports an unexpected fault, a 5xx or a scheduled run that threw, carries
-its stack trace and the exception's message, which can quote a stored row. Hibernate's
-`SqlExceptionHelper` is turned off in `application.yml`: it would otherwise write the driver's message,
-row included, at ERROR on every SQL failure, a handled refusal too.
+its stack trace and the exception's message, which can quote a stored row. Hibernate's SQL exception
+logger, `org.hibernate.orm.jdbc.error`, is turned off in `application.yml`: it would otherwise write the
+driver's message, row included, on every SQL failure, a handled refusal too.
 [ADR-010](../ADRs/ADR-010-structured-logging-and-a-level-policy.md) records the format decision and the
 policy, [ADR-026](../ADRs/ADR-026-a-scheduled-run-that-threw-is-logged-in-full.md) the exception, and
 [ADR-027](../ADRs/ADR-027-hibernates-sql-exception-logger-is-turned-off.md) the silenced logger.

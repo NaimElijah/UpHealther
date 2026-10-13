@@ -15,11 +15,11 @@ import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
@@ -61,8 +61,8 @@ class OverdueAnnouncementIT extends PostgresIT {
     @Autowired NotificationRepositoryPort repository;
     @Autowired TestEntityManager entityManager;
 
-    @MockBean UpgradeQuery upgradeQuery;
-    @MockBean NotificationPushPort pushPort;
+    @MockitoBean UpgradeQuery upgradeQuery;
+    @MockitoBean NotificationPushPort pushPort;
 
     private UUID userId;
     private UUID upgradeId;

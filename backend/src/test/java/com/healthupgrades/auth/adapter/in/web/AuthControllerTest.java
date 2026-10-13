@@ -15,8 +15,8 @@ import com.healthupgrades.support.WebSliceSupport;
 import com.healthupgrades.user.domain.model.User;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import jakarta.servlet.http.Cookie;
 import org.springframework.http.HttpHeaders;
@@ -79,10 +79,10 @@ class AuthControllerTest {
 
     @Autowired MockMvc mockMvc;
 
-    @MockBean AuthService authService;
-    @MockBean SessionCommand sessions;
-    @MockBean BearerTokenAuthenticator authenticator;
-    @MockBean UserDetailsServiceImpl userDetailsService;
+    @MockitoBean AuthService authService;
+    @MockitoBean SessionCommand sessions;
+    @MockitoBean BearerTokenAuthenticator authenticator;
+    @MockitoBean UserDetailsServiceImpl userDetailsService;
 
     @Test
     void GivenValidRegistrationDetails_WhenAVisitorRegisters_ThenItAnswers201WithATokenAndTheirProfile()
@@ -168,9 +168,9 @@ class AuthControllerTest {
     @Test
     void GivenAPasswordLongerThanBcryptHashes_WhenAVisitorRegisters_ThenItIsRefusedRatherThanTruncated()
             throws Exception {
-        // BCryptPasswordEncoder in Spring Security 6.2 guards only against null: anything past 72 bytes
-        // is silently dropped, so a 100-character password and its first 72 characters would be the
-        // same password and the user would never be told. Refusing the input is the honest answer.
+        // Up to Spring Security 6.4.3, BCryptPasswordEncoder silently dropped anything past 72 bytes, so a
+        // 100-character password and its first 72 characters were the same password and the user was
+        // never told; from 6.4.4 it throws instead. Refusing the input first is the honest answer.
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\""
@@ -179,6 +179,36 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.fieldErrors.password").exists());
 
         verify(authService, never()).register(any(), any(), any());
+    }
+
+    @Test
+    void GivenAPasswordWithinTheCharacterLimitButPastBcryptsBytes_WhenAVisitorRegisters_ThenItIsRefused()
+            throws Exception {
+        // @Size counts UTF-16 code units and BCrypt counts UTF-8 bytes. Thirty-seven "é" are 37 characters
+        // and 74 bytes: past BCrypt, which from Spring Security 6.4.4 throws on it (a 500) and before that
+        // dropped the last two bytes without a word.
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\""
+                                + "\\u00e9".repeat(37) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.password")
+                        .value("must be at most 72 bytes; an accented letter takes two and an emoji four"));
+
+        verify(authService, never()).register(any(), any(), any());
+    }
+
+    @Test
+    void GivenAPasswordOfExactlyBcryptsBytes_WhenAVisitorRegisters_ThenItIsAccepted() throws Exception {
+        // Thirty-six "é" are exactly 72 bytes, the most BCrypt reads, so the byte bound is inclusive.
+        when(authService.register(anyString(), anyString(), anyString()))
+                .thenReturn(new AuthResult("issued.jwt.token", EXPIRES_AT, aUser(), GRANT));
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\""
+                                + "\\u00e9".repeat(36) + "\"}"))
+                .andExpect(status().isCreated());
     }
 
     @Test
@@ -224,7 +254,7 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\"s3cret!42\"}"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.message").value("That email is already registered"));
     }
 

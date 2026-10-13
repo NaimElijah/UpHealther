@@ -13,8 +13,8 @@ import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPor
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -47,10 +47,10 @@ class DashboardControllerTest {
 
     @Autowired MockMvc mockMvc;
 
-    @MockBean DashboardQuery dashboardQuery;
-    @MockBean UpgradeTrackingSummaryPort trackingSummaries;
-    @MockBean BearerTokenAuthenticator authenticator;
-    @MockBean UserDetailsServiceImpl userDetailsService;
+    @MockitoBean DashboardQuery dashboardQuery;
+    @MockitoBean UpgradeTrackingSummaryPort trackingSummaries;
+    @MockitoBean BearerTokenAuthenticator authenticator;
+    @MockitoBean UserDetailsServiceImpl userDetailsService;
 
     private UUID userId;
 

@@ -43,7 +43,7 @@ import java.util.Map;
  *   <caption>Exception to status mapping</caption>
  *   <tr><th>Exception</th><th>Status</th></tr>
  *   <tr><td>{@link ResourceNotFoundException}</td><td>404 Not Found</td></tr>
- *   <tr><td>{@link BusinessRuleException}</td><td>422 Unprocessable Entity</td></tr>
+ *   <tr><td>{@link BusinessRuleException}</td><td>422 Unprocessable Content</td></tr>
  *   <tr><td>{@link DuplicateProgressException}</td><td>409 Conflict</td></tr>
  *   <tr><td>{@link OptimisticLockException} and the JPA one</td><td>409 Conflict</td></tr>
  *   <tr><td>{@link MethodArgumentNotValidException}</td><td>400 Bad Request, with field errors</td></tr>
@@ -121,8 +121,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      */
     @ExceptionHandler(BusinessRuleException.class)
     public ResponseEntity<ErrorResponse> handleBusinessRule(BusinessRuleException ex, HttpServletRequest req) {
-        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
-                .body(body(HttpStatus.UNPROCESSABLE_ENTITY.value(), ex.getMessage(), req.getRequestURI()));
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT)
+                .body(body(HttpStatus.UNPROCESSABLE_CONTENT.value(), ex.getMessage(), req.getRequestURI()));
     }
 
     /** Maps a second progress entry for the same upgrade and day to 409. */
