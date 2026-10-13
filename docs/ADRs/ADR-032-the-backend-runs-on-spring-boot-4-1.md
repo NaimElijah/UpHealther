@@ -99,10 +99,20 @@ Within the move:
 
 - **3.5.16, as #73 proposed.** Rejected. Its open-source support had already ended, so it would have
   meant a second migration before launch, or paying for support.
+  - **Revisit:** never. A line past its open-source end only falls further behind.
 - **4.0.8.** Rejected. Its open-source support ends on 2026-12-31, eleven weeks from now.
+  - **Revisit:** never, for the same reason.
 - **Commercial support for 3.5.** Rejected. It is a subscription this project does not have, to stay
   on a major that 4.x has already replaced.
+  - **Revisit** if the project takes on a commercial Spring subscription for another reason.
 - **Staying on 3.2.** Rejected. It receives no fixes of any kind, and a public deployment is planned.
+  - **Revisit:** never.
+- **Hibernate 7's `hibernate.jdbc.log.errors=false` in place of turning the logger off.** It is new in
+  Hibernate 7 (`JdbcSettings.LOG_JDBC_ERRORS`) and silences the same output without naming a logger
+  category, which is the name that just changed. Rejected so that ADR-027's decision stays where it was
+  made, in the logging configuration. A property can be renamed as silently as a category, and
+  `RegistrationRaceIT` fails on either.
+  - **Revisit** if the category is renamed again.
 - **`spring.jackson.use-jackson2-defaults=true`.** Rejected. The comparison found no semantic
   difference to preserve. Opting into another major's defaults would be a setting to remove later for
   no gain now.
