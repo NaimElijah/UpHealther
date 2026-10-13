@@ -117,7 +117,7 @@ so nothing is pushed or persisted as a notification if the transaction rolls bac
 checked both when activating one and when promoting a running one to `HARD`.
 
 The layering is **enforced, not documented**: `HexagonalArchitectureTest` runs twelve ArchUnit rules
-on every `mvn test` — the domain stays framework-free, the application depends on no adapter, and
+on every `./mvnw test` — the domain stays framework-free, the application depends on no adapter, and
 Spring Data is confined to the persistence adapters.
 
 Seven diagrams, outside in: [arch-diagrams](docs/architecture/arch-diagrams/README.md). The prose:
@@ -129,6 +129,7 @@ Seven diagrams, outside in: [arch-diagrams](docs/architecture/arch-diagrams/READ
 |:---|:---|---:|:---|
 | Language | Java | 21 | Records carry the command, port and DTO layer, which is most of the boundary code |
 | Framework | Spring Boot | 3.2.5 | Confined to the adapters; ArchUnit keeps it out of the domain |
+| Backend build | Maven, through `./mvnw` | 3.9.16 | The wrapper downloads and checksums the pinned version, so no machine builds with its own ([ADR-030](docs/ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md)) |
 | Auth | Spring Security + JJWT | Boot-managed / 0.12.3 | A short-lived bearer token held in memory, renewed from a rotating refresh cookie against a server-side session row, so signing out and revoking both take effect on the next request ([ADR-015](docs/ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
 | Database | PostgreSQL | 15 | The partial unique constraint and optimistic locking the domain relies on are real constraints, not application checks |
 | Migrations | Flyway | 9.22.3 | Flyway owns the schema; Hibernate runs `ddl-auto: validate` and refuses to start against one that does not match |
@@ -243,12 +244,16 @@ The rest of the surface — every endpoint, the full status contract, and the er
 
 ## 💻 Development
 
-Running natively needs **JDK 21**, **Maven 3.8+**, **Node 20+**, and a PostgreSQL 15 on `:5432`.
+Running natively needs **JDK 21**, **Node 24** (`frontend/.nvmrc` names the exact release; npm
+refuses any Node outside `^24.16.0`), and a PostgreSQL 15 on `:5432`. Maven is not a
+prerequisite: `backend/mvnw` downloads the version the repository pins, checks its checksum and runs
+it ([ADR-030](docs/ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md)). From PowerShell or
+`cmd`, use `mvnw.cmd`.
 
 ```bash
 docker compose up -d postgres               # or bring your own PostgreSQL
 
-cd backend  && mvn spring-boot:run          # terminal 1 — :8080, migrates on start
+cd backend  && ./mvnw spring-boot:run        # terminal 1 — :8080, migrates on start
 cd frontend && npm install && npm run dev   # terminal 2 — :3000, proxies /api to :8080
 ```
 
@@ -275,28 +280,28 @@ the wrong way.
 
 | Level | Covers | Command |
 |---|---|---|
-| Domain | The `HealthUpgrade` state machine and construction invariants, streaks, reminder scheduling, entry scoring | `mvn test` |
-| Application | Every use case in every context, including what a *rejected* operation must not leave behind | `mvn test` |
-| Web slice | Each controller against the real security chain: status codes, validation, another user's row as a 404 | `mvn test` |
-| Structural | Twelve ArchUnit rules, plus the frontend enum and column-bound contracts | `mvn test` |
-| Integration | The app booted against a real PostgreSQL — bean graph, migrations, database-enforced invariants | `mvn verify` |
+| Domain | The `HealthUpgrade` state machine and construction invariants, streaks, reminder scheduling, entry scoring | `./mvnw test` |
+| Application | Every use case in every context, including what a *rejected* operation must not leave behind | `./mvnw test` |
+| Web slice | Each controller against the real security chain: status codes, validation, another user's row as a 404 | `./mvnw test` |
+| Structural | Twelve ArchUnit rules, plus the frontend enum, column-bound and pinned-image contracts | `./mvnw test` |
+| Integration | The app booted against a real PostgreSQL — bean graph, migrations, database-enforced invariants | `./mvnw verify` |
 | Frontend | Session restore and silent token renewal, the notification socket, the route and role gates, the administration page, the content security policy, theme, error boundary | `npm run test` |
 
 ```bash
 cd backend
-mvn test        # 642 unit and structural tests — no database, no Docker
-mvn verify      # the above plus 57 integration tests in 12 *IT classes — needs Docker
+./mvnw test     # 749 unit and structural tests — no database, no Docker
+./mvnw verify   # the above plus 95 integration tests in 15 *IT classes — needs Docker
 
 cd ../frontend
 npm run lint && npm run check:colours && npm run test
 ```
 
-The integration suite starts its own `postgres:15-alpine` through Testcontainers, so nothing needs
+The integration suite starts its own `postgres:15.19-alpine3.24` through Testcontainers, so nothing needs
 provisioning first and CI runs the same `verify`
 ([ADR-008](docs/ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)).
 
 **What CI gates on** ([`ci.yml`](.github/workflows/ci.yml), every push and PR to `main` and `dev`):
-`mvn clean verify`; the generated diagrams still matching their source; frontend lint at
+`./mvnw clean verify`; the generated diagrams still matching their source; frontend lint at
 `--max-warnings 0`; the colour-token check; `vitest run --coverage`; `npm audit --omit=dev
 --audit-level=high`; and the production build.
 
@@ -355,7 +360,7 @@ touches more files; entities stay JPA-annotated, so the domain is not persistenc
 was rejected outright: the schema is PostgreSQL-specific, Hibernate boots with `validate`, and the
 invariants that most need a real database (a partial unique constraint, optimistic locking under
 concurrent writes) are where compatibility modes diverge. A CI service container was rejected for
-keeping the two environments different. **Cost:** `mvn verify` needs Docker and runs slower.
+keeping the two environments different. **Cost:** `./mvnw verify` needs Docker and runs slower.
 
 **Coverage is reported, never gated** ([ADR-009](docs/ADRs/ADR-009-test-levels-boundaries-and-naming.md))
 — a threshold is satisfied by tests written to move a number and says nothing about whether a rule is
@@ -375,8 +380,8 @@ out outside contribution.
 
 ## 🚦 Status and limitations
 
-**Feature-complete and unshipped.** Every capability above works and is covered — 642 unit and
-structural tests, 57 integration tests, 189 frontend tests, all green — but it has never run in a
+**Feature-complete and unshipped.** Every capability above works and is covered — 749 unit and
+structural tests, 95 integration tests, 411 frontend tests, all green — but it has never run in a
 hosted environment, has no release tags, and is versioned `0.0.1-SNAPSHOT`.
 
 Known limitations, load-bearing rather than accidental:

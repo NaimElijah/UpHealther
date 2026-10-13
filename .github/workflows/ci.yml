@@ -13,7 +13,7 @@ jobs:
 
     # No `services:` block. The integration tests start their own PostgreSQL through Testcontainers, so
     # the database is described in the test source rather than in the runner's configuration and the
-    # same `mvn verify` runs identically here and on a developer machine. See ADR-008.
+    # same `./mvnw verify` runs identically here and on a developer machine. See ADR-008 and ADR-030.
 
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +29,7 @@ jobs:
       # container they start themselves, and packages the jar. Splitting those into separate `mvn`
       # invocations only recompiled the same sources repeatedly.
       - name: Build, test and verify backend
-        run: cd backend && mvn -B --no-transfer-progress clean verify
+        run: cd backend && ./mvnw -B --no-transfer-progress clean verify
         env:
           JWT_SECRET: test-secret-key-for-ci-at-least-256-bits-long-random-string-here
 
@@ -116,7 +116,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version-file: frontend/.nvmrc
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 

@@ -2,8 +2,8 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. A hundred and fourteen of the hundred and twenty-two entries below name a test —
-a hundred and fourteen distinct test classes and files between them. Five of the remaining eight name the command,
+rather than trusted. A hundred and fifteen of the hundred and twenty-three entries below name a test —
+a hundred and fifteen distinct test classes and files between them. Five of the remaining eight name the command,
 workflow or script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48). The last three —
 FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is about a rendered width, a
 colour or an overflow, and jsdom has no layout engine to observe any of them; §6 records what closing
@@ -284,10 +284,11 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 |---|---|---|
 | NFR-9 | Layering is enforced mechanically, not by convention: the domain stays framework-free, the application depends on no adapter, contexts form an acyclic graph, and the administration context is fenced off as NFR-41 states | `HexagonalArchitectureTest` (twelve rules) ([ADR-001](../ADRs/ADR-001-ddd-hexagonal-architecture.md), [ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)) |
 | NFR-10 | The frontend's mirrored enums cannot drift from the backend's | `FrontendEnumContractTest` |
-| NFR-11 | The unit test suite runs without a database | `mvn test` — needs neither a database nor Docker |
+| NFR-11 | The unit test suite runs without a database | `./mvnw test` — needs neither a database nor Docker |
 | NFR-12 | Every push and pull request is built, tested, linted, and the shipped frontend dependencies audited, and fails when the generated architecture diagrams have drifted from their source | `.github/workflows/ci.yml` |
 | NFR-13 | The whole stack starts with one command | `docker-compose up --build` |
-| NFR-48 | The integration suite starts its own PostgreSQL in a container and never runs against a database it finds already running, so a local one on the same port cannot make it pass against the wrong schema | `mvn verify`, through `support/PostgresIT.java`, which every `*IT` extends ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)) |
+| NFR-48 | The integration suite starts its own PostgreSQL in a container and never runs against a database it finds already running, so a local one on the same port cannot make it pass against the wrong schema | `./mvnw verify`, through `support/PostgresIT.java`, which every `*IT` extends ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)) |
+| NFR-51 | The build uses the toolchain versions the repository records: a JDK, a Maven or a Node outside them is refused before anything compiles or installs, and every container image names an exact version | `ContainerImagesArePinnedTest`, which also holds compose's PostgreSQL to the integration tests' and the frontend image's Node to `frontend/.nvmrc`; `backend/pom.xml` (`maven-enforcer-plugin`), run through `./mvnw`, which downloads the pinned Maven and checks its checksum; `frontend/.npmrc` (`engine-strict`) against the `engines` range in `frontend/package.json`, with CI and the image building on `frontend/.nvmrc`'s release ([ADR-030](../ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md), [ADR-031](../ADRs/ADR-031-the-frontend-toolchain-runs-on-node-24-lts.md)) |
 
 ---
 

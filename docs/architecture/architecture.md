@@ -443,9 +443,11 @@ Integration points a maintainer will need:
   real deployment; `CORS_ALLOWED_ORIGINS` and `VITE_API_URL` only matter when frontend and API are on
   different origins. The cron expressions are overridable per environment. `.env.example` lists them
   all with safe values.
-- **CI** — GitHub Actions on every push and PR to `main` and `dev`: the backend runs `mvn verify`
-  against a PostgreSQL service container, the frontend lints, tests, audits its shipped dependencies
-  and builds.
+- **CI** — GitHub Actions on every push and PR to `main` and `dev`: the backend runs `./mvnw verify`,
+  whose integration tests start their own PostgreSQL through Testcontainers
+  ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)); the generated
+  diagrams are checked against their source; the frontend lints, tests, audits its shipped
+  dependencies and builds.
 
 ---
 
@@ -563,7 +565,7 @@ Stated because they are load-bearing, not because they are problems yet:
   instance reaches only the clients connected to that instance. Notifications are persisted, so a
   client on another instance sees them on its next fetch rather than instantly. Running more than one
   instance needs a real broker relay first.
-- **`mvn test` needs no database; `mvn verify` needs Docker.** The integration tests boot the
+- **`./mvnw test` needs no database; `./mvnw verify` needs Docker.** The integration tests boot the
   application against a real PostgreSQL that they start themselves through Testcontainers, so the
   database is described in the test source rather than supplied to it ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)).
   Keeping the unit suite database-free is a constraint worth preserving.

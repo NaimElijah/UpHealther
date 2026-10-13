@@ -28,3 +28,8 @@ indent_size = 2
 [*.md]
 indent_size = 2
 trim_trailing_whitespace = false
+
+# cmd.exe needs CRLF, and .gitattributes checks *.cmd out that way; backend/mvnw.cmd is the only one
+# (ADR-030).
+[*.cmd]
+end_of_line = crlf
