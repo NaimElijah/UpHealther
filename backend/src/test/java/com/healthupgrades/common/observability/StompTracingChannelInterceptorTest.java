@@ -44,7 +44,7 @@ class StompTracingChannelInterceptorTest {
             .withConfiguration(AutoConfigurations.of(
                     ObservationAutoConfiguration.class,
                     org.springframework.boot.actuate.autoconfigure.opentelemetry.OpenTelemetryAutoConfiguration.class,
-                    org.springframework.boot.actuate.autoconfigure.tracing.OpenTelemetryAutoConfiguration.class,
+                    org.springframework.boot.actuate.autoconfigure.tracing.OpenTelemetryTracingAutoConfiguration.class,
                     MicrometerTracingAutoConfiguration.class))
             .withPropertyValues("management.tracing.sampling.probability=1.0");
 

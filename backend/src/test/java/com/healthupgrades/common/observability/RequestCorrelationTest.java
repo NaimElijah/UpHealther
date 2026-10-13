@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.boot.actuate.autoconfigure.observation.ObservationAutoConfiguration;
 import org.springframework.boot.actuate.autoconfigure.tracing.MicrometerTracingAutoConfiguration;
+import org.springframework.boot.actuate.autoconfigure.tracing.OpenTelemetryEventPublisherBeansApplicationListener;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.mock.web.MockFilterChain;
@@ -52,8 +53,12 @@ class RequestCorrelationTest {
             .withConfiguration(AutoConfigurations.of(
                     ObservationAutoConfiguration.class,
                     org.springframework.boot.actuate.autoconfigure.opentelemetry.OpenTelemetryAutoConfiguration.class,
-                    org.springframework.boot.actuate.autoconfigure.tracing.OpenTelemetryAutoConfiguration.class,
+                    org.springframework.boot.actuate.autoconfigure.tracing.OpenTelemetryTracingAutoConfiguration.class,
                     MicrometerTracingAutoConfiguration.class))
+            // A SpringApplication registers this listener from spring.factories; a context runner does not,
+            // and without it the context's Slf4JEventListener never reaches the MDC bridge.
+            .withInitializer(context -> context.addApplicationListener(
+                    new OpenTelemetryEventPublisherBeansApplicationListener()))
             .withPropertyValues("management.tracing.sampling.probability=1.0");
 
     @Test
