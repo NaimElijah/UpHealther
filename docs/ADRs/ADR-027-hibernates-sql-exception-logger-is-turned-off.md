@@ -1,6 +1,9 @@
 # ADR-027: Hibernate's SQL exception logger is turned off
 
-- **Status:** Accepted
+- **Status:** Accepted — the logger it names superseded by
+  [ADR-032](ADR-032-the-backend-runs-on-spring-boot-4-1.md):
+  Hibernate 7 writes the same output under `org.hibernate.orm.jdbc.error`, which is now the one
+  turned off
 - **Date:** 2026-10-10
 - **Scope:** `logging.level` in `backend/src/main/resources/application.yml`, and NFR-6 in
   `docs/requirements/requirements.md`. Extends [ADR-010](ADR-010-structured-logging-and-a-level-policy.md)

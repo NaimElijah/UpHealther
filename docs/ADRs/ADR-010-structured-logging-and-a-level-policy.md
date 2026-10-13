@@ -4,7 +4,8 @@
   [ADR-026](ADR-026-a-scheduled-run-that-threw-is-logged-in-full.md), which lets a scheduled run that
   threw be logged in full, as an unexpected 5xx is, and by
   [ADR-027](ADR-027-hibernates-sql-exception-logger-is-turned-off.md), which turns off Hibernate's
-  SQL exception logger
+  SQL exception logger; its logstash-logback-encoder 7.4 pin superseded by [ADR-032](ADR-032-the-backend-runs-on-spring-boot-4-1.md), which moves to 9.0
+  and records why Boot's built-in structured logging is still not used
 - **Date:** 2026-08-25
 - **Scope:** `backend/` — the log format, the level policy and the rule about what may appear in a log
   line. One new compile dependency. No change to any domain type.
