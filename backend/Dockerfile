@@ -1,9 +1,11 @@
-# One Temurin release for both stages, so the tests' JDK and the runtime's JRE agree (ADR-030).
+# One Temurin release for both stages, so the JDK that compiles the jar and the JRE that runs it are the
+# same release (ADR-030).
 FROM eclipse-temurin:21.0.12.1_1-jdk-alpine-3.24 AS build
 WORKDIR /app
 # The Maven wrapper downloads the version the repository pins and checks its checksum (ADR-030), with
-# busybox's wget, unzip and sha256sum - no package to install. chmod so the build does not depend on
-# the context keeping the executable bit git records; an archive download or a plain copy can drop it.
+# the wget, unzip and sha256sum this image already has - no package to install. chmod so the build does
+# not depend on the context keeping the executable bit git records; an archive download or a plain copy
+# can drop it.
 COPY mvnw ./
 COPY .mvn ./.mvn
 COPY pom.xml .
