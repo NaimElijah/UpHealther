@@ -34,8 +34,8 @@ enforced by `HexagonalArchitectureTest` (ArchUnit). Module-specific conventions 
 - `./mvnw spring-boot:run` — run the API on :8080. Requires env vars `DB_URL`, `DB_USERNAME`,
   `DB_PASSWORD`, `JWT_SECRET` (a running Postgres). Defaults exist in `application.yml` for local dev.
 - `./mvnw test` — run tests; **no database needed**.
-- Always the wrapper, never a bare `mvn`: it runs the pinned Maven (ADR-030). From PowerShell,
-  `.\mvnw.cmd`.
+- Always the wrapper, never a bare `mvn`: it runs the pinned Maven, and the enforcer refuses an older
+  one, and any JDK but 21, at `validate` (ADR-030, NFR-51). From PowerShell, `.\mvnw.cmd`.
 
 ### Full stack
 - `docker-compose up --build` — Postgres + backend + frontend. Frontend :3000, backend :8080.

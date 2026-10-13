@@ -2,9 +2,10 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. A hundred and fourteen of the hundred and twenty-two entries below name a test —
-a hundred and fourteen distinct test classes and files between them. Five of the remaining eight name the command,
-workflow or script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48). The last three —
+rather than trusted. A hundred and fourteen of the hundred and twenty-three entries below name a test —
+a hundred and fourteen distinct test classes and files between them. Six of the remaining nine name the command,
+workflow, script or build configuration that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48,
+NFR-51). The last three —
 FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is about a rendered width, a
 colour or an overflow, and jsdom has no layout engine to observe any of them; §6 records what closing
 that gap would take.
@@ -288,6 +289,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-12 | Every push and pull request is built, tested, linted, and the shipped frontend dependencies audited, and fails when the generated architecture diagrams have drifted from their source | `.github/workflows/ci.yml` |
 | NFR-13 | The whole stack starts with one command | `docker-compose up --build` |
 | NFR-48 | The integration suite starts its own PostgreSQL in a container and never runs against a database it finds already running, so a local one on the same port cannot make it pass against the wrong schema | `./mvnw verify`, through `support/PostgresIT.java`, which every `*IT` extends ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)) |
+| NFR-51 | The build uses the toolchain versions the repository records: a JDK or a Maven outside them is refused before anything compiles | `backend/pom.xml` (`maven-enforcer-plugin`), run through `./mvnw`, which downloads the pinned Maven and checks its checksum ([ADR-030](../ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md)) |
 
 ---
 

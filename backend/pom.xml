@@ -204,6 +204,39 @@
             </plugin>
 
             <!--
+              Refuses a toolchain other than the one the repository pins (ADR-030, NFR-51), at
+              `validate`, before anything compiles. Java is held to 21 exactly, not "21 or newer": the
+              runtime image is a JRE 21, so tests run on a newer JDK would test what is not shipped.
+              Maven is held to the wrapper's version or newer within 3.x, so a bare older `mvn` fails
+              here by name instead of building with something unrecorded. The plugin version is the one
+              the Boot parent manages.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-pinned-toolchain</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <version>[21,22)</version>
+                                    <message>This build needs JDK 21: the runtime image is a JRE 21, so the tests must run on 21 (ADR-030).</message>
+                                </requireJavaVersion>
+                                <requireMavenVersion>
+                                    <version>[3.9.16,4)</version>
+                                    <message>Build with ./mvnw (mvnw.cmd on Windows), which runs the Maven version the repository pins (ADR-030).</message>
+                                </requireMavenVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!--
               Runs the *IT integration tests during `verify`, keeping them out of `mvn test`.
               That split is deliberate: unit tests need no database, integration tests boot the app
               against a real PostgreSQL.
