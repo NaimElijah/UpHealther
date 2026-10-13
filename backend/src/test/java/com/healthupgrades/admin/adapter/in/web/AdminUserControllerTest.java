@@ -155,7 +155,7 @@ class AdminUserControllerTest {
                 .thenThrow(new BusinessRuleException("An administrator cannot change their own account"));
 
         mockMvc.perform(bearer(post("/api/admin/users/" + ADMIN_ID + "/disable")))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.status").value(422));
     }
 

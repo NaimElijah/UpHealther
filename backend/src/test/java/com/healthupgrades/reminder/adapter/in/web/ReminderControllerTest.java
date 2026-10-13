@@ -101,7 +101,7 @@ class ReminderControllerTest {
 
         mockMvc.perform(bearer(post(upgradeScoped)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reminderTime\":\"09:00\",\"daysOfWeek\":[\"FUNDAY\"]}"))
-                .andExpect(status().isUnprocessableEntity());
+                .andExpect(status().isUnprocessableContent());
     }
 
     @Test

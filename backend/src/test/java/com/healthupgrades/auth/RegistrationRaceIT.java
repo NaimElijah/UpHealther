@@ -82,7 +82,7 @@ class RegistrationRaceIT extends PostgresIT {
         doReturn(false).when(userService).existsByEmail(anyString());
 
         register(email.toUpperCase(Locale.ROOT))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.message").value("That email is already registered"));
     }
 
@@ -95,7 +95,7 @@ class RegistrationRaceIT extends PostgresIT {
         register(email).andExpect(status().isCreated());
         doReturn(false).when(userService).existsByEmail(anyString());
 
-        register(email.toUpperCase(Locale.ROOT)).andExpect(status().isUnprocessableEntity());
+        register(email.toUpperCase(Locale.ROOT)).andExpect(status().isUnprocessableContent());
 
         // The existence check refuses with the same 422, so the answer alone cannot show that the database
         // refused: the second registration has to have reached the insert.

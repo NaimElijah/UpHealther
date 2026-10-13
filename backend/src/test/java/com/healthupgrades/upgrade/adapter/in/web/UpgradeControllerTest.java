@@ -244,7 +244,7 @@ class UpgradeControllerTest {
                 .thenThrow(new BusinessRuleException("Cannot pause a COMPLETED upgrade"));
 
         mockMvc.perform(bearer(post(BASE + "/" + upgradeId + "/pause")))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.message").value("Cannot pause a COMPLETED upgrade"));
     }
 
@@ -257,7 +257,7 @@ class UpgradeControllerTest {
         mockMvc.perform(bearer(post(BASE + "/" + upgradeId + "/activate"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isUnprocessableEntity());
+                .andExpect(status().isUnprocessableContent());
     }
 
     // ---- Updating and deleting ----
