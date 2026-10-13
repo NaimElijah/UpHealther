@@ -289,14 +289,14 @@ the wrong way.
 
 ```bash
 cd backend
-./mvnw test     # 746 unit and structural tests — no database, no Docker
+./mvnw test     # 748 unit and structural tests — no database, no Docker
 ./mvnw verify   # the above plus 95 integration tests in 15 *IT classes — needs Docker
 
 cd ../frontend
 npm run lint && npm run check:colours && npm run test
 ```
 
-The integration suite starts its own `postgres:15-alpine` through Testcontainers, so nothing needs
+The integration suite starts its own `postgres:15.19-alpine3.24` through Testcontainers, so nothing needs
 provisioning first and CI runs the same `verify`
 ([ADR-008](docs/ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)).
 

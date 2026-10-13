@@ -1,4 +1,5 @@
-FROM eclipse-temurin:21-jdk-alpine AS build
+# One Temurin release for both stages, so the tests' JDK and the runtime's JRE agree (ADR-030).
+FROM eclipse-temurin:21.0.12.1_1-jdk-alpine-3.24 AS build
 WORKDIR /app
 # The Maven wrapper downloads the version the repository pins and checks its checksum (ADR-030), with
 # busybox's wget, unzip and sha256sum - no package to install. chmod so the build does not depend on
@@ -9,7 +10,7 @@ COPY pom.xml .
 COPY src ./src
 RUN chmod +x mvnw && ./mvnw -B --no-transfer-progress package -DskipTests
 
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21.0.12.1_1-jre-alpine-3.24
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 EXPOSE 8080

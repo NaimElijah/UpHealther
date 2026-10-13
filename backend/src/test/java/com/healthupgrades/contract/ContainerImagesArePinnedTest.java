@@ -1,0 +1,175 @@
+package com.healthupgrades.contract;
+
+import com.healthupgrades.support.PostgresImage;
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * Holds every container image the repository builds or runs to an exact version (ADR-030, NFR-51).
+ *
+ * <p>A floating tag changes the shipped artifact without a commit: {@code nginx:alpine} moves over
+ * nginx majors, {@code postgres:15-alpine} over every patch and Alpine release. So an image here must
+ * name its full version and, when it is an Alpine image, the Alpine release too. Three numeric
+ * components, except PostgreSQL: since version 10 its own versions have two (15.19), so two is already
+ * exact there.
+ *
+ * <p>It also holds compose's PostgreSQL to the one the integration tests run. The schema is
+ * PostgreSQL-specific and Hibernate boots with {@code validate}, so tests against a different image
+ * validate against something nobody deploys.
+ *
+ * <p>Like {@code FrontendEnumContractTest}, it reads files outside {@code backend/} and searches upward
+ * for the repository root, so it runs the same from Maven and from an IDE.
+ */
+class ContainerImagesArePinnedTest {
+
+    /** Directory depth searched for build files: the root and each module, never {@code node_modules}. */
+    private static final int BUILD_FILE_DEPTH = 2;
+
+    /** A file that names images: a Dockerfile, or a compose file. */
+    private static final Pattern BUILD_FILE = Pattern.compile("Dockerfile|(docker-)?compose[\\w.-]*\\.ya?ml");
+
+    /** A Dockerfile's base image, with the stage alias it may declare. */
+    private static final Pattern FROM = Pattern.compile("^\\s*FROM\\s+(?:--platform=\\S+\\s+)?(\\S+)(?:\\s+AS\\s+(\\S+))?",
+            Pattern.CASE_INSENSITIVE | Pattern.MULTILINE);
+
+    /** A compose service's image. */
+    private static final Pattern COMPOSE_IMAGE = Pattern.compile("^\\s*image:\\s*['\"]?([^'\"\\s#]+)", Pattern.MULTILINE);
+
+    /** The version a tag starts with: {@code 1.30.5}, {@code 15.19}, {@code 21.0.12.1}. */
+    private static final Pattern LEADING_VERSION = Pattern.compile("^\\d+(?:\\.\\d+)*");
+
+    /** An Alpine base named with its release: {@code alpine3.24} or {@code alpine-3.24}. */
+    private static final Pattern PINNED_ALPINE = Pattern.compile("alpine-?\\d+\\.\\d+");
+
+    @Test
+    void GivenEveryDockerfileAndComposeFile_WhenReadingTheImagesTheyName_ThenEachNamesAnExactVersion() {
+        List<String> images = imagesNamedByBuildFiles();
+        images.add(PostgresImage.NAME);
+
+        List<String> floating = images.stream().filter(image -> !isExact(image)).toList();
+
+        assertThat(floating)
+                .describedAs("images on a floating tag; name the full version, and the Alpine release for an "
+                        + "Alpine image (ADR-030)")
+                .isEmpty();
+    }
+
+    @Test
+    void GivenTheComposeDatabase_WhenComparedWithTheIntegrationTestDatabase_ThenBothRunTheSameImage() {
+        List<String> composePostgres = imagesIn(repositoryFile("docker-compose.yml")).stream()
+                .filter(image -> repository(image).equals("postgres"))
+                .toList();
+
+        assertThat(composePostgres).containsExactly(PostgresImage.NAME);
+    }
+
+    /** Whether an image reference names an exact version, by the rule in the class comment. */
+    private static boolean isExact(String image) {
+        if (image.contains("@sha256:")) {
+            return true;
+        }
+        int colon = image.lastIndexOf(':');
+        if (colon < 0 || image.indexOf('/', colon) >= 0) {
+            return false;
+        }
+        String tag = image.substring(colon + 1);
+        Matcher version = LEADING_VERSION.matcher(tag);
+        if (!version.find()) {
+            return false;
+        }
+        int components = version.group().split("\\.").length;
+        int required = repository(image).equals("postgres") ? 2 : 3;
+        boolean alpinePinned = !tag.contains("alpine") || PINNED_ALPINE.matcher(tag).find();
+        return components >= required && alpinePinned;
+    }
+
+    /** The image's name without registry, tag or digest: {@code postgres} for {@code postgres:15.19}. */
+    private static String repository(String image) {
+        String withoutTag = image.contains(":") ? image.substring(0, image.lastIndexOf(':')) : image;
+        return withoutTag.substring(withoutTag.lastIndexOf('/') + 1);
+    }
+
+    /** Every image named by a Dockerfile or compose file at the root or in a module. */
+    private static List<String> imagesNamedByBuildFiles() {
+        Path root = repositoryRoot();
+        List<Path> buildFiles;
+        try (Stream<Path> found = Files.find(root, BUILD_FILE_DEPTH,
+                (path, attributes) -> attributes.isRegularFile()
+                        && BUILD_FILE.matcher(path.getFileName().toString()).matches())) {
+            buildFiles = found.toList();
+        } catch (IOException e) {
+            throw new UncheckedIOException("could not search " + root + " for build files", e);
+        }
+        assertThat(buildFiles)
+                .describedAs("the backend and frontend Dockerfiles and the compose file; finding fewer means "
+                        + "this test is reading nothing")
+                .hasSizeGreaterThanOrEqualTo(3);
+
+        List<String> images = new ArrayList<>();
+        buildFiles.forEach(file -> images.addAll(imagesIn(file)));
+        return images;
+    }
+
+    /** The images one build file names. A {@code FROM} naming an earlier stage is not an image. */
+    private static List<String> imagesIn(Path file) {
+        String content = read(file);
+        List<String> images = new ArrayList<>();
+        if (file.getFileName().toString().equals("Dockerfile")) {
+            Set<String> stages = new HashSet<>();
+            Matcher from = FROM.matcher(content);
+            while (from.find()) {
+                if (!stages.contains(from.group(1))) {
+                    images.add(from.group(1));
+                }
+                if (from.group(2) != null) {
+                    stages.add(from.group(2));
+                }
+            }
+        } else {
+            Matcher image = COMPOSE_IMAGE.matcher(content);
+            while (image.find()) {
+                images.add(image.group(1));
+            }
+        }
+        return images;
+    }
+
+    private static Path repositoryFile(String name) {
+        return repositoryRoot().resolve(name);
+    }
+
+    /** The repository root, found by searching upward for the compose file. */
+    private static Path repositoryRoot() {
+        Path root = Paths.get("").toAbsolutePath();
+        while (root != null && !Files.exists(root.resolve("docker-compose.yml"))) {
+            root = root.getParent();
+        }
+        assertThat(root)
+                .describedAs("could not locate docker-compose.yml from %s; it is part of this check, and its "
+                        + "absence is a broken checkout, not a reason to skip it", Paths.get("").toAbsolutePath())
+                .isNotNull();
+        return root;
+    }
+
+    private static String read(Path file) {
+        try {
+            return Files.readString(file);
+        } catch (IOException e) {
+            throw new UncheckedIOException("could not read " + file, e);
+        }
+    }
+}
