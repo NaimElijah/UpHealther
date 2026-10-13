@@ -31,8 +31,9 @@ So the same commit could build three ways, and nothing recorded which.
 
 ## Decision
 
-**Every tool that builds or runs the system is named once, at an exact version, in the repository. A
-build on any other version fails before it does any work.**
+**Every tool that builds or runs the system is recorded once, in the repository. CI and the images
+build on an exact version. A developer machine must sit inside a recorded range. A build outside what
+is recorded fails before it does any work.**
 
 - **Maven: the Maven wrapper, pinned to 3.9.16.**
   - `backend/mvnw` (with `mvnw.cmd` for Windows) downloads that exact distribution and runs it.
@@ -44,12 +45,15 @@ build on any other version fails before it does any work.**
 - **The enforcer refuses a toolchain outside the pin.** `maven-enforcer-plugin` runs at `validate`:
   - `requireJavaVersion [21,22)` refuses any JDK but 21, including a newer one. The image runs a JRE 21,
     so testing on 25 would test something that is not shipped.
-  - `requireMavenVersion [3.9.16,4)` refuses an older Maven. A bare `mvn` that is not the wrapper's
-    version fails with a message that says to use `./mvnw`, instead of building with something else.
+  - `requireMavenVersion [3.9.16,4)` refuses an older Maven, with a message that says to use
+    `./mvnw`. A newer 3.x passes. The wrapper, not the enforcer, is what makes CI and the image build
+    with 3.9.16.
   - The plugin version is the one `spring-boot-starter-parent` manages, so this is a declaration, not
     a new artifact.
-- **Node: `frontend/.nvmrc` names the exact version, and nothing else may install.**
-  - CI reads `.nvmrc` with `node-version-file`, and the image tag names the same version.
+- **Node: `frontend/.nvmrc` names the exact release that CI and the image build with, and npm refuses
+  a Node outside the `engines` range.**
+  - CI reads `.nvmrc` with `node-version-file`. The image's tag names the same release, and
+    `ContainerImagesArePinnedTest` fails if the two differ.
   - `package.json` declares an `engines` range. `frontend/.npmrc` sets `engine-strict=true`, so npm
     refuses to install on a Node outside it. Without that, npm only warns, and that warning is what
     ADR-004 records being installed past.
@@ -61,14 +65,23 @@ build on any other version fails before it does any work.**
   `postgres` in both compose and the integration tests.
   - Images are tagged, not pinned by digest.
   - `ContainerImagesArePinnedTest` fails the build on any floating tag. It also fails if compose and
-    the integration tests name different PostgreSQL images.
+    the integration tests name different PostgreSQL images, or the frontend image a Node other than
+    `.nvmrc`'s.
   - The integration tests read their tag from `support/PostgresImage`, which has no side effects. That
     lets the test compare it without starting Docker.
+- **Deliberately left floating:**
+  - the JDK patch that CI's `setup-java` resolves for `java-version: '21'` (the enforcer still holds it
+    to 21);
+  - the `ubuntu-latest` runner;
+  - the `actions/*@v4` major tags.
+
+  None of them is in a shipped artifact today, because nothing ships from CI.
 
 ## Consequences
 
-- **A build is reproducible from the commit.** CI, the image build and a developer machine run the
-  same Maven and Node, and they must run the same Java major and image versions.
+- **A build is reproducible from the commit where it ships from.** CI and the images build on exactly
+  the recorded Maven, Node and image versions. A developer machine runs the wrapper's Maven, Java 21, and
+  a Node inside the `engines` range.
 - **A wrong toolchain fails at the start, by name.** A wrong JDK, an old Maven or a wrong Node is
   refused before anything compiles or installs, with a message that names what is wrong.
 - **Moving a version is a deliberate, reviewable change in a known place.** Maven is
@@ -106,7 +119,7 @@ build on any other version fails before it does any work.**
   end.
 - **A `maven-wrapper.jar` wrapper type.** Rejected. It puts a binary in the repository, and the
   `only-script` type needs nothing but `wget` or `curl`, which every build environment here has. The
-  backend image's busybox provides `wget`, `unzip` and `sha256sum`.
+  backend's build image provides `wget`, `unzip` and `sha256sum`.
 - **`requireJavaVersion [21,)`**, which accepts any newer JDK. Rejected. It is exactly the "tests run
   on 25, the image ships 21" case.
   - **Revisit** when the runtime image moves to a newer Java, together with `java.version`.
@@ -116,5 +129,8 @@ build on any other version fails before it does any work.**
 - **#164 lands.** Image tags, Node and Maven then move by Dependabot PRs, and digest pinning becomes
   cheap (see above).
 - **Maven 4 is released as stable.** Raise the wrapper and the enforcer's range together.
+- **CI starts publishing the images** ([#154](https://github.com/NaimElijah/UpHealther/issues/154)).
+  CI's runner, its JDK patch and its actions then shape what ships, so pin the actions by commit SHA
+  and let Dependabot move them.
 - **A tool is added to the build** (a formatter in #161, a linter in #162). It is pinned the same way,
   in the same commit that adds it.
