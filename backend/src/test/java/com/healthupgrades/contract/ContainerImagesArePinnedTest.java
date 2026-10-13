@@ -155,7 +155,16 @@ class ContainerImagesArePinnedTest {
                 .hasSizeGreaterThanOrEqualTo(3);
 
         List<String> images = new ArrayList<>();
-        buildFiles.forEach(file -> images.addAll(imagesIn(file)));
+        for (Path file : buildFiles) {
+            List<String> named = imagesIn(file);
+            if (isDockerfile(file)) {
+                assertThat(named)
+                        .describedAs("%s has no FROM this test can read; a base image it cannot parse would "
+                                + "otherwise pass unchecked", root.relativize(file))
+                        .isNotEmpty();
+            }
+            images.addAll(named);
+        }
         return images;
     }
 
@@ -163,7 +172,7 @@ class ContainerImagesArePinnedTest {
     private static List<String> imagesIn(Path file) {
         String content = read(file);
         List<String> images = new ArrayList<>();
-        if (file.getFileName().toString().equals("Dockerfile")) {
+        if (isDockerfile(file)) {
             Set<String> stages = new HashSet<>();
             Matcher from = FROM.matcher(content);
             while (from.find()) {
@@ -181,6 +190,11 @@ class ContainerImagesArePinnedTest {
             }
         }
         return images;
+    }
+
+    /** A Dockerfile always names a base image; a compose file whose services are all built need not. */
+    private static boolean isDockerfile(Path file) {
+        return file.getFileName().toString().equals("Dockerfile");
     }
 
     private static Path repositoryFile(String name) {
