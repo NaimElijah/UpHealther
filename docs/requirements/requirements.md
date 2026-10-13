@@ -193,13 +193,12 @@ column for an astral-plane character such as an emoji, and never looser. Fields 
 columns are deliberately unbounded — nothing rejects them downstream, so a ceiling there is a product
 decision rather than a defect, and §6 records it as open.
 
-BR-17's upper bound is BCrypt's, not a policy. BCrypt reads 72 bytes. Up to Spring Security 6.4,
+BR-17's upper bound is BCrypt's, not a policy. BCrypt reads 72 bytes. Up to Spring Security 6.4.3,
 `BCryptPasswordEncoder` silently dropped the rest, so a longer password and its own prefix were the same
-password and nobody was told. From 6.5 it throws instead. The bound is stated in both units because they
-differ: a character count alone let 37 accented letters (74 bytes) through. The minimum applies at
-registration, which is
-the only route by which a password reaches the system; the seeded demo account is inserted as a hash by
-Flyway and never passes through it.
+password and nobody was told. From 6.4.4 (the fix for CVE-2025-22228) it throws instead. The bound is
+stated in both units because they differ: a character count alone let 37 accented letters (74 bytes)
+through. The minimum applies at registration, which is the only route by which a password reaches the
+system; the seeded demo account is inserted as a hash by Flyway and never passes through it.
 
 BR-18 is checked when an area is set, not on every write: an update that leaves `areaId` as it was does
 not re-check it, so an upgrade filed before the rule existed stays editable. The rule does not rewrite

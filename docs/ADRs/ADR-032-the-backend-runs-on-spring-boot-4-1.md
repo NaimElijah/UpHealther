@@ -70,8 +70,8 @@ Within the move:
   under `org.hibernate.orm.jdbc.error` rather than `SqlExceptionHelper`, so that category is now `OFF`.
   `RegistrationRaceIT` caught the move, as ADR-027 said it would. Warnings now have their own category,
   `org.hibernate.orm.jdbc.warn`, and stay on: ADR-027 counted losing them as a cost, not a goal.
-- **BCrypt now refuses past 72 bytes.** From Spring Security 6.5 it throws, where it used to truncate
-  silently. Registration therefore bounds the password in UTF-8 bytes as well as characters (BR-17),
+- **BCrypt now refuses past 72 bytes.** From Spring Security 6.4.4 and 6.3.8, the fixes for
+  CVE-2025-22228, it throws, where it used to truncate silently. The 3.5 hop is the first to bring it in. Registration therefore bounds the password in UTF-8 bytes as well as characters (BR-17),
   before the move reaches the encoder. Sign-in is not bounded, so hashes made before the change still
   verify.
 

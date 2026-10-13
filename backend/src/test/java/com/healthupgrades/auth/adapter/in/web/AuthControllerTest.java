@@ -168,9 +168,9 @@ class AuthControllerTest {
     @Test
     void GivenAPasswordLongerThanBcryptHashes_WhenAVisitorRegisters_ThenItIsRefusedRatherThanTruncated()
             throws Exception {
-        // Up to Spring Security 6.4, BCryptPasswordEncoder silently dropped anything past 72 bytes, so a
+        // Up to Spring Security 6.4.3, BCryptPasswordEncoder silently dropped anything past 72 bytes, so a
         // 100-character password and its first 72 characters were the same password and the user was
-        // never told; from 6.5 it throws instead. Refusing the input first is the honest answer.
+        // never told; from 6.4.4 it throws instead. Refusing the input first is the honest answer.
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\""
@@ -185,7 +185,7 @@ class AuthControllerTest {
     void GivenAPasswordWithinTheCharacterLimitButPastBcryptsBytes_WhenAVisitorRegisters_ThenItIsRefused()
             throws Exception {
         // @Size counts UTF-16 code units and BCrypt counts UTF-8 bytes. Thirty-seven "é" are 37 characters
-        // and 74 bytes: past BCrypt, which from Spring Security 6.5 throws on it (a 500) and before that
+        // and 74 bytes: past BCrypt, which from Spring Security 6.4.4 throws on it (a 500) and before that
         // dropped the last two bytes without a word.
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
