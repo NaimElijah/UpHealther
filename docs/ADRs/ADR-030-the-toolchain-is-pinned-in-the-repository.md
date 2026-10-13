@@ -117,9 +117,12 @@ is recorded fails before it does any work.**
 - **Tagging images at `major.minor` only** (`nginx:1.30-alpine`). Rejected. It picks up patches, but
   the shipped artifact still changes without a commit, which is the failure this record exists to
   end.
+  - **Revisit** if #164's Dependabot cannot keep exact tags current, for example if an image's
+    upstream publishes patch releases faster than the bumps are reviewed.
 - **A `maven-wrapper.jar` wrapper type.** Rejected. It puts a binary in the repository, and the
   `only-script` type needs nothing but `wget` or `curl`, which every build environment here has. The
   backend's build image provides `wget`, `unzip` and `sha256sum`.
+  - **Revisit** if a build environment has neither `wget` nor `curl`.
 - **`requireJavaVersion [21,)`**, which accepts any newer JDK. Rejected. It is exactly the "tests run
   on 25, the image ships 21" case.
   - **Revisit** when the runtime image moves to a newer Java, together with `java.version`.
