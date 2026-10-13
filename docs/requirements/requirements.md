@@ -179,7 +179,7 @@ The role model behind every entry here is [ADR-016](../ADRs/ADR-016-roles-read-f
 | BR-14 | Concurrent edits to an upgrade are refused rather than silently merged | `UpgradePersistenceIT`, `GlobalExceptionHandlerTest` — **Known deviation:** [#194](https://github.com/NaimElijah/UpHealther/issues/194), only saves that overlap inside the server clash; an edit sent from a page opened before another edit carries no version, and replaces it |
 | BR-15 | A record is visible only to its owner; another user's record is reported as absent, never as forbidden | `UpgradePersistenceIT`, `HealthAreaPersistenceIT`, `ProgressEntryPersistenceIT`, and every `*ControllerTest` |
 | BR-16 | A field stored in a bounded column is refused at the boundary when it exceeds that bound, and the response names the field | `ColumnBoundContractTest` (bound vs. column), `UpgradeControllerTest`, `HealthAreaControllerTest`, `ProgressControllerTest`, `TrackingConfigControllerTest`, `AuthControllerTest` |
-| BR-17 | A password is at least 8 characters and at most 72, refused by the API rather than only by the browser | `AuthControllerTest` |
+| BR-17 | A password is at least 8 characters, and at most 72 characters and 72 bytes of UTF-8, refused by the API rather than only by the browser | `AuthControllerTest` |
 | BR-18 | An upgrade can be filed only under a health area its owner owns; a foreign area and a missing one are refused alike, with no hint which it was | `UpgradeServiceTest`, `HealthAreaServiceTest` |
 | BR-19 | A rating is a whole number from 1 to 5: a progress entry's rating, and a reflection's difficulty and benefit ratings | `ProgressControllerTest`, `ReflectionControllerTest` |
 | BR-20 | A numeric progress value is never negative | `ProgressControllerTest` |
@@ -193,10 +193,11 @@ column for an astral-plane character such as an emoji, and never looser. Fields 
 columns are deliberately unbounded — nothing rejects them downstream, so a ceiling there is a product
 decision rather than a defect, and §6 records it as open.
 
-BR-17's upper bound is BCrypt's, not a policy: `BCryptPasswordEncoder` reads 72 bytes and silently
-drops the rest, so a longer password and its own prefix would be the same password and nobody would be
-told. The bound cannot close that gap completely — it counts UTF-16 code units where BCrypt counts
-bytes — but it removes the case anyone will actually hit. The minimum applies at registration, which is
+BR-17's upper bound is BCrypt's, not a policy. BCrypt reads 72 bytes. Up to Spring Security 6.4,
+`BCryptPasswordEncoder` silently dropped the rest, so a longer password and its own prefix were the same
+password and nobody was told. From 6.5 it throws instead. The bound is stated in both units because they
+differ: a character count alone let 37 accented letters (74 bytes) through. The minimum applies at
+registration, which is
 the only route by which a password reaches the system; the seeded demo account is inserted as a hash by
 Flyway and never passes through it.
 

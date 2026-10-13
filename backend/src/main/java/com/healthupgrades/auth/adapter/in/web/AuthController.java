@@ -57,11 +57,12 @@ public class AuthController {
     public static final int PASSWORD_MIN = 8;
 
     /**
-     * Where BCrypt stops reading. {@code BCryptPasswordEncoder} guards only against null, so anything
-     * past this is silently dropped and a longer password becomes indistinguishable from its own
-     * prefix; refusing it is honest where truncating it is not. Note the mismatch this cannot close:
-     * {@code @Size} counts UTF-16 code units and BCrypt counts bytes, so a password of multi-byte
-     * characters can pass this bound and still be truncated.
+     * Where BCrypt stops reading, in bytes of UTF-8. Up to Spring Security 6.4,
+     * {@code BCryptPasswordEncoder} silently dropped everything past it, so a longer password was
+     * indistinguishable from its own prefix. From 6.5 it throws instead, which would surface as a 500.
+     * Either way the API refuses the input first, as a 400 the user can act on. It is bounded twice:
+     * {@code @Size} in characters, for the message everyone recognises, and {@link MaxUtf8Bytes} in the
+     * bytes BCrypt actually counts, which a password of accented letters or emoji reaches sooner. BR-17.
      */
     public static final int PASSWORD_MAX = 72;
 
@@ -205,7 +206,7 @@ public class AuthController {
     public record RegisterRequest(
             @NotBlank @Size(max = NAME_MAX) String name,
             @NotBlank @Email @Size(max = EMAIL_MAX) String email,
-            @NotBlank @Size(min = PASSWORD_MIN, max = PASSWORD_MAX) String password
+            @NotBlank @Size(min = PASSWORD_MIN, max = PASSWORD_MAX) @MaxUtf8Bytes(PASSWORD_MAX) String password
     ) {
         public RegisterRequest {
             email = EmailAddress.normalise(email);

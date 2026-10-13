@@ -182,6 +182,35 @@ class AuthControllerTest {
     }
 
     @Test
+    void GivenAPasswordWithinTheCharacterLimitButPastBcryptsBytes_WhenAVisitorRegisters_ThenItIsRefused()
+            throws Exception {
+        // @Size counts UTF-16 code units and BCrypt counts UTF-8 bytes. Thirty-seven "é" are 37 characters
+        // and 74 bytes: past BCrypt, which from Spring Security 6.5 throws on it (a 500) and before that
+        // dropped the last two bytes without a word.
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\""
+                                + "\\u00e9".repeat(37) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.password").exists());
+
+        verify(authService, never()).register(any(), any(), any());
+    }
+
+    @Test
+    void GivenAPasswordOfExactlyBcryptsBytes_WhenAVisitorRegisters_ThenItIsAccepted() throws Exception {
+        // Thirty-six "é" are exactly 72 bytes, the most BCrypt reads, so the byte bound is inclusive.
+        when(authService.register(anyString(), anyString(), anyString()))
+                .thenReturn(new AuthResult("issued.jwt.token", EXPIRES_AT, aUser(), GRANT));
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\""
+                                + "\\u00e9".repeat(36) + "\"}"))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
     void GivenANameLongerThanItsColumn_WhenAVisitorRegisters_ThenItAnswers400NamingTheField() throws Exception {
         // users.name is VARCHAR(255). Unbounded, an over-long name would reach the flush and come back as
         // a 500 for input the caller could have corrected. BR-16.

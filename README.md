@@ -289,7 +289,7 @@ the wrong way.
 
 ```bash
 cd backend
-./mvnw test     # 749 unit and structural tests — no database, no Docker
+./mvnw test     # 751 unit and structural tests — no database, no Docker
 ./mvnw verify   # the above plus 95 integration tests in 15 *IT classes — needs Docker
 
 cd ../frontend
@@ -380,7 +380,7 @@ out outside contribution.
 
 ## 🚦 Status and limitations
 
-**Feature-complete and unshipped.** Every capability above works and is covered — 749 unit and
+**Feature-complete and unshipped.** Every capability above works and is covered — 751 unit and
 structural tests, 95 integration tests, 411 frontend tests, all green — but it has never run in a
 hosted environment, has no release tags, and is versioned `0.0.1-SNAPSHOT`.
 
