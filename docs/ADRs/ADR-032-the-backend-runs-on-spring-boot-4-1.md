@@ -107,6 +107,18 @@ Within the move:
   difference to preserve. Opting into another major's defaults would be a setting to remove later for
   no gain now.
   - **Revisit** if a client is found that depends on property order.
+- **Boot's built-in structured logging (`logging.structured.format.console`) in place of
+  logstash-logback-encoder.** ADR-010 deferred this to "when Boot is next upgraded", and this is that
+  upgrade. Rejected again, for the reason ADR-010 gave:
+  - `StructuredArguments.keyValue` now has 28 call sites in 7 classes, and Boot's built-in format has
+    no equivalent.
+  - Replacing it means rewriting those lines and re-proving the audit and log-format tests. That is a
+    change of its own, not a step in a framework upgrade.
+
+  The encoder moves to 9.0, its Jackson 3 line, and the JSON line it writes keeps the same fields and
+  order.
+  - **Revisit** when the encoder falls behind Boot's logback or Jackson line, or when a change touches
+    those call sites anyway.
 
 ## When to revisit
 
