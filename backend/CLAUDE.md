@@ -152,8 +152,8 @@ that. Name tests `Given<state>_When<action>_Then<outcome>`.
   than disabling security, which would assert the opposite of FR-5. A slice mocks
   `BearerTokenAuthenticator`, not `JwtTokenProvider`: it is the seam both transports authenticate
   through, so mocking it leaves the filter and the security config real.
-- `mvn test` — unit, web-slice and architecture tests. **No database needed**; keep it that way.
-- `mvn verify` — the above plus the `*IT` integration tests, which boot the application against a real
+- `./mvnw test` — unit, web-slice and architecture tests. **No database needed**; keep it that way.
+- `./mvnw verify` — the above plus the `*IT` integration tests, which boot the application against a real
   PostgreSQL. They **start it themselves**: every `*IT` extends `support/PostgresIT`, which runs a
   `postgres:15-alpine` container through Testcontainers and wires the `DataSource` to it with
   `@ServiceConnection`. So `verify` needs a running **Docker daemon**, not a database you started — and

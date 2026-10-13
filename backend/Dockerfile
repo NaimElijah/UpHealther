@@ -1,8 +1,13 @@
 FROM eclipse-temurin:21-jdk-alpine AS build
 WORKDIR /app
+# The Maven wrapper downloads the version the repository pins and checks its checksum (ADR-030), with
+# busybox's wget, unzip and sha256sum - no package to install. chmod so the build does not depend on
+# the context keeping the executable bit git records; an archive download or a plain copy can drop it.
+COPY mvnw ./
+COPY .mvn ./.mvn
 COPY pom.xml .
 COPY src ./src
-RUN apk add --no-cache maven && mvn package -DskipTests
+RUN chmod +x mvnw && ./mvnw -B --no-transfer-progress package -DskipTests
 
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app

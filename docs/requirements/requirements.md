@@ -284,10 +284,10 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 |---|---|---|
 | NFR-9 | Layering is enforced mechanically, not by convention: the domain stays framework-free, the application depends on no adapter, contexts form an acyclic graph, and the administration context is fenced off as NFR-41 states | `HexagonalArchitectureTest` (twelve rules) ([ADR-001](../ADRs/ADR-001-ddd-hexagonal-architecture.md), [ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)) |
 | NFR-10 | The frontend's mirrored enums cannot drift from the backend's | `FrontendEnumContractTest` |
-| NFR-11 | The unit test suite runs without a database | `mvn test` — needs neither a database nor Docker |
+| NFR-11 | The unit test suite runs without a database | `./mvnw test` — needs neither a database nor Docker |
 | NFR-12 | Every push and pull request is built, tested, linted, and the shipped frontend dependencies audited, and fails when the generated architecture diagrams have drifted from their source | `.github/workflows/ci.yml` |
 | NFR-13 | The whole stack starts with one command | `docker-compose up --build` |
-| NFR-48 | The integration suite starts its own PostgreSQL in a container and never runs against a database it finds already running, so a local one on the same port cannot make it pass against the wrong schema | `mvn verify`, through `support/PostgresIT.java`, which every `*IT` extends ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)) |
+| NFR-48 | The integration suite starts its own PostgreSQL in a container and never runs against a database it finds already running, so a local one on the same port cannot make it pass against the wrong schema | `./mvnw verify`, through `support/PostgresIT.java`, which every `*IT` extends ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)) |
 
 ---
 
