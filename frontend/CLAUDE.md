@@ -11,7 +11,8 @@ conventions to follow inside `frontend/`.
 `engine-strict` makes npm refuse to install outside `package.json`'s `engines` range
 ([ADR-030](../docs/ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md),
 [ADR-031](../docs/ADRs/ADR-031-the-frontend-toolchain-runs-on-node-24-lts.md)). Moving Node means
-moving `.nvmrc`, `engines` and the `FROM` tag in `Dockerfile` together.
+moving `.nvmrc`, `engines` and the `FROM` tag in `Dockerfile` together; `ContainerImagesArePinnedTest`
+fails the backend build if the image and `.nvmrc` name different releases.
 
 - **Tests** are Vitest on jsdom ([ADR-004](../docs/ADRs/ADR-004-frontend-test-harness.md)), colocated
   beside what they test, and named `Given<state>_When<action>_Then<outcome>`

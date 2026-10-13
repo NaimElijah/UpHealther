@@ -36,6 +36,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class ContainerImagesArePinnedTest {
 
+    /** The Node release CI builds the frontend on, relative to the repository root. */
+    private static final String NVMRC = "frontend/.nvmrc";
+
+    /** The frontend image, which must build on that same release. */
+    private static final String FRONTEND_DOCKERFILE = "frontend/Dockerfile";
+
     /** Directory depth searched for build files: the root and each module, never {@code node_modules}. */
     private static final int BUILD_FILE_DEPTH = 2;
 
@@ -77,16 +83,26 @@ class ContainerImagesArePinnedTest {
         assertThat(composePostgres).containsExactly(PostgresImage.NAME);
     }
 
+    @Test
+    void GivenTheNvmrc_WhenComparedWithTheFrontendImage_ThenTheImageBuildsOnTheSameNode() {
+        String nvmrc = read(repositoryFile(NVMRC)).strip();
+        List<String> nodeImages = imagesIn(repositoryFile(FRONTEND_DOCKERFILE)).stream()
+                .filter(image -> repository(image).equals("node"))
+                .toList();
+
+        assertThat(nodeImages)
+                .describedAs("frontend/Dockerfile must build on the Node release frontend/.nvmrc names, which "
+                        + "CI reads; move both together (ADR-030, ADR-031)")
+                .singleElement()
+                .satisfies(image -> assertThat(tag(image)).startsWith(nvmrc + "-"));
+    }
+
     /** Whether an image reference names an exact version, by the rule in the class comment. */
     private static boolean isExact(String image) {
         if (image.contains("@sha256:")) {
             return true;
         }
-        int colon = image.lastIndexOf(':');
-        if (colon < 0 || image.indexOf('/', colon) >= 0) {
-            return false;
-        }
-        String tag = image.substring(colon + 1);
+        String tag = tag(image);
         Matcher version = LEADING_VERSION.matcher(tag);
         if (!version.find()) {
             return false;
@@ -95,6 +111,12 @@ class ContainerImagesArePinnedTest {
         int required = repository(image).equals("postgres") ? 2 : 3;
         boolean alpinePinned = !tag.contains("alpine") || PINNED_ALPINE.matcher(tag).find();
         return components >= required && alpinePinned;
+    }
+
+    /** The image's tag: {@code 15.19-alpine3.24} for {@code postgres:15.19-alpine3.24}; empty if it has none. */
+    private static String tag(String image) {
+        int colon = image.lastIndexOf(':');
+        return colon < 0 || image.indexOf('/', colon) >= 0 ? "" : image.substring(colon + 1);
     }
 
     /** The image's name without registry, tag or digest: {@code postgres} for {@code postgres:15.19}. */
