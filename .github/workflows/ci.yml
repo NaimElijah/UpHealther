@@ -13,7 +13,7 @@ jobs:
 
     # No `services:` block. The integration tests start their own PostgreSQL through Testcontainers, so
     # the database is described in the test source rather than in the runner's configuration and the
-    # same `mvn verify` runs identically here and on a developer machine. See ADR-008.
+    # same `./mvnw verify` runs identically here and on a developer machine. See ADR-008 and ADR-030.
 
     steps:
       - uses: actions/checkout@v4
