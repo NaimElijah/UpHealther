@@ -38,12 +38,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  * opens the observation scope in a try-with-resources, so the scope — and with it the MDC — closes even
  * when the chain throws.
  *
- * <p>One caveat worth knowing if this ever fails oddly: Boot installs the MDC bridge by calling
- * {@code ContextStorage.addWrapper(...)}, a JVM-global side effect that OpenTelemetry ignores once a
- * {@code Context} has been used. {@code StompTracingChannelInterceptorTest} also boots the tracing
- * auto-configuration in this fork, so whichever class runs first installs the wrapper both then rely on.
- * The wrapper is stateless, which is why that is safe; it fails loudly rather than silently if it ever
- * stops being.
+ * <p>One caveat worth knowing if this ever fails oddly: the MDC bridge is a {@code ContextStorage} wrapper,
+ * a JVM-global side effect that OpenTelemetry ignores once a {@code Context} has been used. Boot installs
+ * it before any test runs, through a JUnit {@code TestExecutionListener} in
+ * {@code spring-boot-micrometer-tracing-opentelemetry}. It holds each application context's event
+ * publishers, which {@code OpenTelemetryEventPublisherBeansApplicationListener} adds when a context
+ * refreshes and removes when it closes. That is why the runner below has to register the listener, and
+ * why contexts from other test classes in this fork, such as {@code StompTracingChannelInterceptorTest}'s,
+ * do not leak into this one.
  */
 class RequestCorrelationTest {
 
