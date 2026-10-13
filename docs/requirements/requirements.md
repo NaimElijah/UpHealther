@@ -289,7 +289,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-12 | Every push and pull request is built, tested, linted, and the shipped frontend dependencies audited, and fails when the generated architecture diagrams have drifted from their source | `.github/workflows/ci.yml` |
 | NFR-13 | The whole stack starts with one command | `docker-compose up --build` |
 | NFR-48 | The integration suite starts its own PostgreSQL in a container and never runs against a database it finds already running, so a local one on the same port cannot make it pass against the wrong schema | `./mvnw verify`, through `support/PostgresIT.java`, which every `*IT` extends ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)) |
-| NFR-51 | The build uses the toolchain versions the repository records: a JDK or a Maven outside them is refused before anything compiles | `backend/pom.xml` (`maven-enforcer-plugin`), run through `./mvnw`, which downloads the pinned Maven and checks its checksum ([ADR-030](../ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md)) |
+| NFR-51 | The build uses the toolchain versions the repository records: a JDK, a Maven or a Node outside them is refused before anything compiles or installs | `backend/pom.xml` (`maven-enforcer-plugin`), run through `./mvnw`, which downloads the pinned Maven and checks its checksum; `frontend/.npmrc` (`engine-strict`) against the `engines` range in `frontend/package.json`, with CI and the image building on `frontend/.nvmrc`'s release ([ADR-030](../ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md), [ADR-031](../ADRs/ADR-031-the-frontend-toolchain-runs-on-node-24-lts.md)) |
 
 ---
 

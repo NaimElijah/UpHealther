@@ -244,7 +244,8 @@ The rest of the surface — every endpoint, the full status contract, and the er
 
 ## 💻 Development
 
-Running natively needs **JDK 21**, **Node 24**, and a PostgreSQL 15 on `:5432`. Maven is not a
+Running natively needs **JDK 21**, **Node 24** (`frontend/.nvmrc` names the exact release; npm
+refuses any Node outside `^24.16.0`), and a PostgreSQL 15 on `:5432`. Maven is not a
 prerequisite: `backend/mvnw` downloads the version the repository pins, checks its checksum and runs
 it ([ADR-030](docs/ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md)). From PowerShell or
 `cmd`, use `mvnw.cmd`.
