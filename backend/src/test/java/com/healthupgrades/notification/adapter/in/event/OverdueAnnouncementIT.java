@@ -19,7 +19,7 @@ import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabas
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
@@ -61,8 +61,8 @@ class OverdueAnnouncementIT extends PostgresIT {
     @Autowired NotificationRepositoryPort repository;
     @Autowired TestEntityManager entityManager;
 
-    @MockBean UpgradeQuery upgradeQuery;
-    @MockBean NotificationPushPort pushPort;
+    @MockitoBean UpgradeQuery upgradeQuery;
+    @MockitoBean NotificationPushPort pushPort;
 
     private UUID userId;
     private UUID upgradeId;

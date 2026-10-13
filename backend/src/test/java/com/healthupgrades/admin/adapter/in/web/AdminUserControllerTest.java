@@ -16,7 +16,7 @@ import com.healthupgrades.user.domain.model.User;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -57,10 +57,10 @@ class AdminUserControllerTest {
 
     @Autowired MockMvc mockMvc;
 
-    @MockBean AdminUserQuery adminUserQuery;
-    @MockBean AdminUserCommand adminUserCommand;
-    @MockBean BearerTokenAuthenticator authenticator;
-    @MockBean UserDetailsServiceImpl userDetailsService;
+    @MockitoBean AdminUserQuery adminUserQuery;
+    @MockitoBean AdminUserCommand adminUserCommand;
+    @MockitoBean BearerTokenAuthenticator authenticator;
+    @MockitoBean UserDetailsServiceImpl userDetailsService;
 
     @Test
     void GivenAnAdministrator_WhenAccountsAreListed_ThenItAnswers200WithThePageAndItsTotal() throws Exception {

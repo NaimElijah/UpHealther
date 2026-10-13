@@ -7,7 +7,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -71,24 +71,24 @@ class AuthenticatedBoundaryTest {
     @Autowired MockMvc mockMvc;
     @Autowired RequestMappingHandlerMapping handlerMapping;
 
-    @MockBean BearerTokenAuthenticator authenticator;
-    @MockBean UserDetailsServiceImpl userDetailsService;
+    @MockitoBean BearerTokenAuthenticator authenticator;
+    @MockitoBean UserDetailsServiceImpl userDetailsService;
 
     // The application services behind the controllers. Mocked: this class is about reaching them at all.
-    @MockBean com.healthupgrades.auth.application.AuthService authService;
-    @MockBean com.healthupgrades.auth.application.port.in.SessionCommand sessionCommand;
-    @MockBean com.healthupgrades.admin.application.port.in.AdminUserQuery adminUserQuery;
-    @MockBean com.healthupgrades.admin.application.port.in.AdminUserCommand adminUserCommand;
-    @MockBean com.healthupgrades.upgrade.application.UpgradeService upgradeService;
-    @MockBean com.healthupgrades.tracking.application.TrackingService trackingService;
-    @MockBean com.healthupgrades.healtharea.application.HealthAreaService healthAreaService;
-    @MockBean com.healthupgrades.reflection.application.ReflectionService reflectionService;
-    @MockBean com.healthupgrades.reminder.application.ReminderService reminderService;
-    @MockBean com.healthupgrades.notification.application.NotificationService notificationService;
-    @MockBean com.healthupgrades.dashboard.application.port.in.DashboardQuery dashboardQuery;
-    @MockBean com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort trackingSummaryPort;
+    @MockitoBean com.healthupgrades.auth.application.AuthService authService;
+    @MockitoBean com.healthupgrades.auth.application.port.in.SessionCommand sessionCommand;
+    @MockitoBean com.healthupgrades.admin.application.port.in.AdminUserQuery adminUserQuery;
+    @MockitoBean com.healthupgrades.admin.application.port.in.AdminUserCommand adminUserCommand;
+    @MockitoBean com.healthupgrades.upgrade.application.UpgradeService upgradeService;
+    @MockitoBean com.healthupgrades.tracking.application.TrackingService trackingService;
+    @MockitoBean com.healthupgrades.healtharea.application.HealthAreaService healthAreaService;
+    @MockitoBean com.healthupgrades.reflection.application.ReflectionService reflectionService;
+    @MockitoBean com.healthupgrades.reminder.application.ReminderService reminderService;
+    @MockitoBean com.healthupgrades.notification.application.NotificationService notificationService;
+    @MockitoBean com.healthupgrades.dashboard.application.port.in.DashboardQuery dashboardQuery;
+    @MockitoBean com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort trackingSummaryPort;
     // No mock for TrackingConfigQuery / ProgressQuery / StreakQuery: TrackingService implements all
-    // three, and a @MockBean of an interface an existing mock already satisfies *replaces* that mock
+    // three, and a @MockitoBean of an interface an existing mock already satisfies *replaces* that mock
     // rather than adding one — which would leave TrackingService itself unresolvable.
 
     @ParameterizedTest(name = "{0} {1}")

@@ -26,7 +26,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
@@ -69,7 +69,7 @@ class NotificationCommitIT extends PostgresIT {
     @Autowired UserCommand userCommand;
     @Autowired TransactionTemplate transactionTemplate;
 
-    @MockBean NotificationPushPort pushPort;
+    @MockitoBean NotificationPushPort pushPort;
 
     private UUID userId;
     private UUID upgradeId;

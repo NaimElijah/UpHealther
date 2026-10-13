@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -53,7 +53,7 @@ class RegistrationRaceIT extends PostgresIT {
             "{\"name\":\"Racer\",\"email\":\"%s\",\"password\":\"long-enough-password\"}";
 
     @Autowired MockMvc mockMvc;
-    @SpyBean UserService userService;
+    @MockitoSpyBean UserService userService;
 
     private Logger rootLogger;
     private ListAppender<ILoggingEvent> appender;

@@ -16,7 +16,7 @@ import com.healthupgrades.user.domain.model.User;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import jakarta.servlet.http.Cookie;
 import org.springframework.http.HttpHeaders;
@@ -79,10 +79,10 @@ class AuthControllerTest {
 
     @Autowired MockMvc mockMvc;
 
-    @MockBean AuthService authService;
-    @MockBean SessionCommand sessions;
-    @MockBean BearerTokenAuthenticator authenticator;
-    @MockBean UserDetailsServiceImpl userDetailsService;
+    @MockitoBean AuthService authService;
+    @MockitoBean SessionCommand sessions;
+    @MockitoBean BearerTokenAuthenticator authenticator;
+    @MockitoBean UserDetailsServiceImpl userDetailsService;
 
     @Test
     void GivenValidRegistrationDetails_WhenAVisitorRegisters_ThenItAnswers201WithATokenAndTheirProfile()
