@@ -90,8 +90,9 @@ because it changes application code rather than tooling.
 ## When to revisit
 
 - **A navigation target is built from input**, for example a redirect-after-login, a `returnTo`
-  parameter, or a link taken from server-supplied text. Move to 7.18 or later first, or validate the
-  target.
+  parameter, or a link taken from server-supplied text. Move to 7.18 or later first. Validating the
+  target by hand is no substitute: GHSA-wrjc is itself a bypass of the router's own earlier check
+  (CVE-2025-68470).
 - **The 6.x line stops receiving fixes**, or an advisory that reaches this code is fixed only in 7 or
   later.
 - **The SPA adopts a data router or server rendering.** GHSA-337j applies then.
