@@ -91,7 +91,10 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
 
   const [abandonOpen, setAbandonOpen] = useState(false);
   const rescheduleButton = useRef<HTMLButtonElement>(null);
-  // Set by a confirmed abandon, and acted on once the dialog has closed and released the page.
+  // Set by a confirmed abandon, and acted on once the dialog has closed and released the page. State,
+  // not a ref: setting it has to run the effect below even when the dialog is already closed, which
+  // happens when a dismissal lands before the dialog learns the abandon is in flight. It is cleared when
+  // the dialog next opens, never by the effect, so a later Cancel gives focus back to its opener.
   const [focusRescheduleNext, setFocusRescheduleNext] = useState(false);
 
   // Abandoning removes the Abandon button that opened the dialog, so the dialog has nothing to give
@@ -101,7 +104,6 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
   useEffect(() => {
     if (!focusRescheduleNext || abandonOpen) return;
     rescheduleButton.current?.focus();
-    setFocusRescheduleNext(false);
   }, [focusRescheduleNext, abandonOpen]);
   const abandonMutation = useMutation({
     mutationFn: () => performUpgradeAction(upgrade.id, 'ABANDONED'),
@@ -111,6 +113,7 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
   /** Asks before abandoning, without a refusal left over from an earlier attempt. */
   const openAbandon = () => {
     abandonMutation.reset();
+    setFocusRescheduleNext(false);
     setAbandonOpen(true);
   };
 
