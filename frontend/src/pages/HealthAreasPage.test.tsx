@@ -163,8 +163,8 @@ describe('HealthAreasPage', () => {
   });
 
   it('GivenAFractionalPriority_WhenANewAreaIsSubmitted_ThenTheFormRefusesIt', async () => {
-    // The API binds priority as an Integer, and Jackson truncates 1.5 to 1 rather than refusing it —
-    // so the refusal has to happen here, or the user saves a number they did not type.
+    // The API refuses 1.5 too, but as a malformed body that names no field (ADR-033) — so the refusal
+    // that tells the user which field is wrong has to happen here.
     renderPage();
     const dialog = await openCreate();
 

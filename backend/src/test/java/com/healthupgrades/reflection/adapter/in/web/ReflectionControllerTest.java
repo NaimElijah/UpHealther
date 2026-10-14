@@ -86,6 +86,17 @@ class ReflectionControllerTest {
     }
 
     @Test
+    void GivenAFractionalRating_WhenAReflectionIsWritten_ThenItAnswers400AndNothingIsStored() throws Exception {
+        // Truncated to 3 by Jackson's default, it would pass @Min and @Max. BR-19, #240.
+        mockMvc.perform(bearer(post(base)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"difficultyRating\":3.7}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Malformed request body"));
+
+        verify(service, never()).create(any(), any(), any());
+    }
+
+    @Test
     void GivenAnUpgradeOwnedBySomebodyElse_WhenAReflectionIsWritten_ThenItAnswers404AndNot403() throws Exception {
         when(service.create(eq(userId), eq(upgradeId), any()))
                 .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));

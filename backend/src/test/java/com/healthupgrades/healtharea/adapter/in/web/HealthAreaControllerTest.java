@@ -89,6 +89,17 @@ class HealthAreaControllerTest {
     }
 
     @Test
+    void GivenAFractionalPriority_WhenAnAreaIsCreated_ThenItAnswers400AndNothingIsCreated() throws Exception {
+        // Jackson's default would store 1.5 as 1, a priority the caller never chose (#240).
+        mockMvc.perform(bearer(post(BASE)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Sleep\",\"priority\":1.5}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Malformed request body"));
+
+        verify(service, never()).create(any(), any());
+    }
+
+    @Test
     void GivenANameLongerThanItsColumn_WhenAnAreaIsCreated_ThenItAnswers400NamingTheField() throws Exception {
         // health_areas.name is VARCHAR(255), which is where the 255 comes from. Unbounded here, an
         // over-long name reached the flush in production and came back 500. This slice has no database
