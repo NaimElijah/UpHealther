@@ -83,7 +83,8 @@ fails the backend build if the image and `.nvmrc` name different releases.
 - **Theme** flows through `contexts/ThemeProvider.tsx` (context object in `contexts/themeContextValue.ts`)
   + `hooks/useTheme.ts`, mounted outermost in `App.tsx` so the auth pages get it too. That split of the
   `createContext` call into its own module is not stylistic: `react-refresh/only-export-components`
-  fails `npm run lint` when a `.tsx` file exports a non-component value. Follow it for any new context.
+  fails `npm run lint` when a `.tsx` file exports a context, or any other value that is neither a
+  component nor a constant. Follow it for any new context.
 - Shared TypeScript types (mirroring backend DTOs/enums, e.g. `UpgradeStatus`) live in `src/types/index.ts`.
 - Styling is Tailwind CSS; reusable primitives are in `src/components/ui/`.
 - **The page is served under a CSP, and the inline boot script is permitted by a hash.** It is in
