@@ -74,6 +74,18 @@ because it changes application code rather than tooling.
   upgrade. A gate that fails on findings already judged not to apply gets ignored or switched off.
 - **Leave 6.30.4 and record all three.** Rejected. GHSA-jjmj has a fix inside the line the project
   already runs, and the bump changes nothing else.
+- **Guard "no navigation target from input" with a lint rule.** Rejected. Only prose guards the
+  invariant this decision rests on: `frontend/CLAUDE.md` and the triggers below. A rule cannot tell
+  whether a value came from input, so it would have to guess:
+  - **Ban the sources**, `useSearchParams` and `location.state`. That blocks legitimate uses, such as
+    narrowing a list by a query parameter (#90), none of which navigates anywhere.
+  - **Ban a non-literal navigation target.** That refuses the `/upgrades/${id}` targets above, which
+    are safe.
+
+  Either way, the rule would end up switched off at each place it is wrong, and it still would not
+  trace a value through a variable.
+  - **Revisit** if a navigation target from input is ever proposed. By the trigger below, that change
+    moves to 7.18 first, and the question goes away.
 
 ## When to revisit
 
