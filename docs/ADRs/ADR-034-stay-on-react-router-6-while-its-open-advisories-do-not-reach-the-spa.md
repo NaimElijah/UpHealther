@@ -69,7 +69,8 @@ because it changes application code rather than tooling.
   major upgrade of the router that every page runs on. It needs checking route by route, and it would
   close only two advisories, neither of which reaches this code. 7 is also no longer the current major.
   #166 already scoped this out, as a change to application code that needs its own decision.
-- **Lower the CI gate to `moderate`.** Rejected. ADR-002 and #59 chose `high`. A `moderate` gate would
+- **Lower the CI gate to `moderate`.** Rejected. ADR-002 chose `high`, and #59 proposes the same level
+  for the backend. A `moderate` gate would
   turn red today on two advisories that do not apply, and the only way back to green is a major
   upgrade. A gate that fails on findings already judged not to apply gets ignored or switched off.
 - **Leave 6.30.4 and record all three.** Rejected. GHSA-jjmj has a fix inside the line the project
