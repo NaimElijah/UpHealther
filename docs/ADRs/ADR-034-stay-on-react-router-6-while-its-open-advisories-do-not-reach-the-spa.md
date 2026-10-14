@@ -32,8 +32,10 @@ because it changes application code rather than tooling.
   `src/` is built from input:
   - Every `<Link>`, `<Navigate>` and `navigate()` target is a literal, or comes from the constant list
     in `src/components/layout/navItems.ts`.
-  - The exception is `` `/upgrades/${relatedUpgradeId}` ``, where the id is one the API returned. It
-    always starts with the fixed `/upgrades/` segment, so no value can make it external.
+  - The exceptions are the `/upgrades/${id}` targets: `upgrade.id` in `UpgradeCard.tsx`, and a
+    notification's `relatedUpgradeId` in the notification list, dropdown and toast. Each id is a UUID
+    the server generated. Each target starts with the fixed `/upgrades/` segment, so no value can make
+    it external.
   - `navigate(-1)` takes no path.
   - No redirect target is read from the URL, the query string or `location.state`.
 
