@@ -17,8 +17,8 @@ import com.healthupgrades.upgrade.domain.model.UpgradeType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -65,10 +65,10 @@ class UpgradeControllerTest {
 
     @Autowired MockMvc mockMvc;
 
-    @MockBean UpgradeService service;
-    @MockBean UpgradeTrackingSummaryPort trackingSummaries;
-    @MockBean BearerTokenAuthenticator authenticator;
-    @MockBean UserDetailsServiceImpl userDetailsService;
+    @MockitoBean UpgradeService service;
+    @MockitoBean UpgradeTrackingSummaryPort trackingSummaries;
+    @MockitoBean BearerTokenAuthenticator authenticator;
+    @MockitoBean UserDetailsServiceImpl userDetailsService;
 
     private UUID userId;
     private final UUID upgradeId = UUID.randomUUID();
@@ -244,7 +244,7 @@ class UpgradeControllerTest {
                 .thenThrow(new BusinessRuleException("Cannot pause a COMPLETED upgrade"));
 
         mockMvc.perform(bearer(post(BASE + "/" + upgradeId + "/pause")))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.message").value("Cannot pause a COMPLETED upgrade"));
     }
 
@@ -257,7 +257,7 @@ class UpgradeControllerTest {
         mockMvc.perform(bearer(post(BASE + "/" + upgradeId + "/activate"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isUnprocessableEntity());
+                .andExpect(status().isUnprocessableContent());
     }
 
     // ---- Updating and deleting ----

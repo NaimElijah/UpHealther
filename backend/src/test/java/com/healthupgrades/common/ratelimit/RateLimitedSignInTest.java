@@ -12,8 +12,8 @@ import com.healthupgrades.support.WebSliceSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -65,10 +65,10 @@ class RateLimitedSignInTest {
 
     @Autowired MockMvc mockMvc;
 
-    @MockBean AuthService authService;
-    @MockBean SessionCommand sessions;
-    @MockBean BearerTokenAuthenticator authenticator;
-    @MockBean UserDetailsServiceImpl userDetailsService;
+    @MockitoBean AuthService authService;
+    @MockitoBean SessionCommand sessions;
+    @MockitoBean BearerTokenAuthenticator authenticator;
+    @MockitoBean UserDetailsServiceImpl userDetailsService;
 
     @BeforeEach
     void credentialsNeverMatch() {
@@ -120,7 +120,7 @@ class RateLimitedSignInTest {
         String client = "203.0.113.16";
 
         for (int attempt = 0; attempt < LIMIT; attempt++) {
-            mockMvc.perform(registerFrom(client)).andExpect(status().isUnprocessableEntity());
+            mockMvc.perform(registerFrom(client)).andExpect(status().isUnprocessableContent());
         }
 
         mockMvc.perform(registerFrom(client))

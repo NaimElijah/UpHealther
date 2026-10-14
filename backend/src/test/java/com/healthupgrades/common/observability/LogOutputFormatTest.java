@@ -8,8 +8,8 @@ import ch.qos.logback.classic.spi.LoggingEvent;
 import ch.qos.logback.core.Appender;
 import ch.qos.logback.core.encoder.Encoder;
 import ch.qos.logback.core.OutputStreamAppender;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
@@ -69,13 +69,13 @@ class LogOutputFormatTest {
         String rendered = renderOneLineUnderProfiles("json-logs");
 
         JsonNode line = new ObjectMapper().readTree(rendered);
-        assertThat(line.path("message").asText()).isEqualTo(MESSAGE);
-        assertThat(line.path("level").asText()).isEqualTo("INFO");
+        assertThat(line.path("message").asString()).isEqualTo(MESSAGE);
+        assertThat(line.path("level").asString()).isEqualTo("INFO");
         // The MDC is the only route by which correlation reaches the JSON, so includeMdc is the
         // json-logs equivalent of importing Boot's defaults.xml.
-        assertThat(line.path("traceId").asText()).isEqualTo(TRACE_ID);
-        assertThat(line.path("spanId").asText()).isEqualTo(SPAN_ID);
-        assertThat(line.path("service").asText()).isEqualTo(SERVICE_NAME);
+        assertThat(line.path("traceId").asString()).isEqualTo(TRACE_ID);
+        assertThat(line.path("spanId").asString()).isEqualTo(SPAN_ID);
+        assertThat(line.path("service").asString()).isEqualTo(SERVICE_NAME);
     }
 
     @AfterAll

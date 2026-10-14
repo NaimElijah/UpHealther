@@ -13,8 +13,8 @@ import com.healthupgrades.tracking.application.port.in.StreakSummary;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -50,9 +50,9 @@ class ProgressControllerTest {
 
     @Autowired MockMvc mockMvc;
 
-    @MockBean TrackingService trackingService;
-    @MockBean BearerTokenAuthenticator authenticator;
-    @MockBean UserDetailsServiceImpl userDetailsService;
+    @MockitoBean TrackingService trackingService;
+    @MockitoBean BearerTokenAuthenticator authenticator;
+    @MockitoBean UserDetailsServiceImpl userDetailsService;
 
     private UUID userId;
     private final UUID upgradeId = UUID.randomUUID();
@@ -95,6 +95,18 @@ class ProgressControllerTest {
                         .content("{\"rating\":9}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.rating").exists());
+
+        verify(trackingService, never()).recordProgress(any(), any(), any());
+    }
+
+    @Test
+    void GivenAFractionalRating_WhenProgressIsLogged_ThenItAnswers400AndNothingIsRecorded() throws Exception {
+        // Jackson's default truncates 3.7 to 3, which @Min and @Max then pass: a rating the caller never
+        // sent, stored without a word. BR-19, #240.
+        mockMvc.perform(bearer(post(progressPath)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"rating\":3.7}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Malformed request body"));
 
         verify(trackingService, never()).recordProgress(any(), any(), any());
     }

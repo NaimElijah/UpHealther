@@ -11,9 +11,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -53,7 +53,7 @@ class RegistrationRaceIT extends PostgresIT {
             "{\"name\":\"Racer\",\"email\":\"%s\",\"password\":\"long-enough-password\"}";
 
     @Autowired MockMvc mockMvc;
-    @SpyBean UserService userService;
+    @MockitoSpyBean UserService userService;
 
     private Logger rootLogger;
     private ListAppender<ILoggingEvent> appender;
@@ -82,7 +82,7 @@ class RegistrationRaceIT extends PostgresIT {
         doReturn(false).when(userService).existsByEmail(anyString());
 
         register(email.toUpperCase(Locale.ROOT))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.message").value("That email is already registered"));
     }
 
@@ -90,12 +90,13 @@ class RegistrationRaceIT extends PostgresIT {
     void GivenTheDatabaseRefusesADuplicateEmail_WhenTheRegistrationIsAnswered_ThenNoLogLineCarriesTheAddress()
             throws Exception {
         // NFR-6. The refusal is handled and answered 422, so no line has a fault to excuse it - yet
-        // Hibernate's SqlExceptionHelper wrote the driver's "Key (email)=(...) already exists" at ERROR (#142).
+        // Hibernate's SQL exception logger wrote the driver's "Key (email)=(...) already exists" at ERROR
+        // (#142). It is renamed between Hibernate versions, which this test is what catches (ADR-032).
         String email = "racer-" + UUID.randomUUID() + "@example.com";
         register(email).andExpect(status().isCreated());
         doReturn(false).when(userService).existsByEmail(anyString());
 
-        register(email.toUpperCase(Locale.ROOT)).andExpect(status().isUnprocessableEntity());
+        register(email.toUpperCase(Locale.ROOT)).andExpect(status().isUnprocessableContent());
 
         // The existence check refuses with the same 422, so the answer alone cannot show that the database
         // refused: the second registration has to have reached the insert.

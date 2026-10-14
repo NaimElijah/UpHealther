@@ -2,6 +2,9 @@
 #
 # Every tracked file is already LF in the index; today that is a property of how the people who
 # committed them happened to have Git configured. This makes it a property of the repository instead,
-# so a checkout on Windows and a checkout in the Docker build produce byte-identical files. Nothing
-# tracked here is a .bat or .cmd, the two formats that genuinely need CRLF.
+# so a checkout on Windows and a checkout in the Docker build produce byte-identical files.
 * text=auto eol=lf
+
+# The one exception: cmd.exe needs CRLF. backend/mvnw.cmd, the Maven wrapper for Windows, is the only
+# such file tracked (ADR-030).
+*.cmd text eol=crlf

@@ -11,8 +11,8 @@ import com.healthupgrades.support.WebSliceSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -48,9 +48,9 @@ class ReflectionControllerTest {
 
     @Autowired MockMvc mockMvc;
 
-    @MockBean ReflectionService service;
-    @MockBean BearerTokenAuthenticator authenticator;
-    @MockBean UserDetailsServiceImpl userDetailsService;
+    @MockitoBean ReflectionService service;
+    @MockitoBean BearerTokenAuthenticator authenticator;
+    @MockitoBean UserDetailsServiceImpl userDetailsService;
 
     private UUID userId;
     private final UUID upgradeId = UUID.randomUUID();
@@ -81,6 +81,17 @@ class ReflectionControllerTest {
                         .content("{\"difficultyRating\":9}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.difficultyRating").exists());
+
+        verify(service, never()).create(any(), any(), any());
+    }
+
+    @Test
+    void GivenAFractionalRating_WhenAReflectionIsWritten_ThenItAnswers400AndNothingIsStored() throws Exception {
+        // Truncated to 3 by Jackson's default, it would pass @Min and @Max. BR-19, #240.
+        mockMvc.perform(bearer(post(base)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"difficultyRating\":3.7}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Malformed request body"));
 
         verify(service, never()).create(any(), any(), any());
     }

@@ -1,6 +1,8 @@
 # ADR-008: Start the integration-test database from the test source, with Testcontainers
 
-- **Status:** Accepted
+- **Status:** Accepted — its Testcontainers 1.21.4 pin and module names superseded by
+  [ADR-032](ADR-032-the-backend-runs-on-spring-boot-4-1.md),
+  which moves to Testcontainers 2 under the Boot 4.1 BOM
 - **Date:** 2026-08-25
 - **Scope:** `backend/` test sources and the backend CI job. No production code, no runtime dependency —
   every package added here is test-scoped.

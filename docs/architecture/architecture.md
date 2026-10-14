@@ -35,7 +35,7 @@ an ArchUnit suite, which is the authority on what the layering permits.
 | Component | What it is | Responsible for |
 |---|---|---|
 | **Frontend** | nginx serving a Vite production build (container port 80, published on 3000) | Serving the SPA, and proxying `/api` and `/ws` to the backend so the browser stays same-origin |
-| **Backend** | Spring Boot 3.2 on Java 21, executable jar (port 8080) | The whole domain: authentication, the upgrade lifecycle, tracking, reflections, reminders, the dashboard read model, notifications, and the scheduled jobs |
+| **Backend** | Spring Boot 4.1 on Java 21, executable jar (port 8080) | The whole domain: authentication, the upgrade lifecycle, tracking, reflections, reminders, the dashboard read model, notifications, and the scheduled jobs |
 | **Database** | PostgreSQL 15 (port 5432, volume `postgres_data`) | Every piece of persistent state. Schema owned by Flyway |
 
 In development the nginx container is not involved: the Vite dev server serves the SPA on 3000 and
@@ -98,7 +98,10 @@ algorithm, so one minted by another service that happens to share the secret is 
 interceptor both authenticate through it, so the two transports cannot drift apart. It re-reads the
 account on every request, so the role it holds and whether it is enabled are decided by the row as
 it stands and never by the token: revoking ADMIN, or switching an account off, takes effect on the
-next request rather than whenever the token happens to lapse. Same-origin
+next request rather than whenever the token happens to lapse. The HTTP filter,
+`JwtAuthenticationFilter`, runs only inside Spring Security's chain: its registration as a servlet
+filter of its own is switched off, because a copy running ahead of the chain would have its
+authentication discarded and leave every request anonymous (#238). Same-origin
 through the proxy, so no CORS preflight in the default setup; the `CORS_ALLOWED_ORIGINS` policy
 exists only for deployments that split the origins.
 
@@ -329,9 +332,9 @@ is degraded but still serving, **INFO** is a state transition, and **DEBUG** is 
 along. `com.healthupgrades` runs at INFO and is turned up for one run with `LOG_LEVEL_APP`. No log line
 carries personal data — ids and enum values only, never a title, an email, a note or an IP — with one
 exception: the ERROR line that reports an unexpected fault, a 5xx or a scheduled run that threw, carries
-its stack trace and the exception's message, which can quote a stored row. Hibernate's
-`SqlExceptionHelper` is turned off in `application.yml`: it would otherwise write the driver's message,
-row included, at ERROR on every SQL failure, a handled refusal too.
+its stack trace and the exception's message, which can quote a stored row. Hibernate's SQL exception
+logger, `org.hibernate.orm.jdbc.error`, is turned off in `application.yml`: it would otherwise write the
+driver's message, row included, on every SQL failure, a handled refusal too.
 [ADR-010](../ADRs/ADR-010-structured-logging-and-a-level-policy.md) records the format decision and the
 policy, [ADR-026](../ADRs/ADR-026-a-scheduled-run-that-threw-is-logged-in-full.md) the exception, and
 [ADR-027](../ADRs/ADR-027-hibernates-sql-exception-logger-is-turned-off.md) the silenced logger.
@@ -443,9 +446,11 @@ Integration points a maintainer will need:
   real deployment; `CORS_ALLOWED_ORIGINS` and `VITE_API_URL` only matter when frontend and API are on
   different origins. The cron expressions are overridable per environment. `.env.example` lists them
   all with safe values.
-- **CI** — GitHub Actions on every push and PR to `main` and `dev`: the backend runs `mvn verify`
-  against a PostgreSQL service container, the frontend lints, tests, audits its shipped dependencies
-  and builds.
+- **CI** — GitHub Actions on every push and PR to `main` and `dev`: the backend runs `./mvnw verify`,
+  whose integration tests start their own PostgreSQL through Testcontainers
+  ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)); the generated
+  diagrams are checked against their source; the frontend lints, tests, audits its shipped
+  dependencies and builds.
 
 ---
 
@@ -563,7 +568,7 @@ Stated because they are load-bearing, not because they are problems yet:
   instance reaches only the clients connected to that instance. Notifications are persisted, so a
   client on another instance sees them on its next fetch rather than instantly. Running more than one
   instance needs a real broker relay first.
-- **`mvn test` needs no database; `mvn verify` needs Docker.** The integration tests boot the
+- **`./mvnw test` needs no database; `./mvnw verify` needs Docker.** The integration tests boot the
   application against a real PostgreSQL that they start themselves through Testcontainers, so the
   database is described in the test source rather than supplied to it ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)).
   Keeping the unit suite database-free is a constraint worth preserving.

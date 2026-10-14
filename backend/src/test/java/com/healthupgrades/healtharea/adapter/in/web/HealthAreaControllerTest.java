@@ -11,8 +11,8 @@ import com.healthupgrades.support.WebSliceSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -54,9 +54,9 @@ class HealthAreaControllerTest {
 
     @Autowired MockMvc mockMvc;
 
-    @MockBean HealthAreaService service;
-    @MockBean BearerTokenAuthenticator authenticator;
-    @MockBean UserDetailsServiceImpl userDetailsService;
+    @MockitoBean HealthAreaService service;
+    @MockitoBean BearerTokenAuthenticator authenticator;
+    @MockitoBean UserDetailsServiceImpl userDetailsService;
 
     private UUID userId;
     private final UUID areaId = UUID.randomUUID();
@@ -84,6 +84,17 @@ class HealthAreaControllerTest {
         mockMvc.perform(bearer(post(BASE)).contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.name").exists());
+
+        verify(service, never()).create(any(), any());
+    }
+
+    @Test
+    void GivenAFractionalPriority_WhenAnAreaIsCreated_ThenItAnswers400AndNothingIsCreated() throws Exception {
+        // Jackson's default would store 1.5 as 1, a priority the caller never chose (#240).
+        mockMvc.perform(bearer(post(BASE)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Sleep\",\"priority\":1.5}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Malformed request body"));
 
         verify(service, never()).create(any(), any());
     }
