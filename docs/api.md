@@ -80,7 +80,7 @@ and `GlobalExceptionHandler` decides how it surfaces
 
 | Status | Raised when |
 |---|---|
-| `400` | Failed validation, an unbindable body, or a parameter that will not convert |
+| `400` | Failed validation, an unbindable body, or a parameter that will not convert. A fraction sent for an integer field, such as a rating of `3.7`, is an unbindable body: it is refused, never truncated ([ADR-033](ADRs/ADR-033-refuse-a-fractional-number-for-an-integer-field.md)) |
 | `401` | Credentials rejected — the response never says which half was wrong — or a protected endpoint called without a token the server accepts. The latter carries `WWW-Authenticate: Bearer`, with `error="invalid_token"` when a token was sent; expired, forged and revoked are not told apart |
 | `403` | The caller is authenticated and not allowed |
 | `404` | Not found, **including** a record belonging to another user: ownership is enforced by the query being user-scoped, so a foreign row is indistinguishable from a missing one |

@@ -155,9 +155,11 @@
             <scope>test</scope>
         </dependency>
         <!--
-          Puts the security filter chain into @WebMvcTest at its real order. Without it the slice still
-          finds the chain as a plain Filter bean but registers it after JwtAuthenticationFilter, whose
-          authentication the chain then discards: every authenticated slice request answered 401.
+          Puts the security filter chain into @WebMvcTest the way the server registers it, at its real
+          order. Before #238 that order was also what kept authentication working: JwtAuthenticationFilter
+          ran a second time as a filter of its own, and when the slice ran that copy ahead of the chain,
+          the chain discarded its authentication and every authenticated slice request answered 401. The
+          filter now runs only inside the chain (JwtFilterRegistrationIT).
         -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

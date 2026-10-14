@@ -35,6 +35,12 @@ spring:
     # Lets Flyway adopt a database that already has tables but no schema history, so an environment
     # created before Flyway was introduced does not have to be dropped.
     baseline-on-migrate: true
+  jackson:
+    deserialization:
+      # Jackson's default truncates a JSON fraction bound to an integer field, so a rating of 3.7 was
+      # stored as 3 after passing @Min/@Max (BR-19, #240). Off, the body is refused as malformed (400).
+      # ADR-033.
+      accept-float-as-int: false
 
 app:
   jwt:
