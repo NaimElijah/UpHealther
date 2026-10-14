@@ -56,7 +56,16 @@ browser target where Vite 5 had it.**
   - With that default, the build changes beyond syntax. Lightning CSS merges Tailwind's separate
     `::backdrop` rule into the `*` rule, so a browser without `::backdrop` drops the whole rule.
   - With the old target, the CSS keeps the separate rule, and both bundles are within 0.3% of Vite
-    5's size.
+    5's size. The CSS is still not byte-for-byte Vite 5's, because Lightning CSS lowers for the
+    target where Vite 5's minifier did not.
+    - Firefox 78 lacks `system-ui`, so the base font stack gains a named fallback
+      (`-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, …`). Only Firefox 78 to 91 renders
+      differently.
+    - A few vendor prefixes are added (`-webkit-backdrop-filter`, `-webkit-text-decoration`) or
+      dropped (`-o-tab-size`, one `-moz-user-select`).
+    - `--lightningcss-light` and `--lightningcss-dark` variables appear beside `color-scheme`.
+
+    None of these changes what a browser inside the target renders.
   - Nothing in the repository states which browsers are supported, so the pin keeps what was there
     rather than letting a tool upgrade decide it. That decision is
     [#250](https://github.com/NaimElijah/UpHealther/issues/250).
