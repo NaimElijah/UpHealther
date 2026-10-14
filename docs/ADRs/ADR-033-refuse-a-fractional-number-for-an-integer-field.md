@@ -65,9 +65,11 @@ these tests check the setting itself, not a copy of it.
   value. The interface cannot send one, because `JSON.stringify(3.0)` writes `3`. A client of its own
   that writes `3.0` would be refused.
 - **The refusal names no field.** The body says "Malformed request body", with no `fieldErrors`,
-  because ADR-006 withholds the parser's message: it names Java types and byte offsets. An
-  out-of-range whole number still answers with a `fieldErrors` entry. That is why the health-area form
-  keeps checking a priority itself: there, the user is told which field is wrong.
+  because ADR-006 withholds the parser's message: it names Java types and byte offsets. A whole-number
+  rating outside 1 to 5 still answers with a `fieldErrors` entry, because `@Min` and `@Max` see it. A
+  priority carries no such constraint, so a value past `Integer` is a malformed body too. Neither of a
+  priority's refusals names the field, which is why the health-area form checks a priority itself:
+  there, the user is told which field is wrong.
 - `Double` fields, `ProgressRequest.numericValue` and `TrackingConfigRequest.targetNumericValue`, are
   unaffected.
 
