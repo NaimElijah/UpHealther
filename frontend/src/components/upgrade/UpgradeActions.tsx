@@ -91,19 +91,20 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
 
   const [abandonOpen, setAbandonOpen] = useState(false);
   const rescheduleButton = useRef<HTMLButtonElement>(null);
-  // Set by a confirmed abandon, and acted on once the dialog has closed and released the page. A ref,
-  // not state: it changes nothing on screen, and the dialog closing is what runs the effect below.
-  const focusRescheduleNext = useRef(false);
+  // Set by a confirmed abandon, and acted on once the dialog has closed and released the page. State,
+  // not a ref: setting it has to run the effect below even when the dialog is already closed, which
+  // happens when a dismissal lands before the dialog learns the abandon is in flight. It is cleared when
+  // the dialog next opens, never by the effect, so a later Cancel gives focus back to its opener.
+  const [focusRescheduleNext, setFocusRescheduleNext] = useState(false);
 
   // Abandoning removes the Abandon button that opened the dialog, so the dialog has nothing to give
   // focus back to and it would fall to <body> (FR-40). Reschedule is the way back the dialog points to,
   // and the abandoned upgrade offers it. This runs after the dialog's own cleanup, which releases the
   // page, because a child's effects run before its parent's.
   useEffect(() => {
-    if (!focusRescheduleNext.current || abandonOpen) return;
+    if (!focusRescheduleNext || abandonOpen) return;
     rescheduleButton.current?.focus();
-    focusRescheduleNext.current = false;
-  }, [abandonOpen]);
+  }, [focusRescheduleNext, abandonOpen]);
   const abandonMutation = useMutation({
     mutationFn: () => performUpgradeAction(upgrade.id, 'ABANDONED'),
     onSuccess: () => refreshUpgradeViews(qc),
@@ -112,6 +113,7 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
   /** Asks before abandoning, without a refusal left over from an earlier attempt. */
   const openAbandon = () => {
     abandonMutation.reset();
+    setFocusRescheduleNext(false);
     setAbandonOpen(true);
   };
 
@@ -257,7 +259,7 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
             variant="danger"
             loading={abandonMutation.isPending}
             onClick={() => abandonMutation.mutate(undefined, {
-              onSuccess: () => { focusRescheduleNext.current = true; setAbandonOpen(false); },
+              onSuccess: () => { setAbandonOpen(false); setFocusRescheduleNext(true); },
             })}
           >
             Abandon

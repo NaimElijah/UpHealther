@@ -27,7 +27,8 @@ fails the backend build if the image and `.nvmrc` name different releases.
   It applies react-hooks' whole `recommended` set, which includes the React Compiler's rules,
   although the compiler is not used. Most often met:
   - no `setState` called synchronously inside an effect: subscribe with `useSyncExternalStore`, or
-    hold a value nothing renders in a ref;
+    move the update into the event handler that causes it. A ref is not a drop-in replacement for
+    state an effect depends on, because changing a ref runs nothing;
   - no assignment to an outer variable during render, test helpers included: assign it in an
     effect.
 

@@ -59,11 +59,17 @@ commit. They passed the old lint and the full test suite:
 | Rule | Where | Fix |
 |---|---|---|
 | `react-hooks/set-state-in-effect` | `ThemeProvider`, which mirrored `matchMedia` into state from an effect | `useSyncExternalStore` |
-| `react-hooks/set-state-in-effect` | `UpgradeActions`, which cleared the "focus Reschedule next" flag from the effect that acts on it | The flag became a ref |
+| `react-hooks/set-state-in-effect` | `UpgradeActions`, which cleared the "focus Reschedule next" flag from the effect that acts on it | The flag is cleared when the dialog next opens |
 | `react-hooks/globals` | Three tests, which assigned the router's `navigate` to a module variable during render | They assign it in an effect |
 
 None changed behaviour. The tests covering the two components were checked by breaking each changed
 path, and they fail: removing the unsubscribe or the subscription, or the focus call.
+
+A first attempt made the `UpgradeActions` flag a ref instead. Review found it changed behaviour. An
+effect that depends only on the dialog does not run when the flag is set after the dialog has
+already closed, and the ref then stayed set and moved focus on a later Cancel. Two tests now pin both
+paths. A ref is not a drop-in replacement for state an effect depends on, because changing a ref runs
+nothing.
 
 **New dependencies** (all MIT, all development-only, so `npm audit --omit=dev` is unaffected):
 

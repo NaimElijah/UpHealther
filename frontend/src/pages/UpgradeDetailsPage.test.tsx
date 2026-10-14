@@ -976,6 +976,32 @@ async function openAbandon() {
 }
 
 /**
+ * Opens an active upgrade's page and confirms an abandon, with Escape pressed in the same task as the
+ * confirm, while the API holds its answer.
+ *
+ * @returns releases the API's answer, which abandons the upgrade the way {@link serveUpgrade} would
+ */
+async function confirmAbandonThenDismissInTheSameTask(): Promise<() => void> {
+  let answer: () => void = () => {};
+  serveUpgrade(anUpgrade());
+  const served = performUpgradeAction.getMockImplementation()!;
+  performUpgradeAction.mockImplementationOnce((...args: unknown[]) => new Promise<HealthUpgrade>((resolve) => {
+    answer = () => resolve(served(...args));
+  }));
+  renderPage();
+  const trigger = await screen.findByRole('button', { name: 'Abandon' });
+  trigger.focus();
+  fireEvent.click(trigger);
+  const dialog = within(screen.getByRole('dialog', { name: 'Abandon Upgrade' }));
+
+  fireEvent.click(dialog.getByRole('button', { name: 'Abandon' }));
+  fireEvent.keyDown(document, { key: 'Escape' });
+
+  await waitFor(() => expect(performUpgradeAction).toHaveBeenCalledTimes(1));
+  return () => answer();
+}
+
+/**
  * FR-12 (#89) — an upgrade can be abandoned from its page, from any state that is not final (BR-2).
  *
  * Abandoning asks first: an abandoned upgrade leaves every list, so a slip would look like the upgrade
@@ -1046,6 +1072,37 @@ describe('UpgradeDetailsPage abandoning an upgrade', () => {
 
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Abandon Upgrade' })).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Reschedule' })));
+  });
+
+  // The dialog refuses a dismissal while the abandon is in flight, but `isPending` reaches it a task
+  // after the click, so an Escape in the same task as the confirm still closes it. The answer arriving
+  // later has to move focus all the same: the button that opened the dialog goes with the abandon.
+  it('GivenTheDialogIsDismissedAsTheAbandonIsConfirmed_WhenTheAbandonSucceeds_ThenFocusIsOnReschedule', async () => {
+    const answer = await confirmAbandonThenDismissInTheSameTask();
+
+    await act(async () => answer());
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Abandon' })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Reschedule' })));
+  });
+
+  it('GivenAnEarlierAbandonMovedFocus_WhenALaterAbandonIsCancelled_ThenFocusReturnsToAbandon', async () => {
+    const answer = await confirmAbandonThenDismissInTheSameTask();
+    await act(async () => answer());
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Abandon' })).toBeNull());
+    // Rescheduling an abandoned upgrade plans it again, which offers Abandon once more.
+    const reschedule = await openReschedule();
+    fireEvent.change(reschedule.getByLabelText('New start date'), { target: { value: '2026-11-01' } });
+    fireEvent.submit(reschedule.getByRole('button', { name: 'Reschedule' }));
+    const trigger = await screen.findByRole('button', { name: 'Abandon' });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Abandon Upgrade' })).getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Abandon Upgrade' })).toBeNull());
+    await settled();
+    expect(document.activeElement).toBe(trigger);
   });
 
   it('GivenTheAbandonIsCancelled_WhenTheDialogCloses_ThenFocusReturnsToAbandon', async () => {
