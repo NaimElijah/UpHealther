@@ -47,8 +47,8 @@ findings "fixed rather than switched off".
 - **`npm run lint`** keeps `--report-unused-disable-directives --max-warnings 0` and drops `--ext`.
 - **react-hooks' `recommended` is taken with the React Compiler's rules,** although the compiler is not
   used. Each rule names something worth avoiding with or without the compiler: a `setState` inside an
-  effect costs a second render, and a write to an outer variable during render is a side effect that
-  StrictMode runs twice.
+  effect costs a second render whenever it changes the value, and a write to an outer variable during
+  render is a side effect that StrictMode runs twice.
 - **react-refresh's Vite preset** keeps `allowConstantExport: true`. It adds `allowCompoundComponents`,
   which `@vitejs/plugin-react` has supported since 4.7, and it raises the rule from `warn` to
   `error`. Under `--max-warnings 0` that changes nothing.
@@ -94,8 +94,10 @@ nothing.
   soon. Nothing in this toolchain needs 9 rather than 10.
   - **Revisit:** if a plugin the frontend needs supports 9 but not 10.
 - **Only react-hooks' two classic rules** (`rules-of-hooks` and `exhaustive-deps`), without the
-  compiler's. Rejected. #166 asks for the presets taken whole, and the compiler's rules found two real
-  extra renders. Fixing them took three small commits.
+  compiler's. Rejected. #166 asks for the presets taken whole. The compiler's rules found one real
+  extra render (`UpgradeActions` clearing its flag), one effect better written as a subscription
+  (`ThemeProvider`, whose mount-time `setState` passed an unchanged value, which React skips), and three
+  writes during render in tests. The fixes took a few small commits.
   - **Revisit:** if a compiler rule's only fix is a behaviour change with no correctness gain.
 - **`recommended-latest`**, react-hooks' experimental rule set. Rejected. The plugin describes it as
   bleeding edge, and a lint gate that fails CI should not move with experiments.
