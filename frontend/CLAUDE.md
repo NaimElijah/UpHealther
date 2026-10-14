@@ -22,6 +22,17 @@ fails the backend build if the image and `.nvmrc` name different releases.
   one; and an axios call is tested by replacing `client.defaults.adapter`, so the real interceptor
   chain still runs.
 
+- **Lint** is ESLint 10 with a flat config, `eslint.config.js`, and `npm run lint` fails on any
+  warning ([ADR-035](../docs/ADRs/ADR-035-the-frontend-lints-with-eslint-10-and-a-flat-config.md)).
+  It applies react-hooks' whole `recommended` set, which includes the React Compiler's rules,
+  although the compiler is not used. Most often met:
+  - no `setState` called synchronously inside an effect: subscribe with `useSyncExternalStore`, or
+    hold a value nothing renders in a ref;
+  - no assignment to an outer variable during render, test helpers included: assign it in an
+    effect.
+
+  A finding is fixed, not switched off.
+
 - **`src/api/client.ts`** is the single axios instance. Its `baseURL` is relative by default so every
   `/api/...` call is same-origin and flows through the Vite dev proxy / nginx prod proxy (set
   `VITE_API_URL` only for a different-origin API). A request interceptor attaches the access token
@@ -71,8 +82,7 @@ fails the backend build if the image and `.nvmrc` name different releases.
 - **Theme** flows through `contexts/ThemeProvider.tsx` (context object in `contexts/themeContextValue.ts`)
   + `hooks/useTheme.ts`, mounted outermost in `App.tsx` so the auth pages get it too. That split of the
   `createContext` call into its own module is not stylistic: `react-refresh/only-export-components`
-  warns when a `.tsx` file exports a non-component value, and `npm run lint` runs `--max-warnings 0` in
-  CI. Follow it for any new context.
+  fails `npm run lint` when a `.tsx` file exports a non-component value. Follow it for any new context.
 - Shared TypeScript types (mirroring backend DTOs/enums, e.g. `UpgradeStatus`) live in `src/types/index.ts`.
 - Styling is Tailwind CSS; reusable primitives are in `src/components/ui/`.
 - **The page is served under a CSP, and the inline boot script is permitted by a hash.** It is in
