@@ -14,13 +14,26 @@ conventions to follow inside `frontend/`.
 moving `.nvmrc`, `engines` and the `FROM` tag in `Dockerfile` together; `ContainerImagesArePinnedTest`
 fails the backend build if the image and `.nvmrc` name different releases.
 
-- **Tests** are Vitest on jsdom ([ADR-004](../docs/ADRs/ADR-004-frontend-test-harness.md)), colocated
+- **Tests** are Vitest on jsdom ([ADR-004](../docs/ADRs/ADR-004-frontend-test-harness.md),
+  [ADR-036](../docs/ADRs/ADR-036-the-frontend-builds-on-vite-8-and-tests-on-vitest-5.md)), colocated
   beside what they test, and named `Given<state>_When<action>_Then<outcome>`
   ([ADR-009](../docs/ADRs/ADR-009-test-levels-boundaries-and-naming.md)). `npm run test:coverage` adds
   a coverage summary; nothing gates on the number. Two harness details worth knowing before writing
   one: `window.location` has to be redefined to observe a navigation, because jsdom refuses to perform
   one; and an axios call is tested by replacing `client.defaults.adapter`, so the real interceptor
   chain still runs.
+
+- **Lint** is ESLint 10 with a flat config, `eslint.config.js`, and `npm run lint` fails on any
+  warning ([ADR-035](../docs/ADRs/ADR-035-the-frontend-lints-with-eslint-10-and-a-flat-config.md)).
+  It applies react-hooks' whole `recommended` set, which includes the React Compiler's rules,
+  although the compiler is not used. Most often met:
+  - no `setState` called synchronously inside an effect: subscribe with `useSyncExternalStore`, or
+    move the update into the event handler that causes it. A ref is not a drop-in replacement for
+    state an effect depends on, because changing a ref runs nothing;
+  - no assignment to an outer variable during render, test helpers included: assign it in an
+    effect.
+
+  A finding is fixed, not switched off.
 
 - **`src/api/client.ts`** is the single axios instance. Its `baseURL` is relative by default so every
   `/api/...` call is same-origin and flows through the Vite dev proxy / nginx prod proxy (set
@@ -63,12 +76,16 @@ fails the backend build if the image and `.nvmrc` name different releases.
   key left the others showing a state the upgrade had left (#189). A new page that shows upgrades under
   a new key adds that key there ([ADR-029](../docs/ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)).
 - **Auth** flows through `contexts/AuthContext.tsx` (the context object lives in `contexts/authContextValue.ts`)
-  + `hooks/useAuth.ts`; routes are gated by `router/ProtectedRoute.tsx`. Routing is React Router 6.
+  + `hooks/useAuth.ts`; routes are gated by `router/ProtectedRoute.tsx`. Routing is React Router 6,
+  deliberately: two of its advisories are fixed only in 7.18, and neither reaches the SPA while no
+  navigation target is built from input. Do not build one (a redirect-after-login, a `returnTo`
+  parameter) without moving to 7.18 or later first
+  ([ADR-034](../docs/ADRs/ADR-034-stay-on-react-router-6-while-its-open-advisories-do-not-reach-the-spa.md)).
 - **Theme** flows through `contexts/ThemeProvider.tsx` (context object in `contexts/themeContextValue.ts`)
   + `hooks/useTheme.ts`, mounted outermost in `App.tsx` so the auth pages get it too. That split of the
   `createContext` call into its own module is not stylistic: `react-refresh/only-export-components`
-  warns when a `.tsx` file exports a non-component value, and `npm run lint` runs `--max-warnings 0` in
-  CI. Follow it for any new context.
+  fails `npm run lint` when a `.tsx` file exports a context, or any other value that is neither a
+  component nor a constant. Follow it for any new context.
 - Shared TypeScript types (mirroring backend DTOs/enums, e.g. `UpgradeStatus`) live in `src/types/index.ts`.
 - Styling is Tailwind CSS; reusable primitives are in `src/components/ui/`.
 - **The page is served under a CSP, and the inline boot script is permitted by a hash.** It is in

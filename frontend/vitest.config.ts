@@ -1,5 +1,7 @@
 import { defineConfig, mergeConfig } from 'vitest/config';
-import viteConfig from './vite.config';
+// With its extension: Vite 8 warns on every run that its native config loader, planned as the default,
+// cannot resolve an import without one (ADR-036).
+import viteConfig from './vite.config.ts';
 
 // Every test runs in one fixed zone, set here in the main process so the forked workers inherit it.
 // Left to the machine, the suite ran in UTC on CI and in UTC+2/+3 on a developer's laptop, so a bug

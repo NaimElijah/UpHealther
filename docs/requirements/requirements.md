@@ -342,6 +342,12 @@ Undecided, and owned by the repository owner.
   accessibility requirements, so the keyboard, labelling and announcement gaps the audit found are not
   defects against anything. Whether to adopt a target such as WCAG 2.2 AA is undecided
   ([#104](https://github.com/NaimElijah/UpHealther/issues/104)).
+- **There is no list of supported browsers.** Nothing states one, so the bundler's default target
+  decided it. `vite.config.ts` now pins Vite 5's old default to keep things as they were
+  ([ADR-036](../ADRs/ADR-036-the-frontend-builds-on-vite-8-and-tests-on-vitest-5.md)). The SPA
+  already needs more than that target: the dialogs rely on `inert`, which the oldest browsers in it
+  lack. Which browsers to support, and what one below the floor sees, is undecided
+  ([#250](https://github.com/NaimElijah/UpHealther/issues/250)).
 
 - **The frontend has no accessibility or visual-regression gate.** Contrast ratios in the theme were
   computed by hand; nothing re-checks them when a colour changes, and jsdom cannot — it has no layout

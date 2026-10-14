@@ -3,6 +3,12 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    // Vite 5's default, kept when Vite 7 raised it to `baseline-widely-available`, which Vite moves
+    // each major (Chrome 111 and Safari 16.4 in Vite 8). Nothing states which browsers the SPA
+    // supports, so an upgrade should not decide it: ADR-036, and #250 for the decision itself.
+    target: ['es2020', 'edge88', 'firefox78', 'chrome87', 'safari14'],
+  },
   server: {
     port: 3000,
     proxy: {

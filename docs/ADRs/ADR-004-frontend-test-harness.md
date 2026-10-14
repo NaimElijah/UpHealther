@@ -1,6 +1,8 @@
 # ADR-004: Test the frontend with Vitest, jsdom and Testing Library
 
-- **Status:** Accepted
+- **Status:** Accepted — its Vitest `^3.2.7` and jsdom `^29` pins superseded by
+  [ADR-036](ADR-036-the-frontend-builds-on-vite-8-and-tests-on-vitest-5.md), which moves to Vitest 5
+  and jsdom 30 on Vite 8. The choice of harness stands.
 - **Date:** 2026-08-19
 - **Scope:** `frontend/` only. No effect on the backend, the runtime, or anything that ships to a
   browser — every package added here is a development dependency.

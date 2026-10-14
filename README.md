@@ -135,11 +135,11 @@ Seven diagrams, outside in: [arch-diagrams](docs/architecture/arch-diagrams/READ
 | Migrations | Flyway | 12.4.0 | Flyway owns the schema; Hibernate runs `ddl-auto: validate` and refuses to start against one that does not match |
 | Observability | Micrometer Tracing, Prometheus registry, Logstash encoder | Boot-managed / 9.0 | W3C `traceparent` on the wire and vendor-neutral; JSON logs whose trace id is a field, not a substring |
 | Frontend | React + TypeScript | 18.3.1 / 5.9.3 | Enums mirrored from the backend, with a test that fails when they drift |
-| Build | Vite | 5.4.21 | Same `/api` and `/ws` proxy in dev as nginx serves in prod, so both sides behave identically |
+| Build | Vite | 8.3.4 | Same `/api` and `/ws` proxy in dev as nginx serves in prod, so both sides behave identically |
 | Data fetching | TanStack Query | 5.100.10 | Cache invalidation per mutation instead of hand-rolled refetching |
 | Styling | Tailwind CSS | 3.4.19 | Semantic tokens only — `npm run check:colours` fails on a raw palette colour |
 | Real-time | STOMP over WebSocket | 7.3.0 | Push reuses the JWT via a channel interceptor rather than a second auth scheme |
-| Tests | JUnit 6, ArchUnit, Testcontainers / Vitest | 1.5.1 / 2.0.5 / 3.2.7 | Real PostgreSQL in the integration suite; architecture rules as ordinary tests |
+| Tests | JUnit 6, ArchUnit, Testcontainers / Vitest | 1.5.1 / 2.0.5 / 5.0.4 | Real PostgreSQL in the integration suite; architecture rules as ordinary tests |
 
 ## 🚀 Quick start
 
