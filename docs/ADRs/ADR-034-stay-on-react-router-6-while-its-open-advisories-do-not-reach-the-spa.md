@@ -51,7 +51,9 @@ because it changes application code rather than tooling.
 
 ## Consequences
 
-- The one advisory that reached this code is closed without changing any application code.
+- The one advisory with a fix inside 6.x is closed, without changing any application code. The
+  installed version was in its range. Nothing shows it was reachable: its fix, in `react-router`
+  6.30.5, changes how `useNavigate` normalises a crafted path, and the SPA builds none.
 - **`npm audit --omit=dev` is not clean.** Two moderate advisories stay in its report until the next
   major move. Anyone reading it needs this record to tell them apart from new ones. The CI gate still
   passes, because both are moderate.
