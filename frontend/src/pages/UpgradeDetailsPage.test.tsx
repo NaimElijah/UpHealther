@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { useEffect } from 'react';
 import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useNavigate, type NavigateFunction } from 'react-router-dom';
@@ -128,7 +129,10 @@ let navigate: NavigateFunction;
 
 /** Holds on to the router's `navigate` from outside the page's route, where the notification bell sits. */
 function NavigateHandle() {
-  navigate = useNavigate();
+  const routerNavigate = useNavigate();
+  useEffect(() => {
+    navigate = routerNavigate;
+  }, [routerNavigate]);
   return null;
 }
 

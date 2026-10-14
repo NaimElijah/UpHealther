@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { useEffect } from 'react';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate, type NavigateFunction } from 'react-router-dom';
 import NavMenu from './NavMenu';
 import { AuthContext, type AuthContextType } from '../../contexts/authContextValue';
@@ -25,7 +26,10 @@ const LocationProbe = () => <output aria-label="location">{useLocation().pathnam
  */
 let navigate: NavigateFunction;
 const NavigateHandle = () => {
-  navigate = useNavigate();
+  const routerNavigate = useNavigate();
+  useEffect(() => {
+    navigate = routerNavigate;
+  }, [routerNavigate]);
   return null;
 };
 
