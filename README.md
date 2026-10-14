@@ -135,7 +135,7 @@ Seven diagrams, outside in: [arch-diagrams](docs/architecture/arch-diagrams/READ
 | Migrations | Flyway | 12.4.0 | Flyway owns the schema; Hibernate runs `ddl-auto: validate` and refuses to start against one that does not match |
 | Observability | Micrometer Tracing, Prometheus registry, Logstash encoder | Boot-managed / 9.0 | W3C `traceparent` on the wire and vendor-neutral; JSON logs whose trace id is a field, not a substring |
 | Frontend | React + TypeScript | 18.3.1 / 5.9.3 | Enums mirrored from the backend, with a test that fails when they drift |
-| Build | Vite | 5.4.21 | Same `/api` proxy in dev as nginx serves in prod, so both sides behave identically |
+| Build | Vite | 5.4.21 | Same `/api` and `/ws` proxy in dev as nginx serves in prod, so both sides behave identically |
 | Data fetching | TanStack Query | 5.100.10 | Cache invalidation per mutation instead of hand-rolled refetching |
 | Styling | Tailwind CSS | 3.4.19 | Semantic tokens only — `npm run check:colours` fails on a raw palette colour |
 | Real-time | STOMP over WebSocket | 7.3.0 | Push reuses the JWT via a channel interceptor rather than a second auth scheme |
@@ -254,7 +254,7 @@ it ([ADR-030](docs/ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md)). 
 docker compose up -d postgres               # or bring your own PostgreSQL
 
 cd backend  && ./mvnw spring-boot:run        # terminal 1 — :8080, migrates on start
-cd frontend && npm install && npm run dev   # terminal 2 — :3000, proxies /api to :8080
+cd frontend && npm install && npm run dev   # terminal 2 — :3000, proxies /api and /ws to :8080
 ```
 
 The backend falls back to the development defaults in `application.yml`, so a fresh clone runs

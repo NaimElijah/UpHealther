@@ -5,7 +5,7 @@ expected to respect. `../docs/architecture/architecture.md` describes how the SP
 system — the proxy, the two transports, and what the backend guarantees. This file covers the
 conventions to follow inside `frontend/`.
 
-`npm run dev` serves on :3000 and proxies `/api` → `http://localhost:8080` (see `vite.config.ts`).
+`npm run dev` serves on :3000 and proxies `/api` and `/ws` → `http://localhost:8080` (see `vite.config.ts`).
 
 **Node is pinned.** `.nvmrc` names the release CI and the image build with, and `.npmrc`'s
 `engine-strict` makes npm refuse to install outside `package.json`'s `engines` range
