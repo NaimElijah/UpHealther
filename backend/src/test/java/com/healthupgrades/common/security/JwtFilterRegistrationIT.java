@@ -37,6 +37,9 @@ class JwtFilterRegistrationIT extends PostgresIT {
 
     private static final String SECURITY_CHAIN_REGISTRATION = "springSecurityFilterChain";
 
+    /** Boot names a filter bean's registration after the bean. */
+    private static final String JWT_FILTER_REGISTRATION = "jwtAuthenticationFilter";
+
     @Autowired
     private WebApplicationContext context;
 
@@ -48,6 +51,9 @@ class JwtFilterRegistrationIT extends PostgresIT {
         assertThat(registrations)
                 .as("the list read is the populated one, holding the chain the JWT filter belongs in")
                 .containsKey(SECURITY_CHAIN_REGISTRATION);
+        // Checked by name and by class: a proxied bean would register under a generated subclass's
+        // name, which the class check alone would miss, and a renamed bean would slip past the name.
+        assertThat(registrations).doesNotContainKey(JWT_FILTER_REGISTRATION);
         assertThat(registrations.values())
                 .extracting(FilterRegistration::getClassName)
                 .doesNotContain(JwtAuthenticationFilter.class.getName());
