@@ -100,6 +100,18 @@ class ProgressControllerTest {
     }
 
     @Test
+    void GivenAFractionalRating_WhenProgressIsLogged_ThenItAnswers400AndNothingIsRecorded() throws Exception {
+        // Jackson's default truncates 3.7 to 3, which @Min and @Max then pass: a rating the caller never
+        // sent, stored without a word. BR-19, #240.
+        mockMvc.perform(bearer(post(progressPath)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"rating\":3.7}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Malformed request body"));
+
+        verify(trackingService, never()).recordProgress(any(), any(), any());
+    }
+
+    @Test
     void GivenAUnitLongerThanItsColumn_WhenProgressIsLogged_ThenItAnswers400NamingTheField() throws Exception {
         // progress_entries.unit is VARCHAR(100), which is where the 100 comes from. Unbounded here, an
         // over-long unit reached the flush in production and came back 500. This slice has no database

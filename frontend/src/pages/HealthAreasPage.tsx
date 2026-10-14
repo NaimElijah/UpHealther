@@ -38,9 +38,9 @@ type ParsedPriority = { valid: true; priority: number | undefined } | { valid: f
  * Reads the typed priority: blank is no priority, and anything else must be a whole number the column
  * can hold.
  *
- * Both are checked here because the API gets neither right for the user. Jackson truncates `1.5` to `1`
- * rather than refusing it, so the user would save a number they did not type; and a number past the
- * column is refused as a malformed body, which names no field at all.
+ * Both are checked here because the API's answer to either names no field. It refuses `1.5`, and a
+ * number past the column, as a malformed body (ADR-033), so only this form can tell the user which
+ * field is wrong.
  */
 const parsePriority = (text: string): ParsedPriority => {
   const trimmed = text.trim();
