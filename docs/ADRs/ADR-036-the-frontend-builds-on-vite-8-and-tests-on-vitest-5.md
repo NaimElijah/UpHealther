@@ -44,8 +44,11 @@ browser target where Vite 5 had it.**
   default. plugin-react 6 no longer depends on Babel. Neither needs a new option for this project,
   beyond the target below.
 - **Vitest 5 and `@vitest/coverage-v8` 5.** Vitest 4 has had no release since 5.0 shipped: its last
-  is 4.1.11, from 2026-08-18. All 39 test files and 413 tests pass unchanged on Vitest 5 with
-  jsdom 30.
+  is 4.1.11, from 2026-08-18. All 39 test files and 413 tests pass on Vitest 5 with jsdom 30, and no
+  assertion changed. One thing in the harness did change. Under Vitest 3, jsdom's report of an
+  uncaught render error came through `console.error`. Vitest 5 sends it to stderr, so the two tests
+  that throw on purpose now also mark the `window` error event handled
+  (`src/test/expectedRenderErrors.ts`). Without that, a green run prints stack traces.
 - **The build target is pinned to Vite 5's old default.** `vite.config.ts` sets `build.target` to
   `['es2020', 'edge88', 'firefox78', 'chrome87', 'safari14']`.
   - Vite 7 changed the default to `baseline-widely-available`, which in Vite 8.3 is Chrome 111,
