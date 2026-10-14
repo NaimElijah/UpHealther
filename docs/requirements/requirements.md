@@ -3,7 +3,7 @@
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
 rather than trusted. A hundred and fifteen of the hundred and twenty-three entries below name a test —
-a hundred and fifteen distinct test classes and files between them. Five of the remaining eight name the command,
+a hundred and sixteen distinct test classes and files between them. Five of the remaining eight name the command,
 workflow or script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48). The last three —
 FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is about a rendered width, a
 colour or an overflow, and jsdom has no layout engine to observe any of them; §6 records what closing
@@ -63,7 +63,7 @@ no way at all — to read another person's health records
 | FR-2 | A registered user can sign in with email and password and receive a token | `AuthServiceTest`, `AuthControllerTest` |
 | FR-3 | A signed-in user can retrieve their own profile, so a reloaded page learns who is signed in once the refresh cookie has renewed the session (NFR-38) | `AuthControllerTest`, `AuthContext.test.tsx` |
 | FR-4 | An email may be registered once. Addresses are compared trimmed and case-insensitively, the database refuses any other stored form, and a registration that loses a race for an address is refused like any other duplicate | `AuthServiceTest`, `AuthControllerTest` (422), `EmailAddressTest`, `UserPersistenceIT`, `RegistrationRaceIT` |
-| FR-5 | Every endpoint requires a valid access token except six: registration and sign-in; refresh and sign-out, which act on the refresh cookie and are guarded as NFR-37 states; the actuator, which answers only what NFR-29 leaves open; and the WebSocket handshake, whose STOMP CONNECT is authenticated instead (NFR-32). A request without a token, or with one the server refuses, is answered 401 with a `WWW-Authenticate: Bearer` challenge and the API's error body | `AuthenticatedBoundaryTest` (every protected route, and exactly those six public), `JwtAuthenticationFilterTest`, `ErrorBodySecurityHandlersTest`, `ProtectedRoute.test.tsx` ([ADR-014](../ADRs/ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md)) |
+| FR-5 | Every endpoint requires a valid access token except six: registration and sign-in; refresh and sign-out, which act on the refresh cookie and are guarded as NFR-37 states; the actuator, which answers only what NFR-29 leaves open; and the WebSocket handshake, whose STOMP CONNECT is authenticated instead (NFR-32). A request without a token, or with one the server refuses, is answered 401 with a `WWW-Authenticate: Bearer` challenge and the API's error body | `AuthenticatedBoundaryTest` (every protected route, and exactly those six public), `JwtAuthenticationFilterTest`, `JwtFilterRegistrationIT` (the filter runs only inside the security chain), `ErrorBodySecurityHandlersTest`, `ProtectedRoute.test.tsx` ([ADR-014](../ADRs/ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md)) |
 | FR-48 | A signed-in user can sign out on this device. A sign-out that fails says so and leaves them signed in, rather than appearing to have worked while the session lives on (NFR-35 is how immediately it takes effect) | `AuthControllerTest`, `AuthSessionServiceTest`, `AuthContext.test.tsx`, `Navbar.test.tsx` |
 
 ### 2.2 Health areas

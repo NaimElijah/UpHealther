@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.web.servlet.FilterRegistration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -22,8 +23,16 @@ import java.io.IOException;
  * WebSocket counterpart is {@code JwtChannelInterceptor}, which authenticates the STOMP CONNECT frame
  * instead; the two exist because the JWT arrives in a different place on each transport, and both
  * delegate the decision to {@link BearerTokenAuthenticator}.
+ *
+ * <p>It runs <em>only</em> inside the security chain. Boot also registers every {@code Filter} bean with
+ * the servlet container, and that second registration is switched off here. With it, requests were
+ * authenticated only while the container's copy happened to run after the chain. Ordered ahead of it,
+ * that copy authenticates first, the chain's {@code SecurityContextHolderFilter} replaces the context,
+ * and the in-chain copy is skipped as already run, so every request is anonymous (#238,
+ * {@code JwtFilterRegistrationIT}).
  */
 @Component
+@FilterRegistration(enabled = false)
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 

@@ -72,6 +72,11 @@ All three are deliberate, not drift.
   `AuthenticationRequiredException` (401 with a bearer challenge) and an authorization failure as
   `AccessDeniedException` (403), so do not write a response body from a filter.
 
+- **A filter added to the security chain is not also a servlet filter.** Boot registers every `Filter`
+  bean with the container, so a `@Component` filter that `SecurityConfig` adds with `addFilterBefore`
+  runs twice, and which copy counts depends on order. Mark it `@FilterRegistration(enabled = false)`,
+  as `JwtAuthenticationFilter` is; `JwtFilterRegistrationIT` checks the container holds no copy (#238).
+
   **Framework exceptions are not yours to map.** `GlobalExceptionHandler` extends Spring's
   `ResponseEntityExceptionHandler`, so an unbindable body, a path variable that will not convert, an
   unsupported method or media type already carry the status Spring defines; `handleExceptionInternal`
