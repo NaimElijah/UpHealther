@@ -98,7 +98,10 @@ algorithm, so one minted by another service that happens to share the secret is 
 interceptor both authenticate through it, so the two transports cannot drift apart. It re-reads the
 account on every request, so the role it holds and whether it is enabled are decided by the row as
 it stands and never by the token: revoking ADMIN, or switching an account off, takes effect on the
-next request rather than whenever the token happens to lapse. Same-origin
+next request rather than whenever the token happens to lapse. The HTTP filter,
+`JwtAuthenticationFilter`, runs only inside Spring Security's chain: its registration as a servlet
+filter of its own is switched off, because a copy running ahead of the chain would have its
+authentication discarded and leave every request anonymous (#238). Same-origin
 through the proxy, so no CORS preflight in the default setup; the `CORS_ALLOWED_ORIGINS` policy
 exists only for deployments that split the origins.
 

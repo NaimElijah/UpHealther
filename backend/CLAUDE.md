@@ -81,6 +81,11 @@ All three are deliberate, not drift.
   `../docs/ADRs/ADR-006-framework-exceptions-through-responseentityexceptionhandler.md`; the catch-all
   that used to swallow all of these as 500s is what issue #22 was.
 
+- **A filter added to the security chain is not also a servlet filter.** Boot registers every `Filter`
+  bean with the container, so a `@Component` filter that `SecurityConfig` adds with `addFilterBefore`
+  runs twice, and which copy counts depends on order. Mark it `@FilterRegistration(enabled = false)`,
+  as `JwtAuthenticationFilter` is; `JwtFilterRegistrationIT` checks the container holds no copy (#238).
+
 - **Correlation is the runtime's job, not the call site's.** Every log line carries a trace id because
   the work runs inside an observation — `ServerHttpObservationFilter` for HTTP, a `SchedulingConfigurer`
   for `@Scheduled` jobs, `StompTracingChannelInterceptor` for STOMP frames. **Never write the MDC by
