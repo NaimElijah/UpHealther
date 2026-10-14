@@ -1,6 +1,8 @@
 # ADR-031: The frontend toolchain runs on Node 24 LTS
 
-- **Status:** Accepted
+- **Status:** Accepted. The rest of #166 has since landed: ESLint 10 in
+  [ADR-035](ADR-035-the-frontend-lints-with-eslint-10-and-a-flat-config.md), and Vite 8, Vitest 5 and
+  jsdom 30 in [ADR-036](ADR-036-the-frontend-builds-on-vite-8-and-tests-on-vitest-5.md).
 - **Date:** 2026-10-13
 - **Scope:** `frontend/.nvmrc`, the `engines` field of `frontend/package.json`, `frontend/Dockerfile`'s
   build stage, and the frontend job in `.github/workflows/ci.yml`. It extends

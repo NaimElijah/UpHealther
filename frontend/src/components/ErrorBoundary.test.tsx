@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import ErrorBoundary from './ErrorBoundary';
+import { silenceExpectedRenderErrors } from '../test/expectedRenderErrors';
 
 /**
  * The one construct that stops a render-time throw becoming a blank page.
@@ -9,7 +10,7 @@ import ErrorBoundary from './ErrorBoundary';
  * invisible until the day it matters, and the failure mode if it is wired wrong — the tree unmounts to
  * white — is indistinguishable from the bug it was meant to contain.
  *
- * React logs a caught error to `console.error` itself, from inside the reconciler. That is React's
+ * React logs a caught error to `console.error` itself, and jsdom reports it as uncaught. That is their
  * output, not this application's, and it is silenced here so a passing run does not print a stack
  * trace that looks like a failure.
  */
@@ -18,14 +19,14 @@ describe('ErrorBoundary', () => {
     throw new Error('render blew up');
   };
 
-  let consoleError: ReturnType<typeof vi.spyOn>;
+  let unsilence: () => void;
 
   beforeEach(() => {
-    consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    unsilence = silenceExpectedRenderErrors();
   });
 
   afterEach(() => {
-    consoleError.mockRestore();
+    unsilence();
   });
 
   it('GivenAChildThatRendersNormally_WhenTheBoundaryRenders_ThenItIsOutOfTheWay', () => {

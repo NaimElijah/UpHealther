@@ -14,7 +14,8 @@ conventions to follow inside `frontend/`.
 moving `.nvmrc`, `engines` and the `FROM` tag in `Dockerfile` together; `ContainerImagesArePinnedTest`
 fails the backend build if the image and `.nvmrc` name different releases.
 
-- **Tests** are Vitest on jsdom ([ADR-004](../docs/ADRs/ADR-004-frontend-test-harness.md)), colocated
+- **Tests** are Vitest on jsdom ([ADR-004](../docs/ADRs/ADR-004-frontend-test-harness.md),
+  [ADR-036](../docs/ADRs/ADR-036-the-frontend-builds-on-vite-8-and-tests-on-vitest-5.md)), colocated
   beside what they test, and named `Given<state>_When<action>_Then<outcome>`
   ([ADR-009](../docs/ADRs/ADR-009-test-levels-boundaries-and-naming.md)). `npm run test:coverage` adds
   a coverage summary; nothing gates on the number. Two harness details worth knowing before writing
