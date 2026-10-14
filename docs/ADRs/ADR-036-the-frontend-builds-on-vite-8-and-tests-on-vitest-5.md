@@ -51,8 +51,9 @@ browser target where Vite 5 had it.**
   (`src/test/expectedRenderErrors.ts`). Without that, a green run prints stack traces.
 - **The build target is pinned to Vite 5's old default.** `vite.config.ts` sets `build.target` to
   `['es2020', 'edge88', 'firefox78', 'chrome87', 'safari14']`.
-  - Vite 7 changed the default to `baseline-widely-available`, which in Vite 8.3 is Chrome 111,
-    Edge 111, Firefox 114 and Safari 16.4.
+  - Vite 7 changed the default to `baseline-widely-available`. Vite moves that target each major: in
+    7 it was Chrome 107, Edge 107, Firefox 104 and Safari 16; in 8.3 it is Chrome 111, Edge 111,
+    Firefox 114, Safari 16.4 and iOS 16.4.
   - With that default, the build changes beyond syntax. Lightning CSS merges Tailwind's separate
     `::backdrop` rule into the `*` rule, so a browser without `::backdrop` drops the whole rule.
   - With the old target, the CSS keeps the separate rule, and both bundles are within 0.3% of Vite
