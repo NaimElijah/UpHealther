@@ -63,7 +63,11 @@ fails the backend build if the image and `.nvmrc` name different releases.
   key left the others showing a state the upgrade had left (#189). A new page that shows upgrades under
   a new key adds that key there ([ADR-029](../docs/ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)).
 - **Auth** flows through `contexts/AuthContext.tsx` (the context object lives in `contexts/authContextValue.ts`)
-  + `hooks/useAuth.ts`; routes are gated by `router/ProtectedRoute.tsx`. Routing is React Router 6.
+  + `hooks/useAuth.ts`; routes are gated by `router/ProtectedRoute.tsx`. Routing is React Router 6,
+  deliberately: two of its advisories are fixed only in 7.18, and neither reaches the SPA while no
+  navigation target is built from input. Do not build one (a redirect-after-login, a `returnTo`
+  parameter) without moving to 7.18 or later first
+  ([ADR-034](../docs/ADRs/ADR-034-stay-on-react-router-6-while-its-open-advisories-do-not-reach-the-spa.md)).
 - **Theme** flows through `contexts/ThemeProvider.tsx` (context object in `contexts/themeContextValue.ts`)
   + `hooks/useTheme.ts`, mounted outermost in `App.tsx` so the auth pages get it too. That split of the
   `createContext` call into its own module is not stylistic: `react-refresh/only-export-components`
