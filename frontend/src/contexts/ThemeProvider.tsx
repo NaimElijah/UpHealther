@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { ThemeContext } from './themeContextValue';
 import type { Theme } from './themeContextValue';
 
@@ -29,6 +29,22 @@ const darkMediaQuery = (): MediaQueryList | null =>
   typeof window.matchMedia === 'function' ? window.matchMedia(DARK_QUERY) : null;
 
 /**
+ * Subscribes to changes of the operating system's colour scheme, for `useSyncExternalStore`.
+ *
+ * @param onChange called on every change
+ * @returns the unsubscribe; without `matchMedia` there is nothing to subscribe to, and it does nothing
+ */
+const subscribeToDarkPreference = (onChange: () => void): (() => void) => {
+  const query = darkMediaQuery();
+  if (!query) return () => undefined;
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+};
+
+/** Whether the operating system currently prefers dark; false where `matchMedia` is missing. */
+const systemPrefersDarkNow = (): boolean => darkMediaQuery()?.matches ?? false;
+
+/**
  * Owns the theme: the user's choice, the operating system's preference, and the `dark` class on
  * `<html>` that the whole stylesheet keys off.
  *
@@ -41,24 +57,12 @@ const darkMediaQuery = (): MediaQueryList | null =>
  */
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<Theme>(readStoredTheme);
-  const [systemPrefersDark, setSystemPrefersDark] = useState(() => darkMediaQuery()?.matches ?? false);
 
   // `system` means "follow it", not "follow it once at boot", so the query is subscribed to rather than
-  // sampled. Under StrictMode this effect runs, tears down and runs again on mount; the removal in the
-  // cleanup is the only thing stopping that from leaving two listeners behind, which would flip the
-  // resolved theme twice per change.
-  useEffect(() => {
-    const query = darkMediaQuery();
-    if (!query) return;
-
-    // Re-read here: the preference can change between the first render and this effect, and the initial
-    // state would then be stale with no event coming to correct it.
-    setSystemPrefersDark(query.matches);
-
-    const handleChange = (event: MediaQueryListEvent) => setSystemPrefersDark(event.matches);
-    query.addEventListener('change', handleChange);
-    return () => query.removeEventListener('change', handleChange);
-  }, []);
+  // sampled. `useSyncExternalStore` reads the preference again once it has subscribed, so a change
+  // between the first render and the subscription is not missed, and it unsubscribes on unmount, so
+  // StrictMode's second mount leaves one listener rather than two.
+  const systemPrefersDark = useSyncExternalStore(subscribeToDarkPreference, systemPrefersDarkNow);
 
   const resolvedTheme = theme === 'system' ? (systemPrefersDark ? 'dark' : 'light') : theme;
 
