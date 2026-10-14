@@ -91,18 +91,19 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
 
   const [abandonOpen, setAbandonOpen] = useState(false);
   const rescheduleButton = useRef<HTMLButtonElement>(null);
-  // Set by a confirmed abandon, and acted on once the dialog has closed and released the page.
-  const [focusRescheduleNext, setFocusRescheduleNext] = useState(false);
+  // Set by a confirmed abandon, and acted on once the dialog has closed and released the page. A ref,
+  // not state: it changes nothing on screen, and the dialog closing is what runs the effect below.
+  const focusRescheduleNext = useRef(false);
 
   // Abandoning removes the Abandon button that opened the dialog, so the dialog has nothing to give
   // focus back to and it would fall to <body> (FR-40). Reschedule is the way back the dialog points to,
   // and the abandoned upgrade offers it. This runs after the dialog's own cleanup, which releases the
   // page, because a child's effects run before its parent's.
   useEffect(() => {
-    if (!focusRescheduleNext || abandonOpen) return;
+    if (!focusRescheduleNext.current || abandonOpen) return;
     rescheduleButton.current?.focus();
-    setFocusRescheduleNext(false);
-  }, [focusRescheduleNext, abandonOpen]);
+    focusRescheduleNext.current = false;
+  }, [abandonOpen]);
   const abandonMutation = useMutation({
     mutationFn: () => performUpgradeAction(upgrade.id, 'ABANDONED'),
     onSuccess: () => refreshUpgradeViews(qc),
@@ -256,7 +257,7 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
             variant="danger"
             loading={abandonMutation.isPending}
             onClick={() => abandonMutation.mutate(undefined, {
-              onSuccess: () => { setAbandonOpen(false); setFocusRescheduleNext(true); },
+              onSuccess: () => { focusRescheduleNext.current = true; setAbandonOpen(false); },
             })}
           >
             Abandon
