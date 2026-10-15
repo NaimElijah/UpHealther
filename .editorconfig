@@ -1,12 +1,13 @@
 # https://editorconfig.org
 #
-# The only cross-editor statement of how these sources are written: the backend has no Spotless or
-# Checkstyle configuration and the frontend has no Prettier, so nothing else records the conventions
-# an editor would otherwise guess at. Every value here is descriptive — it matches what the tracked
-# files already contain rather than proposing a change to them.
+# What every editor should do with whitespace and line endings before a formatter runs. Java layout
+# beyond that belongs to palantir-java-format through Spotless (ADR-037). The frontend has no Prettier,
+# so for it this file is the only cross-editor statement of how its sources are written. Every value
+# here is descriptive — it matches what the tracked files already contain rather than proposing a
+# change to them.
 #
-# No max_line_length: the Java sources sit around 110 columns but a handful reach 149, and declaring a
-# limit the code does not keep would make this file a wish rather than a description.
+# No max_line_length: the Java formatter owns the width, and the frontend's sources keep none, so
+# declaring a limit here would make this file a wish rather than a description.
 
 root = true
 

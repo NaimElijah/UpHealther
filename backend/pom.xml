@@ -27,6 +27,13 @@
           upgrade. See ADR-010 and ADR-032.
         -->
         <logstash.encoder.version>9.0</logstash.encoder.version>
+        <!--
+          Build-time only. The formatter is pinned separately from the plugin because a formatter release
+          can move lines, and that is a formatting commit of its own, not a side effect of a plugin bump.
+          See ADR-037.
+        -->
+        <spotless.version>3.10.4</spotless.version>
+        <palantir-java-format.version>2.102.0</palantir-java-format.version>
     </properties>
 
     <dependencies>
@@ -263,6 +270,24 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+
+            <!--
+              Owns the layout of every Java source under src/main and src/test: `./mvnw spotless:apply`
+              rewrites it. Javadoc is left alone because the prose is wrapped by hand. Line endings follow
+              .gitattributes. See ADR-037.
+            -->
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>${spotless.version}</version>
+                <configuration>
+                    <java>
+                        <palantirJavaFormat>
+                            <version>${palantir-java-format.version}</version>
+                        </palantirJavaFormat>
+                    </java>
+                </configuration>
             </plugin>
 
             <!--

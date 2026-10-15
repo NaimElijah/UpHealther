@@ -142,6 +142,15 @@ All three are deliberate, not drift.
   implements it. That is what keeps the graph acyclic while the upgrade response still carries tracking
   config; see ADR-002.
 
+## Formatting
+
+Layout belongs to palantir-java-format, run through Spotless. `./mvnw spotless:apply` rewrites every
+Java source under `src/main` and `src/test`; do not format by hand
+(`../docs/ADRs/ADR-037-the-backend-is-formatted-by-palantir-java-format-through-spotless.md`).
+Imports are one block, static ones first, so there is no hand-kept grouping to preserve. Javadoc is not
+reflowed. A formatter version bump is a `style(backend)` commit of its own, and its SHA goes into
+`../.git-blame-ignore-revs`.
+
 ## Tests
 
 Four levels, and the rule for choosing between them is in
