@@ -31,7 +31,6 @@ import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -55,10 +54,6 @@ class NotificationEventListenerTest {
 
     @InjectMocks
     NotificationEventListener listener;
-
-    /** A field, because only the extension can build a captor of a generic type without an unchecked cast. */
-    @Captor
-    ArgumentCaptor<Supplier<String>> message;
 
     private final UUID userId = UUID.randomUUID();
     private final UUID upgradeId = UUID.randomUUID();
@@ -221,6 +216,7 @@ class NotificationEventListenerTest {
         listener.onOverdue(new UpgradeOverdueDetected(
                 upgradeId, userId, LocalDate.of(2026, 10, 1), LocalDateTime.of(2026, 10, 5, 8, 0)));
 
+        ArgumentCaptor<Supplier<String>> message = ArgumentCaptor.captor();
         verify(notificationService)
                 .createUnlessNotifiedSince(
                         eq(userId),
