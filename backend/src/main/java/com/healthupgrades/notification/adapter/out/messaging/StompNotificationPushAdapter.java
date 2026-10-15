@@ -1,17 +1,16 @@
 package com.healthupgrades.notification.adapter.out.messaging;
 
+import static net.logstash.logback.argument.StructuredArguments.keyValue;
+
 import com.healthupgrades.notification.adapter.in.web.NotificationWebMapper;
 import com.healthupgrades.notification.domain.model.Notification;
 import com.healthupgrades.notification.domain.port.out.NotificationPushPort;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.MessagingException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
-
-import static net.logstash.logback.argument.StructuredArguments.keyValue;
-
-import java.util.UUID;
 
 /**
  * Outbound adapter implementing {@link NotificationPushPort} over STOMP/WebSocket.
@@ -51,8 +50,11 @@ public class StompNotificationPushAdapter implements NotificationPushPort {
             // Routed to the session(s) whose STOMP principal name == userId (see JwtChannelInterceptor).
             messagingTemplate.convertAndSendToUser(userId.toString(), USER_QUEUE, mapper.toDto(notification));
         } catch (MessagingException undelivered) {
-            log.warn("{} {} {}", keyValue("event", "notification.push-failed"),
-                    keyValue("userId", userId), keyValue("notificationId", notification.getId()),
+            log.warn(
+                    "{} {} {}",
+                    keyValue("event", "notification.push-failed"),
+                    keyValue("userId", userId),
+                    keyValue("notificationId", notification.getId()),
                     undelivered);
         }
     }

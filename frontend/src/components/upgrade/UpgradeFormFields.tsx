@@ -55,20 +55,65 @@ const UpgradeFormFields: React.FC<Props> = ({ value, onChange, areas, titleError
   // show the first type instead, and read as a different kind of upgrade from the one being edited.
   const types = typeOptions.some((o) => o.value === value.type)
     ? typeOptions
-    : [...typeOptions, { value: value.type, label: `${value.type.charAt(0)}${value.type.slice(1).toLowerCase()} (no longer offered)` }];
+    : [
+        ...typeOptions,
+        { value: value.type, label: `${value.type.charAt(0)}${value.type.slice(1).toLowerCase()} (no longer offered)` },
+      ];
   const areaOptions = [{ value: '', label: 'No area' }, ...areas.map((a) => ({ value: a.id, label: a.name }))];
 
   return (
     <>
-      <Input label="Title" value={value.title} onChange={(e) => set({ title: e.target.value })} placeholder="e.g. Drink 2L water daily" error={titleError} />
-      <Input label="Description" value={value.description ?? ''} onChange={(e) => set({ description: e.target.value })} placeholder="Optional details" />
-      <Select label="Type" value={value.type} options={types} onChange={(e) => set({ type: e.target.value as UpgradeType })} />
-      <Select label="Difficulty" value={value.difficulty} options={difficultyOptions} onChange={(e) => set({ difficulty: e.target.value as Difficulty })} />
-      <Select label="Health Area" value={value.areaId ?? ''} options={areaOptions} onChange={(e) => set({ areaId: e.target.value || undefined })} />
-      <Input label="Motivation" value={value.motivation ?? ''} onChange={(e) => set({ motivation: e.target.value })} placeholder="Why do you want this?" />
-      <Input label="Success Criteria" value={value.successCriteria ?? ''} onChange={(e) => set({ successCriteria: e.target.value })} placeholder="How will you know it worked?" />
+      <Input
+        label="Title"
+        value={value.title}
+        onChange={(e) => set({ title: e.target.value })}
+        placeholder="e.g. Drink 2L water daily"
+        error={titleError}
+      />
+      <Input
+        label="Description"
+        value={value.description ?? ''}
+        onChange={(e) => set({ description: e.target.value })}
+        placeholder="Optional details"
+      />
+      <Select
+        label="Type"
+        value={value.type}
+        options={types}
+        onChange={(e) => set({ type: e.target.value as UpgradeType })}
+      />
+      <Select
+        label="Difficulty"
+        value={value.difficulty}
+        options={difficultyOptions}
+        onChange={(e) => set({ difficulty: e.target.value as Difficulty })}
+      />
+      <Select
+        label="Health Area"
+        value={value.areaId ?? ''}
+        options={areaOptions}
+        onChange={(e) => set({ areaId: e.target.value || undefined })}
+      />
+      <Input
+        label="Motivation"
+        value={value.motivation ?? ''}
+        onChange={(e) => set({ motivation: e.target.value })}
+        placeholder="Why do you want this?"
+      />
+      <Input
+        label="Success Criteria"
+        value={value.successCriteria ?? ''}
+        onChange={(e) => set({ successCriteria: e.target.value })}
+        placeholder="How will you know it worked?"
+      />
       {/* Left out when cleared, not sent empty: an absent date is how the API is told there is none. */}
-      <Input label="Target End" type="date" value={value.targetEndDate ?? ''} onChange={(e) => set({ targetEndDate: e.target.value || undefined })} error={targetEndError} />
+      <Input
+        label="Target End"
+        type="date"
+        value={value.targetEndDate ?? ''}
+        onChange={(e) => set({ targetEndDate: e.target.value || undefined })}
+        error={targetEndError}
+      />
     </>
   );
 };

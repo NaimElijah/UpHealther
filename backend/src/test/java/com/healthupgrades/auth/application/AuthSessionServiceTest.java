@@ -1,5 +1,8 @@
 package com.healthupgrades.auth.application;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.healthupgrades.auth.domain.model.AuthSession;
 import com.healthupgrades.auth.domain.port.out.AuthSessionRepositoryPort;
 import com.healthupgrades.auth.domain.port.out.SecretGeneratorPort;
@@ -7,10 +10,6 @@ import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.support.RecordingAuditTrail;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.dao.DataAccessResourceFailureException;
-
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -22,9 +21,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataAccessResourceFailureException;
 
 /**
  * The refresh protocol: one use per credential, a short forgiveness window, and a session that ends
@@ -55,8 +54,8 @@ class AuthSessionServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AuthSessionService(sessions, secrets,
-                new AuthSessionProperties(IDLE, ABSOLUTE, GRACE), auditTrail, clock);
+        service = new AuthSessionService(
+                sessions, secrets, new AuthSessionProperties(IDLE, ABSOLUTE, GRACE), auditTrail, clock);
     }
 
     @Test
@@ -85,7 +84,8 @@ class AuthSessionServiceTest {
                     .as("a credential is good for one exchange and no more")
                     .isNotEqualTo(opened.refreshToken());
         });
-        assertThat(auditTrail.recorded(AuditAction.AUTH_REFRESH, AuditOutcome.ALLOWED)).isTrue();
+        assertThat(auditTrail.recorded(AuditAction.AUTH_REFRESH, AuditOutcome.ALLOWED))
+                .isTrue();
     }
 
     @Test
@@ -116,7 +116,8 @@ class AuthSessionServiceTest {
 
         assertThat(outcome).isInstanceOf(RefreshOutcome.Rejected.class);
         assertThat(sessions.byId(opened.sessionId()).isActive(clock.instant())).isFalse();
-        assertThat(auditTrail.recorded(AuditAction.AUTH_TOKEN_REUSE, AuditOutcome.REFUSED)).isTrue();
+        assertThat(auditTrail.recorded(AuditAction.AUTH_TOKEN_REUSE, AuditOutcome.REFUSED))
+                .isTrue();
     }
 
     @Test
@@ -141,7 +142,8 @@ class AuthSessionServiceTest {
 
         assertThat(outcome).isInstanceOf(RefreshOutcome.Rejected.class);
         assertThat(sessions.byId(opened.sessionId()).isActive(clock.instant())).isTrue();
-        assertThat(auditTrail.recorded(AuditAction.AUTH_TOKEN_REUSE, AuditOutcome.REFUSED)).isFalse();
+        assertThat(auditTrail.recorded(AuditAction.AUTH_TOKEN_REUSE, AuditOutcome.REFUSED))
+                .isFalse();
     }
 
     @Test
@@ -202,8 +204,8 @@ class AuthSessionServiceTest {
 
         service.refresh(opened.sessionId() + ".not-the-secret");
 
-        assertThat(auditTrail.only(AuditAction.AUTH_REFRESH)).hasValue(
-                new AuditEvent(AuditAction.AUTH_REFRESH, null, opened.sessionId(), AuditOutcome.REFUSED));
+        assertThat(auditTrail.only(AuditAction.AUTH_REFRESH))
+                .hasValue(new AuditEvent(AuditAction.AUTH_REFRESH, null, opened.sessionId(), AuditOutcome.REFUSED));
     }
 
     @Test
@@ -215,8 +217,8 @@ class AuthSessionServiceTest {
 
         service.refresh(opened.refreshToken());
 
-        assertThat(auditTrail.only(AuditAction.AUTH_REFRESH)).hasValue(
-                new AuditEvent(AuditAction.AUTH_REFRESH, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+        assertThat(auditTrail.only(AuditAction.AUTH_REFRESH))
+                .hasValue(new AuditEvent(AuditAction.AUTH_REFRESH, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
     }
 
     @Test
@@ -228,8 +230,8 @@ class AuthSessionServiceTest {
 
         service.refresh(opened.sessionId() + ".not-the-secret");
 
-        assertThat(auditTrail.only(AuditAction.AUTH_REFRESH)).hasValue(
-                new AuditEvent(AuditAction.AUTH_REFRESH, null, opened.sessionId(), AuditOutcome.REFUSED));
+        assertThat(auditTrail.only(AuditAction.AUTH_REFRESH))
+                .hasValue(new AuditEvent(AuditAction.AUTH_REFRESH, null, opened.sessionId(), AuditOutcome.REFUSED));
     }
 
     @Test
@@ -242,8 +244,8 @@ class AuthSessionServiceTest {
 
         service.refresh(opened.refreshToken());
 
-        assertThat(auditTrail.recorded()).endsWith(
-                new AuditEvent(AuditAction.AUTH_REFRESH, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+        assertThat(auditTrail.recorded())
+                .endsWith(new AuditEvent(AuditAction.AUTH_REFRESH, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
     }
 
     @Test
@@ -256,17 +258,23 @@ class AuthSessionServiceTest {
 
         service.refresh(opened.refreshToken());
 
-        assertThat(auditTrail.recorded()).endsWith(
-                new AuditEvent(AuditAction.AUTH_TOKEN_REUSE, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
-        assertThat(auditTrail.recorded(AuditAction.AUTH_REFRESH, AuditOutcome.REFUSED)).isFalse();
+        assertThat(auditTrail.recorded())
+                .endsWith(new AuditEvent(
+                        AuditAction.AUTH_TOKEN_REUSE, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+        assertThat(auditTrail.recorded(AuditAction.AUTH_REFRESH, AuditOutcome.REFUSED))
+                .isFalse();
     }
 
     @Test
     void GivenTheSessionStoreIsUnreachable_WhenARefreshIsAttempted_ThenItIsAuditedAsFailedAndTheFaultPropagates() {
         // A fault is not a refusal: an outage recorded as REFUSED would hide in ordinary traffic, which is
         // the distinction AuthService.login already draws for a sign-in.
-        AuthSessionService broken = new AuthSessionService(new UnreachableSessions(), secrets,
-                new AuthSessionProperties(IDLE, ABSOLUTE, GRACE), auditTrail, clock);
+        AuthSessionService broken = new AuthSessionService(
+                new UnreachableSessions(),
+                secrets,
+                new AuthSessionProperties(IDLE, ABSOLUTE, GRACE),
+                auditTrail,
+                clock);
 
         assertThatThrownBy(() -> broken.refresh(UUID.randomUUID() + ".a-secret"))
                 .isInstanceOf(DataAccessResourceFailureException.class);
@@ -282,7 +290,8 @@ class AuthSessionServiceTest {
         assertThat(service.revoke(opened.refreshToken())).isTrue();
 
         assertThat(service.isActive(opened.sessionId())).isFalse();
-        assertThat(auditTrail.recorded(AuditAction.AUTH_LOGOUT, AuditOutcome.ALLOWED)).isTrue();
+        assertThat(auditTrail.recorded(AuditAction.AUTH_LOGOUT, AuditOutcome.ALLOWED))
+                .isTrue();
     }
 
     @Test
@@ -308,7 +317,8 @@ class AuthSessionServiceTest {
         assertThat(service.revoke(opened.refreshToken())).isFalse();
 
         assertThat(service.isActive(opened.sessionId())).isTrue();
-        assertThat(auditTrail.recorded(AuditAction.AUTH_LOGOUT, AuditOutcome.ALLOWED)).isFalse();
+        assertThat(auditTrail.recorded(AuditAction.AUTH_LOGOUT, AuditOutcome.ALLOWED))
+                .isFalse();
     }
 
     @Test
@@ -349,8 +359,8 @@ class AuthSessionServiceTest {
 
         service.revoke(opened.sessionId() + ".not-the-secret");
 
-        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT)).hasValue(
-                new AuditEvent(AuditAction.AUTH_LOGOUT, null, opened.sessionId(), AuditOutcome.REFUSED));
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT))
+                .hasValue(new AuditEvent(AuditAction.AUTH_LOGOUT, null, opened.sessionId(), AuditOutcome.REFUSED));
     }
 
     @Test
@@ -363,14 +373,18 @@ class AuthSessionServiceTest {
 
         service.revoke(opened.refreshToken());
 
-        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT)).hasValue(
-                new AuditEvent(AuditAction.AUTH_LOGOUT, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT))
+                .hasValue(new AuditEvent(AuditAction.AUTH_LOGOUT, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
     }
 
     @Test
     void GivenTheSessionStoreIsUnreachable_WhenSignOutIsAttempted_ThenItIsAuditedAsFailedAndTheFaultPropagates() {
-        AuthSessionService broken = new AuthSessionService(new UnreachableSessions(), secrets,
-                new AuthSessionProperties(IDLE, ABSOLUTE, GRACE), auditTrail, clock);
+        AuthSessionService broken = new AuthSessionService(
+                new UnreachableSessions(),
+                secrets,
+                new AuthSessionProperties(IDLE, ABSOLUTE, GRACE),
+                auditTrail,
+                clock);
 
         assertThatThrownBy(() -> broken.revoke(UUID.randomUUID() + ".a-secret"))
                 .isInstanceOf(DataAccessResourceFailureException.class);

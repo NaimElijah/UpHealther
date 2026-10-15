@@ -14,6 +14,5 @@ public final class PostgresImage {
     /** An exact tag, down to the Alpine release (ADR-030). Moving it means moving compose's in step. */
     public static final String NAME = "postgres:15.19-alpine3.24";
 
-    private PostgresImage() {
-    }
+    private PostgresImage() {}
 }

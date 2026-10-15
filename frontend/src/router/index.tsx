@@ -30,104 +30,124 @@ import AdminUsersPage from '../pages/AdminUsersPage';
 const AppRouter: React.FC = () => (
   <BrowserRouter>
     <NotificationProvider>
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <Navigate to="/dashboard" replace />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Layout><DashboardPage /></Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/health-areas"
-        element={
-          <ProtectedRoute>
-            <Layout><HealthAreasPage /></Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/upgrades/backlog"
-        element={
-          <ProtectedRoute>
-            <Layout><UpgradeBacklogPage /></Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/upgrades/active"
-        element={
-          <ProtectedRoute>
-            <Layout><ActiveUpgradesPage /></Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/upgrades/planned"
-        element={
-          <ProtectedRoute>
-            <Layout><PlannedUpgradesPage /></Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/upgrades/:id"
-        element={
-          <ProtectedRoute>
-            <Layout><UpgradeDetailsPage /></Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/daily-checkin"
-        element={
-          <ProtectedRoute>
-            <Layout><DailyCheckinPage /></Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/progress-history"
-        element={
-          <ProtectedRoute>
-            <Layout><ProgressHistoryPage /></Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/notifications"
-        element={
-          <ProtectedRoute>
-            <Layout><NotificationsPage /></Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/users"
-        element={
-          // RequireRole inside ProtectedRoute, not instead of it: an anonymous visitor is sent to
-          // sign in, and a signed-in non-administrator to their dashboard. The API refuses the
-          // requests behind this either way — the gate only saves somebody a page of failures.
-          <ProtectedRoute>
-            <RequireRole role="ADMIN">
-              <Layout><AdminUsersPage /></Layout>
-            </RequireRole>
-          </ProtectedRoute>
-        }
-      />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Navigate to="/dashboard" replace />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <DashboardPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/health-areas"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <HealthAreasPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/upgrades/backlog"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <UpgradeBacklogPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/upgrades/active"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <ActiveUpgradesPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/upgrades/planned"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <PlannedUpgradesPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/upgrades/:id"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <UpgradeDetailsPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/daily-checkin"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <DailyCheckinPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/progress-history"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <ProgressHistoryPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <NotificationsPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            // RequireRole inside ProtectedRoute, not instead of it: an anonymous visitor is sent to
+            // sign in, and a signed-in non-administrator to their dashboard. The API refuses the
+            // requests behind this either way — the gate only saves somebody a page of failures.
+            <ProtectedRoute>
+              <RequireRole role="ADMIN">
+                <Layout>
+                  <AdminUsersPage />
+                </Layout>
+              </RequireRole>
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </NotificationProvider>
   </BrowserRouter>
 );

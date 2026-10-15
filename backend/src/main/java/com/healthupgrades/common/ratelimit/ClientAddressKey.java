@@ -36,8 +36,7 @@ final class ClientAddressKey {
     /** The leading bytes of an IPv6 address that identify its /64. */
     private static final int IPV6_PREFIX_BYTES = 8;
 
-    private ClientAddressKey() {
-    }
+    private ClientAddressKey() {}
 
     /**
      * The key to count attempts from this address against.

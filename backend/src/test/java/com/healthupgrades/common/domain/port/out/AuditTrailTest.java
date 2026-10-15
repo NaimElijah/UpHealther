@@ -1,16 +1,15 @@
 package com.healthupgrades.common.domain.port.out;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.support.RecordingAuditTrail;
-import org.junit.jupiter.api.Test;
-
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.jupiter.api.Test;
 
 /**
  * Pins the wrapper every service records through.
@@ -31,8 +30,8 @@ class AuditTrailTest {
         String result = trail.recording(AuditAction.UPGRADE_ACTIVATE, actor, resource, () -> "activated");
 
         assertThat(result).isEqualTo("activated");
-        assertThat(trail.only(AuditAction.UPGRADE_ACTIVATE)).hasValue(
-                new AuditEvent(AuditAction.UPGRADE_ACTIVATE, actor, resource, AuditOutcome.ALLOWED));
+        assertThat(trail.only(AuditAction.UPGRADE_ACTIVATE))
+                .hasValue(new AuditEvent(AuditAction.UPGRADE_ACTIVATE, actor, resource, AuditOutcome.ALLOWED));
     }
 
     @Test
@@ -40,20 +39,23 @@ class AuditTrailTest {
         BusinessRuleException refusal = new BusinessRuleException("a completed upgrade cannot be paused");
 
         assertThatThrownBy(() -> trail.recording(AuditAction.UPGRADE_PAUSE, actor, resource, () -> {
-            throw refusal;
-        })).isSameAs(refusal); // rethrown untouched: this observes the operation, it does not handle it
+                    throw refusal;
+                }))
+                .isSameAs(refusal); // rethrown untouched: this observes the operation, it does not handle it
 
-        assertThat(trail.only(AuditAction.UPGRADE_PAUSE)).hasValue(
-                new AuditEvent(AuditAction.UPGRADE_PAUSE, actor, resource, AuditOutcome.REFUSED));
+        assertThat(trail.only(AuditAction.UPGRADE_PAUSE))
+                .hasValue(new AuditEvent(AuditAction.UPGRADE_PAUSE, actor, resource, AuditOutcome.REFUSED));
     }
 
     @Test
     void GivenAFaultRatherThanARefusal_WhenItIsRecorded_ThenTheAttemptIsRecordedAsFailed() {
         assertThatThrownBy(() -> trail.recording(AuditAction.UPGRADE_UPDATE, actor, resource, () -> {
-            throw new IllegalStateException("connection pool exhausted");
-        })).isInstanceOf(IllegalStateException.class);
+                    throw new IllegalStateException("connection pool exhausted");
+                }))
+                .isInstanceOf(IllegalStateException.class);
 
-        assertThat(trail.recorded(AuditAction.UPGRADE_UPDATE, AuditOutcome.FAILED)).isTrue();
+        assertThat(trail.recorded(AuditAction.UPGRADE_UPDATE, AuditOutcome.FAILED))
+                .isTrue();
     }
 
     @Test
@@ -63,15 +65,18 @@ class AuditTrailTest {
         trail.recording(AuditAction.UPGRADE_DELETE, actor, resource, () -> ran.append("deleted"));
 
         assertThat(ran).hasToString("deleted");
-        assertThat(trail.recorded(AuditAction.UPGRADE_DELETE, AuditOutcome.ALLOWED)).isTrue();
+        assertThat(trail.recorded(AuditAction.UPGRADE_DELETE, AuditOutcome.ALLOWED))
+                .isTrue();
     }
 
     @Test
     void GivenAVoidOperationThatRefuses_WhenItIsRecorded_ThenTheRefusalIsKept() {
         assertThatThrownBy(() -> trail.recording(AuditAction.AREA_DELETE, actor, resource, () -> {
-            throw new BusinessRuleException("nope");
-        })).isInstanceOf(BusinessRuleException.class);
+                    throw new BusinessRuleException("nope");
+                }))
+                .isInstanceOf(BusinessRuleException.class);
 
-        assertThat(trail.recorded(AuditAction.AREA_DELETE, AuditOutcome.REFUSED)).isTrue();
+        assertThat(trail.recorded(AuditAction.AREA_DELETE, AuditOutcome.REFUSED))
+                .isTrue();
     }
 }

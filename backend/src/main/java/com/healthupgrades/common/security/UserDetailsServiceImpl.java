@@ -30,7 +30,8 @@ public class UserDetailsServiceImpl implements UserDetailsService {
      */
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        return userQuery.findByEmail(EmailAddress.normalise(email))
+        return userQuery
+                .findByEmail(EmailAddress.normalise(email))
                 .map(SecurityUser::from)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
     }

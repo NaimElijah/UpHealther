@@ -9,5 +9,4 @@ public record TrackingConfigDetails(
         Frequency frequency,
         Double targetNumericValue,
         String targetUnit,
-        Boolean requiredDaily
-) {}
+        Boolean requiredDaily) {}

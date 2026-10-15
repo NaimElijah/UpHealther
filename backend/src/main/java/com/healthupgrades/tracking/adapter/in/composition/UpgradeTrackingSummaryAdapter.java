@@ -4,13 +4,12 @@ import com.healthupgrades.tracking.application.port.in.TrackingConfigQuery;
 import com.healthupgrades.tracking.domain.model.TrackingConfig;
 import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummary;
 import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
-
 import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
 /**
  * Driving adapter that answers the upgrade context's {@link UpgradeTrackingSummaryPort} from this

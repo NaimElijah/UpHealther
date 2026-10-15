@@ -1,7 +1,6 @@
 package com.healthupgrades.auth.domain.port.out;
 
 import com.healthupgrades.auth.domain.model.AuthSession; // the aggregate this port persists
-
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;

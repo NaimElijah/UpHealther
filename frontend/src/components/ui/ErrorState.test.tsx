@@ -12,10 +12,15 @@ import ErrorState from './ErrorState';
  */
 describe('ErrorState', () => {
   it('GivenAFailureCarryingATraceId_WhenItRenders_ThenTheIdIsOnTheScreen', () => {
-    render(<ErrorState title="Could not load your upgrades." error={{
-      message: 'Internal server error',
-      traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
-    }} />);
+    render(
+      <ErrorState
+        title="Could not load your upgrades."
+        error={{
+          message: 'Internal server error',
+          traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
+        }}
+      />,
+    );
 
     expect(screen.getByText('4bf92f3577b34da6a3ce929d0e0e4736')).toBeDefined();
   });
@@ -44,10 +49,16 @@ describe('ErrorState', () => {
   it('GivenAFailedActionShownInline_WhenItRenders_ThenItSaysWhatFailedWithTheReferenceAndNoIllustration', () => {
     // Inline is for a failure beside the control that caused it - a dialog, a card, the bell's panel -
     // where the page-sized illustration would push everything else out of view.
-    render(<ErrorState inline title="That change did not go through." error={{
-      message: 'Only ACTIVE upgrades can be paused',
-      traceId: 'trace-41',
-    }} />);
+    render(
+      <ErrorState
+        inline
+        title="That change did not go through."
+        error={{
+          message: 'Only ACTIVE upgrades can be paused',
+          traceId: 'trace-41',
+        }}
+      />,
+    );
 
     const alert = screen.getByRole('alert');
     expect(alert.textContent).toContain('That change did not go through.');

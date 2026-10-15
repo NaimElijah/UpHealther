@@ -34,27 +34,44 @@ const UpgradeBacklogPage: React.FC = () => {
   const [planDate, setPlanDate] = useState('');
   const [planError, setPlanError] = useState('');
 
-  const { data: upgrades = [], isLoading, error } = useQuery({ queryKey: ['upgrades', 'IDEA'], queryFn: () => getUpgrades('IDEA') });
+  const {
+    data: upgrades = [],
+    isLoading,
+    error,
+  } = useQuery({ queryKey: ['upgrades', 'IDEA'], queryFn: () => getUpgrades('IDEA') });
   const { data: areas = [] } = useQuery({ queryKey: ['healthAreas'], queryFn: getHealthAreas });
 
   const createMutation = useMutation({
     mutationFn: createUpgrade,
-    onSuccess: () => { refreshUpgradeViews(qc); setIsOpen(false); setForm({ title: '', type: 'HABIT', difficulty: 'MEDIUM' }); },
+    onSuccess: () => {
+      refreshUpgradeViews(qc);
+      setIsOpen(false);
+      setForm({ title: '', type: 'HABIT', difficulty: 'MEDIUM' });
+    },
   });
 
   const planMutation = useMutation({
     mutationFn: ({ id, date }: { id: string; date: string }) => planUpgrade(id, date),
     // Awaited, so the dialog stays pending until the backlog no longer lists the idea; closed sooner it
     // would uncover a Plan button whose second press earns a 422.
-    onSuccess: async () => { await refreshUpgradeViews(qc); setPlanning(null); },
+    onSuccess: async () => {
+      await refreshUpgradeViews(qc);
+      setPlanning(null);
+    },
   });
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
     setTargetEndError('');
-    if (!form.title.trim()) { setFormError('Title is required.'); return; }
-    if (form.targetEndDate && !isFourDigitYearDate(form.targetEndDate)) { setTargetEndError('Pick a date with a four-digit year.'); return; }
+    if (!form.title.trim()) {
+      setFormError('Title is required.');
+      return;
+    }
+    if (form.targetEndDate && !isFourDigitYearDate(form.targetEndDate)) {
+      setTargetEndError('Pick a date with a four-digit year.');
+      return;
+    }
     try {
       await createMutation.mutateAsync(form);
     } catch (thrown) {
@@ -84,8 +101,14 @@ const UpgradeBacklogPage: React.FC = () => {
     e.preventDefault();
     if (!planning) return;
     setPlanError('');
-    if (!planDate) { setPlanError('Pick a start date.'); return; }
-    if (!isFourDigitYearDate(planDate)) { setPlanError('Pick a date with a four-digit year.'); return; }
+    if (!planDate) {
+      setPlanError('Pick a start date.');
+      return;
+    }
+    if (!isFourDigitYearDate(planDate)) {
+      setPlanError('Pick a date with a four-digit year.');
+      return;
+    }
     try {
       await planMutation.mutateAsync({ id: planning.id, date: planDate });
     } catch (thrown) {
@@ -93,7 +116,12 @@ const UpgradeBacklogPage: React.FC = () => {
     }
   };
 
-  if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
+  if (isLoading)
+    return (
+      <div className="flex justify-center py-20">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
   if (error) return <ErrorState title="Could not load your backlog." error={toApiError(error)} />;
 
   return (
@@ -104,7 +132,12 @@ const UpgradeBacklogPage: React.FC = () => {
         action={<Button onClick={() => setIsOpen(true)}>+ New Idea</Button>}
       />
       {upgrades.length === 0 ? (
-        <EmptyState icon="💡" title="No ideas yet" description="Capture your health upgrade ideas here before planning them." action={<Button onClick={() => setIsOpen(true)}>Add First Idea</Button>} />
+        <EmptyState
+          icon="💡"
+          title="No ideas yet"
+          description="Capture your health upgrade ideas here before planning them."
+          action={<Button onClick={() => setIsOpen(true)}>Add First Idea</Button>}
+        />
       ) : (
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {upgrades.map((u) => (
@@ -115,21 +148,43 @@ const UpgradeBacklogPage: React.FC = () => {
 
       <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="New Upgrade Idea">
         <form onSubmit={handleCreate} className="space-y-4">
-          <UpgradeFormFields value={form} onChange={setForm} areas={areas} titleError={formError} targetEndError={targetEndError} />
+          <UpgradeFormFields
+            value={form}
+            onChange={setForm}
+            areas={areas}
+            titleError={formError}
+            targetEndError={targetEndError}
+          />
           <div className="flex gap-2 justify-end">
-            <Button variant="secondary" type="button" onClick={() => setIsOpen(false)}>Cancel</Button>
-            <Button type="submit" loading={createMutation.isPending}>Add Idea</Button>
+            <Button variant="secondary" type="button" onClick={() => setIsOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={createMutation.isPending}>
+              Add Idea
+            </Button>
           </div>
         </form>
       </Modal>
 
       <Modal isOpen={!!planning} onClose={closePlan} title="Plan Upgrade">
         <form onSubmit={handlePlan} className="space-y-4">
-          <p className="text-fg-subtle">When do you want to start <span className="font-medium text-fg">{planning?.title}</span>?</p>
-          <Input label="Start date" type="date" value={planDate} onChange={(e) => setPlanDate(e.target.value)} error={planError} />
+          <p className="text-fg-subtle">
+            When do you want to start <span className="font-medium text-fg">{planning?.title}</span>?
+          </p>
+          <Input
+            label="Start date"
+            type="date"
+            value={planDate}
+            onChange={(e) => setPlanDate(e.target.value)}
+            error={planError}
+          />
           <div className="flex gap-2 justify-end">
-            <Button variant="secondary" type="button" onClick={closePlan} disabled={planMutation.isPending}>Cancel</Button>
-            <Button type="submit" loading={planMutation.isPending}>Plan</Button>
+            <Button variant="secondary" type="button" onClick={closePlan} disabled={planMutation.isPending}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={planMutation.isPending}>
+              Plan
+            </Button>
           </div>
         </form>
       </Modal>

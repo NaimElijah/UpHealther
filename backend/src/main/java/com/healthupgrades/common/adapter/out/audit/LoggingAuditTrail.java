@@ -1,19 +1,18 @@
 package com.healthupgrades.common.adapter.out.audit;
 
+import static net.logstash.logback.argument.StructuredArguments.keyValue;
+
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-
-import java.util.UUID;
-
-import static net.logstash.logback.argument.StructuredArguments.keyValue;
 
 /**
  * Adapter writing the audit trail to its own log stream, and counting the same events as it goes.
@@ -94,7 +93,8 @@ public class LoggingAuditTrail implements AuditTrail {
      */
     private void write(AuditEvent event) {
         try {
-            log.info("{} {} {} {} {}",
+            log.info(
+                    "{} {} {} {} {}",
                     keyValue("action", event.action().key()),
                     keyValue("outcome", event.outcome()),
                     keyValue("resource", event.action().resource()),
@@ -115,8 +115,10 @@ public class LoggingAuditTrail implements AuditTrail {
                     .register(meterRegistry)
                     .increment();
         } catch (RuntimeException uncountable) {
-            log.error("{} was recorded but could not be counted",
-                    keyValue("action", event.action().key()), uncountable);
+            log.error(
+                    "{} was recorded but could not be counted",
+                    keyValue("action", event.action().key()),
+                    uncountable);
         }
     }
 

@@ -1,5 +1,7 @@
 package com.healthupgrades;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
@@ -11,6 +13,8 @@ import com.healthupgrades.upgrade.domain.model.UpgradeType;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import com.healthupgrades.user.application.port.in.UserCommand;
 import com.healthupgrades.user.domain.model.User;
+import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,11 +22,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.support.TransactionTemplate;
-
-import java.util.List;
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Pins <em>when</em> an {@code ALLOWED} audit entry is written, which turns out to be the whole of
@@ -45,10 +44,17 @@ class AuditCommitIT extends PostgresIT {
 
     private static final String AUDIT_LOGGER = "AUDIT";
 
-    @Autowired UpgradeService upgradeService;
-    @Autowired UpgradeRepositoryPort upgradeRepository;
-    @Autowired UserCommand userCommand;
-    @Autowired TransactionTemplate transactionTemplate;
+    @Autowired
+    UpgradeService upgradeService;
+
+    @Autowired
+    UpgradeRepositoryPort upgradeRepository;
+
+    @Autowired
+    UserCommand userCommand;
+
+    @Autowired
+    TransactionTemplate transactionTemplate;
 
     private Logger auditLogger;
     private ListAppender<ILoggingEvent> appender;
@@ -56,11 +62,13 @@ class AuditCommitIT extends PostgresIT {
 
     @BeforeEach
     void captureTheAuditStream() {
-        userId = userCommand.save(User.builder()
-                .name("Someone")
-                .email(UUID.randomUUID() + "@example.com")
-                .passwordHash("$2a$10$abcdefghijklmnopqrstuvwxyz012345678901234567890123456")
-                .build()).getId();
+        userId = userCommand
+                .save(User.builder()
+                        .name("Someone")
+                        .email(UUID.randomUUID() + "@example.com")
+                        .passwordHash("$2a$10$abcdefghijklmnopqrstuvwxyz012345678901234567890123456")
+                        .build())
+                .getId();
 
         auditLogger = (Logger) LoggerFactory.getLogger(AUDIT_LOGGER);
         appender = new ListAppender<>();
@@ -90,7 +98,8 @@ class AuditCommitIT extends PostgresIT {
         // The defect this class exists for. Before the entry was deferred to the commit, the body
         // returning was enough to write ALLOWED and increment the counter — so a 409 from an optimistic
         // lock, or a unique constraint lost at commit, left a trail saying the edit had succeeded.
-        UUID upgradeId = upgradeService.create(userId, details("Doomed upgrade")).getId();
+        UUID upgradeId =
+                upgradeService.create(userId, details("Doomed upgrade")).getId();
         appender.list.clear();
 
         transactionTemplate.execute(status -> {
@@ -109,7 +118,8 @@ class AuditCommitIT extends PostgresIT {
     @Test
     void GivenTheTransactionRollsBack_WhenItIsAudited_ThenTheRecordIsUnchangedToMatch() {
         // The other half of the same claim: the trail and the database agree about what happened.
-        UUID upgradeId = upgradeService.create(userId, details("Original title")).getId();
+        UUID upgradeId =
+                upgradeService.create(userId, details("Original title")).getId();
 
         transactionTemplate.execute(status -> {
             upgradeService.update(userId, upgradeId, details("Never persisted"));
@@ -117,7 +127,10 @@ class AuditCommitIT extends PostgresIT {
             return null;
         });
 
-        assertThat(upgradeRepository.findByIdAndUserId(upgradeId, userId).orElseThrow().getTitle())
+        assertThat(upgradeRepository
+                        .findByIdAndUserId(upgradeId, userId)
+                        .orElseThrow()
+                        .getTitle())
                 .isEqualTo("Original title");
     }
 

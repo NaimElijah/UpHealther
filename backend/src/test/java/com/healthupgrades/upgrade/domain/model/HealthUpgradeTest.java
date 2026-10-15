@@ -1,12 +1,11 @@
 package com.healthupgrades.upgrade.domain.model;
 
-import com.healthupgrades.common.domain.exception.BusinessRuleException;
-import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.*;
 
+import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import java.time.LocalDate;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.*;
+import org.junit.jupiter.api.Test;
 
 /**
  * Covers the aggregate's state machine and construction invariants: which transitions are legal from
@@ -47,8 +46,17 @@ class HealthUpgradeTest {
 
     @Test
     void GivenTheRequiredFields_WhenAnUpgradeIsCreated_ThenItStartsAsAnIdea() {
-        HealthUpgrade upgrade = HealthUpgrade.create(UUID.randomUUID(), null, "Cold showers", null,
-                UpgradeType.HABIT, Difficulty.MEDIUM, null, null, null, null);
+        HealthUpgrade upgrade = HealthUpgrade.create(
+                UUID.randomUUID(),
+                null,
+                "Cold showers",
+                null,
+                UpgradeType.HABIT,
+                Difficulty.MEDIUM,
+                null,
+                null,
+                null,
+                null);
 
         assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.IDEA);
         assertThat(upgrade.getTitle()).isEqualTo("Cold showers");
@@ -56,22 +64,31 @@ class HealthUpgradeTest {
 
     @Test
     void GivenNoOwner_WhenAnUpgradeIsCreated_ThenItIsRejected() {
-        assertThatThrownBy(() -> HealthUpgrade.create(null, null, "Cold showers", null,
-                UpgradeType.HABIT, Difficulty.MEDIUM, null, null, null, null))
+        assertThatThrownBy(() -> HealthUpgrade.create(
+                        null, null, "Cold showers", null, UpgradeType.HABIT, Difficulty.MEDIUM, null, null, null, null))
                 .isInstanceOf(BusinessRuleException.class);
     }
 
     @Test
     void GivenABlankTitle_WhenAnUpgradeIsCreated_ThenItIsRejected() {
-        assertThatThrownBy(() -> HealthUpgrade.create(UUID.randomUUID(), null, "   ", null,
-                UpgradeType.HABIT, Difficulty.MEDIUM, null, null, null, null))
+        assertThatThrownBy(() -> HealthUpgrade.create(
+                        UUID.randomUUID(),
+                        null,
+                        "   ",
+                        null,
+                        UpgradeType.HABIT,
+                        Difficulty.MEDIUM,
+                        null,
+                        null,
+                        null,
+                        null))
                 .isInstanceOf(BusinessRuleException.class);
     }
 
     @Test
     void GivenNoType_WhenAnUpgradeIsCreated_ThenItIsRejected() {
-        assertThatThrownBy(() -> HealthUpgrade.create(UUID.randomUUID(), null, "Cold showers", null,
-                null, Difficulty.MEDIUM, null, null, null, null))
+        assertThatThrownBy(() -> HealthUpgrade.create(
+                        UUID.randomUUID(), null, "Cold showers", null, null, Difficulty.MEDIUM, null, null, null, null))
                 .isInstanceOf(BusinessRuleException.class);
     }
 
@@ -81,8 +98,8 @@ class HealthUpgradeTest {
     void GivenAnUpgrade_WhenItsDetailsAreUpdated_ThenTheEditableFieldsAreReplaced() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
 
-        upgrade.updateDetails(null, "New title", "New description", UpgradeType.EXPERIMENT,
-                REFERENCE_DAY, "Because", "Done when");
+        upgrade.updateDetails(
+                null, "New title", "New description", UpgradeType.EXPERIMENT, REFERENCE_DAY, "Because", "Done when");
 
         assertThat(upgrade.getTitle()).isEqualTo("New title");
         assertThat(upgrade.getType()).isEqualTo(UpgradeType.EXPERIMENT);
@@ -271,8 +288,11 @@ class HealthUpgradeTest {
     @Test
     void GivenAnActiveUpgradeSpanningTheDate_WhenActivityOnThatDateIsChecked_ThenItIsActive() {
         HealthUpgrade upgrade = HealthUpgrade.builder()
-                .title("Test Upgrade").type(UpgradeType.HABIT).status(UpgradeStatus.ACTIVE)
-                .actualStartDate(REFERENCE_DAY.minusDays(3)).targetEndDate(REFERENCE_DAY.plusDays(3))
+                .title("Test Upgrade")
+                .type(UpgradeType.HABIT)
+                .status(UpgradeStatus.ACTIVE)
+                .actualStartDate(REFERENCE_DAY.minusDays(3))
+                .targetEndDate(REFERENCE_DAY.plusDays(3))
                 .build();
         assertThat(upgrade.isActiveOn(REFERENCE_DAY)).isTrue();
     }

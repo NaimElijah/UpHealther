@@ -2,10 +2,9 @@ package com.healthupgrades.common.ratelimit;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
-
-import java.time.Duration;
 
 /**
  * How hard the anonymous authentication endpoints may be hammered, bound from {@code app.rate-limit}.
@@ -22,8 +21,4 @@ import java.time.Duration;
 @Validated
 @ConfigurationProperties("app.rate-limit")
 public record RateLimitProperties(
-        @Min(1) int limit,
-        @NotNull Duration window,
-        @Min(1) int maxTrackedClients
-) {
-}
+        @Min(1) int limit, @NotNull Duration window, @Min(1) int maxTrackedClients) {}

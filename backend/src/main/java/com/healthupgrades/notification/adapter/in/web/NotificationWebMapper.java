@@ -1,9 +1,8 @@
 package com.healthupgrades.notification.adapter.in.web;
 
 import com.healthupgrades.notification.domain.model.Notification;
-import org.springframework.stereotype.Component;
-
 import java.util.List;
+import org.springframework.stereotype.Component;
 
 /**
  * Renders a notification into the shape clients receive.
@@ -18,8 +17,15 @@ public class NotificationWebMapper {
 
     /** Domain object to its response record. */
     public NotificationDto toDto(Notification n) {
-        return new NotificationDto(n.getId(), n.getType(), n.getCategory(), n.getTitle(), n.getMessage(),
-                n.getRelatedUpgradeId(), n.isRead(), n.getCreatedAt());
+        return new NotificationDto(
+                n.getId(),
+                n.getType(),
+                n.getCategory(),
+                n.getTitle(),
+                n.getMessage(),
+                n.getRelatedUpgradeId(),
+                n.isRead(),
+                n.getCreatedAt());
     }
 
     /** Batch variant of {@link #toDto(Notification)}. */

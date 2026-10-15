@@ -1,11 +1,11 @@
 package com.healthupgrades.upgrade.domain.service;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.upgrade.domain.model.Difficulty;
 import org.junit.jupiter.api.Test;
-
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * The max-concurrent-HARD rule: the most-cited business invariant in the repository, and previously the
@@ -59,7 +59,6 @@ class UpgradeSchedulingServiceTest {
     @Test
     void GivenAnUpgradeWithNoDifficulty_WhenItIsValidated_ThenItIsUncapped() {
         // Difficulty is optional on an upgrade, so an unset one must not be treated as HARD.
-        assertThatCode(() -> service.validateWithinHardLimit(null, LIMIT + 100))
-                .doesNotThrowAnyException();
+        assertThatCode(() -> service.validateWithinHardLimit(null, LIMIT + 100)).doesNotThrowAnyException();
     }
 }

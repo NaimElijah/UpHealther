@@ -1,5 +1,7 @@
 package com.healthupgrades.notification.adapter.out.persistence;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.healthupgrades.notification.domain.model.Notification;
 import com.healthupgrades.notification.domain.model.NotificationCategory;
 import com.healthupgrades.notification.domain.model.NotificationType;
@@ -8,18 +10,15 @@ import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.AnUpgrade;
 import com.healthupgrades.support.PostgresIT;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
-import org.springframework.context.annotation.Import;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
+import org.springframework.context.annotation.Import;
 
 /**
  * The check-in sweep's once-a-day guard (FR-30) and the overdue notice's once-per-target-date guard
@@ -42,8 +41,11 @@ class NotificationPersistenceIT extends PostgresIT {
     /** The start of the day after a target date of 1 October: the earliest an overdue notice for it exists. */
     private static final LocalDateTime OVERDUE_SINCE = LocalDate.of(2026, 10, 2).atStartOfDay();
 
-    @Autowired NotificationRepositoryPort repository;
-    @Autowired TestEntityManager entityManager;
+    @Autowired
+    NotificationRepositoryPort repository;
+
+    @Autowired
+    TestEntityManager entityManager;
 
     @Test
     void GivenACheckinNudgeSentThisEvening_WhenTheUsersNudgedSinceMidnightAreRead_ThenThatUserIsNamed() {
@@ -87,8 +89,8 @@ class NotificationPersistenceIT extends PostgresIT {
         repository.save(overdueNotice(userId, upgradeId, OVERDUE_SINCE.minusSeconds(1)));
         entityManager.flush();
 
-        assertThat(repository.existsForUpgradeSince(userId, upgradeId, NotificationType.UPGRADE_OVERDUE,
-                OVERDUE_SINCE)).isFalse();
+        assertThat(repository.existsForUpgradeSince(userId, upgradeId, NotificationType.UPGRADE_OVERDUE, OVERDUE_SINCE))
+                .isFalse();
     }
 
     @Test
@@ -100,8 +102,8 @@ class NotificationPersistenceIT extends PostgresIT {
         repository.save(overdueNotice(userId, upgradeId, OVERDUE_SINCE));
         entityManager.flush();
 
-        assertThat(repository.existsForUpgradeSince(userId, upgradeId, NotificationType.UPGRADE_OVERDUE,
-                OVERDUE_SINCE)).isTrue();
+        assertThat(repository.existsForUpgradeSince(userId, upgradeId, NotificationType.UPGRADE_OVERDUE, OVERDUE_SINCE))
+                .isTrue();
     }
 
     @Test
@@ -111,8 +113,8 @@ class NotificationPersistenceIT extends PostgresIT {
         repository.save(overdueNotice(userId, upgradeId, OVERDUE_SINCE.plusHours(8)));
         entityManager.flush();
 
-        assertThat(repository.existsForUpgradeSince(userId, upgradeId, NotificationType.UPGRADE_OVERDUE,
-                OVERDUE_SINCE)).isTrue();
+        assertThat(repository.existsForUpgradeSince(userId, upgradeId, NotificationType.UPGRADE_OVERDUE, OVERDUE_SINCE))
+                .isTrue();
     }
 
     @Test
@@ -123,8 +125,9 @@ class NotificationPersistenceIT extends PostgresIT {
         repository.save(overdueNotice(userId, announced, OVERDUE_SINCE.plusHours(8)));
         entityManager.flush();
 
-        assertThat(repository.existsForUpgradeSince(userId, notYetAnnounced, NotificationType.UPGRADE_OVERDUE,
-                OVERDUE_SINCE)).isFalse();
+        assertThat(repository.existsForUpgradeSince(
+                        userId, notYetAnnounced, NotificationType.UPGRADE_OVERDUE, OVERDUE_SINCE))
+                .isFalse();
     }
 
     @Test
@@ -134,36 +137,57 @@ class NotificationPersistenceIT extends PostgresIT {
         UUID userId = persistedUser();
         UUID upgradeId = persistedUpgrade(userId);
         repository.save(Notification.builder()
-                .userId(userId).relatedUpgradeId(upgradeId).type(NotificationType.REMINDER)
-                .category(NotificationCategory.REMINDER).title("Reminder")
-                .createdAt(OVERDUE_SINCE.plusHours(8)).build());
+                .userId(userId)
+                .relatedUpgradeId(upgradeId)
+                .type(NotificationType.REMINDER)
+                .category(NotificationCategory.REMINDER)
+                .title("Reminder")
+                .createdAt(OVERDUE_SINCE.plusHours(8))
+                .build());
         entityManager.flush();
 
-        assertThat(repository.existsForUpgradeSince(userId, upgradeId, NotificationType.UPGRADE_OVERDUE,
-                OVERDUE_SINCE)).isFalse();
+        assertThat(repository.existsForUpgradeSince(userId, upgradeId, NotificationType.UPGRADE_OVERDUE, OVERDUE_SINCE))
+                .isFalse();
     }
 
     /** A user row for a notification to belong to, with an email no other test's row can collide with. */
     private UUID persistedUser() {
-        return entityManager.persistAndFlush(
-                AUser.aUser().id(null).email("notified-" + UUID.randomUUID() + "@example.com").build()).getId();
+        return entityManager
+                .persistAndFlush(AUser.aUser()
+                        .id(null)
+                        .email("notified-" + UUID.randomUUID() + "@example.com")
+                        .build())
+                .getId();
     }
 
     /** An upgrade row for a notification to refer to; {@code related_upgrade_id} is a foreign key. */
     private UUID persistedUpgrade(UUID userId) {
-        return entityManager.persistAndFlush(
-                AnUpgrade.ownedBy(userId).id(null).status(UpgradeStatus.ACTIVE).build()).getId();
+        return entityManager
+                .persistAndFlush(AnUpgrade.ownedBy(userId)
+                        .id(null)
+                        .status(UpgradeStatus.ACTIVE)
+                        .build())
+                .getId();
     }
 
     private static Notification overdueNotice(UUID userId, UUID upgradeId, LocalDateTime createdAt) {
         return Notification.builder()
-                .userId(userId).relatedUpgradeId(upgradeId).type(NotificationType.UPGRADE_OVERDUE)
-                .category(NotificationCategory.WARNING).title("Upgrade overdue").createdAt(createdAt).build();
+                .userId(userId)
+                .relatedUpgradeId(upgradeId)
+                .type(NotificationType.UPGRADE_OVERDUE)
+                .category(NotificationCategory.WARNING)
+                .title("Upgrade overdue")
+                .createdAt(createdAt)
+                .build();
     }
 
     private static Notification notification(UUID userId, NotificationType type, LocalDateTime createdAt) {
         return Notification.builder()
-                .userId(userId).type(type).category(NotificationCategory.REMINDER)
-                .title("Daily check-in").createdAt(createdAt).build();
+                .userId(userId)
+                .type(type)
+                .category(NotificationCategory.REMINDER)
+                .title("Daily check-in")
+                .createdAt(createdAt)
+                .build();
     }
 }

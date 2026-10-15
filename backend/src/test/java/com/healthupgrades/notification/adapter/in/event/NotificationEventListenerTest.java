@@ -1,31 +1,4 @@
 package com.healthupgrades.notification.adapter.in.event;
-import com.healthupgrades.notification.application.NotificationService;
-
-import com.healthupgrades.reflection.domain.event.ReflectionAdded;
-import com.healthupgrades.tracking.domain.event.StreakAchieved;
-import com.healthupgrades.upgrade.domain.event.HealthUpgradeAbandoned;
-import com.healthupgrades.upgrade.domain.event.HealthUpgradeActivated;
-import com.healthupgrades.upgrade.domain.event.HealthUpgradeCompleted;
-import com.healthupgrades.upgrade.domain.event.HealthUpgradeCreated;
-import com.healthupgrades.upgrade.domain.event.HealthUpgradePaused;
-import com.healthupgrades.upgrade.domain.event.HealthUpgradePlanned;
-import com.healthupgrades.upgrade.domain.event.UpgradeOverdueDetected;
-import com.healthupgrades.notification.domain.model.NotificationCategory;
-import com.healthupgrades.notification.domain.model.NotificationType;
-import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
-import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.AdditionalMatchers.and;
@@ -35,6 +8,32 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+
+import com.healthupgrades.notification.application.NotificationService;
+import com.healthupgrades.notification.domain.model.NotificationCategory;
+import com.healthupgrades.notification.domain.model.NotificationType;
+import com.healthupgrades.reflection.domain.event.ReflectionAdded;
+import com.healthupgrades.tracking.domain.event.StreakAchieved;
+import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
+import com.healthupgrades.upgrade.domain.event.HealthUpgradeAbandoned;
+import com.healthupgrades.upgrade.domain.event.HealthUpgradeActivated;
+import com.healthupgrades.upgrade.domain.event.HealthUpgradeCompleted;
+import com.healthupgrades.upgrade.domain.event.HealthUpgradeCreated;
+import com.healthupgrades.upgrade.domain.event.HealthUpgradePaused;
+import com.healthupgrades.upgrade.domain.event.HealthUpgradePlanned;
+import com.healthupgrades.upgrade.domain.event.UpgradeOverdueDetected;
+import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.function.Supplier;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 /**
@@ -47,10 +46,14 @@ import static org.mockito.Mockito.when;
  */
 class NotificationEventListenerTest {
 
-    @Mock NotificationService notificationService;
-    @Mock UpgradeQuery upgradeQuery;
+    @Mock
+    NotificationService notificationService;
 
-    @InjectMocks NotificationEventListener listener;
+    @Mock
+    UpgradeQuery upgradeQuery;
+
+    @InjectMocks
+    NotificationEventListener listener;
 
     private final UUID userId = UUID.randomUUID();
     private final UUID upgradeId = UUID.randomUUID();
@@ -58,20 +61,36 @@ class NotificationEventListenerTest {
     @Test
     void GivenACompletedUpgrade_WhenTheEventIsHandled_ThenASuccessNotificationCarriesTheLookedUpTitle() {
         when(upgradeQuery.findOwned(userId, upgradeId))
-                .thenReturn(Optional.of(HealthUpgrade.builder().id(upgradeId).userId(userId).title("Drink water").build()));
+                .thenReturn(Optional.of(HealthUpgrade.builder()
+                        .id(upgradeId)
+                        .userId(userId)
+                        .title("Drink water")
+                        .build()));
 
         listener.onCompleted(new HealthUpgradeCompleted(upgradeId, userId, LocalDateTime.now()));
 
-        verify(notificationService).create(eq(userId), eq(NotificationType.UPGRADE_COMPLETED),
-                eq(NotificationCategory.SUCCESS), any(), contains("Drink water"), eq(upgradeId));
+        verify(notificationService)
+                .create(
+                        eq(userId),
+                        eq(NotificationType.UPGRADE_COMPLETED),
+                        eq(NotificationCategory.SUCCESS),
+                        any(),
+                        contains("Drink water"),
+                        eq(upgradeId));
     }
 
     @Test
     void GivenACreatedUpgrade_WhenTheEventIsHandled_ThenTheEventTitleIsUsedWithoutALookup() {
         listener.onCreated(new HealthUpgradeCreated(upgradeId, userId, "Walk daily", LocalDateTime.now()));
 
-        verify(notificationService).create(eq(userId), eq(NotificationType.UPGRADE_CREATED),
-                eq(NotificationCategory.INFO), any(), contains("Walk daily"), eq(upgradeId));
+        verify(notificationService)
+                .create(
+                        eq(userId),
+                        eq(NotificationType.UPGRADE_CREATED),
+                        eq(NotificationCategory.INFO),
+                        any(),
+                        contains("Walk daily"),
+                        eq(upgradeId));
     }
 
     @Test
@@ -80,18 +99,31 @@ class NotificationEventListenerTest {
 
         listener.onPlanned(new HealthUpgradePlanned(upgradeId, userId, LocalDate.of(2026, 10, 1), LocalDateTime.now()));
 
-        verify(notificationService).create(eq(userId), eq(NotificationType.UPGRADE_PLANNED),
-                eq(NotificationCategory.INFO), any(), and(contains("Stretch"), contains("2026-10-01")), eq(upgradeId));
+        verify(notificationService)
+                .create(
+                        eq(userId),
+                        eq(NotificationType.UPGRADE_PLANNED),
+                        eq(NotificationCategory.INFO),
+                        any(),
+                        and(contains("Stretch"), contains("2026-10-01")),
+                        eq(upgradeId));
     }
 
     @Test
     void GivenAnActivatedUpgrade_WhenTheEventIsHandled_ThenASuccessNotificationCarriesTheLookedUpTitle() {
         givenTheUpgradeIsTitled("Stretch");
 
-        listener.onActivated(new HealthUpgradeActivated(upgradeId, userId, LocalDate.of(2026, 10, 1), LocalDateTime.now()));
+        listener.onActivated(
+                new HealthUpgradeActivated(upgradeId, userId, LocalDate.of(2026, 10, 1), LocalDateTime.now()));
 
-        verify(notificationService).create(eq(userId), eq(NotificationType.UPGRADE_ACTIVATED),
-                eq(NotificationCategory.SUCCESS), any(), contains("Stretch"), eq(upgradeId));
+        verify(notificationService)
+                .create(
+                        eq(userId),
+                        eq(NotificationType.UPGRADE_ACTIVATED),
+                        eq(NotificationCategory.SUCCESS),
+                        any(),
+                        contains("Stretch"),
+                        eq(upgradeId));
     }
 
     @Test
@@ -100,8 +132,14 @@ class NotificationEventListenerTest {
 
         listener.onPaused(new HealthUpgradePaused(upgradeId, userId, LocalDateTime.now()));
 
-        verify(notificationService).create(eq(userId), eq(NotificationType.UPGRADE_PAUSED),
-                eq(NotificationCategory.INFO), any(), contains("Stretch"), eq(upgradeId));
+        verify(notificationService)
+                .create(
+                        eq(userId),
+                        eq(NotificationType.UPGRADE_PAUSED),
+                        eq(NotificationCategory.INFO),
+                        any(),
+                        contains("Stretch"),
+                        eq(upgradeId));
     }
 
     @Test
@@ -110,8 +148,14 @@ class NotificationEventListenerTest {
 
         listener.onAbandoned(new HealthUpgradeAbandoned(upgradeId, userId, LocalDateTime.now()));
 
-        verify(notificationService).create(eq(userId), eq(NotificationType.UPGRADE_ABANDONED),
-                eq(NotificationCategory.INFO), any(), contains("Stretch"), eq(upgradeId));
+        verify(notificationService)
+                .create(
+                        eq(userId),
+                        eq(NotificationType.UPGRADE_ABANDONED),
+                        eq(NotificationCategory.INFO),
+                        any(),
+                        contains("Stretch"),
+                        eq(upgradeId));
     }
 
     @Test
@@ -120,8 +164,14 @@ class NotificationEventListenerTest {
 
         listener.onStreak(new StreakAchieved(upgradeId, userId, 14, LocalDateTime.now()));
 
-        verify(notificationService).create(eq(userId), eq(NotificationType.STREAK_ACHIEVED),
-                eq(NotificationCategory.SUCCESS), contains("14-day"), contains("Stretch"), eq(upgradeId));
+        verify(notificationService)
+                .create(
+                        eq(userId),
+                        eq(NotificationType.STREAK_ACHIEVED),
+                        eq(NotificationCategory.SUCCESS),
+                        contains("14-day"),
+                        contains("Stretch"),
+                        eq(upgradeId));
     }
 
     @Test
@@ -130,8 +180,14 @@ class NotificationEventListenerTest {
 
         listener.onReflection(new ReflectionAdded(UUID.randomUUID(), upgradeId, userId, LocalDateTime.now()));
 
-        verify(notificationService).create(eq(userId), eq(NotificationType.REFLECTION_ADDED),
-                eq(NotificationCategory.INFO), any(), contains("Stretch"), eq(upgradeId));
+        verify(notificationService)
+                .create(
+                        eq(userId),
+                        eq(NotificationType.REFLECTION_ADDED),
+                        eq(NotificationCategory.INFO),
+                        any(),
+                        contains("Stretch"),
+                        eq(upgradeId));
     }
 
     @Test
@@ -142,8 +198,14 @@ class NotificationEventListenerTest {
 
         listener.onPaused(new HealthUpgradePaused(upgradeId, userId, LocalDateTime.now()));
 
-        verify(notificationService).create(eq(userId), eq(NotificationType.UPGRADE_PAUSED),
-                eq(NotificationCategory.INFO), any(), contains("your upgrade"), eq(upgradeId));
+        verify(notificationService)
+                .create(
+                        eq(userId),
+                        eq(NotificationType.UPGRADE_PAUSED),
+                        eq(NotificationCategory.INFO),
+                        any(),
+                        contains("your upgrade"),
+                        eq(upgradeId));
     }
 
     @Test
@@ -151,24 +213,38 @@ class NotificationEventListenerTest {
         // BR-11, #103. A notice about 1 October can only be created once that day is over, so one created
         // since the second is about this date. An older one was about a date that has since moved later,
         // and must not stop this one being announced.
-        listener.onOverdue(new UpgradeOverdueDetected(upgradeId, userId, LocalDate.of(2026, 10, 1),
-                LocalDateTime.of(2026, 10, 5, 8, 0)));
+        listener.onOverdue(new UpgradeOverdueDetected(
+                upgradeId, userId, LocalDate.of(2026, 10, 1), LocalDateTime.of(2026, 10, 5, 8, 0)));
 
-        ArgumentCaptor<Supplier<String>> message = ArgumentCaptor.forClass(Supplier.class);
-        verify(notificationService).createUnlessNotifiedSince(eq(userId), eq(NotificationType.UPGRADE_OVERDUE),
-                eq(NotificationCategory.WARNING), any(), message.capture(), eq(upgradeId),
-                eq(LocalDateTime.of(2026, 10, 2, 0, 0)));
+        ArgumentCaptor<Supplier<String>> message = ArgumentCaptor.captor();
+        verify(notificationService)
+                .createUnlessNotifiedSince(
+                        eq(userId),
+                        eq(NotificationType.UPGRADE_OVERDUE),
+                        eq(NotificationCategory.WARNING),
+                        any(),
+                        message.capture(),
+                        eq(upgradeId),
+                        eq(LocalDateTime.of(2026, 10, 2, 0, 0)));
 
         // Not resolved yet: no lookup happens unless the notification is actually going to be created.
         verifyNoInteractions(upgradeQuery);
 
-        when(upgradeQuery.findOwned(userId, upgradeId)).thenReturn(Optional.of(
-                HealthUpgrade.builder().id(upgradeId).userId(userId).title("Sleep early").build()));
+        when(upgradeQuery.findOwned(userId, upgradeId))
+                .thenReturn(Optional.of(HealthUpgrade.builder()
+                        .id(upgradeId)
+                        .userId(userId)
+                        .title("Sleep early")
+                        .build()));
         assertThat(message.getValue().get()).contains("Sleep early");
     }
 
     private void givenTheUpgradeIsTitled(String title) {
         when(upgradeQuery.findOwned(userId, upgradeId))
-                .thenReturn(Optional.of(HealthUpgrade.builder().id(upgradeId).userId(userId).title(title).build()));
+                .thenReturn(Optional.of(HealthUpgrade.builder()
+                        .id(upgradeId)
+                        .userId(userId)
+                        .title(title)
+                        .build()));
     }
 }

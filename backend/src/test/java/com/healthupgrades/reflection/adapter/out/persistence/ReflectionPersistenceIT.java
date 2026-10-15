@@ -1,24 +1,23 @@
 package com.healthupgrades.reflection.adapter.out.persistence;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.healthupgrades.reflection.domain.model.Reflection;
 import com.healthupgrades.reflection.domain.port.out.ReflectionRepositoryPort;
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.AnUpgrade;
 import com.healthupgrades.support.PostgresIT;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
-import org.springframework.context.annotation.Import;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
+import org.springframework.context.annotation.Import;
 
 /**
  * FR-24 — an upgrade's reflections read newest first — proved against the query that orders them.
@@ -35,8 +34,11 @@ class ReflectionPersistenceIT extends PostgresIT {
 
     private static final LocalDate DAY = LocalDate.of(2026, 3, 15);
 
-    @Autowired ReflectionRepositoryPort repository;
-    @Autowired TestEntityManager entityManager;
+    @Autowired
+    ReflectionRepositoryPort repository;
+
+    @Autowired
+    TestEntityManager entityManager;
 
     private UUID userId;
     private UUID upgradeId;
@@ -44,15 +46,26 @@ class ReflectionPersistenceIT extends PostgresIT {
     @BeforeEach
     void createAnUpgradeToReflectOn() {
         userId = entityManager.persistAndFlush(AUser.aUser().id(null).build()).getId();
-        upgradeId = entityManager.persistAndFlush(
-                AnUpgrade.ownedBy(userId).id(null).status(UpgradeStatus.ACTIVE)
-                        .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now()).build()).getId();
+        upgradeId = entityManager
+                .persistAndFlush(AnUpgrade.ownedBy(userId)
+                        .id(null)
+                        .status(UpgradeStatus.ACTIVE)
+                        .createdAt(LocalDateTime.now())
+                        .updatedAt(LocalDateTime.now())
+                        .build())
+                .getId();
     }
 
     /** Saves a reflection on {@code date}; {@code whatWorked} is what the assertions read it back by. */
     private UUID reflect(LocalDate date, String whatWorked) {
-        return repository.save(Reflection.builder()
-                .upgradeId(upgradeId).userId(userId).date(date).whatWorked(whatWorked).build()).getId();
+        return repository
+                .save(Reflection.builder()
+                        .upgradeId(upgradeId)
+                        .userId(userId)
+                        .date(date)
+                        .whatWorked(whatWorked)
+                        .build())
+                .getId();
     }
 
     /**
@@ -60,7 +73,8 @@ class ReflectionPersistenceIT extends PostgresIT {
      * row could in principle share a timestamp; setting it outright keeps the test deterministic.
      */
     private void writtenAt(UUID reflectionId, LocalDateTime at) {
-        entityManager.getEntityManager()
+        entityManager
+                .getEntityManager()
                 .createNativeQuery("UPDATE reflections SET created_at = :at WHERE id = :id")
                 .setParameter("at", at)
                 .setParameter("id", reflectionId)

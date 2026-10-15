@@ -1,12 +1,13 @@
 # https://editorconfig.org
 #
-# The only cross-editor statement of how these sources are written: the backend has no Spotless or
-# Checkstyle configuration and the frontend has no Prettier, so nothing else records the conventions
-# an editor would otherwise guess at. Every value here is descriptive — it matches what the tracked
-# files already contain rather than proposing a change to them.
+# What every editor should do with whitespace and line endings before a formatter runs. Layout beyond
+# that belongs to the formatters: palantir-java-format through Spotless for Java (ADR-037), and Prettier
+# for the frontend (ADR-038), which also reads this file. Every value here is descriptive — it matches
+# what the tracked files already contain rather than proposing a change to them.
 #
-# No max_line_length: the Java sources sit around 110 columns but a handful reach 149, and declaring a
-# limit the code does not keep would make this file a wish rather than a description.
+# No max_line_length: the formatters own the width, and both use 120. palantir-java-format's is part of
+# its fixed style; Prettier's is printWidth in frontend/prettier.config.js, which overrides any value
+# here. A value here would be a second statement of the width that neither formatter reads.
 
 root = true
 

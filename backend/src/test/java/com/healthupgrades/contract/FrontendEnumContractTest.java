@@ -1,5 +1,7 @@
 package com.healthupgrades.contract;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.healthupgrades.notification.domain.model.NotificationCategory;
 import com.healthupgrades.notification.domain.model.NotificationType;
 import com.healthupgrades.tracking.domain.model.Frequency;
@@ -8,11 +10,6 @@ import com.healthupgrades.upgrade.domain.model.Difficulty;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.model.UpgradeType;
 import com.healthupgrades.user.domain.model.Role;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -25,8 +22,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Pins every backend enum against the hand-written union the frontend mirrors it with.
@@ -56,8 +55,8 @@ class FrontendEnumContractTest {
      * Matches a union of screaming-caps string literals, which is how this codebase spells a mirrored
      * backend enum and nothing else.
      */
-    private static final Pattern MIRRORED_UNION = Pattern.compile(
-            "export type (\\w+)\\s*=\\s*((?:\\s*\\|?\\s*'[A-Z_]+')+)\\s*;", Pattern.DOTALL);
+    private static final Pattern MIRRORED_UNION =
+            Pattern.compile("export type (\\w+)\\s*=\\s*((?:\\s*\\|?\\s*'[A-Z_]+')+)\\s*;", Pattern.DOTALL);
 
     /**
      * Every backend enum that the frontend mirrors, paired with the union that mirrors it.
@@ -86,7 +85,8 @@ class FrontendEnumContractTest {
         Set<String> frontendValues = unionValues(unionName);
 
         assertThat(frontendValues)
-                .describedAs("frontend union '%s' in %s must declare exactly the values of the backend enum; "
+                .describedAs(
+                        "frontend union '%s' in %s must declare exactly the values of the backend enum; "
                                 + "a value on only one side is a request the API cannot bind, or a row the UI "
                                 + "cannot render",
                         unionName, FRONTEND_TYPES)
@@ -99,8 +99,10 @@ class FrontendEnumContractTest {
 
         assertThat(registeredUnions())
                 .allSatisfy(union -> assertThat(source)
-                        .describedAs("union '%s' was renamed or removed; this test can no longer check it, "
-                                + "which is worse than it failing", union)
+                        .describedAs(
+                                "union '%s' was renamed or removed; this test can no longer check it, "
+                                        + "which is worse than it failing",
+                                union)
                         .contains("export type " + union + " ="));
     }
 
@@ -118,7 +120,8 @@ class FrontendEnumContractTest {
         }
 
         assertThat(declared)
-                .describedAs("every enum-shaped union in %s must be registered in mirroredEnums(), or it is "
+                .describedAs(
+                        "every enum-shaped union in %s must be registered in mirroredEnums(), or it is "
                                 + "not checked against the backend at all. Register it, or — if it is a "
                                 + "frontend-only union with no backend enum behind it — say so in a comment "
                                 + "on the declaration and exclude it here deliberately",
@@ -128,16 +131,14 @@ class FrontendEnumContractTest {
 
     /** The union names this class checks. */
     private static Set<String> registeredUnions() {
-        return mirroredEnums()
-                .map(args -> (String) args.get()[0])
-                .collect(Collectors.toCollection(LinkedHashSet::new));
+        return mirroredEnums().map(args -> (String) args.get()[0]).collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     /** The values declared by one union in the frontend's shared types. */
     private static Set<String> unionValues(String unionName) {
         String source = readFrontendTypes();
-        Pattern declaration = Pattern.compile(
-                "export type " + Pattern.quote(unionName) + "\\s*=(.*?);", Pattern.DOTALL);
+        Pattern declaration =
+                Pattern.compile("export type " + Pattern.quote(unionName) + "\\s*=(.*?);", Pattern.DOTALL);
 
         Matcher declarationMatch = declaration.matcher(source);
         assertThat(declarationMatch.find())
@@ -159,7 +160,8 @@ class FrontendEnumContractTest {
             root = root.getParent();
         }
         assertThat(root)
-                .describedAs("could not locate %s from %s — the frontend module is part of this contract "
+                .describedAs(
+                        "could not locate %s from %s — the frontend module is part of this contract "
                                 + "and its absence is a broken checkout, not a reason to skip the check",
                         FRONTEND_TYPES, Paths.get("").toAbsolutePath())
                 .isNotNull();

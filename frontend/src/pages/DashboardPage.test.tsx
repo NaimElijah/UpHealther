@@ -106,10 +106,12 @@ describe('DashboardPage', () => {
   });
 
   it('GivenAreasInTheSummary_WhenTheDashboardRenders_ThenEachAreaShowsItsCounts', async () => {
-    getDashboard.mockResolvedValue(aDashboard([
-      { areaId: 'area-1', areaName: 'Sleep', totalUpgrades: 4, activeCount: 2, completedCount: 1 },
-      { areaId: 'area-2', areaName: 'Nutrition', totalUpgrades: 0, activeCount: 0, completedCount: 0 },
-    ]));
+    getDashboard.mockResolvedValue(
+      aDashboard([
+        { areaId: 'area-1', areaName: 'Sleep', totalUpgrades: 4, activeCount: 2, completedCount: 1 },
+        { areaId: 'area-2', areaName: 'Nutrition', totalUpgrades: 0, activeCount: 0, completedCount: 0 },
+      ]),
+    );
 
     renderPage();
 
@@ -122,11 +124,13 @@ describe('DashboardPage', () => {
   it('GivenAreasInNoParticularOrder_WhenTheDashboardRenders_ThenTheyAreListedByName', async () => {
     // The server's area query has no ORDER BY, so the same areas can arrive in a different order from
     // one load to the next. Sorting here keeps the rows from shuffling between refreshes.
-    getDashboard.mockResolvedValue(aDashboard([
-      { areaId: 'area-1', areaName: 'Sleep', totalUpgrades: 0, activeCount: 0, completedCount: 0 },
-      { areaId: 'area-2', areaName: 'Movement', totalUpgrades: 0, activeCount: 0, completedCount: 0 },
-      { areaId: 'area-3', areaName: 'Nutrition', totalUpgrades: 0, activeCount: 0, completedCount: 0 },
-    ]));
+    getDashboard.mockResolvedValue(
+      aDashboard([
+        { areaId: 'area-1', areaName: 'Sleep', totalUpgrades: 0, activeCount: 0, completedCount: 0 },
+        { areaId: 'area-2', areaName: 'Movement', totalUpgrades: 0, activeCount: 0, completedCount: 0 },
+        { areaId: 'area-3', areaName: 'Nutrition', totalUpgrades: 0, activeCount: 0, completedCount: 0 },
+      ]),
+    );
 
     renderPage();
 
@@ -138,9 +142,9 @@ describe('DashboardPage', () => {
     // Tailwind's preflight strips list-style, and WebKit then stops exposing a <ul> as a list, which
     // takes its aria-label with it. jsdom does not copy that behaviour, so the implicit role would pass
     // the query above either way. The explicit attribute is what VoiceOver actually relies on.
-    getDashboard.mockResolvedValue(aDashboard([
-      { areaId: 'area-1', areaName: 'Sleep', totalUpgrades: 1, activeCount: 1, completedCount: 0 },
-    ]));
+    getDashboard.mockResolvedValue(
+      aDashboard([{ areaId: 'area-1', areaName: 'Sleep', totalUpgrades: 1, activeCount: 1, completedCount: 0 }]),
+    );
 
     renderPage();
 
@@ -161,10 +165,16 @@ describe('DashboardPage', () => {
   // zeros included, keyed by id; the page shows only the ones that are running, each under its title.
 
   it('GivenThreeActiveUpgradesAndOneRunningStreak_WhenTheDashboardRenders_ThenTheStreaksTileCountsOne', async () => {
-    getDashboard.mockResolvedValue(aDashboardWithStreaks(
-      [anActiveUpgrade('u-1', 'Cold showers'), anActiveUpgrade('u-2', 'Evening walk'), anActiveUpgrade('u-3', 'No sugar')],
-      { 'u-1': 5, 'u-2': 0, 'u-3': 0 },
-    ));
+    getDashboard.mockResolvedValue(
+      aDashboardWithStreaks(
+        [
+          anActiveUpgrade('u-1', 'Cold showers'),
+          anActiveUpgrade('u-2', 'Evening walk'),
+          anActiveUpgrade('u-3', 'No sugar'),
+        ],
+        { 'u-1': 5, 'u-2': 0, 'u-3': 0 },
+      ),
+    );
 
     renderPage();
 
@@ -173,10 +183,12 @@ describe('DashboardPage', () => {
   });
 
   it('GivenARunningStreak_WhenTheDashboardRenders_ThenItsTileNamesTheUpgrade', async () => {
-    getDashboard.mockResolvedValue(aDashboardWithStreaks(
-      [anActiveUpgrade('u-1', 'Cold showers'), anActiveUpgrade('u-2', 'Evening walk')],
-      { 'u-1': 5, 'u-2': 0 },
-    ));
+    getDashboard.mockResolvedValue(
+      aDashboardWithStreaks([anActiveUpgrade('u-1', 'Cold showers'), anActiveUpgrade('u-2', 'Evening walk')], {
+        'u-1': 5,
+        'u-2': 0,
+      }),
+    );
 
     renderPage();
 
@@ -197,10 +209,12 @@ describe('DashboardPage', () => {
   });
 
   it('GivenNoRunningStreak_WhenTheDashboardRenders_ThenNoStreakSectionIsShown', async () => {
-    getDashboard.mockResolvedValue(aDashboardWithStreaks(
-      [anActiveUpgrade('u-1', 'Cold showers'), anActiveUpgrade('u-2', 'Evening walk')],
-      { 'u-1': 0, 'u-2': 0 },
-    ));
+    getDashboard.mockResolvedValue(
+      aDashboardWithStreaks([anActiveUpgrade('u-1', 'Cold showers'), anActiveUpgrade('u-2', 'Evening walk')], {
+        'u-1': 0,
+        'u-2': 0,
+      }),
+    );
 
     renderPage();
 
@@ -215,7 +229,11 @@ describe('DashboardPage', () => {
   it('GivenTheApiRefusesAPause_WhenItIsPressedOnACard_ThenTheCardSaysWhyWithTheReference', async () => {
     getDashboard.mockResolvedValue(aDashboardWithStreaks([anActiveUpgrade('u-1', 'Cold showers')], { 'u-1': 0 }));
     performUpgradeAction.mockRejectedValue(
-      apiFailure(409, { status: 409, message: 'Resource was modified concurrently. Please retry.', traceId: 'trace-71' }),
+      apiFailure(409, {
+        status: 409,
+        message: 'Resource was modified concurrently. Please retry.',
+        traceId: 'trace-71',
+      }),
     );
     renderPage();
 
@@ -228,10 +246,12 @@ describe('DashboardPage', () => {
   });
 
   it('GivenAChangeInFlight_WhenAnotherCardIsPressed_ThenNothingMoreIsSent', async () => {
-    getDashboard.mockResolvedValue(aDashboardWithStreaks(
-      [anActiveUpgrade('u-1', 'Cold showers'), anActiveUpgrade('u-2', 'Evening walk')],
-      { 'u-1': 0, 'u-2': 0 },
-    ));
+    getDashboard.mockResolvedValue(
+      aDashboardWithStreaks([anActiveUpgrade('u-1', 'Cold showers'), anActiveUpgrade('u-2', 'Evening walk')], {
+        'u-1': 0,
+        'u-2': 0,
+      }),
+    );
     performUpgradeAction.mockReturnValue(new Promise(() => {}));
     renderPage();
     await screen.findByText('Evening walk');
@@ -250,7 +270,11 @@ describe('DashboardPage', () => {
     const upgrade = anActiveUpgrade('u-1', 'Cold showers');
     getDashboard.mockResolvedValue({ ...aDashboardWithStreaks([upgrade], { 'u-1': 0 }), todayUpgrades: [upgrade] });
     performUpgradeAction.mockRejectedValue(
-      apiFailure(409, { status: 409, message: 'Resource was modified concurrently. Please retry.', traceId: 'trace-72' }),
+      apiFailure(409, {
+        status: 409,
+        message: 'Resource was modified concurrently. Please retry.',
+        traceId: 'trace-72',
+      }),
     );
     renderPage();
     await screen.findByText('Active Upgrades');

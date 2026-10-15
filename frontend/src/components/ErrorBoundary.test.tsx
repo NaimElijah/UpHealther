@@ -30,13 +30,21 @@ describe('ErrorBoundary', () => {
   });
 
   it('GivenAChildThatRendersNormally_WhenTheBoundaryRenders_ThenItIsOutOfTheWay', () => {
-    render(<ErrorBoundary><p>the page</p></ErrorBoundary>);
+    render(
+      <ErrorBoundary>
+        <p>the page</p>
+      </ErrorBoundary>,
+    );
 
     expect(screen.getByText('the page')).toBeDefined();
   });
 
   it('GivenAChildThatThrows_WhenItRenders_ThenTheUserSeesAMessageRatherThanABlankPage', () => {
-    render(<ErrorBoundary><Throws /></ErrorBoundary>);
+    render(
+      <ErrorBoundary>
+        <Throws />
+      </ErrorBoundary>,
+    );
 
     expect(screen.getByRole('alert').textContent).toContain('This page stopped working.');
   });
@@ -44,7 +52,11 @@ describe('ErrorBoundary', () => {
   it('GivenAChildThatThrows_WhenItRenders_ThenTheUserIsToldTheirDataIsSafe', () => {
     // The first question somebody asks when a page breaks mid-edit, and the answer is yes: nothing
     // here writes, so a render error cannot have lost anything.
-    render(<ErrorBoundary><Throws /></ErrorBoundary>);
+    render(
+      <ErrorBoundary>
+        <Throws />
+      </ErrorBoundary>,
+    );
 
     expect(screen.getByRole('alert').textContent).toContain('Nothing you have saved is affected.');
   });
@@ -55,7 +67,11 @@ describe('ErrorBoundary', () => {
     Object.defineProperty(window, 'location', { value: { ...realLocation, reload }, writable: true });
 
     try {
-      render(<ErrorBoundary><Throws /></ErrorBoundary>);
+      render(
+        <ErrorBoundary>
+          <Throws />
+        </ErrorBoundary>,
+      );
       fireEvent.click(screen.getByRole('button', { name: 'Reload the page' }));
 
       // A reload, not a re-render: whatever was inconsistent about the props or the cache still is,

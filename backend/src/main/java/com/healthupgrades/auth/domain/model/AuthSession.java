@@ -4,12 +4,11 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import lombok.Getter;
-
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
+import lombok.Getter;
 
 /**
  * A signed-in session, held server-side so it can be ended.
@@ -80,8 +79,7 @@ public class AuthSession {
     private boolean revoked;
 
     /** For JPA only. */
-    protected AuthSession() {
-    }
+    protected AuthSession() {}
 
     /**
      * Opens a session for an account.
@@ -98,8 +96,8 @@ public class AuthSession {
      * @param absolute    how long the session may live at most, however busy
      * @return the new session, not yet persisted
      */
-    public static AuthSession opened(UUID id, UUID userId, byte[] tokenHash, Instant now,
-                                     Duration idle, Duration absolute) {
+    public static AuthSession opened(
+            UUID id, UUID userId, byte[] tokenHash, Instant now, Duration idle, Duration absolute) {
         AuthSession session = new AuthSession();
         session.id = id;
         session.userId = userId;
@@ -151,7 +149,8 @@ public class AuthSession {
      * has already exchanged it, so whoever is presenting it now is not that client.
      */
     public boolean matchesPrevious(byte[] presentedHash) {
-        return previousTokenHash != null && rotatedAt != null
+        return previousTokenHash != null
+                && rotatedAt != null
                 && MessageDigest.isEqual(previousTokenHash, presentedHash);
     }
 

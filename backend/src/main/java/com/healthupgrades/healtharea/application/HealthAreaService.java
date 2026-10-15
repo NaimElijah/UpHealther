@@ -1,18 +1,17 @@
 package com.healthupgrades.healtharea.application;
 
-import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.domain.audit.AuditAction;
+import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.healtharea.application.port.in.HealthAreaDetails;
 import com.healthupgrades.healtharea.application.port.in.HealthAreaQuery;
 import com.healthupgrades.healtharea.domain.model.HealthArea;
 import com.healthupgrades.healtharea.domain.port.out.HealthAreaRepositoryPort;
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.UUID;
 
 /**
  * Use cases for health areas: create, read, update and delete, all scoped to one owner.
@@ -36,17 +35,21 @@ public class HealthAreaService implements HealthAreaQuery {
      */
     @Transactional
     public HealthArea create(UUID userId, HealthAreaDetails details) {
-        return auditTrail.recordingCreation(AuditAction.AREA_CREATE, userId, () -> {
-            HealthArea area = HealthArea.builder()
-                    .userId(userId)
-                    .name(details.name())
-                    .description(details.description())
-                    .priority(details.priority())
-                    .icon(details.icon())
-                    .color(details.color())
-                    .build();
-            return repository.save(area);
-        }, HealthArea::getId);
+        return auditTrail.recordingCreation(
+                AuditAction.AREA_CREATE,
+                userId,
+                () -> {
+                    HealthArea area = HealthArea.builder()
+                            .userId(userId)
+                            .name(details.name())
+                            .description(details.description())
+                            .priority(details.priority())
+                            .icon(details.icon())
+                            .color(details.color())
+                            .build();
+                    return repository.save(area);
+                },
+                HealthArea::getId);
     }
 
     /**
@@ -96,8 +99,7 @@ public class HealthAreaService implements HealthAreaQuery {
      */
     @Transactional
     public void delete(UUID userId, UUID id) {
-        auditTrail.recording(AuditAction.AREA_DELETE, userId, id,
-                () -> repository.delete(getOwnedArea(userId, id)));
+        auditTrail.recording(AuditAction.AREA_DELETE, userId, id, () -> repository.delete(getOwnedArea(userId, id)));
     }
 
     /**
@@ -117,7 +119,8 @@ public class HealthAreaService implements HealthAreaQuery {
 
     /** Single ownership guard: a foreign or missing area is indistinguishable, both are "not found". */
     private HealthArea getOwnedArea(UUID userId, UUID id) {
-        return repository.findByIdAndUserId(id, userId)
+        return repository
+                .findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("HealthArea not found: " + id)); // ownership guard
     }
 }

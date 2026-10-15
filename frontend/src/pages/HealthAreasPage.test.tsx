@@ -95,7 +95,10 @@ describe('HealthAreasPage', () => {
     fireEvent.submit(dialog.getByRole('button', { name: 'Save Changes' }));
 
     await waitFor(() => expect(updateHealthArea).toHaveBeenCalledTimes(1));
-    expect(updateHealthArea).toHaveBeenCalledWith(AREA_ID, expect.objectContaining({ name: 'Sleep better', priority: 2 }));
+    expect(updateHealthArea).toHaveBeenCalledWith(
+      AREA_ID,
+      expect.objectContaining({ name: 'Sleep better', priority: 2 }),
+    );
   });
 
   it('GivenAnAreaWithAPriority_WhenItIsEdited_ThenTheFormShowsIt', async () => {
@@ -204,19 +207,19 @@ describe('HealthAreasPage', () => {
     },
   );
 
-  it.each([['2147483647', 2147483647], ['-2147483648', -2147483648]])(
-    'GivenAPriorityAtTheColumnsLimit %s_WhenSubmitted_ThenItIsSent',
-    async (typed, sent) => {
-      renderPage();
-      const dialog = await openEdit();
+  it.each([
+    ['2147483647', 2147483647],
+    ['-2147483648', -2147483648],
+  ])('GivenAPriorityAtTheColumnsLimit %s_WhenSubmitted_ThenItIsSent', async (typed, sent) => {
+    renderPage();
+    const dialog = await openEdit();
 
-      fireEvent.change(dialog.getByLabelText('Priority'), { target: { value: typed } });
-      fireEvent.submit(dialog.getByRole('button', { name: 'Save Changes' }));
+    fireEvent.change(dialog.getByLabelText('Priority'), { target: { value: typed } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save Changes' }));
 
-      await waitFor(() => expect(updateHealthArea).toHaveBeenCalledTimes(1));
-      expect(updateHealthArea.mock.calls[0][1].priority).toBe(sent);
-    },
-  );
+    await waitFor(() => expect(updateHealthArea).toHaveBeenCalledTimes(1));
+    expect(updateHealthArea.mock.calls[0][1].priority).toBe(sent);
+  });
 
   it('GivenABlankNameAndAFractionalPriority_WhenANewAreaIsSubmitted_ThenBothAreRefusedAtOnce', async () => {
     // One submit, both answers: stopping at the name made the user fix it and submit again, only to be
@@ -237,10 +240,12 @@ describe('HealthAreasPage', () => {
   // next dialog.
 
   it('GivenTheApiRefusesAnEdit_WhenItIsSaved_ThenTheDialogSaysWhy', async () => {
-    updateHealthArea.mockRejectedValue(apiFailure(400, {
-      message: 'Validation failed',
-      fieldErrors: { name: 'size must be between 1 and 255' },
-    }));
+    updateHealthArea.mockRejectedValue(
+      apiFailure(400, {
+        message: 'Validation failed',
+        fieldErrors: { name: 'size must be between 1 and 255' },
+      }),
+    );
     renderPage();
     const dialog = await openEdit();
 
@@ -291,7 +296,9 @@ describe('HealthAreasPage', () => {
 
   it('GivenTheApiRefusesTheDelete_WhenItIsConfirmed_ThenTheDialogSaysWhyWithTheReference', async () => {
     // A 404 is what an area already deleted from another tab answers.
-    deleteHealthArea.mockRejectedValue(apiFailure(404, { status: 404, message: 'Health area not found', traceId: 'trace-81' }));
+    deleteHealthArea.mockRejectedValue(
+      apiFailure(404, { status: 404, message: 'Health area not found', traceId: 'trace-81' }),
+    );
     renderPage();
     const dialog = await openDelete();
 
@@ -304,7 +311,9 @@ describe('HealthAreasPage', () => {
   });
 
   it('GivenADeleteWasRefused_WhenTheDialogIsOpenedAgain_ThenItStartsWithoutTheOldMessage', async () => {
-    deleteHealthArea.mockRejectedValue(apiFailure(404, { status: 404, message: 'Health area not found', traceId: 'trace-82' }));
+    deleteHealthArea.mockRejectedValue(
+      apiFailure(404, { status: 404, message: 'Health area not found', traceId: 'trace-82' }),
+    );
     renderPage();
     let dialog = await openDelete();
     fireEvent.click(dialog.getByRole('button', { name: 'Delete' }));

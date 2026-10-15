@@ -1,25 +1,5 @@
 package com.healthupgrades.healtharea.adapter.in.web;
 
-import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
-import com.healthupgrades.common.security.JwtAuthenticationFilter;
-import com.healthupgrades.common.security.BearerTokenAuthenticator;
-import com.healthupgrades.common.security.SecurityConfig;
-import com.healthupgrades.common.security.UserDetailsServiceImpl;
-import com.healthupgrades.healtharea.application.HealthAreaService;
-import com.healthupgrades.healtharea.domain.model.HealthArea;
-import com.healthupgrades.support.WebSliceSupport;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-
-import java.util.List;
-import java.util.UUID;
-
 import static com.healthupgrades.support.WebSliceSupport.bearer;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -35,6 +15,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.common.security.BearerTokenAuthenticator;
+import com.healthupgrades.common.security.JwtAuthenticationFilter;
+import com.healthupgrades.common.security.SecurityConfig;
+import com.healthupgrades.common.security.UserDetailsServiceImpl;
+import com.healthupgrades.healtharea.application.HealthAreaService;
+import com.healthupgrades.healtharea.domain.model.HealthArea;
+import com.healthupgrades.support.WebSliceSupport;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
 /**
  * The HTTP contract for health areas: FR-6 (create, read, update, delete), FR-7 (the attributes an area
  * carries over the wire) and BR-15 (another user's area is 404, never 403).
@@ -44,19 +43,24 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * response that mangles it is a broken glyph in the interface.
  */
 @WebMvcTest(HealthAreaController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class,
-        HealthAreaWebMapper.class, WebSliceSupport.class})
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class, HealthAreaWebMapper.class, WebSliceSupport.class})
 class HealthAreaControllerTest {
 
     private static final String BASE = "/api/health-areas";
     private static final String BODY = "{\"name\":\"Sleep\",\"description\":\"Bed on time\",\"priority\":1,"
             + "\"icon\":\"🌙\",\"color\":\"#4B6BFB\"}";
 
-    @Autowired MockMvc mockMvc;
+    @Autowired
+    MockMvc mockMvc;
 
-    @MockitoBean HealthAreaService service;
-    @MockitoBean BearerTokenAuthenticator authenticator;
-    @MockitoBean UserDetailsServiceImpl userDetailsService;
+    @MockitoBean
+    HealthAreaService service;
+
+    @MockitoBean
+    BearerTokenAuthenticator authenticator;
+
+    @MockitoBean
+    UserDetailsServiceImpl userDetailsService;
 
     private UUID userId;
     private final UUID areaId = UUID.randomUUID();
@@ -71,7 +75,9 @@ class HealthAreaControllerTest {
     void GivenAValidBody_WhenAnAreaIsCreated_ThenItAnswers201CarryingEveryAttribute() throws Exception {
         when(service.create(eq(userId), any())).thenReturn(anArea());
 
-        mockMvc.perform(bearer(post(BASE)).contentType(MediaType.APPLICATION_JSON).content(BODY))
+        mockMvc.perform(bearer(post(BASE))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("Sleep"))
                 .andExpect(jsonPath("$.priority").value(1))
@@ -81,7 +87,9 @@ class HealthAreaControllerTest {
 
     @Test
     void GivenABodyWithNoName_WhenAnAreaIsCreated_ThenItAnswers400AndNothingIsCreated() throws Exception {
-        mockMvc.perform(bearer(post(BASE)).contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mockMvc.perform(bearer(post(BASE))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.name").exists());
 
@@ -91,7 +99,8 @@ class HealthAreaControllerTest {
     @Test
     void GivenAFractionalPriority_WhenAnAreaIsCreated_ThenItAnswers400AndNothingIsCreated() throws Exception {
         // Jackson's default would store 1.5 as 1, a priority the caller never chose (#240).
-        mockMvc.perform(bearer(post(BASE)).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(bearer(post(BASE))
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Sleep\",\"priority\":1.5}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Malformed request body"));
@@ -104,7 +113,8 @@ class HealthAreaControllerTest {
         // health_areas.name is VARCHAR(255), which is where the 255 comes from. Unbounded here, an
         // over-long name reached the flush in production and came back 500. This slice has no database
         // and cannot see that flush; what it pins is the boundary contract. BR-16.
-        mockMvc.perform(bearer(post(BASE)).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(bearer(post(BASE))
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"" + "a".repeat(HealthAreaRequest.NAME_MAX + 1) + "\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.name").exists());
@@ -115,8 +125,10 @@ class HealthAreaControllerTest {
     @Test
     void GivenAnIconLongerThanItsColumn_WhenAnAreaIsCreated_ThenItAnswers400NamingTheField() throws Exception {
         // health_areas.icon is VARCHAR(100) - a narrower column than the name, and a separate bound.
-        mockMvc.perform(bearer(post(BASE)).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Sleep\",\"icon\":\"" + "i".repeat(HealthAreaRequest.ICON_MAX + 1) + "\"}"))
+        mockMvc.perform(bearer(post(BASE))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"name\":\"Sleep\",\"icon\":\"" + "i".repeat(HealthAreaRequest.ICON_MAX + 1) + "\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.icon").exists());
 
@@ -126,8 +138,10 @@ class HealthAreaControllerTest {
     @Test
     void GivenAColourLongerThanItsColumn_WhenAnAreaIsCreated_ThenItAnswers400NamingTheField() throws Exception {
         // health_areas.color is VARCHAR(50), the narrowest of the three.
-        mockMvc.perform(bearer(post(BASE)).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Sleep\",\"color\":\"" + "c".repeat(HealthAreaRequest.COLOR_MAX + 1) + "\"}"))
+        mockMvc.perform(bearer(post(BASE))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Sleep\",\"color\":\"" + "c".repeat(HealthAreaRequest.COLOR_MAX + 1)
+                                + "\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.color").exists());
 
@@ -150,15 +164,16 @@ class HealthAreaControllerTest {
         when(service.findById(userId, areaId))
                 .thenThrow(new ResourceNotFoundException("HealthArea not found: " + areaId));
 
-        mockMvc.perform(bearer(get(BASE + "/" + areaId)))
-                .andExpect(status().isNotFound());
+        mockMvc.perform(bearer(get(BASE + "/" + areaId))).andExpect(status().isNotFound());
     }
 
     @Test
     void GivenAValidBody_WhenAnAreaIsUpdated_ThenItAnswers200WithTheSavedArea() throws Exception {
         when(service.update(eq(userId), eq(areaId), any())).thenReturn(anArea());
 
-        mockMvc.perform(bearer(put(BASE + "/" + areaId)).contentType(MediaType.APPLICATION_JSON).content(BODY))
+        mockMvc.perform(bearer(put(BASE + "/" + areaId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(areaId.toString()));
     }
@@ -175,14 +190,21 @@ class HealthAreaControllerTest {
     @Test
     void GivenAnAreaOwnedBySomebodyElse_WhenItIsDeleted_ThenItAnswers404AndNothingIsDeleted() throws Exception {
         doThrow(new ResourceNotFoundException("HealthArea not found: " + areaId))
-                .when(service).delete(userId, areaId);
+                .when(service)
+                .delete(userId, areaId);
 
-        mockMvc.perform(bearer(delete(BASE + "/" + areaId)))
-                .andExpect(status().isNotFound());
+        mockMvc.perform(bearer(delete(BASE + "/" + areaId))).andExpect(status().isNotFound());
     }
 
     private HealthArea anArea() {
-        return HealthArea.builder().id(areaId).userId(userId).name("Sleep").description("Bed on time")
-                .priority(1).icon("🌙").color("#4B6BFB").build();
+        return HealthArea.builder()
+                .id(areaId)
+                .userId(userId)
+                .name("Sleep")
+                .description("Bed on time")
+                .priority(1)
+                .icon("🌙")
+                .color("#4B6BFB")
+                .build();
     }
 }

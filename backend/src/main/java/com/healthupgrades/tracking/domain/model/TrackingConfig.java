@@ -1,9 +1,8 @@
 package com.healthupgrades.tracking.domain.model;
 
 import jakarta.persistence.*;
-import lombok.*;
-
 import java.util.UUID;
+import lombok.*;
 
 /**
  * How one upgrade is tracked: the measurement type, how often it is expected, and the target to beat.

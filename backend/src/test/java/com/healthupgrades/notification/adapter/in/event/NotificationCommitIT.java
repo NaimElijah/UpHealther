@@ -1,5 +1,11 @@
 package com.healthupgrades.notification.adapter.in.event;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+
 import com.healthupgrades.common.domain.event.DomainEvent;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.notification.domain.model.Notification;
@@ -19,6 +25,12 @@ import com.healthupgrades.upgrade.domain.event.HealthUpgradePaused;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradePlanned;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import com.healthupgrades.user.application.port.in.UserCommand;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+import java.util.function.BiFunction;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -28,19 +40,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.support.TransactionTemplate;
-
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.UUID;
-import java.util.function.BiFunction;
-import java.util.stream.Stream;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 
 /**
  * NFR-49 and FR-32 against a real transaction manager: a notification raised by a write is stored and
@@ -63,23 +62,39 @@ import static org.mockito.Mockito.verify;
 @SpringBootTest
 class NotificationCommitIT extends PostgresIT {
 
-    @Autowired DomainEventPublisher eventPublisher;
-    @Autowired NotificationRepositoryPort notificationRepository;
-    @Autowired UpgradeRepositoryPort upgradeRepository;
-    @Autowired UserCommand userCommand;
-    @Autowired TransactionTemplate transactionTemplate;
+    @Autowired
+    DomainEventPublisher eventPublisher;
 
-    @MockitoBean NotificationPushPort pushPort;
+    @Autowired
+    NotificationRepositoryPort notificationRepository;
+
+    @Autowired
+    UpgradeRepositoryPort upgradeRepository;
+
+    @Autowired
+    UserCommand userCommand;
+
+    @Autowired
+    TransactionTemplate transactionTemplate;
+
+    @MockitoBean
+    NotificationPushPort pushPort;
 
     private UUID userId;
     private UUID upgradeId;
 
     @BeforeEach
     void anUpgradeOwnedByAFreshUser() {
-        userId = userCommand.save(
-                AUser.aUser().id(null).email(UUID.randomUUID() + "@example.com").build()).getId();
+        userId = userCommand
+                .save(AUser.aUser()
+                        .id(null)
+                        .email(UUID.randomUUID() + "@example.com")
+                        .build())
+                .getId();
         // Saved through the port rather than the service, so creating it raises no event of its own.
-        upgradeId = upgradeRepository.save(AnUpgrade.ownedBy(userId).id(null).build()).getId();
+        upgradeId = upgradeRepository
+                .save(AnUpgrade.ownedBy(userId).id(null).build())
+                .getId();
     }
 
     @ParameterizedTest(name = "{0}")
@@ -119,26 +134,42 @@ class NotificationCommitIT extends PostgresIT {
         LocalDateTime at = LocalDateTime.of(2026, 10, 11, 9, 0);
         LocalDate day = at.toLocalDate();
         return Stream.of(
-                raises("created", NotificationType.UPGRADE_CREATED,
+                raises(
+                        "created",
+                        NotificationType.UPGRADE_CREATED,
                         (upgrade, user) -> new HealthUpgradeCreated(upgrade, user, AnUpgrade.TITLE, at)),
-                raises("planned", NotificationType.UPGRADE_PLANNED,
+                raises(
+                        "planned",
+                        NotificationType.UPGRADE_PLANNED,
                         (upgrade, user) -> new HealthUpgradePlanned(upgrade, user, day, at)),
-                raises("activated", NotificationType.UPGRADE_ACTIVATED,
+                raises(
+                        "activated",
+                        NotificationType.UPGRADE_ACTIVATED,
                         (upgrade, user) -> new HealthUpgradeActivated(upgrade, user, day, at)),
-                raises("paused", NotificationType.UPGRADE_PAUSED,
+                raises(
+                        "paused",
+                        NotificationType.UPGRADE_PAUSED,
                         (upgrade, user) -> new HealthUpgradePaused(upgrade, user, at)),
-                raises("completed", NotificationType.UPGRADE_COMPLETED,
+                raises(
+                        "completed",
+                        NotificationType.UPGRADE_COMPLETED,
                         (upgrade, user) -> new HealthUpgradeCompleted(upgrade, user, at)),
-                raises("abandoned", NotificationType.UPGRADE_ABANDONED,
+                raises(
+                        "abandoned",
+                        NotificationType.UPGRADE_ABANDONED,
                         (upgrade, user) -> new HealthUpgradeAbandoned(upgrade, user, at)),
-                raises("streak", NotificationType.STREAK_ACHIEVED,
+                raises(
+                        "streak",
+                        NotificationType.STREAK_ACHIEVED,
                         (upgrade, user) -> new StreakAchieved(upgrade, user, 7, at)),
-                raises("reflection added", NotificationType.REFLECTION_ADDED,
+                raises(
+                        "reflection added",
+                        NotificationType.REFLECTION_ADDED,
                         (upgrade, user) -> new ReflectionAdded(UUID.randomUUID(), upgrade, user, at)));
     }
 
-    private static Arguments raises(String event, NotificationType expected,
-                                    BiFunction<UUID, UUID, DomainEvent> raised) {
+    private static Arguments raises(
+            String event, NotificationType expected, BiFunction<UUID, UUID, DomainEvent> raised) {
         return Arguments.of(event, expected, raised);
     }
 

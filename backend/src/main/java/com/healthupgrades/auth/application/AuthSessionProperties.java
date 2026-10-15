@@ -1,10 +1,9 @@
 package com.healthupgrades.auth.application;
 
 import jakarta.validation.constraints.NotNull;
+import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
-
-import java.time.Duration;
 
 /**
  * How long a session lives and how forgiving rotation is, bound from {@code app.auth.session} and
@@ -25,6 +24,4 @@ import java.time.Duration;
 public record AuthSessionProperties(
         @NotNull Duration idle,
         @NotNull Duration absolute,
-        @NotNull Duration rotationGrace
-) {
-}
+        @NotNull Duration rotationGrace) {}

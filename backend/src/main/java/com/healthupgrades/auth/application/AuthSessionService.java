@@ -1,5 +1,7 @@
 package com.healthupgrades.auth.application;
 
+import static net.logstash.logback.argument.StructuredArguments.keyValue;
+
 import com.healthupgrades.auth.application.port.in.SessionCommand;
 import com.healthupgrades.auth.application.port.in.SessionQuery;
 import com.healthupgrades.auth.domain.model.AuthSession;
@@ -10,17 +12,14 @@ import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
-
-import static net.logstash.logback.argument.StructuredArguments.keyValue;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Application service for server-side sessions: opening one, rotating its credential, and ending it.
@@ -69,8 +68,8 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
     public SessionGrant open(UUID userId) {
         UUID sessionId = UUID.randomUUID();
         RefreshToken token = new RefreshToken(sessionId, secrets.generate());
-        AuthSession session = AuthSession.opened(sessionId, userId, token.hash(), clock.instant(),
-                properties.idle(), properties.absolute());
+        AuthSession session = AuthSession.opened(
+                sessionId, userId, token.hash(), clock.instant(), properties.idle(), properties.absolute());
         sessions.save(session);
         return new SessionGrant(sessionId, token.value(), session.getAbsoluteExpiresAt());
     }
@@ -123,7 +122,8 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
             session.rotate(rotated.hash(), now, properties.idle());
             sessions.save(session);
             auditTrail.record(AuditEvent.allowed(AuditAction.AUTH_REFRESH, session.getUserId(), session.getId()));
-            return new RefreshOutcome.Rotated(session.getUserId(),
+            return new RefreshOutcome.Rotated(
+                    session.getUserId(),
                     new SessionGrant(session.getId(), rotated.value(), session.getAbsoluteExpiresAt()));
         }
         if (session.matchesPreviousWithin(presentedHash, now, properties.rotationGrace())) {
@@ -137,10 +137,12 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
             // after the grace window means two parties hold one session's credentials. Ids only — which
             // session and whose — because that is what an investigation needs and everything else about
             // it is personal data (NFR-6). The credential is never logged in any form.
-            log.warn("A superseded refresh credential was replayed; the session has been revoked {} {}",
-                    keyValue("sessionId", session.getId()), keyValue("userId", session.getUserId()));
-            auditTrail.record(new AuditEvent(AuditAction.AUTH_TOKEN_REUSE, session.getUserId(),
-                    session.getId(), AuditOutcome.REFUSED));
+            log.warn(
+                    "A superseded refresh credential was replayed; the session has been revoked {} {}",
+                    keyValue("sessionId", session.getId()),
+                    keyValue("userId", session.getUserId()));
+            auditTrail.record(new AuditEvent(
+                    AuditAction.AUTH_TOKEN_REUSE, session.getUserId(), session.getId(), AuditOutcome.REFUSED));
             return new RefreshOutcome.Rejected();
         }
         recordRefusal(AuditAction.AUTH_REFRESH, session, presentedHash);
@@ -225,8 +227,8 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
      */
     private void recordRefusal(AuditAction action, AuthSession session, byte[] presentedHash) {
         boolean issuedHere = session.matchesCurrent(presentedHash) || session.matchesPrevious(presentedHash);
-        auditTrail.record(new AuditEvent(action, issuedHere ? session.getUserId() : null, session.getId(),
-                AuditOutcome.REFUSED));
+        auditTrail.record(
+                new AuditEvent(action, issuedHere ? session.getUserId() : null, session.getId(), AuditOutcome.REFUSED));
     }
 
     /**

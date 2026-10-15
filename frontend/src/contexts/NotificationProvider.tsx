@@ -86,12 +86,18 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
    * Shows a notification as a toast: newest first, at most four at once, each auto-dismissed after six
    * seconds. The cap matters — a burst of notifications would otherwise cover the page.
    */
-  const pushToast = useCallback((n: AppNotification) => {
-    setToasts((prev) =>
-      [{ id: n.id, category: n.category, title: n.title, message: n.message, relatedUpgradeId: n.relatedUpgradeId }, ...prev].slice(0, 4),
-    );
-    window.setTimeout(() => dismissToast(n.id), 6000);
-  }, [dismissToast]);
+  const pushToast = useCallback(
+    (n: AppNotification) => {
+      setToasts((prev) =>
+        [
+          { id: n.id, category: n.category, title: n.title, message: n.message, relatedUpgradeId: n.relatedUpgradeId },
+          ...prev,
+        ].slice(0, 4),
+      );
+      window.setTimeout(() => dismissToast(n.id), 6000);
+    },
+    [dismissToast],
+  );
 
   /**
    * Handles a notification pushed over the socket: writes it into the cache, toasts it, and raises a
@@ -100,24 +106,27 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
    * The desktop notification is deliberately conditional on `document.hidden` — the toast already
    * covers the case where the user is looking at the page, and doing both would notify twice.
    */
-  const handleIncoming = useCallback((n: AppNotification) => {
-    // Prepend to the cached list (de-duped) so the bell/badge/list update live.
-    queryClient.setQueryData<AppNotification[]>(NOTIF_KEY, (old = []) =>
-      old.some((x) => x.id === n.id) ? old : [n, ...old],
-    );
-    // Read again rather than incremented: the count already fetched may include this notification.
-    queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
-    pushToast(n);
-    // OS/desktop notification only when the tab is backgrounded and permission was granted.
-    if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.hidden) {
-      const desktop = new Notification(n.title, { body: n.message ?? '' });
-      desktop.onclick = () => {
-        window.focus();
-        if (n.relatedUpgradeId) window.location.assign(`/upgrades/${n.relatedUpgradeId}`);
-        desktop.close();
-      };
-    }
-  }, [queryClient, pushToast]);
+  const handleIncoming = useCallback(
+    (n: AppNotification) => {
+      // Prepend to the cached list (de-duped) so the bell/badge/list update live.
+      queryClient.setQueryData<AppNotification[]>(NOTIF_KEY, (old = []) =>
+        old.some((x) => x.id === n.id) ? old : [n, ...old],
+      );
+      // Read again rather than incremented: the count already fetched may include this notification.
+      queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
+      pushToast(n);
+      // OS/desktop notification only when the tab is backgrounded and permission was granted.
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.hidden) {
+        const desktop = new Notification(n.title, { body: n.message ?? '' });
+        desktop.onclick = () => {
+          window.focus();
+          if (n.relatedUpgradeId) window.location.assign(`/upgrades/${n.relatedUpgradeId}`);
+          desktop.close();
+        };
+      }
+    },
+    [queryClient, pushToast],
+  );
 
   // STOMP connection lifecycle — connect while authenticated, disconnect on logout/unmount.
   // Reconnects every five seconds while the socket is down; nothing is lost meanwhile, since anything
@@ -184,10 +193,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
    * Cancelling also reverts the query to its state before that fetch; callers await it, as TanStack's
    * optimistic-update guide prescribes, so their write lands after the revert rather than under it.
    */
-  const cancelCountFetch = useCallback(
-    () => queryClient.cancelQueries({ queryKey: UNREAD_KEY }),
-    [queryClient],
-  );
+  const cancelCountFetch = useCallback(() => queryClient.cancelQueries({ queryKey: UNREAD_KEY }), [queryClient]);
 
   /**
    * Marks one notification read, updating the cache first and calling the API after.
@@ -200,28 +206,31 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
    * The count is also read again once the call succeeds, because the drop is a guess made from the list,
    * and the list can be older than the count: a push refreshes the count alone.
    */
-  const markRead = useCallback(async (id: string) => {
-    // Cleared when a write starts, not when one succeeds: a later success says nothing about an earlier
-    // write that was refused, which is unread again.
-    setActionError(undefined);
-    const wasUnread = queryClient.getQueryData<AppNotification[]>(NOTIF_KEY)?.some((n) => n.id === id && !n.read);
-    queryClient.setQueryData<AppNotification[]>(NOTIF_KEY, (old = []) =>
-      old.map((n) => (n.id === id ? { ...n, read: true } : n)),
-    );
-    if (wasUnread) {
-      await cancelCountFetch();
-      // A count never read is left unread rather than turned into an invented zero.
-      queryClient.setQueryData<number>(UNREAD_KEY, (old) => (old === undefined ? undefined : Math.max(0, old - 1)));
-    }
-    try {
-      await markNotificationRead(id);
-    } catch (thrown) {
-      setActionError(toApiError(thrown));
-      await queryClient.invalidateQueries({ queryKey: NOTIF_KEY });
-      return;
-    }
-    await queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
-  }, [queryClient, cancelCountFetch]);
+  const markRead = useCallback(
+    async (id: string) => {
+      // Cleared when a write starts, not when one succeeds: a later success says nothing about an earlier
+      // write that was refused, which is unread again.
+      setActionError(undefined);
+      const wasUnread = queryClient.getQueryData<AppNotification[]>(NOTIF_KEY)?.some((n) => n.id === id && !n.read);
+      queryClient.setQueryData<AppNotification[]>(NOTIF_KEY, (old = []) =>
+        old.map((n) => (n.id === id ? { ...n, read: true } : n)),
+      );
+      if (wasUnread) {
+        await cancelCountFetch();
+        // A count never read is left unread rather than turned into an invented zero.
+        queryClient.setQueryData<number>(UNREAD_KEY, (old) => (old === undefined ? undefined : Math.max(0, old - 1)));
+      }
+      try {
+        await markNotificationRead(id);
+      } catch (thrown) {
+        setActionError(toApiError(thrown));
+        await queryClient.invalidateQueries({ queryKey: NOTIF_KEY });
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
+    },
+    [queryClient, cancelCountFetch],
+  );
 
   /**
    * Marks every notification read, optimistically and with the same rollback-by-invalidation. The count
@@ -257,8 +266,15 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   return (
     <NotificationContext.Provider
       value={{
-        notifications, unreadCount, connected, desktopPermission, loadError, actionError,
-        markRead, markAllRead, requestDesktopPermission,
+        notifications,
+        unreadCount,
+        connected,
+        desktopPermission,
+        loadError,
+        actionError,
+        markRead,
+        markAllRead,
+        requestDesktopPermission,
       }}
     >
       {children}

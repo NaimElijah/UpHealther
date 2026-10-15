@@ -4,7 +4,6 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
-
 import java.time.LocalDate;
 
 /**
@@ -27,8 +26,7 @@ public record ProgressRequest(
         @PositiveOrZero Double numericValue,
         @Size(max = UNIT_MAX) String unit,
         @Min(1) @Max(5) Integer rating,
-        String note
-) {
+        String note) {
     /** Mirrors {@code progress_entries.unit VARCHAR(100)}; see BR-16 for why the bound is here. */
     public static final int UNIT_MAX = 100;
 }

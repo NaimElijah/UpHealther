@@ -1,7 +1,6 @@
 package com.healthupgrades.tracking.domain.port.out;
 
 import com.healthupgrades.tracking.domain.model.TrackingConfig; // the aggregate this port persists
-
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;

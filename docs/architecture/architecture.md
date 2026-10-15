@@ -447,10 +447,14 @@ Integration points a maintainer will need:
   different origins. The cron expressions are overridable per environment. `.env.example` lists them
   all with safe values.
 - **CI** — GitHub Actions on every push and PR to `main` and `dev`: the backend runs `./mvnw verify`,
+  which compiles under javac's lint with `-Werror`, every category but `processing` and `serial`
+  ([ADR-039](../ADRs/ADR-039-the-backend-compiles-under-javacs-lint-and-fails-on-a-warning.md)),
   whose integration tests start their own PostgreSQL through Testcontainers
-  ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)); the generated
-  diagrams are checked against their source; the frontend lints, tests, audits its shipped
-  dependencies and builds.
+  ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)), and which also
+  checks the Java layout ([ADR-037](../ADRs/ADR-037-the-backend-is-formatted-by-palantir-java-format-through-spotless.md));
+  the generated diagrams are checked against their source; the frontend checks its layout
+  ([ADR-038](../ADRs/ADR-038-the-frontend-is-formatted-by-prettier.md)), lints, tests, audits its
+  shipped dependencies and builds.
 
 ---
 

@@ -32,7 +32,10 @@ const LoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!email || !password) { setError('Please fill in all fields.'); return; }
+    if (!email || !password) {
+      setError('Please fill in all fields.');
+      return;
+    }
     setLoading(true);
     try {
       await login(email, password);

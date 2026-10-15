@@ -6,6 +6,7 @@ import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.common.security.SecurityUser;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -16,8 +17,6 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.stereotype.Component;
-
-import java.util.Optional;
 
 /**
  * Authenticates STOMP connections and authorises the frames that follow.
@@ -97,7 +96,9 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
             case CONNECT, STOMP -> accessor.setUser(authenticate(accessor));
             case SUBSCRIBE -> authoriseSubscription(accessor);
             case SEND -> refuse("a SEND, which no server-side mapping receives");
-            default -> { /* UNSUBSCRIBE, DISCONNECT, ACK, NACK and the transaction frames name nothing */ }
+            default -> {
+                /* UNSUBSCRIBE, DISCONNECT, ACK, NACK and the transaction frames name nothing */
+            }
         }
         return message;
     }

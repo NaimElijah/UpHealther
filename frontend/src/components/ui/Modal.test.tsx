@@ -73,13 +73,7 @@ const WithTrigger: React.FC<{ removeTriggerOnClose?: boolean }> = ({ removeTrigg
   const [triggerGone, setTriggerGone] = useState(false);
   return (
     <>
-      {!triggerGone && (
-        <button
-          onClick={() => setOpen(true)}
-        >
-          Open
-        </button>
-      )}
+      {!triggerGone && <button onClick={() => setOpen(true)}>Open</button>}
       <Modal
         isOpen={open}
         onClose={() => {

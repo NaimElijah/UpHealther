@@ -16,10 +16,11 @@ vi.mock('../api/client', async () => {
     REQUESTED_WITH: 'X-Requested-With',
     // Stands in for the real renewal: on success it installs a fresh token, which is what the
     // socket's beforeConnect hook then reads.
-    renewSession: () => Promise.resolve(renewSession()).then((ok) => {
-      if (ok) tokenStore.setAccessToken('renewed.jwt.token', '2099-01-01T00:00:00Z');
-      return ok;
-    }),
+    renewSession: () =>
+      Promise.resolve(renewSession()).then((ok) => {
+        if (ok) tokenStore.setAccessToken('renewed.jwt.token', '2099-01-01T00:00:00Z');
+        return ok;
+      }),
   };
 });
 
@@ -145,8 +146,15 @@ const OTHER: AppNotification = { ...PUSHED, id: 'n-2', title: 'Streak reached' }
 
 function Probe() {
   const {
-    notifications, unreadCount, connected, desktopPermission, loadError, actionError,
-    markRead, markAllRead, requestDesktopPermission,
+    notifications,
+    unreadCount,
+    connected,
+    desktopPermission,
+    loadError,
+    actionError,
+    markRead,
+    markAllRead,
+    requestDesktopPermission,
   } = useNotifications();
   return (
     <div>
@@ -376,10 +384,20 @@ describe('NotificationProvider', () => {
     let staleAnswer: (count: number) => void = () => {};
     getUnreadCount
       .mockResolvedValueOnce(73)
-      .mockImplementationOnce(() => new Promise<number>((resolve) => { staleAnswer = resolve; }))
+      .mockImplementationOnce(
+        () =>
+          new Promise<number>((resolve) => {
+            staleAnswer = resolve;
+          }),
+      )
       .mockResolvedValue(72);
     let confirmRead: () => void = () => {};
-    markNotificationRead.mockImplementation(() => new Promise<void>((resolve) => { confirmRead = resolve; }));
+    markNotificationRead.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          confirmRead = resolve;
+        }),
+    );
     renderProvider();
     await waitFor(() => expect(screen.getByTestId('unread').textContent).toBe('73'));
     act(() => lastClient?.connect());
@@ -448,7 +466,9 @@ describe('NotificationProvider', () => {
   // without a word.
 
   it('GivenTheListCannotBeFetched_WhenTheProviderMounts_ThenItExposesWhyWithTheReference', async () => {
-    getNotifications.mockRejectedValue(apiFailure(500, { status: 500, message: 'Internal server error', traceId: 'trace-101' }));
+    getNotifications.mockRejectedValue(
+      apiFailure(500, { status: 500, message: 'Internal server error', traceId: 'trace-101' }),
+    );
 
     renderProvider();
 
@@ -457,7 +477,9 @@ describe('NotificationProvider', () => {
 
   it('GivenTheServerRefusesAReadAll_WhenItFails_ThenItExposesWhyWithTheReference', async () => {
     getNotifications.mockResolvedValue([PUSHED]);
-    markAllNotificationsRead.mockRejectedValue(apiFailure(500, { status: 500, message: 'Internal server error', traceId: 'trace-102' }));
+    markAllNotificationsRead.mockRejectedValue(
+      apiFailure(500, { status: 500, message: 'Internal server error', traceId: 'trace-102' }),
+    );
     renderProvider();
     await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('1'));
 
@@ -488,8 +510,18 @@ describe('NotificationProvider', () => {
     let refuseFirst: (reason: unknown) => void = () => {};
     let acceptSecond: () => void = () => {};
     markNotificationRead
-      .mockImplementationOnce(() => new Promise((_, reject) => { refuseFirst = reject; }))
-      .mockImplementationOnce(() => new Promise<void>((resolve) => { acceptSecond = resolve; }));
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            refuseFirst = reject;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            acceptSecond = resolve;
+          }),
+      );
     renderProvider();
     await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('2'));
     act(() => screen.getByRole('button', { name: 'Mark read' }).click());

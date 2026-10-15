@@ -12,8 +12,4 @@ import java.util.List;
  * @param days null or empty means every day
  * @param enabled null leaves an existing reminder's state alone and creates new ones enabled
  */
-public record ReminderSchedule(
-        LocalTime reminderTime,
-        List<String> days,
-        Boolean enabled
-) {}
+public record ReminderSchedule(LocalTime reminderTime, List<String> days, Boolean enabled) {}

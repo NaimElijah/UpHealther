@@ -1,8 +1,5 @@
 package com.healthupgrades.common.ratelimit;
 
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
-
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -11,6 +8,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
 /**
  * Counts attempts per client, in fixed windows, in this process's memory.

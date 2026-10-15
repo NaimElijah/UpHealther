@@ -4,6 +4,8 @@ import io.micrometer.tracing.Span;
 import io.micrometer.tracing.TraceContext;
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.propagation.Propagator;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
@@ -13,9 +15,6 @@ import org.springframework.messaging.support.ExecutorChannelInterceptor;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.stereotype.Component;
-
-import java.util.ArrayDeque;
-import java.util.Deque;
 
 /**
  * Gives every STOMP frame a trace id, on both threads that touch it.
@@ -150,6 +149,5 @@ public class StompTracingChannelInterceptor implements ExecutorChannelIntercepto
         return accessor.getCommand() == null ? "MESSAGE" : accessor.getCommand().name();
     }
 
-    private record Scope(Span span, Tracer.SpanInScope inScope) {
-    }
+    private record Scope(Span span, Tracer.SpanInScope inScope) {}
 }

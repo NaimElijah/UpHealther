@@ -1,14 +1,13 @@
 package com.healthupgrades.tracking.adapter.in.web;
 
-import com.healthupgrades.tracking.application.TrackingService;
 import com.healthupgrades.common.security.SecurityUser;
+import com.healthupgrades.tracking.application.TrackingService;
 import jakarta.validation.Valid;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.UUID;
 
 /**
  * REST adapter for an upgrade's tracking configuration — how its progress is measured and what counts
@@ -42,8 +41,8 @@ public class TrackingConfigController {
             @AuthenticationPrincipal SecurityUser principal,
             @PathVariable UUID upgradeId,
             @Valid @RequestBody TrackingConfigRequest req) {
-        return ResponseEntity.ok(mapper.toDto(
-                trackingService.saveConfig(principal.getId(), upgradeId, mapper.toDetails(req))));
+        return ResponseEntity.ok(
+                mapper.toDto(trackingService.saveConfig(principal.getId(), upgradeId, mapper.toDetails(req))));
     }
 
     /**
@@ -58,8 +57,7 @@ public class TrackingConfigController {
      */
     @GetMapping
     public ResponseEntity<TrackingConfigDto> getConfig(
-            @AuthenticationPrincipal SecurityUser principal,
-            @PathVariable UUID upgradeId) {
+            @AuthenticationPrincipal SecurityUser principal, @PathVariable UUID upgradeId) {
         return ResponseEntity.ok(mapper.toDto(trackingService.getConfig(principal.getId(), upgradeId)));
     }
 }

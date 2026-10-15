@@ -1,22 +1,21 @@
 package com.healthupgrades.auth;
 
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.healthupgrades.auth.adapter.in.web.RefreshCookies;
 import com.healthupgrades.support.PostgresIT;
-import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.test.context.TestPropertySource;
-
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Optional;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.test.context.TestPropertySource;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * The session lifecycle over a real socket: sign in, refresh, replay, sign out.
@@ -147,8 +146,8 @@ class AuthSessionFlowIT extends PostgresIT {
 
     private HttpResponse<String> register() throws Exception {
         String email = "flow-" + UUID.randomUUID() + "@example.com";
-        String payload = json.writeValueAsString(java.util.Map.of(
-                "name", "Someone", "email", email, "password", PASSWORD));
+        String payload =
+                json.writeValueAsString(java.util.Map.of("name", "Someone", "email", email, "password", PASSWORD));
         return send(request("/api/auth/register")
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(payload)));
@@ -188,7 +187,9 @@ class AuthSessionFlowIT extends PostgresIT {
 
     private static String setCookie(HttpResponse<String> response) {
         Optional<String> header = response.headers().firstValue("Set-Cookie");
-        assertThat(header).as("the response was expected to set the refresh cookie").isPresent();
+        assertThat(header)
+                .as("the response was expected to set the refresh cookie")
+                .isPresent();
         return header.orElseThrow();
     }
 

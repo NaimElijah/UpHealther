@@ -138,10 +138,12 @@ describe('DailyCheckinPage', () => {
   });
 
   it('GivenANumericUpgrade_WhenAValueIsEntered_ThenTheEntryCarriesItAsANumber', async () => {
-    getUpgrades.mockResolvedValue([anUpgrade({
-      id: 'a',
-      trackingConfig: { trackingType: 'NUMERIC', targetUnit: 'steps' } as HealthUpgrade['trackingConfig'],
-    })]);
+    getUpgrades.mockResolvedValue([
+      anUpgrade({
+        id: 'a',
+        trackingConfig: { trackingType: 'NUMERIC', targetUnit: 'steps' } as HealthUpgrade['trackingConfig'],
+      }),
+    ]);
     renderPage();
     await waitFor(() => expect(screen.getByText('steps')).toBeDefined());
 
@@ -155,10 +157,12 @@ describe('DailyCheckinPage', () => {
   it('GivenANumericFieldThatIsClearedAgain_WhenTheFormIsSubmitted_ThenNoValueIsSentRatherThanNaN', async () => {
     // parseFloat('') is NaN, which serialises to null and would be read as "logged nothing" instead of
     // "did not log".
-    getUpgrades.mockResolvedValue([anUpgrade({
-      id: 'a',
-      trackingConfig: { trackingType: 'NUMERIC', targetUnit: 'steps' } as HealthUpgrade['trackingConfig'],
-    })]);
+    getUpgrades.mockResolvedValue([
+      anUpgrade({
+        id: 'a',
+        trackingConfig: { trackingType: 'NUMERIC', targetUnit: 'steps' } as HealthUpgrade['trackingConfig'],
+      }),
+    ]);
     renderPage();
     await waitFor(() => expect(screen.getByText('steps')).toBeDefined());
 
@@ -171,10 +175,12 @@ describe('DailyCheckinPage', () => {
   });
 
   it('GivenARatingUpgrade_WhenAScoreIsChosen_ThenTheEntryCarriesIt', async () => {
-    getUpgrades.mockResolvedValue([anUpgrade({
-      id: 'a',
-      trackingConfig: { trackingType: 'RATING' } as HealthUpgrade['trackingConfig'],
-    })]);
+    getUpgrades.mockResolvedValue([
+      anUpgrade({
+        id: 'a',
+        trackingConfig: { trackingType: 'RATING' } as HealthUpgrade['trackingConfig'],
+      }),
+    ]);
     renderPage();
     await waitFor(() => expect(screen.getByRole('button', { name: '4' })).toBeDefined());
 
@@ -215,7 +221,9 @@ describe('DailyCheckinPage', () => {
   // rendered as "No active upgrades" and a failed submit was an unhandled rejection that showed nothing.
 
   it('GivenTheActiveUpgradesCannotBeLoaded_WhenTheCheckinIsOpened_ThenItSaysSoWithTheReferenceRatherThanNothingToTrack', async () => {
-    getUpgrades.mockRejectedValue(apiFailure(500, { status: 500, message: 'Internal server error', traceId: 'trace-91' }));
+    getUpgrades.mockRejectedValue(
+      apiFailure(500, { status: 500, message: 'Internal server error', traceId: 'trace-91' }),
+    );
 
     renderPage();
 
@@ -253,7 +261,9 @@ describe('DailyCheckinPage', () => {
     getUpgrades.mockResolvedValue([anUpgrade({ id: 'a' }), anUpgrade({ id: 'b', title: 'Evening walk' })]);
     createProgress
       .mockResolvedValueOnce({})
-      .mockRejectedValueOnce(apiFailure(409, { status: 409, message: 'Progress already recorded for date: 2026-03-15' }));
+      .mockRejectedValueOnce(
+        apiFailure(409, { status: 409, message: 'Progress already recorded for date: 2026-03-15' }),
+      );
     renderPage(queryClient);
     await screen.findByText('Evening walk');
 

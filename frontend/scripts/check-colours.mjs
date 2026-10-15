@@ -27,8 +27,28 @@ const SRC = join(FRONTEND, 'src');
 const HTML_SHELL = join(FRONTEND, 'index.html');
 
 const PALETTE = [
-  'slate', 'gray', 'zinc', 'neutral', 'stone', 'red', 'orange', 'amber', 'yellow', 'lime', 'green',
-  'emerald', 'teal', 'cyan', 'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose',
+  'slate',
+  'gray',
+  'zinc',
+  'neutral',
+  'stone',
+  'red',
+  'orange',
+  'amber',
+  'yellow',
+  'lime',
+  'green',
+  'emerald',
+  'teal',
+  'cyan',
+  'sky',
+  'blue',
+  'indigo',
+  'violet',
+  'purple',
+  'fuchsia',
+  'pink',
+  'rose',
 ].join('|');
 
 /**
@@ -37,7 +57,8 @@ const PALETTE = [
  * `border-t-blue-600` is in here deliberately: `LoadingSpinner` used exactly that shape, and a pattern
  * anchored on `border-blue-600` walks straight past it.
  */
-const PREFIX = '(?:bg|text|border|ring|ring-offset|divide|placeholder|from|via|to|decoration|outline|accent|caret|shadow|fill|stroke)(?:-[trblxyse])?';
+const PREFIX =
+  '(?:bg|text|border|ring|ring-offset|divide|placeholder|from|via|to|decoration|outline|accent|caret|shadow|fill|stroke)(?:-[trblxyse])?';
 
 const NUMBERED = new RegExp(`\\b${PREFIX}-(?:${PALETTE})-\\d{2,3}\\b`, 'g');
 const NAMED = new RegExp(`\\b${PREFIX}-(?:white|black)\\b`, 'g');
@@ -58,9 +79,7 @@ const findings = compiledFiles().flatMap((path) =>
     .split('\n')
     .flatMap((line, index) => {
       const hits = [...line.matchAll(NUMBERED), ...line.matchAll(NAMED)].map((m) => m[0]);
-      return hits.length
-        ? [`${relative(FRONTEND, path)}:${index + 1}  ${[...new Set(hits)].join(', ')}`]
-        : [];
+      return hits.length ? [`${relative(FRONTEND, path)}:${index + 1}  ${[...new Set(hits)].join(', ')}`] : [];
     }),
 );
 

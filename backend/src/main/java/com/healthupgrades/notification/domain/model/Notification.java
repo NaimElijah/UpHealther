@@ -1,10 +1,9 @@
 package com.healthupgrades.notification.domain.model;
 
 import jakarta.persistence.*;
-import lombok.*;
-
 import java.time.LocalDateTime;
 import java.util.UUID;
+import lombok.*;
 
 /**
  * A message raised for a user by the system.

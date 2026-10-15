@@ -45,8 +45,8 @@ public class ErrorBodySecurityHandlers implements AuthenticationEntryPoint, Acce
      * token's request anonymous rather than failing it, so the header is the only trace of it left.
      */
     @Override
-    public void commence(HttpServletRequest request, HttpServletResponse response,
-                         AuthenticationException authException) {
+    public void commence(
+            HttpServletRequest request, HttpServletResponse response, AuthenticationException authException) {
         String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
         AuthenticationRequiredException refusal = authorization != null && authorization.startsWith(BEARER_PREFIX)
                 ? AuthenticationRequiredException.rejectedToken()
@@ -56,8 +56,8 @@ public class ErrorBodySecurityHandlers implements AuthenticationEntryPoint, Acce
 
     /** Answers an authenticated request that is not allowed what it asked for; mapped to 403 as is. */
     @Override
-    public void handle(HttpServletRequest request, HttpServletResponse response,
-                       AccessDeniedException accessDeniedException) {
+    public void handle(
+            HttpServletRequest request, HttpServletResponse response, AccessDeniedException accessDeniedException) {
         resolver.resolveException(request, response, null, accessDeniedException);
     }
 }

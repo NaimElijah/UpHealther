@@ -1,7 +1,15 @@
 package com.healthupgrades.common.security;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.healthupgrades.support.AUser;
 import jakarta.servlet.FilterChain;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,15 +20,6 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
  * Pins the filter's contract: it never rejects. A request with no token, a malformed header or an
@@ -38,8 +37,11 @@ class JwtAuthenticationFilterTest {
 
     private static final String TOKEN = "a.valid.token";
 
-    @Mock BearerTokenAuthenticator authenticator;
-    @Mock FilterChain chain;
+    @Mock
+    BearerTokenAuthenticator authenticator;
+
+    @Mock
+    FilterChain chain;
 
     private JwtAuthenticationFilter filter;
     private MockHttpServletRequest request;

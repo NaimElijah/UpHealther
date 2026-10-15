@@ -15,5 +15,4 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 @EnableConfigurationProperties({AuthSessionProperties.class, RefreshCookieProperties.class})
-public class AuthConfiguration {
-}
+public class AuthConfiguration {}

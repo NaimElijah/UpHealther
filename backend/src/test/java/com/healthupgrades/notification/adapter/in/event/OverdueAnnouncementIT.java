@@ -1,5 +1,7 @@
 package com.healthupgrades.notification.adapter.in.event;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.healthupgrades.notification.application.NotificationService;
 import com.healthupgrades.notification.domain.model.Notification;
 import com.healthupgrades.notification.domain.model.NotificationCategory;
@@ -12,27 +14,24 @@ import com.healthupgrades.support.PostgresIT;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.event.UpgradeOverdueDetected;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
-
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
  * BR-11 end to end: an overdue upgrade is announced once per target date it misses.
@@ -57,26 +56,46 @@ class OverdueAnnouncementIT extends PostgresIT {
     /** The first sweep after the moved target date passed, and the instant the clock is fixed at. */
     private static final Instant SWEEP_AFTER_MOVED_TARGET = Instant.parse("2026-10-11T08:00:00Z");
 
-    @Autowired NotificationEventListener listener;
-    @Autowired NotificationRepositoryPort repository;
-    @Autowired TestEntityManager entityManager;
+    @Autowired
+    NotificationEventListener listener;
 
-    @MockitoBean UpgradeQuery upgradeQuery;
-    @MockitoBean NotificationPushPort pushPort;
+    @Autowired
+    NotificationRepositoryPort repository;
+
+    @Autowired
+    TestEntityManager entityManager;
+
+    @MockitoBean
+    UpgradeQuery upgradeQuery;
+
+    @MockitoBean
+    NotificationPushPort pushPort;
 
     private UUID userId;
     private UUID upgradeId;
 
     @BeforeEach
     void anUpgradeAlreadyAnnouncedForItsFirstTargetDate() {
-        userId = entityManager.persistAndFlush(
-                AUser.aUser().id(null).email("overdue-" + UUID.randomUUID() + "@example.com").build()).getId();
-        upgradeId = entityManager.persistAndFlush(
-                AnUpgrade.ownedBy(userId).id(null).status(UpgradeStatus.ACTIVE).build()).getId();
+        userId = entityManager
+                .persistAndFlush(AUser.aUser()
+                        .id(null)
+                        .email("overdue-" + UUID.randomUUID() + "@example.com")
+                        .build())
+                .getId();
+        upgradeId = entityManager
+                .persistAndFlush(AnUpgrade.ownedBy(userId)
+                        .id(null)
+                        .status(UpgradeStatus.ACTIVE)
+                        .build())
+                .getId();
         repository.save(Notification.builder()
-                .userId(userId).relatedUpgradeId(upgradeId).type(NotificationType.UPGRADE_OVERDUE)
-                .category(NotificationCategory.WARNING).title("Upgrade overdue ⏰")
-                .createdAt(FIRST_NOTICE_SENT).build());
+                .userId(userId)
+                .relatedUpgradeId(upgradeId)
+                .type(NotificationType.UPGRADE_OVERDUE)
+                .category(NotificationCategory.WARNING)
+                .title("Upgrade overdue ⏰")
+                .createdAt(FIRST_NOTICE_SENT)
+                .build());
         entityManager.flush();
     }
 
@@ -103,8 +122,8 @@ class OverdueAnnouncementIT extends PostgresIT {
     }
 
     private UpgradeOverdueDetected overdue(LocalDate targetEndDate) {
-        return new UpgradeOverdueDetected(upgradeId, userId, targetEndDate,
-                LocalDateTime.ofInstant(SWEEP_AFTER_MOVED_TARGET, ZoneOffset.UTC));
+        return new UpgradeOverdueDetected(
+                upgradeId, userId, targetEndDate, LocalDateTime.ofInstant(SWEEP_AFTER_MOVED_TARGET, ZoneOffset.UTC));
     }
 
     private long overdueNotices() {

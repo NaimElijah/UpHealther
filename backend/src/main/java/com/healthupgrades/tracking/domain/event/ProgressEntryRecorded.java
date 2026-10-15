@@ -1,7 +1,6 @@
 package com.healthupgrades.tracking.domain.event;
 
 import com.healthupgrades.common.domain.event.DomainEvent;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -18,4 +17,6 @@ import java.util.UUID;
  * @param date       the day the entry is for, which need not be the day it was logged
  * @param occurredAt when the entry was recorded
  */
-public record ProgressEntryRecorded(UUID progressId, UUID upgradeId, UUID userId, LocalDate date, LocalDateTime occurredAt) implements DomainEvent {}
+public record ProgressEntryRecorded(
+        UUID progressId, UUID upgradeId, UUID userId, LocalDate date, LocalDateTime occurredAt)
+        implements DomainEvent {}

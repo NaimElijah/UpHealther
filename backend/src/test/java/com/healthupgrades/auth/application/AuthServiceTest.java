@@ -1,6 +1,17 @@
 package com.healthupgrades.auth.application;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.healthupgrades.auth.application.port.in.SessionCommand;
+import com.healthupgrades.common.domain.audit.AuditAction;
+import com.healthupgrades.common.domain.audit.AuditEvent;
+import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.security.IssuedAccessToken;
 import com.healthupgrades.common.security.JwtTokenProvider;
@@ -10,6 +21,9 @@ import com.healthupgrades.user.application.port.in.UserCommand;
 import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.EmailAlreadyRegisteredException;
 import com.healthupgrades.user.domain.model.User;
+import java.time.Instant;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,26 +33,11 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationServiceException;
-import com.healthupgrades.common.domain.audit.AuditAction;
-import com.healthupgrades.common.domain.audit.AuditEvent;
-import com.healthupgrades.common.domain.audit.AuditOutcome;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
-import java.time.Instant;
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
  * Covers the two ways into an authenticated session and the profile read behind them:
@@ -64,11 +63,20 @@ class AuthServiceTest {
             "6b1f0f4c-9a2d-4c3e-9b7a-1d2e3f4a5b6c.a-secret",
             Instant.parse("2026-10-16T10:15:00Z"));
 
-    @Mock UserQuery userQuery;
-    @Mock UserCommand userCommand;
-    @Mock JwtTokenProvider tokenProvider;
-    @Mock AuthenticationManager authenticationManager;
-    @Mock SessionCommand sessions;
+    @Mock
+    UserQuery userQuery;
+
+    @Mock
+    UserCommand userCommand;
+
+    @Mock
+    JwtTokenProvider tokenProvider;
+
+    @Mock
+    AuthenticationManager authenticationManager;
+
+    @Mock
+    SessionCommand sessions;
 
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
@@ -78,8 +86,8 @@ class AuthServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AuthService(userQuery, userCommand, passwordEncoder, tokenProvider,
-                authenticationManager, sessions, auditTrail);
+        service = new AuthService(
+                userQuery, userCommand, passwordEncoder, tokenProvider, authenticationManager, sessions, auditTrail);
         // Opening a session is a precondition of every successful sign-in here, and the subject
         // of none of them - AuthSessionServiceTest is where that behaviour is pinned. Lenient,
         // so the refusal tests are not failed for a stub they never reach.
@@ -146,8 +154,8 @@ class AuthServiceTest {
                 .hasMessage("That email is already registered");
 
         verify(tokenProvider, never()).issue(any(), any());
-        assertThat(auditTrail.only(AuditAction.AUTH_REGISTER)).hasValue(
-                new AuditEvent(AuditAction.AUTH_REGISTER, null, null, AuditOutcome.REFUSED));
+        assertThat(auditTrail.only(AuditAction.AUTH_REGISTER))
+                .hasValue(new AuditEvent(AuditAction.AUTH_REGISTER, null, null, AuditOutcome.REFUSED));
     }
 
     @Test
@@ -199,8 +207,7 @@ class AuthServiceTest {
     void GivenCredentialsThatDoNotMatch_WhenTheUserLogsIn_ThenNoTokenIsIssued() {
         when(authenticationManager.authenticate(any())).thenThrow(new BadCredentialsException("Bad credentials"));
 
-        assertThatThrownBy(() -> service.login(AUser.EMAIL, "wrong"))
-                .isInstanceOf(BadCredentialsException.class);
+        assertThatThrownBy(() -> service.login(AUser.EMAIL, "wrong")).isInstanceOf(BadCredentialsException.class);
 
         verify(tokenProvider, never()).issue(any(), any());
     }
@@ -214,23 +221,22 @@ class AuthServiceTest {
 
         service.login(AUser.EMAIL, RAW_PASSWORD);
 
-        assertThat(auditTrail.only(AuditAction.AUTH_LOGIN)).hasValue(
-                new AuditEvent(AuditAction.AUTH_LOGIN, user.getId(), user.getId(), AuditOutcome.ALLOWED));
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGIN))
+                .hasValue(new AuditEvent(AuditAction.AUTH_LOGIN, user.getId(), user.getId(), AuditOutcome.ALLOWED));
     }
 
     @Test
     void GivenCredentialsThatDoNotMatch_WhenTheUserLogsIn_ThenTheRefusalIsAuditedWithNoSubject() {
         when(authenticationManager.authenticate(any())).thenThrow(new BadCredentialsException("Bad credentials"));
 
-        assertThatThrownBy(() -> service.login(AUser.EMAIL, "wrong"))
-                .isInstanceOf(BadCredentialsException.class);
+        assertThatThrownBy(() -> service.login(AUser.EMAIL, "wrong")).isInstanceOf(BadCredentialsException.class);
 
         // Deliberately subject-less. The submitted email is personal data (NFR-6) and naming a user id
         // would confirm the account exists, which is what handleBadCredentials refuses to do on the
         // wire. What is left is a rate signal and a trace id — the honest limit of auditing an
         // anonymous endpoint, and the reason this is asserted rather than left to a reader's goodwill.
-        assertThat(auditTrail.only(AuditAction.AUTH_LOGIN)).hasValue(
-                new AuditEvent(AuditAction.AUTH_LOGIN, null, null, AuditOutcome.REFUSED));
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGIN))
+                .hasValue(new AuditEvent(AuditAction.AUTH_LOGIN, null, null, AuditOutcome.REFUSED));
     }
 
     @Test
@@ -243,7 +249,8 @@ class AuthServiceTest {
         assertThatThrownBy(() -> service.login(AUser.EMAIL, RAW_PASSWORD))
                 .isInstanceOf(AuthenticationServiceException.class);
 
-        assertThat(auditTrail.recorded(AuditAction.AUTH_LOGIN, AuditOutcome.FAILED)).isTrue();
+        assertThat(auditTrail.recorded(AuditAction.AUTH_LOGIN, AuditOutcome.FAILED))
+                .isTrue();
     }
 
     @Test
@@ -253,7 +260,8 @@ class AuthServiceTest {
         // one event twice, differently, is a trail nobody can total.
         when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
         when(userCommand.register(any())).thenAnswer(AuthServiceTest::persisted);
-        when(tokenProvider.issue(any(UUID.class), any(UUID.class))).thenThrow(new IllegalStateException("secret too short"));
+        when(tokenProvider.issue(any(UUID.class), any(UUID.class)))
+                .thenThrow(new IllegalStateException("secret too short"));
 
         assertThatThrownBy(() -> service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD))
                 .isInstanceOf(IllegalStateException.class);
@@ -267,11 +275,12 @@ class AuthServiceTest {
     @Test
     void GivenTokenIssuingFails_WhenTheUserLogsIn_ThenTheAttemptIsAuditedOnceAndNotTwice() {
         when(authenticationManager.authenticate(any())).thenReturn(authenticated());
-        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(AUser.aUser().build()));
-        when(tokenProvider.issue(any(UUID.class), any(UUID.class))).thenThrow(new IllegalStateException("secret too short"));
+        when(userQuery.findByEmail(AUser.EMAIL))
+                .thenReturn(Optional.of(AUser.aUser().build()));
+        when(tokenProvider.issue(any(UUID.class), any(UUID.class)))
+                .thenThrow(new IllegalStateException("secret too short"));
 
-        assertThatThrownBy(() -> service.login(AUser.EMAIL, RAW_PASSWORD))
-                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> service.login(AUser.EMAIL, RAW_PASSWORD)).isInstanceOf(IllegalStateException.class);
 
         assertThat(auditTrail.recorded())
                 .filteredOn(event -> event.action() == AuditAction.AUTH_LOGIN)
@@ -286,8 +295,8 @@ class AuthServiceTest {
         assertThatThrownBy(() -> service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD))
                 .isInstanceOf(BusinessRuleException.class);
 
-        assertThat(auditTrail.only(AuditAction.AUTH_REGISTER)).hasValue(
-                new AuditEvent(AuditAction.AUTH_REGISTER, null, null, AuditOutcome.REFUSED));
+        assertThat(auditTrail.only(AuditAction.AUTH_REGISTER))
+                .hasValue(new AuditEvent(AuditAction.AUTH_REGISTER, null, null, AuditOutcome.REFUSED));
     }
 
     @Test
@@ -297,8 +306,7 @@ class AuthServiceTest {
         when(authenticationManager.authenticate(any())).thenReturn(authenticated());
         when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.login(AUser.EMAIL, RAW_PASSWORD))
-                .isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> service.login(AUser.EMAIL, RAW_PASSWORD)).isInstanceOf(BusinessRuleException.class);
 
         verify(tokenProvider, never()).issue(any(), any());
     }
@@ -326,8 +334,7 @@ class AuthServiceTest {
         UUID gone = UUID.randomUUID();
         when(userQuery.findById(gone)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.getMe(gone))
-                .isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> service.getMe(gone)).isInstanceOf(BusinessRuleException.class);
     }
 
     /**

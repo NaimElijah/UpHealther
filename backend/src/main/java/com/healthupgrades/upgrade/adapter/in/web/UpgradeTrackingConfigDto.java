@@ -17,5 +17,4 @@ public record UpgradeTrackingConfigDto(
         String frequency,
         Double targetNumericValue,
         String targetUnit,
-        Boolean requiredDaily
-) {}
+        Boolean requiredDaily) {}

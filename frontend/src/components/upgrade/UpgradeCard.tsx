@@ -38,7 +38,14 @@ interface Props {
  * complete a running one, resume a paused one. Offering only the legal moves is what keeps a user from
  * meeting a 422 they could not have predicted.
  */
-const UpgradeCard: React.FC<Props> = ({ upgrade, onStatusChange, onPlan, showActions = true, refusal, busy = false }) => {
+const UpgradeCard: React.FC<Props> = ({
+  upgrade,
+  onStatusChange,
+  onPlan,
+  showActions = true,
+  refusal,
+  busy = false,
+}) => {
   const navigate = useNavigate();
 
   return (
@@ -51,9 +58,7 @@ const UpgradeCard: React.FC<Props> = ({ upgrade, onStatusChange, onPlan, showAct
           >
             {upgrade.title}
           </h3>
-          {upgrade.description && (
-            <p className="text-sm text-fg-subtle mt-1 line-clamp-2">{upgrade.description}</p>
-          )}
+          {upgrade.description && <p className="text-sm text-fg-subtle mt-1 line-clamp-2">{upgrade.description}</p>}
         </div>
       </div>
       <div className="flex flex-wrap gap-2 mt-3">
@@ -77,7 +82,12 @@ const UpgradeCard: React.FC<Props> = ({ upgrade, onStatusChange, onPlan, showAct
           )}
           {upgrade.status === 'ACTIVE' && (
             <>
-              <Button size="sm" variant="secondary" disabled={busy} onClick={() => onStatusChange(upgrade.id, 'PAUSED')}>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={busy}
+                onClick={() => onStatusChange(upgrade.id, 'PAUSED')}
+              >
                 Pause
               </Button>
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => onStatusChange(upgrade.id, 'COMPLETED')}>

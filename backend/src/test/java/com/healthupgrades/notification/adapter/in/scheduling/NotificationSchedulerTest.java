@@ -1,9 +1,20 @@
 package com.healthupgrades.notification.adapter.in.scheduling;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
+
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.healthupgrades.common.observability.JobMetrics;
 import com.healthupgrades.notification.domain.model.NotificationType;
 import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort;
 import com.healthupgrades.reminder.application.port.in.ReminderQuery;
@@ -12,19 +23,7 @@ import com.healthupgrades.tracking.application.port.in.ProgressQuery;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
-import com.healthupgrades.common.observability.JobMetrics;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.transaction.CannotCreateTransactionException;
-
 import java.sql.SQLIntegrityConstraintViolationException;
 import java.time.Clock;
 import java.time.Instant;
@@ -35,16 +34,16 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowable;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.CannotCreateTransactionException;
 
 /**
  * Covers FR-30 (a user with active upgrades and nothing logged is nudged once a day), FR-31 (a
@@ -59,11 +58,20 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class NotificationSchedulerTest {
 
-    @Mock UpgradeQuery upgradeQuery;
-    @Mock ProgressQuery progressQuery;
-    @Mock ReminderQuery reminderQuery;
-    @Mock NotificationRepositoryPort notificationRepository;
-    @Mock com.healthupgrades.notification.application.NotificationService notificationService;
+    @Mock
+    UpgradeQuery upgradeQuery;
+
+    @Mock
+    ProgressQuery progressQuery;
+
+    @Mock
+    ReminderQuery reminderQuery;
+
+    @Mock
+    NotificationRepositoryPort notificationRepository;
+
+    @Mock
+    com.healthupgrades.notification.application.NotificationService notificationService;
 
     // Fixed clock -> deterministic time-based scheduling (09:00 UTC on a Wednesday).
     private final Clock fixedClock = Clock.fixed(Instant.parse("2026-06-24T09:00:00Z"), ZoneOffset.UTC);
@@ -77,12 +85,12 @@ class NotificationSchedulerTest {
     private final UUID upgradeId = UUID.randomUUID();
 
     /** The WARN a reminder that outlived its upgrade raises; see {@code dispatchReminders}. */
-    private static final Predicate<ILoggingEvent> ORPHANED_WARNING = event -> event.getLevel() == Level.WARN
-            && event.getFormattedMessage().contains("reminder.orphaned");
+    private static final Predicate<ILoggingEvent> ORPHANED_WARNING = event ->
+            event.getLevel() == Level.WARN && event.getFormattedMessage().contains("reminder.orphaned");
 
     /** The WARN a notification that could not be created raises; see {@code Deliveries}. */
-    private static final Predicate<ILoggingEvent> CREATE_FAILED_WARNING = event -> event.getLevel() == Level.WARN
-            && event.getFormattedMessage().contains("notification.create-failed");
+    private static final Predicate<ILoggingEvent> CREATE_FAILED_WARNING = event ->
+            event.getLevel() == Level.WARN && event.getFormattedMessage().contains("notification.create-failed");
 
     /** The run's own INFO line: what the sweep found and what it did. */
     private static final Predicate<ILoggingEvent> RUN_LINE = event -> event.getLevel() == Level.INFO;
@@ -102,27 +110,44 @@ class NotificationSchedulerTest {
 
     @BeforeEach
     void setUp() {
-        scheduler = new NotificationScheduler(upgradeQuery, progressQuery, reminderQuery,
-                notificationRepository, notificationService, jobMetrics, fixedClock);
+        scheduler = new NotificationScheduler(
+                upgradeQuery,
+                progressQuery,
+                reminderQuery,
+                notificationRepository,
+                notificationService,
+                jobMetrics,
+                fixedClock);
     }
 
     @Test
     void GivenAReminderDueNow_WhenRemindersAreDispatched_ThenItsOwnerIsNotified() {
         // Reminder time matches the fixed clock (09:00); no day filter -> due now.
-        Reminder reminder = Reminder.builder().id(UUID.randomUUID()).upgradeId(upgradeId)
-                .reminderTime(LocalTime.of(9, 0)).daysOfWeek(null).enabled(true).build();
+        Reminder reminder = Reminder.builder()
+                .id(UUID.randomUUID())
+                .upgradeId(upgradeId)
+                .reminderTime(LocalTime.of(9, 0))
+                .daysOfWeek(null)
+                .enabled(true)
+                .build();
         when(reminderQuery.findEnabled()).thenReturn(List.of(reminder));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
 
         scheduler.dispatchReminders();
 
-        verify(notificationService).create(eq(userId), eq(NotificationType.REMINDER), any(), any(), any(), eq(upgradeId));
+        verify(notificationService)
+                .create(eq(userId), eq(NotificationType.REMINDER), any(), any(), any(), eq(upgradeId));
     }
 
     @Test
     void GivenNoReminderIsDue_WhenRemindersAreDispatched_ThenNobodyIsNotified() {
-        Reminder reminder = Reminder.builder().id(UUID.randomUUID()).upgradeId(upgradeId)
-                .reminderTime(LocalTime.of(7, 30)).daysOfWeek(null).enabled(true).build();
+        Reminder reminder = Reminder.builder()
+                .id(UUID.randomUUID())
+                .upgradeId(upgradeId)
+                .reminderTime(LocalTime.of(7, 30))
+                .daysOfWeek(null)
+                .enabled(true)
+                .build();
         when(reminderQuery.findEnabled()).thenReturn(List.of(reminder));
 
         scheduler.dispatchReminders();
@@ -139,8 +164,8 @@ class NotificationSchedulerTest {
 
         scheduler.notifyDailyCheckin();
 
-        verify(notificationService).create(eq(userId), eq(NotificationType.CHECKIN_REMINDER),
-                any(), any(), any(), eq(null));
+        verify(notificationService)
+                .create(eq(userId), eq(NotificationType.CHECKIN_REMINDER), any(), any(), any(), eq(null));
     }
 
     @Test
@@ -171,16 +196,16 @@ class NotificationSchedulerTest {
         // user who had something running.
         UUID nudgedAlready = UUID.randomUUID();
         UUID loggedAlready = UUID.randomUUID();
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(
-                activeUpgradeOf(nudgedAlready), activeUpgradeOf(loggedAlready), activeUpgrade()));
+        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
+                .thenReturn(List.of(activeUpgradeOf(nudgedAlready), activeUpgradeOf(loggedAlready), activeUpgrade()));
         guards(Set.of(nudgedAlready), Set.of(loggedAlready));
 
         scheduler.notifyDailyCheckin();
 
         verify(notificationRepository, times(1)).findUserIdsNotifiedAfter(any(), any());
         verify(progressQuery, times(1)).findUserIdsWithEntriesOn(any());
-        verify(notificationService).create(eq(userId), eq(NotificationType.CHECKIN_REMINDER),
-                any(), any(), any(), eq(null));
+        verify(notificationService)
+                .create(eq(userId), eq(NotificationType.CHECKIN_REMINDER), any(), any(), any(), eq(null));
         verifyNoMoreInteractions(notificationService);
     }
 
@@ -203,7 +228,8 @@ class NotificationSchedulerTest {
 
         scheduler.notifyDailyCheckin();
 
-        verify(notificationRepository).findUserIdsNotifiedAfter(NotificationType.CHECKIN_REMINDER, TODAY.atStartOfDay());
+        verify(notificationRepository)
+                .findUserIdsNotifiedAfter(NotificationType.CHECKIN_REMINDER, TODAY.atStartOfDay());
         verify(progressQuery).findUserIdsWithEntriesOn(TODAY);
     }
 
@@ -212,8 +238,13 @@ class NotificationSchedulerTest {
     @Test
     void GivenAReminderDueAtThisTimeButOnAnotherDay_WhenRemindersAreDispatched_ThenNobodyIsNotified() {
         // The fixed clock is a Wednesday; this reminder only fires on Mondays.
-        Reminder reminder = Reminder.builder().id(UUID.randomUUID()).upgradeId(upgradeId)
-                .reminderTime(LocalTime.of(9, 0)).daysOfWeek("MON").enabled(true).build();
+        Reminder reminder = Reminder.builder()
+                .id(UUID.randomUUID())
+                .upgradeId(upgradeId)
+                .reminderTime(LocalTime.of(9, 0))
+                .daysOfWeek("MON")
+                .enabled(true)
+                .build();
         when(reminderQuery.findEnabled()).thenReturn(List.of(reminder));
 
         scheduler.dispatchReminders();
@@ -224,15 +255,20 @@ class NotificationSchedulerTest {
 
     @Test
     void GivenAReminderDueOnThisDay_WhenRemindersAreDispatched_ThenItsOwnerIsNotified() {
-        Reminder reminder = Reminder.builder().id(UUID.randomUUID()).upgradeId(upgradeId)
-                .reminderTime(LocalTime.of(9, 0)).daysOfWeek("WED").enabled(true).build();
+        Reminder reminder = Reminder.builder()
+                .id(UUID.randomUUID())
+                .upgradeId(upgradeId)
+                .reminderTime(LocalTime.of(9, 0))
+                .daysOfWeek("WED")
+                .enabled(true)
+                .build();
         when(reminderQuery.findEnabled()).thenReturn(List.of(reminder));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
 
         scheduler.dispatchReminders();
 
-        verify(notificationService).create(eq(userId), eq(NotificationType.REMINDER), any(), any(), any(),
-                eq(upgradeId));
+        verify(notificationService)
+                .create(eq(userId), eq(NotificationType.REMINDER), any(), any(), any(), eq(upgradeId));
     }
 
     @Test
@@ -240,13 +276,21 @@ class NotificationSchedulerTest {
         // NFR-14. This sweep runs every minute; a lookup per reminder is the cost that grows with the
         // number of users.
         UUID otherUpgradeId = UUID.randomUUID();
-        when(reminderQuery.findEnabled()).thenReturn(List.of(
-                Reminder.builder().id(UUID.randomUUID()).upgradeId(upgradeId)
-                        .reminderTime(LocalTime.of(9, 0)).enabled(true).build(),
-                Reminder.builder().id(UUID.randomUUID()).upgradeId(otherUpgradeId)
-                        .reminderTime(LocalTime.of(9, 0)).enabled(true).build()));
-        when(upgradeQuery.findAllById(List.of(upgradeId, otherUpgradeId)))
-                .thenReturn(List.of(activeUpgrade()));
+        when(reminderQuery.findEnabled())
+                .thenReturn(List.of(
+                        Reminder.builder()
+                                .id(UUID.randomUUID())
+                                .upgradeId(upgradeId)
+                                .reminderTime(LocalTime.of(9, 0))
+                                .enabled(true)
+                                .build(),
+                        Reminder.builder()
+                                .id(UUID.randomUUID())
+                                .upgradeId(otherUpgradeId)
+                                .reminderTime(LocalTime.of(9, 0))
+                                .enabled(true)
+                                .build()));
+        when(upgradeQuery.findAllById(List.of(upgradeId, otherUpgradeId))).thenReturn(List.of(activeUpgrade()));
 
         scheduler.dispatchReminders();
 
@@ -257,9 +301,13 @@ class NotificationSchedulerTest {
     void GivenADueReminderWhoseUpgradeHasBeenDeleted_WhenRemindersAreDispatched_ThenItIsSkippedRatherThanFailing() {
         // A reminder can outlive its upgrade. Dereferencing the missing one would throw inside a
         // scheduled job, where nothing is waiting to handle it.
-        when(reminderQuery.findEnabled()).thenReturn(List.of(
-                Reminder.builder().id(UUID.randomUUID()).upgradeId(upgradeId)
-                        .reminderTime(LocalTime.of(9, 0)).enabled(true).build()));
+        when(reminderQuery.findEnabled())
+                .thenReturn(List.of(Reminder.builder()
+                        .id(UUID.randomUUID())
+                        .upgradeId(upgradeId)
+                        .reminderTime(LocalTime.of(9, 0))
+                        .enabled(true)
+                        .build()));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of());
 
         List<ILoggingEvent> logged = logsFromScheduler(scheduler::dispatchReminders);
@@ -294,7 +342,8 @@ class NotificationSchedulerTest {
         List<ILoggingEvent> logged = logsFromScheduler(scheduler::dispatchReminders);
 
         assertThat(logged).noneMatch(ORPHANED_WARNING);
-        assertThat(logged).filteredOn(event -> event.getLevel() == Level.INFO)
+        assertThat(logged)
+                .filteredOn(event -> event.getLevel() == Level.INFO)
                 .singleElement()
                 .extracting(ILoggingEvent::getFormattedMessage)
                 .asString()
@@ -314,8 +363,8 @@ class NotificationSchedulerTest {
 
         catchThrowable(scheduler::dispatchReminders);
 
-        verify(notificationService, times(2)).create(eq(userId), eq(NotificationType.REMINDER), any(), any(), any(),
-                eq(upgradeId));
+        verify(notificationService, times(2))
+                .create(eq(userId), eq(NotificationType.REMINDER), any(), any(), any(), eq(upgradeId));
     }
 
     @Test
@@ -337,7 +386,8 @@ class NotificationSchedulerTest {
     void GivenADueReminderFailsToSave_WhenRemindersAreDispatched_ThenTheRunIsCountedFailed() {
         when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder()));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
-        when(notificationService.create(any(), any(), any(), any(), any(), any())).thenThrow(saveFailure());
+        when(notificationService.create(any(), any(), any(), any(), any(), any()))
+                .thenThrow(saveFailure());
 
         catchThrowable(scheduler::dispatchReminders);
 
@@ -352,16 +402,22 @@ class NotificationSchedulerTest {
         Reminder reminder = dueReminder();
         when(reminderQuery.findEnabled()).thenReturn(List.of(reminder));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
-        when(notificationService.create(any(), any(), any(), any(), any(), any())).thenThrow(saveFailure());
+        when(notificationService.create(any(), any(), any(), any(), any(), any()))
+                .thenThrow(saveFailure());
 
         List<ILoggingEvent> logged = logsFromScheduler(() -> catchThrowable(scheduler::dispatchReminders));
 
-        List<ILoggingEvent> warnings = logged.stream().filter(CREATE_FAILED_WARNING).toList();
+        List<ILoggingEvent> warnings =
+                logged.stream().filter(CREATE_FAILED_WARNING).toList();
         assertThat(warnings).hasSize(1);
         ILoggingEvent warning = warnings.get(0);
         assertThat(warning.getFormattedMessage())
-                .contains("job=notification.reminder-dispatch", "reminderId=" + reminder.getId(),
-                        "upgradeId=" + upgradeId, "userId=" + userId, "exception=DataIntegrityViolationException")
+                .contains(
+                        "job=notification.reminder-dispatch",
+                        "reminderId=" + reminder.getId(),
+                        "upgradeId=" + upgradeId,
+                        "userId=" + userId,
+                        "exception=DataIntegrityViolationException")
                 .doesNotContain("Meditate", "violates");
         assertThat(warning.getThrowableProxy()).isNull();
     }
@@ -374,16 +430,19 @@ class NotificationSchedulerTest {
         when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder()));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
         when(notificationService.create(any(), any(), any(), any(), any(), any()))
-                .thenThrow(new DataIntegrityViolationException("could not execute statement",
+                .thenThrow(new DataIntegrityViolationException(
+                        "could not execute statement",
                         new SQLIntegrityConstraintViolationException("Failing row contains (Meditate)")));
 
         List<ILoggingEvent> logged = logsFromScheduler(() -> catchThrowable(scheduler::dispatchReminders));
 
-        assertThat(logged).filteredOn(CREATE_FAILED_WARNING)
+        assertThat(logged)
+                .filteredOn(CREATE_FAILED_WARNING)
                 .singleElement()
                 .extracting(ILoggingEvent::getFormattedMessage)
                 .asString()
-                .contains("exception=DataIntegrityViolationException",
+                .contains(
+                        "exception=DataIntegrityViolationException",
                         "rootCause=SQLIntegrityConstraintViolationException")
                 .doesNotContain("Meditate", "Failing row");
     }
@@ -399,7 +458,8 @@ class NotificationSchedulerTest {
 
         List<ILoggingEvent> logged = logsFromScheduler(() -> catchThrowable(scheduler::dispatchReminders));
 
-        assertThat(logged).filteredOn(RUN_LINE)
+        assertThat(logged)
+                .filteredOn(RUN_LINE)
                 .singleElement()
                 .extracting(ILoggingEvent::getFormattedMessage)
                 .asString()
@@ -411,7 +471,8 @@ class NotificationSchedulerTest {
         UUID deletedUpgradeId = UUID.randomUUID();
         when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder(), dueReminderOn(deletedUpgradeId)));
         when(upgradeQuery.findAllById(List.of(upgradeId, deletedUpgradeId))).thenReturn(List.of(activeUpgrade()));
-        when(notificationService.create(any(), any(), any(), any(), any(), any())).thenThrow(saveFailure());
+        when(notificationService.create(any(), any(), any(), any(), any(), any()))
+                .thenThrow(saveFailure());
 
         List<ILoggingEvent> logged = logsFromScheduler(() -> catchThrowable(scheduler::dispatchReminders));
 
@@ -422,8 +483,8 @@ class NotificationSchedulerTest {
     void GivenThreeAdjacentRemindersFailToSave_WhenRemindersAreDispatched_ThenTheOnesAfterThemAreStillFired() {
         // Bad rows can sit next to each other - nothing orders the sweep - and however many there are,
         // they are a fact about those rows, not about the database. Only an outage stops the sweep.
-        when(reminderQuery.findEnabled()).thenReturn(
-                List.of(dueReminder(), dueReminder(), dueReminder(), dueReminder()));
+        when(reminderQuery.findEnabled())
+                .thenReturn(List.of(dueReminder(), dueReminder(), dueReminder(), dueReminder()));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
         when(notificationService.create(any(), any(), any(), any(), any(), any()))
                 .thenThrow(saveFailure())
@@ -434,7 +495,8 @@ class NotificationSchedulerTest {
         List<ILoggingEvent> logged = logsFromScheduler(() -> catchThrowable(scheduler::dispatchReminders));
 
         verify(notificationService, times(4)).create(any(), any(), any(), any(), any(), any());
-        assertThat(logged).filteredOn(RUN_LINE)
+        assertThat(logged)
+                .filteredOn(RUN_LINE)
                 .singleElement()
                 .extracting(ILoggingEvent::getFormattedMessage)
                 .asString()
@@ -465,12 +527,14 @@ class NotificationSchedulerTest {
         // reminder run past its minute.
         when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder(), dueReminder(), dueReminder()));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
-        when(notificationService.create(any(), any(), any(), any(), any(), any())).thenThrow(unreachable());
+        when(notificationService.create(any(), any(), any(), any(), any(), any()))
+                .thenThrow(unreachable());
 
         List<ILoggingEvent> logged = logsFromScheduler(() -> catchThrowable(scheduler::dispatchReminders));
 
         verify(notificationService, times(1)).create(any(), any(), any(), any(), any(), any());
-        assertThat(logged).filteredOn(RUN_LINE)
+        assertThat(logged)
+                .filteredOn(RUN_LINE)
                 .singleElement()
                 .extracting(ILoggingEvent::getFormattedMessage)
                 .asString()
@@ -479,15 +543,17 @@ class NotificationSchedulerTest {
 
     @Test
     void GivenTheDatabaseCannotBeReached_WhenTheCheckinSweepRuns_ThenTheSweepStopsAtTheFirstSuchFailure() {
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgradeOf(UUID.randomUUID()),
-                activeUpgrade()));
+        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
+                .thenReturn(List.of(activeUpgradeOf(UUID.randomUUID()), activeUpgrade()));
         guards(Set.of(), Set.of());
-        when(notificationService.create(any(), any(), any(), any(), any(), any())).thenThrow(unreachable());
+        when(notificationService.create(any(), any(), any(), any(), any(), any()))
+                .thenThrow(unreachable());
 
         List<ILoggingEvent> logged = logsFromScheduler(() -> catchThrowable(scheduler::notifyDailyCheckin));
 
         verify(notificationService, times(1)).create(any(), any(), any(), any(), any(), any());
-        assertThat(logged).filteredOn(RUN_LINE)
+        assertThat(logged)
+                .filteredOn(RUN_LINE)
                 .singleElement()
                 .extracting(ILoggingEvent::getFormattedMessage)
                 .asString()
@@ -497,16 +563,16 @@ class NotificationSchedulerTest {
     @Test
     void GivenOneUsersNudgeFailsToSave_WhenTheCheckinSweepRuns_ThenTheOthersAreStillNudgedAndTheRunFails() {
         UUID failing = UUID.randomUUID();
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgradeOf(failing),
-                activeUpgrade()));
+        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
+                .thenReturn(List.of(activeUpgradeOf(failing), activeUpgrade()));
         guards(Set.of(), Set.of());
         RuntimeException failure = saveFailure();
         nudgeFailsFor(failing, failure);
 
         Throwable thrown = catchThrowable(scheduler::notifyDailyCheckin);
 
-        verify(notificationService).create(eq(userId), eq(NotificationType.CHECKIN_REMINDER), any(), any(), any(),
-                eq(null));
+        verify(notificationService)
+                .create(eq(userId), eq(NotificationType.CHECKIN_REMINDER), any(), any(), any(), eq(null));
         assertThat(thrown).isSameAs(failure);
         assertThat(runs("failed")).isEqualTo(1);
     }
@@ -514,19 +580,21 @@ class NotificationSchedulerTest {
     @Test
     void GivenANudgeFailsToSave_WhenTheCheckinSweepRuns_ThenTheRunLineCountsItFailed() {
         UUID failing = UUID.randomUUID();
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgradeOf(failing),
-                activeUpgrade()));
+        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
+                .thenReturn(List.of(activeUpgradeOf(failing), activeUpgrade()));
         guards(Set.of(), Set.of());
         nudgeFailsFor(failing, saveFailure());
 
         List<ILoggingEvent> logged = logsFromScheduler(() -> catchThrowable(scheduler::notifyDailyCheckin));
 
-        assertThat(logged).filteredOn(CREATE_FAILED_WARNING)
+        assertThat(logged)
+                .filteredOn(CREATE_FAILED_WARNING)
                 .singleElement()
                 .extracting(ILoggingEvent::getFormattedMessage)
                 .asString()
                 .contains("job=notification.daily-checkin", "userId=" + failing);
-        assertThat(logged).filteredOn(RUN_LINE)
+        assertThat(logged)
+                .filteredOn(RUN_LINE)
                 .singleElement()
                 .extracting(ILoggingEvent::getFormattedMessage)
                 .asString()
@@ -539,20 +607,28 @@ class NotificationSchedulerTest {
     }
 
     private Reminder dueReminderOn(UUID upgrade) {
-        return Reminder.builder().id(UUID.randomUUID()).upgradeId(upgrade)
-                .reminderTime(LocalTime.of(9, 0)).enabled(true).build();
+        return Reminder.builder()
+                .id(UUID.randomUUID())
+                .upgradeId(upgrade)
+                .reminderTime(LocalTime.of(9, 0))
+                .enabled(true)
+                .build();
     }
 
     /** How many runs of either job ended with {@code outcome}. */
     private double runs(String outcome) {
-        return meterRegistry.find("scheduled.job.runs")
-                .tag("outcome", outcome).counters().stream()
+        return meterRegistry.find("scheduled.job.runs").tag("outcome", outcome).counters().stream()
                 .mapToDouble(counter -> counter.count())
                 .sum();
     }
 
     private HealthUpgrade upgradeIn(UpgradeStatus status) {
-        return HealthUpgrade.builder().id(upgradeId).userId(userId).title("Meditate").status(status).build();
+        return HealthUpgrade.builder()
+                .id(upgradeId)
+                .userId(userId)
+                .title("Meditate")
+                .status(status)
+                .build();
     }
 
     private HealthUpgrade activeUpgrade() {
@@ -560,8 +636,12 @@ class NotificationSchedulerTest {
     }
 
     private HealthUpgrade activeUpgradeOf(UUID owner) {
-        return HealthUpgrade.builder().id(UUID.randomUUID()).userId(owner).title("Stretch")
-                .status(UpgradeStatus.ACTIVE).build();
+        return HealthUpgrade.builder()
+                .id(UUID.randomUUID())
+                .userId(owner)
+                .title("Stretch")
+                .status(UpgradeStatus.ACTIVE)
+                .build();
     }
 
     /**
@@ -573,8 +653,10 @@ class NotificationSchedulerTest {
      * failed save whenever the map happened to reach {@link #userId} first.
      */
     private void nudgeFailsFor(UUID failing, RuntimeException failure) {
-        when(notificationService.create(eq(failing), any(), any(), any(), any(), any())).thenThrow(failure);
-        when(notificationService.create(eq(userId), any(), any(), any(), any(), any())).thenReturn(null);
+        when(notificationService.create(eq(failing), any(), any(), any(), any(), any()))
+                .thenThrow(failure);
+        when(notificationService.create(eq(userId), any(), any(), any(), any(), any()))
+                .thenReturn(null);
     }
 
     /** Stubs the check-in sweep's two guards: who was nudged since midnight, and who logged today. */

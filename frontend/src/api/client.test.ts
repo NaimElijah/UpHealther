@@ -180,9 +180,7 @@ describe('the shared API client', () => {
 
     it('GivenAServerRefusingEverything_WhenARequestIs401Twice_ThenItIsNotRetriedForever', async () => {
       setAccessToken('expired.jwt.token', '2099-01-01T00:00:00Z');
-      withAdapter((config) =>
-        config.url === '/api/auth/refresh' ? ok(config, RENEWED) : rejection(config, 401),
-      );
+      withAdapter((config) => (config.url === '/api/auth/refresh' ? ok(config, RENEWED) : rejection(config, 401)));
 
       await expect(client.get('/api/upgrades')).rejects.toMatchObject({ response: { status: 401 } });
 

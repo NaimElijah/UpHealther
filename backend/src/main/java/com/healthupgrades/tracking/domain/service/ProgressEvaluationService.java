@@ -1,7 +1,7 @@
 package com.healthupgrades.tracking.domain.service;
+
 import com.healthupgrades.tracking.domain.model.ProgressEntry;
 import com.healthupgrades.tracking.domain.model.TrackingConfig;
-
 import java.util.Locale;
 
 /**
@@ -25,10 +25,11 @@ public class ProgressEvaluationService {
         // The success rule depends on how this upgrade is tracked.
         return switch (config.getTrackingType()) {
             case BOOLEAN -> Boolean.TRUE.equals(entry.getCompleted());
-            case NUMERIC -> entry.getNumericValue() != null
-                    && config.getTargetNumericValue() != null
-                    && unitsAreComparable(entry.getUnit(), config.getTargetUnit())
-                    && entry.getNumericValue() >= config.getTargetNumericValue();
+            case NUMERIC ->
+                entry.getNumericValue() != null
+                        && config.getTargetNumericValue() != null
+                        && unitsAreComparable(entry.getUnit(), config.getTargetUnit())
+                        && entry.getNumericValue() >= config.getTargetNumericValue();
             // 3 is the midpoint of the one-to-five scale: an average day counts, a bad one does not.
             case RATING -> entry.getRating() != null && entry.getRating() >= 3;
             case TEXT -> entry.getNote() != null && !entry.getNote().isBlank();

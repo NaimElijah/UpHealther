@@ -1,5 +1,17 @@
 package com.healthupgrades.admin.adapter.in.web;
 
+import static com.healthupgrades.support.WebSliceSupport.bearer;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import com.healthupgrades.admin.application.AccountPage;
 import com.healthupgrades.admin.application.port.in.AdminUserCommand;
 import com.healthupgrades.admin.application.port.in.AdminUserQuery;
@@ -13,28 +25,15 @@ import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.WebSliceSupport;
 import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User;
+import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-
-import java.util.List;
-import java.util.UUID;
-
-import static com.healthupgrades.support.WebSliceSupport.bearer;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * The HTTP contract of account administration, and the wall around it.
@@ -55,18 +54,25 @@ class AdminUserControllerTest {
     private static final UUID ADMIN_ID = UUID.fromString("0f2c8f5a-2a4e-4a1d-8f0a-3c5b9d1e77a1");
     private static final UUID TARGET_ID = UUID.fromString("6b1f0f4c-9a2d-4c3e-9b7a-1d2e3f4a5b6c");
 
-    @Autowired MockMvc mockMvc;
+    @Autowired
+    MockMvc mockMvc;
 
-    @MockitoBean AdminUserQuery adminUserQuery;
-    @MockitoBean AdminUserCommand adminUserCommand;
-    @MockitoBean BearerTokenAuthenticator authenticator;
-    @MockitoBean UserDetailsServiceImpl userDetailsService;
+    @MockitoBean
+    AdminUserQuery adminUserQuery;
+
+    @MockitoBean
+    AdminUserCommand adminUserCommand;
+
+    @MockitoBean
+    BearerTokenAuthenticator authenticator;
+
+    @MockitoBean
+    UserDetailsServiceImpl userDetailsService;
 
     @Test
     void GivenAnAdministrator_WhenAccountsAreListed_ThenItAnswers200WithThePageAndItsTotal() throws Exception {
         asAdmin();
-        when(adminUserQuery.list(0, 25))
-                .thenReturn(new AccountPage(List.of(AUser.withId(TARGET_ID)), 0, 25, 137L));
+        when(adminUserQuery.list(0, 25)).thenReturn(new AccountPage(List.of(AUser.withId(TARGET_ID)), 0, 25, 137L));
 
         mockMvc.perform(bearer(get("/api/admin/users")))
                 .andExpect(status().isOk())
@@ -78,8 +84,7 @@ class AdminUserControllerTest {
     }
 
     @Test
-    void GivenAnOrdinaryUser_WhenAccountsAreListed_ThenItIsRefusedAs403AndTheServiceIsNotCalled()
-            throws Exception {
+    void GivenAnOrdinaryUser_WhenAccountsAreListed_ThenItIsRefusedAs403AndTheServiceIsNotCalled() throws Exception {
         // The wall, and the assertion that matters as much as the status: the refusal happens before
         // any account is read, not after.
         WebSliceSupport.authenticateAs(authenticator, ADMIN_ID, Role.USER);
@@ -95,13 +100,11 @@ class AdminUserControllerTest {
     void GivenNoToken_WhenAccountsAreListed_ThenItIsRefusedAs401RatherThan403() throws Exception {
         // 401, not 403: nobody has identified themselves yet, so "sign in" is the honest answer and the
         // one the SPA reacts to.
-        mockMvc.perform(get("/api/admin/users"))
-                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/admin/users")).andExpect(status().isUnauthorized());
     }
 
     @Test
-    void GivenAnAdministrator_WhenAnAccountIsDisabled_ThenItAnswers200WithTheAccountSwitchedOff()
-            throws Exception {
+    void GivenAnAdministrator_WhenAnAccountIsDisabled_ThenItAnswers200WithTheAccountSwitchedOff() throws Exception {
         asAdmin();
         User disabled = AUser.withId(TARGET_ID);
         disabled.disable();
@@ -113,8 +116,7 @@ class AdminUserControllerTest {
     }
 
     @Test
-    void GivenAnAdministrator_WhenAnAccountIsEnabled_ThenItAnswers200WithTheAccountSwitchedOn()
-            throws Exception {
+    void GivenAnAdministrator_WhenAnAccountIsEnabled_ThenItAnswers200WithTheAccountSwitchedOn() throws Exception {
         asAdmin();
         when(adminUserCommand.enable(ADMIN_ID, TARGET_ID)).thenReturn(AUser.withId(TARGET_ID));
 
@@ -162,8 +164,7 @@ class AdminUserControllerTest {
     @Test
     void GivenAnAccountThatDoesNotExist_WhenItIsDisabled_ThenTheRefusalSurfacesAs404() throws Exception {
         asAdmin();
-        when(adminUserCommand.disable(eq(ADMIN_ID), any()))
-                .thenThrow(new ResourceNotFoundException("User not found"));
+        when(adminUserCommand.disable(eq(ADMIN_ID), any())).thenThrow(new ResourceNotFoundException("User not found"));
 
         mockMvc.perform(bearer(post("/api/admin/users/" + UUID.randomUUID() + "/disable")))
                 .andExpect(status().isNotFound());
@@ -175,8 +176,7 @@ class AdminUserControllerTest {
         // account table — a slow query, and a generous thing to hand anybody holding an admin token.
         asAdmin();
 
-        mockMvc.perform(bearer(get("/api/admin/users").param("size", "1000")))
-                .andExpect(status().isBadRequest());
+        mockMvc.perform(bearer(get("/api/admin/users").param("size", "1000"))).andExpect(status().isBadRequest());
 
         verify(adminUserQuery, never()).list(anyPage(), anyPage());
     }

@@ -2,9 +2,8 @@ package com.healthupgrades.healtharea.adapter.in.web;
 
 import com.healthupgrades.healtharea.application.port.in.HealthAreaDetails;
 import com.healthupgrades.healtharea.domain.model.HealthArea;
-import org.springframework.stereotype.Component;
-
 import java.util.List;
+import org.springframework.stereotype.Component;
 
 /**
  * Translates between this context's HTTP shapes and the shapes its use cases speak.
@@ -22,8 +21,16 @@ public class HealthAreaWebMapper {
 
     /** Domain object to its response record. */
     public HealthAreaDto toDto(HealthArea a) {
-        return new HealthAreaDto(a.getId(), a.getUserId(), a.getName(), a.getDescription(),
-                a.getPriority(), a.getIcon(), a.getColor(), a.getCreatedAt(), a.getUpdatedAt());
+        return new HealthAreaDto(
+                a.getId(),
+                a.getUserId(),
+                a.getName(),
+                a.getDescription(),
+                a.getPriority(),
+                a.getIcon(),
+                a.getColor(),
+                a.getCreatedAt(),
+                a.getUpdatedAt());
     }
 
     /** Batch variant of {@link #toDto(HealthArea)}. */

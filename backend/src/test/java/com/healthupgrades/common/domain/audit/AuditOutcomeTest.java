@@ -1,13 +1,13 @@
 package com.healthupgrades.common.domain.audit;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.healthupgrades.common.domain.exception.AuthenticationRequiredException;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.exception.DuplicateProgressException;
 import com.healthupgrades.common.domain.exception.OptimisticLockException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import org.junit.jupiter.api.Test;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Pins the line between "the system said no" and "the system broke".

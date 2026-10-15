@@ -3,20 +3,19 @@ package com.healthupgrades.reflection.application;
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
-import com.healthupgrades.reflection.domain.event.ReflectionAdded;
 import com.healthupgrades.reflection.application.port.in.ReflectionDetails;
+import com.healthupgrades.reflection.domain.event.ReflectionAdded;
 import com.healthupgrades.reflection.domain.model.Reflection;
 import com.healthupgrades.reflection.domain.port.out.ReflectionRepositoryPort;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Use cases for reflections: write one against an upgrade, and read an upgrade's history of them.

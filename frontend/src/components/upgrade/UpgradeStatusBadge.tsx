@@ -8,7 +8,10 @@ interface Props {
 }
 
 /** Status to colour and label. Green for running, red for abandoned, neutral for an untouched idea. */
-const statusMap: Record<UpgradeStatus, { variant: 'green' | 'yellow' | 'blue' | 'red' | 'gray' | 'purple'; label: string }> = {
+const statusMap: Record<
+  UpgradeStatus,
+  { variant: 'green' | 'yellow' | 'blue' | 'red' | 'gray' | 'purple'; label: string }
+> = {
   IDEA: { variant: 'gray', label: 'Idea' },
   PLANNED: { variant: 'blue', label: 'Planned' },
   ACTIVE: { variant: 'green', label: 'Active' },

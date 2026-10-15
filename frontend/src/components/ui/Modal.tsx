@@ -200,10 +200,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
 
   return createPortal(
-    <div
-      {...aboveModalProps}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
-    >
+    <div {...aboveModalProps} className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
       <div className="absolute inset-0 bg-overlay/50" onClick={onClose} />
       <div
         ref={dialogRef}

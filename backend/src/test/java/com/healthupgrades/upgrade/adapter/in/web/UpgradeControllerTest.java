@@ -1,32 +1,5 @@
 package com.healthupgrades.upgrade.adapter.in.web;
 
-import com.healthupgrades.common.domain.exception.BusinessRuleException;
-import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
-import com.healthupgrades.common.security.JwtAuthenticationFilter;
-import com.healthupgrades.common.security.BearerTokenAuthenticator;
-import com.healthupgrades.common.security.SecurityConfig;
-import com.healthupgrades.common.security.UserDetailsServiceImpl;
-import com.healthupgrades.support.AnUpgrade;
-import com.healthupgrades.support.WebSliceSupport;
-import com.healthupgrades.upgrade.application.UpgradeService;
-import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort;
-import com.healthupgrades.upgrade.domain.model.Difficulty;
-import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
-import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
-import com.healthupgrades.upgrade.domain.model.UpgradeType;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-
 import static com.healthupgrades.support.WebSliceSupport.bearer;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -41,6 +14,32 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.healthupgrades.common.domain.exception.BusinessRuleException;
+import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.common.security.BearerTokenAuthenticator;
+import com.healthupgrades.common.security.JwtAuthenticationFilter;
+import com.healthupgrades.common.security.SecurityConfig;
+import com.healthupgrades.common.security.UserDetailsServiceImpl;
+import com.healthupgrades.support.AnUpgrade;
+import com.healthupgrades.support.WebSliceSupport;
+import com.healthupgrades.upgrade.application.UpgradeService;
+import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort;
+import com.healthupgrades.upgrade.domain.model.Difficulty;
+import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
+import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
+import com.healthupgrades.upgrade.domain.model.UpgradeType;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
 
 /**
  * The HTTP contract of the API's central resource: the status each endpoint answers with, what a
@@ -57,18 +56,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * mapper would make every shape assertion here a tautology.
  */
 @WebMvcTest(UpgradeController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class,
-        UpgradeWebMapper.class, WebSliceSupport.class})
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class, UpgradeWebMapper.class, WebSliceSupport.class})
 class UpgradeControllerTest {
 
     private static final String BASE = "/api/upgrades";
 
-    @Autowired MockMvc mockMvc;
+    @Autowired
+    MockMvc mockMvc;
 
-    @MockitoBean UpgradeService service;
-    @MockitoBean UpgradeTrackingSummaryPort trackingSummaries;
-    @MockitoBean BearerTokenAuthenticator authenticator;
-    @MockitoBean UserDetailsServiceImpl userDetailsService;
+    @MockitoBean
+    UpgradeService service;
+
+    @MockitoBean
+    UpgradeTrackingSummaryPort trackingSummaries;
+
+    @MockitoBean
+    BearerTokenAuthenticator authenticator;
+
+    @MockitoBean
+    UserDetailsServiceImpl userDetailsService;
 
     private UUID userId;
     private final UUID upgradeId = UUID.randomUUID();
@@ -181,24 +187,21 @@ class UpgradeControllerTest {
 
     @Test
     void GivenAnIdThatIsNotAUuid_WhenAnUpgradeIsRead_ThenItAnswers400RatherThan500() throws Exception {
-        mockMvc.perform(bearer(get(BASE + "/not-a-uuid")))
-                .andExpect(status().isBadRequest());
+        mockMvc.perform(bearer(get(BASE + "/not-a-uuid"))).andExpect(status().isBadRequest());
     }
 
     @Test
     void GivenAStatusFilter_WhenUpgradesAreListed_ThenItIsPassedThroughAsAnEnum() throws Exception {
         when(service.findAll(userId, UpgradeStatus.ACTIVE, null, null, null)).thenReturn(List.of());
 
-        mockMvc.perform(bearer(get(BASE).param("status", "ACTIVE")))
-                .andExpect(status().isOk());
+        mockMvc.perform(bearer(get(BASE).param("status", "ACTIVE"))).andExpect(status().isOk());
 
         verify(service).findAll(userId, UpgradeStatus.ACTIVE, null, null, null);
     }
 
     @Test
     void GivenAFilterValueThatIsNotInTheEnum_WhenUpgradesAreListed_ThenItAnswers400RatherThan500() throws Exception {
-        mockMvc.perform(bearer(get(BASE).param("status", "NOPE")))
-                .andExpect(status().isBadRequest());
+        mockMvc.perform(bearer(get(BASE).param("status", "NOPE"))).andExpect(status().isBadRequest());
     }
 
     // ---- The lifecycle sub-resources ----
@@ -240,8 +243,7 @@ class UpgradeControllerTest {
     void GivenAnIllegalLifecycleMove_WhenItIsAttempted_ThenItAnswers422WithTheReason() throws Exception {
         // BR-2 and BR-3 reach the client as 422 — the request was understood and the rules forbid it,
         // which is a different thing from a malformed request (400) or a missing row (404).
-        when(service.pause(userId, upgradeId))
-                .thenThrow(new BusinessRuleException("Cannot pause a COMPLETED upgrade"));
+        when(service.pause(userId, upgradeId)).thenThrow(new BusinessRuleException("Cannot pause a COMPLETED upgrade"));
 
         mockMvc.perform(bearer(post(BASE + "/" + upgradeId + "/pause")))
                 .andExpect(status().isUnprocessableContent())
@@ -284,10 +286,10 @@ class UpgradeControllerTest {
     @Test
     void GivenAnUpgradeOwnedBySomebodyElse_WhenItIsDeleted_ThenItAnswers404() throws Exception {
         doThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId))
-                .when(service).delete(userId, upgradeId);
+                .when(service)
+                .delete(userId, upgradeId);
 
-        mockMvc.perform(bearer(delete(BASE + "/" + upgradeId)))
-                .andExpect(status().isNotFound());
+        mockMvc.perform(bearer(delete(BASE + "/" + upgradeId))).andExpect(status().isNotFound());
     }
 
     @Test

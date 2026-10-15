@@ -32,5 +32,4 @@ public record ProgressDto(
         String unit,
         Integer rating,
         String note,
-        LocalDateTime createdAt
-) {}
+        LocalDateTime createdAt) {}

@@ -2,14 +2,13 @@ package com.healthupgrades.tracking.adapter.out.persistence;
 
 import com.healthupgrades.tracking.domain.model.ProgressEntry; // domain aggregate
 import com.healthupgrades.tracking.domain.port.out.ProgressEntryRepositoryPort; // the port implemented here
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
-
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
 /**
  * Persistence adapter implementing {@link ProgressEntryRepositoryPort} by delegating to Spring Data JPA.

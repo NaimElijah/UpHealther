@@ -1,15 +1,14 @@
 package com.healthupgrades.notification.adapter.in.web;
 
-import com.healthupgrades.notification.application.NotificationService;
 import com.healthupgrades.common.security.SecurityUser;
+import com.healthupgrades.notification.application.NotificationService;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 
 /**
  * REST adapter for the notification inbox.
@@ -63,7 +62,8 @@ public class NotificationController {
      *         notification is owned by the caller (404)
      */
     @PostMapping("/{id}/read")
-    public ResponseEntity<NotificationDto> markRead(@AuthenticationPrincipal SecurityUser principal, @PathVariable UUID id) {
+    public ResponseEntity<NotificationDto> markRead(
+            @AuthenticationPrincipal SecurityUser principal, @PathVariable UUID id) {
         return ResponseEntity.ok(mapper.toDto(service.markRead(principal.getId(), id)));
     }
 

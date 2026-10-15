@@ -1,7 +1,6 @@
 package com.healthupgrades.dashboard.application.port.in;
 
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // domain aggregate carried in each bucket
-
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -27,8 +26,7 @@ public record DashboardView(
         List<HealthUpgrade> recentlyCompleted,
         double weeklyCompletionRate,
         Map<UUID, Integer> streaks,
-        List<AreaSummary> areaSummaries
-) {
+        List<AreaSummary> areaSummaries) {
     /** Per-area rollup of upgrade counts. */
     public record AreaSummary(UUID areaId, String areaName, int totalUpgrades, int activeCount, int completedCount) {}
 }

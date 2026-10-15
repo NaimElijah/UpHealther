@@ -5,12 +5,11 @@ import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User;
 import com.healthupgrades.user.domain.port.out.UserRepositoryPort;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
 
 /**
  * Application service implementing the user inbound ports ({@link UserQuery} reads, {@link UserCommand}

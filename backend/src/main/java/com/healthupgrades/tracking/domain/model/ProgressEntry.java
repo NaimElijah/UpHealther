@@ -1,11 +1,10 @@
 package com.healthupgrades.tracking.domain.model;
 
 import jakarta.persistence.*;
-import lombok.*;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import lombok.*;
 
 /**
  * One day's progress against one upgrade.
@@ -18,8 +17,7 @@ import java.util.UUID;
  * carries all of them and fills in the one its type calls for, so the columns are nullable by design.
  */
 @Entity
-@Table(name = "progress_entries",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"upgrade_id", "date"}))
+@Table(name = "progress_entries", uniqueConstraints = @UniqueConstraint(columnNames = {"upgrade_id", "date"}))
 @Getter
 @Setter
 @NoArgsConstructor

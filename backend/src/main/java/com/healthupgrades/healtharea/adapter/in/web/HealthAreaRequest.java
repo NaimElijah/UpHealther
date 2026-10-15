@@ -21,8 +21,7 @@ public record HealthAreaRequest(
         String description,
         Integer priority,
         @Size(max = ICON_MAX) String icon,
-        @Size(max = COLOR_MAX) String color
-) {
+        @Size(max = COLOR_MAX) String color) {
     /** Mirrors {@code health_areas.name VARCHAR(255)}; see BR-16 for why the bound is here. */
     public static final int NAME_MAX = 255;
 

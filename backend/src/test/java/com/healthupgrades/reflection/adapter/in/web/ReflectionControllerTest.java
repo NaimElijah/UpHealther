@@ -1,26 +1,5 @@
 package com.healthupgrades.reflection.adapter.in.web;
 
-import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
-import com.healthupgrades.common.security.JwtAuthenticationFilter;
-import com.healthupgrades.common.security.BearerTokenAuthenticator;
-import com.healthupgrades.common.security.SecurityConfig;
-import com.healthupgrades.common.security.UserDetailsServiceImpl;
-import com.healthupgrades.reflection.application.ReflectionService;
-import com.healthupgrades.reflection.domain.model.Reflection;
-import com.healthupgrades.support.WebSliceSupport;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-
-import java.time.LocalDate;
-import java.util.List;
-import java.util.UUID;
-
 import static com.healthupgrades.support.WebSliceSupport.bearer;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -32,6 +11,26 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.common.security.BearerTokenAuthenticator;
+import com.healthupgrades.common.security.JwtAuthenticationFilter;
+import com.healthupgrades.common.security.SecurityConfig;
+import com.healthupgrades.common.security.UserDetailsServiceImpl;
+import com.healthupgrades.reflection.application.ReflectionService;
+import com.healthupgrades.reflection.domain.model.Reflection;
+import com.healthupgrades.support.WebSliceSupport;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
 /**
  * The HTTP contract for reflections: FR-23 (write one) and FR-24 (read an upgrade's, newest first).
  *
@@ -42,15 +41,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * DELETE is refused by the framework as an unsupported method (405) rather than by a handler.
  */
 @WebMvcTest(ReflectionController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class,
-        ReflectionWebMapper.class, WebSliceSupport.class})
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class, ReflectionWebMapper.class, WebSliceSupport.class})
 class ReflectionControllerTest {
 
-    @Autowired MockMvc mockMvc;
+    @Autowired
+    MockMvc mockMvc;
 
-    @MockitoBean ReflectionService service;
-    @MockitoBean BearerTokenAuthenticator authenticator;
-    @MockitoBean UserDetailsServiceImpl userDetailsService;
+    @MockitoBean
+    ReflectionService service;
+
+    @MockitoBean
+    BearerTokenAuthenticator authenticator;
+
+    @MockitoBean
+    UserDetailsServiceImpl userDetailsService;
 
     private UUID userId;
     private final UUID upgradeId = UUID.randomUUID();
@@ -67,8 +71,11 @@ class ReflectionControllerTest {
     void GivenAValidBody_WhenAReflectionIsWritten_ThenItAnswers201WithWhatWasStored() throws Exception {
         when(service.create(eq(userId), eq(upgradeId), any())).thenReturn(aReflection());
 
-        mockMvc.perform(bearer(post(base)).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"difficultyRating\":4,\"benefitRating\":5,\"whatWorked\":\"Phone out of the bedroom\"}"))
+        mockMvc.perform(
+                        bearer(post(base))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        "{\"difficultyRating\":4,\"benefitRating\":5,\"whatWorked\":\"Phone out of the bedroom\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.difficultyRating").value(4))
                 .andExpect(jsonPath("$.benefitRating").value(5))
@@ -77,7 +84,8 @@ class ReflectionControllerTest {
 
     @Test
     void GivenARatingOutsideOneToFive_WhenAReflectionIsWritten_ThenItAnswers400NamingTheField() throws Exception {
-        mockMvc.perform(bearer(post(base)).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(bearer(post(base))
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"difficultyRating\":9}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.difficultyRating").exists());
@@ -88,7 +96,8 @@ class ReflectionControllerTest {
     @Test
     void GivenAFractionalRating_WhenAReflectionIsWritten_ThenItAnswers400AndNothingIsStored() throws Exception {
         // Truncated to 3 by Jackson's default, it would pass @Min and @Max. BR-19, #240.
-        mockMvc.perform(bearer(post(base)).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(bearer(post(base))
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"difficultyRating\":3.7}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Malformed request body"));
@@ -101,13 +110,14 @@ class ReflectionControllerTest {
         when(service.create(eq(userId), eq(upgradeId), any()))
                 .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
 
-        mockMvc.perform(bearer(post(base)).contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mockMvc.perform(bearer(post(base))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    void GivenAnOwnedUpgrade_WhenItsReflectionsAreRead_ThenTheyAnswer200InTheOrderTheServiceReturns()
-            throws Exception {
+    void GivenAnOwnedUpgrade_WhenItsReflectionsAreRead_ThenTheyAnswer200InTheOrderTheServiceReturns() throws Exception {
         when(service.getForUpgrade(userId, upgradeId)).thenReturn(List.of(aReflection()));
 
         mockMvc.perform(bearer(get(base)))
@@ -125,8 +135,14 @@ class ReflectionControllerTest {
     }
 
     private Reflection aReflection() {
-        return Reflection.builder().id(UUID.randomUUID()).upgradeId(upgradeId).userId(userId)
-                .date(LocalDate.of(2026, 3, 15)).difficultyRating(4).benefitRating(5)
-                .whatWorked("Phone out of the bedroom").build();
+        return Reflection.builder()
+                .id(UUID.randomUUID())
+                .upgradeId(upgradeId)
+                .userId(userId)
+                .date(LocalDate.of(2026, 3, 15))
+                .difficultyRating(4)
+                .benefitRating(5)
+                .whatWorked("Phone out of the bedroom")
+                .build();
     }
 }

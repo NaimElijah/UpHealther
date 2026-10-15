@@ -1,21 +1,21 @@
 package com.healthupgrades.reflection.application;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.reflection.application.port.in.ReflectionDetails;
 import com.healthupgrades.reflection.domain.event.ReflectionAdded;
 import com.healthupgrades.reflection.domain.model.Reflection;
-import com.healthupgrades.support.RecordingAuditTrail;
 import com.healthupgrades.reflection.domain.port.out.ReflectionRepositoryPort;
 import com.healthupgrades.support.AnUpgrade;
+import com.healthupgrades.support.RecordingAuditTrail;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
 import java.lang.reflect.Method;
 import java.time.Clock;
 import java.time.Instant;
@@ -25,13 +25,12 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
  * Covers FR-23 (write a reflection), FR-24 (read an upgrade's reflections, newest first) and BR-13
@@ -54,9 +53,14 @@ class ReflectionServiceTest {
 
     private final Clock fixedClock = Clock.fixed(Instant.parse("2026-03-15T09:00:00Z"), ZoneOffset.UTC);
 
-    @Mock ReflectionRepositoryPort repository;
-    @Mock UpgradeQuery upgradeQuery;
-    @Mock DomainEventPublisher eventPublisher;
+    @Mock
+    ReflectionRepositoryPort repository;
+
+    @Mock
+    UpgradeQuery upgradeQuery;
+
+    @Mock
+    DomainEventPublisher eventPublisher;
 
     private ReflectionService service;
     /** A real implementation, not a mock: AuditTrail.recording is a default method. */
@@ -116,12 +120,11 @@ class ReflectionServiceTest {
     void GivenAReflectionIsWritten_WhenItIsStored_ThenItIsAnnounced() {
         UUID reflectionId = UUID.randomUUID();
         when(upgradeQuery.getOwnedUpgrade(userId, upgradeId)).thenReturn(AnUpgrade.active(userId));
-        when(repository.save(any(Reflection.class)))
-                .thenAnswer(call -> {
-                    Reflection r = call.getArgument(0);
-                    r.setId(reflectionId);
-                    return r;
-                });
+        when(repository.save(any(Reflection.class))).thenAnswer(call -> {
+            Reflection r = call.getArgument(0);
+            r.setId(reflectionId);
+            return r;
+        });
 
         service.create(userId, upgradeId, DETAILS);
 
@@ -185,8 +188,7 @@ class ReflectionServiceTest {
     void GivenTheReflectionContext_WhenItsSurfaceIsInspected_ThenItOffersNoWayToEditOrDeleteOne() {
         // BR-13, stated as a rule about the API rather than about a call. Adding an edit or delete path
         // to either the service or the port is what would break it, and this is what notices.
-        assertThat(publicMethodNames(ReflectionService.class))
-                .containsExactlyInAnyOrder("create", "getForUpgrade");
+        assertThat(publicMethodNames(ReflectionService.class)).containsExactlyInAnyOrder("create", "getForUpgrade");
         assertThat(publicMethodNames(ReflectionRepositoryPort.class))
                 .containsExactlyInAnyOrder("save", "findByUpgradeIdOrderByDateDescCreatedAtDesc");
     }

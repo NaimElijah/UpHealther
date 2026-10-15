@@ -1,15 +1,14 @@
 package com.healthupgrades.tracking.domain.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.healthupgrades.tracking.domain.model.ProgressEntry;
 import com.healthupgrades.tracking.domain.model.TrackingConfig;
 import com.healthupgrades.tracking.domain.model.TrackingType;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import java.time.LocalDate;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 /**
  * Covers what counts as a successful entry for each tracking type.

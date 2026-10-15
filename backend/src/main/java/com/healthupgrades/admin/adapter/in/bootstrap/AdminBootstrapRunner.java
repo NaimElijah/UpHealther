@@ -1,22 +1,21 @@
 package com.healthupgrades.admin.adapter.in.bootstrap;
 
+import static net.logstash.logback.argument.StructuredArguments.keyValue;
+
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.user.application.port.in.UserCommand;
 import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User;
+import java.util.Optional;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Optional;
-import java.util.UUID;
-
-import static net.logstash.logback.argument.StructuredArguments.keyValue;
 
 /**
  * Promotes one account to ADMIN at startup, so a fresh installation has a way in.
@@ -49,8 +48,11 @@ public class AdminBootstrapRunner implements ApplicationRunner {
     /**
      * @param bootstrapUserId the account to promote, or blank — the normal case — to do nothing
      */
-    public AdminBootstrapRunner(UserQuery userQuery, UserCommand userCommand, AuditTrail auditTrail,
-                                @Value("${app.admin.bootstrap-user-id:}") String bootstrapUserId) {
+    public AdminBootstrapRunner(
+            UserQuery userQuery,
+            UserCommand userCommand,
+            AuditTrail auditTrail,
+            @Value("${app.admin.bootstrap-user-id:}") String bootstrapUserId) {
         this.userQuery = userQuery;
         this.userCommand = userCommand;
         this.auditTrail = auditTrail;
@@ -88,14 +90,16 @@ public class AdminBootstrapRunner implements ApplicationRunner {
 
         Optional<User> account = userQuery.findById(id.get());
         if (account.isEmpty()) {
-            log.warn("app.admin.bootstrap-user-id names no account; no administrator was created {}",
+            log.warn(
+                    "app.admin.bootstrap-user-id names no account; no administrator was created {}",
                     keyValue("userId", id.get()));
             return;
         }
         // A disabled administrator administers nothing, so promoting this account would recover nothing
         // - and with still no enabled administrator, the next start would promote it all over again.
         if (!account.get().isEnabled()) {
-            log.warn("app.admin.bootstrap-user-id names a disabled account; no administrator was created {}",
+            log.warn(
+                    "app.admin.bootstrap-user-id names a disabled account; no administrator was created {}",
                     keyValue("userId", id.get()));
             return;
         }

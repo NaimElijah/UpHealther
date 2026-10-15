@@ -1,16 +1,15 @@
 package com.healthupgrades.tracking.adapter.in.web;
 
-import com.healthupgrades.tracking.application.TrackingService;
 import com.healthupgrades.common.security.SecurityUser;
+import com.healthupgrades.tracking.application.TrackingService;
 import jakarta.validation.Valid;
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-import java.util.UUID;
 
 /**
  * REST adapter for logging and reading progress.
@@ -50,8 +49,9 @@ public class ProgressController {
             @AuthenticationPrincipal SecurityUser principal,
             @PathVariable UUID upgradeId,
             @Valid @RequestBody ProgressRequest req) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toDto(
-                trackingService.recordProgress(principal.getId(), upgradeId, mapper.toDetails(req))));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(mapper.toDto(
+                        trackingService.recordProgress(principal.getId(), upgradeId, mapper.toDetails(req))));
     }
 
     /**
@@ -64,8 +64,7 @@ public class ProgressController {
      */
     @GetMapping("/api/upgrades/{upgradeId}/progress")
     public ResponseEntity<List<ProgressDto>> getProgress(
-            @AuthenticationPrincipal SecurityUser principal,
-            @PathVariable UUID upgradeId) {
+            @AuthenticationPrincipal SecurityUser principal, @PathVariable UUID upgradeId) {
         return ResponseEntity.ok(mapper.toDtos(trackingService.getProgress(principal.getId(), upgradeId)));
     }
 
@@ -79,8 +78,7 @@ public class ProgressController {
      */
     @GetMapping("/api/upgrades/{upgradeId}/streak")
     public ResponseEntity<StreakDto> getStreak(
-            @AuthenticationPrincipal SecurityUser principal,
-            @PathVariable UUID upgradeId) {
+            @AuthenticationPrincipal SecurityUser principal, @PathVariable UUID upgradeId) {
         return ResponseEntity.ok(mapper.toDto(trackingService.getStreakSummary(principal.getId(), upgradeId)));
     }
 

@@ -2,12 +2,11 @@ package com.healthupgrades.auth.adapter.out.persistence;
 
 import com.healthupgrades.auth.domain.model.AuthSession; // domain aggregate
 import com.healthupgrades.auth.domain.port.out.AuthSessionRepositoryPort; // the port implemented here
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
-
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
 /**
  * Persistence adapter implementing {@link AuthSessionRepositoryPort} by delegating to Spring Data JPA.

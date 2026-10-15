@@ -1,7 +1,6 @@
 package com.healthupgrades.tracking.domain.event;
 
 import com.healthupgrades.common.domain.event.DomainEvent;
-
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -18,4 +17,5 @@ import java.util.UUID;
  *                      the entry made a longer run current, for example a backfill that joined two runs
  * @param occurredAt    when the milestone was reached
  */
-public record StreakAchieved(UUID upgradeId, UUID userId, int milestoneDays, LocalDateTime occurredAt) implements DomainEvent {}
+public record StreakAchieved(UUID upgradeId, UUID userId, int milestoneDays, LocalDateTime occurredAt)
+        implements DomainEvent {}

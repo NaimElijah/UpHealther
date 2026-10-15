@@ -1,18 +1,17 @@
 package com.healthupgrades.user.application;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
+
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.user.domain.model.User;
 import com.healthupgrades.user.domain.port.out.UserRepositoryPort;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.Optional;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.when;
 
 /**
  * Covers the user context's inbound ports.
@@ -26,9 +25,11 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
 
-    @Mock UserRepositoryPort repository;
+    @Mock
+    UserRepositoryPort repository;
 
-    @InjectMocks UserService service;
+    @InjectMocks
+    UserService service;
 
     @Test
     void GivenARegisteredEmail_WhenTheUserIsLookedUp_ThenTheUserIsReturned() {

@@ -14,5 +14,4 @@ public record ReflectionDetails(
         Integer benefitRating,
         String whatWorked,
         String whatDidNotWork,
-        String nextAdjustment
-) {}
+        String nextAdjustment) {}

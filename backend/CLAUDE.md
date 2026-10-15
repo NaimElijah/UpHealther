@@ -142,6 +142,28 @@ All three are deliberate, not drift.
   implements it. That is what keeps the graph acyclic while the upgrade response still carries tracking
   config; see ADR-002.
 
+## Lint
+
+The compiler is the linter. Every `-Xlint` category is on except `processing` and `serial`, and `try`
+in test sources, and a warning fails `./mvnw compile`, so `./mvnw test` fails on one too
+(`../docs/ADRs/ADR-039-the-backend-compiles-under-javacs-lint-and-fails-on-a-warning.md`, where each
+exclusion's reason is recorded). Fix a warning rather than suppress it. Where a suppression is genuinely
+right, `@SuppressWarnings` goes on the narrowest element, with a comment saying why.
+
+No bug-pattern checker runs. Error Prone and SpotBugs were measured on this code and found nothing
+that was not already tracked, so neither is worth its build time yet
+(`../docs/ADRs/ADR-040-no-bug-pattern-checker-yet.md` has the numbers and the revisit triggers).
+
+## Formatting
+
+Layout belongs to palantir-java-format, run through Spotless. `./mvnw spotless:apply` rewrites every
+Java source under `src/main` and `src/test`, and `./mvnw verify` fails on any file it would change; do
+not format by hand
+(`../docs/ADRs/ADR-037-the-backend-is-formatted-by-palantir-java-format-through-spotless.md`).
+Imports are one block, static ones first, so there is no hand-kept grouping to preserve. Javadoc is not
+reflowed. A formatter version bump is a `style(backend)` commit of its own, and its SHA goes into
+`../.git-blame-ignore-revs`.
+
 ## Tests
 
 Four levels, and the rule for choosing between them is in
@@ -158,17 +180,17 @@ that. Name tests `Given<state>_When<action>_Then<outcome>`.
   `BearerTokenAuthenticator`, not `JwtTokenProvider`: it is the seam both transports authenticate
   through, so mocking it leaves the filter and the security config real.
 - `./mvnw test` — unit, web-slice and architecture tests. **No database needed**; keep it that way.
-- `./mvnw verify` — the above plus the `*IT` integration tests, which boot the application against a real
-  PostgreSQL. They **start it themselves**: every `*IT` extends `support/PostgresIT`, which runs the
-  image `support/PostgresImage` names, the same exact tag compose runs (`ContainerImagesArePinnedTest`
-  fails the build otherwise), through Testcontainers and wires the `DataSource` to it with
-  `@ServiceConnection`. So `verify` needs a running **Docker daemon**, not a database you started — and
-  the `DB_*` env vars are not consulted during a test run at all. Do not point a test at an ambient
-  database: a local PostgreSQL listening on 5432 is accepted silently and the suite then passes against
-  the wrong schema, which is the failure
+- `./mvnw verify` — the above, the format check, and the `*IT` integration tests, which boot the
+  application against a real PostgreSQL. They **start it themselves**: every `*IT` extends
+  `support/PostgresIT`, which runs the image `support/PostgresImage` names, the same exact tag compose
+  runs (`ContainerImagesArePinnedTest` fails the build otherwise), through Testcontainers and wires the
+  `DataSource` to it with `@ServiceConnection`. So `verify` needs a running **Docker daemon**, not a
+  database you started — and the `DB_*` env vars are not consulted during a test run at all. Do not
+  point a test at an ambient database: a local PostgreSQL listening on 5432 is accepted silently and the
+  suite then passes against the wrong schema, which is the failure
   `../docs/ADRs/ADR-008-testcontainers-for-the-integration-test-database.md` was written about.
-  `ApplicationContextIT` is what catches a missing `@Bean` in the hand-wired `*BeansConfig` classes and a
-  missing Flyway migration, neither of which any unit test can see.
+  `ApplicationContextIT` is what catches a missing `@Bean` in the hand-wired `*BeansConfig` classes and
+  a missing Flyway migration, neither of which any unit test can see.
 
 ## Database / migrations
 

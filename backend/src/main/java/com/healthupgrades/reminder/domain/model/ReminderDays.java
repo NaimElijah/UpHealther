@@ -1,7 +1,6 @@
 package com.healthupgrades.reminder.domain.model;
 
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
-
 import java.time.DayOfWeek;
 import java.util.Arrays;
 import java.util.Collection;
@@ -29,6 +28,7 @@ public final class ReminderDays {
 
     /** How days are written in storage and on the wire, e.g. {@code MON}. */
     private static final int TOKEN_LENGTH = 3;
+
     private static final String SEPARATOR = ",";
 
     /** No day filter — the reminder fires every day. */
@@ -67,8 +67,7 @@ public final class ReminderDays {
         Set<DayOfWeek> parsed = EnumSet.noneOf(DayOfWeek.class);
         for (String token : tokens) {
             if (isBlank(token)) continue; // a blank entry in the list is noise, not an instruction
-            parsed.add(parse(token).orElseThrow(() ->
-                    new BusinessRuleException("Not a day of the week: " + token)));
+            parsed.add(parse(token).orElseThrow(() -> new BusinessRuleException("Not a day of the week: " + token)));
         }
         return new ReminderDays(parsed);
     }

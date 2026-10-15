@@ -1,11 +1,10 @@
 package com.healthupgrades.reflection.domain.model;
 
 import jakarta.persistence.*;
-import lombok.*;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import lombok.*;
 
 /**
  * A user's periodic review of how one upgrade is going.
