@@ -109,10 +109,12 @@ describe('LoginPage', () => {
     // A database outage during login is a 500 with a trace id on the body, not a rejected credential.
     // Answering it with "invalid email or password" sends the user to reset a password that was never
     // the problem, and throws away the one string that would have found the fault in the log.
-    login.mockRejectedValue(apiFailure(500, {
-      message: 'Internal server error',
-      traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
-    }));
+    login.mockRejectedValue(
+      apiFailure(500, {
+        message: 'Internal server error',
+        traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
+      }),
+    );
     renderLogin();
 
     await signIn();
@@ -126,9 +128,11 @@ describe('LoginPage', () => {
     // The rate limit answers 429 (ADR-017). Showing "invalid email or password" here would send
     // somebody who typed the right password off to reset it, and they would keep trying — which is
     // the behaviour the limit exists to stop.
-    login.mockRejectedValue(apiFailure(429, {
-      message: 'Too many attempts. Please try again in a moment.',
-    }));
+    login.mockRejectedValue(
+      apiFailure(429, {
+        message: 'Too many attempts. Please try again in a moment.',
+      }),
+    );
     renderLogin();
 
     await signIn();

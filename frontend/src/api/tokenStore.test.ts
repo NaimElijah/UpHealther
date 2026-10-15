@@ -1,10 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  clearAccessToken,
-  getAccessToken,
-  hasUsableAccessToken,
-  setAccessToken,
-} from './tokenStore';
+import { clearAccessToken, getAccessToken, hasUsableAccessToken, setAccessToken } from './tokenStore';
 
 /**
  * The access token's hiding place.

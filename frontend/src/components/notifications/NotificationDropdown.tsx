@@ -23,7 +23,14 @@ interface Props {
  */
 const NotificationDropdown: React.FC<Props> = ({ onClose }) => {
   const {
-    notifications, unreadCount, loadError, actionError, markRead, markAllRead, desktopPermission, requestDesktopPermission,
+    notifications,
+    unreadCount,
+    loadError,
+    actionError,
+    markRead,
+    markAllRead,
+    desktopPermission,
+    requestDesktopPermission,
   } = useNotifications();
   const navigate = useNavigate();
   const recent = notifications.slice(0, 8);
@@ -71,11 +78,16 @@ const NotificationDropdown: React.FC<Props> = ({ onClose }) => {
         {recent.length === 0 && !loadError && (
           <p className="text-sm text-fg-subtle text-center py-8">No notifications yet.</p>
         )}
-        {recent.map((n) => <NotificationItem key={n.id} notification={n} onSelect={select} />)}
+        {recent.map((n) => (
+          <NotificationItem key={n.id} notification={n} onSelect={select} />
+        ))}
       </div>
 
       <button
-        onClick={() => { onClose(); navigate('/notifications'); }}
+        onClick={() => {
+          onClose();
+          navigate('/notifications');
+        }}
         className="w-full text-center px-4 py-2.5 text-sm font-medium text-brand-fg hover:bg-sunken border-t border-line-subtle"
       >
         View all notifications

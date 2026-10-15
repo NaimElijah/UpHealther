@@ -20,7 +20,14 @@ import ErrorState from '../components/ui/ErrorState';
  */
 const NotificationsPage: React.FC = () => {
   const {
-    notifications, unreadCount, loadError, actionError, markRead, markAllRead, desktopPermission, requestDesktopPermission,
+    notifications,
+    unreadCount,
+    loadError,
+    actionError,
+    markRead,
+    markAllRead,
+    desktopPermission,
+    requestDesktopPermission,
   } = useNotifications();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
@@ -40,9 +47,15 @@ const NotificationsPage: React.FC = () => {
         action={
           <div className="flex gap-2">
             {desktopPermission === 'default' && (
-              <Button variant="secondary" size="sm" onClick={requestDesktopPermission}>Enable desktop alerts</Button>
+              <Button variant="secondary" size="sm" onClick={requestDesktopPermission}>
+                Enable desktop alerts
+              </Button>
             )}
-            {unreadCount > 0 && <Button size="sm" onClick={markAllRead}>Mark all read</Button>}
+            {unreadCount > 0 && (
+              <Button size="sm" onClick={markAllRead}>
+                Mark all read
+              </Button>
+            )}
           </div>
         }
       />
@@ -56,7 +69,8 @@ const NotificationsPage: React.FC = () => {
               filter === f ? 'bg-brand text-fg-inverted' : 'bg-muted text-fg-muted hover:bg-muted-strong'
             }`}
           >
-            {f}{f === 'unread' && unreadCount > 0 ? ` (${unreadCount})` : ''}
+            {f}
+            {f === 'unread' && unreadCount > 0 ? ` (${unreadCount})` : ''}
           </button>
         ))}
       </div>

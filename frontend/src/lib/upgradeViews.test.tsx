@@ -10,7 +10,14 @@ import UpgradeDetailsPage from '../pages/UpgradeDetailsPage';
 import UpgradeBacklogPage from '../pages/UpgradeBacklogPage';
 import DailyCheckinPage from '../pages/DailyCheckinPage';
 import { createQueryClient } from './queryClient';
-import type { ActionTarget, CreateUpgradeRequest, DashboardDto, HealthArea, HealthUpgrade, UpgradeStatus } from '../types';
+import type {
+  ActionTarget,
+  CreateUpgradeRequest,
+  DashboardDto,
+  HealthArea,
+  HealthUpgrade,
+  UpgradeStatus,
+} from '../types';
 import type { SaveTrackingConfigRequest } from '../api/trackingConfig';
 
 const getUpgrades = vi.fn();
@@ -42,7 +49,10 @@ vi.mock('../api/progress', () => ({
   createProgress: vi.fn(),
   getStreak: () => Promise.resolve({ current: 0, longest: 0 }),
 }));
-vi.mock('../api/reflections', () => ({ getReflectionsByUpgrade: () => Promise.resolve([]), createReflection: vi.fn() }));
+vi.mock('../api/reflections', () => ({
+  getReflectionsByUpgrade: () => Promise.resolve([]),
+  createReflection: vi.fn(),
+}));
 vi.mock('../api/reminders', () => ({
   getReminders: () => Promise.resolve([]),
   createReminder: vi.fn(),
@@ -94,13 +104,15 @@ function serve(...initial: HealthUpgrade[]) {
       weeklyCompletionRate: 0,
       streaks: {},
       recentlyCompleted: [],
-      areaSummary: [{
-        areaId: AREA.id,
-        areaName: AREA.name,
-        totalUpgrades: filed.length,
-        activeCount: filed.filter((u) => u.status === 'ACTIVE').length,
-        completedCount: filed.filter((u) => u.status === 'COMPLETED').length,
-      }],
+      areaSummary: [
+        {
+          areaId: AREA.id,
+          areaName: AREA.name,
+          totalUpgrades: filed.length,
+          activeCount: filed.filter((u) => u.status === 'ACTIVE').length,
+          completedCount: filed.filter((u) => u.status === 'COMPLETED').length,
+        },
+      ],
     });
   });
   createUpgrade.mockImplementation((req: CreateUpgradeRequest) => {
@@ -108,9 +120,12 @@ function serve(...initial: HealthUpgrade[]) {
     upgrades = [...upgrades, created];
     return Promise.resolve(created);
   });
-  performUpgradeAction.mockImplementation((id: string, status: ActionTarget) => Promise.resolve(change(id, { status })));
+  performUpgradeAction.mockImplementation((id: string, status: ActionTarget) =>
+    Promise.resolve(change(id, { status })),
+  );
   planUpgrade.mockImplementation((id: string, plannedStartDate: string) =>
-    Promise.resolve(change(id, { status: 'PLANNED', plannedStartDate })));
+    Promise.resolve(change(id, { status: 'PLANNED', plannedStartDate })),
+  );
   updateUpgrade.mockImplementation((id: string, req: CreateUpgradeRequest) => Promise.resolve(change(id, req)));
   // BR-2: rescheduling moves the date, and only from ABANDONED changes the status too.
   rescheduleUpgrade.mockImplementation((id: string, newDate: string) => {
@@ -162,7 +177,10 @@ function renderApp(path: string) {
   );
 }
 
-const goTo = (path: string) => act(() => { navigate(path); });
+const goTo = (path: string) =>
+  act(() => {
+    navigate(path);
+  });
 
 /** The figure on the dashboard's summary tile captioned `caption`, once the dashboard has loaded. */
 async function tileFigure(caption: string): Promise<string | null | undefined> {
@@ -306,7 +324,9 @@ describe('a change to an upgrade', () => {
 
     goTo(`/upgrades/${UPGRADE_ID}`);
     fireEvent.click(await screen.findByRole('button', { name: 'Abandon' }));
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'Abandon Upgrade' })).getByRole('button', { name: 'Abandon' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Abandon Upgrade' })).getByRole('button', { name: 'Abandon' }),
+    );
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Abandon Upgrade' })).toBeNull());
 
     goTo('/upgrades/active');
@@ -357,7 +377,9 @@ describe('a change to an upgrade', () => {
 
     goTo(`/upgrades/${UPGRADE_ID}`);
     fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'Delete Upgrade' })).getByRole('button', { name: 'Delete' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Delete Upgrade' })).getByRole('button', { name: 'Delete' }),
+    );
 
     await waitFor(async () => expect(await areaRow()).toContain('0 total'));
   });

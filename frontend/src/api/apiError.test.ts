@@ -31,11 +31,13 @@ describe('toApiError', () => {
   }
 
   it('GivenAnErrorBodyCarryingATraceId_WhenItIsNormalised_ThenTheIdSurvives', () => {
-    const error = toApiError(responded(422, {
-      status: 422,
-      message: 'A completed upgrade cannot be paused',
-      traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
-    }));
+    const error = toApiError(
+      responded(422, {
+        status: 422,
+        message: 'A completed upgrade cannot be paused',
+        traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
+      }),
+    );
 
     expect(error.status).toBe(422);
     expect(error.message).toBe('A completed upgrade cannot be paused');
@@ -51,10 +53,12 @@ describe('toApiError', () => {
   });
 
   it('GivenAValidationFailure_WhenItIsNormalised_ThenTheFieldMessagesComeThrough', () => {
-    const error = toApiError(responded(400, {
-      message: 'Validation failed',
-      fieldErrors: { title: 'must not be blank' },
-    }));
+    const error = toApiError(
+      responded(400, {
+        message: 'Validation failed',
+        fieldErrors: { title: 'must not be blank' },
+      }),
+    );
 
     expect(error.fieldErrors).toEqual({ title: 'must not be blank' });
   });
@@ -142,12 +146,15 @@ describe('toFormMessage', () => {
 
   it('GivenAFieldFailure_WhenItIsDescribed_ThenNoTraceIdIsAppended', () => {
     // A trace id helps a bug report and clutters a form: the user can fix this one themselves.
-    const message = toFormMessage({
-      status: 400,
-      message: 'Validation failed',
-      fieldErrors: { title: 'must not be blank' },
-      traceId: 'abc123',
-    }, 'title');
+    const message = toFormMessage(
+      {
+        status: 400,
+        message: 'Validation failed',
+        fieldErrors: { title: 'must not be blank' },
+        traceId: 'abc123',
+      },
+      'title',
+    );
 
     expect(message).toBe('Must not be blank');
   });

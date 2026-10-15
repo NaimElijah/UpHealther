@@ -76,4 +76,3 @@ export const rescheduleUpgrade = async (id: string, newDate: string): Promise<He
 export const deleteUpgrade = async (id: string): Promise<void> => {
   await client.delete(`/api/upgrades/${id}`);
 };
-

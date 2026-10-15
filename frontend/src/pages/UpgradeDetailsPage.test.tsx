@@ -5,7 +5,17 @@ import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequest
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useNavigate, type NavigateFunction } from 'react-router-dom';
 import UpgradeDetailsPage from './UpgradeDetailsPage';
-import type { ActionTarget, CreateReminderRequest, CreateUpgradeRequest, HealthArea, HealthUpgrade, ProgressEntry, Reflection, Reminder, UpgradeStatus } from '../types';
+import type {
+  ActionTarget,
+  CreateReminderRequest,
+  CreateUpgradeRequest,
+  HealthArea,
+  HealthUpgrade,
+  ProgressEntry,
+  Reflection,
+  Reminder,
+  UpgradeStatus,
+} from '../types';
 
 const getUpgradeById = vi.fn();
 const updateUpgrade = vi.fn();
@@ -269,7 +279,11 @@ describe('UpgradeDetailsPage', () => {
       Promise.resolve(id === OTHER_UPGRADE_ID ? anUpgrade(OTHER_UPGRADE_ID, 'Evening walk') : anUpgrade()),
     );
     let answerTheSave: (entry: ProgressEntry) => void = () => {};
-    createProgress.mockReturnValue(new Promise<ProgressEntry>((resolve) => { answerTheSave = resolve; }));
+    createProgress.mockReturnValue(
+      new Promise<ProgressEntry>((resolve) => {
+        answerTheSave = resolve;
+      }),
+    );
     renderPage();
     await screen.findByText('Cold showers');
     fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
@@ -279,7 +293,9 @@ describe('UpgradeDetailsPage', () => {
     act(() => navigate(`/upgrades/${OTHER_UPGRADE_ID}`));
     await screen.findByText('Evening walk');
     fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
-    await act(async () => { answerTheSave(anEntry('p-1', '2026-03-12', 'logged')); });
+    await act(async () => {
+      answerTheSave(anEntry('p-1', '2026-03-12', 'logged'));
+    });
 
     expect(screen.getByRole('dialog', { name: 'Log Progress' })).toBeDefined();
   });
@@ -400,7 +416,11 @@ describe('UpgradeDetailsPage', () => {
 
   it('GivenASaveStillInFlight_WhenANewProgressEntryIsStarted_ThenTheEarlierSaveLeavesItAlone', async () => {
     let answerTheSave: (entry: ProgressEntry) => void = () => {};
-    createProgress.mockReturnValue(new Promise<ProgressEntry>((resolve) => { answerTheSave = resolve; }));
+    createProgress.mockReturnValue(
+      new Promise<ProgressEntry>((resolve) => {
+        answerTheSave = resolve;
+      }),
+    );
     renderPage();
     await screen.findByText('Cold showers');
     fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
@@ -410,7 +430,9 @@ describe('UpgradeDetailsPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
     fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'second go' } });
-    await act(async () => { answerTheSave(anEntry('p-1', '2026-03-12', 'first go')); });
+    await act(async () => {
+      answerTheSave(anEntry('p-1', '2026-03-12', 'first go'));
+    });
 
     expect(screen.getByRole('dialog', { name: 'Log Progress' })).toBeDefined();
     expect((screen.getByLabelText('Note') as HTMLInputElement).value).toBe('second go');
@@ -472,7 +494,11 @@ describe('UpgradeDetailsPage', () => {
 
   it('GivenASaveStillInFlight_WhenANewReflectionIsStarted_ThenTheEarlierSaveLeavesItAlone', async () => {
     let answerTheSave: (reflection: Reflection) => void = () => {};
-    createReflection.mockReturnValue(new Promise<Reflection>((resolve) => { answerTheSave = resolve; }));
+    createReflection.mockReturnValue(
+      new Promise<Reflection>((resolve) => {
+        answerTheSave = resolve;
+      }),
+    );
     renderPage();
     await screen.findByText('Cold showers');
     fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
@@ -482,7 +508,9 @@ describe('UpgradeDetailsPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
     fireEvent.change(screen.getByLabelText('Difficulty (1-5)'), { target: { value: '5' } });
-    await act(async () => { answerTheSave(aReflection('r-1', '2026-03-12', 'Went in before breakfast')); });
+    await act(async () => {
+      answerTheSave(aReflection('r-1', '2026-03-12', 'Went in before breakfast'));
+    });
 
     expect(screen.getByRole('dialog', { name: 'Add Reflection' })).toBeDefined();
     expect((screen.getByLabelText('Difficulty (1-5)') as HTMLInputElement).value).toBe('5');
@@ -529,7 +557,11 @@ describe('UpgradeDetailsPage', () => {
 
   it('GivenASaveStillInFlight_WhenANewReflectionIsStartedAndTheSaveIsRefused_ThenTheNewOneSaysNothing', async () => {
     let refuseTheSave: (reason: unknown) => void = () => {};
-    createReflection.mockReturnValue(new Promise<Reflection>((_, reject) => { refuseTheSave = reject; }));
+    createReflection.mockReturnValue(
+      new Promise<Reflection>((_, reject) => {
+        refuseTheSave = reject;
+      }),
+    );
     renderPage();
     await screen.findByText('Cold showers');
     fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
@@ -538,7 +570,9 @@ describe('UpgradeDetailsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
-    await act(async () => { refuseTheSave(RATING_OUT_OF_RANGE); });
+    await act(async () => {
+      refuseTheSave(RATING_OUT_OF_RANGE);
+    });
 
     expect(screen.getByRole('dialog', { name: 'Add Reflection' })).toBeDefined();
     expect(screen.queryByText(RATING_OUT_OF_RANGE_MESSAGE)).toBeNull();
@@ -617,9 +651,13 @@ describe('UpgradeDetailsPage', () => {
   });
 
   it('GivenARefusedReminder_WhenItIsAddedAgainAndAccepted_ThenTheMessageGoes', async () => {
-    createReminder
-      .mockRejectedValueOnce(NO_REMINDER_TIME)
-      .mockResolvedValueOnce({ id: 'r-1', upgradeId: UPGRADE_ID, reminderTime: '09:00:00', daysOfWeek: [], enabled: true });
+    createReminder.mockRejectedValueOnce(NO_REMINDER_TIME).mockResolvedValueOnce({
+      id: 'r-1',
+      upgradeId: UPGRADE_ID,
+      reminderTime: '09:00:00',
+      daysOfWeek: [],
+      enabled: true,
+    });
     renderPage();
     await screen.findByText('Cold showers');
     fireEvent.submit(screen.getByRole('button', { name: 'Add reminder' }));
@@ -637,11 +675,13 @@ describe('UpgradeDetailsPage', () => {
 
   it('GivenTheUpgradeIsGone_WhenAReminderIsAdded_ThenItSaysWhyWithItsReference', async () => {
     // A refusal that names no field carries the trace id that finds it (NFR-30).
-    createReminder.mockRejectedValue(apiFailure(404, {
-      status: 404,
-      message: 'Upgrade not found: upgrade-1',
-      traceId: 'trace-404',
-    }));
+    createReminder.mockRejectedValue(
+      apiFailure(404, {
+        status: 404,
+        message: 'Upgrade not found: upgrade-1',
+        traceId: 'trace-404',
+      }),
+    );
     renderPage();
     await screen.findByText('Cold showers');
 
@@ -653,8 +693,12 @@ describe('UpgradeDetailsPage', () => {
   it('GivenTheApiRefusesARemoval_WhenAReminderIsRemoved_ThenTheCardSaysWhyWithItsReference', async () => {
     // NFR-30 (#96). A 404 is what a reminder already removed from another tab answers. Before, the row
     // simply stayed where it was.
-    getReminders.mockResolvedValue([{ id: 'reminder-1', upgradeId: UPGRADE_ID, reminderTime: '09:00:00', daysOfWeek: [], enabled: true }]);
-    deleteReminder.mockRejectedValue(apiFailure(404, { status: 404, message: 'Reminder not found', traceId: 'trace-131' }));
+    getReminders.mockResolvedValue([
+      { id: 'reminder-1', upgradeId: UPGRADE_ID, reminderTime: '09:00:00', daysOfWeek: [], enabled: true },
+    ]);
+    deleteReminder.mockRejectedValue(
+      apiFailure(404, { status: 404, message: 'Reminder not found', traceId: 'trace-131' }),
+    );
     renderPage();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
@@ -667,7 +711,9 @@ describe('UpgradeDetailsPage', () => {
 
   it('GivenARemovalInFlight_WhenRemoveIsPressedAgain_ThenNothingMoreIsSent', async () => {
     // A second DELETE would be answered 404 and say "not removed" while the row disappears.
-    getReminders.mockResolvedValue([{ id: 'reminder-1', upgradeId: UPGRADE_ID, reminderTime: '09:00:00', daysOfWeek: [], enabled: true }]);
+    getReminders.mockResolvedValue([
+      { id: 'reminder-1', upgradeId: UPGRADE_ID, reminderTime: '09:00:00', daysOfWeek: [], enabled: true },
+    ]);
     deleteReminder.mockReturnValue(new Promise(() => {}));
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
@@ -697,7 +743,11 @@ describe('UpgradeDetailsPage', () => {
   it('GivenASaveStillInFlight_WhenANewProgressEntryIsStartedAndTheSaveIsRefused_ThenTheNewEntrySaysNothing', async () => {
     // The refusal belongs to an entry the user already walked away from.
     let refuseTheSave: (reason: unknown) => void = () => {};
-    createProgress.mockReturnValue(new Promise<ProgressEntry>((_, reject) => { refuseTheSave = reject; }));
+    createProgress.mockReturnValue(
+      new Promise<ProgressEntry>((_, reject) => {
+        refuseTheSave = reject;
+      }),
+    );
     renderPage();
     await screen.findByText('Cold showers');
     fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
@@ -706,7 +756,9 @@ describe('UpgradeDetailsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
-    await act(async () => { refuseTheSave(DAY_ALREADY_LOGGED); });
+    await act(async () => {
+      refuseTheSave(DAY_ALREADY_LOGGED);
+    });
 
     expect(screen.getByRole('dialog', { name: 'Log Progress' })).toBeDefined();
     expect(screen.queryByText(DAY_ALREADY_LOGGED_MESSAGE)).toBeNull();
@@ -714,7 +766,11 @@ describe('UpgradeDetailsPage', () => {
 
   it('GivenATrackingSaveStillInFlight_WhenTheDialogIsReopenedAndTheSaveIsRefused_ThenTheReopenedDialogSaysNothing', async () => {
     let refuseTheSave: (reason: unknown) => void = () => {};
-    saveTrackingConfig.mockReturnValue(new Promise((_, reject) => { refuseTheSave = reject; }));
+    saveTrackingConfig.mockReturnValue(
+      new Promise((_, reject) => {
+        refuseTheSave = reject;
+      }),
+    );
     renderPage();
     await screen.findByText('Cold showers');
     fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
@@ -734,7 +790,11 @@ describe('UpgradeDetailsPage', () => {
   it('GivenATrackingSaveStillInFlight_WhenTheDialogIsReopenedAndTheSaveSucceeds_ThenTheReopenedDialogStaysOpen', async () => {
     // Closing on success belongs to the save that asked for it, as it does for progress (#119).
     let answerTheSave: (upgrade: HealthUpgrade) => void = () => {};
-    saveTrackingConfig.mockReturnValue(new Promise<HealthUpgrade>((resolve) => { answerTheSave = resolve; }));
+    saveTrackingConfig.mockReturnValue(
+      new Promise<HealthUpgrade>((resolve) => {
+        answerTheSave = resolve;
+      }),
+    );
     renderPage();
     await screen.findByText('Cold showers');
     fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
@@ -743,7 +803,9 @@ describe('UpgradeDetailsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
-    await act(async () => { answerTheSave(anUpgrade()); });
+    await act(async () => {
+      answerTheSave(anUpgrade());
+    });
 
     expect(screen.getByRole('dialog', { name: 'Configure Tracking' })).toBeDefined();
   });
@@ -812,7 +874,11 @@ function serveUpgrade(initial: HealthUpgrade) {
   });
   // BR-2: rescheduling moves the date in any state, and only from ABANDONED changes the status too.
   rescheduleUpgrade.mockImplementation((_id: string, newDate: string) => {
-    current = { ...current, plannedStartDate: newDate, status: current.status === 'ABANDONED' ? 'PLANNED' : current.status };
+    current = {
+      ...current,
+      plannedStartDate: newDate,
+      status: current.status === 'ABANDONED' ? 'PLANNED' : current.status,
+    };
     return Promise.resolve(current);
   });
 }
@@ -925,7 +991,9 @@ describe('UpgradeDetailsPage editing an upgrade', () => {
   it('GivenTheAreasCannotBeRead_WhenTheEditOpens_ThenTheDialogSaysSoWithItsReference', async () => {
     // NFR-30: without this the picker offers "No area" alone, as though the upgrade had none.
     serveUpgrade(described);
-    getHealthAreas.mockRejectedValueOnce(apiFailure(503, { status: 503, message: 'Service unavailable', traceId: 'trace-areas' }));
+    getHealthAreas.mockRejectedValueOnce(
+      apiFailure(503, { status: 503, message: 'Service unavailable', traceId: 'trace-areas' }),
+    );
     renderPage();
 
     const dialog = await openEdit();
@@ -937,18 +1005,22 @@ describe('UpgradeDetailsPage editing an upgrade', () => {
   it('GivenAnEditTheApiRefuses_WhenItIsSaved_ThenTheDialogSaysWhyWithItsReference', async () => {
     // BR-5: making a running upgrade HARD can exceed the limit, a refusal that names no field.
     serveUpgrade(described);
-    updateUpgrade.mockRejectedValue(apiFailure(422, {
-      status: 422,
-      message: 'Cannot have more than 3 HARD upgrades active at once',
-      traceId: 'trace-422',
-    }));
+    updateUpgrade.mockRejectedValue(
+      apiFailure(422, {
+        status: 422,
+        message: 'Cannot have more than 3 HARD upgrades active at once',
+        traceId: 'trace-422',
+      }),
+    );
     renderPage();
     const dialog = await openEdit();
 
     fireEvent.change(dialog.getByLabelText('Difficulty'), { target: { value: 'HARD' } });
     fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
 
-    expect(await dialog.findByText('Cannot have more than 3 HARD upgrades active at once (reference trace-422)')).toBeDefined();
+    expect(
+      await dialog.findByText('Cannot have more than 3 HARD upgrades active at once (reference trace-422)'),
+    ).toBeDefined();
     expect(screen.getByRole('dialog', { name: 'Edit Upgrade' })).toBeDefined();
   });
 
@@ -985,9 +1057,12 @@ async function confirmAbandonThenDismissInTheSameTask(): Promise<() => void> {
   let answer: () => void = () => {};
   serveUpgrade(anUpgrade());
   const served = performUpgradeAction.getMockImplementation()!;
-  performUpgradeAction.mockImplementationOnce((...args: unknown[]) => new Promise<HealthUpgrade>((resolve) => {
-    answer = () => resolve(served(...args));
-  }));
+  performUpgradeAction.mockImplementationOnce(
+    (...args: unknown[]) =>
+      new Promise<HealthUpgrade>((resolve) => {
+        answer = () => resolve(served(...args));
+      }),
+  );
   renderPage();
   const trigger = await screen.findByRole('button', { name: 'Abandon' });
   trigger.focus();
@@ -1098,7 +1173,9 @@ describe('UpgradeDetailsPage abandoning an upgrade', () => {
     trigger.focus();
     fireEvent.click(trigger);
 
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'Abandon Upgrade' })).getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Abandon Upgrade' })).getByRole('button', { name: 'Cancel' }),
+    );
 
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Abandon Upgrade' })).toBeNull());
     await settled();
@@ -1124,9 +1201,12 @@ describe('UpgradeDetailsPage abandoning an upgrade', () => {
     // refused 422, reading as though the first had failed.
     let answer: () => void = () => {};
     serveUpgrade(anUpgrade());
-    performUpgradeAction.mockImplementationOnce(() => new Promise<HealthUpgrade>((resolve) => {
-      answer = () => resolve({ ...anUpgrade(), status: 'ABANDONED' });
-    }));
+    performUpgradeAction.mockImplementationOnce(
+      () =>
+        new Promise<HealthUpgrade>((resolve) => {
+          answer = () => resolve({ ...anUpgrade(), status: 'ABANDONED' });
+        }),
+    );
     renderPage();
     const dialog = await openAbandon();
     fireEvent.click(dialog.getByRole('button', { name: 'Abandon' }));
@@ -1145,11 +1225,13 @@ describe('UpgradeDetailsPage abandoning an upgrade', () => {
 
   it('GivenAnAbandonTheApiRefuses_WhenItIsConfirmed_ThenTheDialogSaysWhyWithItsReference', async () => {
     serveUpgrade(anUpgrade());
-    performUpgradeAction.mockRejectedValue(apiFailure(422, {
-      status: 422,
-      message: 'Cannot abandon a COMPLETED upgrade',
-      traceId: 'trace-abandon',
-    }));
+    performUpgradeAction.mockRejectedValue(
+      apiFailure(422, {
+        status: 422,
+        message: 'Cannot abandon a COMPLETED upgrade',
+        traceId: 'trace-abandon',
+      }),
+    );
     renderPage();
     const dialog = await openAbandon();
 
@@ -1279,11 +1361,13 @@ describe('UpgradeDetailsPage rescheduling an upgrade', () => {
 
   it('GivenARescheduleTheApiRefuses_WhenItIsSubmitted_ThenTheDialogSaysWhyWithItsReference', async () => {
     serveUpgrade({ ...anUpgrade(), status: 'PAUSED' });
-    rescheduleUpgrade.mockRejectedValue(apiFailure(422, {
-      status: 422,
-      message: 'Cannot reschedule a COMPLETED upgrade',
-      traceId: 'trace-reschedule',
-    }));
+    rescheduleUpgrade.mockRejectedValue(
+      apiFailure(422, {
+        status: 422,
+        message: 'Cannot reschedule a COMPLETED upgrade',
+        traceId: 'trace-reschedule',
+      }),
+    );
     renderPage();
     const dialog = await openReschedule();
 
@@ -1361,7 +1445,12 @@ describe('UpgradeDetailsPage deleting an upgrade', () => {
     // Dismissed mid-flight, the dialog could be opened again and the delete sent twice; the second would
     // be answered 404, reading as though the first had failed.
     let answer: () => void = () => {};
-    deleteUpgrade.mockImplementation(() => new Promise<void>((resolve) => { answer = resolve; }));
+    deleteUpgrade.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          answer = resolve;
+        }),
+    );
     serveUpgrade(anUpgrade());
     renderPage();
     const dialog = await openDelete();
@@ -1380,11 +1469,13 @@ describe('UpgradeDetailsPage deleting an upgrade', () => {
 
   it('GivenADeleteTheApiRefuses_WhenItIsConfirmed_ThenTheDialogSaysWhyAndThePageStays', async () => {
     serveUpgrade(anUpgrade());
-    deleteUpgrade.mockRejectedValue(apiFailure(500, {
-      status: 500,
-      message: 'An unexpected error occurred',
-      traceId: 'trace-delete',
-    }));
+    deleteUpgrade.mockRejectedValue(
+      apiFailure(500, {
+        status: 500,
+        message: 'An unexpected error occurred',
+        traceId: 'trace-delete',
+      }),
+    );
     renderPage();
     const dialog = await openDelete();
 
@@ -1398,7 +1489,14 @@ describe('UpgradeDetailsPage deleting an upgrade', () => {
 
 /** A reminder as the API sends one: its time with seconds, and its days in week order. */
 function aReminder(values: Partial<Reminder> = {}): Reminder {
-  return { id: 'reminder-1', upgradeId: UPGRADE_ID, reminderTime: '09:00:00', daysOfWeek: ['MON'], enabled: true, ...values };
+  return {
+    id: 'reminder-1',
+    upgradeId: UPGRADE_ID,
+    reminderTime: '09:00:00',
+    daysOfWeek: ['MON'],
+    enabled: true,
+    ...values,
+  };
 }
 
 /**
@@ -1409,9 +1507,16 @@ function serveReminders(...initial: Reminder[]) {
   let reminders = initial;
   getReminders.mockImplementation(() => Promise.resolve(reminders));
   updateReminder.mockImplementation((id: string, req: CreateReminderRequest) => {
-    reminders = reminders.map((r) => (r.id === id
-      ? { ...r, reminderTime: `${req.reminderTime.slice(0, 5)}:00`, daysOfWeek: req.daysOfWeek ?? [], enabled: req.enabled ?? r.enabled }
-      : r));
+    reminders = reminders.map((r) =>
+      r.id === id
+        ? {
+            ...r,
+            reminderTime: `${req.reminderTime.slice(0, 5)}:00`,
+            daysOfWeek: req.daysOfWeek ?? [],
+            enabled: req.enabled ?? r.enabled,
+          }
+        : r,
+    );
     return Promise.resolve(reminders.find((r) => r.id === id));
   });
 }
@@ -1472,7 +1577,10 @@ describe('UpgradeDetailsPage changing a reminder', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Disable the 09:00 reminder' }));
 
     expect(await screen.findByRole('button', { name: 'Enable the 09:00 reminder' })).toBeDefined();
-    expect(updateReminder.mock.calls[0]).toEqual(['reminder-1', { reminderTime: '09:00:00', daysOfWeek: ['MON'], enabled: false }]);
+    expect(updateReminder.mock.calls[0]).toEqual([
+      'reminder-1',
+      { reminderTime: '09:00:00', daysOfWeek: ['MON'], enabled: false },
+    ]);
     expect(screen.getByText('disabled')).toBeDefined();
   });
 
@@ -1489,7 +1597,9 @@ describe('UpgradeDetailsPage changing a reminder', () => {
 
   it('GivenTheApiRefusesASwitch_WhenAReminderIsDisabled_ThenTheCardSaysWhyWithItsReference', async () => {
     serveReminders(aReminder());
-    updateReminder.mockRejectedValue(apiFailure(404, { status: 404, message: 'Reminder not found', traceId: 'trace-switch' }));
+    updateReminder.mockRejectedValue(
+      apiFailure(404, { status: 404, message: 'Reminder not found', traceId: 'trace-switch' }),
+    );
     renderPage();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Disable the 09:00 reminder' }));

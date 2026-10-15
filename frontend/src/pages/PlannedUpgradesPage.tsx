@@ -24,7 +24,11 @@ import { refreshUpgradeViews } from '../lib/upgradeViews';
 const PlannedUpgradesPage: React.FC = () => {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { data: upgrades = [], isLoading, error } = useQuery({ queryKey: ['upgrades', 'PLANNED'], queryFn: () => getUpgrades('PLANNED') });
+  const {
+    data: upgrades = [],
+    isLoading,
+    error,
+  } = useQuery({ queryKey: ['upgrades', 'PLANNED'], queryFn: () => getUpgrades('PLANNED') });
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: ActionTarget }) => performUpgradeAction(id, status),
@@ -42,7 +46,12 @@ const PlannedUpgradesPage: React.FC = () => {
     return a.plannedStartDate.localeCompare(b.plannedStartDate);
   });
 
-  if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
+  if (isLoading)
+    return (
+      <div className="flex justify-center py-20">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
   if (error) return <ErrorState title="Could not load your upgrades." error={toApiError(error)} />;
 
   return (
@@ -53,7 +62,12 @@ const PlannedUpgradesPage: React.FC = () => {
         action={<Button onClick={() => navigate('/upgrades/backlog')}>Browse Backlog</Button>}
       />
       {sorted.length === 0 ? (
-        <EmptyState icon="📅" title="No planned upgrades" description="Move ideas from backlog to plan, or create a new upgrade." action={<Button onClick={() => navigate('/upgrades/backlog')}>Go to Backlog</Button>} />
+        <EmptyState
+          icon="📅"
+          title="No planned upgrades"
+          description="Move ideas from backlog to plan, or create a new upgrade."
+          action={<Button onClick={() => navigate('/upgrades/backlog')}>Go to Backlog</Button>}
+        />
       ) : (
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {sorted.map((u) => (

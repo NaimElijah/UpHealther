@@ -93,9 +93,7 @@ describe('the boot script and ThemeProvider agree', () => {
       cleanup();
 
       expect(`${describeCase} -> boot:${bootResult}`).toBe(`${describeCase} -> boot:${expectedDark}`);
-      expect(`${describeCase} -> provider:${providerResult}`).toBe(
-        `${describeCase} -> provider:${expectedDark}`,
-      );
+      expect(`${describeCase} -> provider:${providerResult}`).toBe(`${describeCase} -> provider:${expectedDark}`);
     }
   });
 

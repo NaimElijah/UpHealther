@@ -43,7 +43,11 @@ const numOrUndef = (v: string): number | undefined => {
 const DailyCheckinPage: React.FC = () => {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { data: upgrades = [], isLoading, error } = useQuery({ queryKey: ['upgrades', 'ACTIVE'], queryFn: () => getUpgrades('ACTIVE') });
+  const {
+    data: upgrades = [],
+    isLoading,
+    error,
+  } = useQuery({ queryKey: ['upgrades', 'ACTIVE'], queryFn: () => getUpgrades('ACTIVE') });
   const [progressMap, setProgressMap] = useState<ProgressMap>({});
   const [submitted, setSubmitted] = useState(false);
 
@@ -74,7 +78,12 @@ const DailyCheckinPage: React.FC = () => {
 
   const trackingType = (u: HealthUpgrade) => u.trackingConfig?.trackingType ?? 'BOOLEAN';
 
-  if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
+  if (isLoading)
+    return (
+      <div className="flex justify-center py-20">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
   if (error) return <ErrorState title="Could not load your active upgrades." error={toApiError(error)} />;
 
   if (submitted) {
@@ -90,10 +99,18 @@ const DailyCheckinPage: React.FC = () => {
 
   return (
     <PageContainer width="narrow">
-      <PageHeader title="Daily Check-in" subtitle={`Today: ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}`} />
+      <PageHeader
+        title="Daily Check-in"
+        subtitle={`Today: ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}`}
+      />
 
       {upgrades.length === 0 ? (
-        <EmptyState icon="✅" title="No active upgrades" description="Activate upgrades to track them here." action={<Button onClick={() => navigate('/upgrades/planned')}>View Planned</Button>} />
+        <EmptyState
+          icon="✅"
+          title="No active upgrades"
+          description="Activate upgrades to track them here."
+          action={<Button onClick={() => navigate('/upgrades/planned')}>View Planned</Button>}
+        />
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           {upgrades.map((u: HealthUpgrade) => (

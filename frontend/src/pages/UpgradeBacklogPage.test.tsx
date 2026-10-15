@@ -160,7 +160,12 @@ describe('UpgradeBacklogPage', () => {
     // One mutation serves every idea. Dismissed mid-flight, the dialog would let another idea's open
     // before this answer lands; the answer would then close that one, or put this refusal in it.
     let answer: (planned: HealthUpgrade) => void = () => {};
-    planUpgrade.mockImplementation(() => new Promise<HealthUpgrade>((resolve) => { answer = resolve; }));
+    planUpgrade.mockImplementation(
+      () =>
+        new Promise<HealthUpgrade>((resolve) => {
+          answer = resolve;
+        }),
+    );
     renderPage();
     const dialog = await openPlan();
     fireEvent.submit(dialog.getByRole('button', { name: 'Plan' }));
@@ -181,9 +186,12 @@ describe('UpgradeBacklogPage', () => {
     // Closed any sooner, the dialog would uncover the planned idea still listed with its Plan button,
     // and planning it again would earn a 422 that reads as though the first plan had failed.
     let refreshed: (ideas: HealthUpgrade[]) => void = () => {};
-    getUpgrades
-      .mockResolvedValueOnce([anIdea()])
-      .mockImplementationOnce(() => new Promise<HealthUpgrade[]>((resolve) => { refreshed = resolve; }));
+    getUpgrades.mockResolvedValueOnce([anIdea()]).mockImplementationOnce(
+      () =>
+        new Promise<HealthUpgrade[]>((resolve) => {
+          refreshed = resolve;
+        }),
+    );
     renderPage();
     const dialog = await openPlan();
 

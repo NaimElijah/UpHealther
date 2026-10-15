@@ -104,13 +104,7 @@ export type UpgradeType =
  * `IDEA` is the initial state — not `DRAFT`. Transitions are driven server-side through the action
  * endpoints, never by assigning a status.
  */
-export type UpgradeStatus =
-  | 'IDEA'
-  | 'PLANNED'
-  | 'ACTIVE'
-  | 'PAUSED'
-  | 'COMPLETED'
-  | 'ABANDONED';
+export type UpgradeStatus = 'IDEA' | 'PLANNED' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ABANDONED';
 
 /**
  * A status an upgrade is moved to by an action that carries nothing but the upgrade's id.
@@ -334,8 +328,8 @@ export interface AppNotification {
 export interface Reminder {
   id: string;
   upgradeId: string;
-  reminderTime: string;   // "HH:mm" / "HH:mm:ss"
-  daysOfWeek: string[];   // e.g. ["MON","WED","FRI"]; empty means every day
+  reminderTime: string; // "HH:mm" / "HH:mm:ss"
+  daysOfWeek: string[]; // e.g. ["MON","WED","FRI"]; empty means every day
   enabled: boolean;
 }
 
@@ -346,7 +340,7 @@ export interface Reminder {
  * reminder enabled and leaves an existing one's state alone.
  */
 export interface CreateReminderRequest {
-  reminderTime: string;   // "HH:mm"
+  reminderTime: string; // "HH:mm"
   daysOfWeek?: string[];
   enabled?: boolean;
 }
