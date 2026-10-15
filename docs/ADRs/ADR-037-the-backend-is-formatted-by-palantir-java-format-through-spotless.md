@@ -69,10 +69,12 @@ checks dependencies, not layout.
   open when it landed.
 - **`git blame` needs `.git-blame-ignore-revs`** to see past the reformat. GitHub reads it
   automatically; a local clone needs the one-time `git config` above.
-- **A formatting failure surfaces late in CI.** `verify` runs the integration tests before the check, so
-  an unformatted file fails the job after them. Binding the check earlier would make `./mvnw test` fail
-  on layout too, in the middle of a red-green loop. Running `./mvnw spotless:apply` before committing
-  avoids both.
+- **A formatting failure surfaces late in CI.** The check is the last goal of `verify`, so an
+  unformatted file fails the job only after the integration tests have run and `failsafe:verify` has
+  reported them. The plugin is declared last in `pom.xml` for that reason: goals bound to one phase run
+  in declaration order, and a check ahead of `failsafe:verify` would hide a failing integration test
+  behind a layout failure. Binding the check earlier would make `./mvnw test` fail on layout too, in the
+  middle of a red-green loop. Running `./mvnw spotless:apply` before committing avoids both.
 - **An editor should match.** IntelliJ's palantir-java-format plugin applies the same formatter.
   Without it, `spotless:apply` corrects whatever the editor did.
 - **A working copy whose files are CRLF fails the check.** The index is LF (`.gitattributes`), but a
