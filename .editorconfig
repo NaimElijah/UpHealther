@@ -1,13 +1,12 @@
 # https://editorconfig.org
 #
-# What every editor should do with whitespace and line endings before a formatter runs. Java layout
-# beyond that belongs to palantir-java-format through Spotless (ADR-037). The frontend has no Prettier,
-# so for it this file is the only cross-editor statement of how its sources are written. Every value
-# here is descriptive — it matches what the tracked files already contain rather than proposing a
-# change to them.
+# What every editor should do with whitespace and line endings before a formatter runs. Layout beyond
+# that belongs to the formatters: palantir-java-format through Spotless for Java (ADR-037), and Prettier
+# for the frontend (ADR-038), which also reads this file. Every value here is descriptive — it matches
+# what the tracked files already contain rather than proposing a change to them.
 #
-# No max_line_length: the Java formatter owns the width, and the frontend's sources keep none, so
-# declaring a limit here would make this file a wish rather than a description.
+# No max_line_length: both formatters own the width (120), and Prettier would take a value here as its
+# own, so the limit is stated once, in each formatter's configuration.
 
 root = true
 

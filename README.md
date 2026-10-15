@@ -265,11 +265,12 @@ and append-only — Hibernate validates the entities against the schema and refu
 mismatch, so an entity change needs a new migration rather than a `ddl-auto` change.
 
 **Conventions.** Conventional Commits (`type(scope): imperative subject`), branches
-`type/short-kebab-description`, one logical change per commit. Java layout belongs to
-palantir-java-format (`./mvnw spotless:apply`,
-[ADR-037](docs/ADRs/ADR-037-the-backend-is-formatted-by-palantir-java-format-through-spotless.md)),
-whitespace elsewhere to [`.editorconfig`](.editorconfig), and line endings to
-[`.gitattributes`](.gitattributes).
+`type/short-kebab-description`, one logical change per commit. Layout belongs to the formatters:
+palantir-java-format for Java (`./mvnw spotless:apply`,
+[ADR-037](docs/ADRs/ADR-037-the-backend-is-formatted-by-palantir-java-format-through-spotless.md)) and
+Prettier for the frontend (`npm run format`,
+[ADR-038](docs/ADRs/ADR-038-the-frontend-is-formatted-by-prettier.md)). Whitespace elsewhere belongs to
+[`.editorconfig`](.editorconfig), and line endings to [`.gitattributes`](.gitattributes).
 
 **Adding a feature end to end**, in the order the files come: behaviour into `domain/model` (or
 `domain/service`) with a failing test; what it needs from outside into `domain/port/out`; a
