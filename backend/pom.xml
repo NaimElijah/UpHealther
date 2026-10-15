@@ -276,6 +276,10 @@
               Owns the layout of every Java source under src/main and src/test: `./mvnw spotless:apply`
               rewrites it. Javadoc is left alone because the prose is wrapped by hand. Line endings follow
               .gitattributes. See ADR-037.
+
+              `check` keeps its default phase, `verify`, which is CI's command, so an unformatted file fails
+              the build locally exactly as it does there. Bound any earlier, it would also fail `./mvnw
+              test` on layout in the middle of a red-green loop.
             -->
             <plugin>
                 <groupId>com.diffplug.spotless</groupId>
@@ -288,6 +292,13 @@
                         </palantirJavaFormat>
                     </java>
                 </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
             <!--

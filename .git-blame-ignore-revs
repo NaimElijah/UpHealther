@@ -1,0 +1,14 @@
+# Commits that only reformat, which `git blame` should look through to the change before them.
+#
+# GitHub's blame view reads this file automatically. Locally, run once:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# Each entry is a formatting-only commit as it landed on dev. Merge commits keep these SHAs, which is
+# one more reason this repository never squashes. A formatter version bump adds its own entry
+# (ADR-037, ADR-038).
+
+# style(backend): apply palantir-java-format (#161)
+6f5e73ea165d6898626e781177807f1cc00c0303
+
+# style(frontend): apply Prettier (#161)
+7027306fcad63afe8369b3dad627e25276317c30

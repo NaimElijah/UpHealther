@@ -294,10 +294,10 @@ the wrong way.
 ```bash
 cd backend
 ./mvnw test     # 751 unit and structural tests — no database, no Docker
-./mvnw verify   # the above plus 95 integration tests in 15 *IT classes — needs Docker
+./mvnw verify   # the above, 95 integration tests in 15 *IT classes, and the format check — needs Docker
 
 cd ../frontend
-npm run lint && npm run check:colours && npm run test
+npm run format:check && npm run lint && npm run check:colours && npm run test
 ```
 
 The integration suite starts its own `postgres:15.19-alpine3.24` through Testcontainers, so nothing needs
@@ -305,9 +305,9 @@ provisioning first and CI runs the same `verify`
 ([ADR-008](docs/ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)).
 
 **What CI gates on** ([`ci.yml`](.github/workflows/ci.yml), every push and PR to `main` and `dev`):
-`./mvnw clean verify`; the generated diagrams still matching their source; frontend lint at
-`--max-warnings 0`; the colour-token check; `vitest run --coverage`; `npm audit --omit=dev
---audit-level=high`; and the production build.
+`./mvnw clean verify`, which includes the Java format check; the generated diagrams still matching their
+source; the frontend format check; frontend lint at `--max-warnings 0`; the colour-token check;
+`vitest run --coverage`; `npm audit --omit=dev --audit-level=high`; and the production build.
 
 **Coverage is reported, never gated** — both suites publish one every run, no threshold fails a
 build. The gate is [`requirements.md`](docs/requirements/requirements.md), where every requirement
@@ -348,7 +348,7 @@ docs/              The documentation the repository baseline requires
   requirements/      What the system must do, each naming its enforcing test
   architecture/      What the system is, plus seven diagrams (three generated)
   ADRs/              Why — one file per decision, append-only
-.github/workflows/ CI: backend verify, diagram drift, frontend lint/test/audit/build
+.github/workflows/ CI: backend verify, diagram drift, frontend format/lint/test/audit/build
 ```
 
 ## 🧭 Design decisions
