@@ -17,9 +17,9 @@ Both tools ran once over `backend/src` on 2026-10-15, after the palantir-java-fo
 
 | | Error Prone 2.50.0 | SpotBugs 4.10.5.0 |
 |---|---|---|
-| Findings | 98: 27 in `src/main`, 71 in `src/test`. 20 of the test findings are errors that stop compilation | 54: 45 in `src/main`, 9 in `src/test` |
+| Findings | 88: 27 in `src/main`, 61 in `src/test`. 10 of the test findings are errors that stop compilation (Maven prints each error twice; these are unique findings) | 54: 45 in `src/main`, 9 in `src/test` |
 | New defects among them | **0** | **0** |
-| What the findings were | 19 are the entity `@PrePersist`/`@PreUpdate` timestamps read from the JVM zone. That is #51's known deviation, which `ServerTimeArchitectureTest` already fences off. 7 are Javadoc nits and 1 is `String.split`, documented as intended. In tests: 32 zone-less `now()` fixtures, 20 deliberate `catchThrowable(...)` calls in one class, and 19 style nits | 43 `EI_EXPOSE_REP`/`EI_EXPOSE_REP2`, which is a record or a constructor-injected bean holding a `List` or an entity. It is how records and dependency injection work, not a leak. 1 `CT_CONSTRUCTOR_THROW` on a Spring bean. The null and unread-field findings are false positives, or tests passing `null` on purpose |
+| What the findings were | 19 are the entity `@PrePersist`/`@PreUpdate` timestamps read from the JVM zone. That is #51's known deviation, which `ServerTimeArchitectureTest` already fences off. 7 are Javadoc nits and 1 is `String.split`, documented as intended. In tests: 32 zone-less `now()` fixtures, 10 deliberate `catchThrowable(...)` calls in one class, and 19 style nits | 43 `EI_EXPOSE_REP`/`EI_EXPOSE_REP2`, which is a record or a constructor-injected bean holding a `List` or an entity. It is how records and dependency injection work, not a leak. 1 `CT_CONSTRUCTOR_THROW` on a Spring bean. The null and unread-field findings are false positives, or tests passing `null` on purpose |
 | Build time, clean compile of main and test | 57–77 s, against 31–36 s without it (two runs each; `CheckReturnValue` demoted to a warning so the test compile completes) | +51 s on top of the compile, as a goal of its own |
 | Setup | Ten `--add-exports`/`--add-opens` lines in a new `.mvn/jvm.config`. `-XDaddTypeAnnotationsToSymbol=true` on JDK 21. Lombok moves into `annotationProcessorPaths`, because an explicit processor path turns off classpath discovery | A plugin and its goal. The engine is LGPL-2.1 and the Maven plugin Apache-2.0 |
 
@@ -48,7 +48,7 @@ a processor-path coupling that every later toolchain bump has to carry. The meas
 
 ## Alternatives considered
 
-- **Error Prone, at its default severities.** Rejected for now. Its 20 test errors and 78 warnings would
+- **Error Prone, at its default severities.** Rejected for now. Its 10 test errors and 78 warnings would
   all have to be fixed or switched off before `-Werror` let the build pass, and none of them is a new
   bug.
   - **Revisit:**
@@ -56,7 +56,7 @@ a processor-path coupling that every later toolchain bump has to carry. The meas
     - when #51 routes the entity timestamps through the clock, which removes most of its main-code
       findings.
 - **Error Prone with its `ERROR`-level checks only** (`-XepDisableAllWarnings`). Rejected for now. It
-  would gate on the 20 `catchThrowable` calls alone. That is a deliberate idiom, so the gate would
+  would gate on the 10 `catchThrowable` calls alone. That is a deliberate idiom, so the gate would
   catch nothing on this codebase, at the same setup cost and the same doubled compile.
   - **Revisit:** as above.
 - **SpotBugs, with `EI_EXPOSE_REP*` excluded.** Rejected. What remains is 11 findings, and none is a
