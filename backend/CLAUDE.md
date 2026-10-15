@@ -150,6 +150,10 @@ in test sources, and a warning fails `./mvnw compile`, so `./mvnw test` fails on
 exclusion's reason is recorded). Fix a warning rather than suppress it. Where a suppression is genuinely
 right, `@SuppressWarnings` goes on the narrowest element, with a comment saying why.
 
+No bug-pattern checker runs. Error Prone and SpotBugs were measured on this code and found nothing
+that was not already tracked, so neither is worth its build time yet
+(`../docs/ADRs/ADR-040-no-bug-pattern-checker-yet.md` has the numbers and the revisit triggers).
+
 ## Formatting
 
 Layout belongs to palantir-java-format, run through Spotless. `./mvnw spotless:apply` rewrites every
