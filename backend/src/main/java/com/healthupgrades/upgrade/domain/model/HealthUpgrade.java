@@ -2,11 +2,10 @@ package com.healthupgrades.upgrade.domain.model;
 
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import jakarta.persistence.*;
-import lombok.*;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import lombok.*;
 
 /**
  * The core aggregate: a planned health improvement moving through its lifecycle.
@@ -85,9 +84,17 @@ public class HealthUpgrade {
      *
      * @throws BusinessRuleException if the owner, title or type is missing
      */
-    public static HealthUpgrade create(UUID userId, UUID areaId, String title, String description,
-                                       UpgradeType type, Difficulty difficulty, LocalDate plannedStartDate,
-                                       LocalDate targetEndDate, String motivation, String successCriteria) {
+    public static HealthUpgrade create(
+            UUID userId,
+            UUID areaId,
+            String title,
+            String description,
+            UpgradeType type,
+            Difficulty difficulty,
+            LocalDate plannedStartDate,
+            LocalDate targetEndDate,
+            String motivation,
+            String successCriteria) {
         if (userId == null) throw new BusinessRuleException("An upgrade must belong to a user");
         if (title == null || title.isBlank()) throw new BusinessRuleException("An upgrade must have a title");
         if (type == null) throw new BusinessRuleException("An upgrade must have a type");
@@ -115,8 +122,14 @@ public class HealthUpgrade {
      *
      * @throws BusinessRuleException if the title is blanked out
      */
-    public void updateDetails(UUID areaId, String title, String description, UpgradeType type,
-                              LocalDate targetEndDate, String motivation, String successCriteria) {
+    public void updateDetails(
+            UUID areaId,
+            String title,
+            String description,
+            UpgradeType type,
+            LocalDate targetEndDate,
+            String motivation,
+            String successCriteria) {
         if (title == null || title.isBlank()) throw new BusinessRuleException("An upgrade must have a title");
         if (type == null) throw new BusinessRuleException("An upgrade must have a type");
 
@@ -251,9 +264,7 @@ public class HealthUpgrade {
      * inject a {@link java.time.Clock} actually get to decide what "now" means.
      */
     public boolean isOverdue(LocalDate asOf) {
-        return targetEndDate != null
-                && status == UpgradeStatus.ACTIVE
-                && asOf.isAfter(targetEndDate);
+        return targetEndDate != null && status == UpgradeStatus.ACTIVE && asOf.isAfter(targetEndDate);
     }
 
     /**

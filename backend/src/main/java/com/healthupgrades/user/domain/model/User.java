@@ -1,11 +1,10 @@
 package com.healthupgrades.user.domain.model;
 
 import jakarta.persistence.*;
-import lombok.*;
-
 import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.UUID;
+import lombok.*;
 
 /**
  * User aggregate — a plain JPA entity.

@@ -1,29 +1,25 @@
 package com.healthupgrades.tracking.application;
 
 import com.healthupgrades.common.domain.audit.AuditAction;
-import com.healthupgrades.common.domain.port.out.AuditTrail;
-import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
-import com.healthupgrades.tracking.domain.event.ProgressEntryRecorded;
-import com.healthupgrades.tracking.domain.event.StreakAchieved;
 import com.healthupgrades.common.domain.exception.DuplicateProgressException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.common.domain.port.out.AuditTrail;
+import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.tracking.application.port.in.ProgressEntryDetails;
 import com.healthupgrades.tracking.application.port.in.ProgressQuery;
 import com.healthupgrades.tracking.application.port.in.StreakQuery;
 import com.healthupgrades.tracking.application.port.in.StreakSummary;
 import com.healthupgrades.tracking.application.port.in.TrackingConfigDetails;
 import com.healthupgrades.tracking.application.port.in.TrackingConfigQuery;
+import com.healthupgrades.tracking.domain.event.ProgressEntryRecorded;
+import com.healthupgrades.tracking.domain.event.StreakAchieved;
 import com.healthupgrades.tracking.domain.model.ProgressEntry;
-import com.healthupgrades.tracking.domain.service.ProgressEvaluationService;
-import com.healthupgrades.tracking.domain.service.StreakCalculator;
 import com.healthupgrades.tracking.domain.model.TrackingConfig;
 import com.healthupgrades.tracking.domain.port.out.ProgressEntryRepositoryPort;
 import com.healthupgrades.tracking.domain.port.out.TrackingConfigRepositoryPort;
+import com.healthupgrades.tracking.domain.service.ProgressEvaluationService;
+import com.healthupgrades.tracking.domain.service.StreakCalculator;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -31,10 +27,12 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Application service for tracking configuration and progress logging.
@@ -74,9 +72,9 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Stre
         // what its past progress means, and the upgrade is what somebody would be reading back.
         return auditTrail.recording(AuditAction.TRACKING_CONFIGURE, userId, upgradeId, () -> {
             upgradeQuery.getOwnedUpgrade(userId, upgradeId); // ownership check (throws if not owned)
-            TrackingConfig config = configRepository.findByUpgradeId(upgradeId).orElse(
-                    TrackingConfig.builder().upgradeId(upgradeId).build()
-            );
+            TrackingConfig config = configRepository
+                    .findByUpgradeId(upgradeId)
+                    .orElse(TrackingConfig.builder().upgradeId(upgradeId).build());
             config.setTrackingType(details.trackingType());
             config.setFrequency(details.frequency());
             config.setTargetNumericValue(details.targetNumericValue());
@@ -96,8 +94,10 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Stre
      */
     public TrackingConfig getConfig(UUID userId, UUID upgradeId) {
         upgradeQuery.getOwnedUpgrade(userId, upgradeId);
-        return configRepository.findByUpgradeId(upgradeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Tracking config not found for upgrade: " + upgradeId));
+        return configRepository
+                .findByUpgradeId(upgradeId)
+                .orElseThrow(
+                        () -> new ResourceNotFoundException("Tracking config not found for upgrade: " + upgradeId));
     }
 
     /**
@@ -147,10 +147,12 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Stre
             }
 
             ProgressEntry saved = progressRepository.save(entry);
-            eventPublisher.publish(new ProgressEntryRecorded(saved.getId(), upgradeId, userId, date, LocalDateTime.now(clock)));
+            eventPublisher.publish(
+                    new ProgressEntryRecorded(saved.getId(), upgradeId, userId, date, LocalDateTime.now(clock)));
 
             List<ProgressEntry> allEntries = progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId);
-            streakCalculator.milestoneReachedBy(allEntries, date, LocalDate.now(clock))
+            streakCalculator
+                    .milestoneReachedBy(allEntries, date, LocalDate.now(clock))
                     .ifPresent(days -> eventPublisher.publish(
                             new StreakAchieved(upgradeId, userId, days, LocalDateTime.now(clock))));
 
@@ -255,10 +257,11 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Stre
         // still gets its zero.
         Map<UUID, Integer> streaks = new HashMap<>();
         for (UUID upgradeId : upgradeIds) {
-            streaks.put(upgradeId, streakCalculator.calculateCurrentStreak(
-                    historyByUpgrade.getOrDefault(upgradeId, List.of()), today));
+            streaks.put(
+                    upgradeId,
+                    streakCalculator.calculateCurrentStreak(
+                            historyByUpgrade.getOrDefault(upgradeId, List.of()), today));
         }
         return streaks;
     }
-
 }

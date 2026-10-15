@@ -1,11 +1,16 @@
 package com.healthupgrades.common.adapter.in.web;
-import com.healthupgrades.common.domain.exception.*;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.healthupgrades.common.domain.exception.*;
 import com.healthupgrades.common.observability.CorrelationId;
 import io.micrometer.tracing.Tracer;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.TypeMismatchException;
@@ -25,12 +30,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
-
-import java.time.Clock;
-import java.time.LocalDateTime;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Single place where an exception becomes an HTTP status and an error body.
@@ -127,7 +126,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     /** Maps a second progress entry for the same upgrade and day to 409. */
     @ExceptionHandler(DuplicateProgressException.class)
-    public ResponseEntity<ErrorResponse> handleDuplicateProgress(DuplicateProgressException ex, HttpServletRequest req) {
+    public ResponseEntity<ErrorResponse> handleDuplicateProgress(
+            DuplicateProgressException ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(body(HttpStatus.CONFLICT.value(), ex.getMessage(), req.getRequestURI()));
     }
@@ -141,7 +141,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler({OptimisticLockException.class, jakarta.persistence.OptimisticLockException.class})
     public ResponseEntity<ErrorResponse> handleOptimisticLock(Exception ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(body(HttpStatus.CONFLICT.value(), "Resource was modified concurrently. Please retry.", req.getRequestURI()));
+                .body(body(
+                        HttpStatus.CONFLICT.value(),
+                        "Resource was modified concurrently. Please retry.",
+                        req.getRequestURI()));
     }
 
     /**
@@ -151,8 +154,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * reconcile. The request was simply overtaken, and the same request a moment later will work.
      */
     @ExceptionHandler(RetryableConflictException.class)
-    public ResponseEntity<ErrorResponse> handleRetryableConflict(RetryableConflictException ex,
-                                                                 HttpServletRequest req) {
+    public ResponseEntity<ErrorResponse> handleRetryableConflict(
+            RetryableConflictException ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(body(HttpStatus.CONFLICT.value(), ex.getMessage(), req.getRequestURI()));
     }
@@ -168,12 +171,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * in that.
      */
     @ExceptionHandler(TooManyRequestsException.class)
-    public ResponseEntity<ErrorResponse> handleTooManyRequests(TooManyRequestsException ex,
-                                                               HttpServletRequest req) {
+    public ResponseEntity<ErrorResponse> handleTooManyRequests(TooManyRequestsException ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.retryAfterSeconds()))
-                .body(body(HttpStatus.TOO_MANY_REQUESTS.value(),
-                        "Too many attempts. Please try again in a moment.", req.getRequestURI()));
+                .body(body(
+                        HttpStatus.TOO_MANY_REQUESTS.value(),
+                        "Too many attempts. Please try again in a moment.",
+                        req.getRequestURI()));
     }
 
     /**
@@ -211,8 +215,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * are one answer.
      */
     @ExceptionHandler(AuthenticationRequiredException.class)
-    public ResponseEntity<ErrorResponse> handleAuthenticationRequired(AuthenticationRequiredException ex,
-                                                                      HttpServletRequest req) {
+    public ResponseEntity<ErrorResponse> handleAuthenticationRequired(
+            AuthenticationRequiredException ex, HttpServletRequest req) {
         String challenge = ex.tokenPresented() ? INVALID_TOKEN_CHALLENGE : BEARER_CHALLENGE;
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .header(HttpHeaders.WWW_AUTHENTICATE, challenge)
@@ -241,8 +245,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * shows one message per input either way, and the same request always produces the same one.
      */
     @Override
-    protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException ex, HttpHeaders headers,
-                                                                  HttpStatusCode status, WebRequest request) {
+    protected ResponseEntity<Object> handleMethodArgumentNotValid(
+            MethodArgumentNotValidException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getFieldErrors().stream()
                 .sorted(Comparator.comparing(FieldError::getField)
@@ -262,8 +266,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * rather than the caller's mistake.
      */
     @Override
-    protected ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException ex, HttpHeaders headers,
-                                                                  HttpStatusCode status, WebRequest request) {
+    protected ResponseEntity<Object> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         return respond(ex, HttpStatus.BAD_REQUEST, "Malformed request body", headers, request);
     }
 
@@ -272,8 +276,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * a filter that is not one of the enum's constants.
      */
     @Override
-    protected ResponseEntity<Object> handleTypeMismatch(TypeMismatchException ex, HttpHeaders headers,
-                                                        HttpStatusCode status, WebRequest request) {
+    protected ResponseEntity<Object> handleTypeMismatch(
+            TypeMismatchException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         return respond(ex, HttpStatus.BAD_REQUEST, "Malformed request parameter", headers, request);
     }
 
@@ -286,8 +290,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * is logged at ERROR with the stack trace.
      */
     @Override
-    protected ResponseEntity<Object> handleExceptionInternal(Exception ex, Object body, HttpHeaders headers,
-                                                             HttpStatusCode statusCode, WebRequest request) {
+    protected ResponseEntity<Object> handleExceptionInternal(
+            Exception ex, Object body, HttpHeaders headers, HttpStatusCode statusCode, WebRequest request) {
         String message = statusCode.is5xxServerError()
                 ? INTERNAL_ERROR_MESSAGE
                 : HttpStatus.valueOf(statusCode.value()).getReasonPhrase();
@@ -307,13 +311,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .body(body(HttpStatus.INTERNAL_SERVER_ERROR.value(), INTERNAL_ERROR_MESSAGE, req.getRequestURI()));
     }
 
-    private ResponseEntity<Object> respond(Exception ex, HttpStatusCode statusCode, String message,
-                                           HttpHeaders headers, WebRequest request) {
+    private ResponseEntity<Object> respond(
+            Exception ex, HttpStatusCode statusCode, String message, HttpHeaders headers, WebRequest request) {
         return respond(ex, statusCode, body(statusCode.value(), message, pathOf(request)), headers, request);
     }
 
-    private ResponseEntity<Object> respond(Exception ex, HttpStatusCode statusCode, ErrorResponse body,
-                                           HttpHeaders headers, WebRequest request) {
+    private ResponseEntity<Object> respond(
+            Exception ex, HttpStatusCode statusCode, ErrorResponse body, HttpHeaders headers, WebRequest request) {
         // Kept from the overridden parent implementation: writing a body onto a committed response fails.
         HttpServletResponse response = ((ServletWebRequest) request).getResponse();
         if (response != null && response.isCommitted()) {
@@ -364,13 +368,36 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             this.timestamp = timestamp;
         }
 
-        public int getStatus() { return status; }
-        public String getMessage() { return message; }
-        public String getPath() { return path; }
-        public LocalDateTime getTimestamp() { return timestamp; }
-        public Map<String, String> getFieldErrors() { return fieldErrors; }
-        public void setFieldErrors(Map<String, String> fieldErrors) { this.fieldErrors = fieldErrors; }
-        public String getTraceId() { return traceId; }
-        public void setTraceId(String traceId) { this.traceId = traceId; }
+        public int getStatus() {
+            return status;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
+        public String getPath() {
+            return path;
+        }
+
+        public LocalDateTime getTimestamp() {
+            return timestamp;
+        }
+
+        public Map<String, String> getFieldErrors() {
+            return fieldErrors;
+        }
+
+        public void setFieldErrors(Map<String, String> fieldErrors) {
+            this.fieldErrors = fieldErrors;
+        }
+
+        public String getTraceId() {
+            return traceId;
+        }
+
+        public void setTraceId(String traceId) {
+            this.traceId = traceId;
+        }
     }
 }

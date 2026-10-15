@@ -1,5 +1,8 @@
 package com.healthupgrades.architecture;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+
 import com.healthupgrades.common.time.ServerZone;
 import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.JavaAnnotation;
@@ -8,15 +11,11 @@ import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 import jakarta.persistence.Entity;
-import org.springframework.scheduling.annotation.Scheduled;
-
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-
-import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
-import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import org.springframework.scheduling.annotation.Scheduled;
 
 /**
  * Enforces that time is read through the injected clock, and that the scheduled jobs keep the zone it
@@ -35,13 +34,15 @@ class ServerTimeArchitectureTest {
      * not agree on — on any developer machine outside UTC — and no other test would notice.
      */
     @ArchTest
-    static final ArchRule every_scheduled_job_runs_in_the_server_zone =
-            methods().that().areAnnotatedWith(Scheduled.class)
-                    .should().beAnnotatedWith(DescribedPredicate.<JavaAnnotation<?>>describe(
-                            "@Scheduled(zone = ServerZone.ID)",
-                            annotation -> annotation.getRawType().isEquivalentTo(Scheduled.class)
-                                    && ServerZone.ID.equals(annotation.get("zone").orElse(null))))
-                    .as("every @Scheduled job must resolve its cron in ServerZone.ID, the zone the clock reads");
+    static final ArchRule every_scheduled_job_runs_in_the_server_zone = methods()
+            .that()
+            .areAnnotatedWith(Scheduled.class)
+            .should()
+            .beAnnotatedWith(DescribedPredicate.<JavaAnnotation<?>>describe(
+                    "@Scheduled(zone = ServerZone.ID)",
+                    annotation -> annotation.getRawType().isEquivalentTo(Scheduled.class)
+                            && ServerZone.ID.equals(annotation.get("zone").orElse(null))))
+            .as("every @Scheduled job must resolve its cron in ServerZone.ID, the zone the clock reads");
 
     /**
      * Nothing outside an entity reads the time without the injected clock.
@@ -52,11 +53,16 @@ class ServerTimeArchitectureTest {
      * routes those through the clock.
      */
     @ArchTest
-    static final ArchRule nothing_outside_an_entity_reads_the_time_without_the_clock =
-            noClasses().that().areNotAnnotatedWith(Entity.class)
-                    .should().callMethod(LocalDateTime.class, "now")
-                    .orShould().callMethod(LocalDate.class, "now")
-                    .orShould().callMethod(LocalTime.class, "now")
-                    .orShould().callMethod(Instant.class, "now")
-                    .as("nothing outside an entity may read the time without the injected clock");
+    static final ArchRule nothing_outside_an_entity_reads_the_time_without_the_clock = noClasses()
+            .that()
+            .areNotAnnotatedWith(Entity.class)
+            .should()
+            .callMethod(LocalDateTime.class, "now")
+            .orShould()
+            .callMethod(LocalDate.class, "now")
+            .orShould()
+            .callMethod(LocalTime.class, "now")
+            .orShould()
+            .callMethod(Instant.class, "now")
+            .as("nothing outside an entity may read the time without the injected clock");
 }

@@ -2,7 +2,6 @@ package com.healthupgrades.user.domain.port.out;
 
 import com.healthupgrades.user.domain.model.Role; // the role an existence check asks about
 import com.healthupgrades.user.domain.model.User; // the aggregate this port persists
-
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;

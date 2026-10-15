@@ -1,27 +1,25 @@
 package com.healthupgrades.support;
 
-import com.healthupgrades.common.security.BearerTokenAuthenticator;
+import static org.mockito.Mockito.when;
+
 import com.healthupgrades.auth.adapter.in.web.RefreshCookieProperties;
 import com.healthupgrades.auth.adapter.in.web.RefreshCookies;
 import com.healthupgrades.common.ratelimit.FixedWindowRateLimiter;
 import com.healthupgrades.common.ratelimit.RateLimitProperties;
+import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.common.security.SecurityUser;
+import com.healthupgrades.user.domain.model.Role;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import com.healthupgrades.user.domain.model.Role;
-
+import io.micrometer.tracing.Tracer;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import io.micrometer.tracing.Tracer;
+import java.util.Optional;
+import java.util.UUID;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.mockito.Mockito.when;
 
 /**
  * Shared wiring for the {@code @WebMvcTest} slices.
@@ -98,7 +96,8 @@ public class WebSliceSupport {
      */
     @Bean
     RefreshCookies refreshCookies() {
-        return new RefreshCookies(new RefreshCookieProperties("refresh_token", "/api/auth", true),
+        return new RefreshCookies(
+                new RefreshCookieProperties("refresh_token", "/api/auth", true),
                 Clock.fixed(COOKIE_NOW, ZoneOffset.UTC));
     }
 

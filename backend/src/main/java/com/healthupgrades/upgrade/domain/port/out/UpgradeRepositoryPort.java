@@ -4,7 +4,6 @@ import com.healthupgrades.upgrade.domain.model.Difficulty; // difficulty enum us
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // the aggregate this port persists
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus; // lifecycle status used as a query filter
 import com.healthupgrades.upgrade.domain.model.UpgradeType; // type enum used as a query filter
-
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;

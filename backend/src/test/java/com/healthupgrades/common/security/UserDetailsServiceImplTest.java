@@ -1,9 +1,15 @@
 package com.healthupgrades.common.security;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.when;
+
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -12,13 +18,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.when;
 
 /**
  * Covers the bridge between Spring Security and the user context: a domain {@link User} is wrapped in a
@@ -31,9 +30,11 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class UserDetailsServiceImplTest {
 
-    @Mock UserQuery userQuery;
+    @Mock
+    UserQuery userQuery;
 
-    @InjectMocks UserDetailsServiceImpl service;
+    @InjectMocks
+    UserDetailsServiceImpl service;
 
     @Test
     void GivenARegisteredEmail_WhenThePrincipalIsLoaded_ThenItCarriesTheUsersIdentity() {
@@ -60,16 +61,19 @@ class UserDetailsServiceImplTest {
 
     @Test
     void GivenAMixedCaseEmail_WhenThePrincipalIsLoaded_ThenTheNormalisedAddressIsLookedUp() {
-        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(AUser.aUser().build()));
+        when(userQuery.findByEmail(AUser.EMAIL))
+                .thenReturn(Optional.of(AUser.aUser().build()));
 
-        assertThat(service.loadUserByUsername(" Someone@EXAMPLE.com").getUsername()).isEqualTo(AUser.EMAIL);
+        assertThat(service.loadUserByUsername(" Someone@EXAMPLE.com").getUsername())
+                .isEqualTo(AUser.EMAIL);
     }
 
     @Test
     void GivenALoadedPrincipal_WhenItsCredentialsAreErased_ThenTheStoredHashIsGone() {
         // Spring Security calls this once authentication has completed. It is the reason the hash is on
         // the principal at all, and the reason SecurityUser implements CredentialsContainer.
-        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(AUser.aUser().build()));
+        when(userQuery.findByEmail(AUser.EMAIL))
+                .thenReturn(Optional.of(AUser.aUser().build()));
 
         SecurityUser principal = (SecurityUser) service.loadUserByUsername(AUser.EMAIL);
         principal.eraseCredentials();
@@ -82,7 +86,8 @@ class UserDetailsServiceImplTest {
         // Exactly one authority, and it is the account's own role under Spring Security's prefix.
         // A second authority appearing here would mean the authorization model grew something that
         // is not a role, which is a decision for an ADR rather than a line of wiring.
-        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(AUser.aUser().build()));
+        when(userQuery.findByEmail(AUser.EMAIL))
+                .thenReturn(Optional.of(AUser.aUser().build()));
 
         assertThat(service.loadUserByUsername(AUser.EMAIL).getAuthorities())
                 .extracting(GrantedAuthority::getAuthority)
@@ -91,8 +96,7 @@ class UserDetailsServiceImplTest {
 
     @Test
     void GivenAnAdministrator_WhenItsAuthoritiesAreRead_ThenItHoldsTheAdminRole() {
-        when(userQuery.findByEmail(AUser.EMAIL))
-                .thenReturn(Optional.of(AUser.withRole(UUID.randomUUID(), Role.ADMIN)));
+        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(AUser.withRole(UUID.randomUUID(), Role.ADMIN)));
 
         assertThat(service.loadUserByUsername(AUser.EMAIL).getAuthorities())
                 .extracting(GrantedAuthority::getAuthority)

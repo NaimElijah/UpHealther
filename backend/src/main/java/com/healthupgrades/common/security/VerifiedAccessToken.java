@@ -16,5 +16,4 @@ import java.util.UUID;
  * @param userId    the account the token was issued for, from its {@code sub} claim
  * @param sessionId the session it was issued within, from its {@code sid} claim
  */
-public record VerifiedAccessToken(UUID userId, UUID sessionId) {
-}
+public record VerifiedAccessToken(UUID userId, UUID sessionId) {}

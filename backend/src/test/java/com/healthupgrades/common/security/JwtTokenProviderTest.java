@@ -1,10 +1,12 @@
 package com.healthupgrades.common.security;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.WeakKeyException;
-import org.junit.jupiter.api.Test;
-
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
@@ -12,10 +14,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Date;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.jupiter.api.Test;
 
 /**
  * Pins the access-token contract every authenticated request depends on: NFR-3 (the signing secret must
@@ -48,15 +47,14 @@ class JwtTokenProviderTest {
     }
 
     private static JwtTokenProvider providerAt(Instant now, String secret) {
-        return new JwtTokenProvider(new JwtProperties(secret, TTL, ISSUER, AUDIENCE, SKEW),
-                Clock.fixed(now, ZoneOffset.UTC));
+        return new JwtTokenProvider(
+                new JwtProperties(secret, TTL, ISSUER, AUDIENCE, SKEW), Clock.fixed(now, ZoneOffset.UTC));
     }
 
     @Test
     void GivenASecretShorterThan256Bits_WhenTheProviderIsConstructed_ThenItRefusesToStart() {
         // The check that keeps a weak secret from silently weakening every token the application issues.
-        assertThatThrownBy(() -> providerAt(ISSUED_AT, "too-short"))
-                .isInstanceOf(WeakKeyException.class);
+        assertThatThrownBy(() -> providerAt(ISSUED_AT, "too-short")).isInstanceOf(WeakKeyException.class);
     }
 
     @Test
@@ -67,8 +65,8 @@ class JwtTokenProviderTest {
 
         String token = provider.issue(USER_ID, SESSION_ID).value();
 
-        assertThat(provider.verify(token)).hasValueSatisfying(verified ->
-                assertThat(verified.userId()).isEqualTo(USER_ID));
+        assertThat(provider.verify(token))
+                .hasValueSatisfying(verified -> assertThat(verified.userId()).isEqualTo(USER_ID));
     }
 
     @Test
@@ -79,8 +77,8 @@ class JwtTokenProviderTest {
 
         String token = provider.issue(USER_ID, SESSION_ID).value();
 
-        assertThat(provider.verify(token)).hasValueSatisfying(verified ->
-                assertThat(verified.sessionId()).isEqualTo(SESSION_ID));
+        assertThat(provider.verify(token))
+                .hasValueSatisfying(verified -> assertThat(verified.sessionId()).isEqualTo(SESSION_ID));
     }
 
     @Test
@@ -90,7 +88,9 @@ class JwtTokenProviderTest {
         String legacy = Jwts.builder()
                 .subject(USER_ID.toString())
                 .issuer(ISSUER)
-                .audience().add(AUDIENCE).and()
+                .audience()
+                .add(AUDIENCE)
+                .and()
                 .issuedAt(Date.from(ISSUED_AT))
                 .expiration(Date.from(ISSUED_AT.plus(TTL)))
                 .signWith(Keys.hmacShaKeyFor(STRONG_SECRET.getBytes(StandardCharsets.UTF_8)), Jwts.SIG.HS256)
@@ -107,7 +107,9 @@ class JwtTokenProviderTest {
         String noSubject = Jwts.builder()
                 .claim("sid", SESSION_ID.toString())
                 .issuer(ISSUER)
-                .audience().add(AUDIENCE).and()
+                .audience()
+                .add(AUDIENCE)
+                .and()
                 .issuedAt(Date.from(ISSUED_AT))
                 .expiration(Date.from(ISSUED_AT.plus(TTL)))
                 .signWith(Keys.hmacShaKeyFor(STRONG_SECRET.getBytes(StandardCharsets.UTF_8)), Jwts.SIG.HS256)
@@ -126,7 +128,8 @@ class JwtTokenProviderTest {
     void GivenATokenPastExpiryByMoreThanTheSkew_WhenItIsVerified_ThenItIsRejected() {
         String token = providerAt(ISSUED_AT).issue(USER_ID, SESSION_ID).value();
 
-        assertThat(providerAt(ISSUED_AT.plus(TTL).plus(SKEW).plusSeconds(1)).verify(token)).isEmpty();
+        assertThat(providerAt(ISSUED_AT.plus(TTL).plus(SKEW).plusSeconds(1)).verify(token))
+                .isEmpty();
     }
 
     @Test
@@ -135,12 +138,14 @@ class JwtTokenProviderTest {
         // being refused by the other at the boundary.
         String token = providerAt(ISSUED_AT).issue(USER_ID, SESSION_ID).value();
 
-        assertThat(providerAt(ISSUED_AT.plus(TTL).plus(SKEW).minusSeconds(1)).verify(token)).isPresent();
+        assertThat(providerAt(ISSUED_AT.plus(TTL).plus(SKEW).minusSeconds(1)).verify(token))
+                .isPresent();
     }
 
     @Test
     void GivenATokenSignedWithAnotherSecret_WhenItIsVerified_ThenItIsRejected() {
-        String forged = providerAt(ISSUED_AT, OTHER_SECRET).issue(USER_ID, SESSION_ID).value();
+        String forged =
+                providerAt(ISSUED_AT, OTHER_SECRET).issue(USER_ID, SESSION_ID).value();
 
         assertThat(providerAt(ISSUED_AT).verify(forged)).isEmpty();
     }
@@ -186,7 +191,9 @@ class JwtTokenProviderTest {
         String unsigned = Jwts.builder()
                 .subject(USER_ID.toString())
                 .issuer(ISSUER)
-                .audience().add(AUDIENCE).and()
+                .audience()
+                .add(AUDIENCE)
+                .and()
                 .issuedAt(Date.from(ISSUED_AT))
                 .expiration(Date.from(ISSUED_AT.plus(TTL)))
                 .compact();
@@ -213,12 +220,14 @@ class JwtTokenProviderTest {
         assertThat(provider.verify("")).isEmpty();
     }
 
-    private static String signed(io.jsonwebtoken.security.MacAlgorithm algorithm,
-                                 String issuer, String audience, String subject) {
+    private static String signed(
+            io.jsonwebtoken.security.MacAlgorithm algorithm, String issuer, String audience, String subject) {
         return Jwts.builder()
                 .subject(subject)
                 .issuer(issuer)
-                .audience().add(audience).and()
+                .audience()
+                .add(audience)
+                .and()
                 .issuedAt(Date.from(ISSUED_AT))
                 .expiration(Date.from(ISSUED_AT.plus(TTL)))
                 .signWith(Keys.hmacShaKeyFor(STRONG_SECRET.getBytes(StandardCharsets.UTF_8)), algorithm)

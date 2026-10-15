@@ -1,15 +1,12 @@
 package com.healthupgrades.contract;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.healthupgrades.auth.adapter.in.web.AuthController;
 import com.healthupgrades.healtharea.adapter.in.web.HealthAreaRequest;
 import com.healthupgrades.tracking.adapter.in.web.ProgressRequest;
 import com.healthupgrades.tracking.adapter.in.web.TrackingConfigRequest;
 import com.healthupgrades.upgrade.adapter.in.web.UpgradeRequest;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -21,8 +18,10 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Pins every {@code @Size(max = …)} bound on a request DTO against the column it mirrors.
@@ -46,8 +45,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ColumnBoundContractTest {
 
     /** Flyway's migration directory, relative to the repository root. */
-    private static final Path MIGRATIONS =
-            Paths.get("src", "main", "resources", "db", "migration");
+    private static final Path MIGRATIONS = Paths.get("src", "main", "resources", "db", "migration");
 
     /**
      * Matches a bounded character column in a {@code CREATE TABLE}, e.g. {@code title VARCHAR(255)}.
@@ -105,7 +103,8 @@ class ColumnBoundContractTest {
             Map.entry("health_upgrades.difficulty", "an enum, bound by deserialization"),
             Map.entry("tracking_configs.tracking_type", "an enum, bound by deserialization"),
             Map.entry("tracking_configs.frequency", "an enum, bound by deserialization"),
-            Map.entry("reminders.days_of_week",
+            Map.entry(
+                    "reminders.days_of_week",
                     "written by ReminderDays, which rejects any token outside the seven valid ones, so the "
                             + "joined string cannot exceed 27 characters"),
             Map.entry("notifications.type", "an enum, bound by deserialization"),
@@ -120,29 +119,31 @@ class ColumnBoundContractTest {
         Integer actual = boundedColumns().get(table + "." + column);
 
         assertThat(actual)
-                .as("%s.%s is declared as a bound on a request DTO but no migration creates it as a "
-                        + "bounded column", table, column)
+                .as(
+                        "%s.%s is declared as a bound on a request DTO but no migration creates it as a "
+                                + "bounded column",
+                        table, column)
                 .isNotNull();
         assertThat(declared)
-                .as("the DTO bounds %s.%s at %d but the column holds %d — a wider bound re-opens the "
-                        + "500 BR-16 prevents, a narrower one refuses input the database would accept",
+                .as(
+                        "the DTO bounds %s.%s at %d but the column holds %d — a wider bound re-opens the "
+                                + "500 BR-16 prevents, a narrower one refuses input the database would accept",
                         table, column, declared, actual)
                 .isEqualTo(actual);
     }
 
     @Test
     void GivenEveryBoundedColumn_WhenTheyAreListed_ThenEachOneIsClaimedByADtoOrExcusedByName() {
-        List<String> claimed = declaredBounds()
-                .map(a -> a.get()[0] + "." + a.get()[1])
-                .toList();
+        List<String> claimed =
+                declaredBounds().map(a -> a.get()[0] + "." + a.get()[1]).toList();
 
         assertThat(boundedColumns().keySet())
                 .as("a bounded column is either mirrored by a DTO bound (BR-16) or listed as one no "
                         + "request body writes to — a new one must be considered, not defaulted")
-                .allSatisfy(qualified -> assertThat(claimed.contains(qualified)
-                        || UNBOUND_BY_DESIGN.containsKey(qualified))
-                        .as("%s is neither bounded by a DTO nor excused in UNBOUND_BY_DESIGN", qualified)
-                        .isTrue());
+                .allSatisfy(
+                        qualified -> assertThat(claimed.contains(qualified) || UNBOUND_BY_DESIGN.containsKey(qualified))
+                                .as("%s is neither bounded by a DTO nor excused in UNBOUND_BY_DESIGN", qualified)
+                                .isTrue());
     }
 
     /**
@@ -156,11 +157,13 @@ class ColumnBoundContractTest {
     private static Map<String, Integer> boundedColumns() {
         Map<String, Integer> columns = new LinkedHashMap<>();
         try (Stream<Path> files = Files.list(MIGRATIONS)) {
-            List<Path> ordered = files.filter(p -> p.toString().endsWith(".sql")).sorted().toList();
+            List<Path> ordered =
+                    files.filter(p -> p.toString().endsWith(".sql")).sorted().toList();
             for (Path file : ordered) {
                 Matcher added = ALTER_ADD_COLUMN.matcher(Files.readString(file));
                 while (added.find()) {
-                    columns.put(added.group(1).toLowerCase() + "." + added.group(2).toLowerCase(),
+                    columns.put(
+                            added.group(1).toLowerCase() + "." + added.group(2).toLowerCase(),
                             Integer.parseInt(added.group(3)));
                 }
                 String table = null;
@@ -173,8 +176,7 @@ class ColumnBoundContractTest {
                     if (table == null) continue;
                     Matcher column = COLUMN.matcher(line);
                     if (column.find()) {
-                        columns.put(table + "." + column.group(1).toLowerCase(),
-                                Integer.parseInt(column.group(2)));
+                        columns.put(table + "." + column.group(1).toLowerCase(), Integer.parseInt(column.group(2)));
                     }
                 }
             }
@@ -182,8 +184,10 @@ class ColumnBoundContractTest {
             throw new UncheckedIOException("could not read the migrations at " + MIGRATIONS.toAbsolutePath(), e);
         }
         assertThat(columns)
-                .as("no bounded columns were parsed out of %s — the migrations moved, or their shape "
-                        + "changed and this test is now reading nothing", MIGRATIONS.toAbsolutePath())
+                .as(
+                        "no bounded columns were parsed out of %s — the migrations moved, or their shape "
+                                + "changed and this test is now reading nothing",
+                        MIGRATIONS.toAbsolutePath())
                 .isNotEmpty();
         return columns;
     }

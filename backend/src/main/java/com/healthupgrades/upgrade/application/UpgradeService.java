@@ -1,21 +1,17 @@
 package com.healthupgrades.upgrade.application;
-import com.healthupgrades.upgrade.domain.service.UpgradeSchedulingService;
 
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
+import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
-import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.healtharea.application.port.in.HealthAreaQuery;
-import com.healthupgrades.upgrade.domain.event.*;
 import com.healthupgrades.upgrade.application.port.in.UpgradeDetails;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
+import com.healthupgrades.upgrade.domain.event.*;
 import com.healthupgrades.upgrade.domain.model.*;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
+import com.healthupgrades.upgrade.domain.service.UpgradeSchedulingService;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -23,6 +19,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Application service orchestrating the health-upgrade lifecycle.
@@ -53,15 +52,28 @@ public class UpgradeService implements UpgradeQuery {
      */
     @Transactional
     public HealthUpgrade create(UUID userId, UpgradeDetails details) {
-        return auditTrail.recordingCreation(AuditAction.UPGRADE_CREATE, userId, () -> {
-            requireOwnedArea(userId, details.areaId());
-            HealthUpgrade created = HealthUpgrade.create(userId, details.areaId(), details.title(), details.description(),
-                    details.type(), details.difficulty(), details.plannedStartDate(), details.targetEndDate(),
-                    details.motivation(), details.successCriteria());
-            HealthUpgrade saved = repository.save(created);
-            eventPublisher.publish(new HealthUpgradeCreated(saved.getId(), userId, saved.getTitle(), LocalDateTime.now(clock)));
-            return saved;
-        }, HealthUpgrade::getId);
+        return auditTrail.recordingCreation(
+                AuditAction.UPGRADE_CREATE,
+                userId,
+                () -> {
+                    requireOwnedArea(userId, details.areaId());
+                    HealthUpgrade created = HealthUpgrade.create(
+                            userId,
+                            details.areaId(),
+                            details.title(),
+                            details.description(),
+                            details.type(),
+                            details.difficulty(),
+                            details.plannedStartDate(),
+                            details.targetEndDate(),
+                            details.motivation(),
+                            details.successCriteria());
+                    HealthUpgrade saved = repository.save(created);
+                    eventPublisher.publish(new HealthUpgradeCreated(
+                            saved.getId(), userId, saved.getTitle(), LocalDateTime.now(clock)));
+                    return saved;
+                },
+                HealthUpgrade::getId);
     }
 
     /**
@@ -77,7 +89,8 @@ public class UpgradeService implements UpgradeQuery {
      * @param difficulty difficulty filter, or null
      * @return the matching upgrades, or all of the user's when every filter is null
      */
-    public List<HealthUpgrade> findAll(UUID userId, UpgradeStatus status, UpgradeType type, UUID areaId, Difficulty difficulty) {
+    public List<HealthUpgrade> findAll(
+            UUID userId, UpgradeStatus status, UpgradeType type, UUID areaId, Difficulty difficulty) {
         if (status != null) return repository.findByUserIdAndStatus(userId, status);
         if (type != null) return repository.findByUserIdAndType(userId, type);
         if (areaId != null) return repository.findByUserIdAndAreaId(userId, areaId);
@@ -115,8 +128,14 @@ public class UpgradeService implements UpgradeQuery {
                 validateHardLimit(userId, details.difficulty(), upgrade.getStatus() == UpgradeStatus.ACTIVE);
             }
 
-            upgrade.updateDetails(details.areaId(), details.title(), details.description(), details.type(),
-                    details.targetEndDate(), details.motivation(), details.successCriteria());
+            upgrade.updateDetails(
+                    details.areaId(),
+                    details.title(),
+                    details.description(),
+                    details.type(),
+                    details.targetEndDate(),
+                    details.motivation(),
+                    details.successCriteria());
             if (difficultyChanges) upgrade.changeDifficulty(details.difficulty());
             return repository.save(upgrade);
         });
@@ -170,7 +189,8 @@ public class UpgradeService implements UpgradeQuery {
             HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
             upgrade.plan(plannedStartDate);
             HealthUpgrade saved = repository.save(upgrade);
-            eventPublisher.publish(new HealthUpgradePlanned(saved.getId(), userId, plannedStartDate, LocalDateTime.now(clock)));
+            eventPublisher.publish(
+                    new HealthUpgradePlanned(saved.getId(), userId, plannedStartDate, LocalDateTime.now(clock)));
             return saved;
         });
     }
@@ -196,7 +216,8 @@ public class UpgradeService implements UpgradeQuery {
             validateHardLimit(userId, upgrade.getDifficulty(), true); // activation always claims a slot
             upgrade.activate(startDate != null ? startDate : LocalDate.now(clock));
             HealthUpgrade saved = repository.save(upgrade);
-            eventPublisher.publish(new HealthUpgradeActivated(saved.getId(), userId, saved.getActualStartDate(), LocalDateTime.now(clock)));
+            eventPublisher.publish(new HealthUpgradeActivated(
+                    saved.getId(), userId, saved.getActualStartDate(), LocalDateTime.now(clock)));
             return saved;
         });
     }
@@ -283,7 +304,8 @@ public class UpgradeService implements UpgradeQuery {
             // Rescheduling an abandoned upgrade revives it into PLANNED. That is a real lifecycle
             // transition and has to be announced, or listeners see it silently reappear as planned.
             if (saved.getStatus() == UpgradeStatus.PLANNED && statusBefore != UpgradeStatus.PLANNED) {
-                eventPublisher.publish(new HealthUpgradePlanned(saved.getId(), userId, newDate, LocalDateTime.now(clock)));
+                eventPublisher.publish(
+                        new HealthUpgradePlanned(saved.getId(), userId, newDate, LocalDateTime.now(clock)));
             }
             return saved;
         });
@@ -305,7 +327,8 @@ public class UpgradeService implements UpgradeQuery {
     /** {@inheritDoc} */
     @Override
     public HealthUpgrade getOwnedUpgrade(UUID userId, UUID id) {
-        return repository.findByIdAndUserId(id, userId)
+        return repository
+                .findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Upgrade not found: " + id));
     }
 

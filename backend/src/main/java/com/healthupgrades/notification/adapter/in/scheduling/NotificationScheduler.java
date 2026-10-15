@@ -1,5 +1,7 @@
 package com.healthupgrades.notification.adapter.in.scheduling;
 
+import static net.logstash.logback.argument.StructuredArguments.keyValue;
+
 import com.healthupgrades.common.observability.JobMetrics;
 import com.healthupgrades.common.time.ServerZone;
 import com.healthupgrades.notification.application.NotificationService;
@@ -12,16 +14,6 @@ import com.healthupgrades.tracking.application.port.in.ProgressQuery;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import net.logstash.logback.argument.StructuredArgument;
-import org.springframework.core.NestedExceptionUtils;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
-import org.springframework.transaction.CannotCreateTransactionException;
-
-import static net.logstash.logback.argument.StructuredArguments.keyValue;
-
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -34,6 +26,13 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import net.logstash.logback.argument.StructuredArgument;
+import org.springframework.core.NestedExceptionUtils;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.CannotCreateTransactionException;
 
 /**
  * Produces the delayed/scheduled notifications that are notification concerns in their own right — a
@@ -56,6 +55,7 @@ public class NotificationScheduler {
 
     /** Stable across releases: these are metric tags and log fields, so they are a contract. */
     private static final String CHECKIN_JOB = "notification.daily-checkin";
+
     private static final String REMINDERS_JOB = "notification.reminder-dispatch";
     private static final String CREATE_FAILED = "notification.create-failed";
 
@@ -87,9 +87,13 @@ public class NotificationScheduler {
             // With nobody to nudge, the guards are not worth reading.
             Deliveries nudges = activeByUser.isEmpty() ? new Deliveries(CHECKIN_JOB) : nudge(activeByUser, today);
 
-            log.info("{} {} {} {} {}", keyValue("job", CHECKIN_JOB),
-                    keyValue("usersWithActiveUpgrades", activeByUser.size()), keyValue("nudged", nudges.delivered),
-                    keyValue("failed", nudges.failed), keyValue("skipped", nudges.skipped));
+            log.info(
+                    "{} {} {} {} {}",
+                    keyValue("job", CHECKIN_JOB),
+                    keyValue("usersWithActiveUpgrades", activeByUser.size()),
+                    keyValue("nudged", nudges.delivered),
+                    keyValue("failed", nudges.failed),
+                    keyValue("skipped", nudges.skipped));
             nudges.rethrowFirstFailure();
         });
     }
@@ -116,10 +120,15 @@ public class NotificationScheduler {
             UUID userId = nudgeable.getKey();
             int upgrades = nudgeable.getValue().size();
             if (!alreadyNudged.contains(userId) && !loggedToday.contains(userId)) {
-                nudges.attempt(() -> notificationService.create(userId, NotificationType.CHECKIN_REMINDER,
-                                NotificationCategory.REMINDER, "Daily check-in ⏳",
+                nudges.attempt(
+                        () -> notificationService.create(
+                                userId,
+                                NotificationType.CHECKIN_REMINDER,
+                                NotificationCategory.REMINDER,
+                                "Daily check-in ⏳",
                                 "You have " + upgrades + " active upgrade" + (upgrades == 1 ? "" : "s")
-                                        + " to track today.", null),
+                                        + " to track today.",
+                                null),
                         keyValue("userId", userId));
             }
         }
@@ -159,7 +168,8 @@ public class NotificationScheduler {
             if (due.isEmpty()) return;
 
             // Bulk-load the related upgrades in one query instead of one lookup per reminder.
-            List<UUID> upgradeIds = due.stream().map(Reminder::getUpgradeId).distinct().toList();
+            List<UUID> upgradeIds =
+                    due.stream().map(Reminder::getUpgradeId).distinct().toList();
             Map<UUID, HealthUpgrade> upgrades = upgradeQuery.findAllById(upgradeIds).stream()
                     .collect(Collectors.toMap(HealthUpgrade::getId, Function.identity()));
 
@@ -173,17 +183,28 @@ public class NotificationScheduler {
                 } else if (u.getStatus() != UpgradeStatus.ACTIVE) {
                     silenced++;
                 } else {
-                    reminders.attempt(() -> notificationService.create(u.getUserId(), NotificationType.REMINDER,
-                                    NotificationCategory.REMINDER, "Reminder ⏰", "Time for \"" + u.getTitle() + "\".",
+                    reminders.attempt(
+                            () -> notificationService.create(
+                                    u.getUserId(),
+                                    NotificationType.REMINDER,
+                                    NotificationCategory.REMINDER,
+                                    "Reminder ⏰",
+                                    "Time for \"" + u.getTitle() + "\".",
                                     u.getId()),
-                            keyValue("reminderId", reminder.getId()), keyValue("upgradeId", u.getId()),
+                            keyValue("reminderId", reminder.getId()),
+                            keyValue("upgradeId", u.getId()),
                             keyValue("userId", u.getUserId()));
                 }
             }
 
-            log.info("{} {} {} {} {} {}", keyValue("job", REMINDERS_JOB), keyValue("due", due.size()),
-                    keyValue("fired", reminders.delivered), keyValue("failed", reminders.failed),
-                    keyValue("skipped", reminders.skipped), keyValue("silenced", silenced));
+            log.info(
+                    "{} {} {} {} {} {}",
+                    keyValue("job", REMINDERS_JOB),
+                    keyValue("due", due.size()),
+                    keyValue("fired", reminders.delivered),
+                    keyValue("failed", reminders.failed),
+                    keyValue("skipped", reminders.skipped),
+                    keyValue("silenced", silenced));
 
             // A reminder that outlived the upgrade it hangs off. Degraded but still serving, which
             // ADR-010 defines as WARN - leaving it as two INFO fields nobody diffs would report a real
@@ -224,6 +245,7 @@ public class NotificationScheduler {
         private int failed;
         /** Never attempted, because an earlier attempt had found the database out of reach. */
         private int skipped;
+
         private boolean unreachable;
         private RuntimeException firstFailure;
 
@@ -266,8 +288,11 @@ public class NotificationScheduler {
             fields.add(keyValue("job", job));
             fields.addAll(Arrays.asList(ids));
             fields.add(keyValue("exception", failure.getClass().getSimpleName()));
-            fields.add(keyValue("rootCause",
-                    NestedExceptionUtils.getMostSpecificCause(failure).getClass().getSimpleName()));
+            fields.add(keyValue(
+                    "rootCause",
+                    NestedExceptionUtils.getMostSpecificCause(failure)
+                            .getClass()
+                            .getSimpleName()));
             // One placeholder per field, because each sweep names its notification by different ids.
             log.warn("{} ".repeat(fields.size()).trim(), fields.toArray());
         }

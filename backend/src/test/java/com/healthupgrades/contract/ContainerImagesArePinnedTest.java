@@ -1,8 +1,8 @@
 package com.healthupgrades.contract;
 
-import com.healthupgrades.support.PostgresImage;
-import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import com.healthupgrades.support.PostgresImage;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -15,8 +15,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
 
 /**
  * Holds every container image the repository builds or runs to an exact version (ADR-030, NFR-51).
@@ -49,11 +48,13 @@ class ContainerImagesArePinnedTest {
     private static final Pattern BUILD_FILE = Pattern.compile("Dockerfile|(docker-)?compose[\\w.-]*\\.ya?ml");
 
     /** A Dockerfile's base image, with the stage alias it may declare. */
-    private static final Pattern FROM = Pattern.compile("^\\s*FROM\\s+(?:--platform=\\S+\\s+)?(\\S+)(?:\\s+AS\\s+(\\S+))?",
+    private static final Pattern FROM = Pattern.compile(
+            "^\\s*FROM\\s+(?:--platform=\\S+\\s+)?(\\S+)(?:\\s+AS\\s+(\\S+))?",
             Pattern.CASE_INSENSITIVE | Pattern.MULTILINE);
 
     /** A compose service's image. */
-    private static final Pattern COMPOSE_IMAGE = Pattern.compile("^\\s*image:\\s*['\"]?([^'\"\\s#]+)", Pattern.MULTILINE);
+    private static final Pattern COMPOSE_IMAGE =
+            Pattern.compile("^\\s*image:\\s*['\"]?([^'\"\\s#]+)", Pattern.MULTILINE);
 
     /** The version a tag starts with: {@code 1.30.5}, {@code 15.19}, {@code 21.0.12.1}. */
     private static final Pattern LEADING_VERSION = Pattern.compile("^\\d+(?:\\.\\d+)*");
@@ -109,7 +110,8 @@ class ContainerImagesArePinnedTest {
         }
         int components = version.group().split("\\.").length;
         int required = repository(image).equals("postgres") ? 2 : 3;
-        boolean alpinePinned = !tag.contains("alpine") || PINNED_ALPINE.matcher(tag).find();
+        boolean alpinePinned =
+                !tag.contains("alpine") || PINNED_ALPINE.matcher(tag).find();
         return components >= required && alpinePinned;
     }
 
@@ -142,7 +144,9 @@ class ContainerImagesArePinnedTest {
     private static List<String> imagesNamedByBuildFiles() {
         Path root = repositoryRoot();
         List<Path> buildFiles;
-        try (Stream<Path> found = Files.find(root, BUILD_FILE_DEPTH,
+        try (Stream<Path> found = Files.find(
+                root,
+                BUILD_FILE_DEPTH,
                 (path, attributes) -> attributes.isRegularFile()
                         && BUILD_FILE.matcher(path.getFileName().toString()).matches())) {
             buildFiles = found.toList();
@@ -159,8 +163,10 @@ class ContainerImagesArePinnedTest {
             List<String> named = imagesIn(file);
             if (isDockerfile(file)) {
                 assertThat(named)
-                        .describedAs("%s has no FROM this test can read; a base image it cannot parse would "
-                                + "otherwise pass unchecked", root.relativize(file))
+                        .describedAs(
+                                "%s has no FROM this test can read; a base image it cannot parse would "
+                                        + "otherwise pass unchecked",
+                                root.relativize(file))
                         .isNotEmpty();
             }
             images.addAll(named);
@@ -208,8 +214,10 @@ class ContainerImagesArePinnedTest {
             root = root.getParent();
         }
         assertThat(root)
-                .describedAs("could not locate docker-compose.yml from %s; it is part of this check, and its "
-                        + "absence is a broken checkout, not a reason to skip it", Paths.get("").toAbsolutePath())
+                .describedAs(
+                        "could not locate docker-compose.yml from %s; it is part of this check, and its "
+                                + "absence is a broken checkout, not a reason to skip it",
+                        Paths.get("").toAbsolutePath())
                 .isNotNull();
         return root;
     }

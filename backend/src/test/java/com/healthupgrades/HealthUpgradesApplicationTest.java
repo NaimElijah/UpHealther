@@ -1,11 +1,10 @@
 package com.healthupgrades;
 
-import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.ZoneOffset;
 import java.util.TimeZone;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
 
 /**
  * Covers the beans {@link HealthUpgradesApplication} declares itself, which is the clock alone.
@@ -20,7 +19,8 @@ class HealthUpgradesApplicationTest {
         TimeZone hostZone = TimeZone.getDefault();
         TimeZone.setDefault(TimeZone.getTimeZone("Pacific/Kiritimati"));
         try {
-            assertThat(new HealthUpgradesApplication().clock().getZone().normalized()).isEqualTo(ZoneOffset.UTC);
+            assertThat(new HealthUpgradesApplication().clock().getZone().normalized())
+                    .isEqualTo(ZoneOffset.UTC);
         } finally {
             TimeZone.setDefault(hostZone);
         }

@@ -1,7 +1,6 @@
 package com.healthupgrades.tracking.domain.port.out;
 
 import com.healthupgrades.tracking.domain.model.ProgressEntry; // the aggregate this port persists
-
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;

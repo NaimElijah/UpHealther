@@ -1,10 +1,9 @@
 package com.healthupgrades.auth.adapter.out.security;
 
 import com.healthupgrades.auth.domain.port.out.SecretGeneratorPort;
-import org.springframework.stereotype.Component;
-
 import java.security.SecureRandom;
 import java.util.Base64;
+import org.springframework.stereotype.Component;
 
 /**
  * The shipped {@link SecretGeneratorPort}: 256 bits from {@link SecureRandom}, base64url-encoded.

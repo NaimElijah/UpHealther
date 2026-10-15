@@ -4,13 +4,12 @@ import com.healthupgrades.dashboard.application.port.in.DashboardView; // applic
 import com.healthupgrades.upgrade.adapter.in.web.UpgradeDto; // reused published presentation model
 import com.healthupgrades.upgrade.adapter.in.web.UpgradeWebMapper; // reused to map embedded upgrades
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // domain aggregate in each bucket
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
-
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
 /**
  * Web-adapter mapper that turns a {@link DashboardView} (domain aggregate) into the {@link DashboardDto}
@@ -46,8 +45,8 @@ public class DashboardWebMapper {
                 view.streaks(),
                 mapBucket(view.recentlyCompleted(), dtoById),
                 view.areaSummaries().stream()
-                        .map(a -> new DashboardDto.AreaSummary(a.areaId(), a.areaName(),
-                                a.totalUpgrades(), a.activeCount(), a.completedCount()))
+                        .map(a -> new DashboardDto.AreaSummary(
+                                a.areaId(), a.areaName(), a.totalUpgrades(), a.activeCount(), a.completedCount()))
                         .toList());
     }
 

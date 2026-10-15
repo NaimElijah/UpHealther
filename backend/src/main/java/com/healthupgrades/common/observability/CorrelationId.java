@@ -2,7 +2,6 @@ package com.healthupgrades.common.observability;
 
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
-
 import java.util.Optional;
 
 /**
@@ -28,8 +27,7 @@ public final class CorrelationId {
     /** OpenTelemetry's invalid trace id: 32 zeros. A span carrying it identifies nothing. */
     private static final String INVALID_TRACE_ID = "0".repeat(32);
 
-    private CorrelationId() {
-    }
+    private CorrelationId() {}
 
     /**
      * @param tracer the tracer to ask; never null, since a {@code Tracer} bean is always wired

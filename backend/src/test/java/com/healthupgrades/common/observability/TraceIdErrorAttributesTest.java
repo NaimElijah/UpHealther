@@ -1,24 +1,23 @@
 package com.healthupgrades.common.observability;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.test.simple.SimpleTraceContext;
 import io.micrometer.tracing.test.simple.SimpleTracer;
 import jakarta.servlet.RequestDispatcher;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.web.error.ErrorAttributeOptions;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.web.context.request.ServletWebRequest;
-
-import java.time.Clock;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.util.Map;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * NFR-21 on the one path {@code GlobalExceptionHandler} never sees: the body Boot's error controller
@@ -36,8 +35,7 @@ class TraceIdErrorAttributesTest {
     private final MockHttpServletResponse response = new MockHttpServletResponse();
     private static final Instant NOW = Instant.parse("2026-10-07T21:01:42.246Z");
 
-    private final TraceIdErrorAttributes errorAttributes =
-            new TraceIdErrorAttributes(Clock.fixed(NOW, ZoneOffset.UTC));
+    private final TraceIdErrorAttributes errorAttributes = new TraceIdErrorAttributes(Clock.fixed(NOW, ZoneOffset.UTC));
 
     @Test
     void GivenTheRequestWasTraced_WhenItsErrorBodyIsBuiltAfterTheScopeClosed_ThenItCarriesTheHeadersTraceId()

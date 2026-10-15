@@ -1,21 +1,20 @@
 package com.healthupgrades;
 
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.healthupgrades.support.PostgresIT;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfigureMetrics;
 import org.springframework.boot.micrometer.tracing.test.autoconfigure.AutoConfigureTracing;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
-
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Checks the correlation contract over a real socket: the header a support engineer would ask for, and
@@ -83,9 +82,7 @@ class CorrelationIT extends PostgresIT {
 
         assertThat(response.statusCode()).isEqualTo(400);
         JsonNode body = json.readTree(response.body());
-        assertThat(body.path("traceId").asString())
-                .matches(TRACE_ID_PATTERN)
-                .isEqualTo(traceIdHeader(response));
+        assertThat(body.path("traceId").asString()).matches(TRACE_ID_PATTERN).isEqualTo(traceIdHeader(response));
     }
 
     @Test
@@ -108,8 +105,7 @@ class CorrelationIT extends PostgresIT {
     }
 
     @Test
-    void GivenAUrlTheFirewallRejects_WhenTheContainerErrorPageAnswers_ThenItKeepsTheFirewallsStatus()
-            throws Exception {
+    void GivenAUrlTheFirewallRejects_WhenTheContainerErrorPageAnswers_ThenItKeepsTheFirewallsStatus() throws Exception {
         // #105. A firewall rejection is answered by sendError, so it is rendered by a container ERROR
         // dispatch to /error - the one path that never reaches GlobalExceptionHandler on the request
         // dispatch. Spring Security authorises that dispatch as well, and it carries no credentials, so

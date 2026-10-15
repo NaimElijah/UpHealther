@@ -16,5 +16,4 @@ import java.util.UUID;
  * @param expiresAt    the session's absolute cap, which the cookie's {@code Max-Age} mirrors so a
  *                     browser discards it at the same moment the server stops honouring it
  */
-public record SessionGrant(UUID sessionId, String refreshToken, Instant expiresAt) {
-}
+public record SessionGrant(UUID sessionId, String refreshToken, Instant expiresAt) {}

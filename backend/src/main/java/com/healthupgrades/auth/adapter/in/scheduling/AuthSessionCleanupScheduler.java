@@ -1,5 +1,7 @@
 package com.healthupgrades.auth.adapter.in.scheduling;
 
+import static net.logstash.logback.argument.StructuredArguments.keyValue;
+
 import com.healthupgrades.auth.application.AuthSessionService;
 import com.healthupgrades.common.observability.JobMetrics;
 import com.healthupgrades.common.time.ServerZone;
@@ -7,8 +9,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-
-import static net.logstash.logback.argument.StructuredArguments.keyValue;
 
 /**
  * Driving adapter that periodically deletes sessions nothing can use again.

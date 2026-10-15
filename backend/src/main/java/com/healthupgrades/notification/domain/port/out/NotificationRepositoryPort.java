@@ -2,7 +2,6 @@ package com.healthupgrades.notification.domain.port.out;
 
 import com.healthupgrades.notification.domain.model.Notification; // the aggregate this port persists
 import com.healthupgrades.notification.domain.model.NotificationType; // used by the dedup guards
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;

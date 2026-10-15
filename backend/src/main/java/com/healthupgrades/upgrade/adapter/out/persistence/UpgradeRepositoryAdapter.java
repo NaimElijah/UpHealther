@@ -5,12 +5,11 @@ import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // domain aggregat
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus; // query filter
 import com.healthupgrades.upgrade.domain.model.UpgradeType; // query filter
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort; // the port implemented here
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
-
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
 /**
  * Persistence adapter implementing {@link UpgradeRepositoryPort} by delegating one-to-one to the

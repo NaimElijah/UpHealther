@@ -1,7 +1,6 @@
 package com.healthupgrades.admin.adapter.in.web;
 
 import com.healthupgrades.user.domain.model.Role;
-
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -25,10 +24,4 @@ import java.util.UUID;
  * @param createdAt when the account was created
  */
 public record AdminAccountDto(
-        UUID id,
-        String name,
-        String email,
-        Role role,
-        boolean enabled,
-        LocalDateTime createdAt
-) {}
+        UUID id, String name, String email, Role role, boolean enabled, LocalDateTime createdAt) {}

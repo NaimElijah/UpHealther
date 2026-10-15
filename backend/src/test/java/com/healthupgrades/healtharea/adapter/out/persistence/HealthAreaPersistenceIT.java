@@ -1,5 +1,7 @@
 package com.healthupgrades.healtharea.adapter.out.persistence;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.healthupgrades.healtharea.domain.model.HealthArea;
 import com.healthupgrades.healtharea.domain.port.out.HealthAreaRepositoryPort;
 import com.healthupgrades.support.AUser;
@@ -7,18 +9,15 @@ import com.healthupgrades.support.AnUpgrade;
 import com.healthupgrades.support.PostgresIT;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
+import java.time.LocalDateTime;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
-
-import java.time.LocalDateTime;
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * FR-8 — deleting a health area leaves the upgrades filed under it intact — which is a claim about the
@@ -37,8 +36,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Import(HealthAreaRepositoryAdapter.class)
 class HealthAreaPersistenceIT extends PostgresIT {
 
-    @Autowired HealthAreaRepositoryPort repository;
-    @Autowired TestEntityManager entityManager;
+    @Autowired
+    HealthAreaRepositoryPort repository;
+
+    @Autowired
+    TestEntityManager entityManager;
 
     private UUID ownerId;
     private UUID strangerId;
@@ -46,16 +48,22 @@ class HealthAreaPersistenceIT extends PostgresIT {
     @BeforeEach
     void createTwoUsers() {
         ownerId = entityManager.persistAndFlush(AUser.aUser().id(null).build()).getId();
-        strangerId = entityManager.persistAndFlush(
-                AUser.aUser().id(null).email("stranger@example.com").build()).getId();
+        strangerId = entityManager
+                .persistAndFlush(
+                        AUser.aUser().id(null).email("stranger@example.com").build())
+                .getId();
     }
 
     @Test
     void GivenAnAreaWithUpgradesFiledUnderIt_WhenTheAreaIsDeleted_ThenThoseUpgradesSurvive() {
         HealthArea area = persistedArea(ownerId);
-        HealthUpgrade upgrade = entityManager.persistAndFlush(
-                AnUpgrade.ownedBy(ownerId).id(null).areaId(area.getId()).status(UpgradeStatus.ACTIVE)
-                        .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now()).build());
+        HealthUpgrade upgrade = entityManager.persistAndFlush(AnUpgrade.ownedBy(ownerId)
+                .id(null)
+                .areaId(area.getId())
+                .status(UpgradeStatus.ACTIVE)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build());
         UUID upgradeId = upgrade.getId();
 
         repository.delete(area);
@@ -63,7 +71,9 @@ class HealthAreaPersistenceIT extends PostgresIT {
         entityManager.clear();
 
         HealthUpgrade survivor = entityManager.find(HealthUpgrade.class, upgradeId);
-        assertThat(survivor).as("deleting an area must not delete what was filed under it").isNotNull();
+        assertThat(survivor)
+                .as("deleting an area must not delete what was filed under it")
+                .isNotNull();
         assertThat(survivor.getAreaId())
                 .as("the schema sets the reference to null rather than leaving it dangling")
                 .isNull();
@@ -89,8 +99,13 @@ class HealthAreaPersistenceIT extends PostgresIT {
 
     private HealthArea persistedArea(UUID userId) {
         return entityManager.persistAndFlush(HealthArea.builder()
-                .userId(userId).name("Sleep").priority(1).icon("🌙").color("#4B6BFB")
-                .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now())
+                .userId(userId)
+                .name("Sleep")
+                .priority(1)
+                .icon("🌙")
+                .color("#4B6BFB")
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
                 .build());
     }
 }

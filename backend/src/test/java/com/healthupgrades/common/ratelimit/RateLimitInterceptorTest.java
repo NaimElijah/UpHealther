@@ -1,20 +1,19 @@
 package com.healthupgrades.common.ratelimit;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.healthupgrades.common.domain.exception.TooManyRequestsException;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.mock.web.MockHttpServletResponse;
-
 import java.time.Clock;
 import java.time.Duration;
 import java.time.ZoneOffset;
 import java.util.stream.IntStream;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 
 /**
  * The metric tag the refusal counter carries, which has to be bounded by construction.
@@ -63,10 +62,9 @@ class RateLimitInterceptorTest {
         // this is five meters and an attacker can keep going; tagged by the matched path, it is one.
         String client = "203.0.113.2";
         spendAllowance("/api/auth/login", client);
-        IntStream.range(0, 5).forEach(probe ->
-                assertThatThrownBy(() -> interceptor.preHandle(
-                        request("/api/auth/login;probe=" + probe, client),
-                        new MockHttpServletResponse(), null))
+        IntStream.range(0, 5)
+                .forEach(probe -> assertThatThrownBy(() -> interceptor.preHandle(
+                                request("/api/auth/login;probe=" + probe, client), new MockHttpServletResponse(), null))
                         .isInstanceOf(TooManyRequestsException.class));
 
         assertThat(meterRegistry.find(RateLimitInterceptor.REFUSALS).counters())
@@ -78,8 +76,7 @@ class RateLimitInterceptorTest {
     @Test
     void GivenAnAttemptWithinTheAllowance_WhenItIsChecked_ThenNothingIsCountedAndItProceeds() {
         boolean proceeded =
-                interceptor.preHandle(request("/api/auth/login", "203.0.113.3"),
-                        new MockHttpServletResponse(), null);
+                interceptor.preHandle(request("/api/auth/login", "203.0.113.3"), new MockHttpServletResponse(), null);
 
         assertThat(proceeded).isTrue();
         assertThat(meterRegistry.find(RateLimitInterceptor.REFUSALS).counters()).isEmpty();
@@ -90,7 +87,8 @@ class RateLimitInterceptorTest {
         spendAllowance("/api/auth/register", "203.0.113.4");
 
         assertThatThrownBy(() -> attempt("/api/auth/register", "203.0.113.4"))
-                .isInstanceOfSatisfying(TooManyRequestsException.class,
+                .isInstanceOfSatisfying(
+                        TooManyRequestsException.class,
                         refused -> assertThat(refused.retryAfterSeconds()).isPositive());
     }
 

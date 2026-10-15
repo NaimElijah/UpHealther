@@ -1,17 +1,16 @@
 package com.healthupgrades.reminder.adapter.in.web;
 
+import com.healthupgrades.common.security.SecurityUser;
 import com.healthupgrades.reminder.application.ReminderService;
 import com.healthupgrades.reminder.domain.model.Reminder;
-import com.healthupgrades.common.security.SecurityUser;
 import jakarta.validation.Valid;
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-import java.util.UUID;
 
 /**
  * REST adapter for reminders — the recurring nudges attached to an upgrade.
@@ -38,8 +37,8 @@ public class ReminderController {
      *         upgrade is owned by the caller (404)
      */
     @GetMapping("/api/upgrades/{upgradeId}/reminders")
-    public ResponseEntity<List<ReminderDto>> list(@AuthenticationPrincipal SecurityUser principal,
-                                                   @PathVariable UUID upgradeId) {
+    public ResponseEntity<List<ReminderDto>> list(
+            @AuthenticationPrincipal SecurityUser principal, @PathVariable UUID upgradeId) {
         return ResponseEntity.ok(mapper.toDtos(service.getForUpgrade(principal.getId(), upgradeId)));
     }
 
@@ -55,9 +54,10 @@ public class ReminderController {
      *         a recognisable day (422)
      */
     @PostMapping("/api/upgrades/{upgradeId}/reminders")
-    public ResponseEntity<ReminderDto> create(@AuthenticationPrincipal SecurityUser principal,
-                                              @PathVariable UUID upgradeId,
-                                              @Valid @RequestBody ReminderRequest req) {
+    public ResponseEntity<ReminderDto> create(
+            @AuthenticationPrincipal SecurityUser principal,
+            @PathVariable UUID upgradeId,
+            @Valid @RequestBody ReminderRequest req) {
         Reminder created = service.create(principal.getId(), upgradeId, mapper.toSchedule(req));
         return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toDto(created));
     }
@@ -77,9 +77,10 @@ public class ReminderController {
      *         a recognisable day (422)
      */
     @PutMapping("/api/reminders/{id}")
-    public ResponseEntity<ReminderDto> update(@AuthenticationPrincipal SecurityUser principal,
-                                              @PathVariable UUID id,
-                                              @Valid @RequestBody ReminderRequest req) {
+    public ResponseEntity<ReminderDto> update(
+            @AuthenticationPrincipal SecurityUser principal,
+            @PathVariable UUID id,
+            @Valid @RequestBody ReminderRequest req) {
         Reminder updated = service.update(principal.getId(), id, mapper.toSchedule(req));
         return ResponseEntity.ok(mapper.toDto(updated));
     }

@@ -1,19 +1,18 @@
 package com.healthupgrades.upgrade.adapter.in.web;
 
+import com.healthupgrades.common.security.SecurityUser;
 import com.healthupgrades.upgrade.application.UpgradeService;
 import com.healthupgrades.upgrade.domain.model.Difficulty;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.model.UpgradeType;
-import com.healthupgrades.common.security.SecurityUser;
 import jakarta.validation.Valid;
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-import java.util.UUID;
 
 /**
  * REST adapter for the upgrade lifecycle — the API's central resource.
@@ -43,8 +42,8 @@ public class UpgradeController {
      * @return 201 with the created upgrade
      */
     @PostMapping
-    public ResponseEntity<UpgradeDto> create(@AuthenticationPrincipal SecurityUser principal,
-                                              @Valid @RequestBody UpgradeRequest req) {
+    public ResponseEntity<UpgradeDto> create(
+            @AuthenticationPrincipal SecurityUser principal, @Valid @RequestBody UpgradeRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(mapper.toDto(service.create(principal.getId(), mapper.toDetails(req))));
     }
@@ -62,11 +61,12 @@ public class UpgradeController {
      * @return 200 with the matching upgrades, each carrying its tracking configuration
      */
     @GetMapping
-    public ResponseEntity<List<UpgradeDto>> findAll(@AuthenticationPrincipal SecurityUser principal,
-                                                     @RequestParam(required = false) UpgradeStatus status,
-                                                     @RequestParam(required = false) UpgradeType type,
-                                                     @RequestParam(required = false) UUID areaId,
-                                                     @RequestParam(required = false) Difficulty difficulty) {
+    public ResponseEntity<List<UpgradeDto>> findAll(
+            @AuthenticationPrincipal SecurityUser principal,
+            @RequestParam(required = false) UpgradeStatus status,
+            @RequestParam(required = false) UpgradeType type,
+            @RequestParam(required = false) UUID areaId,
+            @RequestParam(required = false) Difficulty difficulty) {
         return ResponseEntity.ok(mapper.toDtos(service.findAll(principal.getId(), status, type, areaId, difficulty)));
     }
 
@@ -98,9 +98,10 @@ public class UpgradeController {
      *         concurrent-HARD limit (422)
      */
     @PutMapping("/{id}")
-    public ResponseEntity<UpgradeDto> update(@AuthenticationPrincipal SecurityUser principal,
-                                              @PathVariable UUID id,
-                                              @Valid @RequestBody UpgradeRequest req) {
+    public ResponseEntity<UpgradeDto> update(
+            @AuthenticationPrincipal SecurityUser principal,
+            @PathVariable UUID id,
+            @Valid @RequestBody UpgradeRequest req) {
         return ResponseEntity.ok(mapper.toDto(service.update(principal.getId(), id, mapper.toDetails(req))));
     }
 
@@ -131,9 +132,10 @@ public class UpgradeController {
      * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if the upgrade is not an IDEA (422)
      */
     @PostMapping("/{id}/plan")
-    public ResponseEntity<UpgradeDto> plan(@AuthenticationPrincipal SecurityUser principal,
-                                            @PathVariable UUID id,
-                                            @Valid @RequestBody PlanRequest req) {
+    public ResponseEntity<UpgradeDto> plan(
+            @AuthenticationPrincipal SecurityUser principal,
+            @PathVariable UUID id,
+            @Valid @RequestBody PlanRequest req) {
         return ResponseEntity.ok(mapper.toDto(service.plan(principal.getId(), id, req.plannedStartDate())));
     }
 
@@ -149,11 +151,12 @@ public class UpgradeController {
      *         or activating it would exceed the concurrent-HARD limit (422)
      */
     @PostMapping("/{id}/activate")
-    public ResponseEntity<UpgradeDto> activate(@AuthenticationPrincipal SecurityUser principal,
-                                                @PathVariable UUID id,
-                                                @RequestBody(required = false) ActivateRequest req) {
-        return ResponseEntity.ok(mapper.toDto(service.activate(principal.getId(), id,
-                req != null ? req.startDate() : null)));
+    public ResponseEntity<UpgradeDto> activate(
+            @AuthenticationPrincipal SecurityUser principal,
+            @PathVariable UUID id,
+            @RequestBody(required = false) ActivateRequest req) {
+        return ResponseEntity.ok(
+                mapper.toDto(service.activate(principal.getId(), id, req != null ? req.startDate() : null)));
     }
 
     /**
@@ -210,9 +213,10 @@ public class UpgradeController {
      * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if the upgrade is COMPLETED (422)
      */
     @PostMapping("/{id}/reschedule")
-    public ResponseEntity<UpgradeDto> reschedule(@AuthenticationPrincipal SecurityUser principal,
-                                                  @PathVariable UUID id,
-                                                  @Valid @RequestBody RescheduleRequest req) {
+    public ResponseEntity<UpgradeDto> reschedule(
+            @AuthenticationPrincipal SecurityUser principal,
+            @PathVariable UUID id,
+            @Valid @RequestBody RescheduleRequest req) {
         return ResponseEntity.ok(mapper.toDto(service.reschedule(principal.getId(), id, req.newDate())));
     }
 }

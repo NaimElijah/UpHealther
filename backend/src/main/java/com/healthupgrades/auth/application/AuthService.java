@@ -1,9 +1,9 @@
 package com.healthupgrades.auth.application;
 
+import com.healthupgrades.auth.application.port.in.SessionCommand;
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
-import com.healthupgrades.auth.application.port.in.SessionCommand;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.common.security.IssuedAccessToken;
@@ -13,6 +13,7 @@ import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.EmailAddress;
 import com.healthupgrades.user.domain.model.EmailAlreadyRegisteredException;
 import com.healthupgrades.user.domain.model.User;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AccountStatusException;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -21,8 +22,6 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.UUID;
 
 /**
  * Application service for authentication.
@@ -107,9 +106,9 @@ public class AuthService {
     public AuthResult login(String rawEmail, String password) {
         String email = EmailAddress.normalise(rawEmail);
         try {
-            authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(email, password)); // throws on bad creds
-            User user = userQuery.findByEmail(email)
-                    .orElseThrow(() -> new BusinessRuleException("User not found"));
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(email, password)); // throws on bad creds
+            User user = userQuery.findByEmail(email).orElseThrow(() -> new BusinessRuleException("User not found"));
             // As in register: after the token, so a signing failure cannot produce two entries for one
             // sign-in attempt.
             AuthResult result = startSession(user);
@@ -139,8 +138,7 @@ public class AuthService {
      *         reachable if it is deleted mid-request
      */
     public User getMe(UUID userId) {
-        return userQuery.findById(userId)
-                .orElseThrow(() -> new BusinessRuleException("User not found"));
+        return userQuery.findById(userId).orElseThrow(() -> new BusinessRuleException("User not found"));
     }
 
     /**

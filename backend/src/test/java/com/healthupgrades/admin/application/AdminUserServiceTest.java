@@ -1,5 +1,13 @@
 package com.healthupgrades.admin.application;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.healthupgrades.auth.application.port.in.SessionCommand;
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
@@ -11,23 +19,14 @@ import com.healthupgrades.user.application.port.in.UserCommand;
 import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
  * What an administrator may do to another account, and the two things they may not do at all.
@@ -46,9 +45,14 @@ class AdminUserServiceTest {
     private static final UUID ADMIN_ID = UUID.fromString("0f2c8f5a-2a4e-4a1d-8f0a-3c5b9d1e77a1");
     private static final UUID TARGET_ID = UUID.fromString("6b1f0f4c-9a2d-4c3e-9b7a-1d2e3f4a5b6c");
 
-    @Mock UserQuery userQuery;
-    @Mock UserCommand userCommand;
-    @Mock SessionCommand sessions;
+    @Mock
+    UserQuery userQuery;
+
+    @Mock
+    UserCommand userCommand;
+
+    @Mock
+    SessionCommand sessions;
 
     private final RecordingAuditTrail auditTrail = new RecordingAuditTrail();
 
@@ -70,9 +74,9 @@ class AdminUserServiceTest {
 
         assertThat(target.isEnabled()).isFalse();
         verify(userCommand).save(target);
-        verify(sessions)
-                .revokeAllForUser(TARGET_ID);
-        assertThat(auditTrail.recorded(AuditAction.ADMIN_DISABLE, AuditOutcome.ALLOWED)).isTrue();
+        verify(sessions).revokeAllForUser(TARGET_ID);
+        assertThat(auditTrail.recorded(AuditAction.ADMIN_DISABLE, AuditOutcome.ALLOWED))
+                .isTrue();
     }
 
     @Test
@@ -83,7 +87,8 @@ class AdminUserServiceTest {
         service.enable(ADMIN_ID, TARGET_ID);
 
         assertThat(target.isEnabled()).isTrue();
-        assertThat(auditTrail.recorded(AuditAction.ADMIN_ENABLE, AuditOutcome.ALLOWED)).isTrue();
+        assertThat(auditTrail.recorded(AuditAction.ADMIN_ENABLE, AuditOutcome.ALLOWED))
+                .isTrue();
     }
 
     @Test
@@ -93,7 +98,8 @@ class AdminUserServiceTest {
         service.changeRole(ADMIN_ID, TARGET_ID, Role.ADMIN);
 
         assertThat(target.getRole()).isEqualTo(Role.ADMIN);
-        assertThat(auditTrail.recorded(AuditAction.ADMIN_ROLE, AuditOutcome.ALLOWED)).isTrue();
+        assertThat(auditTrail.recorded(AuditAction.ADMIN_ROLE, AuditOutcome.ALLOWED))
+                .isTrue();
     }
 
     @Test
@@ -115,7 +121,8 @@ class AdminUserServiceTest {
 
         verify(userCommand, never()).save(any());
         verify(sessions, never()).revokeAllForUser(any());
-        assertThat(auditTrail.recorded(AuditAction.ADMIN_DISABLE, AuditOutcome.REFUSED)).isTrue();
+        assertThat(auditTrail.recorded(AuditAction.ADMIN_DISABLE, AuditOutcome.REFUSED))
+                .isTrue();
     }
 
     @Test
@@ -132,16 +139,14 @@ class AdminUserServiceTest {
     void GivenTheirOwnAccount_WhenAnAdministratorEnablesIt_ThenItIsRefusedToo() {
         // Harmless in itself, and refused anyway: the rule is "not your own account", not "not the
         // dangerous half of your own account". A rule with an exception is a rule nobody can state.
-        assertThatThrownBy(() -> service.enable(ADMIN_ID, ADMIN_ID))
-                .isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> service.enable(ADMIN_ID, ADMIN_ID)).isInstanceOf(BusinessRuleException.class);
     }
 
     @Test
     void GivenAnAccountThatDoesNotExist_WhenAnAdministratorDisablesIt_ThenItIsNotFound() {
         when(userQuery.findById(TARGET_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.disable(ADMIN_ID, TARGET_ID))
-                .isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> service.disable(ADMIN_ID, TARGET_ID)).isInstanceOf(ResourceNotFoundException.class);
 
         verify(sessions, never()).revokeAllForUser(any());
     }

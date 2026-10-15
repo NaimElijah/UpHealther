@@ -1,5 +1,8 @@
 package com.healthupgrades.upgrade.adapter.out.persistence;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.AnUpgrade;
 import com.healthupgrades.support.PostgresIT;
@@ -8,20 +11,16 @@ import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import com.healthupgrades.user.domain.model.User;
+import java.time.LocalDate;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
-
-import java.time.LocalDate;
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * The upgrade invariants that only a real database can decide.
@@ -46,8 +45,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Import(UpgradeRepositoryAdapter.class)
 class UpgradePersistenceIT extends PostgresIT {
 
-    @Autowired UpgradeRepositoryPort repository;
-    @Autowired TestEntityManager entityManager;
+    @Autowired
+    UpgradeRepositoryPort repository;
+
+    @Autowired
+    TestEntityManager entityManager;
 
     private UUID ownerId;
     private UUID strangerId;
@@ -77,9 +79,10 @@ class UpgradePersistenceIT extends PostgresIT {
         first.updateDetails(null, "Saved by the first editor", null, first.getType(), null, null, null);
 
         assertThatThrownBy(() -> {
-            repository.save(first);
-            entityManager.flush();
-        }).isInstanceOf(ObjectOptimisticLockingFailureException.class);
+                    repository.save(first);
+                    entityManager.flush();
+                })
+                .isInstanceOf(ObjectOptimisticLockingFailureException.class);
     }
 
     @Test
@@ -89,7 +92,8 @@ class UpgradePersistenceIT extends PostgresIT {
         entityManager.flush();
         entityManager.clear();
 
-        assertThat(repository.findByIdAndUserId(id, ownerId).orElseThrow().getVersion()).isNotNull();
+        assertThat(repository.findByIdAndUserId(id, ownerId).orElseThrow().getVersion())
+                .isNotNull();
     }
 
     @Test
@@ -106,8 +110,12 @@ class UpgradePersistenceIT extends PostgresIT {
     @Test
     void GivenUpgradesBelongingToTwoUsers_WhenOneListsTheirs_ThenTheOthersAreNotIncluded() {
         persistedUpgrade();
-        entityManager.persistAndFlush(AnUpgrade.ownedBy(strangerId).id(null).status(UpgradeStatus.ACTIVE)
-                .createdAt(java.time.LocalDateTime.now()).updatedAt(java.time.LocalDateTime.now()).build());
+        entityManager.persistAndFlush(AnUpgrade.ownedBy(strangerId)
+                .id(null)
+                .status(UpgradeStatus.ACTIVE)
+                .createdAt(java.time.LocalDateTime.now())
+                .updatedAt(java.time.LocalDateTime.now())
+                .build());
         entityManager.clear();
 
         assertThat(repository.findByUserId(ownerId)).hasSize(1);
@@ -121,7 +129,8 @@ class UpgradePersistenceIT extends PostgresIT {
         entityManager.persistAndFlush(anUpgradeFor(strangerId, UpgradeStatus.ACTIVE));
         entityManager.clear();
 
-        assertThat(repository.findByUserIdAndStatus(ownerId, UpgradeStatus.ACTIVE)).hasSize(1);
+        assertThat(repository.findByUserIdAndStatus(ownerId, UpgradeStatus.ACTIVE))
+                .hasSize(1);
     }
 
     @Test
@@ -133,8 +142,8 @@ class UpgradePersistenceIT extends PostgresIT {
         entityManager.persistAndFlush(hardActiveFor(strangerId));
         entityManager.clear();
 
-        assertThat(repository.countByUserIdAndStatusAndDifficulty(
-                ownerId, UpgradeStatus.ACTIVE, Difficulty.HARD)).isZero();
+        assertThat(repository.countByUserIdAndStatusAndDifficulty(ownerId, UpgradeStatus.ACTIVE, Difficulty.HARD))
+                .isZero();
     }
 
     @Test
@@ -145,25 +154,42 @@ class UpgradePersistenceIT extends PostgresIT {
         UUID id = persistedUpgrade().getId();
         UUID notificationId = UUID.randomUUID();
         execute("INSERT INTO tracking_configs (upgrade_id, tracking_type) VALUES (CAST(?1 AS uuid), 'BOOLEAN')", id);
-        execute("INSERT INTO progress_entries (upgrade_id, user_id, date) "
-                + "VALUES (CAST(?1 AS uuid), CAST(?2 AS uuid), DATE '2026-03-02')", id, ownerId);
+        execute(
+                "INSERT INTO progress_entries (upgrade_id, user_id, date) "
+                        + "VALUES (CAST(?1 AS uuid), CAST(?2 AS uuid), DATE '2026-03-02')",
+                id,
+                ownerId);
         execute("INSERT INTO reminders (upgrade_id) VALUES (CAST(?1 AS uuid))", id);
-        execute("INSERT INTO reflections (upgrade_id, user_id, date) "
-                + "VALUES (CAST(?1 AS uuid), CAST(?2 AS uuid), DATE '2026-03-02')", id, ownerId);
-        execute("INSERT INTO notifications (id, user_id, type, category, title, related_upgrade_id) "
-                + "VALUES (CAST(?1 AS uuid), CAST(?2 AS uuid), 'UPGRADE_CREATED', 'INFO', 'New upgrade idea', "
-                + "CAST(?3 AS uuid))", notificationId, ownerId, id);
+        execute(
+                "INSERT INTO reflections (upgrade_id, user_id, date) "
+                        + "VALUES (CAST(?1 AS uuid), CAST(?2 AS uuid), DATE '2026-03-02')",
+                id,
+                ownerId);
+        execute(
+                "INSERT INTO notifications (id, user_id, type, category, title, related_upgrade_id) "
+                        + "VALUES (CAST(?1 AS uuid), CAST(?2 AS uuid), 'UPGRADE_CREATED', 'INFO', 'New upgrade idea', "
+                        + "CAST(?3 AS uuid))",
+                notificationId,
+                ownerId,
+                id);
         entityManager.clear();
 
         repository.delete(repository.findByIdAndUserId(id, ownerId).orElseThrow());
         entityManager.flush();
 
-        assertThat(count("SELECT count(*) FROM tracking_configs WHERE upgrade_id = CAST(?1 AS uuid)", id)).isZero();
-        assertThat(count("SELECT count(*) FROM progress_entries WHERE upgrade_id = CAST(?1 AS uuid)", id)).isZero();
-        assertThat(count("SELECT count(*) FROM reminders WHERE upgrade_id = CAST(?1 AS uuid)", id)).isZero();
-        assertThat(count("SELECT count(*) FROM reflections WHERE upgrade_id = CAST(?1 AS uuid)", id)).isZero();
-        assertThat(count("SELECT count(*) FROM notifications "
-                + "WHERE id = CAST(?1 AS uuid) AND related_upgrade_id IS NULL", notificationId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM tracking_configs WHERE upgrade_id = CAST(?1 AS uuid)", id))
+                .isZero();
+        assertThat(count("SELECT count(*) FROM progress_entries WHERE upgrade_id = CAST(?1 AS uuid)", id))
+                .isZero();
+        assertThat(count("SELECT count(*) FROM reminders WHERE upgrade_id = CAST(?1 AS uuid)", id))
+                .isZero();
+        assertThat(count("SELECT count(*) FROM reflections WHERE upgrade_id = CAST(?1 AS uuid)", id))
+                .isZero();
+        assertThat(count(
+                        "SELECT count(*) FROM notifications "
+                                + "WHERE id = CAST(?1 AS uuid) AND related_upgrade_id IS NULL",
+                        notificationId))
+                .isEqualTo(1);
     }
 
     private void execute(String sql, Object... uuids) {
@@ -175,9 +201,12 @@ class UpgradePersistenceIT extends PostgresIT {
     }
 
     private long count(String sql, UUID id) {
-        return ((Number) entityManager.getEntityManager().createNativeQuery(sql)
-                .setParameter(1, id.toString())
-                .getSingleResult()).longValue();
+        return ((Number) entityManager
+                        .getEntityManager()
+                        .createNativeQuery(sql)
+                        .setParameter(1, id.toString())
+                        .getSingleResult())
+                .longValue();
     }
 
     private User persistedUser(String email) {
@@ -189,15 +218,22 @@ class UpgradePersistenceIT extends PostgresIT {
     }
 
     private static HealthUpgrade anUpgradeFor(UUID userId, UpgradeStatus status) {
-        return AnUpgrade.ownedBy(userId).id(null).status(status)
+        return AnUpgrade.ownedBy(userId)
+                .id(null)
+                .status(status)
                 .plannedStartDate(LocalDate.of(2026, 3, 1))
-                .createdAt(java.time.LocalDateTime.now()).updatedAt(java.time.LocalDateTime.now())
+                .createdAt(java.time.LocalDateTime.now())
+                .updatedAt(java.time.LocalDateTime.now())
                 .build();
     }
 
     private static HealthUpgrade hardActiveFor(UUID userId) {
-        return AnUpgrade.ownedBy(userId).id(null).status(UpgradeStatus.ACTIVE).difficulty(Difficulty.HARD)
-                .createdAt(java.time.LocalDateTime.now()).updatedAt(java.time.LocalDateTime.now())
+        return AnUpgrade.ownedBy(userId)
+                .id(null)
+                .status(UpgradeStatus.ACTIVE)
+                .difficulty(Difficulty.HARD)
+                .createdAt(java.time.LocalDateTime.now())
+                .updatedAt(java.time.LocalDateTime.now())
                 .build();
     }
 }

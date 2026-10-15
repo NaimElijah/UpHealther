@@ -1,12 +1,11 @@
 package com.healthupgrades;
 
 import com.healthupgrades.common.time.ServerZone;
+import java.time.Clock;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.scheduling.annotation.EnableScheduling;
-
-import java.time.Clock;
 
 /**
  * Spring Boot entry point for the HealthUpgrades API.

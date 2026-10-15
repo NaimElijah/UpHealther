@@ -1,12 +1,11 @@
 package com.healthupgrades.auth.domain.model;
 
-import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
 
 /**
  * The rules a session enforces about itself: when it may be used, what counts as the right credential,
@@ -115,7 +114,8 @@ class AuthSessionTest {
         AuthSession session = opened();
         session.rotate(SECOND, OPENED_AT, IDLE);
 
-        assertThat(session.matchesPreviousWithin(FIRST, OPENED_AT.plus(GRACE), GRACE)).isTrue();
+        assertThat(session.matchesPreviousWithin(FIRST, OPENED_AT.plus(GRACE), GRACE))
+                .isTrue();
     }
 
     @Test

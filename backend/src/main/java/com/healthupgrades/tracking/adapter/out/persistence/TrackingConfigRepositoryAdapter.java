@@ -2,13 +2,12 @@ package com.healthupgrades.tracking.adapter.out.persistence;
 
 import com.healthupgrades.tracking.domain.model.TrackingConfig; // domain aggregate
 import com.healthupgrades.tracking.domain.port.out.TrackingConfigRepositoryPort; // the port implemented here
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
-
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
 /**
  * Persistence adapter implementing {@link TrackingConfigRepositoryPort} by delegating to Spring Data JPA.

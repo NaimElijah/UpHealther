@@ -1,12 +1,12 @@
 package com.healthupgrades.common.observability;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.tracing.Tracer;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.Ordered;
 import org.springframework.scheduling.config.ScheduledTaskRegistrar;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Pins the two pieces of wiring that have no other test and no visible failure mode.

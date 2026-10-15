@@ -5,10 +5,6 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
-
-import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
@@ -16,6 +12,9 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.Optional;
 import java.util.UUID;
+import javax.crypto.SecretKey;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
 
 /**
  * Issues and verifies the HMAC-signed access tokens this API authenticates with.
@@ -69,7 +68,10 @@ public class JwtTokenProvider {
         // Built once: the parser is immutable and thread-safe, and every request would otherwise rebuild it.
         this.parser = Jwts.parser()
                 .verifyWith(secretKey)
-                .sig().clear().add(Jwts.SIG.HS256).and()
+                .sig()
+                .clear()
+                .add(Jwts.SIG.HS256)
+                .and()
                 .requireIssuer(issuer)
                 .requireAudience(audience)
                 .clockSkewSeconds(properties.clockSkew().toSeconds())
@@ -91,7 +93,9 @@ public class JwtTokenProvider {
                 .subject(userId.toString())
                 .claim(SESSION_CLAIM, sessionId.toString())
                 .issuer(issuer)
-                .audience().add(audience).and()
+                .audience()
+                .add(audience)
+                .and()
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiresAt))
                 .signWith(secretKey, Jwts.SIG.HS256)
@@ -123,8 +127,7 @@ public class JwtTokenProvider {
                 log.debug("Rejected a token: it names no session or no subject");
                 return Optional.empty();
             }
-            return Optional.of(new VerifiedAccessToken(
-                    UUID.fromString(subject), UUID.fromString(sessionId)));
+            return Optional.of(new VerifiedAccessToken(UUID.fromString(subject), UUID.fromString(sessionId)));
         } catch (JwtException | IllegalArgumentException rejected) {
             // A rejected token is an expected outcome on a public endpoint, not a fault, and the reason is
             // withheld from the caller on purpose: telling an unauthenticated caller whether a token

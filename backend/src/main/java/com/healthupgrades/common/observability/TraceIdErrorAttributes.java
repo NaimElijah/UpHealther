@@ -1,13 +1,12 @@
 package com.healthupgrades.common.observability;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.util.Map;
 import org.springframework.boot.web.error.ErrorAttributeOptions;
 import org.springframework.boot.webmvc.error.DefaultErrorAttributes;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.WebRequest;
-
-import java.time.Clock;
-import java.time.LocalDateTime;
-import java.util.Map;
 
 /**
  * Boot's error body, plus the trace id the request was answered under (NFR-21, ADR-024).
@@ -53,8 +52,8 @@ public class TraceIdErrorAttributes extends DefaultErrorAttributes {
     public Map<String, Object> getErrorAttributes(WebRequest webRequest, ErrorAttributeOptions options) {
         Map<String, Object> attributes = super.getErrorAttributes(webRequest, options);
         attributes.put(TIMESTAMP, LocalDateTime.now(clock));
-        Object traceId = webRequest.getAttribute(TraceIdResponseHeaderFilter.TRACE_ID_ATTRIBUTE,
-                RequestAttributes.SCOPE_REQUEST);
+        Object traceId = webRequest.getAttribute(
+                TraceIdResponseHeaderFilter.TRACE_ID_ATTRIBUTE, RequestAttributes.SCOPE_REQUEST);
         if (traceId != null) {
             attributes.put(TRACE_ID, traceId);
         }

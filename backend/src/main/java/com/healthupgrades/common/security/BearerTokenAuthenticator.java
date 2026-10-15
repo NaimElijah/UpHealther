@@ -2,11 +2,10 @@ package com.healthupgrades.common.security;
 
 import com.healthupgrades.common.domain.port.out.SessionStatusPort;
 import com.healthupgrades.user.application.port.in.UserQuery;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-
-import java.util.Optional;
 
 /**
  * Turns a bearer token into the principal it authenticates, or into nobody.
@@ -44,7 +43,8 @@ public class BearerTokenAuthenticator {
                 log.debug("A token names a session that has ended; left anonymous");
                 return Optional.<SecurityUser>empty();
             }
-            Optional<SecurityUser> principal = userQuery.findById(verified.userId()).map(SecurityUser::from);
+            Optional<SecurityUser> principal =
+                    userQuery.findById(verified.userId()).map(SecurityUser::from);
             if (principal.isEmpty()) {
                 // WARN, not DEBUG: the signature verified, so this token was issued by us and is being
                 // presented for an account that no longer exists. Ordinary expiry does not reach here.

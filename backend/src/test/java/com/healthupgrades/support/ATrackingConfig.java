@@ -3,7 +3,6 @@ package com.healthupgrades.support;
 import com.healthupgrades.tracking.domain.model.Frequency;
 import com.healthupgrades.tracking.domain.model.TrackingConfig;
 import com.healthupgrades.tracking.domain.model.TrackingType;
-
 import java.util.UUID;
 
 /**
@@ -15,8 +14,7 @@ import java.util.UUID;
  */
 public final class ATrackingConfig {
 
-    private ATrackingConfig() {
-    }
+    private ATrackingConfig() {}
 
     /** A configuration for the given upgrade, defaulting to daily boolean tracking. */
     public static TrackingConfig.TrackingConfigBuilder forUpgrade(UUID upgradeId) {

@@ -1,7 +1,6 @@
 package com.healthupgrades.support;
 
 import com.healthupgrades.tracking.domain.model.ProgressEntry;
-
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -14,8 +13,7 @@ import java.util.UUID;
  */
 public final class AProgressEntry {
 
-    private AProgressEntry() {
-    }
+    private AProgressEntry() {}
 
     /** An entry for the given upgrade and day, with no value set. */
     public static ProgressEntry.ProgressEntryBuilder on(UUID upgradeId, UUID userId, LocalDate date) {
@@ -32,8 +30,7 @@ public final class AProgressEntry {
     }
 
     /** A numeric entry, in the unit it was logged in. */
-    public static ProgressEntry numericOn(UUID upgradeId, UUID userId, LocalDate date,
-                                          double value, String unit) {
+    public static ProgressEntry numericOn(UUID upgradeId, UUID userId, LocalDate date, double value, String unit) {
         return on(upgradeId, userId, date).numericValue(value).unit(unit).build();
     }
 

@@ -1,19 +1,18 @@
 package com.healthupgrades.tracking.domain.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.healthupgrades.tracking.domain.model.ProgressEntry;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
-
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.IntStream;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Covers streak counting, boundaries included: an unlogged today must not break the run, gaps must end
@@ -46,35 +45,28 @@ class StreakCalculatorTest {
 
     @Test
     void GivenNoEntries_WhenTheCurrentStreakIsCalculated_ThenItIsZero() {
-        assertThat(calculator.calculateCurrentStreak(Collections.emptyList(), TODAY)).isZero();
+        assertThat(calculator.calculateCurrentStreak(Collections.emptyList(), TODAY))
+                .isZero();
     }
 
     @Test
     void GivenNoCompletedEntries_WhenTheCurrentStreakIsCalculated_ThenItIsZero() {
-        List<ProgressEntry> entries = List.of(
-                entry(TODAY.minusDays(1), false),
-                entry(TODAY, false)
-        );
+        List<ProgressEntry> entries = List.of(entry(TODAY.minusDays(1), false), entry(TODAY, false));
         assertThat(calculator.calculateCurrentStreak(entries, TODAY)).isZero();
     }
 
     @Test
     void GivenConsecutiveCompletedDaysIncludingToday_WhenTheCurrentStreakIsCalculated_ThenItCountsThemAll() {
-        List<ProgressEntry> entries = List.of(
-                entry(TODAY.minusDays(2), true),
-                entry(TODAY.minusDays(1), true),
-                entry(TODAY, true)
-        );
+        List<ProgressEntry> entries =
+                List.of(entry(TODAY.minusDays(2), true), entry(TODAY.minusDays(1), true), entry(TODAY, true));
         assertThat(calculator.calculateCurrentStreak(entries, TODAY)).isEqualTo(3);
     }
 
     @Test
-    void GivenConsecutiveCompletedDaysEndingYesterday_WhenTheCurrentStreakIsCalculated_ThenTodayBeingUnloggedDoesNotBreakIt() {
+    void
+            GivenConsecutiveCompletedDaysEndingYesterday_WhenTheCurrentStreakIsCalculated_ThenTodayBeingUnloggedDoesNotBreakIt() {
         List<ProgressEntry> entries = List.of(
-                entry(TODAY.minusDays(3), true),
-                entry(TODAY.minusDays(2), true),
-                entry(TODAY.minusDays(1), true)
-        );
+                entry(TODAY.minusDays(3), true), entry(TODAY.minusDays(2), true), entry(TODAY.minusDays(1), true));
         assertThat(calculator.calculateCurrentStreak(entries, TODAY)).isEqualTo(3);
     }
 
@@ -84,8 +76,7 @@ class StreakCalculatorTest {
                 entry(TODAY.minusDays(5), true),
                 entry(TODAY.minusDays(4), true),
                 entry(TODAY.minusDays(1), true),
-                entry(TODAY, true)
-        );
+                entry(TODAY, true));
         assertThat(calculator.calculateCurrentStreak(entries, TODAY)).isEqualTo(2);
     }
 
@@ -94,12 +85,10 @@ class StreakCalculatorTest {
         // The same entries yield a different answer for a different reference day, which they could not
         // do if the calculator consulted a clock of its own. Both reference days are fixed, so this
         // holds whatever date the suite runs on.
-        List<ProgressEntry> entries = List.of(
-                entry(TODAY.minusDays(2), true),
-                entry(TODAY.minusDays(1), true)
-        );
+        List<ProgressEntry> entries = List.of(entry(TODAY.minusDays(2), true), entry(TODAY.minusDays(1), true));
         assertThat(calculator.calculateCurrentStreak(entries, TODAY)).isEqualTo(2);
-        assertThat(calculator.calculateCurrentStreak(entries, TODAY.plusYears(1))).isZero();
+        assertThat(calculator.calculateCurrentStreak(entries, TODAY.plusYears(1)))
+                .isZero();
     }
 
     @Test
@@ -120,18 +109,15 @@ class StreakCalculatorTest {
                 entry(TODAY.minusDays(9), true),
                 entry(TODAY.minusDays(8), true),
                 entry(TODAY.minusDays(5), true),
-                entry(TODAY.minusDays(4), true)
-        );
+                entry(TODAY.minusDays(4), true));
         assertThat(calculator.calculateLongestStreak(entries)).isEqualTo(3);
     }
 
     @Test
-    void GivenIncompleteEntriesAmongTheCompletedOnes_WhenTheLongestStreakIsCalculated_ThenTheIncompleteOnesAreIgnored() {
+    void
+            GivenIncompleteEntriesAmongTheCompletedOnes_WhenTheLongestStreakIsCalculated_ThenTheIncompleteOnesAreIgnored() {
         List<ProgressEntry> entries = List.of(
-                entry(TODAY.minusDays(3), true),
-                entry(TODAY.minusDays(2), false),
-                entry(TODAY.minusDays(1), true)
-        );
+                entry(TODAY.minusDays(3), true), entry(TODAY.minusDays(2), false), entry(TODAY.minusDays(1), true));
         assertThat(calculator.calculateLongestStreak(entries)).isEqualTo(1);
     }
 
@@ -186,7 +172,8 @@ class StreakCalculatorTest {
 
     @ParameterizedTest
     @ValueSource(ints = {8, 9, 13})
-    void GivenARunThatHasPassedSeven_WhenYesterdayIsLoggedBeforeToday_ThenTheSevenDayMilestoneIsNotReachedAgain(int streak) {
+    void GivenARunThatHasPassedSeven_WhenYesterdayIsLoggedBeforeToday_ThenTheSevenDayMilestoneIsNotReachedAgain(
+            int streak) {
         // The catch-up morning. With today unlogged, the current streak is counted from yesterday — the
         // very day being logged — so the streak without this entry reads as zero. The run ending the day
         // before it had already reached 7.
@@ -198,7 +185,9 @@ class StreakCalculatorTest {
 
     @ParameterizedTest
     @ValueSource(ints = {7, 14})
-    void GivenARunOneDayShortOfAMultipleOfSeven_WhenYesterdayIsLoggedBeforeTodayAndCompletesIt_ThenThatMilestoneIsReached(int streak) {
+    void
+            GivenARunOneDayShortOfAMultipleOfSeven_WhenYesterdayIsLoggedBeforeTodayAndCompletesIt_ThenThatMilestoneIsReached(
+                    int streak) {
         LocalDate yesterday = TODAY.minusDays(1);
         List<ProgressEntry> entries = completedRunEndingOn(yesterday, streak);
 
@@ -259,7 +248,8 @@ class StreakCalculatorTest {
         List<ProgressEntry> entries = new ArrayList<>(completedRunEndingOn(TODAY.plusDays(1), 7));
         entries.add(entry(dayAfterTomorrow, true));
 
-        assertThat(calculator.milestoneReachedBy(entries, dayAfterTomorrow, TODAY.plusDays(1))).isEmpty();
+        assertThat(calculator.milestoneReachedBy(entries, dayAfterTomorrow, TODAY.plusDays(1)))
+                .isEmpty();
     }
 
     /** {@code days} completed entries, one per day, the last of them on {@code lastDay}. */

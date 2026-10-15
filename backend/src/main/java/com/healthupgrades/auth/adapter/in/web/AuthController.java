@@ -122,18 +122,16 @@ public class AuthController {
     @PostMapping("/refresh")
     public ResponseEntity<TokenPair> refresh(
             @RequestHeader(RefreshCookies.REQUESTED_WITH) String requestedWith,
-            HttpServletRequest request, HttpServletResponse response) {
+            HttpServletRequest request,
+            HttpServletResponse response) {
         // No cookie is no attempt: every signed-out page load asks once, and auditing each of those
         // as a refused refresh would bury the refusals worth reading (NFR-23).
-        RefreshOutcome outcome = cookies.read(request)
-                .map(sessions::refresh)
-                .orElseGet(RefreshOutcome.Rejected::new);
+        RefreshOutcome outcome = cookies.read(request).map(sessions::refresh).orElseGet(RefreshOutcome.Rejected::new);
         return switch (outcome) {
             case RefreshOutcome.Rotated rotated ->
-                    withRefreshCookie(ResponseEntity.ok(),
-                            authService.continueSession(rotated.userId(), rotated.grant()));
+                withRefreshCookie(ResponseEntity.ok(), authService.continueSession(rotated.userId(), rotated.grant()));
             case RefreshOutcome.Stale ignored ->
-                    throw new RetryableConflictException("Session was refreshed concurrently. Please retry.");
+                throw new RetryableConflictException("Session was refreshed concurrently. Please retry.");
             case RefreshOutcome.Rejected ignored -> {
                 // Cleared on the way out rather than in the handler: the exception carries a status and
                 // a body, not a cookie, and leaving a dead credential in the browser means it is sent
@@ -157,8 +155,7 @@ public class AuthController {
      */
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(
-            @RequestHeader(RefreshCookies.REQUESTED_WITH) String requestedWith,
-            HttpServletRequest request) {
+            @RequestHeader(RefreshCookies.REQUESTED_WITH) String requestedWith, HttpServletRequest request) {
         cookies.read(request).ifPresent(sessions::revoke);
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookies.clear().toString())
@@ -183,10 +180,9 @@ public class AuthController {
      * <p>One place, so no response that opens or continues a session can forget the cookie, and none
      * can set it with attributes of its own.
      */
-    private ResponseEntity<TokenPair> withRefreshCookie(ResponseEntity.BodyBuilder builder,
-                                                        AuthResult result) {
-        return builder
-                .header(HttpHeaders.SET_COOKIE, cookies.issue(result.session()).toString())
+    private ResponseEntity<TokenPair> withRefreshCookie(ResponseEntity.BodyBuilder builder, AuthResult result) {
+        return builder.header(
+                        HttpHeaders.SET_COOKIE, cookies.issue(result.session()).toString())
                 .body(toTokenPair(result));
     }
 
@@ -197,8 +193,7 @@ public class AuthController {
 
     /** Maps a domain user to its public DTO. */
     private UserDto toUserDto(User user) {
-        return new UserDto(user.getId(), user.getName(), user.getEmail(), user.getRole(),
-                user.getCreatedAt());
+        return new UserDto(user.getId(), user.getName(), user.getEmail(), user.getRole(), user.getCreatedAt());
     }
 
     /**
@@ -211,8 +206,9 @@ public class AuthController {
     public record RegisterRequest(
             @NotBlank @Size(max = NAME_MAX) String name,
             @NotBlank @Email @Size(max = EMAIL_MAX) String email,
-            @NotBlank @Size(min = PASSWORD_MIN, max = PASSWORD_MAX) @MaxUtf8Bytes(PASSWORD_MAX) String password
-    ) {
+
+            @NotBlank @Size(min = PASSWORD_MIN, max = PASSWORD_MAX) @MaxUtf8Bytes(PASSWORD_MAX)
+            String password) {
         public RegisterRequest {
             email = EmailAddress.normalise(email);
         }
@@ -220,9 +216,7 @@ public class AuthController {
 
     /** Login request body; the email is normalised before validation, as in {@link RegisterRequest}. */
     public record LoginRequest(
-            @NotBlank @Email String email,
-            @NotBlank String password
-    ) {
+            @NotBlank @Email String email, @NotBlank String password) {
         public LoginRequest {
             email = EmailAddress.normalise(email);
         }

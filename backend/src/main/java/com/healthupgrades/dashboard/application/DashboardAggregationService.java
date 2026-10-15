@@ -10,9 +10,6 @@ import com.healthupgrades.tracking.domain.model.ProgressEntry;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Collections;
@@ -21,6 +18,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
 
 /**
  * Application service that aggregates a user's dashboard from other bounded contexts.
@@ -46,13 +45,18 @@ public class DashboardAggregationService implements DashboardQuery {
         LocalDate today = LocalDate.now(clock);
 
         // Bucket the upgrades by the dashboard's sections (kept as domain objects).
-        List<HealthUpgrade> active = all.stream().filter(u -> u.getStatus() == UpgradeStatus.ACTIVE).toList();
-        List<HealthUpgrade> planned = all.stream().filter(u -> u.getStatus() == UpgradeStatus.PLANNED).toList();
-        List<HealthUpgrade> todayList = all.stream().filter(u -> u.isActiveOn(today)).toList();
-        List<HealthUpgrade> overdue = all.stream().filter(u -> u.isOverdue(today)).toList();
+        List<HealthUpgrade> active =
+                all.stream().filter(u -> u.getStatus() == UpgradeStatus.ACTIVE).toList();
+        List<HealthUpgrade> planned =
+                all.stream().filter(u -> u.getStatus() == UpgradeStatus.PLANNED).toList();
+        List<HealthUpgrade> todayList =
+                all.stream().filter(u -> u.isActiveOn(today)).toList();
+        List<HealthUpgrade> overdue =
+                all.stream().filter(u -> u.isOverdue(today)).toList();
 
         double weeklyRate = calculateWeeklyCompletionRate(userId, today);
-        Map<UUID, Integer> streaks = streakQuery.currentStreaks(active.stream().map(HealthUpgrade::getId).toList());
+        Map<UUID, Integer> streaks = streakQuery.currentStreaks(
+                active.stream().map(HealthUpgrade::getId).toList());
 
         // The five most recently completed upgrades.
         List<HealthUpgrade> recentlyCompleted = all.stream()
@@ -64,8 +68,8 @@ public class DashboardAggregationService implements DashboardQuery {
         List<HealthArea> areas = healthAreaQuery.listByUser(userId);
         List<DashboardView.AreaSummary> areaSummaries = buildAreaSummary(areas, all);
 
-        return new DashboardView(active, planned, todayList, overdue, recentlyCompleted,
-                weeklyRate, streaks, areaSummaries);
+        return new DashboardView(
+                active, planned, todayList, overdue, recentlyCompleted, weeklyRate, streaks, areaSummaries);
     }
 
     /** Percentage of the last 7 days' progress entries marked completed (0 when there are none). */
@@ -73,7 +77,9 @@ public class DashboardAggregationService implements DashboardQuery {
         LocalDate weekAgo = today.minusDays(6);
         List<ProgressEntry> weekEntries = progressQuery.findByUserIdAndDateBetween(userId, weekAgo, today);
         if (weekEntries.isEmpty()) return 0.0;
-        long completed = weekEntries.stream().filter(e -> Boolean.TRUE.equals(e.getCompleted())).count();
+        long completed = weekEntries.stream()
+                .filter(e -> Boolean.TRUE.equals(e.getCompleted()))
+                .count();
         return (double) completed / weekEntries.size() * 100.0;
     }
 
@@ -88,8 +94,12 @@ public class DashboardAggregationService implements DashboardQuery {
                 .map(area -> {
                     List<HealthUpgrade> areaUpgrades = byArea.getOrDefault(area.getId(), Collections.emptyList());
                     int total = areaUpgrades.size();
-                    int active = (int) areaUpgrades.stream().filter(u -> u.getStatus() == UpgradeStatus.ACTIVE).count();
-                    int completed = (int) areaUpgrades.stream().filter(u -> u.getStatus() == UpgradeStatus.COMPLETED).count();
+                    int active = (int) areaUpgrades.stream()
+                            .filter(u -> u.getStatus() == UpgradeStatus.ACTIVE)
+                            .count();
+                    int completed = (int) areaUpgrades.stream()
+                            .filter(u -> u.getStatus() == UpgradeStatus.COMPLETED)
+                            .count();
                     return new DashboardView.AreaSummary(area.getId(), area.getName(), total, active, completed);
                 })
                 .toList();

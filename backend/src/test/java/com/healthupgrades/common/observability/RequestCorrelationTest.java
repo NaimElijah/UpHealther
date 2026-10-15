@@ -1,15 +1,19 @@
 package com.healthupgrades.common.observability;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.micrometer.observation.autoconfigure.ObservationAutoConfiguration;
 import org.springframework.boot.micrometer.tracing.autoconfigure.MicrometerTracingAutoConfiguration;
 import org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure.OpenTelemetryEventPublisherBeansApplicationListener;
-import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.ApplicationListener;
 import org.springframework.core.io.support.SpringFactoriesLoader;
@@ -17,11 +21,6 @@ import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.web.filter.ServerHttpObservationFilter;
-
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Pins the correlation contract that issue #43 asked for: one id per request, on every line logged
@@ -57,27 +56,33 @@ class RequestCorrelationTest {
             .withConfiguration(AutoConfigurations.of(
                     ObservationAutoConfiguration.class,
                     org.springframework.boot.opentelemetry.autoconfigure.OpenTelemetrySdkAutoConfiguration.class,
-                    org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure.OpenTelemetryTracingAutoConfiguration.class,
+                    org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure
+                            .OpenTelemetryTracingAutoConfiguration.class,
                     MicrometerTracingAutoConfiguration.class))
             // The listener that connects the context's Slf4JEventListener to the MDC bridge. A SpringApplication
             // loads it from spring.factories; a context runner loads nothing from there, so it is loaded here the
             // same way. Constructing it by hand would keep this test green if Boot ever stopped registering it,
             // and every log line would lose its trace id.
-            .withInitializer(context -> SpringFactoriesLoader.forDefaultResourceLocation(context.getClassLoader())
-                    .load(ApplicationListener.class).stream()
-                    .filter(OpenTelemetryEventPublisherBeansApplicationListener.class::isInstance)
-                    .forEach(context::addApplicationListener))
+            .withInitializer(context ->
+                    SpringFactoriesLoader.forDefaultResourceLocation(context.getClassLoader())
+                            .load(ApplicationListener.class)
+                            .stream()
+                            .filter(OpenTelemetryEventPublisherBeansApplicationListener.class::isInstance)
+                            .forEach(context::addApplicationListener))
             .withPropertyValues("management.tracing.sampling.probability=1.0");
 
     @Test
     void GivenARequestIsBeingServed_WhenAnythingLogs_ThenEveryLineCarriesTheSameTraceId() {
         tracing.run(context -> {
-            List<ILoggingEvent> logged = whileServing(context.getBean(io.micrometer.observation.ObservationRegistry.class),
-                    new MockHttpServletRequest("GET", "/api/upgrades"), 2);
+            List<ILoggingEvent> logged = whileServing(
+                    context.getBean(io.micrometer.observation.ObservationRegistry.class),
+                    new MockHttpServletRequest("GET", "/api/upgrades"),
+                    2);
 
             assertThat(logged).hasSize(2);
-            assertThat(logged).allSatisfy(event ->
-                    assertThat(event.getMDCPropertyMap().get(TRACE_ID)).isNotBlank());
+            assertThat(logged)
+                    .allSatisfy(event ->
+                            assertThat(event.getMDCPropertyMap().get(TRACE_ID)).isNotBlank());
             assertThat(logged.get(0).getMDCPropertyMap().get(TRACE_ID))
                     .isEqualTo(logged.get(1).getMDCPropertyMap().get(TRACE_ID));
         });
@@ -92,8 +97,10 @@ class RequestCorrelationTest {
             List<ILoggingEvent> logged =
                     whileServing(context.getBean(io.micrometer.observation.ObservationRegistry.class), request, 1);
 
-            assertThat(logged).singleElement().satisfies(event ->
-                    assertThat(event.getMDCPropertyMap().get(TRACE_ID)).isEqualTo(INBOUND_TRACE_ID));
+            assertThat(logged)
+                    .singleElement()
+                    .satisfies(event ->
+                            assertThat(event.getMDCPropertyMap().get(TRACE_ID)).isEqualTo(INBOUND_TRACE_ID));
         });
     }
 
@@ -122,9 +129,9 @@ class RequestCorrelationTest {
      * @param request    the request to serve
      * @param logsToEmit how many lines the "application" writes while handling it
      */
-    private static List<ILoggingEvent> whileServing(io.micrometer.observation.ObservationRegistry registry,
-                                                    MockHttpServletRequest request,
-                                                    int logsToEmit) throws Exception {
+    private static List<ILoggingEvent> whileServing(
+            io.micrometer.observation.ObservationRegistry registry, MockHttpServletRequest request, int logsToEmit)
+            throws Exception {
         Logger logger = (Logger) LoggerFactory.getLogger(RequestCorrelationTest.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();

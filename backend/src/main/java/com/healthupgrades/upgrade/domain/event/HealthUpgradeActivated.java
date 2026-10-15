@@ -1,7 +1,6 @@
 package com.healthupgrades.upgrade.domain.event;
 
 import com.healthupgrades.common.domain.event.DomainEvent;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -17,4 +16,5 @@ import java.util.UUID;
  * @param startDate  the date it actually started
  * @param occurredAt when the transition happened
  */
-public record HealthUpgradeActivated(UUID upgradeId, UUID userId, LocalDate startDate, LocalDateTime occurredAt) implements DomainEvent {}
+public record HealthUpgradeActivated(UUID upgradeId, UUID userId, LocalDate startDate, LocalDateTime occurredAt)
+        implements DomainEvent {}

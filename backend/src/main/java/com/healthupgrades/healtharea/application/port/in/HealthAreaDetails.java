@@ -6,10 +6,4 @@ package com.healthupgrades.healtharea.application.port.in;
  * <p>Distinct from the HTTP request record so the application layer states its own input shape rather
  * than importing the web adapter's: a change to the wire format should not change a use-case signature.
  */
-public record HealthAreaDetails(
-        String name,
-        String description,
-        Integer priority,
-        String icon,
-        String color
-) {}
+public record HealthAreaDetails(String name, String description, Integer priority, String icon, String color) {}

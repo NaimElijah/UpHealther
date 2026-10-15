@@ -4,16 +4,15 @@ import com.healthupgrades.user.domain.model.EmailAlreadyRegisteredException;
 import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User; // domain aggregate
 import com.healthupgrades.user.domain.port.out.UserRepositoryPort; // the port implemented here
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
-
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
 
 /**
  * Persistence adapter implementing {@link UserRepositoryPort} by delegating to Spring Data JPA.

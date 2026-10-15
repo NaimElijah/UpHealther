@@ -1,19 +1,19 @@
 package com.healthupgrades.notification.application;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.notification.domain.model.Notification;
 import com.healthupgrades.notification.domain.model.NotificationCategory;
 import com.healthupgrades.notification.domain.model.NotificationType;
 import com.healthupgrades.notification.domain.port.out.NotificationPushPort;
 import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
-
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -22,14 +22,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Covers FR-32 (a notification is readable afterwards however it was delivered), FR-33 (the fifty most
@@ -45,8 +44,11 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceTest {
 
-    @Mock NotificationRepositoryPort repository;
-    @Mock NotificationPushPort pushPort;
+    @Mock
+    NotificationRepositoryPort repository;
+
+    @Mock
+    NotificationPushPort pushPort;
 
     private final Clock fixedClock = Clock.fixed(Instant.parse("2026-03-15T18:00:00Z"), ZoneOffset.UTC);
 
@@ -67,8 +69,13 @@ class NotificationServiceTest {
     void GivenANewNotification_WhenItIsCreated_ThenItIsPersistedAndPushedToItsOwner() {
         when(repository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Notification created = service.create(userId, NotificationType.UPGRADE_COMPLETED,
-                NotificationCategory.SUCCESS, "Upgrade completed 🎉", "Congrats!", upgradeId);
+        Notification created = service.create(
+                userId,
+                NotificationType.UPGRADE_COMPLETED,
+                NotificationCategory.SUCCESS,
+                "Upgrade completed 🎉",
+                "Congrats!",
+                upgradeId);
 
         assertThat(created.getType()).isEqualTo(NotificationType.UPGRADE_COMPLETED);
         assertThat(created.isRead()).isFalse();
@@ -84,17 +91,27 @@ class NotificationServiceTest {
         // midnight, so a stamp taken in the host's zone skips users on any host east of UTC+6.
         when(repository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Notification created = service.create(userId, NotificationType.CHECKIN_REMINDER,
-                NotificationCategory.REMINDER, "Daily check-in", "One active upgrade to track today.", null);
+        Notification created = service.create(
+                userId,
+                NotificationType.CHECKIN_REMINDER,
+                NotificationCategory.REMINDER,
+                "Daily check-in",
+                "One active upgrade to track today.",
+                null);
 
         assertThat(created.getCreatedAt()).isEqualTo(LocalDateTime.now(fixedClock));
     }
 
     @Test
     void GivenAnUnreadNotification_WhenItIsMarkedRead_ThenTheFlagIsFlipped() {
-        Notification n = Notification.builder().id(UUID.randomUUID()).userId(userId)
-                .type(NotificationType.REMINDER).category(NotificationCategory.REMINDER)
-                .title("Reminder").read(false).build();
+        Notification n = Notification.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .type(NotificationType.REMINDER)
+                .category(NotificationCategory.REMINDER)
+                .title("Reminder")
+                .read(false)
+                .build();
         when(repository.findByIdAndUserId(n.getId(), userId)).thenReturn(Optional.of(n));
         when(repository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -115,9 +132,14 @@ class NotificationServiceTest {
                 .thenReturn(false);
         when(repository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Optional<Notification> created = service.createUnlessNotifiedSince(userId,
-                NotificationType.UPGRADE_OVERDUE, NotificationCategory.WARNING, "Upgrade overdue ⏰",
-                () -> "Past its target date.", upgradeId, SINCE);
+        Optional<Notification> created = service.createUnlessNotifiedSince(
+                userId,
+                NotificationType.UPGRADE_OVERDUE,
+                NotificationCategory.WARNING,
+                "Upgrade overdue ⏰",
+                () -> "Past its target date.",
+                upgradeId,
+                SINCE);
 
         assertThat(created).isPresent();
         verify(repository).save(any(Notification.class));
@@ -129,9 +151,14 @@ class NotificationServiceTest {
         when(repository.existsForUpgradeSince(userId, upgradeId, NotificationType.UPGRADE_OVERDUE, SINCE))
                 .thenReturn(true);
 
-        Optional<Notification> created = service.createUnlessNotifiedSince(userId,
-                NotificationType.UPGRADE_OVERDUE, NotificationCategory.WARNING, "Upgrade overdue ⏰",
-                () -> "Past its target date.", upgradeId, SINCE);
+        Optional<Notification> created = service.createUnlessNotifiedSince(
+                userId,
+                NotificationType.UPGRADE_OVERDUE,
+                NotificationCategory.WARNING,
+                "Upgrade overdue ⏰",
+                () -> "Past its target date.",
+                upgradeId,
+                SINCE);
 
         assertThat(created).isEmpty();
         verify(repository, never()).save(any());
@@ -146,9 +173,17 @@ class NotificationServiceTest {
                 .thenReturn(true);
         AtomicBoolean messageBuilt = new AtomicBoolean(false);
 
-        service.createUnlessNotifiedSince(userId, NotificationType.UPGRADE_OVERDUE,
-                NotificationCategory.WARNING, "Upgrade overdue ⏰",
-                () -> { messageBuilt.set(true); return "Past its target date."; }, upgradeId, SINCE);
+        service.createUnlessNotifiedSince(
+                userId,
+                NotificationType.UPGRADE_OVERDUE,
+                NotificationCategory.WARNING,
+                "Upgrade overdue ⏰",
+                () -> {
+                    messageBuilt.set(true);
+                    return "Past its target date.";
+                },
+                upgradeId,
+                SINCE);
 
         assertThat(messageBuilt).isFalse();
     }
@@ -156,9 +191,14 @@ class NotificationServiceTest {
     @Test
     void GivenAReadNotification_WhenItIsMarkedReadAgain_ThenNothingChanges() {
         // The client marks on click, and a double click is a double request.
-        Notification alreadyRead = Notification.builder().id(UUID.randomUUID()).userId(userId)
-                .type(NotificationType.REMINDER).category(NotificationCategory.REMINDER)
-                .title("Reminder").read(true).build();
+        Notification alreadyRead = Notification.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .type(NotificationType.REMINDER)
+                .category(NotificationCategory.REMINDER)
+                .title("Reminder")
+                .read(true)
+                .build();
         when(repository.findByIdAndUserId(alreadyRead.getId(), userId)).thenReturn(Optional.of(alreadyRead));
         when(repository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -170,8 +210,7 @@ class NotificationServiceTest {
         UUID foreignId = UUID.randomUUID();
         when(repository.findByIdAndUserId(foreignId, userId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.markRead(userId, foreignId))
-                .isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> service.markRead(userId, foreignId)).isInstanceOf(ResourceNotFoundException.class);
 
         verify(repository, never()).save(any());
     }
@@ -179,7 +218,8 @@ class NotificationServiceTest {
     @Test
     void GivenAnInbox_WhenItIsListed_ThenTheFiftyMostRecentAreReturnedNewestFirst() {
         // Capped rather than paginated: anything older is not reachable through the API at all.
-        List<Notification> recent = List.of(Notification.builder().id(UUID.randomUUID()).userId(userId).build());
+        List<Notification> recent = List.of(
+                Notification.builder().id(UUID.randomUUID()).userId(userId).build());
         when(repository.findTop50ByUserIdOrderByCreatedAtDesc(userId)).thenReturn(recent);
 
         assertThat(service.listRecent(userId)).isEqualTo(recent);
@@ -204,13 +244,17 @@ class NotificationServiceTest {
         when(repository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
         TransactionSynchronizationManager.initSynchronization();
         try {
-            service.create(userId, NotificationType.UPGRADE_COMPLETED, NotificationCategory.SUCCESS,
-                    "Upgrade completed 🎉", "Congrats!", upgradeId);
+            service.create(
+                    userId,
+                    NotificationType.UPGRADE_COMPLETED,
+                    NotificationCategory.SUCCESS,
+                    "Upgrade completed 🎉",
+                    "Congrats!",
+                    upgradeId);
 
             verify(pushPort, never()).push(any(), any());
 
-            TransactionSynchronizationManager.getSynchronizations()
-                    .forEach(TransactionSynchronization::afterCommit);
+            TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
 
             verify(pushPort).push(eq(userId), any(Notification.class));
         } finally {

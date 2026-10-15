@@ -1,8 +1,13 @@
 package com.healthupgrades.common.security;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.when;
+
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.User;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,12 +20,6 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
-import java.util.Optional;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.when;
 
 /**
  * A disabled account is refused, and — the part that is easy to get wrong — it is refused <em>after</em>
@@ -48,7 +47,8 @@ class DisabledAccountAuthenticationTest {
     private static final String RAW_PASSWORD = "correct-horse-battery-staple";
     private static final String WRONG_PASSWORD = "not-the-password";
 
-    @Mock UserQuery userQuery;
+    @Mock
+    UserQuery userQuery;
 
     private CountingPasswordEncoder encoder;
     private AuthenticationProvider provider;
@@ -116,7 +116,9 @@ class DisabledAccountAuthenticationTest {
     }
 
     private User enabledUser() {
-        return AUser.aUser().passwordHash(new BCryptPasswordEncoder().encode(RAW_PASSWORD)).build();
+        return AUser.aUser()
+                .passwordHash(new BCryptPasswordEncoder().encode(RAW_PASSWORD))
+                .build();
     }
 
     private User disabledUser() {

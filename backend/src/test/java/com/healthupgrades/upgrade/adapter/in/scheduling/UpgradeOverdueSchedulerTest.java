@@ -1,31 +1,30 @@
 package com.healthupgrades.upgrade.adapter.in.scheduling;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
-import com.healthupgrades.upgrade.domain.event.UpgradeOverdueDetected;
+import com.healthupgrades.common.observability.JobMetrics;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
+import com.healthupgrades.upgrade.domain.event.UpgradeOverdueDetected;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
-import com.healthupgrades.common.observability.JobMetrics;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 /**
@@ -37,8 +36,11 @@ import static org.mockito.Mockito.when;
  */
 class UpgradeOverdueSchedulerTest {
 
-    @Mock UpgradeQuery upgradeQuery;
-    @Mock DomainEventPublisher eventPublisher;
+    @Mock
+    UpgradeQuery upgradeQuery;
+
+    @Mock
+    DomainEventPublisher eventPublisher;
 
     /**
      * Deliberately fixed to a date well in the past, so a target date that is still "ahead" by this clock
@@ -46,6 +48,7 @@ class UpgradeOverdueSchedulerTest {
      * {@link #GivenAFixedClock_WhenTheOverdueSweepRuns_ThenItJudgesAgainstThatClockNotTheWallClock()} exploits.
      */
     private final Clock fixedClock = Clock.fixed(Instant.parse("2020-01-01T09:00:00Z"), ZoneOffset.UTC);
+
     private final LocalDate today = LocalDate.of(2020, 1, 1);
 
     private UpgradeOverdueScheduler scheduler;
@@ -53,6 +56,7 @@ class UpgradeOverdueSchedulerTest {
     private final UUID userId = UUID.randomUUID();
     /** A real one, not a mock: JobMetrics.timed runs the job, so a stub would run nothing. */
     private final JobMetrics jobMetrics = new JobMetrics(new SimpleMeterRegistry());
+
     private final UUID upgradeId = UUID.randomUUID();
 
     @BeforeEach
@@ -62,8 +66,12 @@ class UpgradeOverdueSchedulerTest {
 
     private HealthUpgrade activeUpgradeEnding(LocalDate targetEndDate) {
         return HealthUpgrade.builder()
-                .id(upgradeId).userId(userId).title("Sleep early")
-                .status(UpgradeStatus.ACTIVE).targetEndDate(targetEndDate).build();
+                .id(upgradeId)
+                .userId(userId)
+                .title("Sleep early")
+                .status(UpgradeStatus.ACTIVE)
+                .targetEndDate(targetEndDate)
+                .build();
     }
 
     @Test
@@ -104,8 +112,7 @@ class UpgradeOverdueSchedulerTest {
 
     @Test
     void GivenNoTargetDate_WhenTheOverdueSweepRuns_ThenNothingIsAnnounced() {
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
-                .thenReturn(List.of(activeUpgradeEnding(null)));
+        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgradeEnding(null)));
 
         scheduler.detectOverdueUpgrades();
 
@@ -115,8 +122,7 @@ class UpgradeOverdueSchedulerTest {
     @Test
     void GivenATargetDateOfToday_WhenTheOverdueSweepRuns_ThenNothingIsAnnounced() {
         // Overdue means past the target date; the final day still counts as on time.
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
-                .thenReturn(List.of(activeUpgradeEnding(today)));
+        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgradeEnding(today)));
 
         scheduler.detectOverdueUpgrades();
 

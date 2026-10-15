@@ -1,7 +1,6 @@
 package com.healthupgrades.dashboard.adapter.in.web;
 
 import com.healthupgrades.upgrade.adapter.in.web.UpgradeDto;
-
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -34,8 +33,7 @@ public record DashboardDto(
         double weeklyCompletionRate,
         Map<UUID, Integer> streaks,
         List<UpgradeDto> recentlyCompleted,
-        List<AreaSummary> areaSummary
-) {
+        List<AreaSummary> areaSummary) {
     /**
      * Upgrade counts for one health area.
      *

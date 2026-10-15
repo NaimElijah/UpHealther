@@ -17,5 +17,4 @@ public record UpgradeTrackingSummary(
         String frequency,
         Double targetNumericValue,
         String targetUnit,
-        Boolean requiredDaily
-) {}
+        Boolean requiredDaily) {}

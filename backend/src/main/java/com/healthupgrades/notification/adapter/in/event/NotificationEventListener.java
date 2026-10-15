@@ -1,8 +1,11 @@
 package com.healthupgrades.notification.adapter.in.event;
-import com.healthupgrades.notification.application.NotificationService;
 
+import com.healthupgrades.notification.application.NotificationService;
+import com.healthupgrades.notification.domain.model.NotificationCategory;
+import com.healthupgrades.notification.domain.model.NotificationType;
 import com.healthupgrades.reflection.domain.event.ReflectionAdded;
 import com.healthupgrades.tracking.domain.event.StreakAchieved;
+import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradeAbandoned;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradeActivated;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradeCompleted;
@@ -10,10 +13,9 @@ import com.healthupgrades.upgrade.domain.event.HealthUpgradeCreated;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradePaused;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradePlanned;
 import com.healthupgrades.upgrade.domain.event.UpgradeOverdueDetected;
-import com.healthupgrades.notification.domain.model.NotificationCategory;
-import com.healthupgrades.notification.domain.model.NotificationType;
-import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
+import java.time.LocalDateTime;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -21,9 +23,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
-
-import java.time.LocalDateTime;
-import java.util.UUID;
 
 /**
  * Turns domain events into user notifications. Events raised inside a use case use {@code AFTER_COMMIT}
@@ -50,25 +49,38 @@ public class NotificationEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onCreated(HealthUpgradeCreated e) {
-        notificationService.create(e.userId(), NotificationType.UPGRADE_CREATED, NotificationCategory.INFO,
-                "New upgrade idea", "\"" + e.title() + "\" was added to your backlog.", e.upgradeId());
+        notificationService.create(
+                e.userId(),
+                NotificationType.UPGRADE_CREATED,
+                NotificationCategory.INFO,
+                "New upgrade idea",
+                "\"" + e.title() + "\" was added to your backlog.",
+                e.upgradeId());
     }
 
     /** Confirms the start date the user committed to. Also fires when an abandoned upgrade is revived. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onPlanned(HealthUpgradePlanned e) {
-        notificationService.create(e.userId(), NotificationType.UPGRADE_PLANNED, NotificationCategory.INFO,
-                "Upgrade planned", "\"" + title(e.upgradeId(), e.userId()) + "\" is planned to start "
-                        + e.plannedStartDate() + ".", e.upgradeId());
+        notificationService.create(
+                e.userId(),
+                NotificationType.UPGRADE_PLANNED,
+                NotificationCategory.INFO,
+                "Upgrade planned",
+                "\"" + title(e.upgradeId(), e.userId()) + "\" is planned to start " + e.plannedStartDate() + ".",
+                e.upgradeId());
     }
 
     /** Marks the start of a run, or its resumption after a pause. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onActivated(HealthUpgradeActivated e) {
-        notificationService.create(e.userId(), NotificationType.UPGRADE_ACTIVATED, NotificationCategory.SUCCESS,
-                "Upgrade activated 💪", "You activated \"" + title(e.upgradeId(), e.userId()) + "\". Let's go!",
+        notificationService.create(
+                e.userId(),
+                NotificationType.UPGRADE_ACTIVATED,
+                NotificationCategory.SUCCESS,
+                "Upgrade activated 💪",
+                "You activated \"" + title(e.upgradeId(), e.userId()) + "\". Let's go!",
                 e.upgradeId());
     }
 
@@ -76,16 +88,25 @@ public class NotificationEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onPaused(HealthUpgradePaused e) {
-        notificationService.create(e.userId(), NotificationType.UPGRADE_PAUSED, NotificationCategory.INFO,
-                "Upgrade paused", "\"" + title(e.upgradeId(), e.userId()) + "\" is paused.", e.upgradeId());
+        notificationService.create(
+                e.userId(),
+                NotificationType.UPGRADE_PAUSED,
+                NotificationCategory.INFO,
+                "Upgrade paused",
+                "\"" + title(e.upgradeId(), e.userId()) + "\" is paused.",
+                e.upgradeId());
     }
 
     /** Celebrates a finished upgrade. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onCompleted(HealthUpgradeCompleted e) {
-        notificationService.create(e.userId(), NotificationType.UPGRADE_COMPLETED, NotificationCategory.SUCCESS,
-                "Upgrade completed 🎉", "Congrats! You completed \"" + title(e.upgradeId(), e.userId()) + "\".",
+        notificationService.create(
+                e.userId(),
+                NotificationType.UPGRADE_COMPLETED,
+                NotificationCategory.SUCCESS,
+                "Upgrade completed 🎉",
+                "Congrats! You completed \"" + title(e.upgradeId(), e.userId()) + "\".",
                 e.upgradeId());
     }
 
@@ -93,25 +114,39 @@ public class NotificationEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onAbandoned(HealthUpgradeAbandoned e) {
-        notificationService.create(e.userId(), NotificationType.UPGRADE_ABANDONED, NotificationCategory.INFO,
-                "Upgrade abandoned", "\"" + title(e.upgradeId(), e.userId()) + "\" was abandoned.", e.upgradeId());
+        notificationService.create(
+                e.userId(),
+                NotificationType.UPGRADE_ABANDONED,
+                NotificationCategory.INFO,
+                "Upgrade abandoned",
+                "\"" + title(e.upgradeId(), e.userId()) + "\" was abandoned.",
+                e.upgradeId());
     }
 
     /** Celebrates a streak milestone. The tracking context decides which lengths qualify. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onStreak(StreakAchieved e) {
-        notificationService.create(e.userId(), NotificationType.STREAK_ACHIEVED, NotificationCategory.SUCCESS,
+        notificationService.create(
+                e.userId(),
+                NotificationType.STREAK_ACHIEVED,
+                NotificationCategory.SUCCESS,
                 "🔥 " + e.milestoneDays() + "-day streak!",
-                "\"" + title(e.upgradeId(), e.userId()) + "\" — keep the momentum going.", e.upgradeId());
+                "\"" + title(e.upgradeId(), e.userId()) + "\" — keep the momentum going.",
+                e.upgradeId());
     }
 
     /** Confirms a reflection was saved. The event carries no content, and neither does this. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onReflection(ReflectionAdded e) {
-        notificationService.create(e.userId(), NotificationType.REFLECTION_ADDED, NotificationCategory.INFO,
-                "Reflection added", "You reflected on \"" + title(e.upgradeId(), e.userId()) + "\".", e.upgradeId());
+        notificationService.create(
+                e.userId(),
+                NotificationType.REFLECTION_ADDED,
+                NotificationCategory.INFO,
+                "Reflection added",
+                "You reflected on \"" + title(e.upgradeId(), e.userId()) + "\".",
+                e.upgradeId());
     }
 
     /**
@@ -130,9 +165,13 @@ public class NotificationEventListener {
         LocalDateTime announcedOnlyFrom = e.targetEndDate().plusDays(1).atStartOfDay();
         // The message is deferred: an overdue upgrade is rediscovered by every scan, so resolving its
         // title eagerly would cost a lookup per upgrade per run for as long as it stays overdue.
-        notificationService.createUnlessNotifiedSince(e.userId(), NotificationType.UPGRADE_OVERDUE,
-                NotificationCategory.WARNING, "Upgrade overdue ⏰",
-                () -> "\"" + title(e.upgradeId(), e.userId()) + "\" is past its target date.", e.upgradeId(),
+        notificationService.createUnlessNotifiedSince(
+                e.userId(),
+                NotificationType.UPGRADE_OVERDUE,
+                NotificationCategory.WARNING,
+                "Upgrade overdue ⏰",
+                () -> "\"" + title(e.upgradeId(), e.userId()) + "\" is past its target date.",
+                e.upgradeId(),
                 announcedOnlyFrom);
     }
 
@@ -144,7 +183,8 @@ public class NotificationEventListener {
      * that fails to be created at all.
      */
     private String title(UUID upgradeId, UUID userId) {
-        return upgradeQuery.findOwned(userId, upgradeId)
+        return upgradeQuery
+                .findOwned(userId, upgradeId)
                 .map(HealthUpgrade::getTitle)
                 .orElse("your upgrade");
     }

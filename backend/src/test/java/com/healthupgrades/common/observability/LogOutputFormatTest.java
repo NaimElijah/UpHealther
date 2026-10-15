@@ -1,28 +1,27 @@
 package com.healthupgrades.common.observability;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.LoggingEvent;
 import ch.qos.logback.core.Appender;
-import ch.qos.logback.core.encoder.Encoder;
 import ch.qos.logback.core.OutputStreamAppender;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
+import ch.qos.logback.core.encoder.Encoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
-import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
-
-import java.nio.charset.StandardCharsets;
-import java.util.Iterator;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Pins what {@code logback-spring.xml} renders, in both of the formats it selects between.
@@ -94,8 +93,7 @@ class LogOutputFormatTest {
         try (ConfigurableApplicationContext ignored = new SpringApplicationBuilder(NoBeans.class)
                 .web(WebApplicationType.NONE)
                 .profiles(profiles)
-                .properties("spring.application.name=" + SERVICE_NAME,
-                        "spring.main.banner-mode=off")
+                .properties("spring.application.name=" + SERVICE_NAME, "spring.main.banner-mode=off")
                 .run()) {
             return new String(configuredEncoder().encode(anEventInsideATrace()), StandardCharsets.UTF_8);
         }
@@ -105,7 +103,9 @@ class LogOutputFormatTest {
     private static Encoder<ILoggingEvent> configuredEncoder() {
         Logger root = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
         Iterator<Appender<ILoggingEvent>> appenders = root.iteratorForAppenders();
-        assertThat(appenders).as("the root logger has an appender to read the format from").hasNext();
+        assertThat(appenders)
+                .as("the root logger has an appender to read the format from")
+                .hasNext();
 
         Appender<ILoggingEvent> appender = appenders.next();
         assertThat(appender)
@@ -125,8 +125,12 @@ class LogOutputFormatTest {
         MDC.put("spanId", SPAN_ID);
         try {
             LoggingEvent event = new LoggingEvent(
-                    LogOutputFormatTest.class.getName(), context.getLogger(LogOutputFormatTest.class),
-                    Level.INFO, MESSAGE, null, null);
+                    LogOutputFormatTest.class.getName(),
+                    context.getLogger(LogOutputFormatTest.class),
+                    Level.INFO,
+                    MESSAGE,
+                    null,
+                    null);
             event.getMDCPropertyMap();
             return event;
         } finally {
@@ -136,6 +140,5 @@ class LogOutputFormatTest {
 
     /** A context with nothing in it: this test needs Boot's logging initialization, not its beans. */
     @SpringBootConfiguration
-    static class NoBeans {
-    }
+    static class NoBeans {}
 }

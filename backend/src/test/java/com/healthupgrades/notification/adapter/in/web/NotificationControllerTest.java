@@ -1,26 +1,5 @@
 package com.healthupgrades.notification.adapter.in.web;
 
-import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
-import com.healthupgrades.common.security.JwtAuthenticationFilter;
-import com.healthupgrades.common.security.BearerTokenAuthenticator;
-import com.healthupgrades.common.security.SecurityConfig;
-import com.healthupgrades.common.security.UserDetailsServiceImpl;
-import com.healthupgrades.notification.application.NotificationService;
-import com.healthupgrades.notification.domain.model.Notification;
-import com.healthupgrades.notification.domain.model.NotificationCategory;
-import com.healthupgrades.notification.domain.model.NotificationType;
-import com.healthupgrades.support.WebSliceSupport;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.web.servlet.MockMvc;
-
-import java.util.List;
-import java.util.UUID;
-
 import static com.healthupgrades.support.WebSliceSupport.bearer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -29,6 +8,26 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.common.security.BearerTokenAuthenticator;
+import com.healthupgrades.common.security.JwtAuthenticationFilter;
+import com.healthupgrades.common.security.SecurityConfig;
+import com.healthupgrades.common.security.UserDetailsServiceImpl;
+import com.healthupgrades.notification.application.NotificationService;
+import com.healthupgrades.notification.domain.model.Notification;
+import com.healthupgrades.notification.domain.model.NotificationCategory;
+import com.healthupgrades.notification.domain.model.NotificationType;
+import com.healthupgrades.support.WebSliceSupport;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
 
 /**
  * The HTTP contract for the notification inbox: FR-33 (read the recent ones, an unread count, mark one
@@ -39,17 +38,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * parse — so the shape is pinned rather than left to whoever next touches the controller.
  */
 @WebMvcTest(NotificationController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class,
-        NotificationWebMapper.class, WebSliceSupport.class})
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class, NotificationWebMapper.class, WebSliceSupport.class})
 class NotificationControllerTest {
 
     private static final String BASE = "/api/notifications";
 
-    @Autowired MockMvc mockMvc;
+    @Autowired
+    MockMvc mockMvc;
 
-    @MockitoBean NotificationService service;
-    @MockitoBean BearerTokenAuthenticator authenticator;
-    @MockitoBean UserDetailsServiceImpl userDetailsService;
+    @MockitoBean
+    NotificationService service;
+
+    @MockitoBean
+    BearerTokenAuthenticator authenticator;
+
+    @MockitoBean
+    UserDetailsServiceImpl userDetailsService;
 
     private UUID userId;
     private final UUID notificationId = UUID.randomUUID();
@@ -73,8 +77,7 @@ class NotificationControllerTest {
     }
 
     @Test
-    void GivenUnreadNotifications_WhenTheCountIsRead_ThenItAnswersAnObjectRatherThanABareNumber()
-            throws Exception {
+    void GivenUnreadNotifications_WhenTheCountIsRead_ThenItAnswersAnObjectRatherThanABareNumber() throws Exception {
         when(service.unreadCount(userId)).thenReturn(4L);
 
         mockMvc.perform(bearer(get(BASE + "/unread-count")))
@@ -92,13 +95,11 @@ class NotificationControllerTest {
     }
 
     @Test
-    void GivenANotificationBelongingToSomebodyElse_WhenItIsMarkedRead_ThenItAnswers404AndNot403()
-            throws Exception {
+    void GivenANotificationBelongingToSomebodyElse_WhenItIsMarkedRead_ThenItAnswers404AndNot403() throws Exception {
         when(service.markRead(userId, notificationId))
                 .thenThrow(new ResourceNotFoundException("Notification not found: " + notificationId));
 
-        mockMvc.perform(bearer(post(BASE + "/" + notificationId + "/read")))
-                .andExpect(status().isNotFound());
+        mockMvc.perform(bearer(post(BASE + "/" + notificationId + "/read"))).andExpect(status().isNotFound());
     }
 
     @Test
@@ -111,8 +112,14 @@ class NotificationControllerTest {
     }
 
     private Notification aNotification(boolean read) {
-        return Notification.builder().id(notificationId).userId(userId)
-                .type(NotificationType.UPGRADE_COMPLETED).category(NotificationCategory.SUCCESS)
-                .title("Upgrade completed").message("Congrats!").read(read).build();
+        return Notification.builder()
+                .id(notificationId)
+                .userId(userId)
+                .type(NotificationType.UPGRADE_COMPLETED)
+                .category(NotificationCategory.SUCCESS)
+                .title("Upgrade completed")
+                .message("Congrats!")
+                .read(read)
+                .build();
     }
 }

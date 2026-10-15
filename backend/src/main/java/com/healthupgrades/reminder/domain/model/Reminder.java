@@ -1,12 +1,11 @@
 package com.healthupgrades.reminder.domain.model;
 
 import jakarta.persistence.*;
-import lombok.*;
-
 import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.UUID;
+import lombok.*;
 
 /**
  * A recurring nudge attached to an upgrade.

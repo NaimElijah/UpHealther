@@ -10,10 +10,4 @@ import java.time.LocalDate;
  * by evaluating the entry against the target rather than trusting the caller.
  */
 public record ProgressEntryDetails(
-        LocalDate date,
-        Boolean completed,
-        Double numericValue,
-        String unit,
-        Integer rating,
-        String note
-) {}
+        LocalDate date, Boolean completed, Double numericValue, String unit, Integer rating, String note) {}

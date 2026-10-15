@@ -1,11 +1,22 @@
 package com.healthupgrades.common.websocket;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.RecordingAuditTrail;
+import java.security.Principal;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,18 +28,6 @@ import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.MessageBuilder;
-
-import java.security.Principal;
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
  * The STOMP side of FR-5: a WebSocket session is authenticated by its CONNECT frame, because a browser
@@ -47,11 +46,13 @@ class JwtChannelInterceptorTest {
 
     private static final String TOKEN = "a.signed.token";
 
-    @Mock BearerTokenAuthenticator authenticator;
+    @Mock
+    BearerTokenAuthenticator authenticator;
 
     private final MessageChannel channel = mock(MessageChannel.class);
     /** A real one, not a mock: AuditTrail.recording is a default method. */
     private final RecordingAuditTrail auditTrail = new RecordingAuditTrail();
+
     private JwtChannelInterceptor interceptor;
 
     @BeforeEach
@@ -159,10 +160,9 @@ class JwtChannelInterceptorTest {
         // These authorise frames on a connection already authenticated; they are not authentication
         // outcomes, and they stay WARN lines. Pinned because the decision is deliberate.
         assertThatThrownBy(() -> interceptor.preSend(
-                frameFrom(StompCommand.SUBSCRIBE, "/topic/notifications", session()), channel))
+                        frameFrom(StompCommand.SUBSCRIBE, "/topic/notifications", session()), channel))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> interceptor.preSend(
-                frameFrom(StompCommand.SEND, "/app/anything", session()), channel))
+        assertThatThrownBy(() -> interceptor.preSend(frameFrom(StompCommand.SEND, "/app/anything", session()), channel))
                 .isInstanceOf(IllegalArgumentException.class);
 
         assertThat(auditTrail.recorded()).isEmpty();
@@ -182,8 +182,7 @@ class JwtChannelInterceptorTest {
         // whole reason an allowlist of one destination is not paranoia.
         Message<?> subscribe = frameFrom(StompCommand.SUBSCRIBE, "/queue/notifications-userxyz789", session());
 
-        assertThatThrownBy(() -> interceptor.preSend(subscribe, channel))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> interceptor.preSend(subscribe, channel)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -192,16 +191,14 @@ class JwtChannelInterceptorTest {
         // topic would receive whatever a later feature did.
         Message<?> subscribe = frameFrom(StompCommand.SUBSCRIBE, "/topic/notifications", session());
 
-        assertThatThrownBy(() -> interceptor.preSend(subscribe, channel))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> interceptor.preSend(subscribe, channel)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void GivenASubscribeFromASessionThatNeverConnected_WhenItArrives_ThenItIsRefused() {
         Message<?> subscribe = frameFrom(StompCommand.SUBSCRIBE, "/user/queue/notifications", null);
 
-        assertThatThrownBy(() -> interceptor.preSend(subscribe, channel))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> interceptor.preSend(subscribe, channel)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -209,8 +206,7 @@ class JwtChannelInterceptorTest {
         // There is no @MessageMapping in the application, so a SEND can only be probing for one.
         Message<?> send = frameFrom(StompCommand.SEND, "/app/anything", session());
 
-        assertThatThrownBy(() -> interceptor.preSend(send, channel))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> interceptor.preSend(send, channel)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

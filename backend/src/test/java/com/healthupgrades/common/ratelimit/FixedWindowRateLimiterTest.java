@@ -1,6 +1,6 @@
 package com.healthupgrades.common.ratelimit;
 
-import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -15,8 +15,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
 
 /**
  * The counter behind #56, and the three properties that make it worth having.
@@ -45,8 +44,7 @@ class FixedWindowRateLimiterTest {
     private final MovableClock clock = new MovableClock(START);
 
     private FixedWindowRateLimiter limiterAllowing(int limit, int maxTracked) {
-        return new FixedWindowRateLimiter(
-                new RateLimitProperties(limit, WINDOW, maxTracked), clock);
+        return new FixedWindowRateLimiter(new RateLimitProperties(limit, WINDOW, maxTracked), clock);
     }
 
     private FixedWindowRateLimiter limiter() {
@@ -156,9 +154,7 @@ class FixedWindowRateLimiterTest {
         // counting whole addresses lets one attacker walk through billions without meeting a limit.
         FixedWindowRateLimiter limiter = limiter();
         String[] sameAllocation = {
-                "2001:db8:1234:5678::1",
-                "2001:db8:1234:5678::dead",
-                "2001:db8:1234:5678:aaaa:bbbb:cccc:dddd",
+            "2001:db8:1234:5678::1", "2001:db8:1234:5678::dead", "2001:db8:1234:5678:aaaa:bbbb:cccc:dddd",
         };
 
         for (int attempt = 0; attempt < LIMIT; attempt++) {
@@ -176,7 +172,8 @@ class FixedWindowRateLimiterTest {
         IntStream.rangeClosed(1, LIMIT + 1)
                 .forEach(attempt -> limiter.check(ClientAddressKey.of("2001:db8:1111:2222::1")));
 
-        assertThat(limiter.check(ClientAddressKey.of("2001:db8:3333:4444::1")).allowed()).isTrue();
+        assertThat(limiter.check(ClientAddressKey.of("2001:db8:3333:4444::1")).allowed())
+                .isTrue();
     }
 
     @Test
@@ -198,17 +195,18 @@ class FixedWindowRateLimiterTest {
                 CountDownLatch startLine = new CountDownLatch(1);
                 CountDownLatch finished = new CountDownLatch(threads);
                 AtomicInteger allowed = new AtomicInteger();
-                IntStream.range(0, threads).forEach(i -> pool.submit(() -> {
-                    try {
-                        startLine.await();
-                        if (limiter.check(CLIENT).allowed()) {
-                            allowed.incrementAndGet();
-                        }
-                    } finally {
-                        finished.countDown();
-                    }
-                    return null;
-                }));
+                IntStream.range(0, threads)
+                        .forEach(i -> pool.submit(() -> {
+                            try {
+                                startLine.await();
+                                if (limiter.check(CLIENT).allowed()) {
+                                    allowed.incrementAndGet();
+                                }
+                            } finally {
+                                finished.countDown();
+                            }
+                            return null;
+                        }));
                 startLine.countDown();
                 assertThat(finished.await(10, TimeUnit.SECONDS)).isTrue();
                 if (allowed.get() != LIMIT) {
@@ -222,7 +220,9 @@ class FixedWindowRateLimiterTest {
             pool.shutdownNow();
         }
 
-        assertThat(wrongRounds).as("allowed counts in the rounds that were not exactly %d", LIMIT).isEmpty();
+        assertThat(wrongRounds)
+                .as("allowed counts in the rounds that were not exactly %d", LIMIT)
+                .isEmpty();
     }
 
     /** A clock that can be moved, so a window can pass without anything sleeping. */

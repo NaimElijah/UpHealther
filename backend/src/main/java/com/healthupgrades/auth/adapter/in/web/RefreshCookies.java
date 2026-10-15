@@ -2,14 +2,13 @@ package com.healthupgrades.auth.adapter.in.web;
 
 import com.healthupgrades.auth.application.SessionGrant;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseCookie;
-import org.springframework.stereotype.Component;
-
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseCookie;
+import org.springframework.stereotype.Component;
 
 /**
  * Builds and reads the refresh cookie.
