@@ -18,14 +18,15 @@ The sources use 4-space indentation, wrap at about 110 columns, and group import
 moves some of that. The question is which one moves the least and still runs cleanly on JDK 21.
 
 Each candidate was run once over an LF-normalised copy of `backend/src` at `f002e14`: 291 files and
-27,355 lines. Spotless 3.10.4 drove palantir-java-format, and google-java-format's own CLI drove
-the other two.
+27,355 lines. Spotless 3.10.4 drove palantir-java-format. It could not drive google-java-format
+1.37.0: every file failed with an `InvocationTargetException`, with or without the exports below, and
+Spotless does not report the cause even at `-X`. google-java-format's own CLI drove the other two rows.
 
-| Formatter | Indent | Width | Files changed | Lines added / removed | Of which import lines | Runs in-process on JDK 21 |
+| Formatter | Indent | Width | Files changed | Lines added / removed | Of which import lines | Runs on JDK 21 |
 |---|---|---|---|---|---|---|
-| **palantir-java-format 2.102.0** | 4 | 120 | 251 | +3,797 / −2,881 | 1,695 | Yes, with no flags |
-| google-java-format 1.37.0 `--aosp` | 4 | 100 | 268 | +9,915 / −6,094 | 945 | Only with six `--add-exports` for `jdk.compiler` |
-| google-java-format 1.37.0 | 2 | 100 | 273 | +22,383 / −20,035 | 1,645 | Only with the same six |
+| **palantir-java-format 2.102.0** | 4 | 120 | 251 | +3,797 / −2,881 | 1,695 | Yes, through Spotless, with no flags |
+| google-java-format 1.37.0 `--aosp` | 4 | 100 | 268 | +9,915 / −6,094 | 945 | Not through Spotless 3.10.4. Its CLI needs six `--add-exports` for `jdk.compiler` |
+| google-java-format 1.37.0 | 2 | 100 | 273 | +22,383 / −20,035 | 1,645 | As above |
 
 google-java-format also **refuses 17 files** ("Imports not contiguous"): their imports carry a
 trailing comment, such as `DashboardView`'s `// domain aggregate carried in each bucket` and every
@@ -85,13 +86,14 @@ checks dependencies, not layout.
 ## Alternatives considered
 
 - **google-java-format, Google style.** Rejected. It changes more than six times as many lines as
-  palantir-java-format (42,418 against 6,678), because it moves every indented line to 2 spaces. It needs six
-  `--add-exports` in a new `.mvn/jvm.config`, and it refuses 17 files until their import comments are
-  moved.
+  palantir-java-format (42,418 against 6,678), because it moves every indented line to 2 spaces. It did
+  not run under Spotless 3.10.4 at all, its own CLI needs six `--add-exports`, and it refuses 17 files
+  until their import comments are moved.
   - **Revisit:** if palantir-java-format is abandoned upstream, with no release for a Java version the
     backend moves to.
-- **google-java-format `--aosp`.** Rejected for the same flags and the same 17 refusals. It changes
-  2.4 times as many lines, mostly by rewrapping at 100 columns code that was written to about 110.
+- **google-java-format `--aosp`.** Rejected for the same failure under Spotless, the same flags and the
+  same 17 refusals. It changes 2.4 times as many lines, mostly by rewrapping at 100 columns code that
+  was written to about 110.
   - **Revisit:** as above.
 - **The Eclipse formatter, configured to match today's layout.** Not measured, and rejected. Matching
   the current layout means writing and maintaining a profile of several hundred settings. That moves
