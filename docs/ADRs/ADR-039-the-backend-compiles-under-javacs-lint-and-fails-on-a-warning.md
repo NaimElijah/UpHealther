@@ -15,8 +15,8 @@ dependencies between classes, and nothing checks the code inside them. The compi
 parent's configuration: `parameters` and `release`, its default warnings, and no `-Werror`.
 
 `javac --release 21 -parameters -Xlint:all` over `src/main` and `src/test` on Boot 4.1.1 found 17
-warnings, plus one `[processing]` note per compilation. They are the same 17 that #162 counted on Boot
-3.2:
+warnings, plus one `[processing]` warning per compilation, which the exclusions below turn off. The 17
+are the same that #162 counted on Boot 3.2:
 
 | Category | Count | Where | What it is |
 |---|---|---|---|
