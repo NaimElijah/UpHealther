@@ -59,8 +59,8 @@ None of them is a defect. That is the reason to set the floor now, while the lis
   API. That is the intended effect, and it can make a framework upgrade one commit larger.
 - **javac prints a note about implicit annotation processing.** JDK 21 notes that a future release may
   stop discovering processors on the classpath, and JDK 23 did. Moving the JDK past 21 therefore means
-  naming Lombok explicitly: `annotationProcessorPaths`, or `-proc:full`. The note is not a warning, so
-  it does not fail the build.
+  either naming Lombok as a processor in `annotationProcessorPaths`, or passing `-proc:full` to turn
+  classpath discovery back on. The note is not a warning, so it does not fail the build.
 
 ## Alternatives considered
 
