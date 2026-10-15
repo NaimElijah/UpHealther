@@ -18,7 +18,7 @@ The sources use 4-space indentation, wrap at about 110 columns, and group import
 moves some of that. The question is which one moves the least and still runs cleanly on JDK 21.
 
 Each candidate was run once over an LF-normalised copy of `backend/src` at `f002e14`: 291 files and
-about 26,700 lines. Spotless 3.10.4 drove palantir-java-format, and google-java-format's own CLI drove
+27,355 lines. Spotless 3.10.4 drove palantir-java-format, and google-java-format's own CLI drove
 the other two.
 
 | Formatter | Indent | Width | Files changed | Lines added / removed | Of which import lines | Runs in-process on JDK 21 |
