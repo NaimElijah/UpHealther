@@ -30,6 +30,10 @@ Prettier's defaults, including `semi: true` and `trailingComma: "all"`.
 | `singleQuote`, `printWidth: 120`, `arrowParens: "avoid"` | 71 | +1,701 / −788 |
 | `singleQuote`, `printWidth: 120`, `bracketSameLine` | 64 | +1,611 / −737 |
 
+Each row is a single pass. Prettier is not always idempotent: on the chosen options, a second pass
+joined one member chain in `UpgradeDetailsPage.test.tsx` that the first had kept broken, because the
+source broke it. The reformat that landed is therefore the fixed point, at +1,598 / −687.
+
 ## Decision
 
 **Format the frontend with Prettier 3.9.10, setting `singleQuote` and `printWidth: 120`. Every other
