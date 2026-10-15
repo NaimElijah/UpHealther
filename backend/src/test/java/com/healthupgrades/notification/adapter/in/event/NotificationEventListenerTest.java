@@ -216,7 +216,7 @@ class NotificationEventListenerTest {
         listener.onOverdue(new UpgradeOverdueDetected(
                 upgradeId, userId, LocalDate.of(2026, 10, 1), LocalDateTime.of(2026, 10, 5, 8, 0)));
 
-        ArgumentCaptor<Supplier<String>> message = ArgumentCaptor.forClass(Supplier.class);
+        ArgumentCaptor<Supplier<String>> message = ArgumentCaptor.captor();
         verify(notificationService)
                 .createUnlessNotifiedSince(
                         eq(userId),
