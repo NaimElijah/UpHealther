@@ -4,7 +4,7 @@
 - **Date:** 2026-10-15
 - **Scope:** `backend/pom.xml` — by leaving it as it is. No checker and no `.mvn/jvm.config`.
 - **Issue:** [#162](https://github.com/NaimElijah/UpHealther/issues/162), step 2. Step 1 is
-  [ADR-039](ADR-039-the-backend-compiles-with-every-javac-lint-and-fails-on-a-warning.md).
+  [ADR-039](ADR-039-the-backend-compiles-under-javacs-lint-and-fails-on-a-warning.md).
 
 ## Context
 
@@ -25,7 +25,7 @@ Both tools ran once over `backend/src` on 2026-10-15, after the palantir-java-fo
 
 ## Decision
 
-**Adopt neither tool now.** The backend is linted by `javac -Xlint:all -Werror` (ADR-039), and by the
+**Adopt neither tool now.** The backend is linted by javac, every category but `processing` and `serial`, with `-Werror` (ADR-039), and by the
 architecture rules in `HexagonalArchitectureTest` and `ServerTimeArchitectureTest`.
 
 Each tool was run against this codebase as it is, and neither found a defect that is not already

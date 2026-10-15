@@ -146,7 +146,7 @@ All three are deliberate, not drift.
 
 The compiler is the linter. Every `-Xlint` category is on except `processing` and `serial`, and `try`
 in test sources, and a warning fails `./mvnw compile`, so `./mvnw test` fails on one too
-(`../docs/ADRs/ADR-039-the-backend-compiles-with-every-javac-lint-and-fails-on-a-warning.md`, where each
+(`../docs/ADRs/ADR-039-the-backend-compiles-under-javacs-lint-and-fails-on-a-warning.md`, where each
 exclusion's reason is recorded). Fix a warning rather than suppress it. Where a suppression is genuinely
 right, `@SuppressWarnings` goes on the narrowest element, with a comment saying why.
 

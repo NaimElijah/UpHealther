@@ -1,4 +1,4 @@
-# ADR-039: The backend compiles with every javac lint, and fails on a warning
+# ADR-039: The backend compiles under javac's lint, and fails on a warning
 
 - **Status:** Accepted
 - **Date:** 2026-10-15

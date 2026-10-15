@@ -273,9 +273,9 @@
             </plugin>
 
             <!--
-              javac's own lint is the backend's linter (NFR-12). Every category is on, and any warning fails
-              the compile, so `./mvnw test` and CI fail the same way. See ADR-039. Three categories are off,
-              each for a reason:
+              javac's own lint is the backend's linter (NFR-12). Every category is on but the three below,
+              and any warning fails the compile, so `./mvnw test` and CI fail the same way. See ADR-039. The
+              three that are off, each for a reason:
               - processing: javac reports every annotation no processor claims, because Lombok is found on
                 the classpath. That is about how Lombok is discovered, not about this code.
               - serial: exceptions and Spring Security's UserDetails are Serializable by inheritance, but
