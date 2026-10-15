@@ -40,7 +40,8 @@ comments.
 - **`spotless:check` is bound at its default phase, `verify`.** `./mvnw verify` therefore fails on an
   unformatted file, locally exactly as in CI, and CI needs no step of its own.
 - **Imports become one block:** static imports first, then every other import in ASCII order, and
-  unused ones are removed. That is most of the churn, because the sources grouped imports by hand.
+  unused ones are removed. That is about a quarter of the churn (1,695 of 6,678 changed lines), because
+  the sources grouped imports by hand.
 - **Javadoc is not reformatted** (Spotless's `formatJavadoc` stays off). The prose is wrapped by hand,
   as it is everywhere else in the repository.
 - **Line endings follow `.gitattributes`,** which is Spotless's default.
