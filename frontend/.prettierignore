@@ -1,0 +1,14 @@
+# Build and test output, which is generated rather than written.
+dist
+coverage
+
+# npm writes the lockfile; formatting it would only fight the next install.
+package-lock.json
+
+# Prose is wrapped by hand, as it is everywhere else in the repository.
+*.md
+
+# The inline boot script's bytes are hashed into nginx.conf's Content-Security-Policy (ADR-018). A
+# reformat would change the hash and the browser would refuse the script; src/test/bootScriptCsp.test.ts
+# fails first.
+index.html

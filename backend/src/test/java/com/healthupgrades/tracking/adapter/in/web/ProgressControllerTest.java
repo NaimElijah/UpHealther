@@ -1,28 +1,5 @@
 package com.healthupgrades.tracking.adapter.in.web;
 
-import com.healthupgrades.common.domain.exception.DuplicateProgressException;
-import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
-import com.healthupgrades.common.security.JwtAuthenticationFilter;
-import com.healthupgrades.common.security.BearerTokenAuthenticator;
-import com.healthupgrades.common.security.SecurityConfig;
-import com.healthupgrades.common.security.UserDetailsServiceImpl;
-import com.healthupgrades.support.AProgressEntry;
-import com.healthupgrades.support.WebSliceSupport;
-import com.healthupgrades.tracking.application.TrackingService;
-import com.healthupgrades.tracking.application.port.in.StreakSummary;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-
-import java.time.LocalDate;
-import java.util.List;
-import java.util.UUID;
-
 import static com.healthupgrades.support.WebSliceSupport.bearer;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -34,6 +11,28 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.healthupgrades.common.domain.exception.DuplicateProgressException;
+import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.common.security.BearerTokenAuthenticator;
+import com.healthupgrades.common.security.JwtAuthenticationFilter;
+import com.healthupgrades.common.security.SecurityConfig;
+import com.healthupgrades.common.security.UserDetailsServiceImpl;
+import com.healthupgrades.support.AProgressEntry;
+import com.healthupgrades.support.WebSliceSupport;
+import com.healthupgrades.tracking.application.TrackingService;
+import com.healthupgrades.tracking.application.port.in.StreakSummary;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
 /**
  * The HTTP contract for logging and reading progress: FR-18, FR-20, FR-21, FR-22 and BR-6.
  *
@@ -42,17 +41,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * already logged, which is a state it can resolve, rather than that its request was malformed.
  */
 @WebMvcTest(ProgressController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class,
-        TrackingWebMapper.class, WebSliceSupport.class})
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class, TrackingWebMapper.class, WebSliceSupport.class})
 class ProgressControllerTest {
 
     private static final LocalDate DAY = LocalDate.of(2026, 3, 15);
 
-    @Autowired MockMvc mockMvc;
+    @Autowired
+    MockMvc mockMvc;
 
-    @MockitoBean TrackingService trackingService;
-    @MockitoBean BearerTokenAuthenticator authenticator;
-    @MockitoBean UserDetailsServiceImpl userDetailsService;
+    @MockitoBean
+    TrackingService trackingService;
+
+    @MockitoBean
+    BearerTokenAuthenticator authenticator;
+
+    @MockitoBean
+    UserDetailsServiceImpl userDetailsService;
 
     private UUID userId;
     private final UUID upgradeId = UUID.randomUUID();
@@ -70,7 +74,8 @@ class ProgressControllerTest {
         when(trackingService.recordProgress(eq(userId), eq(upgradeId), any()))
                 .thenReturn(AProgressEntry.completedOn(upgradeId, userId, DAY, true));
 
-        mockMvc.perform(bearer(post(progressPath)).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(bearer(post(progressPath))
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"date\":\"2026-03-15\",\"completed\":true}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.completed").value(true))
@@ -83,15 +88,16 @@ class ProgressControllerTest {
         when(trackingService.recordProgress(eq(userId), eq(upgradeId), any()))
                 .thenThrow(new DuplicateProgressException("Progress already recorded for date: " + DAY));
 
-        mockMvc.perform(bearer(post(progressPath)).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(bearer(post(progressPath))
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"date\":\"2026-03-15\",\"completed\":true}"))
                 .andExpect(status().isConflict());
     }
 
     @Test
-    void GivenARatingOutsideOneToFive_WhenProgressIsLogged_ThenItAnswers400AndNothingIsRecorded()
-            throws Exception {
-        mockMvc.perform(bearer(post(progressPath)).contentType(MediaType.APPLICATION_JSON)
+    void GivenARatingOutsideOneToFive_WhenProgressIsLogged_ThenItAnswers400AndNothingIsRecorded() throws Exception {
+        mockMvc.perform(bearer(post(progressPath))
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"rating\":9}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.rating").exists());
@@ -103,7 +109,8 @@ class ProgressControllerTest {
     void GivenAFractionalRating_WhenProgressIsLogged_ThenItAnswers400AndNothingIsRecorded() throws Exception {
         // Jackson's default truncates 3.7 to 3, which @Min and @Max then pass: a rating the caller never
         // sent, stored without a word. BR-19, #240.
-        mockMvc.perform(bearer(post(progressPath)).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(bearer(post(progressPath))
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"rating\":3.7}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Malformed request body"));
@@ -116,7 +123,8 @@ class ProgressControllerTest {
         // progress_entries.unit is VARCHAR(100), which is where the 100 comes from. Unbounded here, an
         // over-long unit reached the flush in production and came back 500. This slice has no database
         // and cannot see that flush; what it pins is the boundary contract. BR-16.
-        mockMvc.perform(bearer(post(progressPath)).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(bearer(post(progressPath))
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"unit\":\"" + "u".repeat(ProgressRequest.UNIT_MAX + 1) + "\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.unit").exists());
@@ -126,7 +134,8 @@ class ProgressControllerTest {
 
     @Test
     void GivenANegativeNumericValue_WhenProgressIsLogged_ThenItAnswers400() throws Exception {
-        mockMvc.perform(bearer(post(progressPath)).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(bearer(post(progressPath))
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"numericValue\":-1}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.numericValue").exists());
@@ -137,7 +146,9 @@ class ProgressControllerTest {
         when(trackingService.recordProgress(eq(userId), eq(upgradeId), any()))
                 .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
 
-        mockMvc.perform(bearer(post(progressPath)).contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mockMvc.perform(bearer(post(progressPath))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
                 .andExpect(status().isNotFound());
     }
 
@@ -162,14 +173,12 @@ class ProgressControllerTest {
     }
 
     @Test
-    void GivenTheCaller_WhenTodaysProgressIsRead_ThenItIsScopedToThePrincipalWithoutAnUpgradeId()
-            throws Exception {
+    void GivenTheCaller_WhenTodaysProgressIsRead_ThenItIsScopedToThePrincipalWithoutAnUpgradeId() throws Exception {
         // FR-21's unscoped-by-upgrade reads. They take no path variable, so the principal is the only
         // thing narrowing them — the case where losing user scoping would leak the most.
         when(trackingService.getTodayProgress(userId)).thenReturn(List.of());
 
-        mockMvc.perform(bearer(get("/api/progress/today")))
-                .andExpect(status().isOk());
+        mockMvc.perform(bearer(get("/api/progress/today"))).andExpect(status().isOk());
 
         verify(trackingService).getTodayProgress(userId);
     }
@@ -178,8 +187,7 @@ class ProgressControllerTest {
     void GivenTheCaller_WhenTheWeeksProgressIsRead_ThenItIsScopedToThePrincipal() throws Exception {
         when(trackingService.getWeekProgress(userId)).thenReturn(List.of());
 
-        mockMvc.perform(bearer(get("/api/progress/week")))
-                .andExpect(status().isOk());
+        mockMvc.perform(bearer(get("/api/progress/week"))).andExpect(status().isOk());
 
         verify(trackingService).getWeekProgress(userId);
     }

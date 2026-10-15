@@ -1,7 +1,6 @@
 package com.healthupgrades.user.adapter.in.web;
 
 import com.healthupgrades.user.domain.model.Role;
-
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -20,10 +19,4 @@ import java.util.UUID;
  *                  it regardless of what the interface chose to show
  * @param createdAt when the account was created
  */
-public record UserDto(
-        UUID id,
-        String name,
-        String email,
-        Role role,
-        LocalDateTime createdAt
-) {}
+public record UserDto(UUID id, String name, String email, Role role, LocalDateTime createdAt) {}

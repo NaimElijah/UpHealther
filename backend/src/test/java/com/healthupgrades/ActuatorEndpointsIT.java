@@ -1,7 +1,13 @@
 package com.healthupgrades;
 
-import tools.jackson.databind.ObjectMapper;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.healthupgrades.support.PostgresIT;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -9,14 +15,7 @@ import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfig
 import org.springframework.boot.micrometer.tracing.test.autoconfigure.AutoConfigureTracing;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
-
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Checks the operational surface over a real socket: what answers, what it says, and — the part with
@@ -103,20 +102,26 @@ class ActuatorEndpointsIT extends PostgresIT {
      * observation-derived, plus the HTTP one to keep it honest.
      */
     @ParameterizedTest
-    @ValueSource(strings = {"http_server_requests_seconds", "jvm_memory_used_bytes",
-            "hikaricp_connections", "audit_events_total"})
-    void GivenAScrape_WhenAMetricFamilyIsRead_ThenEveryOneOfItsSamplesNamesThisService(String family)
-            throws Exception {
+    @ValueSource(
+            strings = {
+                "http_server_requests_seconds",
+                "jvm_memory_used_bytes",
+                "hikaricp_connections",
+                "audit_events_total"
+            })
+    void GivenAScrape_WhenAMetricFamilyIsRead_ThenEveryOneOfItsSamplesNamesThisService(String family) throws Exception {
         get("/actuator/health"); // so the HTTP timer has something in it
         refuseALogin(); // and so this application's own counter exists to be checked
 
-        List<String> samples = get("/actuator/prometheus").body().lines()
+        List<String> samples = get("/actuator/prometheus")
+                .body()
+                .lines()
                 .filter(line -> line.startsWith(family) && line.contains("{"))
                 .toList();
 
         assertThat(samples).as("%s produced no samples to check", family).isNotEmpty();
-        assertThat(samples).allSatisfy(sample ->
-                assertThat(sample).contains("application=\"health-upgrades-tracker\""));
+        assertThat(samples)
+                .allSatisfy(sample -> assertThat(sample).contains("application=\"health-upgrades-tracker\""));
     }
 
     /**
@@ -131,8 +136,7 @@ class ActuatorEndpointsIT extends PostgresIT {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create("http://localhost:" + port + "/api/auth/login"))
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(
-                        "{\"email\":\"nobody@example.com\",\"password\":\"wrong\"}"))
+                .POST(HttpRequest.BodyPublishers.ofString("{\"email\":\"nobody@example.com\",\"password\":\"wrong\"}"))
                 .build();
         client.send(request, HttpResponse.BodyHandlers.ofString());
     }
@@ -145,8 +149,16 @@ class ActuatorEndpointsIT extends PostgresIT {
      * exposed" is the entire control.
      */
     @ParameterizedTest
-    @ValueSource(strings = {"/actuator/env", "/actuator/heapdump", "/actuator/loggers",
-            "/actuator/beans", "/actuator/mappings", "/actuator/configprops", "/actuator/threaddump"})
+    @ValueSource(
+            strings = {
+                "/actuator/env",
+                "/actuator/heapdump",
+                "/actuator/loggers",
+                "/actuator/beans",
+                "/actuator/mappings",
+                "/actuator/configprops",
+                "/actuator/threaddump"
+            })
     void GivenAnEndpointThatWasNotExposed_WhenItIsRequested_ThenItIsNotThere(String endpoint) throws Exception {
         assertThat(get(endpoint).statusCode())
                 .as("%s is readable by anyone the moment it is exposed", endpoint)

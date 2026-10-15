@@ -32,9 +32,7 @@ const navItems: readonly NavItem[] = [
  * Hiding it is tidiness, not security: the page and every request behind it are refused by the
  * server for anyone else, whatever this list happens to render.
  */
-const adminNavItems: readonly NavItem[] = [
-  { to: '/admin/users', label: 'Accounts', icon: '🛡️' },
-];
+const adminNavItems: readonly NavItem[] = [{ to: '/admin/users', label: 'Accounts', icon: '🛡️' }];
 
 /**
  * The entries a user with the given role is offered.

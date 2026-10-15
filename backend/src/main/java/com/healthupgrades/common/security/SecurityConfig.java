@@ -2,21 +2,23 @@ package com.healthupgrades.common.security;
 
 import com.healthupgrades.common.observability.TraceIdResponseHeaderFilter;
 import jakarta.servlet.DispatcherType;
+import java.util.Arrays;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-import org.springframework.http.HttpHeaders;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -27,9 +29,6 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.servlet.HandlerExceptionResolver;
-
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * Web security wiring: a stateless, token-authenticated API.
@@ -91,7 +90,8 @@ public class SecurityConfig {
                         // type, not the path: a client cannot make an ERROR dispatch, and its own GET
                         // /error is a REQUEST dispatch that still needs a token. What the page may say is
                         // bounded by Boot's server.error.include-* defaults, none of which is overridden.
-                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                        .dispatcherTypeMatchers(DispatcherType.ERROR)
+                        .permitAll()
                         // Exactly the two endpoints a visitor without a token needs. A blanket
                         // /api/auth/** also opened /api/auth/me, which then dereferenced a null
                         // @AuthenticationPrincipal and answered 500 instead of refusing the request
@@ -101,21 +101,24 @@ public class SecurityConfig {
                         // of refresh. They are not unprotected: the cookie is HttpOnly and
                         // SameSite=Strict, and both endpoints additionally require an
                         // X-Requested-With header that a cross-site form post cannot set.
-                        .requestMatchers("/api/auth/register", "/api/auth/login",
-                                "/api/auth/refresh", "/api/auth/logout").permitAll()
-                        .requestMatchers("/actuator/**").permitAll()
+                        .requestMatchers(
+                                "/api/auth/register", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout")
+                        .permitAll()
+                        .requestMatchers("/actuator/**")
+                        .permitAll()
                         // The WebSocket handshake is open; the STOMP CONNECT frame is authenticated by
                         // JwtChannelInterceptor (the JWT travels in the STOMP headers, not the handshake).
-                        .requestMatchers("/ws/**").permitAll()
+                        .requestMatchers("/ws/**")
+                        .permitAll()
                         // Declared here as well as by @PreAuthorize on the controller. The annotation
                         // is the rule a reader of that class sees; this line is what refuses a path
                         // under /api/admin that somebody later adds and forgets to annotate.
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .anyRequest().authenticated()
-                )
-                .exceptionHandling(handling -> handling
-                        .authenticationEntryPoint(errorBodies)
-                        .accessDeniedHandler(errorBodies))
+                        .requestMatchers("/api/admin/**")
+                        .hasRole("ADMIN")
+                        .anyRequest()
+                        .authenticated())
+                .exceptionHandling(handling ->
+                        handling.authenticationEntryPoint(errorBodies).accessDeniedHandler(errorBodies))
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
@@ -154,7 +157,7 @@ public class SecurityConfig {
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
         provider.setPasswordEncoder(passwordEncoder());
-        provider.setPreAuthenticationChecks(user -> { });
+        provider.setPreAuthenticationChecks(user -> {});
         provider.setPostAuthenticationChecks(user -> {
             if (!user.isEnabled()) {
                 throw new DisabledException("Account is disabled");
@@ -211,8 +214,7 @@ public class SecurityConfig {
         // it renders the 429's message and does not read the header. Exposing it anyway is right for a
         // header the HTTP spec defines for exactly this - but nothing here shows a countdown, and a
         // comment claiming otherwise would send the next reader looking for code that does not exist.
-        config.setExposedHeaders(List.of(TraceIdResponseHeaderFilter.TRACE_ID_HEADER,
-                HttpHeaders.RETRY_AFTER));
+        config.setExposedHeaders(List.of(TraceIdResponseHeaderFilter.TRACE_ID_HEADER, HttpHeaders.RETRY_AFTER));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);

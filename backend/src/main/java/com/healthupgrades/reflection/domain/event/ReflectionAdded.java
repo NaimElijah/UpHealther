@@ -1,7 +1,6 @@
 package com.healthupgrades.reflection.domain.event;
 
 import com.healthupgrades.common.domain.event.DomainEvent;
-
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -16,4 +15,5 @@ import java.util.UUID;
  * @param userId       the author
  * @param occurredAt   when it was written
  */
-public record ReflectionAdded(UUID reflectionId, UUID upgradeId, UUID userId, LocalDateTime occurredAt) implements DomainEvent {}
+public record ReflectionAdded(UUID reflectionId, UUID upgradeId, UUID userId, LocalDateTime occurredAt)
+        implements DomainEvent {}

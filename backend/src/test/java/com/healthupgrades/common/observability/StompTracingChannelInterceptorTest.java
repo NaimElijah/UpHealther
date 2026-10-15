@@ -1,13 +1,19 @@
 package com.healthupgrades.common.observability;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.propagation.Propagator;
 import io.micrometer.tracing.test.simple.SimpleTracer;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.micrometer.observation.autoconfigure.ObservationAutoConfiguration;
 import org.springframework.boot.micrometer.tracing.autoconfigure.MicrometerTracingAutoConfiguration;
-import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
@@ -15,13 +21,6 @@ import org.springframework.messaging.MessageHandler;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.MessageBuilder;
-
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.function.Supplier;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
 
 /**
  * Pins the span lifecycle across the two threads a STOMP frame touches.
@@ -44,7 +43,8 @@ class StompTracingChannelInterceptorTest {
             .withConfiguration(AutoConfigurations.of(
                     ObservationAutoConfiguration.class,
                     org.springframework.boot.opentelemetry.autoconfigure.OpenTelemetrySdkAutoConfiguration.class,
-                    org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure.OpenTelemetryTracingAutoConfiguration.class,
+                    org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure
+                            .OpenTelemetryTracingAutoConfiguration.class,
                     MicrometerTracingAutoConfiguration.class))
             .withPropertyValues("management.tracing.sampling.probability=1.0");
 
@@ -128,8 +128,9 @@ class StompTracingChannelInterceptorTest {
 
         interceptor.afterSendCompletion(forwarded, channel, false, null);
 
-        assertThat(tracer.getSpans()).singleElement().satisfies(span ->
-                assertThat(span.getTags()).containsEntry("stomp.send.refused", "true"));
+        assertThat(tracer.getSpans())
+                .singleElement()
+                .satisfies(span -> assertThat(span.getTags()).containsEntry("stomp.send.refused", "true"));
     }
 
     @Test

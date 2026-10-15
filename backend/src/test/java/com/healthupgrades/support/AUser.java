@@ -3,7 +3,6 @@ package com.healthupgrades.support;
 import com.healthupgrades.common.security.SecurityUser;
 import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User;
-
 import java.util.UUID;
 
 /**
@@ -25,16 +24,11 @@ public final class AUser {
     /** A BCrypt hash. The value is irrelevant to anything that does not actually match a password. */
     public static final String PASSWORD_HASH = "$2a$10$abcdefghijklmnopqrstuvwxyz012345678901234567890123456";
 
-    private AUser() {
-    }
+    private AUser() {}
 
     /** A user with the required fields filled in and a fresh id. */
     public static User.UserBuilder aUser() {
-        return User.builder()
-                .id(UUID.randomUUID())
-                .name(NAME)
-                .email(EMAIL)
-                .passwordHash(PASSWORD_HASH);
+        return User.builder().id(UUID.randomUUID()).name(NAME).email(EMAIL).passwordHash(PASSWORD_HASH);
     }
 
     /** A user with a given id, for a test that has to match a row against an owner id it already holds. */

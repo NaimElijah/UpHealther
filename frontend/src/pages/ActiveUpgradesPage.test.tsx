@@ -80,7 +80,11 @@ describe('ActiveUpgradesPage', () => {
 
   it('GivenTheApiRefusesAPause_WhenItIsPressed_ThenTheCardSaysWhyWithTheReference', async () => {
     performUpgradeAction.mockRejectedValue(
-      apiFailure(409, { status: 409, message: 'Resource was modified concurrently. Please retry.', traceId: 'trace-51' }),
+      apiFailure(409, {
+        status: 409,
+        message: 'Resource was modified concurrently. Please retry.',
+        traceId: 'trace-51',
+      }),
     );
     renderPage();
 
@@ -94,9 +98,15 @@ describe('ActiveUpgradesPage', () => {
 
   it('GivenSeveralCards_WhenAPauseIsRefused_ThenTheRefusalIsShownWithThePressedCard', async () => {
     // Above the grid it can be scrolled out of view, which looks exactly like a click that did nothing.
-    answerByStatus({ ACTIVE: [anActiveUpgrade('upgrade-1', 'Evening walk'), anActiveUpgrade('upgrade-2', 'Cold showers')] });
+    answerByStatus({
+      ACTIVE: [anActiveUpgrade('upgrade-1', 'Evening walk'), anActiveUpgrade('upgrade-2', 'Cold showers')],
+    });
     performUpgradeAction.mockRejectedValue(
-      apiFailure(409, { status: 409, message: 'Resource was modified concurrently. Please retry.', traceId: 'trace-53' }),
+      apiFailure(409, {
+        status: 409,
+        message: 'Resource was modified concurrently. Please retry.',
+        traceId: 'trace-53',
+      }),
     );
     renderPage();
     await screen.findByText('Cold showers');
@@ -111,7 +121,9 @@ describe('ActiveUpgradesPage', () => {
   it('GivenAChangeInFlight_WhenAnotherCardIsPressed_ThenNothingMoreIsSent', async () => {
     // Overlapping changes would leave only the last one's answer on screen; a second press of the same
     // card would be refused and say so while the card showed the first one accepted.
-    answerByStatus({ ACTIVE: [anActiveUpgrade('upgrade-1', 'Evening walk'), anActiveUpgrade('upgrade-2', 'Cold showers')] });
+    answerByStatus({
+      ACTIVE: [anActiveUpgrade('upgrade-1', 'Evening walk'), anActiveUpgrade('upgrade-2', 'Cold showers')],
+    });
     performUpgradeAction.mockReturnValue(new Promise(() => {}));
     renderPage();
     await screen.findByText('Cold showers');
@@ -127,7 +139,13 @@ describe('ActiveUpgradesPage', () => {
 
   it('GivenAChangeWasRefused_WhenItIsTriedAgainAndAccepted_ThenTheMessageGoes', async () => {
     performUpgradeAction
-      .mockRejectedValueOnce(apiFailure(409, { status: 409, message: 'Resource was modified concurrently. Please retry.', traceId: 'trace-52' }))
+      .mockRejectedValueOnce(
+        apiFailure(409, {
+          status: 409,
+          message: 'Resource was modified concurrently. Please retry.',
+          traceId: 'trace-52',
+        }),
+      )
       .mockResolvedValueOnce({ ...anActiveUpgrade(), status: 'PAUSED' });
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: 'Pause' }));
@@ -187,7 +205,9 @@ describe('ActiveUpgradesPage, paused upgrades', () => {
     // The server is modelled rather than stubbed, so the test sees where the upgrade went: before #176
     // a pause took it off every list this page shows.
     let upgrade = anActiveUpgrade();
-    getUpgrades.mockImplementation((status: UpgradeStatus) => Promise.resolve(upgrade.status === status ? [upgrade] : []));
+    getUpgrades.mockImplementation((status: UpgradeStatus) =>
+      Promise.resolve(upgrade.status === status ? [upgrade] : []),
+    );
     performUpgradeAction.mockImplementation((_id: string, status: ActionTarget) => {
       upgrade = { ...upgrade, status };
       return Promise.resolve(upgrade);
@@ -225,7 +245,9 @@ describe('ActiveUpgradesPage, paused upgrades', () => {
 
   it('GivenAPausedUpgrade_WhenItIsResumed_ThenItLeavesThePausedSectionAndRunsAgain', async () => {
     let upgrade = aPausedUpgrade();
-    getUpgrades.mockImplementation((status: UpgradeStatus) => Promise.resolve(upgrade.status === status ? [upgrade] : []));
+    getUpgrades.mockImplementation((status: UpgradeStatus) =>
+      Promise.resolve(upgrade.status === status ? [upgrade] : []),
+    );
     performUpgradeAction.mockImplementation((_id: string, status: ActionTarget) => {
       upgrade = { ...upgrade, status };
       return Promise.resolve(upgrade);
@@ -242,7 +264,11 @@ describe('ActiveUpgradesPage, paused upgrades', () => {
     // BR-5 can refuse a resume, for example a fourth running HARD upgrade.
     answerByStatus({ ACTIVE: [anActiveUpgrade()], PAUSED: [aPausedUpgrade()] });
     performUpgradeAction.mockRejectedValue(
-      apiFailure(422, { status: 422, message: 'Cannot run more than 3 HARD upgrades simultaneously', traceId: 'trace-62' }),
+      apiFailure(422, {
+        status: 422,
+        message: 'Cannot run more than 3 HARD upgrades simultaneously',
+        traceId: 'trace-62',
+      }),
     );
     renderPage();
     const paused = await screen.findByRole('region', { name: 'Paused' });

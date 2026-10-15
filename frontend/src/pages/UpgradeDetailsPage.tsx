@@ -17,7 +17,15 @@ import UpgradeTypeBadge from '../components/upgrade/UpgradeTypeBadge';
 import UpgradeActions from '../components/upgrade/UpgradeActions';
 import Badge from '../components/ui/Badge';
 import { difficultyBadgeVariant } from '../components/upgrade/upgradeMeta';
-import type { CreateProgressRequest, CreateReflectionRequest, CreateReminderRequest, Reminder, TrackingConfig, TrackingType, Frequency } from '../types';
+import type {
+  CreateProgressRequest,
+  CreateReflectionRequest,
+  CreateReminderRequest,
+  Reminder,
+  TrackingConfig,
+  TrackingType,
+  Frequency,
+} from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError, toFormMessage } from '../api/apiError';
@@ -131,11 +139,31 @@ const UpgradeDetails: React.FC = () => {
   const toggleDay = (d: string) =>
     setReminderDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
 
-  const { data: upgrade, isLoading, error } = useQuery({ queryKey: ['upgrade', id], queryFn: () => getUpgradeById(id!), enabled: !!id });
-  const { data: progress = [] } = useQuery({ queryKey: ['progress', id], queryFn: () => getProgressByUpgrade(id!), enabled: !!id });
-  const { data: reflections = [] } = useQuery({ queryKey: ['reflections', id], queryFn: () => getReflectionsByUpgrade(id!), enabled: !!id });
-  const { data: streak = { current: 0, longest: 0 } } = useQuery({ queryKey: ['streak', id], queryFn: () => getStreak(id!), enabled: !!id });
-  const { data: reminders = [] } = useQuery({ queryKey: ['reminders', id], queryFn: () => getReminders(id!), enabled: !!id });
+  const {
+    data: upgrade,
+    isLoading,
+    error,
+  } = useQuery({ queryKey: ['upgrade', id], queryFn: () => getUpgradeById(id!), enabled: !!id });
+  const { data: progress = [] } = useQuery({
+    queryKey: ['progress', id],
+    queryFn: () => getProgressByUpgrade(id!),
+    enabled: !!id,
+  });
+  const { data: reflections = [] } = useQuery({
+    queryKey: ['reflections', id],
+    queryFn: () => getReflectionsByUpgrade(id!),
+    enabled: !!id,
+  });
+  const { data: streak = { current: 0, longest: 0 } } = useQuery({
+    queryKey: ['streak', id],
+    queryFn: () => getStreak(id!),
+    enabled: !!id,
+  });
+  const { data: reminders = [] } = useQuery({
+    queryKey: ['reminders', id],
+    queryFn: () => getReminders(id!),
+    enabled: !!id,
+  });
 
   const createReminderMut = useMutation({
     mutationFn: () => createReminder(id!, { reminderTime, daysOfWeek: reminderDays, enabled: true }),
@@ -161,7 +189,10 @@ const UpgradeDetails: React.FC = () => {
   // about to change, and the later answer silently undoes the earlier one. It also keeps the form's mode
   // fixed until an answer lands, so a removal's callback still sees the reminder being edited.
   const reminderWriteInFlight =
-    createReminderMut.isPending || rescheduleReminderMut.isPending || switchReminderMut.isPending || deleteReminderMut.isPending;
+    createReminderMut.isPending ||
+    rescheduleReminderMut.isPending ||
+    switchReminderMut.isPending ||
+    deleteReminderMut.isPending;
 
   /**
    * Loads a reminder into the form below, which then saves it rather than adding a new one. An add's
@@ -184,7 +215,10 @@ const UpgradeDetails: React.FC = () => {
 
   const submitReminder = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingReminderId) { createReminderMut.mutate(undefined, { onSuccess: () => setReminderDays([]) }); return; }
+    if (!editingReminderId) {
+      createReminderMut.mutate(undefined, { onSuccess: () => setReminderDays([]) });
+      return;
+    }
     // `enabled` is left out, so a disabled reminder stays disabled when its schedule moves.
     rescheduleReminderMut.mutate(
       { reminderId: editingReminderId, req: { reminderTime, daysOfWeek: reminderDays } },
@@ -203,7 +237,10 @@ const UpgradeDetails: React.FC = () => {
   // callbacks stop when an opener below resets the mutation; these run for every save that succeeds.
   const progressMutation = useMutation({
     mutationFn: (body: Omit<CreateProgressRequest, 'upgradeId'>) => createProgress({ ...body, upgradeId: id! }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['progress', id] }); qc.invalidateQueries({ queryKey: ['streak', id] }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['progress', id] });
+      qc.invalidateQueries({ queryKey: ['streak', id] });
+    },
   });
 
   const reflectionMutation = useMutation({
@@ -250,37 +287,62 @@ const UpgradeDetails: React.FC = () => {
     setTrackingOpen(true);
   };
 
-  if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
-  if (error || !upgrade) return <ErrorState title="Could not load this upgrade." error={error ? toApiError(error) : undefined} />;
+  if (isLoading)
+    return (
+      <div className="flex justify-center py-20">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  if (error || !upgrade)
+    return <ErrorState title="Could not load this upgrade." error={error ? toApiError(error) : undefined} />;
 
   return (
     <PageContainer width="narrow" className="space-y-6">
-      <button onClick={() => navigate(-1)} className="text-sm text-brand-fg hover:underline">← Back</button>
+      <button onClick={() => navigate(-1)} className="text-sm text-brand-fg hover:underline">
+        ← Back
+      </button>
 
       <Card>
         <div className="flex flex-wrap gap-2 mb-3">
           <UpgradeStatusBadge status={upgrade.status} />
           <UpgradeTypeBadge type={upgrade.type} />
-          <Badge variant={difficultyBadgeVariant(upgrade.difficulty)}>
-            {upgrade.difficulty}
-          </Badge>
+          <Badge variant={difficultyBadgeVariant(upgrade.difficulty)}>{upgrade.difficulty}</Badge>
         </div>
         <h1 className="text-2xl font-bold text-fg break-words">{upgrade.title}</h1>
         {upgrade.description && <p className="text-fg-subtle mt-2 break-words">{upgrade.description}</p>}
         {upgrade.motivation && (
           <div className="mt-4 bg-brand-soft rounded-lg p-3">
-            <p className="text-sm text-brand-fg break-words"><strong>Motivation:</strong> {upgrade.motivation}</p>
+            <p className="text-sm text-brand-fg break-words">
+              <strong>Motivation:</strong> {upgrade.motivation}
+            </p>
           </div>
         )}
         {upgrade.successCriteria && (
           <div className="mt-2 bg-success-soft rounded-lg p-3">
-            <p className="text-sm text-success-fg break-words"><strong>Success Criteria:</strong> {upgrade.successCriteria}</p>
+            <p className="text-sm text-success-fg break-words">
+              <strong>Success Criteria:</strong> {upgrade.successCriteria}
+            </p>
           </div>
         )}
         <div className="mt-4 grid grid-cols-2 gap-4 text-sm text-fg-subtle">
-          {upgrade.plannedStartDate && <div><span className="font-medium">Planned Start:</span> {parseLocalDate(upgrade.plannedStartDate).toLocaleDateString()}</div>}
-          {upgrade.actualStartDate && <div><span className="font-medium">Actual Start:</span> {parseLocalDate(upgrade.actualStartDate).toLocaleDateString()}</div>}
-          {upgrade.targetEndDate && <div><span className="font-medium">Target End:</span> {parseLocalDate(upgrade.targetEndDate).toLocaleDateString()}</div>}
+          {upgrade.plannedStartDate && (
+            <div>
+              <span className="font-medium">Planned Start:</span>{' '}
+              {parseLocalDate(upgrade.plannedStartDate).toLocaleDateString()}
+            </div>
+          )}
+          {upgrade.actualStartDate && (
+            <div>
+              <span className="font-medium">Actual Start:</span>{' '}
+              {parseLocalDate(upgrade.actualStartDate).toLocaleDateString()}
+            </div>
+          )}
+          {upgrade.targetEndDate && (
+            <div>
+              <span className="font-medium">Target End:</span>{' '}
+              {parseLocalDate(upgrade.targetEndDate).toLocaleDateString()}
+            </div>
+          )}
         </div>
         <UpgradeActions upgrade={upgrade} />
       </Card>
@@ -290,29 +352,46 @@ const UpgradeDetails: React.FC = () => {
           <span className="text-3xl">🔥</span>
           <div>
             <p className="font-semibold text-streak-fg">{streak.current}-day streak!</p>
-            <p className="text-sm text-streak-fg">Longest streak: {streak.longest} day{streak.longest === 1 ? '' : 's'}. Keep it up!</p>
+            <p className="text-sm text-streak-fg">
+              Longest streak: {streak.longest} day{streak.longest === 1 ? '' : 's'}. Keep it up!
+            </p>
           </div>
         </div>
       )}
 
-      <Card header={
-        <div className="flex items-center justify-between">
-          <span>Tracking Configuration</span>
-          <Button size="sm" variant="secondary" onClick={() => openTracking(upgrade.trackingConfig)}>
-            {upgrade.trackingConfig ? 'Edit' : 'Configure'}
-          </Button>
-        </div>
-      }>
+      <Card
+        header={
+          <div className="flex items-center justify-between">
+            <span>Tracking Configuration</span>
+            <Button size="sm" variant="secondary" onClick={() => openTracking(upgrade.trackingConfig)}>
+              {upgrade.trackingConfig ? 'Edit' : 'Configure'}
+            </Button>
+          </div>
+        }
+      >
         {upgrade.trackingConfig ? (
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <div><span className="text-fg-subtle">Type:</span> <span className="font-medium">{upgrade.trackingConfig.trackingType}</span></div>
-            <div><span className="text-fg-subtle">Frequency:</span> <span className="font-medium">{upgrade.trackingConfig.frequency}</span></div>
+            <div>
+              <span className="text-fg-subtle">Type:</span>{' '}
+              <span className="font-medium">{upgrade.trackingConfig.trackingType}</span>
+            </div>
+            <div>
+              <span className="text-fg-subtle">Frequency:</span>{' '}
+              <span className="font-medium">{upgrade.trackingConfig.frequency}</span>
+            </div>
             {upgrade.trackingConfig.targetNumericValue != null && (
-              <div><span className="text-fg-subtle">Target:</span> <span className="font-medium">{upgrade.trackingConfig.targetNumericValue} {upgrade.trackingConfig.targetUnit}</span></div>
+              <div>
+                <span className="text-fg-subtle">Target:</span>{' '}
+                <span className="font-medium">
+                  {upgrade.trackingConfig.targetNumericValue} {upgrade.trackingConfig.targetUnit}
+                </span>
+              </div>
             )}
           </div>
         ) : (
-          <p className="text-fg-subtle text-sm text-center py-4">No tracking configured yet. Configure how you'll track this upgrade.</p>
+          <p className="text-fg-subtle text-sm text-center py-4">
+            No tracking configured yet. Configure how you'll track this upgrade.
+          </p>
         )}
       </Card>
 
@@ -348,7 +427,13 @@ const UpgradeDetails: React.FC = () => {
                     {r.enabled ? 'Disable' : 'Enable'}
                   </button>
                   <button
-                    onClick={() => deleteReminderMut.mutate(r.id, { onSuccess: () => { if (editingReminderId === r.id) stopEditingReminder(); } })}
+                    onClick={() =>
+                      deleteReminderMut.mutate(r.id, {
+                        onSuccess: () => {
+                          if (editingReminderId === r.id) stopEditingReminder();
+                        },
+                      })
+                    }
                     // A second DELETE would be answered 404, saying "not removed" while the row disappears.
                     disabled={reminderWriteInFlight}
                     className="text-danger-fg hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
@@ -376,10 +461,15 @@ const UpgradeDetails: React.FC = () => {
             type="time"
             value={reminderTime}
             onChange={(e) => setReminderTime(e.target.value)}
-            error={refusalMessage(editingReminderId ? rescheduleReminderMut.error : createReminderMut.error, 'reminderTime')}
+            error={refusalMessage(
+              editingReminderId ? rescheduleReminderMut.error : createReminderMut.error,
+              'reminderTime',
+            )}
           />
           <div>
-            <label className="text-sm font-medium text-fg-muted block mb-1">Days <span className="text-fg-faint">(none = every day)</span></label>
+            <label className="text-sm font-medium text-fg-muted block mb-1">
+              Days <span className="text-fg-faint">(none = every day)</span>
+            </label>
             <div className="flex gap-1">
               {DAYS.map((d) => (
                 <button
@@ -396,21 +486,31 @@ const UpgradeDetails: React.FC = () => {
           </div>
           {editingReminderId ? (
             <>
-              <Button type="submit" loading={rescheduleReminderMut.isPending} disabled={reminderWriteInFlight}>Save reminder</Button>
-              <Button type="button" variant="secondary" onClick={stopEditingReminder} disabled={reminderWriteInFlight}>Cancel</Button>
+              <Button type="submit" loading={rescheduleReminderMut.isPending} disabled={reminderWriteInFlight}>
+                Save reminder
+              </Button>
+              <Button type="button" variant="secondary" onClick={stopEditingReminder} disabled={reminderWriteInFlight}>
+                Cancel
+              </Button>
             </>
           ) : (
-            <Button type="submit" loading={createReminderMut.isPending} disabled={reminderWriteInFlight}>Add reminder</Button>
+            <Button type="submit" loading={createReminderMut.isPending} disabled={reminderWriteInFlight}>
+              Add reminder
+            </Button>
           )}
         </form>
       </Card>
 
-      <Card header={
-        <div className="flex items-center justify-between">
-          <span>Progress History ({progress.length})</span>
-          <Button size="sm" onClick={openProgress}>+ Log Progress</Button>
-        </div>
-      }>
+      <Card
+        header={
+          <div className="flex items-center justify-between">
+            <span>Progress History ({progress.length})</span>
+            <Button size="sm" onClick={openProgress}>
+              + Log Progress
+            </Button>
+          </div>
+        }
+      >
         {progress.length === 0 ? (
           <p className="text-fg-subtle text-sm text-center py-4">No progress logged yet.</p>
         ) : (
@@ -419,8 +519,14 @@ const UpgradeDetails: React.FC = () => {
               <div key={p.id} className="flex items-center justify-between p-3 bg-sunken rounded-lg text-sm">
                 <span className="text-fg-subtle">{parseLocalDate(p.date).toLocaleDateString()}</span>
                 <div className="flex items-center gap-3">
-                  {p.completed != null && <Badge variant={p.completed ? 'green' : 'red'}>{p.completed ? 'Done' : 'Missed'}</Badge>}
-                  {p.numericValue != null && <span className="font-medium">{p.numericValue} {p.unit}</span>}
+                  {p.completed != null && (
+                    <Badge variant={p.completed ? 'green' : 'red'}>{p.completed ? 'Done' : 'Missed'}</Badge>
+                  )}
+                  {p.numericValue != null && (
+                    <span className="font-medium">
+                      {p.numericValue} {p.unit}
+                    </span>
+                  )}
                   {p.rating != null && <span>⭐ {p.rating}/5</span>}
                   {p.note && <span className="text-fg-subtle italic truncate max-w-32">{p.note}</span>}
                 </div>
@@ -430,12 +536,16 @@ const UpgradeDetails: React.FC = () => {
         )}
       </Card>
 
-      <Card header={
-        <div className="flex items-center justify-between">
-          <span>Reflections ({reflections.length})</span>
-          <Button size="sm" variant="secondary" onClick={openReflection}>+ Add Reflection</Button>
-        </div>
-      }>
+      <Card
+        header={
+          <div className="flex items-center justify-between">
+            <span>Reflections ({reflections.length})</span>
+            <Button size="sm" variant="secondary" onClick={openReflection}>
+              + Add Reflection
+            </Button>
+          </div>
+        }
+      >
         {reflections.length === 0 ? (
           <p className="text-fg-subtle text-sm text-center py-4">No reflections yet.</p>
         ) : (
@@ -443,9 +553,21 @@ const UpgradeDetails: React.FC = () => {
             {reflections.map((r) => (
               <div key={r.id} className="p-3 bg-sunken rounded-lg text-sm space-y-1">
                 <p className="text-fg-faint">{parseLocalDate(r.date).toLocaleDateString()}</p>
-                {r.whatWorked && <p><strong>✅ What worked:</strong> {r.whatWorked}</p>}
-                {r.whatDidNotWork && <p><strong>❌ What didn't:</strong> {r.whatDidNotWork}</p>}
-                {r.nextAdjustment && <p><strong>🔄 Next:</strong> {r.nextAdjustment}</p>}
+                {r.whatWorked && (
+                  <p>
+                    <strong>✅ What worked:</strong> {r.whatWorked}
+                  </p>
+                )}
+                {r.whatDidNotWork && (
+                  <p>
+                    <strong>❌ What didn't:</strong> {r.whatDidNotWork}
+                  </p>
+                )}
+                {r.nextAdjustment && (
+                  <p>
+                    <strong>🔄 Next:</strong> {r.nextAdjustment}
+                  </p>
+                )}
                 <div className="flex gap-4">
                   {r.difficultyRating && <span>Difficulty: {r.difficultyRating}/5</span>}
                   {r.benefitRating && <span>Benefit: {r.benefitRating}/5</span>}
@@ -457,63 +579,161 @@ const UpgradeDetails: React.FC = () => {
       </Card>
 
       <Modal isOpen={progressOpen} onClose={() => setProgressOpen(false)} title="Log Progress">
-        <form onSubmit={(e) => { e.preventDefault(); progressMutation.mutate(progressForm, { onSuccess: () => setProgressOpen(false) }); }} className="space-y-4">
-          <Input label="Date" type="date" value={progressForm.date} onChange={(e) => setProgressForm({ ...progressForm, date: e.target.value })} error={refusalMessage(progressMutation.error, 'date')} />
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            progressMutation.mutate(progressForm, { onSuccess: () => setProgressOpen(false) });
+          }}
+          className="space-y-4"
+        >
+          <Input
+            label="Date"
+            type="date"
+            value={progressForm.date}
+            onChange={(e) => setProgressForm({ ...progressForm, date: e.target.value })}
+            error={refusalMessage(progressMutation.error, 'date')}
+          />
           {(!upgrade.trackingConfig || upgrade.trackingConfig.trackingType === 'BOOLEAN') && (
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={progressForm.completed ?? false} onChange={(e) => setProgressForm({ ...progressForm, completed: e.target.checked })} className="w-4 h-4 rounded" />
+              <input
+                type="checkbox"
+                checked={progressForm.completed ?? false}
+                onChange={(e) => setProgressForm({ ...progressForm, completed: e.target.checked })}
+                className="w-4 h-4 rounded"
+              />
               <span className="text-sm font-medium text-fg-muted">Completed</span>
             </label>
           )}
           {upgrade.trackingConfig?.trackingType === 'NUMERIC' && (
-            <Input label={`Value (${upgrade.trackingConfig.targetUnit ?? ''})`} type="number" value={progressForm.numericValue ?? ''} onChange={(e) => setProgressForm({ ...progressForm, numericValue: numOrUndef(e.target.value) })} />
+            <Input
+              label={`Value (${upgrade.trackingConfig.targetUnit ?? ''})`}
+              type="number"
+              value={progressForm.numericValue ?? ''}
+              onChange={(e) => setProgressForm({ ...progressForm, numericValue: numOrUndef(e.target.value) })}
+            />
           )}
           {upgrade.trackingConfig?.trackingType === 'RATING' && (
             <div>
               <label className="text-sm font-medium text-fg-muted">Rating (1-5)</label>
               <div className="flex gap-2 mt-2">
                 {[1, 2, 3, 4, 5].map((n) => (
-                  <button key={n} type="button" onClick={() => setProgressForm({ ...progressForm, rating: n })} className={`w-10 h-10 rounded-full text-sm font-semibold transition-colors ${progressForm.rating === n ? 'bg-brand text-fg-inverted' : 'bg-muted text-fg-muted hover:bg-muted-strong'}`}>{n}</button>
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setProgressForm({ ...progressForm, rating: n })}
+                    className={`w-10 h-10 rounded-full text-sm font-semibold transition-colors ${progressForm.rating === n ? 'bg-brand text-fg-inverted' : 'bg-muted text-fg-muted hover:bg-muted-strong'}`}
+                  >
+                    {n}
+                  </button>
                 ))}
               </div>
             </div>
           )}
-          <Input label="Note" value={progressForm.note ?? ''} onChange={(e) => setProgressForm({ ...progressForm, note: e.target.value })} placeholder="Optional note" />
+          <Input
+            label="Note"
+            value={progressForm.note ?? ''}
+            onChange={(e) => setProgressForm({ ...progressForm, note: e.target.value })}
+            placeholder="Optional note"
+          />
           <div className="flex gap-2 justify-end">
-            <Button variant="secondary" type="button" onClick={() => setProgressOpen(false)}>Cancel</Button>
-            <Button type="submit" loading={progressMutation.isPending}>Save</Button>
+            <Button variant="secondary" type="button" onClick={() => setProgressOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={progressMutation.isPending}>
+              Save
+            </Button>
           </div>
         </form>
       </Modal>
 
       <Modal isOpen={reflectionOpen} onClose={() => setReflectionOpen(false)} title="Add Reflection">
-        <form onSubmit={(e) => { e.preventDefault(); reflectionMutation.mutate(reflectionForm, { onSuccess: () => setReflectionOpen(false) }); }} className="space-y-4">
-          <Input label="Date" type="date" value={reflectionForm.date} onChange={(e) => setReflectionForm({ ...reflectionForm, date: e.target.value })} error={refusalMessage(reflectionMutation.error, 'date')} />
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            reflectionMutation.mutate(reflectionForm, { onSuccess: () => setReflectionOpen(false) });
+          }}
+          className="space-y-4"
+        >
+          <Input
+            label="Date"
+            type="date"
+            value={reflectionForm.date}
+            onChange={(e) => setReflectionForm({ ...reflectionForm, date: e.target.value })}
+            error={refusalMessage(reflectionMutation.error, 'date')}
+          />
           <div>
-            <label htmlFor="reflection-what-worked" className="text-sm font-medium text-fg-muted">What worked?</label>
-            <textarea id="reflection-what-worked" className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2" rows={2} value={reflectionForm.whatWorked ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, whatWorked: e.target.value })} />
+            <label htmlFor="reflection-what-worked" className="text-sm font-medium text-fg-muted">
+              What worked?
+            </label>
+            <textarea
+              id="reflection-what-worked"
+              className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2"
+              rows={2}
+              value={reflectionForm.whatWorked ?? ''}
+              onChange={(e) => setReflectionForm({ ...reflectionForm, whatWorked: e.target.value })}
+            />
           </div>
           <div>
-            <label htmlFor="reflection-what-did-not-work" className="text-sm font-medium text-fg-muted">What didn't work?</label>
-            <textarea id="reflection-what-did-not-work" className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2" rows={2} value={reflectionForm.whatDidNotWork ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, whatDidNotWork: e.target.value })} />
+            <label htmlFor="reflection-what-did-not-work" className="text-sm font-medium text-fg-muted">
+              What didn't work?
+            </label>
+            <textarea
+              id="reflection-what-did-not-work"
+              className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2"
+              rows={2}
+              value={reflectionForm.whatDidNotWork ?? ''}
+              onChange={(e) => setReflectionForm({ ...reflectionForm, whatDidNotWork: e.target.value })}
+            />
           </div>
           <div>
-            <label htmlFor="reflection-next-adjustment" className="text-sm font-medium text-fg-muted">Next adjustment?</label>
-            <textarea id="reflection-next-adjustment" className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2" rows={2} value={reflectionForm.nextAdjustment ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, nextAdjustment: e.target.value })} />
+            <label htmlFor="reflection-next-adjustment" className="text-sm font-medium text-fg-muted">
+              Next adjustment?
+            </label>
+            <textarea
+              id="reflection-next-adjustment"
+              className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2"
+              rows={2}
+              value={reflectionForm.nextAdjustment ?? ''}
+              onChange={(e) => setReflectionForm({ ...reflectionForm, nextAdjustment: e.target.value })}
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Difficulty (1-5)" type="number" min={1} max={5} value={reflectionForm.difficultyRating ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, difficultyRating: intOrUndef(e.target.value) })} />
-            <Input label="Benefit (1-5)" type="number" min={1} max={5} value={reflectionForm.benefitRating ?? ''} onChange={(e) => setReflectionForm({ ...reflectionForm, benefitRating: intOrUndef(e.target.value) })} />
+            <Input
+              label="Difficulty (1-5)"
+              type="number"
+              min={1}
+              max={5}
+              value={reflectionForm.difficultyRating ?? ''}
+              onChange={(e) => setReflectionForm({ ...reflectionForm, difficultyRating: intOrUndef(e.target.value) })}
+            />
+            <Input
+              label="Benefit (1-5)"
+              type="number"
+              min={1}
+              max={5}
+              value={reflectionForm.benefitRating ?? ''}
+              onChange={(e) => setReflectionForm({ ...reflectionForm, benefitRating: intOrUndef(e.target.value) })}
+            />
           </div>
           <div className="flex gap-2 justify-end">
-            <Button variant="secondary" type="button" onClick={() => setReflectionOpen(false)}>Cancel</Button>
-            <Button type="submit" loading={reflectionMutation.isPending}>Save</Button>
+            <Button variant="secondary" type="button" onClick={() => setReflectionOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={reflectionMutation.isPending}>
+              Save
+            </Button>
           </div>
         </form>
       </Modal>
 
       <Modal isOpen={trackingOpen} onClose={() => setTrackingOpen(false)} title="Configure Tracking">
-        <form onSubmit={(e) => { e.preventDefault(); trackingMutation.mutate(trackingForm, { onSuccess: () => setTrackingOpen(false) }); }} className="space-y-4">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            trackingMutation.mutate(trackingForm, { onSuccess: () => setTrackingOpen(false) });
+          }}
+          className="space-y-4"
+        >
           <Select
             label="Tracking type"
             value={trackingForm.trackingType}
@@ -562,8 +782,12 @@ const UpgradeDetails: React.FC = () => {
             <span className="text-sm font-medium text-fg-muted">Required daily</span>
           </label>
           <div className="flex gap-2 justify-end">
-            <Button variant="secondary" type="button" onClick={() => setTrackingOpen(false)}>Cancel</Button>
-            <Button type="submit" loading={trackingMutation.isPending}>Save</Button>
+            <Button variant="secondary" type="button" onClick={() => setTrackingOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={trackingMutation.isPending}>
+              Save
+            </Button>
           </div>
         </form>
       </Modal>

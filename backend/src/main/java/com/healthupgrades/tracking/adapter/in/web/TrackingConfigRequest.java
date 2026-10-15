@@ -5,8 +5,6 @@ import com.healthupgrades.tracking.domain.model.TrackingType;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
-import java.util.UUID;
-
 /**
  * Request body for creating or replacing an upgrade's tracking configuration.
  *
@@ -25,8 +23,7 @@ public record TrackingConfigRequest(
         Frequency frequency,
         Double targetNumericValue,
         @Size(max = TARGET_UNIT_MAX) String targetUnit,
-        Boolean requiredDaily
-) {
+        Boolean requiredDaily) {
     /** Mirrors {@code tracking_configs.target_unit VARCHAR(100)}; see BR-16 for why the bound is here. */
     public static final int TARGET_UNIT_MAX = 100;
 }

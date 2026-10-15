@@ -1,25 +1,41 @@
 package com.healthupgrades.upgrade.application;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.healthupgrades.common.domain.audit.AuditAction;
+import com.healthupgrades.common.domain.audit.AuditEvent;
+import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.event.DomainEvent;
+import com.healthupgrades.common.domain.exception.BusinessRuleException;
+import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
+import com.healthupgrades.healtharea.application.port.in.HealthAreaQuery;
+import com.healthupgrades.support.RecordingAuditTrail;
+import com.healthupgrades.upgrade.application.port.in.UpgradeDetails;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradeActivated;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradeCompleted;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradeCreated;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradePlanned;
-import com.healthupgrades.common.domain.audit.AuditAction;
-import com.healthupgrades.common.domain.audit.AuditEvent;
-import com.healthupgrades.common.domain.audit.AuditOutcome;
-import com.healthupgrades.common.domain.exception.BusinessRuleException;
-import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
-import com.healthupgrades.healtharea.application.port.in.HealthAreaQuery;
-import com.healthupgrades.upgrade.application.port.in.UpgradeDetails;
 import com.healthupgrades.upgrade.domain.model.Difficulty;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.model.UpgradeType;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
-import com.healthupgrades.support.RecordingAuditTrail;
 import com.healthupgrades.upgrade.domain.service.UpgradeSchedulingService;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,23 +45,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.time.Clock;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.time.ZoneOffset;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.stream.Stream;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
  * Covers the upgrade use cases: FR-10 (create), FR-11 (list, narrowed by one filter), FR-12 (the
@@ -62,9 +61,14 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class UpgradeServiceTest {
 
-    @Mock UpgradeRepositoryPort repository;
-    @Mock DomainEventPublisher eventPublisher;
-    @Mock HealthAreaQuery healthAreaQuery;
+    @Mock
+    UpgradeRepositoryPort repository;
+
+    @Mock
+    DomainEventPublisher eventPublisher;
+
+    @Mock
+    HealthAreaQuery healthAreaQuery;
 
     /** The HARD-limit rule is a pure domain service, not a port — exercise the real one. */
     private final UpgradeSchedulingService schedulingService = new UpgradeSchedulingService();
@@ -80,7 +84,8 @@ class UpgradeServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new UpgradeService(repository, schedulingService, eventPublisher, auditTrail, healthAreaQuery, fixedClock);
+        service = new UpgradeService(
+                repository, schedulingService, eventPublisher, auditTrail, healthAreaQuery, fixedClock);
     }
 
     private HealthUpgrade upgradeWith(UpgradeStatus status, Difficulty difficulty) {
@@ -95,8 +100,7 @@ class UpgradeServiceTest {
     }
 
     private UpgradeDetails detailsWithDifficulty(Difficulty difficulty) {
-        return new UpgradeDetails(null, "Cold showers", null, UpgradeType.HABIT,
-                difficulty, null, null, null, null);
+        return new UpgradeDetails(null, "Cold showers", null, UpgradeType.HABIT, difficulty, null, null, null, null);
     }
 
     @Test
@@ -182,9 +186,18 @@ class UpgradeServiceTest {
     void GivenUpgradeDetails_WhenAnUpgradeIsCreated_ThenItIsStoredAsAnIdeaAndAnnounced() {
         when(repository.save(any(HealthUpgrade.class))).thenAnswer(call -> call.getArgument(0));
 
-        HealthUpgrade created = service.create(userId, new UpgradeDetails(
-                null, "Cold showers", "Every morning", UpgradeType.HABIT, Difficulty.MEDIUM,
-                null, null, "Wake up properly", "30 days straight"));
+        HealthUpgrade created = service.create(
+                userId,
+                new UpgradeDetails(
+                        null,
+                        "Cold showers",
+                        "Every morning",
+                        UpgradeType.HABIT,
+                        Difficulty.MEDIUM,
+                        null,
+                        null,
+                        "Wake up properly",
+                        "30 days straight"));
 
         assertThat(created.getStatus()).isEqualTo(UpgradeStatus.IDEA);
         assertThat(created.getUserId()).isEqualTo(userId);
@@ -200,8 +213,8 @@ class UpgradeServiceTest {
     void GivenDetailsMissingATitle_WhenAnUpgradeIsCreated_ThenNothingIsStoredOrAnnounced() {
         // The aggregate refuses it (BR-4); what this pins is that the refusal happens before the save,
         // so a rejected create leaves no row and no event behind.
-        assertThatThrownBy(() -> service.create(userId, new UpgradeDetails(
-                null, "  ", null, UpgradeType.HABIT, null, null, null, null, null)))
+        assertThatThrownBy(() -> service.create(
+                        userId, new UpgradeDetails(null, "  ", null, UpgradeType.HABIT, null, null, null, null, null)))
                 .isInstanceOf(BusinessRuleException.class);
 
         verify(repository, never()).save(any());
@@ -211,8 +224,8 @@ class UpgradeServiceTest {
     // ---- BR-18: an upgrade is filed only under the caller's own area ----
 
     private UpgradeDetails detailsInArea(UUID areaId) {
-        return new UpgradeDetails(areaId, "Cold showers", null, UpgradeType.HABIT,
-                Difficulty.MEDIUM, null, null, null, null);
+        return new UpgradeDetails(
+                areaId, "Cold showers", null, UpgradeType.HABIT, Difficulty.MEDIUM, null, null, null, null);
     }
 
     @Test
@@ -236,7 +249,8 @@ class UpgradeServiceTest {
         assertThatThrownBy(() -> service.create(userId, detailsInArea(foreignArea)))
                 .isInstanceOf(BusinessRuleException.class);
 
-        assertThat(auditTrail.recorded(AuditAction.UPGRADE_CREATE, AuditOutcome.REFUSED)).isTrue();
+        assertThat(auditTrail.recorded(AuditAction.UPGRADE_CREATE, AuditOutcome.REFUSED))
+                .isTrue();
     }
 
     @Test
@@ -359,9 +373,19 @@ class UpgradeServiceTest {
         when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.of(upgrade));
         when(repository.save(upgrade)).thenReturn(upgrade);
 
-        service.update(userId, upgradeId, new UpgradeDetails(
-                null, "Cold showers, shorter", "90 seconds", UpgradeType.HABIT, null,
-                null, null, "Still worth it", "21 days"));
+        service.update(
+                userId,
+                upgradeId,
+                new UpgradeDetails(
+                        null,
+                        "Cold showers, shorter",
+                        "90 seconds",
+                        UpgradeType.HABIT,
+                        null,
+                        null,
+                        null,
+                        "Still worth it",
+                        "21 days"));
 
         assertThat(upgrade.getTitle()).isEqualTo("Cold showers, shorter");
         assertThat(upgrade.getDescription()).isEqualTo("90 seconds");
@@ -397,8 +421,7 @@ class UpgradeServiceTest {
     void GivenAnUpgradeOwnedBySomebodyElse_WhenItIsDeleted_ThenNothingIsRemoved() {
         when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.delete(userId, upgradeId))
-                .isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> service.delete(userId, upgradeId)).isInstanceOf(ResourceNotFoundException.class);
 
         verify(repository, never()).delete(any());
     }
@@ -437,8 +460,7 @@ class UpgradeServiceTest {
         when(repository.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD))
                 .thenReturn(3L);
 
-        assertThatThrownBy(() -> service.activate(userId, upgradeId, null))
-                .isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> service.activate(userId, upgradeId, null)).isInstanceOf(BusinessRuleException.class);
 
         assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.PLANNED);
         verify(repository, never()).save(any());
@@ -464,8 +486,7 @@ class UpgradeServiceTest {
         HealthUpgrade upgrade = upgradeWith(UpgradeStatus.COMPLETED, Difficulty.EASY);
         when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.of(upgrade));
 
-        assertThatThrownBy(() -> service.pause(userId, upgradeId))
-                .isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> service.pause(userId, upgradeId)).isInstanceOf(BusinessRuleException.class);
 
         verify(repository, never()).save(any());
         verify(eventPublisher, never()).publish(any());
@@ -500,8 +521,8 @@ class UpgradeServiceTest {
 
         service.complete(userId, upgradeId);
 
-        assertThat(auditTrail.only(AuditAction.UPGRADE_COMPLETE)).hasValue(
-                new AuditEvent(AuditAction.UPGRADE_COMPLETE, userId, upgradeId, AuditOutcome.ALLOWED));
+        assertThat(auditTrail.only(AuditAction.UPGRADE_COMPLETE))
+                .hasValue(new AuditEvent(AuditAction.UPGRADE_COMPLETE, userId, upgradeId, AuditOutcome.ALLOWED));
     }
 
     @Test
@@ -511,11 +532,10 @@ class UpgradeServiceTest {
         when(repository.findByIdAndUserId(upgradeId, userId))
                 .thenReturn(Optional.of(upgradeWith(UpgradeStatus.COMPLETED, Difficulty.EASY)));
 
-        assertThatThrownBy(() -> service.pause(userId, upgradeId))
-                .isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> service.pause(userId, upgradeId)).isInstanceOf(BusinessRuleException.class);
 
-        assertThat(auditTrail.only(AuditAction.UPGRADE_PAUSE)).hasValue(
-                new AuditEvent(AuditAction.UPGRADE_PAUSE, userId, upgradeId, AuditOutcome.REFUSED));
+        assertThat(auditTrail.only(AuditAction.UPGRADE_PAUSE))
+                .hasValue(new AuditEvent(AuditAction.UPGRADE_PAUSE, userId, upgradeId, AuditOutcome.REFUSED));
     }
 
     @Test
@@ -524,10 +544,10 @@ class UpgradeServiceTest {
         // the only place that records somebody having reached for a record that was not theirs.
         when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.delete(userId, upgradeId))
-                .isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> service.delete(userId, upgradeId)).isInstanceOf(ResourceNotFoundException.class);
 
-        assertThat(auditTrail.recorded(AuditAction.UPGRADE_DELETE, AuditOutcome.REFUSED)).isTrue();
+        assertThat(auditTrail.recorded(AuditAction.UPGRADE_DELETE, AuditOutcome.REFUSED))
+                .isTrue();
     }
 
     // ---- NFR-15: an announcement is timed by the injected clock ----
@@ -542,14 +562,19 @@ class UpgradeServiceTest {
     static Stream<Arguments> everyUseCaseThatAnnounces() {
         LocalDate date = LocalDate.of(2026, 4, 1);
         return Stream.of(
-                Arguments.of("create", null, (AnnouncingUseCase) (s, user, id) -> s.create(user,
-                        new UpgradeDetails(null, "Cold showers", null, UpgradeType.HABIT, null, null, null, null, null))),
+                Arguments.of("create", null, (AnnouncingUseCase) (s, user, id) -> s.create(
+                        user,
+                        new UpgradeDetails(
+                                null, "Cold showers", null, UpgradeType.HABIT, null, null, null, null, null))),
                 Arguments.of("plan", UpgradeStatus.IDEA, (AnnouncingUseCase) (s, user, id) -> s.plan(user, id, date)),
-                Arguments.of("activate", UpgradeStatus.PLANNED, (AnnouncingUseCase) (s, user, id) -> s.activate(user, id, null)),
+                Arguments.of("activate", UpgradeStatus.PLANNED, (AnnouncingUseCase)
+                        (s, user, id) -> s.activate(user, id, null)),
                 Arguments.of("pause", UpgradeStatus.ACTIVE, (AnnouncingUseCase) (s, user, id) -> s.pause(user, id)),
-                Arguments.of("complete", UpgradeStatus.ACTIVE, (AnnouncingUseCase) (s, user, id) -> s.complete(user, id)),
+                Arguments.of(
+                        "complete", UpgradeStatus.ACTIVE, (AnnouncingUseCase) (s, user, id) -> s.complete(user, id)),
                 Arguments.of("abandon", UpgradeStatus.ACTIVE, (AnnouncingUseCase) (s, user, id) -> s.abandon(user, id)),
-                Arguments.of("reschedule", UpgradeStatus.ABANDONED, (AnnouncingUseCase) (s, user, id) -> s.reschedule(user, id, date)));
+                Arguments.of("reschedule", UpgradeStatus.ABANDONED, (AnnouncingUseCase)
+                        (s, user, id) -> s.reschedule(user, id, date)));
     }
 
     @ParameterizedTest(name = "{0}")

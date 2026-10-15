@@ -1,10 +1,9 @@
 package com.healthupgrades.healtharea.domain.model;
 
 import jakarta.persistence.*;
-import lombok.*;
-
 import java.time.LocalDateTime;
 import java.util.UUID;
+import lombok.*;
 
 /**
  * Health area aggregate — a user-defined grouping ("Fitness", "Sleep") that upgrades are filed under.

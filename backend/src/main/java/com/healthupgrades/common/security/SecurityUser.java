@@ -2,14 +2,13 @@ package com.healthupgrades.common.security;
 
 import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User;
+import java.util.Collection;
+import java.util.List;
+import java.util.UUID;
 import org.springframework.security.core.CredentialsContainer;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
-
-import java.util.Collection;
-import java.util.List;
-import java.util.UUID;
 
 /**
  * Spring Security principal that carries the essential identity of an authenticated user (id, email,
@@ -48,8 +47,8 @@ public class SecurityUser implements UserDetails, CredentialsContainer {
      * @return a principal carrying the account's id, email and password hash
      */
     public static SecurityUser from(User user) {
-        return new SecurityUser(user.getId(), user.getEmail(), user.getPasswordHash(),
-                user.getRole(), user.isEnabled());
+        return new SecurityUser(
+                user.getId(), user.getEmail(), user.getPasswordHash(), user.getRole(), user.isEnabled());
     }
 
     /** The authenticated user's id — controllers thread this through as the owner id. */

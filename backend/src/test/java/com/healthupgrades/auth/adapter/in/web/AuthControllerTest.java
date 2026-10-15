@@ -1,34 +1,10 @@
 package com.healthupgrades.auth.adapter.in.web;
 
-import com.healthupgrades.auth.application.AuthResult;
-import com.healthupgrades.auth.application.AuthService;
-import com.healthupgrades.auth.application.RefreshOutcome;
-import com.healthupgrades.auth.application.SessionGrant;
-import com.healthupgrades.auth.application.port.in.SessionCommand;
-import com.healthupgrades.common.domain.exception.BusinessRuleException;
-import com.healthupgrades.common.security.JwtAuthenticationFilter;
-import com.healthupgrades.common.security.BearerTokenAuthenticator;
-import com.healthupgrades.common.security.SecurityConfig;
-import com.healthupgrades.common.security.UserDetailsServiceImpl;
-import com.healthupgrades.support.AUser;
-import com.healthupgrades.support.WebSliceSupport;
-import com.healthupgrades.user.domain.model.User;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.context.annotation.Import;
-import jakarta.servlet.http.Cookie;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.test.web.servlet.MockMvc;
-
-import java.time.Duration;
-import java.time.Instant;
-import java.util.UUID;
-
 import static com.healthupgrades.support.WebSliceSupport.bearer;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -36,14 +12,37 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.healthupgrades.auth.application.AuthResult;
+import com.healthupgrades.auth.application.AuthService;
+import com.healthupgrades.auth.application.RefreshOutcome;
+import com.healthupgrades.auth.application.SessionGrant;
+import com.healthupgrades.auth.application.port.in.SessionCommand;
+import com.healthupgrades.common.domain.exception.BusinessRuleException;
+import com.healthupgrades.common.security.BearerTokenAuthenticator;
+import com.healthupgrades.common.security.JwtAuthenticationFilter;
+import com.healthupgrades.common.security.SecurityConfig;
+import com.healthupgrades.common.security.UserDetailsServiceImpl;
+import com.healthupgrades.support.AUser;
+import com.healthupgrades.support.WebSliceSupport;
+import com.healthupgrades.user.domain.model.User;
+import jakarta.servlet.http.Cookie;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
 
 /**
  * The HTTP contract of the three endpoints a session begins and resumes through: FR-1 (register),
@@ -59,8 +58,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 // The limit is raised out of the way: this class signs in and registers more than ten times, and
 // the rate limit is not what it is testing. RateLimitedSignInTest owns that.
 @WebMvcTest(value = AuthController.class, properties = "app.rate-limit.limit=1000000")
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class,
-        WebSliceSupport.class})
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class, WebSliceSupport.class})
 class AuthControllerTest {
 
     /** A grant whose credential is recognisable in an assertion about the cookie it lands in. */
@@ -77,12 +75,20 @@ class AuthControllerTest {
     /** The cookie the browser would be holding when it calls refresh or logout. */
     private static final Cookie PRESENTED = new Cookie("refresh_token", GRANT.refreshToken());
 
-    @Autowired MockMvc mockMvc;
+    @Autowired
+    MockMvc mockMvc;
 
-    @MockitoBean AuthService authService;
-    @MockitoBean SessionCommand sessions;
-    @MockitoBean BearerTokenAuthenticator authenticator;
-    @MockitoBean UserDetailsServiceImpl userDetailsService;
+    @MockitoBean
+    AuthService authService;
+
+    @MockitoBean
+    SessionCommand sessions;
+
+    @MockitoBean
+    BearerTokenAuthenticator authenticator;
+
+    @MockitoBean
+    UserDetailsServiceImpl userDetailsService;
 
     @Test
     void GivenValidRegistrationDetails_WhenAVisitorRegisters_ThenItAnswers201WithATokenAndTheirProfile()
@@ -101,8 +107,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void GivenAnEmailThatIsNotAnEmail_WhenAVisitorRegisters_ThenItAnswers400AndNobodyIsRegistered()
-            throws Exception {
+    void GivenAnEmailThatIsNotAnEmail_WhenAVisitorRegisters_ThenItAnswers400AndNobodyIsRegistered() throws Exception {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Someone\",\"email\":\"not-an-email\",\"password\":\"s3cret!42\"}"))
@@ -140,8 +145,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void GivenAPasswordBelowTheMinimum_WhenAVisitorRegisters_ThenItAnswers400AndNobodyIsRegistered()
-            throws Exception {
+    void GivenAPasswordBelowTheMinimum_WhenAVisitorRegisters_ThenItAnswers400AndNobodyIsRegistered() throws Exception {
         // The browser has always asked for a minimum and the API never did, so any caller that was not
         // the frontend could register a one-character password. BR-17.
         mockMvc.perform(post("/api/auth/register")
@@ -161,7 +165,8 @@ class AuthControllerTest {
 
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\"" + "x".repeat(AuthController.PASSWORD_MIN) + "\"}"))
+                        .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\""
+                                + "x".repeat(AuthController.PASSWORD_MIN) + "\"}"))
                 .andExpect(status().isCreated());
     }
 
@@ -267,9 +272,11 @@ class AuthControllerTest {
         when(authService.register(anyString(), anyString(), anyString()))
                 .thenReturn(new AuthResult("issued.jwt.token", EXPIRES_AT, aUser(), GRANT));
 
-        mockMvc.perform(post("/api/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Someone\",\"email\":\" SomeOne@Example.COM \",\"password\":\"s3cret!42\"}"))
+        mockMvc.perform(
+                        post("/api/auth/register")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        "{\"name\":\"Someone\",\"email\":\" SomeOne@Example.COM \",\"password\":\"s3cret!42\"}"))
                 .andExpect(status().isCreated());
 
         verify(authService).register("Someone", AUser.EMAIL, "s3cret!42");
@@ -302,19 +309,17 @@ class AuthControllerTest {
     }
 
     @Test
-    void GivenCredentialsThatDoNotMatch_WhenAUserLogsIn_ThenTheResponseDoesNotSayWhichHalfWasWrong()
-            throws Exception {
+    void GivenCredentialsThatDoNotMatch_WhenAUserLogsIn_ThenTheResponseDoesNotSayWhichHalfWasWrong() throws Exception {
         // Telling a caller that the email exists but the password is wrong is free information for
         // someone enumerating accounts.
-        when(authService.login(anyString(), anyString()))
-                .thenThrow(new BadCredentialsException("Bad credentials"));
+        when(authService.login(anyString(), anyString())).thenThrow(new BadCredentialsException("Bad credentials"));
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"someone@example.com\",\"password\":\"wrong\"}"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("password"))));
+                .andExpect(jsonPath("$.message")
+                        .value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("password"))));
     }
 
     @Test
@@ -333,15 +338,13 @@ class AuthControllerTest {
     void GivenNoToken_WhenTheSessionIsRestored_ThenItIsRefusedRatherThanAnswered() throws Exception {
         // The regression this class exists to hold: /me sat behind a blanket /api/auth/** permitAll and
         // answered 500 from a null principal instead of refusing the request.
-        mockMvc.perform(get("/api/auth/me"))
-                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
 
         verify(authService, never()).getMe(any());
     }
 
     @Test
-    void GivenASuccessfulSignIn_WhenTheResponseIsRead_ThenTheCredentialIsInACookieScriptCannotTouch()
-            throws Exception {
+    void GivenASuccessfulSignIn_WhenTheResponseIsRead_ThenTheCredentialIsInACookieScriptCannotTouch() throws Exception {
         // The split the whole design rests on: the short-lived access token goes in the body for the
         // client to hold in memory, and the long-lived credential goes somewhere script cannot read.
         // If this cookie ever loses HttpOnly, injected script can take a credential that outlives the
@@ -357,18 +360,17 @@ class AuthControllerTest {
                 .andExpect(cookie().httpOnly("refresh_token", true))
                 .andExpect(cookie().secure("refresh_token", true))
                 .andExpect(cookie().path("refresh_token", "/api/auth"))
-                .andExpect(cookie().maxAge("refresh_token", (int) Duration.ofDays(30).toSeconds()))
+                .andExpect(cookie().maxAge(
+                                "refresh_token", (int) Duration.ofDays(30).toSeconds()))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("SameSite=Strict")))
                 .andExpect(jsonPath("$.accessToken").value("issued.jwt.token"));
     }
 
     @Test
-    void GivenTheCurrentCredential_WhenItIsRefreshed_ThenItAnswers200WithANewTokenAndANewCookie()
-            throws Exception {
-        SessionGrant rotated = new SessionGrant(GRANT.sessionId(),
-                GRANT.sessionId() + ".a-newer-secret", GRANT.expiresAt());
-        when(sessions.refresh(GRANT.refreshToken()))
-                .thenReturn(new RefreshOutcome.Rotated(USER_ID, rotated));
+    void GivenTheCurrentCredential_WhenItIsRefreshed_ThenItAnswers200WithANewTokenAndANewCookie() throws Exception {
+        SessionGrant rotated =
+                new SessionGrant(GRANT.sessionId(), GRANT.sessionId() + ".a-newer-secret", GRANT.expiresAt());
+        when(sessions.refresh(GRANT.refreshToken())).thenReturn(new RefreshOutcome.Rotated(USER_ID, rotated));
         when(authService.continueSession(USER_ID, rotated))
                 .thenReturn(new AuthResult("a.newer.token", EXPIRES_AT, aUser(), rotated));
 
@@ -386,20 +388,17 @@ class AuthControllerTest {
         // The half of the CSRF defence that SameSite does not cover. A cross-site form post can never
         // set a header, so the absence of one is the refusal - and it happens before any session is
         // read, which is why the verify below matters as much as the status.
-        mockMvc.perform(post("/api/auth/refresh").cookie(PRESENTED))
-                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/auth/refresh").cookie(PRESENTED)).andExpect(status().isBadRequest());
 
         verify(sessions, never()).refresh(any());
     }
 
     @Test
-    void GivenNoCookieAtAll_WhenARefreshIsAttempted_ThenItAnswers401WithoutConsultingTheSessions()
-            throws Exception {
+    void GivenNoCookieAtAll_WhenARefreshIsAttempted_ThenItAnswers401WithoutConsultingTheSessions() throws Exception {
         // Every signed-out page load asks once whether there is a session to renew. Nothing was presented,
         // so there is no session to ask about and no attempt to audit (NFR-23): an entry per anonymous
         // visit would bury the refusals worth reading.
-        mockMvc.perform(post("/api/auth/refresh")
-                        .header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest"))
+        mockMvc.perform(post("/api/auth/refresh").header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401));
 
@@ -408,8 +407,7 @@ class AuthControllerTest {
 
     @Test
     void GivenNoRequestedWithHeader_WhenASignOutIsAttempted_ThenItIsRefusedAs400() throws Exception {
-        mockMvc.perform(post("/api/auth/logout").cookie(PRESENTED))
-                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/auth/logout").cookie(PRESENTED)).andExpect(status().isBadRequest());
 
         verify(sessions, never()).revoke(any());
     }
@@ -441,8 +439,9 @@ class AuthControllerTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(cookie().maxAge("refresh_token", 0))
-                .andExpect(header().string(HttpHeaders.SET_COOKIE,
-                        allOf(containsString("HttpOnly"), not(containsString("a-secret")))));
+                .andExpect(header().string(
+                                HttpHeaders.SET_COOKIE,
+                                allOf(containsString("HttpOnly"), not(containsString("a-secret")))));
     }
 
     @Test
@@ -460,8 +459,7 @@ class AuthControllerTest {
     void GivenNoCookieAtAll_WhenASignOutIsAttempted_ThenItStillAnswers204() throws Exception {
         // Signing out is idempotent from the caller side. Saying the credential was already dead gives
         // it nothing to do differently, and would let an anonymous caller probe session ids.
-        mockMvc.perform(post("/api/auth/logout")
-                        .header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest"))
+        mockMvc.perform(post("/api/auth/logout").header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest"))
                 .andExpect(status().isNoContent());
 
         verify(sessions, never()).revoke(any());

@@ -1,22 +1,21 @@
 package com.healthupgrades.user.adapter.out.persistence;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.PostgresIT;
 import com.healthupgrades.user.domain.model.EmailAlreadyRegisteredException;
 import com.healthupgrades.user.domain.model.User;
 import com.healthupgrades.user.domain.port.out.UserRepositoryPort;
 import jakarta.persistence.PersistenceException;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
-
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * FR-4 as the database enforces it: one address, one account, however it was typed.
@@ -37,35 +36,45 @@ class UserPersistenceIT extends PostgresIT {
 
     /** Fixed so their order under the {@code id} tie-break is known in advance: A &lt; B &lt; C &lt; D. */
     private static final UUID A = UUID.fromString("00000000-0000-0000-0000-00000000000a");
+
     private static final UUID B = UUID.fromString("00000000-0000-0000-0000-00000000000b");
     private static final UUID C = UUID.fromString("00000000-0000-0000-0000-00000000000c");
     private static final UUID D = UUID.fromString("00000000-0000-0000-0000-00000000000d");
 
-    @Autowired UserRepositoryPort repository;
-    @Autowired TestEntityManager entityManager;
+    @Autowired
+    UserRepositoryPort repository;
+
+    @Autowired
+    TestEntityManager entityManager;
 
     @Test
     void GivenAnEmailWithCapitals_WhenInsertedBehindTheApplication_ThenTheDatabaseRefusesIt() {
-        assertThatThrownBy(() -> entityManager.getEntityManager().createNativeQuery(
-                        "INSERT INTO users (name, email, password_hash) VALUES ('Someone', 'Someone@Example.com', 'x')")
-                .executeUpdate())
+        assertThatThrownBy(() -> entityManager
+                        .getEntityManager()
+                        .createNativeQuery(
+                                "INSERT INTO users (name, email, password_hash) VALUES ('Someone', 'Someone@Example.com', 'x')")
+                        .executeUpdate())
                 .isInstanceOf(PersistenceException.class)
                 .hasStackTraceContaining("users_email_normalised");
     }
 
     @Test
     void GivenAnEmailWithSurroundingSpaces_WhenInsertedBehindTheApplication_ThenTheDatabaseRefusesIt() {
-        assertThatThrownBy(() -> entityManager.getEntityManager().createNativeQuery(
-                        "INSERT INTO users (name, email, password_hash) VALUES ('Someone', ' someone@example.com', 'x')")
-                .executeUpdate())
+        assertThatThrownBy(() -> entityManager
+                        .getEntityManager()
+                        .createNativeQuery(
+                                "INSERT INTO users (name, email, password_hash) VALUES ('Someone', ' someone@example.com', 'x')")
+                        .executeUpdate())
                 .isInstanceOf(PersistenceException.class)
                 .hasStackTraceContaining("users_email_normalised");
     }
 
     @Test
     void GivenAMixedCaseEmail_WhenTheEntityIsPersisted_ThenItIsStoredNormalised() {
-        UUID id = entityManager.persistAndFlush(
-                AUser.aUser().id(null).email(" Mixed@Example.COM ").build()).getId();
+        UUID id = entityManager
+                .persistAndFlush(
+                        AUser.aUser().id(null).email(" Mixed@Example.COM ").build())
+                .getId();
         entityManager.clear();
 
         assertThat(entityManager.find(User.class, id).getEmail()).isEqualTo("mixed@example.com");
@@ -75,10 +84,11 @@ class UserPersistenceIT extends PostgresIT {
     void GivenAnAddressAlreadyHeld_WhenAnotherUserIsRegistered_ThenTheDuplicateIsReportedInsideTheCall() {
         // The flush is the point: without it the violation is raised at commit, after the registering
         // method has returned, where nothing can translate it and the caller receives a 500.
-        entityManager.persistAndFlush(AUser.aUser().id(null).email("taken@example.com").build());
+        entityManager.persistAndFlush(
+                AUser.aUser().id(null).email("taken@example.com").build());
 
         assertThatThrownBy(() -> repository.saveAndFlush(
-                AUser.aUser().id(null).email("taken@example.com").build()))
+                        AUser.aUser().id(null).email("taken@example.com").build()))
                 .isInstanceOf(EmailAlreadyRegisteredException.class)
                 .hasMessageNotContaining("taken@example.com");
     }
@@ -110,9 +120,10 @@ class UserPersistenceIT extends PostgresIT {
     }
 
     private void insertUser(UUID id, String createdAt) {
-        entityManager.getEntityManager().createNativeQuery(
-                        "INSERT INTO users (id, name, email, password_hash, created_at) "
-                                + "VALUES (CAST(?1 AS uuid), 'Someone', ?2, 'x', CAST(?3 AS timestamp))")
+        entityManager
+                .getEntityManager()
+                .createNativeQuery("INSERT INTO users (id, name, email, password_hash, created_at) "
+                        + "VALUES (CAST(?1 AS uuid), 'Someone', ?2, 'x', CAST(?3 AS timestamp))")
                 .setParameter(1, id.toString())
                 .setParameter(2, id + "@example.com")
                 .setParameter(3, createdAt)

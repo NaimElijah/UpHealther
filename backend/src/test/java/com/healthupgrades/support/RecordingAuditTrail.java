@@ -4,7 +4,6 @@ import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -35,7 +34,8 @@ public class RecordingAuditTrail implements AuditTrail {
 
     /** The only event recorded for {@code action}, or empty when there is none. */
     public Optional<AuditEvent> only(AuditAction action) {
-        List<AuditEvent> matches = recorded.stream().filter(e -> e.action() == action).toList();
+        List<AuditEvent> matches =
+                recorded.stream().filter(e -> e.action() == action).toList();
         if (matches.size() > 1) {
             throw new AssertionError(action + " was recorded " + matches.size() + " times, expected at most one");
         }

@@ -1,10 +1,10 @@
 package com.healthupgrades.common.observability;
 
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import org.junit.jupiter.api.Test;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.Test;
 
 /**
  * Pins the two meters that make scheduled work visible.
@@ -30,14 +30,20 @@ class JobMetricsTest {
 
         assertThat(ran).hasToString("swept");
         assertThat(runs("ok")).isEqualTo(1);
-        assertThat(meterRegistry.get("scheduled.job.duration").tag("job", JOB).timer().count()).isEqualTo(1);
+        assertThat(meterRegistry
+                        .get("scheduled.job.duration")
+                        .tag("job", JOB)
+                        .timer()
+                        .count())
+                .isEqualTo(1);
     }
 
     @Test
     void GivenAJobThatThrows_WhenItIsTimed_ThenItIsCountedAsFailedAndTheFaultStillEscapes() {
         assertThatThrownBy(() -> jobMetrics.timed(JOB, () -> {
-            throw new IllegalStateException("the query blew up");
-        })).isInstanceOf(IllegalStateException.class);
+                    throw new IllegalStateException("the query blew up");
+                }))
+                .isInstanceOf(IllegalStateException.class);
 
         assertThat(runs("failed")).isEqualTo(1);
         assertThat(runs("ok")).isZero();
@@ -47,10 +53,16 @@ class JobMetricsTest {
     void GivenAJobThatThrows_WhenItIsTimed_ThenItsDurationIsStillRecorded() {
         // A run that failed after thirty seconds is exactly the run worth knowing the duration of.
         assertThatThrownBy(() -> jobMetrics.timed(JOB, () -> {
-            throw new IllegalStateException("the query blew up");
-        })).isInstanceOf(IllegalStateException.class);
+                    throw new IllegalStateException("the query blew up");
+                }))
+                .isInstanceOf(IllegalStateException.class);
 
-        assertThat(meterRegistry.get("scheduled.job.duration").tag("job", JOB).timer().count()).isEqualTo(1);
+        assertThat(meterRegistry
+                        .get("scheduled.job.duration")
+                        .tag("job", JOB)
+                        .timer()
+                        .count())
+                .isEqualTo(1);
     }
 
     @Test
@@ -62,8 +74,9 @@ class JobMetricsTest {
         // zero while the sweep has not worked in a week. Nobody is answered with a 500 by a scheduled
         // job, so that counter is the only signal there is.
         assertThatThrownBy(() -> jobMetrics.timed(JOB, () -> {
-            throw new NoClassDefFoundError("com/example/Gone");
-        })).isInstanceOf(NoClassDefFoundError.class);
+                    throw new NoClassDefFoundError("com/example/Gone");
+                }))
+                .isInstanceOf(NoClassDefFoundError.class);
 
         assertThat(runs("failed")).isEqualTo(1);
         assertThat(runs("ok")).isZero();
@@ -71,17 +84,22 @@ class JobMetricsTest {
 
     @Test
     void GivenTwoJobs_WhenBothAreTimed_ThenTheirCountsAreSeparate() {
-        jobMetrics.timed(JOB, () -> { });
-        jobMetrics.timed("notification.reminder-dispatch", () -> { });
+        jobMetrics.timed(JOB, () -> {});
+        jobMetrics.timed("notification.reminder-dispatch", () -> {});
 
         assertThat(runs("ok")).isEqualTo(1);
-        assertThat(meterRegistry.get("scheduled.job.runs")
-                .tag("job", "notification.reminder-dispatch").tag("outcome", "ok").counter().count()).isEqualTo(1);
+        assertThat(meterRegistry
+                        .get("scheduled.job.runs")
+                        .tag("job", "notification.reminder-dispatch")
+                        .tag("outcome", "ok")
+                        .counter()
+                        .count())
+                .isEqualTo(1);
     }
 
     @Test
     void GivenAnyRun_WhenItIsCounted_ThenTheOnlyTagsAreTheJobAndTheOutcome() {
-        jobMetrics.timed(JOB, () -> { });
+        jobMetrics.timed(JOB, () -> {});
 
         assertThat(meterRegistry.get("scheduled.job.runs").counter().getId().getTags())
                 .extracting("key")
@@ -89,8 +107,8 @@ class JobMetricsTest {
     }
 
     private double runs(String outcome) {
-        return meterRegistry.find("scheduled.job.runs")
-                .tag("job", JOB).tag("outcome", outcome).counters().stream()
-                .mapToDouble(io.micrometer.core.instrument.Counter::count).sum();
+        return meterRegistry.find("scheduled.job.runs").tag("job", JOB).tag("outcome", outcome).counters().stream()
+                .mapToDouble(io.micrometer.core.instrument.Counter::count)
+                .sum();
     }
 }

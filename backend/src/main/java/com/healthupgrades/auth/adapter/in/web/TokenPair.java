@@ -1,7 +1,6 @@
 package com.healthupgrades.auth.adapter.in.web;
 
 import com.healthupgrades.user.adapter.in.web.UserDto; // reused published presentation model
-
 import java.time.Instant;
 
 /**

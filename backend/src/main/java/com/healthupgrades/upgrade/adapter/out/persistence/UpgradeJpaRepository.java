@@ -4,11 +4,10 @@ import com.healthupgrades.upgrade.domain.model.Difficulty; // query filter
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // managed entity
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus; // query filter
 import com.healthupgrades.upgrade.domain.model.UpgradeType; // query filter
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
  * Spring Data JPA repository backing {@link UpgradeRepositoryAdapter}.
@@ -18,11 +17,18 @@ import java.util.UUID;
  */
 interface UpgradeJpaRepository extends JpaRepository<HealthUpgrade, UUID> {
     List<HealthUpgrade> findByUserId(UUID userId); // derived query: all of a user's upgrades
+
     Optional<HealthUpgrade> findByIdAndUserId(UUID id, UUID userId); // derived query: ownership-scoped lookup
+
     List<HealthUpgrade> findByStatus(UpgradeStatus status); // derived query: cross-user by status
+
     List<HealthUpgrade> findByUserIdAndStatus(UUID userId, UpgradeStatus status); // derived query
+
     List<HealthUpgrade> findByUserIdAndType(UUID userId, UpgradeType type); // derived query
+
     List<HealthUpgrade> findByUserIdAndAreaId(UUID userId, UUID areaId); // derived query
+
     List<HealthUpgrade> findByUserIdAndDifficulty(UUID userId, Difficulty difficulty); // derived query
+
     long countByUserIdAndStatusAndDifficulty(UUID userId, UpgradeStatus status, Difficulty difficulty); // derived count
 }

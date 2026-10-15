@@ -3,14 +3,13 @@ package com.healthupgrades.notification.adapter.out.persistence;
 import com.healthupgrades.notification.domain.model.Notification; // domain aggregate
 import com.healthupgrades.notification.domain.model.NotificationType; // dedup-guard parameter
 import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort; // the port implemented here
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
 /**
  * Persistence adapter implementing {@link NotificationRepositoryPort} by delegating to Spring Data JPA.
@@ -47,8 +46,8 @@ class NotificationRepositoryAdapter implements NotificationRepositoryPort {
 
     /** {@inheritDoc} */
     @Override
-    public boolean existsForUpgradeSince(UUID userId, UUID relatedUpgradeId, NotificationType type,
-                                         LocalDateTime since) {
+    public boolean existsForUpgradeSince(
+            UUID userId, UUID relatedUpgradeId, NotificationType type, LocalDateTime since) {
         return jpa.existsByUserIdAndRelatedUpgradeIdAndTypeAndCreatedAtGreaterThanEqual(
                 userId, relatedUpgradeId, type, since);
     }

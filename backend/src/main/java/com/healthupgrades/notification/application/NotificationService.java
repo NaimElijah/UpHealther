@@ -6,18 +6,17 @@ import com.healthupgrades.notification.domain.model.NotificationCategory;
 import com.healthupgrades.notification.domain.model.NotificationType;
 import com.healthupgrades.notification.domain.port.out.NotificationPushPort;
 import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
-
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Application service for notifications: persistence, reads, and coordinating the real-time push.
@@ -39,8 +38,13 @@ public class NotificationService {
      * by both the event listener and the scheduler.
      */
     @Transactional
-    public Notification create(UUID userId, NotificationType type, NotificationCategory category,
-                               String title, String message, UUID relatedUpgradeId) {
+    public Notification create(
+            UUID userId,
+            NotificationType type,
+            NotificationCategory category,
+            String title,
+            String message,
+            UUID relatedUpgradeId) {
         Notification notification = repository.save(Notification.builder()
                 .userId(userId)
                 .type(type)
@@ -81,10 +85,14 @@ public class NotificationService {
      *         transaction rolls back and nothing is pushed
      */
     @Transactional
-    public Optional<Notification> createUnlessNotifiedSince(UUID userId, NotificationType type,
-                                                            NotificationCategory category, String title,
-                                                            Supplier<String> message, UUID relatedUpgradeId,
-                                                            LocalDateTime since) {
+    public Optional<Notification> createUnlessNotifiedSince(
+            UUID userId,
+            NotificationType type,
+            NotificationCategory category,
+            String title,
+            Supplier<String> message,
+            UUID relatedUpgradeId,
+            LocalDateTime since) {
         if (repository.existsForUpgradeSince(userId, relatedUpgradeId, type, since)) {
             return Optional.empty();
         }
@@ -145,7 +153,8 @@ public class NotificationService {
      */
     @Transactional
     public Notification markRead(UUID userId, UUID id) {
-        Notification notification = repository.findByIdAndUserId(id, userId)
+        Notification notification = repository
+                .findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Notification not found: " + id));
         notification.markAsRead();
         return repository.save(notification);
@@ -163,5 +172,4 @@ public class NotificationService {
     public void markAllRead(UUID userId) {
         repository.markAllReadForUser(userId);
     }
-
 }

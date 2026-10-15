@@ -65,12 +65,13 @@ public class RateLimitInterceptor implements HandlerInterceptor {
      */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        FixedWindowRateLimiter.Decision decision =
-                limiter.check(ClientAddressKey.of(request.getRemoteAddr()));
+        FixedWindowRateLimiter.Decision decision = limiter.check(ClientAddressKey.of(request.getRemoteAddr()));
         if (decision.allowed()) {
             return true;
         }
-        meterRegistry.counter(REFUSALS, "endpoint", endpointTag(request.getRequestURI())).increment();
+        meterRegistry
+                .counter(REFUSALS, "endpoint", endpointTag(request.getRequestURI()))
+                .increment();
         throw new TooManyRequestsException(decision.retryAfter());
     }
 }

@@ -140,13 +140,21 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
 
   const submitReschedule = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newDate) { setDateCheck('Pick a start date.'); return; }
-    if (!isFourDigitYearDate(newDate)) { setDateCheck('Pick a date with a four-digit year.'); return; }
+    if (!newDate) {
+      setDateCheck('Pick a start date.');
+      return;
+    }
+    if (!isFourDigitYearDate(newDate)) {
+      setDateCheck('Pick a date with a four-digit year.');
+      return;
+    }
     setDateCheck('');
     rescheduleMutation.mutate(newDate, { onSuccess: () => setRescheduleOpen(false) });
   };
 
-  const rescheduleRefusal = rescheduleMutation.error ? toFormMessage(toApiError(rescheduleMutation.error), 'newDate') : undefined;
+  const rescheduleRefusal = rescheduleMutation.error
+    ? toFormMessage(toApiError(rescheduleMutation.error), 'newDate')
+    : undefined;
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const deleteMutation = useMutation({
@@ -183,7 +191,10 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
 
   const submitEdit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editForm.title.trim()) { setEditCheck({ title: 'Title is required.' }); return; }
+    if (!editForm.title.trim()) {
+      setEditCheck({ title: 'Title is required.' });
+      return;
+    }
     if (editForm.targetEndDate && !isFourDigitYearDate(editForm.targetEndDate)) {
       setEditCheck({ targetEnd: 'Pick a date with a four-digit year.' });
       return;
@@ -197,21 +208,31 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
   return (
     <>
       <div className="mt-4 flex flex-wrap gap-2 border-t border-line-subtle pt-4">
-        <Button size="sm" variant="secondary" onClick={openEdit}>Edit Upgrade</Button>
+        <Button size="sm" variant="secondary" onClick={openEdit}>
+          Edit Upgrade
+        </Button>
         {RESCHEDULABLE.includes(upgrade.status) && (
-          <Button ref={rescheduleButton} size="sm" variant="secondary" onClick={openReschedule}>Reschedule</Button>
+          <Button ref={rescheduleButton} size="sm" variant="secondary" onClick={openReschedule}>
+            Reschedule
+          </Button>
         )}
         {ABANDONABLE.includes(upgrade.status) && (
-          <Button size="sm" variant="secondary" onClick={openAbandon}>Abandon</Button>
+          <Button size="sm" variant="secondary" onClick={openAbandon}>
+            Abandon
+          </Button>
         )}
-        <Button size="sm" variant="danger" onClick={openDelete}>Delete</Button>
+        <Button size="sm" variant="danger" onClick={openDelete}>
+          Delete
+        </Button>
       </div>
 
       <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Edit Upgrade">
         <form onSubmit={submitEdit} className="space-y-4">
           {/* Without it the picker offers "No area" alone, as though the upgrade had none (NFR-30). The
               area the upgrade has is still sent back unchanged. */}
-          {areasError && <ErrorState inline title="Your health areas could not be loaded." error={toApiError(areasError)} />}
+          {areasError && (
+            <ErrorState inline title="Your health areas could not be loaded." error={toApiError(areasError)} />
+          )}
           <UpgradeFormFields
             value={editForm}
             onChange={setEditForm}
@@ -220,8 +241,12 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
             targetEndError={editCheck.targetEnd}
           />
           <div className="flex gap-2 justify-end">
-            <Button variant="secondary" type="button" onClick={() => setEditOpen(false)}>Cancel</Button>
-            <Button type="submit" loading={editMutation.isPending}>Save</Button>
+            <Button variant="secondary" type="button" onClick={() => setEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={editMutation.isPending}>
+              Save
+            </Button>
           </div>
         </form>
       </Modal>
@@ -237,8 +262,12 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
             error={dateCheck || rescheduleRefusal}
           />
           <div className="flex gap-2 justify-end">
-            <Button variant="secondary" type="button" onClick={() => setRescheduleOpen(false)}>Cancel</Button>
-            <Button type="submit" loading={rescheduleMutation.isPending}>Reschedule</Button>
+            <Button variant="secondary" type="button" onClick={() => setRescheduleOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={rescheduleMutation.isPending}>
+              Reschedule
+            </Button>
           </div>
         </form>
       </Modal>
@@ -254,13 +283,20 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
           </div>
         )}
         <div className="flex gap-2 justify-end">
-          <Button variant="secondary" onClick={closeAbandon} disabled={abandonMutation.isPending}>Cancel</Button>
+          <Button variant="secondary" onClick={closeAbandon} disabled={abandonMutation.isPending}>
+            Cancel
+          </Button>
           <Button
             variant="danger"
             loading={abandonMutation.isPending}
-            onClick={() => abandonMutation.mutate(undefined, {
-              onSuccess: () => { setAbandonOpen(false); setFocusRescheduleNext(true); },
-            })}
+            onClick={() =>
+              abandonMutation.mutate(undefined, {
+                onSuccess: () => {
+                  setAbandonOpen(false);
+                  setFocusRescheduleNext(true);
+                },
+              })
+            }
           >
             Abandon
           </Button>
@@ -278,11 +314,15 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
           </div>
         )}
         <div className="flex gap-2 justify-end">
-          <Button variant="secondary" onClick={closeDelete} disabled={deleteMutation.isPending}>Cancel</Button>
+          <Button variant="secondary" onClick={closeDelete} disabled={deleteMutation.isPending}>
+            Cancel
+          </Button>
           <Button
             variant="danger"
             loading={deleteMutation.isPending}
-            onClick={() => deleteMutation.mutate(undefined, { onSuccess: () => navigate('/dashboard', { replace: true }) })}
+            onClick={() =>
+              deleteMutation.mutate(undefined, { onSuccess: () => navigate('/dashboard', { replace: true }) })
+            }
           >
             Delete
           </Button>

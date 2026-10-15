@@ -17,8 +17,7 @@ import java.util.Locale;
  */
 public final class EmailAddress {
 
-    private EmailAddress() {
-    }
+    private EmailAddress() {}
 
     /**
      * Normalises an address for storage and comparison.

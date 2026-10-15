@@ -1,5 +1,12 @@
 package com.healthupgrades.dashboard.application;
 
+import static java.util.Comparator.reverseOrder;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
+
 import com.healthupgrades.dashboard.application.port.in.DashboardView;
 import com.healthupgrades.healtharea.application.port.in.HealthAreaQuery;
 import com.healthupgrades.healtharea.domain.model.HealthArea;
@@ -9,14 +16,6 @@ import com.healthupgrades.tracking.domain.model.ProgressEntry;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -25,13 +24,13 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-
-import static java.util.Comparator.reverseOrder;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
  * Covers FR-27 — everything the dashboard shows in one request: which upgrade lands in which bucket, the
@@ -47,14 +46,24 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class DashboardAggregationServiceTest {
 
-    @Mock UpgradeQuery upgradeQuery;
-    @Mock ProgressQuery progressQuery;
-    @Mock StreakQuery streakQuery;
-    @Mock HealthAreaQuery healthAreaQuery;
-    @Captor ArgumentCaptor<Collection<UUID>> askedFor;
+    @Mock
+    UpgradeQuery upgradeQuery;
+
+    @Mock
+    ProgressQuery progressQuery;
+
+    @Mock
+    StreakQuery streakQuery;
+
+    @Mock
+    HealthAreaQuery healthAreaQuery;
+
+    @Captor
+    ArgumentCaptor<Collection<UUID>> askedFor;
 
     /** Fixed so the dashboard's "today" buckets are decided here, not by when the suite runs. */
     private final Clock fixedClock = Clock.fixed(Instant.parse("2026-03-15T09:00:00Z"), ZoneOffset.UTC);
+
     private final LocalDate today = LocalDate.of(2026, 3, 15);
 
     private DashboardAggregationService service;
@@ -63,8 +72,8 @@ class DashboardAggregationServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new DashboardAggregationService(upgradeQuery, progressQuery, streakQuery,
-                healthAreaQuery, fixedClock);
+        service =
+                new DashboardAggregationService(upgradeQuery, progressQuery, streakQuery, healthAreaQuery, fixedClock);
     }
 
     // A minimal upgrade with just the fields the aggregation reads.
@@ -138,10 +147,13 @@ class DashboardAggregationServiceTest {
     void GivenAnEntryWithNoCompletionVerdict_WhenTheRateIsComputed_ThenItCountsAsNotCompleted() {
         // An unscored entry — one on an upgrade with no tracking config — is not a success.
         ProgressEntry unscored = ProgressEntry.builder()
-                .id(UUID.randomUUID()).upgradeId(UUID.randomUUID()).userId(userId).date(today).build();
+                .id(UUID.randomUUID())
+                .upgradeId(UUID.randomUUID())
+                .userId(userId)
+                .date(today)
+                .build();
         when(upgradeQuery.findByUser(userId)).thenReturn(List.of());
-        when(progressQuery.findByUserIdAndDateBetween(any(), any(), any()))
-                .thenReturn(List.of(entry(true), unscored));
+        when(progressQuery.findByUserIdAndDateBetween(any(), any(), any())).thenReturn(List.of(entry(true), unscored));
         when(healthAreaQuery.listByUser(userId)).thenReturn(List.of());
 
         assertThat(service.getDashboard(userId).weeklyCompletionRate()).isEqualTo(50.0);
@@ -163,8 +175,12 @@ class DashboardAggregationServiceTest {
     @Test
     void GivenAnActiveUpgradePastItsTargetDate_WhenTheDashboardIsBuilt_ThenItIsListedAsOverdue() {
         HealthUpgrade overdue = HealthUpgrade.builder()
-                .id(UUID.randomUUID()).userId(userId).status(UpgradeStatus.ACTIVE)
-                .targetEndDate(today.minusDays(1)).updatedAt(today.atStartOfDay()).build();
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .status(UpgradeStatus.ACTIVE)
+                .targetEndDate(today.minusDays(1))
+                .updatedAt(today.atStartOfDay())
+                .build();
         stubEmptyExceptUpgrades(List.of(overdue));
 
         assertThat(service.getDashboard(userId).overdue()).containsExactly(overdue);
@@ -173,9 +189,13 @@ class DashboardAggregationServiceTest {
     @Test
     void GivenAnActiveUpgradeRunningToday_WhenTheDashboardIsBuilt_ThenItIsListedForToday() {
         HealthUpgrade running = HealthUpgrade.builder()
-                .id(UUID.randomUUID()).userId(userId).status(UpgradeStatus.ACTIVE)
-                .actualStartDate(today.minusDays(3)).targetEndDate(today.plusDays(3))
-                .updatedAt(today.atStartOfDay()).build();
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .status(UpgradeStatus.ACTIVE)
+                .actualStartDate(today.minusDays(3))
+                .targetEndDate(today.plusDays(3))
+                .updatedAt(today.atStartOfDay())
+                .build();
         stubEmptyExceptUpgrades(List.of(running));
 
         assertThat(service.getDashboard(userId).today()).containsExactly(running);
@@ -189,9 +209,13 @@ class DashboardAggregationServiceTest {
         HealthUpgrade oldest = completedAt(today.minusDays(7));
         HealthUpgrade newest = completedAt(today.minusDays(1));
         List<HealthUpgrade> oldestFirst = List.of(
-                oldest, completedAt(today.minusDays(6)), completedAt(today.minusDays(5)),
-                completedAt(today.minusDays(4)), completedAt(today.minusDays(3)),
-                completedAt(today.minusDays(2)), newest);
+                oldest,
+                completedAt(today.minusDays(6)),
+                completedAt(today.minusDays(5)),
+                completedAt(today.minusDays(4)),
+                completedAt(today.minusDays(3)),
+                completedAt(today.minusDays(2)),
+                newest);
         stubEmptyExceptUpgrades(oldestFirst);
 
         List<HealthUpgrade> recent = service.getDashboard(userId).recentlyCompleted();
@@ -228,8 +252,13 @@ class DashboardAggregationServiceTest {
         // would pay for streaks the dashboard never shows.
         HealthUpgrade first = upgrade(UpgradeStatus.ACTIVE);
         HealthUpgrade second = upgrade(UpgradeStatus.ACTIVE);
-        stubEmptyExceptUpgrades(List.of(first, upgrade(UpgradeStatus.PLANNED), upgrade(UpgradeStatus.PAUSED),
-                second, upgrade(UpgradeStatus.COMPLETED), upgrade(UpgradeStatus.ABANDONED)));
+        stubEmptyExceptUpgrades(List.of(
+                first,
+                upgrade(UpgradeStatus.PLANNED),
+                upgrade(UpgradeStatus.PAUSED),
+                second,
+                upgrade(UpgradeStatus.COMPLETED),
+                upgrade(UpgradeStatus.ABANDONED)));
 
         service.getDashboard(userId);
 
@@ -252,7 +281,8 @@ class DashboardAggregationServiceTest {
     @Test
     void GivenUpgradesFiledUnderAnArea_WhenTheDashboardIsBuilt_ThenThatAreaCarriesItsTotals() {
         UUID areaId = UUID.randomUUID();
-        HealthArea area = HealthArea.builder().id(areaId).userId(userId).name("Sleep").build();
+        HealthArea area =
+                HealthArea.builder().id(areaId).userId(userId).name("Sleep").build();
         List<HealthUpgrade> upgrades = List.of(
                 inArea(areaId, UpgradeStatus.ACTIVE),
                 inArea(areaId, UpgradeStatus.COMPLETED),
@@ -261,7 +291,8 @@ class DashboardAggregationServiceTest {
         when(progressQuery.findByUserIdAndDateBetween(any(), any(), any())).thenReturn(List.of());
         when(healthAreaQuery.listByUser(userId)).thenReturn(List.of(area));
 
-        DashboardView.AreaSummary summary = service.getDashboard(userId).areaSummaries().get(0);
+        DashboardView.AreaSummary summary =
+                service.getDashboard(userId).areaSummaries().get(0);
 
         assertThat(summary.areaId()).isEqualTo(areaId);
         assertThat(summary.areaName()).isEqualTo("Sleep");
@@ -274,12 +305,17 @@ class DashboardAggregationServiceTest {
     void GivenAnAreaWithNoUpgradesFiledUnderIt_WhenTheDashboardIsBuilt_ThenItStillAppearsWithZeroes() {
         // An empty area is a real state — one just created, or one whose upgrades were all deleted —
         // and dropping it from the dashboard would make it look as though it had gone.
-        HealthArea empty = HealthArea.builder().id(UUID.randomUUID()).userId(userId).name("Movement").build();
+        HealthArea empty = HealthArea.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .name("Movement")
+                .build();
         when(upgradeQuery.findByUser(userId)).thenReturn(List.of());
         when(progressQuery.findByUserIdAndDateBetween(any(), any(), any())).thenReturn(List.of());
         when(healthAreaQuery.listByUser(userId)).thenReturn(List.of(empty));
 
-        DashboardView.AreaSummary summary = service.getDashboard(userId).areaSummaries().get(0);
+        DashboardView.AreaSummary summary =
+                service.getDashboard(userId).areaSummaries().get(0);
 
         assertThat(summary.totalUpgrades()).isZero();
         assertThat(summary.activeCount()).isZero();
@@ -288,23 +324,35 @@ class DashboardAggregationServiceTest {
 
     @Test
     void GivenUpgradesFiledUnderNoArea_WhenTheAreaCountsAreBuilt_ThenTheyAreLeftOutRatherThanGroupedUnderNull() {
-        HealthArea area = HealthArea.builder().id(UUID.randomUUID()).userId(userId).name("Sleep").build();
+        HealthArea area = HealthArea.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .name("Sleep")
+                .build();
         stubEmptyExceptUpgrades(List.of(upgrade(UpgradeStatus.PLANNED), upgrade(UpgradeStatus.PLANNED)));
         when(healthAreaQuery.listByUser(userId)).thenReturn(List.of(area));
 
-        assertThat(service.getDashboard(userId).areaSummaries().get(0).totalUpgrades()).isZero();
+        assertThat(service.getDashboard(userId).areaSummaries().get(0).totalUpgrades())
+                .isZero();
     }
 
     private HealthUpgrade completedAt(LocalDate updatedAt) {
         return HealthUpgrade.builder()
-                .id(UUID.randomUUID()).userId(userId).status(UpgradeStatus.COMPLETED)
-                .updatedAt(updatedAt.atStartOfDay()).build();
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .status(UpgradeStatus.COMPLETED)
+                .updatedAt(updatedAt.atStartOfDay())
+                .build();
     }
 
     private HealthUpgrade inArea(UUID areaId, UpgradeStatus status) {
         return HealthUpgrade.builder()
-                .id(UUID.randomUUID()).userId(userId).areaId(areaId).status(status)
-                .updatedAt(today.atStartOfDay()).build();
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .areaId(areaId)
+                .status(status)
+                .updatedAt(today.atStartOfDay())
+                .build();
     }
 
     /** Stubs every port but the upgrade list, which is what most of these cases vary. */

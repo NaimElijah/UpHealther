@@ -1,24 +1,23 @@
 package com.healthupgrades.auth.adapter.out.persistence;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.healthupgrades.auth.domain.model.AuthSession;
 import com.healthupgrades.auth.domain.model.RefreshToken;
 import com.healthupgrades.auth.domain.port.out.AuthSessionRepositoryPort;
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.PostgresIT;
 import com.healthupgrades.user.domain.model.User;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
-import org.springframework.context.annotation.Import;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
+import org.springframework.context.annotation.Import;
 
 /**
  * What the session table actually does, which no in-memory fake can tell us.
@@ -40,8 +39,11 @@ class AuthSessionPersistenceIT extends PostgresIT {
     private static final Duration IDLE = Duration.ofDays(7);
     private static final Duration ABSOLUTE = Duration.ofDays(30);
 
-    @Autowired AuthSessionRepositoryPort repository;
-    @Autowired TestEntityManager entityManager;
+    @Autowired
+    AuthSessionRepositoryPort repository;
+
+    @Autowired
+    TestEntityManager entityManager;
 
     @Test
     void GivenASessionWithTokenDigests_WhenItIsReadBack_ThenTheBytesAreUnchanged() {
@@ -84,7 +86,9 @@ class AuthSessionPersistenceIT extends PostgresIT {
         assertThat(repository.revokeAllForUser(owner.getId())).isEqualTo(2);
 
         assertThat(List.of(first.getId(), second.getId()))
-                .allSatisfy(id -> assertThat(repository.findById(id).orElseThrow().isActive(NOW)).isFalse());
+                .allSatisfy(
+                        id -> assertThat(repository.findById(id).orElseThrow().isActive(NOW))
+                                .isFalse());
     }
 
     @Test
@@ -107,7 +111,10 @@ class AuthSessionPersistenceIT extends PostgresIT {
         // ran first, the count below included its revoked sessions. Emptying the table inside this
         // test's own transaction makes the count mean "this fixture" again, in any order. The
         // rollback at the end restores what was there.
-        entityManager.getEntityManager().createNativeQuery("DELETE FROM auth_sessions").executeUpdate();
+        entityManager
+                .getEntityManager()
+                .createNativeQuery("DELETE FROM auth_sessions")
+                .executeUpdate();
         User owner = persistedUser();
         AuthSession live = repository.save(openedFor(owner, "live"));
         AuthSession signedOut = openedFor(owner, "signed-out");
@@ -129,7 +136,8 @@ class AuthSessionPersistenceIT extends PostgresIT {
         AuthSession session = repository.save(openedFor(owner, "one"));
         flushAndClear();
 
-        entityManager.getEntityManager()
+        entityManager
+                .getEntityManager()
                 .createNativeQuery("DELETE FROM users WHERE id = :id")
                 .setParameter("id", owner.getId())
                 .executeUpdate();
@@ -145,16 +153,15 @@ class AuthSessionPersistenceIT extends PostgresIT {
 
     private AuthSession openedFor(User owner, String secret) {
         UUID sessionId = UUID.randomUUID();
-        return AuthSession.opened(sessionId, owner.getId(),
-                new RefreshToken(sessionId, secret).hash(), NOW, IDLE, ABSOLUTE);
+        return AuthSession.opened(
+                sessionId, owner.getId(), new RefreshToken(sessionId, secret).hash(), NOW, IDLE, ABSOLUTE);
     }
 
     /**
      * A session whose owner is a freshly persisted account, because the foreign key insists on one.
      */
     private AuthSession opened(RefreshToken token) {
-        return AuthSession.opened(token.sessionId(), persistedUser().getId(), token.hash(),
-                NOW, IDLE, ABSOLUTE);
+        return AuthSession.opened(token.sessionId(), persistedUser().getId(), token.hash(), NOW, IDLE, ABSOLUTE);
     }
 
     /** Forces the writes out and empties the persistence context, so a read is a read and not a cache hit. */

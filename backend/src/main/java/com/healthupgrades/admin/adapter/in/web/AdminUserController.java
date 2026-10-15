@@ -10,6 +10,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -22,9 +24,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
-import java.util.UUID;
 
 /**
  * Inbound web adapter for account administration.
@@ -78,23 +77,24 @@ public class AdminUserController {
      * @return 200 with the account as it now stands
      */
     @PostMapping("/{id}/disable")
-    public ResponseEntity<AdminAccountDto> disable(@AuthenticationPrincipal SecurityUser principal,
-                                           @PathVariable UUID id) {
+    public ResponseEntity<AdminAccountDto> disable(
+            @AuthenticationPrincipal SecurityUser principal, @PathVariable UUID id) {
         return ResponseEntity.ok(toAccountDto(adminUserCommand.disable(principal.getId(), id)));
     }
 
     /** Switches an account back on. */
     @PostMapping("/{id}/enable")
-    public ResponseEntity<AdminAccountDto> enable(@AuthenticationPrincipal SecurityUser principal,
-                                          @PathVariable UUID id) {
+    public ResponseEntity<AdminAccountDto> enable(
+            @AuthenticationPrincipal SecurityUser principal, @PathVariable UUID id) {
         return ResponseEntity.ok(toAccountDto(adminUserCommand.enable(principal.getId(), id)));
     }
 
     /** Grants or revokes a role. */
     @PutMapping("/{id}/role")
-    public ResponseEntity<AdminAccountDto> changeRole(@AuthenticationPrincipal SecurityUser principal,
-                                              @PathVariable UUID id,
-                                              @Valid @RequestBody RoleRequest request) {
+    public ResponseEntity<AdminAccountDto> changeRole(
+            @AuthenticationPrincipal SecurityUser principal,
+            @PathVariable UUID id,
+            @Valid @RequestBody RoleRequest request) {
         return ResponseEntity.ok(toAccountDto(adminUserCommand.changeRole(principal.getId(), id, request.role())));
     }
 
@@ -105,8 +105,8 @@ public class AdminUserController {
     }
 
     private static AdminAccountDto toAccountDto(User user) {
-        return new AdminAccountDto(user.getId(), user.getName(), user.getEmail(), user.getRole(),
-                user.isEnabled(), user.getCreatedAt());
+        return new AdminAccountDto(
+                user.getId(), user.getName(), user.getEmail(), user.getRole(), user.isEnabled(), user.getCreatedAt());
     }
 
     /**
@@ -115,6 +115,5 @@ public class AdminUserController {
      * <p>A record with one field rather than a bare enum in the body, so adding a second field later —
      * a reason, say — does not change the shape of the request.
      */
-    public record RoleRequest(@NotNull Role role) {
-    }
+    public record RoleRequest(@NotNull Role role) {}
 }

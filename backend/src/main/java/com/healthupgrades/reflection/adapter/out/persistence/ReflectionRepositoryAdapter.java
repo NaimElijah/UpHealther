@@ -2,11 +2,10 @@ package com.healthupgrades.reflection.adapter.out.persistence;
 
 import com.healthupgrades.reflection.domain.model.Reflection; // domain aggregate
 import com.healthupgrades.reflection.domain.port.out.ReflectionRepositoryPort; // the port implemented here
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
-
 import java.util.List;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
 /**
  * Persistence adapter implementing {@link ReflectionRepositoryPort} by delegating to Spring Data JPA.

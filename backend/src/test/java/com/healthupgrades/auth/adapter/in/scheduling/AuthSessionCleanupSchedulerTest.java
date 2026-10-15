@@ -1,5 +1,10 @@
 package com.healthupgrades.auth.adapter.in.scheduling;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.healthupgrades.auth.application.AuthSessionService;
 import com.healthupgrades.common.observability.JobMetrics;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -8,11 +13,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
  * Covers NFR-25 for the session sweep: every run records how long it took and whether it finished.
@@ -29,7 +29,8 @@ class AuthSessionCleanupSchedulerTest {
 
     private static final String JOB = "auth.session-cleanup";
 
-    @Mock AuthSessionService sessionService;
+    @Mock
+    AuthSessionService sessionService;
 
     private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
     private AuthSessionCleanupScheduler scheduler;
@@ -48,7 +49,12 @@ class AuthSessionCleanupSchedulerTest {
 
         verify(sessionService).deleteUnusableSessions();
         assertThat(runs("ok")).isEqualTo(1);
-        assertThat(meterRegistry.get("scheduled.job.duration").tag("job", JOB).timer().count()).isEqualTo(1);
+        assertThat(meterRegistry
+                        .get("scheduled.job.duration")
+                        .tag("job", JOB)
+                        .timer()
+                        .count())
+                .isEqualTo(1);
     }
 
     @Test
@@ -73,8 +79,7 @@ class AuthSessionCleanupSchedulerTest {
     }
 
     private double runs(String outcome) {
-        return meterRegistry.find("scheduled.job.runs")
-                .tag("job", JOB).tag("outcome", outcome).counters().stream()
+        return meterRegistry.find("scheduled.job.runs").tag("job", JOB).tag("outcome", outcome).counters().stream()
                 .mapToDouble(counter -> counter.count())
                 .sum();
     }

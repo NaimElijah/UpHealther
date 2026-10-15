@@ -2,7 +2,6 @@ package com.healthupgrades.common.domain.port.out;
 
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
-
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -65,8 +64,8 @@ public interface AuditTrail {
      *
      * @param createdId reads the new record's id off the result, once there is one
      */
-    default <T> T recordingCreation(AuditAction action, UUID actorUserId, Supplier<T> operation,
-                                    Function<T, UUID> createdId) {
+    default <T> T recordingCreation(
+            AuditAction action, UUID actorUserId, Supplier<T> operation, Function<T, UUID> createdId) {
         try {
             T result = operation.get();
             record(AuditEvent.allowed(action, actorUserId, createdId.apply(result)));

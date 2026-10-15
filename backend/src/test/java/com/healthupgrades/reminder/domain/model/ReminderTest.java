@@ -1,15 +1,14 @@
 package com.healthupgrades.reminder.domain.model;
 
-import com.healthupgrades.common.domain.exception.BusinessRuleException;
-import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.jupiter.api.Test;
 
 /**
  * Covers the reminder aggregate's due-ness rule: the day filter, the time match, and the enabled flag.
@@ -59,8 +58,7 @@ class ReminderTest {
 
     @Test
     void GivenDaysInAnyInputOrder_WhenTheyAreListed_ThenTheyAreInCalendarOrder() {
-        assertThat(ReminderDays.of(List.of("fri", "MON", "Wed")).toTokens())
-                .containsExactly("MON", "WED", "FRI");
+        assertThat(ReminderDays.of(List.of("fri", "MON", "Wed")).toTokens()).containsExactly("MON", "WED", "FRI");
     }
 
     @Test

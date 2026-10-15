@@ -1,22 +1,21 @@
 package com.healthupgrades.upgrade.adapter.in.scheduling;
 
+import static net.logstash.logback.argument.StructuredArguments.keyValue;
+
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.common.observability.JobMetrics;
 import com.healthupgrades.common.time.ServerZone;
-import com.healthupgrades.upgrade.domain.event.UpgradeOverdueDetected;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
+import com.healthupgrades.upgrade.domain.event.UpgradeOverdueDetected;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-
-import static net.logstash.logback.argument.StructuredArguments.keyValue;
-
-import java.time.Clock;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 /**
  * Driving adapter that periodically looks for active upgrades which have passed their target date and
@@ -60,14 +59,12 @@ public class UpgradeOverdueScheduler {
                 scanned++;
                 if (upgrade.isOverdue(today)) {
                     announced++;
-                    eventPublisher.publish(
-                            new UpgradeOverdueDetected(upgrade.getId(), upgrade.getUserId(),
-                                    upgrade.getTargetEndDate(), detectedAt));
+                    eventPublisher.publish(new UpgradeOverdueDetected(
+                            upgrade.getId(), upgrade.getUserId(), upgrade.getTargetEndDate(), detectedAt));
                 }
             }
 
-            log.info("{} {} {}", keyValue("job", JOB), keyValue("scanned", scanned),
-                    keyValue("announced", announced));
+            log.info("{} {} {}", keyValue("job", JOB), keyValue("scanned", scanned), keyValue("announced", announced));
         });
     }
 }

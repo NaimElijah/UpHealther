@@ -1,5 +1,12 @@
 package com.healthupgrades.reminder.application;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.reminder.application.port.in.ReminderSchedule;
@@ -7,27 +14,19 @@ import com.healthupgrades.reminder.domain.model.Reminder;
 import com.healthupgrades.reminder.domain.model.ReminderDays;
 import com.healthupgrades.reminder.domain.port.out.ReminderRepositoryPort;
 import com.healthupgrades.support.AnUpgrade;
-import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import com.healthupgrades.support.RecordingAuditTrail;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.Spy;
-import org.mockito.junit.jupiter.MockitoExtension;
-
+import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.Spy;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
  * Covers FR-25 (attach a reminder with a time and a day filter) and FR-26 (reschedule, enable, disable,
@@ -48,12 +47,17 @@ class ReminderServiceTest {
     private final UUID upgradeId = UUID.randomUUID();
     private final UUID reminderId = UUID.randomUUID();
 
-    @Mock ReminderRepositoryPort repository;
-    @Mock UpgradeQuery upgradeQuery;
-    /** A real implementation, not a mock: AuditTrail.recording is a default method. */
-    @Spy RecordingAuditTrail auditTrail = new RecordingAuditTrail();
+    @Mock
+    ReminderRepositoryPort repository;
 
-    @InjectMocks ReminderService service;
+    @Mock
+    UpgradeQuery upgradeQuery;
+    /** A real implementation, not a mock: AuditTrail.recording is a default method. */
+    @Spy
+    RecordingAuditTrail auditTrail = new RecordingAuditTrail();
+
+    @InjectMocks
+    ReminderService service;
 
     @Test
     void GivenAnOwnedUpgrade_WhenAReminderIsAttached_ThenItIsStoredWithItsTimeAndDays() {
@@ -96,8 +100,8 @@ class ReminderServiceTest {
         // BR-12. Silently dropping the token would leave a reminder firing on days the user never chose.
         when(upgradeQuery.getOwnedUpgrade(userId, upgradeId)).thenReturn(AnUpgrade.active(userId));
 
-        assertThatThrownBy(() -> service.create(userId, upgradeId,
-                new ReminderSchedule(NINE_AM, List.of("MON", "FUNDAY"), true)))
+        assertThatThrownBy(() -> service.create(
+                        userId, upgradeId, new ReminderSchedule(NINE_AM, List.of("MON", "FUNDAY"), true)))
                 .isInstanceOf(BusinessRuleException.class);
 
         verify(repository, never()).save(any());
@@ -108,8 +112,7 @@ class ReminderServiceTest {
         when(upgradeQuery.getOwnedUpgrade(userId, upgradeId))
                 .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
 
-        assertThatThrownBy(() -> service.create(userId, upgradeId,
-                new ReminderSchedule(NINE_AM, List.of("MON"), true)))
+        assertThatThrownBy(() -> service.create(userId, upgradeId, new ReminderSchedule(NINE_AM, List.of("MON"), true)))
                 .isInstanceOf(ResourceNotFoundException.class);
 
         verify(repository, never()).save(any());
@@ -184,8 +187,7 @@ class ReminderServiceTest {
         when(upgradeQuery.getOwnedUpgrade(userId, upgradeId))
                 .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
 
-        assertThatThrownBy(() -> service.update(userId, reminderId,
-                new ReminderSchedule(SIX_PM, List.of("SAT"), true)))
+        assertThatThrownBy(() -> service.update(userId, reminderId, new ReminderSchedule(SIX_PM, List.of("SAT"), true)))
                 .isInstanceOf(ResourceNotFoundException.class);
 
         assertThat(reminder.getReminderTime()).isEqualTo(NINE_AM);
@@ -196,8 +198,7 @@ class ReminderServiceTest {
     void GivenAnUnknownReminderId_WhenItIsRescheduled_ThenItIsReportedAsAbsent() {
         when(repository.findById(reminderId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.update(userId, reminderId,
-                new ReminderSchedule(SIX_PM, List.of("SAT"), true)))
+        assertThatThrownBy(() -> service.update(userId, reminderId, new ReminderSchedule(SIX_PM, List.of("SAT"), true)))
                 .isInstanceOf(ResourceNotFoundException.class);
 
         verify(repository, never()).save(any());
@@ -220,8 +221,7 @@ class ReminderServiceTest {
         when(upgradeQuery.getOwnedUpgrade(userId, upgradeId))
                 .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
 
-        assertThatThrownBy(() -> service.delete(userId, reminderId))
-                .isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> service.delete(userId, reminderId)).isInstanceOf(ResourceNotFoundException.class);
 
         verify(repository, never()).delete(any());
     }

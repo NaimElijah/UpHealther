@@ -1,26 +1,5 @@
 package com.healthupgrades.common.security;
 
-import com.healthupgrades.support.WebSliceSupport;
-import com.healthupgrades.user.domain.model.Role;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.context.annotation.Import;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
-
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
-import java.util.stream.Collectors;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.when;
@@ -28,6 +7,26 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.healthupgrades.support.WebSliceSupport;
+import com.healthupgrades.user.domain.model.Role;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 /**
  * FR-5, as one rule over the whole API rather than a line repeated in nine controller tests: every
@@ -50,88 +49,120 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 // Raised for the same reason as AuthControllerTest: this class walks the whole API surface and
 // hits the two limited paths on the way past.
 @WebMvcTest(properties = "app.rate-limit.limit=1000000")
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class, WebSliceSupport.class,
-        com.healthupgrades.upgrade.adapter.in.web.UpgradeWebMapper.class,
-        com.healthupgrades.dashboard.adapter.in.web.DashboardWebMapper.class,
-        com.healthupgrades.healtharea.adapter.in.web.HealthAreaWebMapper.class,
-        com.healthupgrades.notification.adapter.in.web.NotificationWebMapper.class,
-        com.healthupgrades.reflection.adapter.in.web.ReflectionWebMapper.class,
-        com.healthupgrades.reminder.adapter.in.web.ReminderWebMapper.class,
-        com.healthupgrades.tracking.adapter.in.web.TrackingWebMapper.class})
+@Import({
+    SecurityConfig.class,
+    JwtAuthenticationFilter.class,
+    WebSliceSupport.class,
+    com.healthupgrades.upgrade.adapter.in.web.UpgradeWebMapper.class,
+    com.healthupgrades.dashboard.adapter.in.web.DashboardWebMapper.class,
+    com.healthupgrades.healtharea.adapter.in.web.HealthAreaWebMapper.class,
+    com.healthupgrades.notification.adapter.in.web.NotificationWebMapper.class,
+    com.healthupgrades.reflection.adapter.in.web.ReflectionWebMapper.class,
+    com.healthupgrades.reminder.adapter.in.web.ReminderWebMapper.class,
+    com.healthupgrades.tracking.adapter.in.web.TrackingWebMapper.class
+})
 class AuthenticatedBoundaryTest {
 
     /** The routes that must work without a token. Everything else must not. */
-    private static final Set<String> PUBLIC_ROUTES =
-            Set.of("/api/auth/register", "/api/auth/login", "/api/auth/refresh",
-                    "/api/auth/logout", "/actuator/", "/ws/");
+    private static final Set<String> PUBLIC_ROUTES = Set.of(
+            "/api/auth/register", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/actuator/", "/ws/");
 
     /** The administration path used where one stands for the prefix. */
     private static final String ADMIN_PATH = "/api/admin/users";
 
-    @Autowired MockMvc mockMvc;
-    @Autowired RequestMappingHandlerMapping handlerMapping;
+    @Autowired
+    MockMvc mockMvc;
 
-    @MockitoBean BearerTokenAuthenticator authenticator;
-    @MockitoBean UserDetailsServiceImpl userDetailsService;
+    @Autowired
+    RequestMappingHandlerMapping handlerMapping;
+
+    @MockitoBean
+    BearerTokenAuthenticator authenticator;
+
+    @MockitoBean
+    UserDetailsServiceImpl userDetailsService;
 
     // The application services behind the controllers. Mocked: this class is about reaching them at all.
-    @MockitoBean com.healthupgrades.auth.application.AuthService authService;
-    @MockitoBean com.healthupgrades.auth.application.port.in.SessionCommand sessionCommand;
-    @MockitoBean com.healthupgrades.admin.application.port.in.AdminUserQuery adminUserQuery;
-    @MockitoBean com.healthupgrades.admin.application.port.in.AdminUserCommand adminUserCommand;
-    @MockitoBean com.healthupgrades.upgrade.application.UpgradeService upgradeService;
-    @MockitoBean com.healthupgrades.tracking.application.TrackingService trackingService;
-    @MockitoBean com.healthupgrades.healtharea.application.HealthAreaService healthAreaService;
-    @MockitoBean com.healthupgrades.reflection.application.ReflectionService reflectionService;
-    @MockitoBean com.healthupgrades.reminder.application.ReminderService reminderService;
-    @MockitoBean com.healthupgrades.notification.application.NotificationService notificationService;
-    @MockitoBean com.healthupgrades.dashboard.application.port.in.DashboardQuery dashboardQuery;
-    @MockitoBean com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort trackingSummaryPort;
+    @MockitoBean
+    com.healthupgrades.auth.application.AuthService authService;
+
+    @MockitoBean
+    com.healthupgrades.auth.application.port.in.SessionCommand sessionCommand;
+
+    @MockitoBean
+    com.healthupgrades.admin.application.port.in.AdminUserQuery adminUserQuery;
+
+    @MockitoBean
+    com.healthupgrades.admin.application.port.in.AdminUserCommand adminUserCommand;
+
+    @MockitoBean
+    com.healthupgrades.upgrade.application.UpgradeService upgradeService;
+
+    @MockitoBean
+    com.healthupgrades.tracking.application.TrackingService trackingService;
+
+    @MockitoBean
+    com.healthupgrades.healtharea.application.HealthAreaService healthAreaService;
+
+    @MockitoBean
+    com.healthupgrades.reflection.application.ReflectionService reflectionService;
+
+    @MockitoBean
+    com.healthupgrades.reminder.application.ReminderService reminderService;
+
+    @MockitoBean
+    com.healthupgrades.notification.application.NotificationService notificationService;
+
+    @MockitoBean
+    com.healthupgrades.dashboard.application.port.in.DashboardQuery dashboardQuery;
+
+    @MockitoBean
+    com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort trackingSummaryPort;
     // No mock for TrackingConfigQuery / ProgressQuery / StreakQuery: TrackingService implements all
     // three, and a @MockitoBean of an interface an existing mock already satisfies *replaces* that mock
     // rather than adding one — which would leave TrackingService itself unresolvable.
 
     @ParameterizedTest(name = "{0} {1}")
     @CsvSource({
-            "GET,     /api/dashboard",
-            "GET,     /api/upgrades",
-            "POST,    /api/upgrades",
-            "GET,     /api/upgrades/11111111-1111-1111-1111-111111111111",
-            "PUT,     /api/upgrades/11111111-1111-1111-1111-111111111111",
-            "DELETE,  /api/upgrades/11111111-1111-1111-1111-111111111111",
-            "POST,    /api/upgrades/11111111-1111-1111-1111-111111111111/plan",
-            "POST,    /api/upgrades/11111111-1111-1111-1111-111111111111/activate",
-            "POST,    /api/upgrades/11111111-1111-1111-1111-111111111111/pause",
-            "POST,    /api/upgrades/11111111-1111-1111-1111-111111111111/complete",
-            "POST,    /api/upgrades/11111111-1111-1111-1111-111111111111/abandon",
-            "POST,    /api/upgrades/11111111-1111-1111-1111-111111111111/reschedule",
-            "GET,     /api/upgrades/11111111-1111-1111-1111-111111111111/progress",
-            "POST,    /api/upgrades/11111111-1111-1111-1111-111111111111/progress",
-            "GET,     /api/upgrades/11111111-1111-1111-1111-111111111111/streak",
-            "GET,     /api/upgrades/11111111-1111-1111-1111-111111111111/tracking-config",
-            "PUT,     /api/upgrades/11111111-1111-1111-1111-111111111111/tracking-config",
-            "GET,     /api/upgrades/11111111-1111-1111-1111-111111111111/reflections",
-            "POST,    /api/upgrades/11111111-1111-1111-1111-111111111111/reflections",
-            "GET,     /api/upgrades/11111111-1111-1111-1111-111111111111/reminders",
-            "POST,    /api/upgrades/11111111-1111-1111-1111-111111111111/reminders",
-            "PUT,     /api/reminders/11111111-1111-1111-1111-111111111111",
-            "DELETE,  /api/reminders/11111111-1111-1111-1111-111111111111",
-            "GET,     /api/progress/today",
-            "GET,     /api/progress/week",
-            "GET,     /api/health-areas",
-            "POST,    /api/health-areas",
-            "GET,     /api/health-areas/11111111-1111-1111-1111-111111111111",
-            "PUT,     /api/health-areas/11111111-1111-1111-1111-111111111111",
-            "DELETE,  /api/health-areas/11111111-1111-1111-1111-111111111111",
-            "GET,     /api/notifications",
-            "GET,     /api/notifications/unread-count",
-            "POST,    /api/notifications/11111111-1111-1111-1111-111111111111/read",
-            "POST,    /api/notifications/read-all",
-            "GET,     /api/auth/me",
-            "GET,     /api/admin/users",
-            "POST,    /api/admin/users/11111111-1111-1111-1111-111111111111/disable",
-            "POST,    /api/admin/users/11111111-1111-1111-1111-111111111111/enable",
-            "PUT,     /api/admin/users/11111111-1111-1111-1111-111111111111/role",
+        "GET,     /api/dashboard",
+        "GET,     /api/upgrades",
+        "POST,    /api/upgrades",
+        "GET,     /api/upgrades/11111111-1111-1111-1111-111111111111",
+        "PUT,     /api/upgrades/11111111-1111-1111-1111-111111111111",
+        "DELETE,  /api/upgrades/11111111-1111-1111-1111-111111111111",
+        "POST,    /api/upgrades/11111111-1111-1111-1111-111111111111/plan",
+        "POST,    /api/upgrades/11111111-1111-1111-1111-111111111111/activate",
+        "POST,    /api/upgrades/11111111-1111-1111-1111-111111111111/pause",
+        "POST,    /api/upgrades/11111111-1111-1111-1111-111111111111/complete",
+        "POST,    /api/upgrades/11111111-1111-1111-1111-111111111111/abandon",
+        "POST,    /api/upgrades/11111111-1111-1111-1111-111111111111/reschedule",
+        "GET,     /api/upgrades/11111111-1111-1111-1111-111111111111/progress",
+        "POST,    /api/upgrades/11111111-1111-1111-1111-111111111111/progress",
+        "GET,     /api/upgrades/11111111-1111-1111-1111-111111111111/streak",
+        "GET,     /api/upgrades/11111111-1111-1111-1111-111111111111/tracking-config",
+        "PUT,     /api/upgrades/11111111-1111-1111-1111-111111111111/tracking-config",
+        "GET,     /api/upgrades/11111111-1111-1111-1111-111111111111/reflections",
+        "POST,    /api/upgrades/11111111-1111-1111-1111-111111111111/reflections",
+        "GET,     /api/upgrades/11111111-1111-1111-1111-111111111111/reminders",
+        "POST,    /api/upgrades/11111111-1111-1111-1111-111111111111/reminders",
+        "PUT,     /api/reminders/11111111-1111-1111-1111-111111111111",
+        "DELETE,  /api/reminders/11111111-1111-1111-1111-111111111111",
+        "GET,     /api/progress/today",
+        "GET,     /api/progress/week",
+        "GET,     /api/health-areas",
+        "POST,    /api/health-areas",
+        "GET,     /api/health-areas/11111111-1111-1111-1111-111111111111",
+        "PUT,     /api/health-areas/11111111-1111-1111-1111-111111111111",
+        "DELETE,  /api/health-areas/11111111-1111-1111-1111-111111111111",
+        "GET,     /api/notifications",
+        "GET,     /api/notifications/unread-count",
+        "POST,    /api/notifications/11111111-1111-1111-1111-111111111111/read",
+        "POST,    /api/notifications/read-all",
+        "GET,     /api/auth/me",
+        "GET,     /api/admin/users",
+        "POST,    /api/admin/users/11111111-1111-1111-1111-111111111111/disable",
+        "POST,    /api/admin/users/11111111-1111-1111-1111-111111111111/enable",
+        "PUT,     /api/admin/users/11111111-1111-1111-1111-111111111111/role",
     })
     void GivenNoToken_WhenAProtectedEndpointIsCalled_ThenItIsRefusedAs401WithAChallenge(String method, String path)
             throws Exception {
@@ -145,10 +176,10 @@ class AuthenticatedBoundaryTest {
 
     @ParameterizedTest(name = "{0} {1}")
     @CsvSource({
-            "POST, /api/auth/register",
-            "POST, /api/auth/login",
-            "POST, /api/auth/refresh",
-            "POST, /api/auth/logout",
+        "POST, /api/auth/register",
+        "POST, /api/auth/login",
+        "POST, /api/auth/refresh",
+        "POST, /api/auth/logout",
     })
     void GivenNoToken_WhenAPublicAuthEndpointIsCalled_ThenSecurityLetsItThrough(String method, String path)
             throws Exception {
@@ -167,9 +198,8 @@ class AuthenticatedBoundaryTest {
         // case above.
         WebSliceSupport.authenticateAs(authenticator, java.util.UUID.randomUUID());
 
-        org.assertj.core.api.Assertions.assertThatCode(() ->
-                mockMvc.perform(WebSliceSupport.bearer(
-                                json(request(HttpMethod.GET, "/api/notifications"))))
+        org.assertj.core.api.Assertions.assertThatCode(() -> mockMvc.perform(
+                                WebSliceSupport.bearer(json(request(HttpMethod.GET, "/api/notifications"))))
                         .andExpect(status().isOk()))
                 .doesNotThrowAnyException();
     }
@@ -206,35 +236,51 @@ class AuthenticatedBoundaryTest {
         // boundary unasserted — which is the one thing this case exists to prevent.
         Set<String> mapped = handlerMapping.getHandlerMethods().keySet().stream()
                 .flatMap(info -> info.getMethodsCondition().getMethods().stream()
-                        .flatMap(method -> info.getPatternValues().stream()
-                                .map(pattern -> method.name() + " " + pattern)))
+                        .flatMap(method ->
+                                info.getPatternValues().stream().map(pattern -> method.name() + " " + pattern)))
                 .filter(route -> !route.endsWith(" /error")) // Boot's error dispatch, not an API route
                 .filter(route -> PUBLIC_ROUTES.stream().noneMatch(route.split(" ")[1]::startsWith))
                 .collect(Collectors.toSet());
 
         Set<String> listed = Set.of(
                 "GET /api/dashboard",
-                "GET /api/upgrades", "POST /api/upgrades",
-                "GET /api/upgrades/{id}", "PUT /api/upgrades/{id}", "DELETE /api/upgrades/{id}",
-                "POST /api/upgrades/{id}/plan", "POST /api/upgrades/{id}/activate",
-                "POST /api/upgrades/{id}/pause", "POST /api/upgrades/{id}/complete",
-                "POST /api/upgrades/{id}/abandon", "POST /api/upgrades/{id}/reschedule",
-                "GET /api/upgrades/{upgradeId}/progress", "POST /api/upgrades/{upgradeId}/progress",
+                "GET /api/upgrades",
+                "POST /api/upgrades",
+                "GET /api/upgrades/{id}",
+                "PUT /api/upgrades/{id}",
+                "DELETE /api/upgrades/{id}",
+                "POST /api/upgrades/{id}/plan",
+                "POST /api/upgrades/{id}/activate",
+                "POST /api/upgrades/{id}/pause",
+                "POST /api/upgrades/{id}/complete",
+                "POST /api/upgrades/{id}/abandon",
+                "POST /api/upgrades/{id}/reschedule",
+                "GET /api/upgrades/{upgradeId}/progress",
+                "POST /api/upgrades/{upgradeId}/progress",
                 "GET /api/upgrades/{upgradeId}/streak",
                 "GET /api/upgrades/{upgradeId}/tracking-config",
                 "PUT /api/upgrades/{upgradeId}/tracking-config",
-                "GET /api/upgrades/{upgradeId}/reflections", "POST /api/upgrades/{upgradeId}/reflections",
-                "GET /api/upgrades/{upgradeId}/reminders", "POST /api/upgrades/{upgradeId}/reminders",
-                "PUT /api/reminders/{id}", "DELETE /api/reminders/{id}",
-                "GET /api/progress/today", "GET /api/progress/week",
-                "GET /api/health-areas", "POST /api/health-areas",
-                "GET /api/health-areas/{id}", "PUT /api/health-areas/{id}",
+                "GET /api/upgrades/{upgradeId}/reflections",
+                "POST /api/upgrades/{upgradeId}/reflections",
+                "GET /api/upgrades/{upgradeId}/reminders",
+                "POST /api/upgrades/{upgradeId}/reminders",
+                "PUT /api/reminders/{id}",
+                "DELETE /api/reminders/{id}",
+                "GET /api/progress/today",
+                "GET /api/progress/week",
+                "GET /api/health-areas",
+                "POST /api/health-areas",
+                "GET /api/health-areas/{id}",
+                "PUT /api/health-areas/{id}",
                 "DELETE /api/health-areas/{id}",
-                "GET /api/notifications", "GET /api/notifications/unread-count",
-                "POST /api/notifications/{id}/read", "POST /api/notifications/read-all",
+                "GET /api/notifications",
+                "GET /api/notifications/unread-count",
+                "POST /api/notifications/{id}/read",
+                "POST /api/notifications/read-all",
                 "GET /api/auth/me",
                 "GET /api/admin/users",
-                "POST /api/admin/users/{id}/disable", "POST /api/admin/users/{id}/enable",
+                "POST /api/admin/users/{id}/disable",
+                "POST /api/admin/users/{id}/enable",
                 "PUT /api/admin/users/{id}/role");
 
         assertThat(mapped)
@@ -244,10 +290,10 @@ class AuthenticatedBoundaryTest {
 
     @ParameterizedTest(name = "{0} {1}")
     @CsvSource({
-            "GET,     /api/admin/users",
-            "POST,    /api/admin/users/11111111-1111-1111-1111-111111111111/disable",
-            "POST,    /api/admin/users/11111111-1111-1111-1111-111111111111/enable",
-            "PUT,     /api/admin/users/11111111-1111-1111-1111-111111111111/role",
+        "GET,     /api/admin/users",
+        "POST,    /api/admin/users/11111111-1111-1111-1111-111111111111/disable",
+        "POST,    /api/admin/users/11111111-1111-1111-1111-111111111111/enable",
+        "PUT,     /api/admin/users/11111111-1111-1111-1111-111111111111/role",
     })
     void GivenAnOrdinaryUser_WhenAnAdministrationPathIsCalled_ThenItIsRefusedAs403WithTheApiErrorBody(
             String method, String path) throws Exception {
@@ -263,8 +309,7 @@ class AuthenticatedBoundaryTest {
     }
 
     @Test
-    void GivenAnAdministrator_WhenAnAdministrationPathIsCalled_ThenSecurityLetsItThrough()
-            throws Exception {
+    void GivenAnAdministrator_WhenAnAdministrationPathIsCalled_ThenSecurityLetsItThrough() throws Exception {
         // The other half of the matrix: the 403s above are about the role, not about the path being
         // unreachable. The service behind this one is mocked, so reaching it at all is the assertion.
         WebSliceSupport.authenticateAs(authenticator, UUID.randomUUID(), Role.ADMIN);

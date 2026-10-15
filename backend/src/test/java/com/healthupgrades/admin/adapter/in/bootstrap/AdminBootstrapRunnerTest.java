@@ -1,5 +1,13 @@
 package com.healthupgrades.admin.adapter.in.bootstrap;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
@@ -9,22 +17,13 @@ import com.healthupgrades.user.application.port.in.UserCommand;
 import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataAccessResourceFailureException;
-
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
  * The way a fresh installation gets its first administrator, and the three ways it deliberately does
@@ -48,8 +47,11 @@ class AdminBootstrapRunnerTest {
 
     private static final UUID BOOTSTRAP_ID = UUID.fromString("0f2c8f5a-2a4e-4a1d-8f0a-3c5b9d1e77a1");
 
-    @Mock UserQuery userQuery;
-    @Mock UserCommand userCommand;
+    @Mock
+    UserQuery userQuery;
+
+    @Mock
+    UserCommand userCommand;
 
     /** A real one, not a mock: AuditTrail.recording is a default method, and a mock would skip the work. */
     private final RecordingAuditTrail auditTrail = new RecordingAuditTrail();
@@ -84,13 +86,13 @@ class AdminBootstrapRunnerTest {
         User account = AUser.withId(BOOTSTRAP_ID);
         when(userQuery.existsEnabledWithRole(Role.ADMIN)).thenReturn(false);
         when(userQuery.findById(BOOTSTRAP_ID)).thenReturn(Optional.of(account));
-        when(userCommand.save(account)).thenThrow(new DataAccessResourceFailureException("the database is unreachable"));
+        when(userCommand.save(account))
+                .thenThrow(new DataAccessResourceFailureException("the database is unreachable"));
 
-        assertThatThrownBy(() -> run(BOOTSTRAP_ID.toString()))
-                .isInstanceOf(DataAccessResourceFailureException.class);
+        assertThatThrownBy(() -> run(BOOTSTRAP_ID.toString())).isInstanceOf(DataAccessResourceFailureException.class);
 
-        assertThat(auditTrail.only(AuditAction.ADMIN_BOOTSTRAP)).hasValue(
-                new AuditEvent(AuditAction.ADMIN_BOOTSTRAP, null, BOOTSTRAP_ID, AuditOutcome.FAILED));
+        assertThat(auditTrail.only(AuditAction.ADMIN_BOOTSTRAP))
+                .hasValue(new AuditEvent(AuditAction.ADMIN_BOOTSTRAP, null, BOOTSTRAP_ID, AuditOutcome.FAILED));
     }
 
     @Test

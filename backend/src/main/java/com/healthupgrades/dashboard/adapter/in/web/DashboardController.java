@@ -1,7 +1,7 @@
 package com.healthupgrades.dashboard.adapter.in.web;
 
-import com.healthupgrades.dashboard.application.port.in.DashboardQuery;
 import com.healthupgrades.common.security.SecurityUser;
+import com.healthupgrades.dashboard.application.port.in.DashboardQuery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;

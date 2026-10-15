@@ -50,16 +50,17 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     if (!error) return this.props.children;
 
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-canvas px-6 text-center" role="alert">
+      <div
+        className="min-h-screen flex flex-col items-center justify-center gap-4 bg-canvas px-6 text-center"
+        role="alert"
+      >
         <div className="text-5xl">⚠️</div>
         <h1 className="text-xl font-semibold text-fg">This page stopped working.</h1>
         <p className="max-w-md text-sm text-fg-subtle">
           Nothing you have saved is affected. Reloading usually fixes it.
         </p>
         {/* The message, not the stack: a stack trace tells a user nothing and can quote internals. */}
-        {error.message && (
-          <p className="max-w-md text-xs text-fg-faint font-mono select-all">{error.message}</p>
-        )}
+        {error.message && <p className="max-w-md text-xs text-fg-faint font-mono select-all">{error.message}</p>}
         <Button type="button" onClick={this.reload} className="mt-2">
           Reload the page
         </Button>

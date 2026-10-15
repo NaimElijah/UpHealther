@@ -35,6 +35,13 @@ fails the backend build if the image and `.nvmrc` name different releases.
 
   A finding is fixed, not switched off.
 
+- **Layout** belongs to Prettier, with single quotes at 120 columns (`prettier.config.js`):
+  `npm run format` rewrites, `npm run format:check` fails CI on any file it would change
+  ([ADR-038](../docs/ADRs/ADR-038-the-frontend-is-formatted-by-prettier.md)). `index.html` is left out
+  on purpose, because reformatting it would change the boot script's CSP hash. Prettier is pinned
+  exactly, so a bump is a `style(frontend)` commit of its own, and its SHA goes into
+  `../.git-blame-ignore-revs`.
+
 - **`src/api/client.ts`** is the single axios instance. Its `baseURL` is relative by default so every
   `/api/...` call is same-origin and flows through the Vite dev proxy / nginx prod proxy (set
   `VITE_API_URL` only for a different-origin API). A request interceptor attaches the access token

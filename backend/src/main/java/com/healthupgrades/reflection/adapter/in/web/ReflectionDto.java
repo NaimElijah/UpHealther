@@ -28,5 +28,4 @@ public record ReflectionDto(
         String whatWorked,
         String whatDidNotWork,
         String nextAdjustment,
-        LocalDateTime createdAt
-) {}
+        LocalDateTime createdAt) {}

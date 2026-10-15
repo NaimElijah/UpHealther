@@ -1,7 +1,6 @@
 package com.healthupgrades.admin.application;
 
 import com.healthupgrades.user.domain.model.User;
-
 import java.util.List;
 
 /**
@@ -16,5 +15,4 @@ import java.util.List;
  * @param size     the page size that was asked for
  * @param total    how many accounts exist in all
  */
-public record AccountPage(List<User> accounts, int page, int size, long total) {
-}
+public record AccountPage(List<User> accounts, int page, int size, long total) {}

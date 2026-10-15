@@ -11,11 +11,10 @@ import com.healthupgrades.user.application.port.in.UserCommand;
 import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.UUID;
 
 /**
  * Application service for account administration.
@@ -109,7 +108,6 @@ public class AdminUserService implements AdminUserQuery, AdminUserCommand {
         if (actingAdminId.equals(targetUserId)) {
             throw new BusinessRuleException(NOT_YOUR_OWN_ACCOUNT);
         }
-        return userQuery.findById(targetUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return userQuery.findById(targetUserId).orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 }

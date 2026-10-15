@@ -18,6 +18,5 @@ public final class ServerZone {
     /** The zone itself, for building the clock. */
     public static final ZoneId ZONE = ZoneId.of(ID);
 
-    private ServerZone() {
-    }
+    private ServerZone() {}
 }

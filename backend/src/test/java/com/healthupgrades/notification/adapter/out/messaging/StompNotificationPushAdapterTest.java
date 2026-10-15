@@ -1,21 +1,5 @@
 package com.healthupgrades.notification.adapter.out.messaging;
 
-import com.healthupgrades.common.websocket.JwtChannelInterceptor;
-import com.healthupgrades.notification.adapter.in.web.NotificationDto;
-import com.healthupgrades.notification.adapter.in.web.NotificationWebMapper;
-import com.healthupgrades.notification.domain.model.Notification;
-import com.healthupgrades.notification.domain.model.NotificationCategory;
-import com.healthupgrades.notification.domain.model.NotificationType;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.messaging.MessageDeliveryException;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-
-import java.util.UUID;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
@@ -23,6 +7,21 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+
+import com.healthupgrades.common.websocket.JwtChannelInterceptor;
+import com.healthupgrades.notification.adapter.in.web.NotificationDto;
+import com.healthupgrades.notification.adapter.in.web.NotificationWebMapper;
+import com.healthupgrades.notification.domain.model.Notification;
+import com.healthupgrades.notification.domain.model.NotificationCategory;
+import com.healthupgrades.notification.domain.model.NotificationType;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.messaging.MessageDeliveryException;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 /**
  * Covers the real-time half of FR-32.
@@ -45,7 +44,8 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class StompNotificationPushAdapterTest {
 
-    @Mock SimpMessagingTemplate messagingTemplate;
+    @Mock
+    SimpMessagingTemplate messagingTemplate;
 
     private final NotificationWebMapper mapper = new NotificationWebMapper();
 
@@ -56,8 +56,9 @@ class StompNotificationPushAdapterTest {
     void GivenANotification_WhenItIsPushed_ThenItGoesToItsOwnersUserDestination() {
         new StompNotificationPushAdapter(messagingTemplate, mapper).push(userId, aNotification());
 
-        verify(messagingTemplate).convertAndSendToUser(
-                eq(userId.toString()), eq(StompNotificationPushAdapter.USER_QUEUE), any(Object.class));
+        verify(messagingTemplate)
+                .convertAndSendToUser(
+                        eq(userId.toString()), eq(StompNotificationPushAdapter.USER_QUEUE), any(Object.class));
     }
 
     @Test
@@ -82,10 +83,10 @@ class StompNotificationPushAdapterTest {
         // caller after its transaction had committed — and in dispatchReminders that meant one
         // unreachable session cancelled everybody else's reminders for that minute.
         doThrow(new MessageDeliveryException("no session"))
-                .when(messagingTemplate).convertAndSendToUser(anyString(), anyString(), any(Object.class));
+                .when(messagingTemplate)
+                .convertAndSendToUser(anyString(), anyString(), any(Object.class));
 
-        assertThatCode(() -> new StompNotificationPushAdapter(messagingTemplate, mapper)
-                .push(userId, aNotification()))
+        assertThatCode(() -> new StompNotificationPushAdapter(messagingTemplate, mapper).push(userId, aNotification()))
                 .doesNotThrowAnyException();
     }
 
@@ -110,5 +111,4 @@ class StompNotificationPushAdapterTest {
         assertThat("/user" + StompNotificationPushAdapter.USER_QUEUE)
                 .isEqualTo(JwtChannelInterceptor.ALLOWED_SUBSCRIPTION);
     }
-
 }

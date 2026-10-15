@@ -27,5 +27,4 @@ public record HealthAreaDto(
         String icon,
         String color,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
-) {}
+        LocalDateTime updatedAt) {}

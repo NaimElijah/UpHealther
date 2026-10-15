@@ -1,5 +1,15 @@
 package com.healthupgrades.common.ratelimit;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import com.healthupgrades.auth.adapter.in.web.AuthController;
 import com.healthupgrades.auth.application.AuthService;
 import com.healthupgrades.auth.application.port.in.SessionCommand;
@@ -13,23 +23,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * #56 on the wire: repeated sign-in attempts from one address are refused with 429.
@@ -60,25 +60,30 @@ class RateLimitedSignInTest {
     /** How many attempts the property above permits. */
     private static final int LIMIT = 3;
 
-    private static final String CREDENTIALS =
-            "{\"email\":\"someone@example.com\",\"password\":\"s3cret!42\"}";
+    private static final String CREDENTIALS = "{\"email\":\"someone@example.com\",\"password\":\"s3cret!42\"}";
 
-    @Autowired MockMvc mockMvc;
+    @Autowired
+    MockMvc mockMvc;
 
-    @MockitoBean AuthService authService;
-    @MockitoBean SessionCommand sessions;
-    @MockitoBean BearerTokenAuthenticator authenticator;
-    @MockitoBean UserDetailsServiceImpl userDetailsService;
+    @MockitoBean
+    AuthService authService;
+
+    @MockitoBean
+    SessionCommand sessions;
+
+    @MockitoBean
+    BearerTokenAuthenticator authenticator;
+
+    @MockitoBean
+    UserDetailsServiceImpl userDetailsService;
 
     @BeforeEach
     void credentialsNeverMatch() {
-        when(authService.login(anyString(), anyString()))
-                .thenThrow(new BadCredentialsException("Bad credentials"));
+        when(authService.login(anyString(), anyString())).thenThrow(new BadCredentialsException("Bad credentials"));
     }
 
     @Test
-    void GivenRepeatedWrongPasswords_WhenTheAllowanceIsSpent_ThenFurtherAttemptsAreRefusedWith429()
-            throws Exception {
+    void GivenRepeatedWrongPasswords_WhenTheAllowanceIsSpent_ThenFurtherAttemptsAreRefusedWith429() throws Exception {
         String client = "203.0.113.10";
 
         // Every permitted attempt is answered by the application itself: 401, wrong password.
@@ -95,8 +100,7 @@ class RateLimitedSignInTest {
     }
 
     @Test
-    void GivenTheAllowanceIsSpent_WhenAnotherAttemptArrives_ThenItNeverReachesTheApplication()
-            throws Exception {
+    void GivenTheAllowanceIsSpent_WhenAnotherAttemptArrives_ThenItNeverReachesTheApplication() throws Exception {
         // The refusal happens in the interceptor, before the controller and before any password is
         // checked. If it did not, a rate limit would still cost one BCrypt comparison per attempt —
         // which is precisely the expense an attacker is trying to impose.
@@ -144,8 +148,7 @@ class RateLimitedSignInTest {
     }
 
     @Test
-    void GivenTheRetryAfterHeader_WhenARefusalIsRead_ThenItIsAWholeNumberOfSecondsAndNotZero()
-            throws Exception {
+    void GivenTheRetryAfterHeader_WhenARefusalIsRead_ThenItIsAWholeNumberOfSecondsAndNotZero() throws Exception {
         // Retry-After: 0 invites an immediate retry that is refused again, so a client honouring it
         // would spin. The value is rounded up for that reason.
         String client = "203.0.113.14";
@@ -170,8 +173,7 @@ class RateLimitedSignInTest {
         // throttle an ordinary session.
         String client = "203.0.113.15";
         for (int attempt = 0; attempt < LIMIT + 3; attempt++) {
-            mockMvc.perform(post("/api/auth/me").with(from(client)))
-                    .andExpect(status().is(not(429)));
+            mockMvc.perform(post("/api/auth/me").with(from(client))).andExpect(status().is(not(429)));
         }
     }
 

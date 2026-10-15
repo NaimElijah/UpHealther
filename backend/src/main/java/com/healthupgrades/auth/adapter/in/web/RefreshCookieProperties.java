@@ -20,8 +20,4 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties("app.auth.cookie")
 public record RefreshCookieProperties(
-        @NotBlank String name,
-        @NotBlank String path,
-        boolean secure
-) {
-}
+        @NotBlank String name, @NotBlank String path, boolean secure) {}

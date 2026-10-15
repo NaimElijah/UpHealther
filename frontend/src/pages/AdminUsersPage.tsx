@@ -1,12 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  ACCOUNTS_PAGE_SIZE,
-  changeAccountRole,
-  disableAccount,
-  enableAccount,
-  listAccounts,
-} from '../api/admin';
+import { ACCOUNTS_PAGE_SIZE, changeAccountRole, disableAccount, enableAccount, listAccounts } from '../api/admin';
 import { toApiError } from '../api/apiError';
 import { useAuth } from '../hooks/useAuth';
 import PageContainer from '../components/ui/PageContainer';
@@ -93,7 +87,9 @@ const AdminUsersPage: React.FC = () => {
     return (
       <PageContainer>
         <PageHeader title="Accounts" subtitle="Everyone with an account on this installation" />
-        <div className="flex justify-center py-16"><LoadingSpinner size="lg" /></div>
+        <div className="flex justify-center py-16">
+          <LoadingSpinner size="lg" />
+        </div>
       </PageContainer>
     );
   }
@@ -113,10 +109,7 @@ const AdminUsersPage: React.FC = () => {
 
   return (
     <PageContainer>
-      <PageHeader
-        title="Accounts"
-        subtitle={`${total} account${total === 1 ? '' : 's'} on this installation`}
-      />
+      <PageHeader title="Accounts" subtitle={`${total} account${total === 1 ? '' : 's'} on this installation`} />
 
       {actionError !== null && (
         <div className="mb-4">
@@ -147,19 +140,11 @@ const AdminUsersPage: React.FC = () => {
                     ) : (
                       <>
                         {account.enabled ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setPending({ kind: 'disable', account })}
-                          >
+                          <Button variant="ghost" size="sm" onClick={() => setPending({ kind: 'disable', account })}>
                             Disable
                           </Button>
                         ) : (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => enabling.mutate(account.id)}
-                          >
+                          <Button variant="ghost" size="sm" onClick={() => enabling.mutate(account.id)}>
                             Enable
                           </Button>
                         )}
@@ -197,17 +182,17 @@ const AdminUsersPage: React.FC = () => {
         </div>
       )}
 
-      <Modal
-        isOpen={pending !== null}
-        onClose={() => setPending(null)}
-        title={pending ? confirmTitle(pending) : ''}
-      >
+      <Modal isOpen={pending !== null} onClose={() => setPending(null)} title={pending ? confirmTitle(pending) : ''}>
         {pending && (
           <div className="flex flex-col gap-4">
             <p className="text-fg-subtle">{confirmBody(pending)}</p>
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setPending(null)}>Cancel</Button>
-              <Button variant="primary" onClick={confirm}>Confirm</Button>
+              <Button variant="ghost" onClick={() => setPending(null)}>
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={confirm}>
+                Confirm
+              </Button>
             </div>
           </div>
         )}
@@ -224,12 +209,16 @@ function confirmTitle(pending: PendingChange): string {
 
 function confirmBody(pending: PendingChange): string {
   if (pending.kind === 'disable') {
-    return 'They will be signed out everywhere and will not be able to sign in again. Nothing they '
-      + 'have recorded is deleted, and enabling the account restores it exactly as it was.';
+    return (
+      'They will be signed out everywhere and will not be able to sign in again. Nothing they ' +
+      'have recorded is deleted, and enabling the account restores it exactly as it was.'
+    );
   }
   if (pending.kind === 'promote') {
-    return 'They will be able to list every account here, switch accounts off, and grant this role to '
-      + 'anybody else. They still will not be able to read anyone else’s records.';
+    return (
+      'They will be able to list every account here, switch accounts off, and grant this role to ' +
+      'anybody else. They still will not be able to read anyone else’s records.'
+    );
   }
   return 'They will keep their own account and everything in it, and lose access to this page.';
 }

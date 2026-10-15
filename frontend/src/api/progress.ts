@@ -43,4 +43,3 @@ export const getStreak = async (upgradeId: string): Promise<StreakSummary> => {
   const { data } = await client.get<StreakSummary>(`/api/upgrades/${upgradeId}/streak`);
   return data;
 };
-

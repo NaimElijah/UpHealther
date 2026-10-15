@@ -3,7 +3,6 @@ package com.healthupgrades.support;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.model.UpgradeType;
-
 import java.util.UUID;
 
 /**
@@ -23,8 +22,7 @@ public final class AnUpgrade {
 
     public static final String TITLE = "Cold showers";
 
-    private AnUpgrade() {
-    }
+    private AnUpgrade() {}
 
     /** An upgrade owned by the given user, with the required fields filled in and a fresh id. */
     public static HealthUpgrade.HealthUpgradeBuilder ownedBy(UUID userId) {

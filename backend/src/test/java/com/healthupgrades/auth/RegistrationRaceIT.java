@@ -1,28 +1,5 @@
 package com.healthupgrades.auth;
 
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.classic.spi.IThrowableProxy;
-import ch.qos.logback.core.read.ListAppender;
-import com.healthupgrades.support.PostgresIT;
-import com.healthupgrades.user.application.UserService;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
-import java.util.UUID;
-import java.util.stream.Stream;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -32,6 +9,28 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.IThrowableProxy;
+import ch.qos.logback.core.read.ListAppender;
+import com.healthupgrades.support.PostgresIT;
+import com.healthupgrades.user.application.UserService;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.web.servlet.MockMvc;
 
 /**
  * FR-4 when two registrations for one address race: both can pass the existence check, and only the
@@ -49,11 +48,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class RegistrationRaceIT extends PostgresIT {
 
-    private static final String BODY =
-            "{\"name\":\"Racer\",\"email\":\"%s\",\"password\":\"long-enough-password\"}";
+    private static final String BODY = "{\"name\":\"Racer\",\"email\":\"%s\",\"password\":\"long-enough-password\"}";
 
-    @Autowired MockMvc mockMvc;
-    @MockitoSpyBean UserService userService;
+    @Autowired
+    MockMvc mockMvc;
+
+    @MockitoSpyBean
+    UserService userService;
 
     private Logger rootLogger;
     private ListAppender<ILoggingEvent> appender;
@@ -101,7 +102,9 @@ class RegistrationRaceIT extends PostgresIT {
         // The existence check refuses with the same 422, so the answer alone cannot show that the database
         // refused: the second registration has to have reached the insert.
         verify(userService, times(2)).register(any());
-        List<String> written = appender.list.stream().flatMap(RegistrationRaceIT::everythingWritten).toList();
+        List<String> written = appender.list.stream()
+                .flatMap(RegistrationRaceIT::everythingWritten)
+                .toList();
         // An empty capture would pass the check below as well; the refusal's own audit line proves it saw.
         assertThat(written).anyMatch(text -> text.contains("action=auth.register outcome=REFUSED"));
         assertThat(written).noneMatch(text -> text.toLowerCase(Locale.ROOT).contains(email));

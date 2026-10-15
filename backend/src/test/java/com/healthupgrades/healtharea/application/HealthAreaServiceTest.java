@@ -1,28 +1,27 @@
 package com.healthupgrades.healtharea.application;
 
-import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
-import com.healthupgrades.healtharea.application.port.in.HealthAreaDetails;
-import com.healthupgrades.healtharea.domain.model.HealthArea;
-import com.healthupgrades.healtharea.domain.port.out.HealthAreaRepositoryPort;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import com.healthupgrades.support.RecordingAuditTrail;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.Spy;
-import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.healtharea.application.port.in.HealthAreaDetails;
+import com.healthupgrades.healtharea.domain.model.HealthArea;
+import com.healthupgrades.healtharea.domain.port.out.HealthAreaRepositoryPort;
+import com.healthupgrades.support.RecordingAuditTrail;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.Spy;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
  * Covers FR-6 (create, read, update and delete an area), FR-7 (the attributes an area carries) and BR-15
@@ -45,11 +44,14 @@ class HealthAreaServiceTest {
     private final UUID areaId = UUID.randomUUID();
     private final UUID otherUserId = UUID.randomUUID();
 
-    @Mock HealthAreaRepositoryPort repository;
+    @Mock
+    HealthAreaRepositoryPort repository;
     /** A real implementation, not a mock: AuditTrail.recording is a default method. */
-    @Spy RecordingAuditTrail auditTrail = new RecordingAuditTrail();
+    @Spy
+    RecordingAuditTrail auditTrail = new RecordingAuditTrail();
 
-    @InjectMocks HealthAreaService service;
+    @InjectMocks
+    HealthAreaService service;
 
     @Test
     void GivenAreaDetails_WhenAnAreaIsCreated_ThenItIsStoredAgainstTheOwnerWithEveryAttribute() {
@@ -161,8 +163,7 @@ class HealthAreaServiceTest {
     void GivenAnAreaOwnedBySomebodyElse_WhenItIsDeleted_ThenNothingIsDeleted() {
         when(repository.findByIdAndUserId(areaId, otherUserId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.delete(otherUserId, areaId))
-                .isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> service.delete(otherUserId, areaId)).isInstanceOf(ResourceNotFoundException.class);
 
         verify(repository, never()).delete(any());
     }

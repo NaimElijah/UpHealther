@@ -1,10 +1,20 @@
 package com.healthupgrades.tracking.application;
 
-import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
 import com.healthupgrades.common.domain.exception.DuplicateProgressException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
-import com.healthupgrades.support.ATrackingConfig;
+import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.support.AProgressEntry;
+import com.healthupgrades.support.ATrackingConfig;
+import com.healthupgrades.support.RecordingAuditTrail;
 import com.healthupgrades.tracking.application.port.in.ProgressEntryDetails;
 import com.healthupgrades.tracking.application.port.in.StreakSummary;
 import com.healthupgrades.tracking.application.port.in.TrackingConfigDetails;
@@ -12,23 +22,13 @@ import com.healthupgrades.tracking.domain.event.ProgressEntryRecorded;
 import com.healthupgrades.tracking.domain.event.StreakAchieved;
 import com.healthupgrades.tracking.domain.model.Frequency;
 import com.healthupgrades.tracking.domain.model.ProgressEntry;
-import com.healthupgrades.tracking.domain.service.ProgressEvaluationService;
-import com.healthupgrades.support.RecordingAuditTrail;
-import com.healthupgrades.tracking.domain.service.StreakCalculator;
 import com.healthupgrades.tracking.domain.model.TrackingConfig;
 import com.healthupgrades.tracking.domain.model.TrackingType;
 import com.healthupgrades.tracking.domain.port.out.ProgressEntryRepositoryPort;
 import com.healthupgrades.tracking.domain.port.out.TrackingConfigRepositoryPort;
+import com.healthupgrades.tracking.domain.service.ProgressEvaluationService;
+import com.healthupgrades.tracking.domain.service.StreakCalculator;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -40,15 +40,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
  * Covers the tracking use cases: FR-16 and FR-17 (how an upgrade is measured), FR-18 (log a day),
@@ -65,15 +64,27 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class TrackingServiceTest {
 
-    @Mock TrackingConfigRepositoryPort configRepository;
-    @Mock ProgressEntryRepositoryPort progressRepository;
-    @Mock UpgradeQuery upgradeQuery;
-    @Mock StreakCalculator streakCalculator;
-    @Mock ProgressEvaluationService evaluationService;
-    @Mock DomainEventPublisher eventPublisher;
+    @Mock
+    TrackingConfigRepositoryPort configRepository;
+
+    @Mock
+    ProgressEntryRepositoryPort progressRepository;
+
+    @Mock
+    UpgradeQuery upgradeQuery;
+
+    @Mock
+    StreakCalculator streakCalculator;
+
+    @Mock
+    ProgressEvaluationService evaluationService;
+
+    @Mock
+    DomainEventPublisher eventPublisher;
 
     /** Fixed so "today" is decided here rather than by whenever the suite happens to run. */
     private final Clock fixedClock = Clock.fixed(Instant.parse("2026-03-15T09:00:00Z"), ZoneOffset.UTC);
+
     private final LocalDate today = LocalDate.of(2026, 3, 15);
 
     private TrackingService service;
@@ -85,8 +96,15 @@ class TrackingServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new TrackingService(configRepository, progressRepository, upgradeQuery,
-                streakCalculator, evaluationService, eventPublisher, auditTrail, fixedClock);
+        service = new TrackingService(
+                configRepository,
+                progressRepository,
+                upgradeQuery,
+                streakCalculator,
+                evaluationService,
+                eventPublisher,
+                auditTrail,
+                fixedClock);
     }
 
     // ---- Recording progress ----
@@ -96,7 +114,10 @@ class TrackingServiceTest {
         // The client did not supply `completed`; a NUMERIC config exists and the evaluator says "met".
         ProgressEntryDetails req = new ProgressEntryDetails(today, null, 2.5, "liters", null, null);
         TrackingConfig config = TrackingConfig.builder()
-                .upgradeId(upgradeId).trackingType(TrackingType.NUMERIC).targetNumericValue(2.0).build();
+                .upgradeId(upgradeId)
+                .trackingType(TrackingType.NUMERIC)
+                .targetNumericValue(2.0)
+                .build();
 
         when(progressRepository.existsByUpgradeIdAndDate(any(), any())).thenReturn(false);
         when(configRepository.findByUpgradeId(upgradeId)).thenReturn(Optional.of(config));
@@ -134,7 +155,8 @@ class TrackingServiceTest {
         when(progressRepository.save(any(ProgressEntry.class))).thenAnswer(inv -> inv.getArgument(0));
         when(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenReturn(List.of());
 
-        assertThat(service.recordProgress(userId, upgradeId, req).getCompleted()).isFalse();
+        assertThat(service.recordProgress(userId, upgradeId, req).getCompleted())
+                .isFalse();
     }
 
     @Test
@@ -148,7 +170,8 @@ class TrackingServiceTest {
         when(progressRepository.save(any(ProgressEntry.class))).thenAnswer(inv -> inv.getArgument(0));
         when(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenReturn(List.of());
 
-        assertThat(service.recordProgress(userId, upgradeId, req).getCompleted()).isTrue();
+        assertThat(service.recordProgress(userId, upgradeId, req).getCompleted())
+                .isTrue();
         verify(evaluationService, never()).isSuccessful(any(), any());
     }
 
@@ -203,8 +226,8 @@ class TrackingServiceTest {
         when(upgradeQuery.getOwnedUpgrade(userId, upgradeId))
                 .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
 
-        assertThatThrownBy(() -> service.recordProgress(userId, upgradeId,
-                new ProgressEntryDetails(today, true, null, null, null, null)))
+        assertThatThrownBy(() -> service.recordProgress(
+                        userId, upgradeId, new ProgressEntryDetails(today, true, null, null, null, null)))
                 .isInstanceOf(ResourceNotFoundException.class);
 
         verify(progressRepository, never()).save(any());
@@ -260,8 +283,15 @@ class TrackingServiceTest {
         // silence BR-10 without failing those tests: handing the calculator the request's date, which a
         // caller may leave null, instead of the resolved one; or a history that lacks the entry just
         // saved. So this one uses a real calculator over a history the save adds to.
-        TrackingService withRealCalculator = new TrackingService(configRepository, progressRepository,
-                upgradeQuery, new StreakCalculator(), evaluationService, eventPublisher, auditTrail, fixedClock);
+        TrackingService withRealCalculator = new TrackingService(
+                configRepository,
+                progressRepository,
+                upgradeQuery,
+                new StreakCalculator(),
+                evaluationService,
+                eventPublisher,
+                auditTrail,
+                fixedClock);
         List<ProgressEntry> history = new ArrayList<>();
         for (int daysAgo = 6; daysAgo >= 1; daysAgo--) {
             history.add(AProgressEntry.completedOn(upgradeId, userId, today.minusDays(daysAgo), true));
@@ -274,8 +304,8 @@ class TrackingServiceTest {
         });
         when(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenAnswer(inv -> List.copyOf(history));
 
-        withRealCalculator.recordProgress(userId, upgradeId,
-                new ProgressEntryDetails(null, true, null, null, null, null));
+        withRealCalculator.recordProgress(
+                userId, upgradeId, new ProgressEntryDetails(null, true, null, null, null, null));
 
         ArgumentCaptor<StreakAchieved> event = ArgumentCaptor.forClass(StreakAchieved.class);
         verify(eventPublisher).publish(event.capture());
@@ -299,8 +329,7 @@ class TrackingServiceTest {
         when(upgradeQuery.getOwnedUpgrade(userId, upgradeId))
                 .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
 
-        assertThatThrownBy(() -> service.getProgress(userId, upgradeId))
-                .isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> service.getProgress(userId, upgradeId)).isInstanceOf(ResourceNotFoundException.class);
 
         verify(progressRepository, never()).findByUpgradeIdOrderByDateDesc(any());
     }
@@ -352,8 +381,10 @@ class TrackingServiceTest {
         when(configRepository.findByUpgradeId(upgradeId)).thenReturn(Optional.empty());
         when(configRepository.save(any(TrackingConfig.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        service.saveConfig(userId, upgradeId, new TrackingConfigDetails(
-                TrackingType.NUMERIC, Frequency.DAILY, 10_000.0, "steps", true));
+        service.saveConfig(
+                userId,
+                upgradeId,
+                new TrackingConfigDetails(TrackingType.NUMERIC, Frequency.DAILY, 10_000.0, "steps", true));
 
         ArgumentCaptor<TrackingConfig> saved = ArgumentCaptor.forClass(TrackingConfig.class);
         verify(configRepository).save(saved.capture());
@@ -374,8 +405,8 @@ class TrackingServiceTest {
         when(configRepository.findByUpgradeId(upgradeId)).thenReturn(Optional.of(existing));
         when(configRepository.save(existing)).thenReturn(existing);
 
-        service.saveConfig(userId, upgradeId, new TrackingConfigDetails(
-                TrackingType.RATING, Frequency.WEEKLY, null, null, false));
+        service.saveConfig(
+                userId, upgradeId, new TrackingConfigDetails(TrackingType.RATING, Frequency.WEEKLY, null, null, false));
 
         verify(configRepository).save(existing);
         assertThat(existing.getTrackingType()).isEqualTo(TrackingType.RATING);
@@ -390,8 +421,8 @@ class TrackingServiceTest {
         when(configRepository.findByUpgradeId(upgradeId)).thenReturn(Optional.of(existing));
         when(configRepository.save(existing)).thenReturn(existing);
 
-        service.saveConfig(userId, upgradeId, new TrackingConfigDetails(
-                TrackingType.NUMERIC, Frequency.DAILY, 5.0, "km", false));
+        service.saveConfig(
+                userId, upgradeId, new TrackingConfigDetails(TrackingType.NUMERIC, Frequency.DAILY, 5.0, "km", false));
 
         verify(progressRepository, never()).save(any());
         verify(evaluationService, never()).isSuccessful(any(), any());
@@ -402,8 +433,10 @@ class TrackingServiceTest {
         when(upgradeQuery.getOwnedUpgrade(userId, upgradeId))
                 .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
 
-        assertThatThrownBy(() -> service.saveConfig(userId, upgradeId, new TrackingConfigDetails(
-                TrackingType.BOOLEAN, Frequency.DAILY, null, null, null)))
+        assertThatThrownBy(() -> service.saveConfig(
+                        userId,
+                        upgradeId,
+                        new TrackingConfigDetails(TrackingType.BOOLEAN, Frequency.DAILY, null, null, null)))
                 .isInstanceOf(ResourceNotFoundException.class);
 
         verify(configRepository, never()).save(any());
@@ -447,21 +480,30 @@ class TrackingServiceTest {
     }
 
     @Test
-    void GivenUpgradesWithAndWithoutHistory_WhenTheirStreaksAreMeasured_ThenEachIsCountedFromItsOwnEntriesAndTheInjectedClock() {
+    void
+            GivenUpgradesWithAndWithoutHistory_WhenTheirStreaksAreMeasured_ThenEachIsCountedFromItsOwnEntriesAndTheInjectedClock() {
         // A real calculator, because what can go wrong here is the grouping around it: one upgrade's
         // entries counted towards another's streak, an upgrade with no history left out of the answer,
         // or "today" read from the system clock — which, on any day but the fixed one, makes all three 0.
-        TrackingService withRealCalculator = new TrackingService(configRepository, progressRepository,
-                upgradeQuery, new StreakCalculator(), evaluationService, eventPublisher, auditTrail, fixedClock);
+        TrackingService withRealCalculator = new TrackingService(
+                configRepository,
+                progressRepository,
+                upgradeQuery,
+                new StreakCalculator(),
+                evaluationService,
+                eventPublisher,
+                auditTrail,
+                fixedClock);
         UUID onceToday = UUID.randomUUID();
         UUID neverLogged = UUID.randomUUID();
         List<UUID> ids = List.of(upgradeId, onceToday, neverLogged);
-        when(progressRepository.findByUpgradeIdIn(ids)).thenReturn(List.of(
-                AProgressEntry.completedOn(upgradeId, userId, today, true),
-                AProgressEntry.completedOn(onceToday, userId, today, true),
-                AProgressEntry.completedOn(upgradeId, userId, today.minusDays(1), true),
-                AProgressEntry.completedOn(onceToday, userId, today.minusDays(2), true),
-                AProgressEntry.completedOn(upgradeId, userId, today.minusDays(2), true)));
+        when(progressRepository.findByUpgradeIdIn(ids))
+                .thenReturn(List.of(
+                        AProgressEntry.completedOn(upgradeId, userId, today, true),
+                        AProgressEntry.completedOn(onceToday, userId, today, true),
+                        AProgressEntry.completedOn(upgradeId, userId, today.minusDays(1), true),
+                        AProgressEntry.completedOn(onceToday, userId, today.minusDays(2), true),
+                        AProgressEntry.completedOn(upgradeId, userId, today.minusDays(2), true)));
 
         assertThat(withRealCalculator.currentStreaks(ids))
                 .containsExactlyInAnyOrderEntriesOf(Map.of(upgradeId, 3, onceToday, 1, neverLogged, 0));
@@ -483,7 +525,6 @@ class TrackingServiceTest {
         when(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenReturn(List.of());
         when(streakCalculator.milestoneReachedBy(any(), any(), any())).thenReturn(milestone);
 
-        service.recordProgress(userId, upgradeId,
-                new ProgressEntryDetails(date, true, null, null, null, null));
+        service.recordProgress(userId, upgradeId, new ProgressEntryDetails(date, true, null, null, null, null));
     }
 }

@@ -1,6 +1,6 @@
 package com.healthupgrades.tracking.domain.service;
-import com.healthupgrades.tracking.domain.model.ProgressEntry;
 
+import com.healthupgrades.tracking.domain.model.ProgressEntry;
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.List;
@@ -72,8 +72,7 @@ public class StreakCalculator {
         // not enough: when the logged day is the one the yesterday-fallback counts from, removing it
         // makes the current streak read zero however long the run behind it was.
         int longestBefore = Math.max(
-                currentStreak(completedWithout, countFrom),
-                runEndingOn(completedWithout, loggedOn.minusDays(1)));
+                currentStreak(completedWithout, countFrom), runEndingOn(completedWithout, loggedOn.minusDays(1)));
         int milestonesBefore = longestBefore / MILESTONE_INTERVAL_DAYS;
         int milestonesAfter = currentStreak(completedWith, countFrom) / MILESTONE_INTERVAL_DAYS;
         return milestonesAfter > milestonesBefore

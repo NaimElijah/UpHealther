@@ -1,17 +1,16 @@
 package com.healthupgrades.common.security;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.healthupgrades.support.PostgresIT;
 import jakarta.servlet.FilterRegistration;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfigureMetrics;
 import org.springframework.boot.micrometer.tracing.test.autoconfigure.AutoConfigureTracing;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.web.context.WebApplicationContext;
-
-import java.util.Map;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Checks that {@link JwtAuthenticationFilter} runs only inside the security chain, never also as a

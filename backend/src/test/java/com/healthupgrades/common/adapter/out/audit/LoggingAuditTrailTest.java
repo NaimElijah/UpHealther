@@ -1,5 +1,8 @@
 package com.healthupgrades.common.adapter.out.audit;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -9,17 +12,13 @@ import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.util.Arrays;
+import java.util.UUID;
 import net.logstash.logback.argument.StructuredArgument;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
-
-import java.util.Arrays;
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 
 /**
  * Pins what the audit stream actually emits: the fields, the counter derived from the same call, and
@@ -97,9 +96,9 @@ class LoggingAuditTrailTest {
         // is hex and dashes, so a doesNotContain of any word or symbol is a test that cannot fail -
         // it reads like the NFR-6 guard and guards nothing. Pinning the whole line means anything new
         // appearing in it has to come through here.
-        assertThat(single().getFormattedMessage()).isEqualTo(
-                "action=reflection.create outcome=ALLOWED resource=REFLECTION"
-                        + " actorId=" + actor + " resourceId=" + resource);
+        assertThat(single().getFormattedMessage())
+                .isEqualTo("action=reflection.create outcome=ALLOWED resource=REFLECTION" + " actorId=" + actor
+                        + " resourceId=" + resource);
     }
 
     @Test
@@ -131,11 +130,12 @@ class LoggingAuditTrailTest {
         // real cause lost. The line is the half that matters, so a failing meter must not take it down.
         LoggingAuditTrail brittle = new LoggingAuditTrail(new FailingMeterRegistry());
 
-        assertThatCode(() -> brittle.record(AuditEvent.allowed(AuditAction.UPGRADE_DELETE,
-                UUID.randomUUID(), UUID.randomUUID()))).doesNotThrowAnyException();
+        assertThatCode(() -> brittle.record(
+                        AuditEvent.allowed(AuditAction.UPGRADE_DELETE, UUID.randomUUID(), UUID.randomUUID())))
+                .doesNotThrowAnyException();
 
-        assertThat(appender.list).anySatisfy(event ->
-                assertThat(event.getFormattedMessage()).contains("action=upgrade.delete"));
+        assertThat(appender.list)
+                .anySatisfy(event -> assertThat(event.getFormattedMessage()).contains("action=upgrade.delete"));
     }
 
     /** A registry that refuses to register anything, standing in for a meter-id conflict. */
@@ -152,7 +152,12 @@ class LoggingAuditTrailTest {
     }
 
     private double counted(String action, String outcome) {
-        return meterRegistry.get("audit.events").tag("action", action).tag("outcome", outcome).counter().count();
+        return meterRegistry
+                .get("audit.events")
+                .tag("action", action)
+                .tag("outcome", outcome)
+                .counter()
+                .count();
     }
 
     /** The structured fields the logstash encoder would turn into JSON keys. */

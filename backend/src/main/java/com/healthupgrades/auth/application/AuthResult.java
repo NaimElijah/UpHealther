@@ -1,7 +1,6 @@
 package com.healthupgrades.auth.application;
 
 import com.healthupgrades.user.domain.model.User; // the authenticated domain user
-
 import java.time.Instant;
 
 /**

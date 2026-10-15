@@ -53,7 +53,12 @@ const DashboardPage: React.FC = () => {
       ? toApiError(statusMutation.error)
       : undefined;
 
-  if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
+  if (isLoading)
+    return (
+      <div className="flex justify-center py-20">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
   if (error) return <ErrorState title="Could not load your dashboard." error={toApiError(error)} />;
 
   // Rounded, not scaled: the API sends a percentage already (see DashboardDto.weeklyCompletionRate).
@@ -76,16 +81,22 @@ const DashboardPage: React.FC = () => {
             Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'},{' '}
             {user?.name?.split(' ')[0]} 👋
           </h1>
-          <p className="text-fg-subtle mt-1">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+          <p className="text-fg-subtle mt-1">
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          </p>
         </div>
-        <Button className="shrink-0" onClick={() => navigate('/upgrades/backlog')}>+ Add Upgrade</Button>
+        <Button className="shrink-0" onClick={() => navigate('/upgrades/backlog')}>
+          + Add Upgrade
+        </Button>
       </div>
 
       {(data?.overdueUpgrades?.length ?? 0) > 0 && (
         <div className="bg-danger-soft border border-danger-line rounded-xl p-4 flex items-center gap-3">
           <span className="text-2xl">⚠️</span>
           <div>
-            <p className="font-medium text-danger-fg">{data!.overdueUpgrades.length} overdue upgrade{data!.overdueUpgrades.length > 1 ? 's' : ''}</p>
+            <p className="font-medium text-danger-fg">
+              {data!.overdueUpgrades.length} overdue upgrade{data!.overdueUpgrades.length > 1 ? 's' : ''}
+            </p>
             <p className="text-sm text-danger-fg">Some upgrades are past their target date.</p>
           </div>
         </div>
@@ -128,7 +139,13 @@ const DashboardPage: React.FC = () => {
         ) : (
           <div className="space-y-3">
             {data!.todayUpgrades.map((u) => (
-              <UpgradeCard key={u.id} upgrade={u} onStatusChange={changeStatusFrom('today')} refusal={refusalFor(u.id, 'today')} busy={statusMutation.isPending} />
+              <UpgradeCard
+                key={u.id}
+                upgrade={u}
+                onStatusChange={changeStatusFrom('today')}
+                refusal={refusalFor(u.id, 'today')}
+                busy={statusMutation.isPending}
+              />
             ))}
             <Button variant="secondary" onClick={() => navigate('/daily-checkin')} className="w-full mt-2">
               Go to Daily Check-in
@@ -139,11 +156,22 @@ const DashboardPage: React.FC = () => {
 
       <Card header="Active Upgrades">
         {(data?.activeUpgrades?.length ?? 0) === 0 ? (
-          <EmptyState icon="🔥" title="No active upgrades" description="Activate a planned upgrade to get started." action={<Button onClick={() => navigate('/upgrades/planned')}>View Planned</Button>} />
+          <EmptyState
+            icon="🔥"
+            title="No active upgrades"
+            description="Activate a planned upgrade to get started."
+            action={<Button onClick={() => navigate('/upgrades/planned')}>View Planned</Button>}
+          />
         ) : (
           <div className="grid sm:grid-cols-2 gap-4">
             {data!.activeUpgrades.map((u) => (
-              <UpgradeCard key={u.id} upgrade={u} onStatusChange={changeStatusFrom('active')} refusal={refusalFor(u.id, 'active')} busy={statusMutation.isPending} />
+              <UpgradeCard
+                key={u.id}
+                upgrade={u}
+                onStatusChange={changeStatusFrom('active')}
+                refusal={refusalFor(u.id, 'active')}
+                busy={statusMutation.isPending}
+              />
             ))}
           </div>
         )}
@@ -153,9 +181,14 @@ const DashboardPage: React.FC = () => {
         <Card header="By Area">
           <ul role="list" aria-label="Upgrades by area" className="space-y-2">
             {areaSummary.map((a) => (
-              <li key={a.areaId} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 p-3 rounded-lg bg-sunken text-sm">
+              <li
+                key={a.areaId}
+                className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 p-3 rounded-lg bg-sunken text-sm"
+              >
                 <span className="min-w-0 break-words font-medium text-fg">{a.areaName}</span>
-                <span className="text-fg-subtle">{a.activeCount} active · {a.completedCount} completed · {a.totalUpgrades} total</span>
+                <span className="text-fg-subtle">
+                  {a.activeCount} active · {a.completedCount} completed · {a.totalUpgrades} total
+                </span>
               </li>
             ))}
           </ul>

@@ -1,10 +1,9 @@
 package com.healthupgrades.user.domain.model;
 
-import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Locale;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
 
 /**
  * Covers FR-4's comparison rule: an email is one identity however it was typed, so the address is

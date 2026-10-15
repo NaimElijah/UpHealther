@@ -16,10 +16,4 @@ import java.util.UUID;
  * @param daysOfWeek   the days it fires on, in calendar order; empty means every day
  * @param enabled      whether it is switched on
  */
-public record ReminderDto(
-        UUID id,
-        UUID upgradeId,
-        LocalTime reminderTime,
-        List<String> daysOfWeek,
-        boolean enabled
-) {}
+public record ReminderDto(UUID id, UUID upgradeId, LocalTime reminderTime, List<String> daysOfWeek, boolean enabled) {}

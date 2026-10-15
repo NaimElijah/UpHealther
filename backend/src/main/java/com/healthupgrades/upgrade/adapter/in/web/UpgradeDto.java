@@ -3,7 +3,6 @@ package com.healthupgrades.upgrade.adapter.in.web;
 import com.healthupgrades.upgrade.domain.model.Difficulty;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.model.UpgradeType;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -57,5 +56,4 @@ public record UpgradeDto(
         Long version,
         UpgradeTrackingConfigDto trackingConfig,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
-) {}
+        LocalDateTime updatedAt) {}

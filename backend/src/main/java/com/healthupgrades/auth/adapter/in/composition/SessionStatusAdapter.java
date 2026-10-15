@@ -2,10 +2,9 @@ package com.healthupgrades.auth.adapter.in.composition;
 
 import com.healthupgrades.auth.application.port.in.SessionQuery;
 import com.healthupgrades.common.domain.port.out.SessionStatusPort;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-
-import java.util.UUID;
 
 /**
  * Driving adapter that answers the shared kernel's {@link SessionStatusPort} from this context's own

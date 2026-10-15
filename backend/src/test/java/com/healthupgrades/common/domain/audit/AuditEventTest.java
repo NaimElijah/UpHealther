@@ -1,12 +1,11 @@
 package com.healthupgrades.common.domain.audit;
 
-import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.lang.reflect.RecordComponent;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.jupiter.api.Test;
 
 /** Pins the shape of an audit entry, including the one property that keeps NFR-6 true by construction. */
 class AuditEventTest {
@@ -23,9 +22,10 @@ class AuditEventTest {
         RecordComponent[] components = AuditEvent.class.getRecordComponents();
 
         assertThat(components).isNotEmpty();
-        assertThat(components).allSatisfy(component ->
-                assertThat(component.getType().isEnum() || component.getType() == UUID.class)
-                        .as("%s is a %s; an audit event may only hold enums and identifiers",
+        assertThat(components)
+                .allSatisfy(component -> assertThat(component.getType().isEnum() || component.getType() == UUID.class)
+                        .as(
+                                "%s is a %s; an audit event may only hold enums and identifiers",
                                 component.getName(), component.getType().getSimpleName())
                         .isTrue());
     }

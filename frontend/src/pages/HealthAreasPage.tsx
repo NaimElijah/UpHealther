@@ -72,24 +72,36 @@ const HealthAreasPage: React.FC = () => {
 
   const createMutation = useMutation({
     mutationFn: createHealthArea,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['healthAreas'] }); setIsCreateOpen(false); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['healthAreas'] });
+      setIsCreateOpen(false);
+    },
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, req }: { id: string; req: Partial<CreateHealthAreaRequest> }) => updateHealthArea(id, req),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['healthAreas'] }); setEditArea(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['healthAreas'] });
+      setEditArea(null);
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteHealthArea,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['healthAreas'] }); setDeleteId(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['healthAreas'] });
+      setDeleteId(null);
+    },
   });
 
   /**
    * Drops the last submit's messages. Both dialogs share them, so without this a dialog could open
    * showing a refusal that belonged to the other one, or to an attempt already cancelled.
    */
-  const clearErrors = () => { setFormError(''); setPriorityError(''); };
+  const clearErrors = () => {
+    setFormError('');
+    setPriorityError('');
+  };
 
   /** Opens create on an empty form, so it inherits neither an edited area's values nor its messages. */
   const openCreate = () => {
@@ -121,7 +133,10 @@ const HealthAreasPage: React.FC = () => {
     if (!editArea) return;
     clearErrors();
     const parsed = parsePriority(form.priority);
-    if (!parsed.valid) { setPriorityError(parsed.problem); return; }
+    if (!parsed.valid) {
+      setPriorityError(parsed.problem);
+      return;
+    }
     try {
       // The priority goes out whether or not it was touched: an update is a full replacement, so leaving
       // it out would clear it (#91).
@@ -159,7 +174,12 @@ const HealthAreasPage: React.FC = () => {
     });
   };
 
-  if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
+  if (isLoading)
+    return (
+      <div className="flex justify-center py-20">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
   if (error) return <ErrorState title="Could not load your health areas." error={toApiError(error)} />;
 
   return (
@@ -191,14 +211,20 @@ const HealthAreasPage: React.FC = () => {
                 <div className="min-w-0">
                   <h3 className="font-semibold text-fg break-words">{area.name}</h3>
                   {area.upgradeCount !== undefined && (
-                    <p className="text-xs text-fg-subtle">{area.upgradeCount} upgrade{area.upgradeCount !== 1 ? 's' : ''}</p>
+                    <p className="text-xs text-fg-subtle">
+                      {area.upgradeCount} upgrade{area.upgradeCount !== 1 ? 's' : ''}
+                    </p>
                   )}
                 </div>
               </div>
               {area.description && <p className="text-sm text-fg-subtle mt-2 break-words">{area.description}</p>}
               <div className="flex flex-wrap gap-2 mt-4">
-                <Button size="sm" variant="secondary" onClick={() => openEdit(area)}>Edit</Button>
-                <Button size="sm" variant="danger" onClick={() => openDelete(area.id)}>Delete</Button>
+                <Button size="sm" variant="secondary" onClick={() => openEdit(area)}>
+                  Edit
+                </Button>
+                <Button size="sm" variant="danger" onClick={() => openDelete(area.id)}>
+                  Delete
+                </Button>
               </div>
             </Card>
           ))}
@@ -207,42 +233,109 @@ const HealthAreasPage: React.FC = () => {
 
       <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="New Health Area">
         <form onSubmit={handleCreate} className="space-y-4">
-          <Input label="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Sleep, Nutrition" error={formError} />
-          <Input label="Description" value={form.description ?? ''} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Optional description" />
-          <Input label="Priority" type="number" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} placeholder="Optional, e.g. 1" error={priorityError} />
-          <Input label="Icon (emoji)" value={form.icon ?? ''} onChange={(e) => setForm({ ...form, icon: e.target.value })} placeholder="e.g. 😴" />
-          <Input label="Color (hex)" value={form.color ?? ''} onChange={(e) => setForm({ ...form, color: e.target.value })} placeholder="e.g. #6366f1" />
+          <Input
+            label="Name"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="e.g. Sleep, Nutrition"
+            error={formError}
+          />
+          <Input
+            label="Description"
+            value={form.description ?? ''}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            placeholder="Optional description"
+          />
+          <Input
+            label="Priority"
+            type="number"
+            value={form.priority}
+            onChange={(e) => setForm({ ...form, priority: e.target.value })}
+            placeholder="Optional, e.g. 1"
+            error={priorityError}
+          />
+          <Input
+            label="Icon (emoji)"
+            value={form.icon ?? ''}
+            onChange={(e) => setForm({ ...form, icon: e.target.value })}
+            placeholder="e.g. 😴"
+          />
+          <Input
+            label="Color (hex)"
+            value={form.color ?? ''}
+            onChange={(e) => setForm({ ...form, color: e.target.value })}
+            placeholder="e.g. #6366f1"
+          />
           <div className="flex gap-2 justify-end">
-            <Button variant="secondary" type="button" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
-            <Button type="submit" loading={createMutation.isPending}>Create</Button>
+            <Button variant="secondary" type="button" onClick={() => setIsCreateOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={createMutation.isPending}>
+              Create
+            </Button>
           </div>
         </form>
       </Modal>
 
       <Modal isOpen={!!editArea} onClose={() => setEditArea(null)} title="Edit Health Area">
         <form onSubmit={handleUpdate} className="space-y-4">
-          <Input label="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} error={formError} />
-          <Input label="Description" value={form.description ?? ''} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-          <Input label="Priority" type="number" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} error={priorityError} />
-          <Input label="Icon (emoji)" value={form.icon ?? ''} onChange={(e) => setForm({ ...form, icon: e.target.value })} />
-          <Input label="Color (hex)" value={form.color ?? ''} onChange={(e) => setForm({ ...form, color: e.target.value })} />
+          <Input
+            label="Name"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            error={formError}
+          />
+          <Input
+            label="Description"
+            value={form.description ?? ''}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+          />
+          <Input
+            label="Priority"
+            type="number"
+            value={form.priority}
+            onChange={(e) => setForm({ ...form, priority: e.target.value })}
+            error={priorityError}
+          />
+          <Input
+            label="Icon (emoji)"
+            value={form.icon ?? ''}
+            onChange={(e) => setForm({ ...form, icon: e.target.value })}
+          />
+          <Input
+            label="Color (hex)"
+            value={form.color ?? ''}
+            onChange={(e) => setForm({ ...form, color: e.target.value })}
+          />
           <div className="flex gap-2 justify-end">
-            <Button variant="secondary" type="button" onClick={() => setEditArea(null)}>Cancel</Button>
-            <Button type="submit" loading={updateMutation.isPending}>Save Changes</Button>
+            <Button variant="secondary" type="button" onClick={() => setEditArea(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={updateMutation.isPending}>
+              Save Changes
+            </Button>
           </div>
         </form>
       </Modal>
 
       <Modal isOpen={!!deleteId} onClose={() => setDeleteId(null)} title="Delete Health Area">
-        <p className="text-fg-subtle mb-4">Are you sure you want to delete this health area? This action cannot be undone.</p>
+        <p className="text-fg-subtle mb-4">
+          Are you sure you want to delete this health area? This action cannot be undone.
+        </p>
         {deleteMutation.error && (
           <div className="mb-4">
             <ErrorState inline title="The area was not deleted." error={toApiError(deleteMutation.error)} />
           </div>
         )}
         <div className="flex gap-2 justify-end">
-          <Button variant="secondary" onClick={() => setDeleteId(null)}>Cancel</Button>
-          <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteId && deleteMutation.mutate(deleteId)}>
+          <Button variant="secondary" onClick={() => setDeleteId(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            loading={deleteMutation.isPending}
+            onClick={() => deleteId && deleteMutation.mutate(deleteId)}
+          >
             Delete
           </Button>
         </div>

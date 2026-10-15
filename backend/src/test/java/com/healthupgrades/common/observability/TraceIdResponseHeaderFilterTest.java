@@ -1,19 +1,18 @@
 package com.healthupgrades.common.observability;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.test.simple.SimpleTraceContext;
 import io.micrometer.tracing.test.simple.SimpleTracer;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
+import java.io.IOException;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
-
-import java.io.IOException;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Pins the half of issue #43's second criterion that the error body cannot cover: the id has to come
@@ -36,7 +35,8 @@ class TraceIdResponseHeaderFilterTest {
             new TraceIdResponseHeaderFilter(tracer).doFilter(request, response, new MockFilterChain());
         }
 
-        assertThat(response.getHeader(TraceIdResponseHeaderFilter.TRACE_ID_HEADER)).isEqualTo(TRACE_ID);
+        assertThat(response.getHeader(TraceIdResponseHeaderFilter.TRACE_ID_HEADER))
+                .isEqualTo(TRACE_ID);
     }
 
     @Test
@@ -45,7 +45,8 @@ class TraceIdResponseHeaderFilterTest {
         // nothing after it is worse than none, because it looks like an id that was lost.
         new TraceIdResponseHeaderFilter(Tracer.NOOP).doFilter(request, response, new MockFilterChain());
 
-        assertThat(response.getHeader(TraceIdResponseHeaderFilter.TRACE_ID_HEADER)).isNull();
+        assertThat(response.getHeader(TraceIdResponseHeaderFilter.TRACE_ID_HEADER))
+                .isNull();
     }
 
     @Test
@@ -66,7 +67,8 @@ class TraceIdResponseHeaderFilterTest {
         }
 
         assertThat(response.getStatus()).isEqualTo(401);
-        assertThat(response.getHeader(TraceIdResponseHeaderFilter.TRACE_ID_HEADER)).isEqualTo(TRACE_ID);
+        assertThat(response.getHeader(TraceIdResponseHeaderFilter.TRACE_ID_HEADER))
+                .isEqualTo(TRACE_ID);
     }
 
     /**

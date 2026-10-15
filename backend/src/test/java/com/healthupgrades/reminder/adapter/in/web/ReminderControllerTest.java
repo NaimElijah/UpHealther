@@ -1,28 +1,5 @@
 package com.healthupgrades.reminder.adapter.in.web;
 
-import com.healthupgrades.common.domain.exception.BusinessRuleException;
-import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
-import com.healthupgrades.common.security.JwtAuthenticationFilter;
-import com.healthupgrades.common.security.BearerTokenAuthenticator;
-import com.healthupgrades.common.security.SecurityConfig;
-import com.healthupgrades.common.security.UserDetailsServiceImpl;
-import com.healthupgrades.reminder.application.ReminderService;
-import com.healthupgrades.reminder.domain.model.Reminder;
-import com.healthupgrades.reminder.domain.model.ReminderDays;
-import com.healthupgrades.support.WebSliceSupport;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-
-import java.time.LocalTime;
-import java.util.List;
-import java.util.UUID;
-
 import static com.healthupgrades.support.WebSliceSupport.bearer;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -38,6 +15,28 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.healthupgrades.common.domain.exception.BusinessRuleException;
+import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.common.security.BearerTokenAuthenticator;
+import com.healthupgrades.common.security.JwtAuthenticationFilter;
+import com.healthupgrades.common.security.SecurityConfig;
+import com.healthupgrades.common.security.UserDetailsServiceImpl;
+import com.healthupgrades.reminder.application.ReminderService;
+import com.healthupgrades.reminder.domain.model.Reminder;
+import com.healthupgrades.reminder.domain.model.ReminderDays;
+import com.healthupgrades.support.WebSliceSupport;
+import java.time.LocalTime;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
 /**
  * The HTTP contract for reminders: FR-25 (attach one with a time and a day filter) and FR-26
  * (reschedule, enable, disable, delete).
@@ -47,15 +46,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * rejected, never ignored, and ignoring it would leave a reminder firing on days nobody chose.
  */
 @WebMvcTest(ReminderController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class,
-        ReminderWebMapper.class, WebSliceSupport.class})
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class, ReminderWebMapper.class, WebSliceSupport.class})
 class ReminderControllerTest {
 
-    @Autowired MockMvc mockMvc;
+    @Autowired
+    MockMvc mockMvc;
 
-    @MockitoBean ReminderService service;
-    @MockitoBean BearerTokenAuthenticator authenticator;
-    @MockitoBean UserDetailsServiceImpl userDetailsService;
+    @MockitoBean
+    ReminderService service;
+
+    @MockitoBean
+    BearerTokenAuthenticator authenticator;
+
+    @MockitoBean
+    UserDetailsServiceImpl userDetailsService;
 
     private UUID userId;
     private final UUID upgradeId = UUID.randomUUID();
@@ -75,7 +79,8 @@ class ReminderControllerTest {
     void GivenATimeAndDays_WhenAReminderIsAttached_ThenItAnswers201CarryingTheDayTokens() throws Exception {
         when(service.create(eq(userId), eq(upgradeId), any())).thenReturn(aReminder(true));
 
-        mockMvc.perform(bearer(post(upgradeScoped)).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(bearer(post(upgradeScoped))
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reminderTime\":\"09:00\",\"daysOfWeek\":[\"MON\",\"WED\"],\"enabled\":true}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.reminderTime").value("09:00:00"))
@@ -85,7 +90,8 @@ class ReminderControllerTest {
 
     @Test
     void GivenNoTime_WhenAReminderIsAttached_ThenItAnswers400AndNothingIsAttached() throws Exception {
-        mockMvc.perform(bearer(post(upgradeScoped)).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(bearer(post(upgradeScoped))
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"daysOfWeek\":[\"MON\"]}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.reminderTime").exists());
@@ -99,7 +105,8 @@ class ReminderControllerTest {
         when(service.create(eq(userId), eq(upgradeId), any()))
                 .thenThrow(new BusinessRuleException("Unrecognised day: FUNDAY"));
 
-        mockMvc.perform(bearer(post(upgradeScoped)).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(bearer(post(upgradeScoped))
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reminderTime\":\"09:00\",\"daysOfWeek\":[\"FUNDAY\"]}"))
                 .andExpect(status().isUnprocessableContent());
     }
@@ -117,7 +124,8 @@ class ReminderControllerTest {
     void GivenAnOwnedReminder_WhenItIsRescheduled_ThenItAnswers200WithTheNewSchedule() throws Exception {
         when(service.update(eq(userId), eq(reminderId), any())).thenReturn(aReminder(false));
 
-        mockMvc.perform(bearer(put(reminderScoped)).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(bearer(put(reminderScoped))
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reminderTime\":\"09:00\",\"daysOfWeek\":[\"MON\"],\"enabled\":false}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.enabled").value(false));
@@ -128,7 +136,8 @@ class ReminderControllerTest {
         when(service.update(eq(userId), eq(reminderId), any()))
                 .thenThrow(new ResourceNotFoundException("Reminder not found: " + reminderId));
 
-        mockMvc.perform(bearer(put(reminderScoped)).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(bearer(put(reminderScoped))
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reminderTime\":\"09:00\"}"))
                 .andExpect(status().isNotFound());
     }
@@ -143,19 +152,21 @@ class ReminderControllerTest {
     }
 
     @Test
-    void GivenAReminderOnAnotherUsersUpgrade_WhenItIsDeleted_ThenItAnswers404AndNothingIsDeleted()
-            throws Exception {
+    void GivenAReminderOnAnotherUsersUpgrade_WhenItIsDeleted_ThenItAnswers404AndNothingIsDeleted() throws Exception {
         doThrow(new ResourceNotFoundException("Reminder not found: " + reminderId))
-                .when(service).delete(userId, reminderId);
+                .when(service)
+                .delete(userId, reminderId);
 
-        mockMvc.perform(bearer(delete(reminderScoped)))
-                .andExpect(status().isNotFound());
+        mockMvc.perform(bearer(delete(reminderScoped))).andExpect(status().isNotFound());
     }
 
     private Reminder aReminder(boolean enabled) {
-        return Reminder.builder().id(reminderId).upgradeId(upgradeId)
+        return Reminder.builder()
+                .id(reminderId)
+                .upgradeId(upgradeId)
                 .reminderTime(LocalTime.of(9, 0))
                 .daysOfWeek(ReminderDays.of(List.of("MON", "WED")).toStorageValue())
-                .enabled(enabled).build();
+                .enabled(enabled)
+                .build();
     }
 }

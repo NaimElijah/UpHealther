@@ -5,7 +5,6 @@ import com.healthupgrades.upgrade.domain.model.UpgradeType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -35,8 +34,7 @@ public record UpgradeRequest(
         LocalDate plannedStartDate,
         LocalDate targetEndDate,
         String motivation,
-        String successCriteria
-) {
+        String successCriteria) {
     /**
      * Mirrors {@code health_upgrades.title VARCHAR(255)}; see BR-16 for why the bound is here.
      *

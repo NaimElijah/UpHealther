@@ -2,7 +2,6 @@ package com.healthupgrades.auth.application.port.in;
 
 import com.healthupgrades.auth.application.RefreshOutcome;
 import com.healthupgrades.auth.application.SessionGrant;
-
 import java.util.UUID;
 
 /**

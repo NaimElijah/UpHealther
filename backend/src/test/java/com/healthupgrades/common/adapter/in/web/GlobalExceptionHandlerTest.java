@@ -1,5 +1,14 @@
 package com.healthupgrades.common.adapter.in.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.Mockito.mock;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -17,6 +26,12 @@ import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.test.simple.SimpleTraceContext;
 import io.micrometer.tracing.test.simple.SimpleTracer;
 import jakarta.servlet.http.HttpServletRequest;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -31,27 +46,11 @@ import org.springframework.security.authentication.AccountStatusException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.InternalAuthenticationServiceException;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.ExceptionHandlerMethodResolver;
-
-import java.time.Clock;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.util.List;
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.mockito.Mockito.mock;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * Pins the exception-to-status contract the module guide documents.
@@ -122,8 +121,8 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void GivenAnOptimisticLockFailure_WhenItIsHandled_ThenTheUnderlyingMessageIsNotLeaked() {
-        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
-                handler.handleOptimisticLock(new OptimisticLockException("Row was updated by transaction 8123"), request);
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response = handler.handleOptimisticLock(
+                new OptimisticLockException("Row was updated by transaction 8123"), request);
 
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getMessage()).doesNotContain("8123");
@@ -143,9 +142,8 @@ class GlobalExceptionHandlerTest {
     void GivenAFailedAuthentication_WhenItIsHandled_ThenTheBodyDoesNotSayWhichHalfWasWrong() {
         // A caller learning that the email exists but the password did not match is free information
         // for anyone enumerating accounts, so the original message is dropped rather than passed on.
-        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
-                handler.handleBadCredentials(
-                        new BadCredentialsException("No user found for someone@example.com"), request);
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response = handler.handleBadCredentials(
+                new BadCredentialsException("No user found for someone@example.com"), request);
 
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getMessage()).isEqualTo("Invalid credentials");
@@ -171,7 +169,8 @@ class GlobalExceptionHandlerTest {
         // wrong password and log nothing at all.
         assertThat(GlobalExceptionHandler.class.getDeclaredMethods())
                 .filteredOn(m -> m.getName().equals("handleBadCredentials"))
-                .allSatisfy(m -> assertThat(m.getAnnotation(ExceptionHandler.class).value())
+                .allSatisfy(m -> assertThat(
+                                m.getAnnotation(ExceptionHandler.class).value())
                         .containsExactlyInAnyOrder(BadCredentialsException.class, AccountStatusException.class));
 
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response = handler.handleGeneral(
@@ -184,8 +183,8 @@ class GlobalExceptionHandlerTest {
     void GivenARequestWithNoCredential_WhenAuthenticationIsRequired_ThenItIs401WithABareBearerChallenge() {
         // RFC 6750 section 3: a request that carried no credential gets the scheme and nothing else,
         // because there is no error to describe.
-        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response = handler.handleAuthenticationRequired(
-                AuthenticationRequiredException.noCredential(), request);
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
+                handler.handleAuthenticationRequired(AuthenticationRequiredException.noCredential(), request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(response.getHeaders().getFirst(HttpHeaders.WWW_AUTHENTICATE)).isEqualTo("Bearer");
@@ -197,8 +196,8 @@ class GlobalExceptionHandlerTest {
     void GivenARejectedToken_WhenAuthenticationIsRequired_ThenTheChallengeSaysInvalidTokenAndNothingMore() {
         // invalid_token covers expired, forged and revoked alike. Saying which would tell whoever holds a
         // stolen token whether it is worth retrying.
-        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response = handler.handleAuthenticationRequired(
-                AuthenticationRequiredException.rejectedToken(), request);
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
+                handler.handleAuthenticationRequired(AuthenticationRequiredException.rejectedToken(), request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(response.getHeaders().getFirst(HttpHeaders.WWW_AUTHENTICATE))
@@ -231,8 +230,8 @@ class GlobalExceptionHandlerTest {
     void GivenAnUnexpectedFailure_WhenTheCatchAllHandlesIt_ThenItIsLoggedWithItsStackTrace() throws Exception {
         // Withholding the cause from the client is only safe if the server keeps it: otherwise a 500
         // leaves no trace beyond the access log.
-        List<ILoggingEvent> logged = logsFromHandler(() ->
-                handler.handleGeneral(new IllegalStateException("jdbc://user:hunter2@db/prod"), request));
+        List<ILoggingEvent> logged = logsFromHandler(
+                () -> handler.handleGeneral(new IllegalStateException("jdbc://user:hunter2@db/prod"), request));
 
         assertThat(logged).singleElement().satisfies(event -> {
             assertThat(event.getLevel()).isEqualTo(Level.ERROR);
@@ -302,8 +301,8 @@ class GlobalExceptionHandlerTest {
     class ThroughTheDispatcher {
 
         // The service and mapper are never reached: every request below fails before the handler method.
-        private final MockMvc mockMvc = MockMvcBuilders
-                .standaloneSetup(new UpgradeController(mock(UpgradeService.class), mock(UpgradeWebMapper.class)))
+        private final MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
+                        new UpgradeController(mock(UpgradeService.class), mock(UpgradeWebMapper.class)))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .setControllerAdvice(new GlobalExceptionHandler(Tracer.NOOP, CLOCK))
                 .build();
@@ -337,7 +336,9 @@ class GlobalExceptionHandlerTest {
                             .content("{\"title\":\"Walk daily\",\"type\":\"NOT_A_TYPE\"}"))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.fieldErrors").doesNotExist())
-                    .andReturn().getResponse().getContentAsString();
+                    .andReturn()
+                    .getResponse()
+                    .getContentAsString();
 
             assertThat(body)
                     .doesNotContain("NOT_A_TYPE")
@@ -378,7 +379,9 @@ class GlobalExceptionHandlerTest {
 
         @Test
         void GivenABodyInAnUnsupportedMediaType_WhenItIsRead_ThenTheResponseIs415() throws Exception {
-            mockMvc.perform(post("/api/upgrades").contentType(MediaType.TEXT_PLAIN).content("not json"))
+            mockMvc.perform(post("/api/upgrades")
+                            .contentType(MediaType.TEXT_PLAIN)
+                            .content("not json"))
                     .andExpect(status().isUnsupportedMediaType())
                     .andExpect(jsonPath("$.message").value("Unsupported Media Type"));
         }
@@ -387,8 +390,8 @@ class GlobalExceptionHandlerTest {
         void GivenAClientMistake_WhenItIsRejected_ThenNothingIsLoggedAtError() throws Exception {
             // ERROR means "actionable now". A caller sending a bad id is not an incident, and burying
             // real 500s under that noise is the reason this handler was changed in the first place.
-            List<ILoggingEvent> logged = logsFromHandler(() ->
-                    mockMvc.perform(get("/api/upgrades/not-a-uuid")).andExpect(status().isBadRequest()));
+            List<ILoggingEvent> logged = logsFromHandler(
+                    () -> mockMvc.perform(get("/api/upgrades/not-a-uuid")).andExpect(status().isBadRequest()));
 
             assertThat(logged).noneMatch(event -> event.getLevel() == Level.ERROR);
         }

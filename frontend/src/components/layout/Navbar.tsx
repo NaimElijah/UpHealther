@@ -45,7 +45,9 @@ const Navbar: React.FC = () => {
               desktop scrollbar takes just above that, so the emoji is clipped rather than painted over
               the theme switch. */}
           <Link to="/dashboard" className="hidden min-[360px]:flex items-center gap-2 min-w-0 overflow-hidden">
-            <span className="text-2xl shrink-0" aria-hidden="true">💪</span>
+            <span className="text-2xl shrink-0" aria-hidden="true">
+              💪
+            </span>
             <span className="font-bold text-fg text-lg truncate">UpHealther</span>
           </Link>
         </div>

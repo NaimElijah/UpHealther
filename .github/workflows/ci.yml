@@ -26,8 +26,8 @@ jobs:
           cache: maven
 
       # `verify` compiles, runs the unit tests, runs the *IT integration tests against a PostgreSQL
-      # container they start themselves, and packages the jar. Splitting those into separate `mvn`
-      # invocations only recompiled the same sources repeatedly.
+      # container they start themselves, packages the jar, and last checks the Java layout (ADR-037).
+      # Splitting those into separate `mvn` invocations only recompiled the same sources repeatedly.
       - name: Build, test and verify backend
         run: cd backend && ./mvnw -B --no-transfer-progress clean verify
         env:
@@ -122,6 +122,11 @@ jobs:
 
       - name: Install dependencies
         run: cd frontend && npm ci
+
+      # Before the lint, so a layout failure is reported as one rather than as a lint finding. The
+      # backend's equivalent is `spotless:check`, which `verify` above already runs. See ADR-038.
+      - name: Check frontend formatting
+        run: cd frontend && npm run format:check
 
       - name: Lint frontend
         run: cd frontend && npm run lint

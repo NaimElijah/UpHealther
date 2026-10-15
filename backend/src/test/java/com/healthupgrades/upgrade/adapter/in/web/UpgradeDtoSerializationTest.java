@@ -1,19 +1,18 @@
 package com.healthupgrades.upgrade.adapter.in.web;
 
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.healthupgrades.upgrade.domain.model.Difficulty;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.model.UpgradeType;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.json.JsonTest;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.json.JsonTest;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Pins the JSON contract of the upgrade response.
@@ -36,17 +35,29 @@ class UpgradeDtoSerializationTest {
 
     private UpgradeDto sampleDto(UpgradeTrackingConfigDto trackingConfig) {
         return new UpgradeDto(
-                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                "Cold showers", "Every morning",
-                UpgradeType.HABIT, UpgradeStatus.ACTIVE, Difficulty.HARD,
-                LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 2), LocalDate.of(2026, 6, 1),
-                "Because it helps", "30 days straight",
-                false, 0L, trackingConfig,
-                LocalDateTime.of(2026, 3, 1, 9, 0), LocalDateTime.of(2026, 3, 2, 9, 0));
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "Cold showers",
+                "Every morning",
+                UpgradeType.HABIT,
+                UpgradeStatus.ACTIVE,
+                Difficulty.HARD,
+                LocalDate.of(2026, 3, 1),
+                LocalDate.of(2026, 3, 2),
+                LocalDate.of(2026, 6, 1),
+                "Because it helps",
+                "30 days straight",
+                false,
+                0L,
+                trackingConfig,
+                LocalDateTime.of(2026, 3, 1, 9, 0),
+                LocalDateTime.of(2026, 3, 2, 9, 0));
     }
 
     @Test
-    void GivenAnUpgradeWithTrackingConfig_WhenTheResponseIsSerialised_ThenTheFieldNamesAreTheOnesTheFrontendReads() throws Exception {
+    void GivenAnUpgradeWithTrackingConfig_WhenTheResponseIsSerialised_ThenTheFieldNamesAreTheOnesTheFrontendReads()
+            throws Exception {
         UpgradeTrackingConfigDto config = new UpgradeTrackingConfigDto(
                 UUID.randomUUID(), UUID.randomUUID(), "NUMERIC", "DAILY", 30.0, "minutes", true);
 
@@ -54,19 +65,27 @@ class UpgradeDtoSerializationTest {
         JsonNode node = json.get("trackingConfig");
 
         assertThat(node).isNotNull();
-        assertThat(node.propertyNames()).containsExactly(
-                "id", "upgradeId", "trackingType", "frequency",
-                "targetNumericValue", "targetUnit", "requiredDaily");
+        assertThat(node.propertyNames())
+                .containsExactly(
+                        "id",
+                        "upgradeId",
+                        "trackingType",
+                        "frequency",
+                        "targetNumericValue",
+                        "targetUnit",
+                        "requiredDaily");
     }
 
     @Test
-    void GivenTrackingConfigWithEnumValuedFields_WhenTheResponseIsSerialised_ThenTheyRenderAsTheirNames() throws Exception {
+    void GivenTrackingConfigWithEnumValuedFields_WhenTheResponseIsSerialised_ThenTheyRenderAsTheirNames()
+            throws Exception {
         // These were tracking's TrackingType and Frequency enums; Jackson wrote their names, and the
         // upgrade-owned record carries the same names as strings. The JSON must not change.
         UpgradeTrackingConfigDto config = new UpgradeTrackingConfigDto(
                 UUID.randomUUID(), UUID.randomUUID(), "NUMERIC", "WEEKLY", 5.0, "km", false);
 
-        JsonNode node = objectMapper.readTree(objectMapper.writeValueAsString(sampleDto(config)))
+        JsonNode node = objectMapper
+                .readTree(objectMapper.writeValueAsString(sampleDto(config)))
                 .get("trackingConfig");
 
         assertThat(node.get("trackingType").asString()).isEqualTo("NUMERIC");
@@ -89,9 +108,25 @@ class UpgradeDtoSerializationTest {
     void GivenTheFrontendUpgradeType_WhenTheResponseIsSerialised_ThenEveryFieldItDeclaresIsPresent() throws Exception {
         JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(sampleDto(null)));
 
-        assertThat(json.propertyNames()).contains(
-                "id", "userId", "areaId", "title", "description", "type", "status", "difficulty",
-                "plannedStartDate", "actualStartDate", "targetEndDate", "motivation", "successCriteria",
-                "overdue", "version", "trackingConfig", "createdAt", "updatedAt");
+        assertThat(json.propertyNames())
+                .contains(
+                        "id",
+                        "userId",
+                        "areaId",
+                        "title",
+                        "description",
+                        "type",
+                        "status",
+                        "difficulty",
+                        "plannedStartDate",
+                        "actualStartDate",
+                        "targetEndDate",
+                        "motivation",
+                        "successCriteria",
+                        "overdue",
+                        "version",
+                        "trackingConfig",
+                        "createdAt",
+                        "updatedAt");
     }
 }

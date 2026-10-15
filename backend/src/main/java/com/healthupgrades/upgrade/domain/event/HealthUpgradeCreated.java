@@ -1,7 +1,6 @@
 package com.healthupgrades.upgrade.domain.event;
 
 import com.healthupgrades.common.domain.event.DomainEvent;
-
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -13,4 +12,5 @@ import java.util.UUID;
  * @param title      the upgrade's title, carried so a consumer can compose a message without a lookup
  * @param occurredAt when the upgrade was created
  */
-public record HealthUpgradeCreated(UUID upgradeId, UUID userId, String title, LocalDateTime occurredAt) implements DomainEvent {}
+public record HealthUpgradeCreated(UUID upgradeId, UUID userId, String title, LocalDateTime occurredAt)
+        implements DomainEvent {}

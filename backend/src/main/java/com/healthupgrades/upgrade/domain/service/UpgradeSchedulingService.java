@@ -1,7 +1,7 @@
 package com.healthupgrades.upgrade.domain.service;
-import com.healthupgrades.upgrade.domain.model.Difficulty;
 
 import com.healthupgrades.common.domain.exception.BusinessRuleException; // thrown when the invariant is violated
+import com.healthupgrades.upgrade.domain.model.Difficulty;
 
 /**
  * Stateless domain service enforcing the scheduling invariant that a user may not run more than a fixed
@@ -28,7 +28,8 @@ public class UpgradeSchedulingService {
     public void validateWithinHardLimit(Difficulty difficulty, long activeHardCount) {
         // Only HARD upgrades are capped; EASY/MEDIUM are always allowed.
         if (difficulty == Difficulty.HARD && activeHardCount >= MAX_HARD_ACTIVE) {
-            throw new BusinessRuleException("Cannot run more than " + MAX_HARD_ACTIVE + " HARD upgrades simultaneously");
+            throw new BusinessRuleException(
+                    "Cannot run more than " + MAX_HARD_ACTIVE + " HARD upgrades simultaneously");
         }
     }
 }

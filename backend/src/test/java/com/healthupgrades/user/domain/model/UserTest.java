@@ -1,9 +1,9 @@
 package com.healthupgrades.user.domain.model;
 
-import org.junit.jupiter.api.Test;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import org.junit.jupiter.api.Test;
 
 /**
  * The account state that authorisation reads: what the account may do, and whether it may authenticate
@@ -77,8 +77,7 @@ class UserTest {
     void GivenNoRoleAtAll_WhenTheRoleIsChanged_ThenItIsRefused() {
         // The column refuses a null and the application could not read one back. Failing here names the
         // caller that tried it; failing at the flush names a transaction.
-        assertThatThrownBy(() -> aUser().changeRole(null))
-                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> aUser().changeRole(null)).isInstanceOf(NullPointerException.class);
     }
 
     private static User aUser() {

@@ -39,16 +39,14 @@ describe('the content security policy', () => {
     // The image is built from the working tree, so whatever is on disk here is what a browser hashes.
     // CRLF makes the digest below describe bytes nobody serves, and the only symptom in production is
     // the flash of wrong theme the boot script exists to prevent.
-    expect(BOOT_SCRIPT_HAS_CRLF)
-      .toBe(false);
+    expect(BOOT_SCRIPT_HAS_CRLF).toBe(false);
   });
 
-  it('GivenTheShippedBootScript_WhenItsHashIsComputed_ThenThePolicyAlreadyPermitsThatExactScript',
-    async () => {
-      const expected = await cspHashOf(BOOT_SCRIPT);
+  it('GivenTheShippedBootScript_WhenItsHashIsComputed_ThenThePolicyAlreadyPermitsThatExactScript', async () => {
+    const expected = await cspHashOf(BOOT_SCRIPT);
 
-      expect(policy.value).toContain(expected);
-    });
+    expect(policy.value).toContain(expected);
+  });
 
   it('GivenThePolicy_WhenScriptSourcesAreRead_ThenNothingUnsafeIsPermitted', () => {
     // 'unsafe-inline' in script-src would permit the boot script — and every script an attacker
@@ -77,8 +75,9 @@ describe('the content security policy', () => {
     const headers = [...nginxConf.matchAll(ADD_HEADER)];
 
     expect(headers.length).toBeGreaterThan(0);
-    expect(headers.map(([, name, suffix]) => `${name}:${suffix.trim()}`))
-      .toSatisfy((declared: string[]) => declared.every((entry) => entry.endsWith(':always')));
+    expect(headers.map(([, name, suffix]) => `${name}:${suffix.trim()}`)).toSatisfy((declared: string[]) =>
+      declared.every((entry) => entry.endsWith(':always')),
+    );
   });
 
   it('GivenTheDocumentResponse_WhenItsHeadersAreListed_ThenTheHardeningOnesAreAllThere', () => {

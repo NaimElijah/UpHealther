@@ -1,5 +1,7 @@
 package com.healthupgrades;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.healthupgrades.support.PostgresIT;
 import com.healthupgrades.tracking.domain.service.ProgressEvaluationService;
 import com.healthupgrades.tracking.domain.service.StreakCalculator;
@@ -7,8 +9,6 @@ import com.healthupgrades.upgrade.domain.service.UpgradeSchedulingService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Boots the whole application against a real PostgreSQL.
@@ -33,9 +33,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 class ApplicationContextIT extends PostgresIT {
 
-    @Autowired UpgradeSchedulingService upgradeSchedulingService;
-    @Autowired StreakCalculator streakCalculator;
-    @Autowired ProgressEvaluationService progressEvaluationService;
+    @Autowired
+    UpgradeSchedulingService upgradeSchedulingService;
+
+    @Autowired
+    StreakCalculator streakCalculator;
+
+    @Autowired
+    ProgressEvaluationService progressEvaluationService;
 
     @Test
     void GivenTheRealSchemaAndTheHandWiredBeans_WhenTheApplicationStarts_ThenItComesUpWithBothIntact() {

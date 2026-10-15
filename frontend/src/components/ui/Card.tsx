@@ -13,11 +13,7 @@ interface CardProps {
 /** Themed panel with an optional header. The standard container for a section of a page. */
 const Card: React.FC<CardProps> = ({ children, header, className = '' }) => (
   <div className={`bg-surface rounded-xl shadow-sm border border-line overflow-hidden ${className}`}>
-    {header && (
-      <div className="px-6 py-4 border-b border-line font-semibold text-fg-muted">
-        {header}
-      </div>
-    )}
+    {header && <div className="px-6 py-4 border-b border-line font-semibold text-fg-muted">{header}</div>}
     <div className="p-6">{children}</div>
   </div>
 );

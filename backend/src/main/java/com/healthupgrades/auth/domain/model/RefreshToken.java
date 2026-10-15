@@ -57,9 +57,8 @@ public record RefreshToken(UUID sessionId, String secret) {
             return Optional.empty();
         }
         try {
-            return Optional.of(new RefreshToken(
-                    UUID.fromString(value.substring(0, separator)),
-                    value.substring(separator + 1)));
+            return Optional.of(
+                    new RefreshToken(UUID.fromString(value.substring(0, separator)), value.substring(separator + 1)));
         } catch (IllegalArgumentException notAToken) {
             return Optional.empty();
         }

@@ -29,8 +29,16 @@ import { refreshUpgradeViews } from '../lib/upgradeViews';
 const ActiveUpgradesPage: React.FC = () => {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { data: upgrades = [], isLoading, error } = useQuery({ queryKey: ['upgrades', 'ACTIVE'], queryFn: () => getUpgrades('ACTIVE') });
-  const { data: paused = [], isLoading: pausedLoading, error: pausedError } = useQuery({
+  const {
+    data: upgrades = [],
+    isLoading,
+    error,
+  } = useQuery({ queryKey: ['upgrades', 'ACTIVE'], queryFn: () => getUpgrades('ACTIVE') });
+  const {
+    data: paused = [],
+    isLoading: pausedLoading,
+    error: pausedError,
+  } = useQuery({
     queryKey: ['upgrades', 'PAUSED'],
     queryFn: () => getUpgrades('PAUSED'),
   });
@@ -55,7 +63,12 @@ const ActiveUpgradesPage: React.FC = () => {
     />
   );
 
-  if (isLoading || pausedLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
+  if (isLoading || pausedLoading)
+    return (
+      <div className="flex justify-center py-20">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
   if (error) return <ErrorState title="Could not load your upgrades." error={toApiError(error)} />;
 
   return (
@@ -63,26 +76,33 @@ const ActiveUpgradesPage: React.FC = () => {
       <PageHeader
         title="Active Upgrades"
         subtitle="Upgrades you are currently working on"
-        action={<Button variant="secondary" onClick={() => navigate('/daily-checkin')}>Daily Check-in</Button>}
+        action={
+          <Button variant="secondary" onClick={() => navigate('/daily-checkin')}>
+            Daily Check-in
+          </Button>
+        }
       />
       {upgrades.length > 0 ? (
-        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {upgrades.map(cardFor)}
-        </div>
+        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">{upgrades.map(cardFor)}</div>
       ) : (
         paused.length === 0 && (
-          <EmptyState icon="🔥" title="No active upgrades" description="Activate a planned upgrade to start tracking progress." action={<Button onClick={() => navigate('/upgrades/planned')}>View Planned</Button>} />
+          <EmptyState
+            icon="🔥"
+            title="No active upgrades"
+            description="Activate a planned upgrade to start tracking progress."
+            action={<Button onClick={() => navigate('/upgrades/planned')}>View Planned</Button>}
+          />
         )
       )}
       {(paused.length > 0 || pausedError) && (
         <section aria-labelledby="paused-upgrades-heading" className="mt-8">
-          <h2 id="paused-upgrades-heading" className="text-lg font-semibold text-fg mb-3">Paused</h2>
+          <h2 id="paused-upgrades-heading" className="text-lg font-semibold text-fg mb-3">
+            Paused
+          </h2>
           {pausedError ? (
             <ErrorState inline title="Could not load your paused upgrades." error={toApiError(pausedError)} />
           ) : (
-            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {paused.map(cardFor)}
-            </div>
+            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">{paused.map(cardFor)}</div>
           )}
         </section>
       )}

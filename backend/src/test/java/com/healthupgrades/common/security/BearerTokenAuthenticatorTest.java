@@ -1,26 +1,25 @@
 package com.healthupgrades.common.security;
 
-import com.healthupgrades.common.domain.port.out.SessionStatusPort;
-import com.healthupgrades.support.AUser;
-import com.healthupgrades.user.application.port.in.UserQuery;
-import com.healthupgrades.user.domain.model.Role;
-import com.healthupgrades.user.domain.model.User;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.core.GrantedAuthority;
-
-import java.util.Optional;
-import java.util.UUID;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import com.healthupgrades.common.domain.port.out.SessionStatusPort;
+import com.healthupgrades.support.AUser;
+import com.healthupgrades.user.application.port.in.UserQuery;
+import com.healthupgrades.user.domain.model.Role;
+import com.healthupgrades.user.domain.model.User;
+import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.GrantedAuthority;
 
 /**
  * Covers NFR-5: the account behind a token is re-loaded on every request, so a deleted account stops
@@ -38,9 +37,14 @@ class BearerTokenAuthenticatorTest {
     private static final String TOKEN = "a.signed.token";
     private static final UUID SESSION_ID = UUID.randomUUID();
 
-    @Mock JwtTokenProvider tokenProvider;
-    @Mock UserQuery userQuery;
-    @Mock SessionStatusPort sessionStatus;
+    @Mock
+    JwtTokenProvider tokenProvider;
+
+    @Mock
+    UserQuery userQuery;
+
+    @Mock
+    SessionStatusPort sessionStatus;
 
     private BearerTokenAuthenticator authenticator;
 
@@ -74,7 +78,8 @@ class BearerTokenAuthenticatorTest {
         when(userQuery.findById(user.getId())).thenReturn(Optional.of(user));
 
         assertThat(authenticator.authenticate(TOKEN))
-                .hasValueSatisfying(principal -> assertThat(principal.getPassword()).isNull());
+                .hasValueSatisfying(
+                        principal -> assertThat(principal.getPassword()).isNull());
     }
 
     @Test
@@ -94,7 +99,8 @@ class BearerTokenAuthenticatorTest {
         // between disabled meaning now and disabled meaning within the token's remaining lifetime.
         User disabled = AUser.aUser().build();
         disabled.disable();
-        when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(disabled.getId(), SESSION_ID)));
+        when(tokenProvider.verify(TOKEN))
+                .thenReturn(Optional.of(new VerifiedAccessToken(disabled.getId(), SESSION_ID)));
         when(userQuery.findById(disabled.getId())).thenReturn(Optional.of(disabled));
 
         assertThat(authenticator.authenticate(TOKEN)).isEmpty();
@@ -116,8 +122,7 @@ class BearerTokenAuthenticatorTest {
     void GivenATokenForAnEndedSession_WhenItIsAuthenticated_ThenNobodyIsAuthenticated() {
         // The token itself is perfectly valid and unexpired; its session has been signed out of.
         // Without this check signing out would be a suggestion until the token lapsed.
-        when(tokenProvider.verify(TOKEN))
-                .thenReturn(Optional.of(new VerifiedAccessToken(user.getId(), SESSION_ID)));
+        when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(user.getId(), SESSION_ID)));
         when(sessionStatus.isActive(SESSION_ID)).thenReturn(false);
 
         assertThat(authenticator.authenticate(TOKEN)).isEmpty();
