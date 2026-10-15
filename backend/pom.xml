@@ -297,8 +297,9 @@
                     <execution>
                         <id>default-testCompile</id>
                         <configuration>
-                            <compilerArgs combine.self="override">
-                                <arg>-Xlint:all,-processing,-serial,-try</arg>
+                            <!-- Appended, so test sources keep every flag above and drop only `try`. -->
+                            <compilerArgs combine.children="append">
+                                <arg>-Xlint:-try</arg>
                             </compilerArgs>
                         </configuration>
                     </execution>
