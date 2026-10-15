@@ -26,8 +26,8 @@ jobs:
           cache: maven
 
       # `verify` compiles, runs the unit tests, runs the *IT integration tests against a PostgreSQL
-      # container they start themselves, and packages the jar. Splitting those into separate `mvn`
-      # invocations only recompiled the same sources repeatedly.
+      # container they start themselves, packages the jar, and last checks the Java layout (ADR-037).
+      # Splitting those into separate `mvn` invocations only recompiled the same sources repeatedly.
       - name: Build, test and verify backend
         run: cd backend && ./mvnw -B --no-transfer-progress clean verify
         env:

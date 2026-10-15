@@ -168,17 +168,17 @@ that. Name tests `Given<state>_When<action>_Then<outcome>`.
   `BearerTokenAuthenticator`, not `JwtTokenProvider`: it is the seam both transports authenticate
   through, so mocking it leaves the filter and the security config real.
 - `./mvnw test` — unit, web-slice and architecture tests. **No database needed**; keep it that way.
-- `./mvnw verify` — the above plus the `*IT` integration tests, which boot the application against a real
-  PostgreSQL. They **start it themselves**: every `*IT` extends `support/PostgresIT`, which runs the
-  image `support/PostgresImage` names, the same exact tag compose runs (`ContainerImagesArePinnedTest`
-  fails the build otherwise), through Testcontainers and wires the `DataSource` to it with
-  `@ServiceConnection`. So `verify` needs a running **Docker daemon**, not a database you started — and
-  the `DB_*` env vars are not consulted during a test run at all. Do not point a test at an ambient
-  database: a local PostgreSQL listening on 5432 is accepted silently and the suite then passes against
-  the wrong schema, which is the failure
+- `./mvnw verify` — the above, the format check, and the `*IT` integration tests, which boot the
+  application against a real PostgreSQL. They **start it themselves**: every `*IT` extends
+  `support/PostgresIT`, which runs the image `support/PostgresImage` names, the same exact tag compose
+  runs (`ContainerImagesArePinnedTest` fails the build otherwise), through Testcontainers and wires the
+  `DataSource` to it with `@ServiceConnection`. So `verify` needs a running **Docker daemon**, not a
+  database you started — and the `DB_*` env vars are not consulted during a test run at all. Do not
+  point a test at an ambient database: a local PostgreSQL listening on 5432 is accepted silently and the
+  suite then passes against the wrong schema, which is the failure
   `../docs/ADRs/ADR-008-testcontainers-for-the-integration-test-database.md` was written about.
-  `ApplicationContextIT` is what catches a missing `@Bean` in the hand-wired `*BeansConfig` classes and a
-  missing Flyway migration, neither of which any unit test can see.
+  `ApplicationContextIT` is what catches a missing `@Bean` in the hand-wired `*BeansConfig` classes and
+  a missing Flyway migration, neither of which any unit test can see.
 
 ## Database / migrations
 
