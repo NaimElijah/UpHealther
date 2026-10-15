@@ -51,8 +51,9 @@ floor. palantir-java-format formats them and keeps the comments.
 - **The one-time reformat is a commit of its own.** It contains only `spotless:apply`'s output, so a
   reviewer can check it by re-running the formatter. `.git-blame-ignore-revs` names it, and GitHub's
   blame skips it. Locally, run `git config blame.ignoreRevsFile .git-blame-ignore-revs` once. The SHA
-  survives into `dev` because this repository merges with merge commits; a squash would have created a
-  new one.
+  survives into `dev` only through a merge commit; a squash would have created a new one. The ruleset
+  offers only squash, so this PR, and any later one adding an entry, is merged with `--merge` through
+  the bypass, and `git merge-base --is-ancestor` confirms the SHA landed.
 
 **New build-time dependencies.** Neither ships in the jar.
 
