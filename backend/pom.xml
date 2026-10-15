@@ -273,6 +273,40 @@
             </plugin>
 
             <!--
+              javac's own lint is the backend's linter (NFR-12). Every category is on, and any warning fails
+              the compile, so `./mvnw test` and CI fail the same way. See ADR-039. Three categories are off,
+              each for a reason:
+              - processing: javac reports every annotation no processor claims, because Lombok is found on
+                the classpath. That is about how Lombok is discovered, not about this code.
+              - serial: exceptions and Spring Security's UserDetails are Serializable by inheritance, but
+                nothing serializes them. The API is stateless and a session is a database row (ADR-015), so
+                a serialVersionUID would promise a compatibility nobody relies on.
+              - try, in test sources only: `try (Tracer.SpanInScope ignored = ...)` opens a scope for its
+                side effect and never names it. That is how a span is put in scope, not a leaked resource.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <showWarnings>true</showWarnings>
+                    <failOnWarning>true</failOnWarning>
+                    <compilerArgs>
+                        <arg>-Xlint:all,-processing,-serial</arg>
+                    </compilerArgs>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>default-testCompile</id>
+                        <configuration>
+                            <compilerArgs combine.self="override">
+                                <arg>-Xlint:all,-processing,-serial,-try</arg>
+                            </compilerArgs>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!--
               Runs the *IT integration tests during `verify`, keeping them out of `mvn test`.
               That split is deliberate: unit tests need no database, integration tests boot the app
               against a real PostgreSQL.

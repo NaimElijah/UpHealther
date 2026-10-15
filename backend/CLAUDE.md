@@ -142,6 +142,14 @@ All three are deliberate, not drift.
   implements it. That is what keeps the graph acyclic while the upgrade response still carries tracking
   config; see ADR-002.
 
+## Lint
+
+The compiler is the linter. Every `-Xlint` category is on except `processing` and `serial`, and `try`
+in test sources, and a warning fails `./mvnw compile`, so `./mvnw test` fails on one too
+(`../docs/ADRs/ADR-039-the-backend-compiles-with-every-javac-lint-and-fails-on-a-warning.md`, where each
+exclusion's reason is recorded). Fix a warning rather than suppress it. Where a suppression is genuinely
+right, `@SuppressWarnings` goes on the narrowest element, with a comment saying why.
+
 ## Formatting
 
 Layout belongs to palantir-java-format, run through Spotless. `./mvnw spotless:apply` rewrites every
