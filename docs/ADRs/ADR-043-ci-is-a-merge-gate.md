@@ -73,9 +73,12 @@ with the workflow rather than in a repository setting.
   - `ci.yml` says so above its jobs.
 - **When CI does not fire on a PR, the PR waits.** That has happened intermittently on a new branch's
   first PR. Closing and reopening it re-triggers the run.
-- **A direct push to `main` or `dev`** must, by GitHub's documentation, carry a commit whose checks
-  already passed. This was not tested here. The pull-request rule already sends every change through a
-  PR, so it changes nothing in practice.
+- **The admin can no longer push straight to `main` or `dev`.**
+  - Until now ruleset 18678702's `always` bypass covered its pull-request rule too. Its rule-suites log
+    the admin's updates to `dev` as `bypass`.
+  - Ruleset 25310599 has no bypass. By GitHub's documentation, a direct push must now carry a commit
+    whose three checks already passed on another ref; this was not tested here.
+  - So a hotfix goes through a PR like any other change, or through disabling this ruleset.
 
 ## Alternatives considered
 
