@@ -450,7 +450,10 @@ class AuthControllerTest {
                         .cookie(PRESENTED)
                         .header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest"))
                 .andExpect(status().isNoContent())
-                .andExpect(cookie().maxAge("refresh_token", 0));
+                .andExpect(cookie().maxAge("refresh_token", 0))
+                // A clearing cookie whose attributes differ is stored beside the credential instead of
+                // over it, and the browser goes on sending the credential.
+                .andExpect(cookie().secure("refresh_token", true));
 
         verify(sessions).revoke(GRANT.refreshToken());
     }

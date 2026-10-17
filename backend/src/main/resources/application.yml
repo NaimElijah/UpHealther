@@ -73,9 +73,8 @@ app:
       name: refresh_token
       # Narrow on purpose: the credential is then not attached to ordinary API calls at all.
       path: /api/auth
-      # The only cookie attribute that is configurable, and only because a developer on
-      # http://localhost has no TLS for the browser to send it over. True in every real deployment.
-      secure: ${AUTH_COOKIE_SECURE:false}
+      # No security attribute is configurable: the cookie is always HttpOnly, Secure and
+      # SameSite=Strict (RefreshCookies, ADR-041).
     schedules:
       # Sweep that deletes sessions nothing can use again. Correctness does not depend on it -
       # an expired session is refused by its own timestamps - so it runs when nothing else does.

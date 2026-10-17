@@ -173,14 +173,13 @@ a working default, so no `.env` is needed to start — copy `.env.example` to `.
 ## 🔩 Configuration
 
 Mirrors [`.env.example`](.env.example). Every variable has a development default, so nothing needs
-setting to run locally. A deployment must set these five: their defaults suit localhost only, and
+setting to run locally. A deployment must set these four: their defaults suit localhost only, and
 `JWT_SECRET`'s is published.
 
 | Variable | Purpose | Default |
 |---|---|---|
 | `POSTGRES_PASSWORD` | Database password; compose hands it to the backend, a native run reads `DB_PASSWORD` | `healthupgrades` |
 | `JWT_SECRET` | Token signing key; the application refuses to start on one under 256 bits | published dev value |
-| `AUTH_COOKIE_SECURE` | `true` makes the refresh cookie TLS-only; `false` only because localhost has no TLS | `false` |
 | `ADMIN_BOOTSTRAP_USER_ID` | An existing account promoted to `ADMIN` at startup while no administrator exists — an id, not an email, because registration is open | empty |
 | `TRUSTED_PROXIES` | Java regex for the hop allowed to set `X-Forwarded-For`; widen it and a caller picks the address the rate limit counts | nginx on the compose network |
 
