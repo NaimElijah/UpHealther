@@ -64,6 +64,7 @@ statements — it is what the code does, not what anyone intended.
 
 <!-- generated:context-map -->
 ```mermaid
+%% deliberate drift: proves a red required check blocks the merge (#163); never merge
 flowchart TD
     auth["auth"]
     user["user"]
