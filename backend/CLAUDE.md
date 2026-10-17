@@ -187,7 +187,9 @@ that.
   which outranks it when Maven runs the tests from `backend/`. A test of what the *shipped*
   configuration does must name `classpath:/application.yml` alone and remove the process environment, as
   `ShippedJwtConfigurationTest` does. Setting `JWT_SECRET` to an empty string is not the same as leaving
-  it unset: an empty variable counts as present and skips a fallback.
+  it unset: an empty variable counts as present and skips a fallback. An IDE launch of the application
+  itself (not a test) needs `backend/` as its working directory, or `JWT_SECRET` exported, or it refuses
+  to start.
 - **Every `*IT` shares one database.** `PostgresIT` starts a single container for the whole run;
   `@DataJpaTest` ITs roll back, but `@SpringBootTest` ITs commit rows that every later class sees, and
   failsafe's order is the filesystem's. Assert only on rows the test itself created. When an IT fails

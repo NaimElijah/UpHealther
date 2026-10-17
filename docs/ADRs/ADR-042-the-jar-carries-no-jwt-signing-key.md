@@ -95,8 +95,12 @@ one used.
   - Production is ECS on Fargate built from the image
     ([#198](https://github.com/NaimElijah/UpHealther/issues/198)), which carries no key.
   - The compose file says so beside the variable, and the README lists it under known limitations.
-- **The working directory matters for a native run.** `java -jar` from `backend/` would read the
-  development key too. Nothing deploys that way.
+- **The working directory matters for a native run.**
+  - `java -jar` from `backend/` would read the development key too. Nothing deploys that way.
+  - An IDE that launches `HealthUpgradesApplication` from the repository root, VS Code's default
+    working directory, does not read it, and the application refuses to start. Such a launch sets its
+    working directory to `backend/`, or exports `JWT_SECRET`.
+  - Tests run from an IDE are unaffected: they read the key on the test classpath.
 - **An exported but empty `JWT_SECRET` fails the start,** even in a checkout. An empty variable counts as
   set, so it hides the development key instead of falling back to it. This fails closed, and
   `backend/config/application.yml` says so.
@@ -116,8 +120,8 @@ one used.
   every test would need a variable set first, and that contradicts the one-command local run the
   repository baseline asks for.
 - **Supply the key through `spring-boot-maven-plugin`'s `environmentVariables`.** Rejected. The plugin
-  configuration would override a `JWT_SECRET` the developer exported, and it covers neither the tests nor
-  an IDE.
+  configuration would override a `JWT_SECRET` the developer exported. It also covers only
+  `spring-boot:run`: not the tests, and not an IDE launch.
 - **A `src/test/resources/application.properties`.** Rejected. A root-level file on the test classpath
   merges into every test's configuration, and it is easily mistaken for the shipped file. The
   `config/` subdirectory is equally standard, and it reads as an override.
