@@ -172,14 +172,17 @@ a working default, so no `.env` is needed to start — copy `.env.example` to `.
 
 ## 🔩 Configuration
 
-Mirrors [`.env.example`](.env.example). Every variable has a development default, so nothing needs
-setting to run locally. A deployment must set these four: their defaults suit localhost only, and
-`JWT_SECRET`'s is published.
+Mirrors [`.env.example`](.env.example). Nothing needs setting to run locally. A deployment must set
+these four. `JWT_SECRET` has no default in the application at all, so a deployment without one refuses
+to start; locally, compose and [`backend/config/application.yml`](backend/config/application.yml)
+supply a published development key
+([ADR-042](docs/ADRs/ADR-042-the-jar-carries-no-jwt-signing-key.md)). The other three's defaults suit
+localhost only.
 
 | Variable | Purpose | Default |
 |---|---|---|
 | `POSTGRES_PASSWORD` | Database password; compose hands it to the backend, a native run reads `DB_PASSWORD` | `healthupgrades` |
-| `JWT_SECRET` | Token signing key; the application refuses to start on one under 256 bits | published dev value |
+| `JWT_SECRET` | Token signing key; the application refuses to start without one, or on one under 256 bits | none — compose and `backend/config/` supply a published dev key |
 | `ADMIN_BOOTSTRAP_USER_ID` | An existing account promoted to `ADMIN` at startup while no administrator exists — an id, not an email, because registration is open | empty |
 | `TRUSTED_PROXIES` | Java regex for the hop allowed to set `X-Forwarded-For`; widen it and a caller picks the address the rate limit counts | nginx on the compose network |
 
@@ -306,8 +309,8 @@ the wrong way.
 
 ```bash
 cd backend
-./mvnw test     # 754 unit and structural tests — no database, no Docker
-./mvnw verify   # the above, 96 integration tests in 16 *IT classes, and the format check — needs Docker
+./mvnw test     # 756 unit and structural tests — no database, no Docker
+./mvnw verify   # the above, 97 integration tests in 16 *IT classes, and the format check — needs Docker
 
 cd ../frontend
 npm run format:check && npm run lint && npm run check:colours && npm run test
@@ -349,6 +352,7 @@ corrupting the schema. To chase a reported failure:
 
 ```
 backend/           Spring Boot API — ten bounded contexts, hexagonal, ArchUnit-enforced
+  config/            application.yml read only by a run from backend/: the dev signing key, never packaged
   src/main/java/     com.healthupgrades.<context>/{domain,application,adapter} + common/
   src/main/resources/  application.yml, logback-spring.xml, db/migration/V{n}__*.sql
   src/test/java/     domain · application · web slice · architecture · *IT
@@ -392,8 +396,8 @@ outside contribution.
 
 ## 🚦 Status and limitations
 
-**Feature-complete and unshipped.** Every capability above works and is covered — 754 unit and
-structural tests, 96 integration tests, 413 frontend tests, all green — but it has never run in a
+**Feature-complete and unshipped.** Every capability above works and is covered — 756 unit and
+structural tests, 97 integration tests, 413 frontend tests, all green — but it has never run in a
 hosted environment, has no release tags, and is versioned `0.0.1-SNAPSHOT`.
 
 Known limitations, load-bearing rather than accidental:
@@ -411,6 +415,9 @@ Known limitations, load-bearing rather than accidental:
   ([ADR-017](docs/ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)).
 - **Server time is UTC, and a user has no zone**, so a reminder set for 09:00 rings at 09:00 UTC
   wherever its owner is ([ADR-020](docs/ADRs/ADR-020-the-server-keeps-time-in-utc.md)).
+- **The compose stack signs tokens with a published key** unless `JWT_SECRET` is set.
+  `docker-compose.yml` is the local stack, not a deployment; the image itself carries no key
+  ([ADR-042](docs/ADRs/ADR-042-the-jar-carries-no-jwt-signing-key.md)).
 - **The demo account ships with a published password**, seeded into every environment by migration:
   convenient for a clone, wrong for anything reachable.
 - **No screenshots yet.** The system-context diagram stands in until the UI is captured.

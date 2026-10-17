@@ -31,7 +31,10 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-healthupgrades}
       DB_USERNAME: ${POSTGRES_USER:-healthupgrades}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-healthupgrades}
-      JWT_SECRET: ${JWT_SECRET:-change-this-secret-in-production-must-be-256-bits-long-random}
+      # The image carries no signing key (ADR-042), so this stack supplies the published development
+      # one, the same value as backend/config/application.yml. This file is the local stack only: a
+      # deployment through it would inherit this key unless JWT_SECRET is set.
+      JWT_SECRET: ${JWT_SECRET:-local-development-only-published-signing-key-not-a-secret}
       # Shorten it to watch a token lapse and be renewed without the user noticing.
       JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-15m}
       # How long a session survives unused, and the cap it never outlives however busy it is.

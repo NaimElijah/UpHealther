@@ -182,6 +182,12 @@ that.
   database: a local PostgreSQL on 5432 is accepted silently and the suite then passes against the wrong
   schema (ADR-008). `ApplicationContextIT` is what catches a missing `@Bean` in the hand-wired
   `*BeansConfig` classes and a missing Flyway migration, neither of which any unit test can see.
+- **The jar's `application.yml` has no signing key** (ADR-042). A test context gets one from
+  `src/test/resources/config/application.yml`, or from the development key in `config/application.yml`,
+  which outranks it when Maven runs the tests from `backend/`. A test of what the *shipped*
+  configuration does must name `classpath:/application.yml` alone and remove the process environment, as
+  `ShippedJwtConfigurationTest` does. Setting `JWT_SECRET` to an empty string is not the same as leaving
+  it unset: an empty variable counts as present and skips a fallback.
 - **Every `*IT` shares one database.** `PostgresIT` starts a single container for the whole run;
   `@DataJpaTest` ITs roll back, but `@SpringBootTest` ITs commit rows that every later class sees, and
   failsafe's order is the filesystem's. Assert only on rows the test itself created. When an IT fails

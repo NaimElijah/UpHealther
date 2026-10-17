@@ -1,0 +1,10 @@
+# Settings for a run from this checkout, and only from it. Spring Boot reads ./config/application.yml
+# relative to the working directory, so `./mvnw spring-boot:run`, which runs from backend/, picks this
+# file up. The jar and the image are built from src/ and never contain it, so a deployment that forgets
+# JWT_SECRET refuses to start instead of falling back to the key below (ADR-042, #87).
+app:
+  jwt:
+    # Published, so it gives no security at all: it exists so that a clone runs with no setup.
+    # docker-compose.yml defaults to the same value (#285). JWT_SECRET still overrides it, and an
+    # exported but empty JWT_SECRET counts as set, so it fails the start as blank.
+    secret: ${JWT_SECRET:local-development-only-published-signing-key-not-a-secret}
