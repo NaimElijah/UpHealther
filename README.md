@@ -316,11 +316,13 @@ cd ../frontend
 npm run format:check && npm run lint && npm run check:colours && npm run test
 ```
 
-**What CI runs** ([`ci.yml`](.github/workflows/ci.yml), on every push and PR to `main` and `dev`):
-`./mvnw clean verify`, which includes javac's lint at `-Werror` and the Java format check; the
+**What CI gates on** ([`ci.yml`](.github/workflows/ci.yml), on every push and PR to `main` and
+`dev`): `./mvnw clean verify`, which includes javac's lint at `-Werror` and the Java format check; the
 generated diagrams still matching their source; the frontend format check; frontend lint at
 `--max-warnings 0`; the colour-token check; `vitest run --coverage`; `npm audit --omit=dev
---audit-level=high`; and the production build.
+--audit-level=high`; and the production build. A PR into `main` or `dev` cannot merge while any of the
+three jobs is red or still running, whoever merges it
+([ADR-043](docs/ADRs/ADR-043-ci-is-a-merge-gate.md)).
 
 **Coverage is reported, never gated** — both suites publish one every run, and no threshold fails a
 build. The gate is [`requirements.md`](docs/requirements/requirements.md), where each requirement

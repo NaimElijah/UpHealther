@@ -13,6 +13,9 @@ on:
 permissions:
   contents: read
 
+# Each job's `name:` below is a required check of ruleset 25310599, "CI must pass", which binds every
+# merge into main and dev, the admin's included (ADR-043). Renaming, adding or removing a job means
+# editing that ruleset in the same PR: a required check that never reports leaves every PR waiting.
 jobs:
   backend:
     name: Backend - Build & Test
