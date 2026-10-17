@@ -11,10 +11,10 @@ Architecture is DDD + Hexagonal. The decision and its rationale are recorded in
 enforced mechanically by `HexagonalArchitectureTest` (ArchUnit) — treat that test as the definition of
 the module boundaries rather than working from a layout described in prose.
 
-The layout is **not** identical across contexts, whatever ADR-001 §3 says: `auth` orchestrates over
-`user` for identity while owning its own `AuthSession`; `admin` orchestrates over `user` and `auth`
-and owns no aggregate; and `dashboard` is a read/composition model with no domain or outbound side.
-All three are deliberate, not drift.
+The layout is **not** identical across contexts, whatever ADR-001's canonical package layout (key
+choice 3) says: `auth` orchestrates over `user` for identity while owning its own `AuthSession`;
+`admin` orchestrates over `user` and `auth` and owns no aggregate; and `dashboard` is a
+read/composition model with no domain or outbound side. All three are deliberate, not drift.
 
 ## Conventions that span multiple files (follow these)
 
@@ -112,26 +112,29 @@ All three are deliberate, not drift.
   `../docs/ADRs/ADR-010-structured-logging-and-a-level-policy.md`.
 
 - **A state change is recorded through `AuditTrail`, not through a `log.info`.** Every state-changing
-  use case wraps its body in `auditTrail.recording(action, userId, resourceId, ...)`, which records the
-  attempt whether it succeeded or was refused — a refusal is the entry somebody actually goes looking
-  for, and BR-15 means an attempt on another user's record leaves no other trace. Adding an operation
-  means adding a constant to `AuditAction` (in `common`, deliberately: one vocabulary, readable in one
-  place) and wrapping the body; it does **not** mean a new log statement.
+  use case wraps its body in `auditTrail.recording(action, userId, resourceId, ...)`, or in
+  `recordingCreation(...)` when the resource id exists only once the operation has run. Either records
+  the attempt whether it succeeded or was refused — a refusal is the entry somebody actually goes
+  looking for, and BR-15 means an attempt on another user's record leaves no other trace.
+  Authentication outcomes, which have no body to wrap, call `auditTrail.record(AuditEvent)` directly.
+  Adding an operation means adding a constant to `AuditAction` (in `common`, deliberately: one
+  vocabulary, readable in one place) and wrapping the body; it does **not** mean a new log statement.
 
   `AuditEvent` holds two enums and two identifiers and nothing else, so there is nowhere to put a title
   or an email even by accident. Keep it that way — `AuditEventTest` fails the build on a field that
   could hold free text. The same bound applies to metric tags: an action and an outcome are closed sets,
   a user id is not. See `../docs/ADRs/ADR-011-audit-as-a-log-stream.md`.
 
-- **Optimistic locking** via `@Version` on entities (e.g. `HealthUpgrade.version`) → two saves that
-  overlap inside the server return 409. No request carries the version back yet, so an edit from a stale
-  page is not refused (#194).
+- **Optimistic locking** via `@Version`, on `HealthUpgrade` only (`AuthSession` deliberately has none;
+  `AuthSessionRepositoryPort` says why) → two saves that overlap inside the server return 409. No
+  request carries the version back yet, so an edit from a stale page is not refused (#194).
 
 - **The application layer never imports an adapter.** A service takes a command record from
   `application/port/in` and returns a domain object (or a result record where there is no aggregate,
-  e.g. `StreakSummary`). The `*WebMapper` in `adapter/in/web` translates in both directions. Do not
-  give a service an HTTP request record or a DTO — the ArchUnit rule will fail the build, which is the
-  point: a wire-format change must not reach a use-case signature.
+  e.g. `StreakSummary`). A `*WebMapper` in `adapter/in/web` translates in both directions; `auth` and
+  `admin`, with the smallest web surfaces, translate in the controller instead. Do not give a service
+  an HTTP request record or a DTO — the ArchUnit rule will fail the build, which is the point: a
+  wire-format change must not reach a use-case signature.
 
 - **Cross-context reads go through the other context's inbound port**, never its service class — e.g.
   `TrackingService` calls `upgradeQuery.getOwnedUpgrade(userId, id)` to confirm ownership before

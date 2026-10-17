@@ -83,7 +83,8 @@ fails the backend build if the image and `.nvmrc` name different releases.
   key left the others showing a state the upgrade had left (#189). A new page that shows upgrades under
   a new key adds that key there ([ADR-029](../docs/ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)).
 - **Auth** flows through `contexts/AuthContext.tsx` (the context object lives in `contexts/authContextValue.ts`)
-  + `hooks/useAuth.ts`; routes are gated by `router/ProtectedRoute.tsx`. Routing is React Router 6,
+  + `hooks/useAuth.ts`; routes are gated by `router/ProtectedRoute.tsx`, and the administration page
+  also by `router/RequireRole.tsx` — a courtesy, not a wall: the API decides. Routing is React Router 6,
   deliberately: two of its advisories are fixed only in 7.18, and neither reaches the SPA while no
   navigation target is built from input. Do not build one (a redirect-after-login, a `returnTo`
   parameter) without moving to 7.18 or later first
@@ -92,13 +93,14 @@ fails the backend build if the image and `.nvmrc` name different releases.
   + `hooks/useTheme.ts`, mounted outermost in `App.tsx` so the auth pages get it too. That split of the
   `createContext` call into its own module is not stylistic: `react-refresh/only-export-components`
   fails `npm run lint` when a `.tsx` file exports a context, or any other value that is neither a
-  component nor a constant. Follow it for any new context.
+  component nor a constant. `contexts/NotificationProvider.tsx` + `notificationContextValue.ts` +
+  `hooks/useNotifications.ts` follow it too; so must any new context.
 - Shared TypeScript types (mirroring backend DTOs/enums, e.g. `UpgradeStatus`) live in `src/types/index.ts`.
 - Styling is Tailwind CSS; reusable primitives are in `src/components/ui/`.
 - **The page is served under a CSP, and the inline boot script is permitted by a hash.** It is in
   `nginx.conf`, so `npm run dev` serves no headers and a violation only appears in a compose run or
   in production. `src/test/bootScriptCsp.test.ts` recomputes the hash from the shipped `index.html`
-  and fails the build if the two drift, which is the only moment anybody would notice — editing the
+  and fails `npm test` if the two drift, which is the only moment anybody would notice — editing the
   boot script at all, whitespace included, changes its hash. Adding a third-party script, font or
   image source means editing the policy; that friction is deliberate
   ([ADR-018](../docs/ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)).
@@ -117,5 +119,5 @@ fails the backend build if the image and `.nvmrc` name different releases.
     `ThemeProvider`. They must agree on the storage key (`theme`) and the resolution rule; changing one
     alone brings back the flash of wrong theme on load. `src/contexts/bootScript.test.tsx` enforces
     that agreement — it runs the shipped script verbatim and compares it against the provider across
-    every combination of stored choice and system preference, so drift fails the build instead of
+    every combination of stored choice and system preference, so drift fails `npm test` instead of
     shipping. Change the rule in both places, and the test will tell you if you missed one.
