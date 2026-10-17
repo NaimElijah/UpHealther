@@ -69,7 +69,11 @@ with the workflow rather than in a repository setting.
 - **A job's `name:` is now part of the gate.**
   - A required check that never reports leaves every PR waiting ("Expected — Waiting for status to be
     reported").
-  - Renaming a job, adding one or removing one means editing the ruleset in the same PR.
+  - So renaming, adding or removing a job means editing the ruleset just before merging the PR that
+    does it. The ruleset is a setting, not a file, so it cannot travel in the PR, and until it changes
+    that PR waits for its old name.
+  - Every other open PR then needs a new run, from a push or a close and reopen, to report the new name.
+    A re-run reuses the old merge ref, and so the old workflow.
   - `ci.yml` says so above its jobs.
 - **When CI does not fire on a PR, the PR waits.** That has happened intermittently on a new branch's
   first PR. Closing and reopening it re-triggers the run.
@@ -111,7 +115,8 @@ with the workflow rather than in a repository setting.
 
 ## When to revisit
 
-- **A job in `ci.yml` is renamed, added or removed.** The ruleset's list changes in the same PR.
+- **A job in `ci.yml` is renamed, added or removed.** The ruleset's list changes just before that PR
+  merges.
 - **CI is broken for a reason unrelated to the change being merged,** often enough that disabling the
   ruleset becomes routine. Fix CI; do not normalise the escape hatch.
 - **The merge method changes,** which reopens the alternatives above.
