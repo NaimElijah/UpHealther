@@ -44,9 +44,12 @@ spring:
 
 app:
   jwt:
-    # The fallback exists so a clone runs with no setup; it is a published value and gives no security.
-    # Set JWT_SECRET in any deployment. At least 256 bits, or the application refuses to start.
-    secret: ${JWT_SECRET:a-very-long-default-secret-key-that-should-be-changed-in-production-at-least-256-bits}
+    # Required, and deliberately without a usable default: a deployment that forgets JWT_SECRET refuses
+    # to start instead of signing every token with a key published in this repository (ADR-042). The
+    # empty default makes that a "must not be blank" on app.jwt.secret; a bare ${JWT_SECRET} would bind
+    # its own text. A run from a checkout gets a development key from backend/config/application.yml.
+    # At least 256 bits, or the application refuses to start.
+    secret: ${JWT_SECRET:}
     # How long an access token is accepted. Short on purpose: it is held in the tab's memory and
     # renewed from the refresh cookie without the user noticing, so this is the window in which a
     # leaked token is worth anything - not the length of a session.
@@ -73,9 +76,8 @@ app:
       name: refresh_token
       # Narrow on purpose: the credential is then not attached to ordinary API calls at all.
       path: /api/auth
-      # The only cookie attribute that is configurable, and only because a developer on
-      # http://localhost has no TLS for the browser to send it over. True in every real deployment.
-      secure: ${AUTH_COOKIE_SECURE:false}
+      # No security attribute is configurable: the cookie is always HttpOnly, Secure and
+      # SameSite=Strict (RefreshCookies, ADR-041).
     schedules:
       # Sweep that deletes sessions nothing can use again. Correctness does not depend on it -
       # an expired session is refused by its own timestamps - so it runs when nothing else does.

@@ -45,8 +45,10 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
 
 ### Backend (run from `backend/`)
 - `./mvnw spring-boot:run` — the API on :8080. Needs a PostgreSQL on `localhost:5432` with database,
-  user and password all `healthupgrades` (`docker compose up -d postgres`). `DB_URL`, `DB_USERNAME`,
-  `DB_PASSWORD` and `JWT_SECRET` override the defaults in `application.yml`.
+  user and password all `healthupgrades` (`docker compose up -d postgres`). `DB_URL`, `DB_USERNAME`
+  and `DB_PASSWORD` override the defaults in `application.yml`. The signing key comes from
+  `backend/config/application.yml`, which only a run from `backend/` reads, and `JWT_SECRET` overrides
+  it; the jar has none and refuses to start without one (ADR-042).
 - `./mvnw test` — unit, web-slice and architecture tests; **no database, no Docker**.
 - `./mvnw clean verify` — what CI runs: the above, the `*IT` integration tests and the format check.
   Needs a running **Docker daemon**: the ITs start their own PostgreSQL through Testcontainers.

@@ -90,15 +90,13 @@ public class WebSliceSupport {
      * The refresh cookie's settings, fixed here rather than bound from configuration.
      *
      * <p>An assertion about a cookie's attributes should be about the code that builds them, not about
-     * whatever a YAML file happened to say when the test ran. {@code secure} is true, which is the
-     * value every real deployment uses and the one worth asserting; the local override exists only
-     * because a developer on plain HTTP has no TLS for the browser to send it over.
+     * whatever a YAML file happened to say when the test ran. The security attributes are not
+     * configurable at all, so they come from {@link RefreshCookies} unchanged.
      */
     @Bean
     RefreshCookies refreshCookies() {
         return new RefreshCookies(
-                new RefreshCookieProperties("refresh_token", "/api/auth", true),
-                Clock.fixed(COOKIE_NOW, ZoneOffset.UTC));
+                new RefreshCookieProperties("refresh_token", "/api/auth"), Clock.fixed(COOKIE_NOW, ZoneOffset.UTC));
     }
 
     // No Clock bean here: HealthUpgradesApplication already defines one and a second definition of the

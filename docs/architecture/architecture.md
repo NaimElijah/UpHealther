@@ -443,9 +443,12 @@ Integration points a maintainer will need:
   `/actuator/prometheus`** — the backend's operational surface, unauthenticated and closed to these by
   name. The compose and image health-checks poll **readiness**. Nothing else under `/actuator` answers.
 - **Environment variables** — `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET` are required in any
-  real deployment; `CORS_ALLOWED_ORIGINS` and `VITE_API_URL` only matter when frontend and API are on
-  different origins. The cron expressions are overridable per environment. `.env.example` lists them
-  all with safe values.
+  real deployment, and without `JWT_SECRET` the application refuses to start: the jar carries no
+  signing key. A run from `backend/` reads a published development key from
+  `backend/config/application.yml`, which is never packaged, and compose passes the same value
+  ([ADR-042](../ADRs/ADR-042-the-jar-carries-no-jwt-signing-key.md)). `CORS_ALLOWED_ORIGINS` and
+  `VITE_API_URL` only matter when frontend and API are on different origins. The cron expressions are
+  overridable per environment. `.env.example` lists them all.
 - **CI** — GitHub Actions on every push and PR to `main` and `dev`: the backend runs `./mvnw verify`,
   which compiles under javac's lint with `-Werror`, every category but `processing` and `serial`
   ([ADR-039](../ADRs/ADR-039-the-backend-compiles-under-javacs-lint-and-fails-on-a-warning.md)),

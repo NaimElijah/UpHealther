@@ -30,8 +30,6 @@ jobs:
       # Splitting those into separate `mvn` invocations only recompiled the same sources repeatedly.
       - name: Build, test and verify backend
         run: cd backend && ./mvnw -B --no-transfer-progress clean verify
-        env:
-          JWT_SECRET: test-secret-key-for-ci-at-least-256-bits-long-random-string-here
 
       # Coverage is reported, never gated — a threshold is satisfied by tests written to move a number
       # and says nothing about whether a requirement is enforced (ADR-009). Printed into the job summary
