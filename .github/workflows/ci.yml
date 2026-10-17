@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [ main, dev ]
 
+# Checkout is the only step that touches the repository, and it only reads. The repository's default
+# token is read-only already, but that is a setting outside the tree; this keeps the restriction with
+# the workflow and narrows it to the one scope. Artifact uploads and the dependency caches use the
+# runner's own token, not this one.
+permissions:
+  contents: read
+
 jobs:
   backend:
     name: Backend - Build & Test
