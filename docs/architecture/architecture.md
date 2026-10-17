@@ -457,7 +457,9 @@ Integration points a maintainer will need:
   checks the Java layout ([ADR-037](../ADRs/ADR-037-the-backend-is-formatted-by-palantir-java-format-through-spotless.md));
   the generated diagrams are checked against their source; the frontend checks its layout
   ([ADR-038](../ADRs/ADR-038-the-frontend-is-formatted-by-prettier.md)), lints, tests, audits its
-  shipped dependencies and builds.
+  shipped dependencies and builds. The three jobs are required checks: a repository ruleset with no
+  bypass refuses a merge into `main` or `dev` while any of them is red or pending
+  ([ADR-043](../ADRs/ADR-043-ci-is-a-merge-gate.md)).
 
 ---
 

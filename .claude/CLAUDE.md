@@ -76,7 +76,9 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
   applied migration to change it — Flyway checksums the comments too; add another `UPDATE`.
 
 A change is ready for a PR when CI's three jobs would pass: backend `clean verify`, the frontend list
-above, and the diagram check.
+above, and the diagram check. They are required checks, so a PR into `dev` or `main` cannot merge until
+they do (ADR-043). Renaming, adding or removing a job means editing ruleset 25310599 just before
+merging that PR, then re-triggering the other open PRs with a push or a close and reopen.
 
 ## Conventions across both modules
 
