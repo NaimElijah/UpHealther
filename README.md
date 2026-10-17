@@ -70,23 +70,24 @@ and every one of those moves is a guarded transition rather than an editable sta
 
 ## ✨ Features
 
-- Create an upgrade — habit, one-off action, experiment, goal, routine or product replacement — and
-  file it under a health area you define
+- Create an upgrade — a habit, one-off action, routine, goal, experiment, product replacement,
+  learning task, or medical or preventive errand — and file it under a health area you define
 - Move it through a lifecycle the domain guards: `IDEA → PLANNED → ACTIVE ⇄ PAUSED → COMPLETED /
   ABANDONED`, where an illegal move is a 422 with a reason rather than a silent write
-- Choose how each upgrade is measured — boolean, numeric, rating or text — and log a day against it;
-  the server scores the entry rather than trusting the client's `completed` flag
-- Check in on every active upgrade at once from a single daily page
-- Read current and longest streaks, today's and this week's entries, and a dashboard of what is
-  active, overdue and completed
-- Record reflections against an upgrade: what worked, what did not, what to adjust
-- Receive reminders and notifications, pushed live over a WebSocket and persisted so an offline
-  client still sees them
+- Run each upgrade from its own page — edit or reschedule it, choose how it is measured, log the
+  day, read its streak, set its reminders, and reflect on what worked and what to adjust
+- Measure it as boolean, numeric, rating or text, and the server scores every entry against that
+  choice rather than trusting the client's `completed` flag
+- Check in on every active upgrade from one daily page, and look back over the last seven days
+- Read a dashboard of what is active, planned, overdue and recently completed, with streaks and the
+  last seven days' completion rate
+- Receive reminders and notifications live over a WebSocket, stored so an offline client still sees
+  them, and mark them read one at a time or all at once
 - Sign out — on this device, immediately, and meaning it: the session is a row the server can end,
   not a token that stays valid until it expires
-- Administer accounts: list who exists, switch an account off or back on, and grant or revoke the
-  administrator role. An administrator manages accounts and cannot read what any account owns
-- Switch between light and dark themes, applied before the first paint — no wrong-theme flash
+- Administer accounts: list them, switch one off or back on, and grant or revoke the administrator
+  role — without being able to read what any account owns
+- Pick a light, dark or system theme, applied before the first paint — no wrong-theme flash
 
 ## 🧱 Architecture
 
@@ -96,21 +97,20 @@ message pushed to a connected browser.
 
 The backend is **ten bounded contexts over a shared kernel** — `auth`, `user`, `admin`, `healtharea`,
 `upgrade`, `tracking`, `reflection`, `reminder`, `dashboard`, `notification` — each a hexagon:
-adapters depend on the core, and the core depends on nothing outside itself. Two of them
-(`healtharea`, `user`) depend on no other context at all, and the graph is acyclic.
-That graph is read off the `import` statements rather than drawn, and CI fails when it stops
+adapters depend on the core, and the core depends on nothing outside itself. The graph between
+them is acyclic, read off the `import` statements rather than drawn, and CI fails when it stops
 matching the code — see the
 [context map](docs/architecture/arch-diagrams/README.md#2-bounded-context-map).
 
 **One request, end to end.** `POST /api/upgrades/{id}/progress` arrives at nginx and is proxied to
-the API. `JwtAuthenticationFilter` hands the bearer token to `BearerTokenAuthenticator`, which
-verifies it against this application's issuer, audience and signing algorithm and re-loads the
-account named by its `sub` id, so a deleted account stops working immediately. `ProgressController` hands a command to `TrackingService`, which
-asks the `upgrade` context for the upgrade *scoped to that user* — ownership is enforced by the
-query being user-scoped, so another user's row is a 404 rather than a 403. The service rejects a
-duplicate entry for the same upgrade and date, scores the entry against its tracking configuration,
-and saves it through an outbound port the domain owns. Domain events are published `AFTER_COMMIT`,
-so nothing is pushed or persisted as a notification if the transaction rolls back.
+the API. `JwtAuthenticationFilter` hands the bearer token to `BearerTokenAuthenticator`, which has
+`JwtTokenProvider` check its issuer, audience and algorithm, refuses it if its session has ended,
+and re-loads the account by id — so a disabled or deleted account stops working on the next
+request. `ProgressController` hands a command to `TrackingService`, which asks the `upgrade`
+context for the upgrade *scoped to that user*: another user's row is a 404, not a 403. The service
+refuses a second entry for the same day, scores the entry against the upgrade's tracking
+configuration, and saves it through an outbound port the domain owns. Notifications are stored and
+pushed by listeners that run only after the commit, so a rolled-back write announces nothing.
 
 `HealthUpgrade` owns the state machine and has no setter for its status. `COMPLETED` is terminal;
 `ABANDONED` is not — rescheduling revives it. At most three `HARD` upgrades may be `ACTIVE` at once,
@@ -127,19 +127,22 @@ Seven diagrams, outside in: [arch-diagrams](docs/architecture/arch-diagrams/READ
 
 | Layer | Technology | Version | Why |
 |:---|:---|---:|:---|
-| Language | Java | 21 | Records carry the command, port and DTO layer, which is most of the boundary code |
-| Framework | Spring Boot | 4.1.1 | Confined to the adapters; ArchUnit keeps it out of the domain |
-| Backend build | Maven, through `./mvnw` | 3.9.16 | The wrapper downloads and checksums the pinned version, so no machine builds with its own ([ADR-030](docs/ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md)) |
-| Auth | Spring Security + JJWT | Boot-managed / 0.12.3 | A short-lived bearer token held in memory, renewed from a rotating refresh cookie against a server-side session row, so signing out and revoking both take effect on the next request ([ADR-015](docs/ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
-| Database | PostgreSQL | 15 | The partial unique constraint and optimistic locking the domain relies on are real constraints, not application checks |
-| Migrations | Flyway | 12.4.0 | Flyway owns the schema; Hibernate runs `ddl-auto: validate` and refuses to start against one that does not match |
-| Observability | Micrometer Tracing, Prometheus registry, Logstash encoder | Boot-managed / 9.0 | W3C `traceparent` on the wire and vendor-neutral; JSON logs whose trace id is a field, not a substring |
+| Language | Java | 21 | Records carry the commands, ports and DTOs — most of the boundary code |
+| Framework | Spring Boot | 4.1.1 | Confined to the adapters; ArchUnit keeps it out of the domain ([ADR-032](docs/ADRs/ADR-032-the-backend-runs-on-spring-boot-4-1.md)) |
+| Backend build | Maven, through `./mvnw` | 3.9.16 | Pinned and checksummed by the wrapper; the enforcer refuses any other Maven or JDK ([ADR-030](docs/ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md)) |
+| Auth | Spring Security + JJWT | 7.1.1 / 0.12.3 | A short-lived token renewed from a rotating cookie against a server-side session ([ADR-015](docs/ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
+| Database | PostgreSQL | 15 | The partial unique constraint and optimistic locking are real constraints, not application checks |
+| Migrations | Flyway | 12.4.0 | Owns the schema; Hibernate only validates against it and refuses to start on a mismatch |
+| Observability | Micrometer Tracing, Logstash encoder | 1.7.1 / 9.0 | W3C `traceparent`, vendor-neutral; JSON logs with the trace id as a field ([ADR-007](docs/ADRs/ADR-007-request-correlation-through-micrometer-tracing.md)) |
 | Frontend | React + TypeScript | 18.3.1 / 5.9.3 | Enums mirrored from the backend, with a test that fails when they drift |
-| Build | Vite | 8.3.4 | Same `/api` and `/ws` proxy in dev as nginx serves in prod, so both sides behave identically |
-| Data fetching | TanStack Query | 5.100.10 | Cache invalidation per mutation instead of hand-rolled refetching |
-| Styling | Tailwind CSS | 3.4.19 | Semantic tokens only — `npm run check:colours` fails on a raw palette colour |
-| Real-time | STOMP over WebSocket | 7.3.0 | Push reuses the JWT via a channel interceptor rather than a second auth scheme |
-| Tests | JUnit 6, ArchUnit, Testcontainers / Vitest | 1.5.1 / 2.0.5 / 5.0.4 | Real PostgreSQL in the integration suite; architecture rules as ordinary tests |
+| Routing | React Router | 6.30.6 | Held on 6 while its open advisories cannot reach the SPA ([ADR-034](docs/ADRs/ADR-034-stay-on-react-router-6-while-its-open-advisories-do-not-reach-the-spa.md)) |
+| Build | Vite, on Node | 8.3.4 / 24.21.0 | The same `/api` and `/ws` proxy in dev as nginx serves in prod ([ADR-031](docs/ADRs/ADR-031-the-frontend-toolchain-runs-on-node-24-lts.md), [ADR-036](docs/ADRs/ADR-036-the-frontend-builds-on-vite-8-and-tests-on-vitest-5.md)) |
+| Data fetching | TanStack Query | 5.100.10 | One cache, refreshed by every write rather than refetched by hand ([ADR-029](docs/ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)) |
+| Styling | Tailwind CSS | 3.4.19 | Semantic tokens only — `npm run check:colours` fails on a palette shade |
+| Real-time | STOMP over WebSocket | 7.3.0 | Push authenticates with the same token, through a channel interceptor |
+| Backend tests | JUnit, ArchUnit, Testcontainers | 6.0.3 / 1.5.1 / 2.0.5 | A real PostgreSQL in the integration suite; architecture rules as ordinary tests ([ADR-008](docs/ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)) |
+| Frontend tests | Vitest, on jsdom | 5.0.4 / 30.1.2 | Colocated with the code they test |
+| Lint and format | palantir-java-format, ESLint, Prettier | 2.102.0 / 10.12.0 / 3.9.10 | Layout belongs to the formatters; javac's lint and ESLint fail on any warning ([ADR-035](docs/ADRs/ADR-035-the-frontend-lints-with-eslint-10-and-a-flat-config.md), [ADR-037](docs/ADRs/ADR-037-the-backend-is-formatted-by-palantir-java-format-through-spotless.md), [ADR-038](docs/ADRs/ADR-038-the-frontend-is-formatted-by-prettier.md), [ADR-039](docs/ADRs/ADR-039-the-backend-compiles-under-javacs-lint-and-fails-on-a-warning.md)) |
 
 ## 🚀 Quick start
 
@@ -169,44 +172,56 @@ a working default, so no `.env` is needed to start — copy `.env.example` to `.
 
 ## 🔩 Configuration
 
-Mirrors [`.env.example`](.env.example). The defaults are for local development only; `JWT_SECRET` is
-a published value and gives no security.
+Mirrors [`.env.example`](.env.example). Every variable has a development default, so nothing needs
+setting to run locally. A deployment must set these five: their defaults suit localhost only, and
+`JWT_SECRET`'s is published.
 
-| Variable | Purpose | Default | Required |
-|---|---|---|---|
-| `POSTGRES_DB` | Database name created by the compose Postgres | `healthupgrades` | No |
-| `POSTGRES_USER` | Database user created by the compose Postgres | `healthupgrades` | No |
-| `POSTGRES_PASSWORD` | Password for that user | `healthupgrades` | In a deployment |
-| `JWT_SECRET` | Token signing key; at least 256 bits or the application refuses to start | published dev value | In a deployment |
-| `JWT_ACCESS_TOKEN_TTL` | How long an issued access token is accepted, as an ISO-8601 or Spring duration. The SPA renews it from the refresh cookie, so this is not the length of a session | `15m` | No |
-| `AUTH_COOKIE_SECURE` | Whether the refresh cookie is TLS-only. False locally only, because localhost has no TLS for the browser to send it over | `false` | In a deployment |
-| `ADMIN_BOOTSTRAP_USER_ID` | An existing, enabled account id to promote to `ADMIN` at startup, while no enabled administrator exists. An id, not an email — registration is open | empty | For the first admin |
-| `AUTH_RATE_LIMIT` | Sign-in and registration attempts allowed per client address per window | `10` | No |
-| `TRUSTED_PROXIES` | Java regex for the proxy addresses allowed to set `X-Forwarded-For`. Widening it lets a caller choose the address the rate limit counts | nginx on the compose network | Behind another proxy |
-| `DB_URL` | JDBC URL the backend connects to | `jdbc:postgresql://localhost:5432/healthupgrades` | Outside compose |
-| `DB_USERNAME` | Database user the backend connects as | `healthupgrades` | Outside compose |
-| `DB_PASSWORD` | Password for that user | `healthupgrades` | Outside compose |
-| `CORS_ALLOWED_ORIGINS` | Cross-origin callers, and the `/ws` handshake origins; unused behind the `/api` proxy | `http://localhost:3000` | No |
-| `SPRING_PROFILES_ACTIVE` | `json-logs` switches log output to one JSON object per line; compose sets it | empty locally | No |
-| `LOG_LEVEL_APP` | Level for `com.healthupgrades` only | `INFO` | No |
-| `VITE_API_URL` | Backend URL for the frontend. Leave empty to use the same-origin `/api` proxy | empty | No |
+| Variable | Purpose | Default |
+|---|---|---|
+| `POSTGRES_PASSWORD` | Database password; compose hands it to the backend, a native run reads `DB_PASSWORD` | `healthupgrades` |
+| `JWT_SECRET` | Token signing key; the application refuses to start on one under 256 bits | published dev value |
+| `AUTH_COOKIE_SECURE` | `true` makes the refresh cookie TLS-only; `false` only because localhost has no TLS | `false` |
+| `ADMIN_BOOTSTRAP_USER_ID` | An existing account promoted to `ADMIN` at startup while no administrator exists — an id, not an email, because registration is open | empty |
+| `TRUSTED_PROXIES` | Java regex for the hop allowed to set `X-Forwarded-For`; widen it and a caller picks the address the rate limit counts | nginx on the compose network |
 
-Three more live only in `application.yml` — `UPGRADE_OVERDUE_CRON` (`0 0 8 * * *`),
-`NOTIFY_CHECKIN_CRON` (`0 0 18 * * *`) and `NOTIFY_REMINDERS_CRON` (`0 * * * * *`). They are
-absent from `.env.example`, and `docker-compose.yml` does not pass them through, so they take
-effect on a native run only. Every cron is read in UTC, whatever the host's zone
-([ADR-020](docs/ADRs/ADR-020-the-server-keeps-time-in-utc.md)).
+<details>
+<summary>The other fourteen variables, and six that live only in <code>application.yml</code></summary>
+
+In `.env.example` order. `docker-compose.yml` does not pass four of them through, so they take
+effect on a native run only — marked *native*.
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `POSTGRES_DB` | Database name created by the compose Postgres | `healthupgrades` |
+| `POSTGRES_USER` | Database user created by the compose Postgres | `healthupgrades` |
+| `JWT_ACCESS_TOKEN_TTL` | How long an access token is accepted; the SPA renews it, so this is not the session's length | `15m` |
+| `AUTH_SESSION_IDLE` | A session lapses after this long unused; each refresh slides it forward | `7d` |
+| `AUTH_SESSION_ABSOLUTE` | No session outlives this, however often it is refreshed | `30d` |
+| `AUTH_RATE_LIMIT` | Sign-in and registration attempts per client address per window — *native* | `10` |
+| `AUTH_RATE_LIMIT_WINDOW` | The window that limit counts over — *native* | `1m` |
+| `DB_URL` | JDBC URL; compose points it at its own Postgres | `jdbc:postgresql://localhost:5432/healthupgrades` |
+| `DB_USERNAME`, `DB_PASSWORD` | Credentials the backend connects with | `healthupgrades` |
+| `CORS_ALLOWED_ORIGINS` | Cross-origin callers and `/ws` handshake origins; unused behind the proxy — *native* | `http://localhost:3000` |
+| `SPRING_PROFILES_ACTIVE` | `json-logs` writes one JSON object per line; compose sets it | empty locally |
+| `LOG_LEVEL_APP` | Level for `com.healthupgrades` only | `INFO` |
+| `VITE_API_URL` | API origin for the SPA; empty uses the same-origin `/api` proxy — *native*, the image takes no build argument | empty |
+
+Compose passes none of the next six either. Every cron is read in UTC, whatever the host's zone
+([ADR-020](docs/ADRs/ADR-020-the-server-keeps-time-in-utc.md)): `UPGRADE_OVERDUE_CRON`
+(`0 0 8 * * *`), `NOTIFY_CHECKIN_CRON` (`0 0 18 * * *`), `NOTIFY_REMINDERS_CRON` (`0 * * * * *`)
+and `AUTH_SESSION_CLEANUP_CRON` (`0 30 3 * * *`); then `AUTH_SESSION_ROTATION_GRACE` (`10s`) and
+`AUTH_RATE_LIMIT_MAX_CLIENTS` (`10000`).
+
+</details>
 
 ## 📖 Usage
 
 `POST /api/auth/login` with the demo credentials returns `200` and
 `{ "accessToken": …, "expiresAt": …, "user": { "id", "name", "email", "role", "createdAt" } }`,
 plus a `Set-Cookie` carrying the refresh credential. Export the access token as `$TOKEN`; every call
-below sends it as a bearer.
-
-It is valid for fifteen minutes. The browser renews it from the cookie without the user noticing; at
-a terminal, sign in again, or `POST /api/auth/refresh` with the cookie and an `X-Requested-With`
-header.
+below sends it as a bearer. It lasts fifteen minutes: the browser renews it from the cookie unseen,
+and at a terminal you sign in again, or `POST /api/auth/refresh` with the cookie and an
+`X-Requested-With` header.
 
 Create an upgrade — `201`, and it starts in `IDEA` because status moves only through the transition
 endpoints:
@@ -231,11 +246,11 @@ curl -sX POST "http://localhost:8080/api/upgrades/0f2c8f5a.../complete" \
 
 ```json
 {
-  "status": 422,
   "message": "Only ACTIVE upgrades can be completed",
   "path": "/api/upgrades/0f2c8f5a.../complete",
-  "timestamp": "2026-01-14T09:13:40",
-  "traceId": "65b2c0f4a1d3e8b7"
+  "status": 422,
+  "timestamp": "2026-10-17T11:29:50.599299572",
+  "traceId": "c9d0136e444d6791c64f4e0f093b2591"
 }
 ```
 
@@ -257,15 +272,14 @@ cd backend  && ./mvnw spring-boot:run        # terminal 1 — :8080, migrates on
 cd frontend && npm install && npm run dev   # terminal 2 — :3000, proxies /api and /ws to :8080
 ```
 
-The backend falls back to the development defaults in `application.yml`, so a fresh clone runs
-with nothing set in the environment.
-
 **Migrations** are Flyway SQL in `backend/src/main/resources/db/migration`, named `V{n}__snake_case.sql`
 and append-only — Hibernate validates the entities against the schema and refuses to start on a
 mismatch, so an entity change needs a new migration rather than a `ddl-auto` change.
 
-**Conventions.** Conventional Commits (`type(scope): imperative subject`), branches
-`type/short-kebab-description`, one logical change per commit. Layout belongs to the formatters:
+**Conventions.** Conventional Commits (`type(scope): imperative subject`), one logical change per
+commit, on a `type/short-kebab-description` branch cut from `dev`. A PR merges into `dev`, and
+`dev` → `main` is the release PR — both as merge commits, which keeps the SHAs in
+[`.git-blame-ignore-revs`](.git-blame-ignore-revs) valid. Layout belongs to the formatters:
 palantir-java-format for Java (`./mvnw spotless:apply`,
 [ADR-037](docs/ADRs/ADR-037-the-backend-is-formatted-by-palantir-java-format-through-spotless.md)) and
 Prettier for the frontend (`npm run format`,
@@ -287,32 +301,29 @@ the wrong way.
 | Domain | The `HealthUpgrade` state machine and construction invariants, streaks, reminder scheduling, entry scoring | `./mvnw test` |
 | Application | Every use case in every context, including what a *rejected* operation must not leave behind | `./mvnw test` |
 | Web slice | Each controller against the real security chain: status codes, validation, another user's row as a 404 | `./mvnw test` |
-| Structural | Twelve ArchUnit rules, plus the frontend enum, column-bound and pinned-image contracts | `./mvnw test` |
-| Integration | The app booted against a real PostgreSQL — bean graph, migrations, database-enforced invariants | `./mvnw verify` |
+| Structural | Fourteen ArchUnit rules, plus the frontend enum, column-bound and pinned-image contracts | `./mvnw test` |
+| Integration | The app booted against a real PostgreSQL that Testcontainers starts — bean graph, migrations, database-enforced invariants | `./mvnw verify` |
 | Frontend | Session restore and silent token renewal, the notification socket, the route and role gates, the administration page, the content security policy, theme, error boundary | `npm run test` |
 
 ```bash
 cd backend
-./mvnw test     # 751 unit and structural tests — no database, no Docker
-./mvnw verify   # the above, 95 integration tests in 15 *IT classes, and the format check — needs Docker
+./mvnw test     # 754 unit and structural tests — no database, no Docker
+./mvnw verify   # the above, 96 integration tests in 16 *IT classes, and the format check — needs Docker
 
 cd ../frontend
 npm run format:check && npm run lint && npm run check:colours && npm run test
 ```
 
-The integration suite starts its own `postgres:15.19-alpine3.24` through Testcontainers, so nothing needs
-provisioning first and CI runs the same `verify`
-([ADR-008](docs/ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)).
-
-**What CI gates on** ([`ci.yml`](.github/workflows/ci.yml), every push and PR to `main` and `dev`):
+**What CI runs** ([`ci.yml`](.github/workflows/ci.yml), on every push and PR to `main` and `dev`):
 `./mvnw clean verify`, which includes javac's lint at `-Werror` and the Java format check; the
 generated diagrams still matching their source; the frontend format check; frontend lint at
 `--max-warnings 0`; the colour-token check; `vitest run --coverage`; `npm audit --omit=dev
 --audit-level=high`; and the production build.
 
-**Coverage is reported, never gated** — both suites publish one every run, no threshold fails a
-build. The gate is [`requirements.md`](docs/requirements/requirements.md), where every requirement
-names the test enforcing it ([ADR-009](docs/ADRs/ADR-009-test-levels-boundaries-and-naming.md)).
+**Coverage is reported, never gated** — both suites publish one every run, and no threshold fails a
+build. The gate is [`requirements.md`](docs/requirements/requirements.md), where each requirement
+names the test that enforces it — or, for the few no test can observe, the check
+([ADR-009](docs/ADRs/ADR-009-test-levels-boundaries-and-naming.md)).
 
 ## 📡 Operations
 
@@ -328,8 +339,8 @@ names the test enforcing it ([ADR-009](docs/ADRs/ADR-009-test-levels-boundaries-
 | Metrics | `GET /actuator/prometheus` — HTTP latency, error rate, JVM, HikariCP saturation, audit and scheduled-job counters |
 | Traces | Micrometer Tracing over the OpenTelemetry bridge; sampled at 1.0, **no exporter configured**, so no span leaves the process |
 | Logs | `docker logs` only — one JSON object per line under compose, Boot's readable pattern locally |
-| Correlation | Every line carries a trace id, returned as the `X-Trace-Id` header and on the error body — with two exceptions, below |
-| Audit | The `AUDIT` logger — `action`, `outcome`, `actorId`, `resourceId`; enums and identifiers only, never personal data |
+| Correlation | A trace id on every line, returned as the `X-Trace-Id` header and on the error body; two narrow gaps are under [Known constraints](docs/architecture/architecture.md#known-constraints) |
+| Audit | The `AUDIT` logger — `action`, `outcome`, `resource`, `actorId`, `resourceId`; enums and identifiers only, never personal data |
 
 Migrations run at application start, so a bad one leaves the container un-ready rather than
 corrupting the schema. To chase a reported failure:
@@ -356,68 +367,62 @@ docs/              The documentation the repository baseline requires
 
 **DDD + hexagonal, boundaries enforced by tests** ([ADR-001](docs/ADRs/ADR-001-ddd-hexagonal-architecture.md),
 corrected by [ADR-002](docs/ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md))
-— the lifecycle rules *are* the product, and conventional service/repository layering scatters them
-where nothing stops a controller reaching the database. **Cost:** many more types, so a small feature
+— the lifecycle rules *are* the product, and service/repository layering scatters them where
+nothing stops a controller reaching the database. **Cost:** many more types, so a small feature
 touches more files; entities stay JPA-annotated, so the domain is not persistence-ignorant.
 
 **A real PostgreSQL in the integration tests, started by the tests**
-([ADR-008](docs/ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)) — an embedded H2
-was rejected outright: the schema is PostgreSQL-specific, Hibernate boots with `validate`, and the
-invariants that most need a real database (a partial unique constraint, optimistic locking under
-concurrent writes) are where compatibility modes diverge. A CI service container was rejected for
-keeping the two environments different. **Cost:** `./mvnw verify` needs Docker and runs slower.
+([ADR-008](docs/ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)) — H2 was
+rejected because the invariants that most need a real database, a partial unique constraint and
+optimistic locking under concurrent writes, are where compatibility modes diverge; a CI service
+container, because it keeps the two environments different. **Cost:** `./mvnw verify` needs Docker.
 
 **Coverage is reported, never gated** ([ADR-009](docs/ADRs/ADR-009-test-levels-boundaries-and-naming.md))
-— a threshold is satisfied by tests written to move a number and says nothing about whether a rule is
+— a threshold is met by tests written to move a number and says nothing about whether a rule is
 enforced. **Cost:** the gate is a document, so it holds only while that table is maintained.
 
 **The audit trail is a log stream, not a table** ([ADR-011](docs/ADRs/ADR-011-audit-as-a-log-stream.md))
 — an `audit_log` table rolls back with the very refusal it was recording unless it gets its own
 transaction, and Envers records versions of rows rather than attempts by people, so it cannot record
-refusals at all. **Cost:** the container log's retention *is* the audit trail's retention — adequate
-for diagnosis, explicitly not a compliance story.
+refusals at all. **Cost:** the container log's retention *is* the audit trail's retention.
 
 **Source-available, not open source** ([ADR-003](docs/ADRs/ADR-003-proprietary-source-available-licensing.md))
-— MIT and Apache-2.0 permit exactly what was not intended: anyone building on the work commercially,
-with attribution buried in a notices file. AGPL grants more than intended and is banned outright at
-many organisations. **Cost:** nobody may use or run the code without written permission, which rules
-out outside contribution.
+— MIT and Apache-2.0 permit commercial reuse that was not intended, and AGPL is banned outright at
+many organisations. **Cost:** nobody may run the code without written permission, which rules out
+outside contribution.
 
 ## 🚦 Status and limitations
 
-**Feature-complete and unshipped.** Every capability above works and is covered — 751 unit and
-structural tests, 95 integration tests, 411 frontend tests, all green — but it has never run in a
+**Feature-complete and unshipped.** Every capability above works and is covered — 754 unit and
+structural tests, 96 integration tests, 413 frontend tests, all green — but it has never run in a
 hosted environment, has no release tags, and is versioned `0.0.1-SNAPSHOT`.
 
 Known limitations, load-bearing rather than accidental:
 
-- **Single instance only.** The STOMP broker is in-memory, so a push reaches only clients connected
-  to the instance that raised it; others see the persisted notification on their next fetch. More
-  than one instance needs a broker relay first.
-- **No backend dependency audit.** OWASP dependency-check cannot populate its database without an
-  `NVD_API_KEY`, and a check that always fails — or cannot fail — was judged worse than none. The
-  frontend's shipped dependencies *are* audited on every run.
-- **Observability stops at the process.** `docker logs` is the only sink, so its retention is the
-  audit trail's retention; nothing scrapes `/actuator/prometheus`; no span leaves the process; the
-  SPA has no telemetry, so `ErrorBoundary` can show an error and nothing else knows.
-- **A live WebSocket outlives a sign-out until it reconnects.** The session is checked when a frame
-  arrives, and a connected socket sends none, so a socket opened before signing out keeps receiving
-  until it next reconnects. It only ever receives its own user's notifications, so the exposure is
-  bounded to that user's own data.
-- **The rate limit is per instance.** It counts in this process's memory, so running two instances
-  doubles the effective limit. That follows from the single-instance limitation above and is the
-  first thing to revisit when it changes
+- **Single instance only.** The STOMP broker is in memory, so a push reaches only clients on the
+  instance that raised it; a second instance needs a broker relay first.
+- **No backend dependency audit.** OWASP dependency-check needs an `NVD_API_KEY` to fill its
+  database, and a check that always fails was judged worse than none; the frontend's shipped
+  dependencies *are* audited on every run.
+- **Observability stops at the process.** `docker logs` is the only sink, nothing scrapes
+  `/actuator/prometheus`, no span leaves the process, and the SPA has no telemetry.
+- **A live WebSocket outlives a sign-out until it reconnects.** Its session is checked when it
+  connects and not again — and it only ever receives its own user's notifications.
+- **The rate limit is per instance**, counted in process memory, so two instances double it
   ([ADR-017](docs/ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)).
-- **Server time is UTC, and a user has no zone.** "Today" turns and reminders fire on UTC's clock, so
-  a reminder set for 09:00 rings at 09:00 UTC wherever its owner is
-  ([ADR-020](docs/ADRs/ADR-020-the-server-keeps-time-in-utc.md)).
-- **The demo account ships with a published password.** It is seeded into every environment by
-  migration, which is convenient for a clone and wrong for anything reachable.
+- **Server time is UTC, and a user has no zone**, so a reminder set for 09:00 rings at 09:00 UTC
+  wherever its owner is ([ADR-020](docs/ADRs/ADR-020-the-server-keeps-time-in-utc.md)).
+- **The demo account ships with a published password**, seeded into every environment by migration:
+  convenient for a clone, wrong for anything reachable.
 - **No screenshots yet.** The system-context diagram stands in until the UI is captured.
 
-Planned, and deliberately absent from every section above: push notifications, progress export,
-internationalisation, wearable integration. Sharing, accountability partners and a public API are
-**non-goals** rather than backlog ([§5](docs/requirements/requirements.md#5-non-goals)).
+What comes next is tracked as four open epics: running in production on AWS
+([#198](https://github.com/NaimElijah/UpHealther/issues/198)), readiness for public sign-up
+([#199](https://github.com/NaimElijah/UpHealther/issues/199)), a visual identity of the interface's
+own ([#226](https://github.com/NaimElijah/UpHealther/issues/226)), and the rest of the repository
+baseline ([#197](https://github.com/NaimElijah/UpHealther/issues/197)). Sharing, accountability
+partners and a public API are **non-goals** rather than backlog
+([§5](docs/requirements/requirements.md#5-non-goals)).
 
 ## 🤝 Contributing
 
@@ -432,11 +437,9 @@ Corrections and questions are welcome as [issues](https://github.com/NaimElijah/
 > UpHealther is **source-available, not open source**. Reading, reviewing and evaluating it is the
 > whole of the permission granted — it may not be used, copied, modified, run or redistributed.
 
-**Copyright © 2026 Naim Elijah. All rights reserved.** Published so it can be read, reviewed and
-evaluated. Anything beyond reading — using, copying, modifying, running, deploying, redistributing, or
-training a model on it — needs written permission, via
-[github.com/NaimElijah](https://github.com/NaimElijah); an unanswered request is a refused one.
-
+**Copyright © 2026 Naim Elijah. All rights reserved.** Anything beyond reading — using, copying,
+modifying, running, deploying, redistributing, or training a model on it — needs written permission,
+via [github.com/NaimElijah](https://github.com/NaimElijah); an unanswered request is a refused one.
 [`LICENSE`](LICENSE) carries the terms that govern. Third-party dependencies remain under their own.
 
 ## 🙏 Acknowledgements
