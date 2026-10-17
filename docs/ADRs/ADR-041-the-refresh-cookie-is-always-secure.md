@@ -62,8 +62,8 @@ configuration, so a configurable default cannot return unnoticed.
 - **Local development is on `localhost`.** The waiver MDN describes is for `localhost`. A LAN address
   (testing from a phone) or a hosts-file name over plain HTTP is an insecure origin, so the browser
   drops the cookie and a session lasts one access token, 15 minutes.
-  - Vite's dev server already listens on `localhost` only, and refuses `http://127.0.0.1:3000`.
-  - The CORS allow-list already names `http://localhost:3000` alone.
+  - The CORS allow-list already names `http://localhost:3000` alone. A sign-in from
+    `http://127.0.0.1:3000` was answered 403 under compose, before any cookie was set.
   - So this narrows nothing that worked before.
 - **Safari is unverified.** If it refuses the cookie on `http://localhost`, a Safari user running the
   stack locally signs in but loses the session on reload.
