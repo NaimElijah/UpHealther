@@ -37,6 +37,6 @@ logs/
 # Docker
 .docker/
 
-# Local tooling config — .claude/ is tracked (project guide, skills, agents);
+# Local tooling config — .claude/ is tracked (the project guide, .claude/CLAUDE.md);
 # only machine-local agent state is ignored.
 .claude/settings.local.json

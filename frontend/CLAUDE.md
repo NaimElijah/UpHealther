@@ -1,11 +1,14 @@
 # Frontend conventions
 
-`../docs/requirements/requirements.md` states what the system must do, including the rules the UI is
-expected to respect. `../docs/architecture/architecture.md` describes how the SPA fits into the wider
-system — the proxy, the two transports, and what the backend guarantees. This file covers the
-conventions to follow inside `frontend/`.
+The conventions to follow inside `frontend/`; `../.claude/CLAUDE.md` points at the requirements, the
+architecture and the ADRs, and has the commands.
 
 `npm run dev` serves on :3000 and proxies `/api` and `/ws` → `http://localhost:8080` (see `vite.config.ts`).
+
+`src/` holds `api/` (the axios client, the token store, the error decoder, and one module per backend
+area), `components/` (`ui/` primitives, plus `layout/`, `notifications/`, `theme/`, `upgrade/`),
+`contexts/` and `hooks/`, `lib/` (query client, view refresh, local dates), `pages/`, `router/`,
+`types/`, and `test/` (shared test helpers, and guards that span files, like `bootScriptCsp.test.ts`).
 
 **Node is pinned.** `.nvmrc` names the release CI and the image build with, and `.npmrc`'s
 `engine-strict` makes npm refuse to install outside `package.json`'s `engines` range
@@ -16,12 +19,23 @@ fails the backend build if the image and `.nvmrc` name different releases.
 
 - **Tests** are Vitest on jsdom ([ADR-004](../docs/ADRs/ADR-004-frontend-test-harness.md),
   [ADR-036](../docs/ADRs/ADR-036-the-frontend-builds-on-vite-8-and-tests-on-vitest-5.md)), colocated
-  beside what they test, and named `Given<state>_When<action>_Then<outcome>`
-  ([ADR-009](../docs/ADRs/ADR-009-test-levels-boundaries-and-naming.md)). `npm run test:coverage` adds
-  a coverage summary; nothing gates on the number. Two harness details worth knowing before writing
-  one: `window.location` has to be redefined to observe a navigation, because jsdom refuses to perform
-  one; and an axios call is tested by replacing `client.defaults.adapter`, so the real interceptor
-  chain still runs.
+  beside what they test. `npm run test:coverage` adds a coverage summary; nothing gates on the number.
+  Two harness details worth knowing before writing one: `window.location` has to be redefined to
+  observe a navigation, because jsdom refuses to perform one; and an axios call is tested by replacing
+  `client.defaults.adapter`, so the real interceptor chain still runs. Every test runs in
+  `America/Los_Angeles`, pinned in `vitest.config.ts`, so a date bug shows on every machine (#95).
+
+  Three traps this suite has already hit:
+  - TanStack Query runs `mutationFn` a microtask after `mutate`, so a "called once" or "not called
+    again" check made straight after the second click cannot fail. Let pending promises run first
+    (`await act(() => new Promise<void>((r) => setTimeout(r, 0)))`), then show it RED without the
+    guard.
+  - `mutationFn` is called as `(variables, context)`, so `toHaveBeenCalledWith(body)` on an API mock
+    wired straight in fails on the extra argument; assert on `mock.calls[0][0]`.
+  - Run from an agent, Vitest 5 switches to its minimal reporter and hides output CI prints. Check a
+    run is quiet with `npx vitest run --reporter=default`; a test that throws on purpose uses
+    `silenceExpectedRenderErrors()` from `src/test/expectedRenderErrors.ts`, not a bare
+    `console.error` spy.
 
 - **Lint** is ESLint 10 with a flat config, `eslint.config.js`, and `npm run lint` fails on any
   warning ([ADR-035](../docs/ADRs/ADR-035-the-frontend-lints-with-eslint-10-and-a-flat-config.md)).
@@ -38,9 +52,8 @@ fails the backend build if the image and `.nvmrc` name different releases.
 - **Layout** belongs to Prettier, with single quotes at 120 columns (`prettier.config.js`):
   `npm run format` rewrites, `npm run format:check` fails CI on any file it would change
   ([ADR-038](../docs/ADRs/ADR-038-the-frontend-is-formatted-by-prettier.md)). `index.html` is left out
-  on purpose, because reformatting it would change the boot script's CSP hash. Prettier is pinned
-  exactly, so a bump is a `style(frontend)` commit of its own, and its SHA goes into
-  `../.git-blame-ignore-revs`.
+  on purpose, because reformatting it would change the boot script's CSP hash, and so is `*.md`, whose
+  prose is wrapped by hand. Prettier is pinned exactly.
 
 - **`src/api/client.ts`** is the single axios instance. Its `baseURL` is relative by default so every
   `/api/...` call is same-origin and flows through the Vite dev proxy / nginx prod proxy (set
@@ -78,12 +91,14 @@ fails the backend build if the image and `.nvmrc` name different releases.
   own thirty-second staleness window.
 - **A write that changes an upgrade calls `refreshUpgradeViews(queryClient)`** (`src/lib/upgradeViews.ts`),
   not `invalidateQueries` on its own page's key. A tracking-configuration save is one: the upgrade
-  carries its configuration, and the daily check-in picks each entry's input from it. An upgrade shows on several pages under different
-  keys, and a page opened again within the staleness window renders from the cache, so refreshing one
-  key left the others showing a state the upgrade had left (#189). A new page that shows upgrades under
-  a new key adds that key there ([ADR-029](../docs/ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)).
+  carries its configuration, and the daily check-in picks each entry's input from it. An upgrade shows
+  on several pages under different keys, and a page opened again within the staleness window renders
+  from the cache, so refreshing one key left the others showing a state the upgrade had left (#189).
+  A new page that shows upgrades under a new key adds that key there
+  ([ADR-029](../docs/ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)).
 - **Auth** flows through `contexts/AuthContext.tsx` (the context object lives in `contexts/authContextValue.ts`)
-  + `hooks/useAuth.ts`; routes are gated by `router/ProtectedRoute.tsx`. Routing is React Router 6,
+  + `hooks/useAuth.ts`; routes are gated by `router/ProtectedRoute.tsx`, and the administration page
+  also by `router/RequireRole.tsx` — a courtesy, not a wall: the API decides. Routing is React Router 6,
   deliberately: two of its advisories are fixed only in 7.18, and neither reaches the SPA while no
   navigation target is built from input. Do not build one (a redirect-after-login, a `returnTo`
   parameter) without moving to 7.18 or later first
@@ -92,13 +107,14 @@ fails the backend build if the image and `.nvmrc` name different releases.
   + `hooks/useTheme.ts`, mounted outermost in `App.tsx` so the auth pages get it too. That split of the
   `createContext` call into its own module is not stylistic: `react-refresh/only-export-components`
   fails `npm run lint` when a `.tsx` file exports a context, or any other value that is neither a
-  component nor a constant. Follow it for any new context.
+  component nor a constant. `contexts/NotificationProvider.tsx` + `notificationContextValue.ts` +
+  `hooks/useNotifications.ts` follow it too; so must any new context.
 - Shared TypeScript types (mirroring backend DTOs/enums, e.g. `UpgradeStatus`) live in `src/types/index.ts`.
 - Styling is Tailwind CSS; reusable primitives are in `src/components/ui/`.
 - **The page is served under a CSP, and the inline boot script is permitted by a hash.** It is in
   `nginx.conf`, so `npm run dev` serves no headers and a violation only appears in a compose run or
   in production. `src/test/bootScriptCsp.test.ts` recomputes the hash from the shipped `index.html`
-  and fails the build if the two drift, which is the only moment anybody would notice — editing the
+  and fails `npm test` if the two drift, which is the only moment anybody would notice — editing the
   boot script at all, whitespace included, changes its hash. Adding a third-party script, font or
   image source means editing the policy; that friction is deliberate
   ([ADR-018](../docs/ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)).
@@ -117,5 +133,5 @@ fails the backend build if the image and `.nvmrc` name different releases.
     `ThemeProvider`. They must agree on the storage key (`theme`) and the resolution rule; changing one
     alone brings back the flash of wrong theme on load. `src/contexts/bootScript.test.tsx` enforces
     that agreement — it runs the shipped script verbatim and compares it against the provider across
-    every combination of stored choice and system preference, so drift fails the build instead of
+    every combination of stored choice and system preference, so drift fails `npm test` instead of
     shipping. Change the rule in both places, and the test will tell you if you missed one.
