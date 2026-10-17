@@ -1,15 +1,9 @@
 # Backend conventions
 
-`../docs/requirements/requirements.md` states what the system must do — the capabilities, the business
-rules, and the class or test that enforces each. `../docs/architecture/architecture.md` describes the
-system as it is — contexts, communication, data flow and the structural decisions behind the layout.
-This file covers the conventions to follow when changing it.
-
-Architecture is DDD + Hexagonal. The decision and its rationale are recorded in
-`../docs/ADRs/ADR-001-ddd-hexagonal-architecture.md`, corrected and extended by
-`../docs/ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md`. The layering is
-enforced mechanically by `HexagonalArchitectureTest` (ArchUnit) — treat that test as the definition of
-the module boundaries rather than working from a layout described in prose.
+The conventions to follow when changing the backend; `../.claude/CLAUDE.md` points at the
+requirements, the architecture and the ADRs, and has the commands. Treat `HexagonalArchitectureTest`
+(ArchUnit) as the definition of the module boundaries rather than working from a layout described in
+prose.
 
 The layout is **not** identical across contexts, whatever ADR-001's canonical package layout (key
 choice 3) says: `auth` orchestrates over `user` for identity while owning its own `AuthSession`;
@@ -78,8 +72,7 @@ read/composition model with no domain or outbound side. All three are deliberate
   only re-clothes the result in this API's `ErrorResponse` body. To change one, **override its
   `handleXxx` hook** — adding a second `@ExceptionHandler` for a type the parent already maps is an
   ambiguous mapping and fails at startup. See
-  `../docs/ADRs/ADR-006-framework-exceptions-through-responseentityexceptionhandler.md`; the catch-all
-  that used to swallow all of these as 500s is what issue #22 was.
+  `../docs/ADRs/ADR-006-framework-exceptions-through-responseentityexceptionhandler.md`.
 
 - **A filter added to the security chain is not also a servlet filter.** Boot registers every `Filter`
   bean with the container, so a `@Component` filter that `SecurityConfig` adds with `addFilterBefore`
@@ -94,10 +87,9 @@ read/composition model with no domain or outbound side. All three are deliberate
   back only where it leaves the process, through `CorrelationId.of(tracer)`, which handles the three
   shapes of "no id". See `../docs/ADRs/ADR-007-request-correlation-through-micrometer-tracing.md`.
 
-- **A log level is a claim about who has to act.** `ERROR` is a fault somebody must act on now, `WARN`
-  is degraded but still serving, `INFO` is a state transition, `DEBUG` is for a developer reading
-  along. `com.healthupgrades` runs at `INFO`, so a `DEBUG` line is invisible in any deployment until
-  someone sets `LOG_LEVEL_APP` — write one only where that is the right answer.
+- **A log level is a claim about who has to act**, as ADR-010 defines each one. `com.healthupgrades`
+  runs at `INFO`, so a `DEBUG` line is invisible in any deployment until someone sets `LOG_LEVEL_APP` —
+  write one only where that is the right answer.
 
   **Nothing personal goes in a log line**: ids and enum values, never a title, an email, a reflection
   body, a progress note or an IP address. That is NFR-6, and it applies to the message *and* to
@@ -105,10 +97,10 @@ read/composition model with no domain or outbound side. All three are deliberate
   unexpected fault with its stack trace, message included: a 5xx, from `GlobalExceptionHandler`, or a
   scheduled run that threw, which Spring's scheduler logs (ADR-026). Hibernate's SQL exception logger,
   `org.hibernate.orm.jdbc.error`, is `OFF` in `application.yml` for this reason: it quotes the refused
-  row on every SQL failure, handled or not. Do not turn it back on (ADR-027, ADR-032). A line that repeats per item names
-  an exception by its type, never its message. The output format is chosen by the `json-logs` profile in
-  `src/main/resources/logback-spring.xml`; do not write a `<pattern>` there, because Boot's imported
-  `defaults.xml` is what puts the trace id on a plain-text line. See
+  row on every SQL failure, handled or not. Do not turn it back on (ADR-027, ADR-032). A line that
+  repeats per item names an exception by its type, never its message. The output format is chosen by
+  the `json-logs` profile in `src/main/resources/logback-spring.xml`; do not write a `<pattern>` there,
+  because Boot's imported `defaults.xml` is what puts the trace id on a plain-text line. See
   `../docs/ADRs/ADR-010-structured-logging-and-a-level-policy.md`.
 
 - **A state change is recorded through `AuditTrail`, not through a `log.info`.** Every state-changing
@@ -164,8 +156,7 @@ Java source under `src/main` and `src/test`, and `./mvnw verify` fails on any fi
 not format by hand
 (`../docs/ADRs/ADR-037-the-backend-is-formatted-by-palantir-java-format-through-spotless.md`).
 Imports are one block, static ones first, so there is no hand-kept grouping to preserve. Javadoc is not
-reflowed. A formatter version bump is a `style(backend)` commit of its own, and its SHA goes into
-`../.git-blame-ignore-revs`.
+reflowed.
 
 ## Tests
 
@@ -173,7 +164,7 @@ Four levels, and the rule for choosing between them is in
 `../docs/ADRs/ADR-009-test-levels-boundaries-and-naming.md`: write a test at the **cheapest level that
 can actually observe the behaviour**, and never at one that cannot. Mock our own ports; never mock
 PostgreSQL — if the assertion is about what the database does, it is an `*IT` or it is not a test of
-that. Name tests `Given<state>_When<action>_Then<outcome>`.
+that.
 
 - Shared fixtures live in `src/test/java/com/healthupgrades/support/`: `AUser`, `AnUpgrade`,
   `ATrackingConfig`, `AProgressEntry` build entities with the required fields filled in, and

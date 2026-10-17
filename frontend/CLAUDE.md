@@ -1,9 +1,7 @@
 # Frontend conventions
 
-`../docs/requirements/requirements.md` states what the system must do, including the rules the UI is
-expected to respect. `../docs/architecture/architecture.md` describes how the SPA fits into the wider
-system — the proxy, the two transports, and what the backend guarantees. This file covers the
-conventions to follow inside `frontend/`.
+The conventions to follow inside `frontend/`; `../.claude/CLAUDE.md` points at the requirements, the
+architecture and the ADRs, and has the commands.
 
 `npm run dev` serves on :3000 and proxies `/api` and `/ws` → `http://localhost:8080` (see `vite.config.ts`).
 
@@ -16,12 +14,10 @@ fails the backend build if the image and `.nvmrc` name different releases.
 
 - **Tests** are Vitest on jsdom ([ADR-004](../docs/ADRs/ADR-004-frontend-test-harness.md),
   [ADR-036](../docs/ADRs/ADR-036-the-frontend-builds-on-vite-8-and-tests-on-vitest-5.md)), colocated
-  beside what they test, and named `Given<state>_When<action>_Then<outcome>`
-  ([ADR-009](../docs/ADRs/ADR-009-test-levels-boundaries-and-naming.md)). `npm run test:coverage` adds
-  a coverage summary; nothing gates on the number. Two harness details worth knowing before writing
-  one: `window.location` has to be redefined to observe a navigation, because jsdom refuses to perform
-  one; and an axios call is tested by replacing `client.defaults.adapter`, so the real interceptor
-  chain still runs.
+  beside what they test. `npm run test:coverage` adds a coverage summary; nothing gates on the number.
+  Two harness details worth knowing before writing one: `window.location` has to be redefined to
+  observe a navigation, because jsdom refuses to perform one; and an axios call is tested by replacing
+  `client.defaults.adapter`, so the real interceptor chain still runs.
 
 - **Lint** is ESLint 10 with a flat config, `eslint.config.js`, and `npm run lint` fails on any
   warning ([ADR-035](../docs/ADRs/ADR-035-the-frontend-lints-with-eslint-10-and-a-flat-config.md)).
@@ -38,9 +34,8 @@ fails the backend build if the image and `.nvmrc` name different releases.
 - **Layout** belongs to Prettier, with single quotes at 120 columns (`prettier.config.js`):
   `npm run format` rewrites, `npm run format:check` fails CI on any file it would change
   ([ADR-038](../docs/ADRs/ADR-038-the-frontend-is-formatted-by-prettier.md)). `index.html` is left out
-  on purpose, because reformatting it would change the boot script's CSP hash. Prettier is pinned
-  exactly, so a bump is a `style(frontend)` commit of its own, and its SHA goes into
-  `../.git-blame-ignore-revs`.
+  on purpose, because reformatting it would change the boot script's CSP hash, and so is `*.md`, whose
+  prose is wrapped by hand. Prettier is pinned exactly.
 
 - **`src/api/client.ts`** is the single axios instance. Its `baseURL` is relative by default so every
   `/api/...` call is same-origin and flows through the Vite dev proxy / nginx prod proxy (set
