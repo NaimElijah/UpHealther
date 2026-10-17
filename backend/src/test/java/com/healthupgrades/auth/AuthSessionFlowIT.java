@@ -58,6 +58,19 @@ class AuthSessionFlowIT extends PostgresIT {
     }
 
     @Test
+    void GivenTheShippedConfiguration_WhenAnAccountRegisters_ThenTheCredentialCookieIsTlsOnly() throws Exception {
+        // Asserted here, against the configuration the application actually starts with, because the
+        // web slices build their cookie by hand and so cannot see a default. A configurable default of
+        // false once shipped the credential in clear text to any deployment that forgot to override it
+        // (#87, ADR-041).
+        HttpResponse<String> registered = register();
+
+        assertThat(setCookie(registered))
+                .as("the credential must never travel over plain HTTP")
+                .contains("Secure");
+    }
+
+    @Test
     void GivenTheCredentialFromSignIn_WhenItIsRefreshed_ThenANewTokenAndANewCredentialComeBack() throws Exception {
         HttpResponse<String> registered = register();
         String first = credential(registered);

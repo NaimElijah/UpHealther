@@ -6,6 +6,18 @@ on:
   pull_request:
     branches: [ main, dev ]
 
+# Checkout is the only step that touches the repository, and it only reads. The repository's default
+# token is read-only already, but that is a setting outside the tree; this keeps the restriction with
+# the workflow and narrows it to the one scope. Artifact uploads and the dependency caches use the
+# runner's own token, not this one.
+permissions:
+  contents: read
+
+# Each job's `name:` below is a required check of ruleset 25310599, "CI must pass", which binds every
+# merge into main and dev, the admin's included (ADR-043). A required check that never reports leaves a
+# PR waiting, so renaming, adding or removing a job means editing that ruleset just before merging the
+# PR that does it, then pushing to or closing and reopening the other open PRs so they report the new
+# names; a re-run reuses the old merge ref.
 jobs:
   backend:
     name: Backend - Build & Test
@@ -30,8 +42,6 @@ jobs:
       # Splitting those into separate `mvn` invocations only recompiled the same sources repeatedly.
       - name: Build, test and verify backend
         run: cd backend && ./mvnw -B --no-transfer-progress clean verify
-        env:
-          JWT_SECRET: test-secret-key-for-ci-at-least-256-bits-long-random-string-here
 
       # Coverage is reported, never gated — a threshold is satisfied by tests written to move a number
       # and says nothing about whether a requirement is enforced (ADR-009). Printed into the job summary

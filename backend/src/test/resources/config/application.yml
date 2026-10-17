@@ -1,0 +1,7 @@
+# The signing key a test context starts with when nothing else supplies one. It sits on the test
+# classpath, so it is never packaged, and under config/ so that a test starts the same from any working
+# directory: an IDE may launch from the repository root, where backend/config/ is out of reach
+# (ADR-042). Run from backend/, as Maven runs the tests, backend/config/application.yml outranks it.
+app:
+  jwt:
+    secret: test-only-signing-key-for-the-backend-test-suite-not-a-secret

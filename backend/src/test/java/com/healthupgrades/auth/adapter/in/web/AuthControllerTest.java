@@ -450,7 +450,10 @@ class AuthControllerTest {
                         .cookie(PRESENTED)
                         .header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest"))
                 .andExpect(status().isNoContent())
-                .andExpect(cookie().maxAge("refresh_token", 0));
+                .andExpect(cookie().maxAge("refresh_token", 0))
+                // Over plain HTTP a browser ignores a cookie without Secure that would overwrite a Secure
+                // one, so a clearing cookie that lost the flag would leave the credential in place.
+                .andExpect(cookie().secure("refresh_token", true));
 
         verify(sessions).revoke(GRANT.refreshToken());
     }

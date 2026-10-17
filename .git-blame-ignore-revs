@@ -5,9 +5,9 @@
 #
 # Each entry is a formatting-only commit as it landed on dev. Only a merge commit keeps these SHAs: a
 # squash rewrites them, and an entry then names a commit that is not in the history, which blame ignores
-# silently. The repository's ruleset offers only squash, so a pull request carrying an entry must be
-# merged with `gh pr merge --merge` through the bypass, and
-# `git merge-base --is-ancestor <sha> origin/dev` confirms it landed. A formatter version bump adds its
+# silently. Ruleset 18678702 offers only squash, so a pull request carrying an entry must be merged with
+# `gh pr merge --merge` through that ruleset's bypass. The bypass does not lift ruleset 25310599, so CI
+# must still be green (ADR-043). `git merge-base --is-ancestor <sha> origin/dev` confirms it landed. A formatter version bump adds its
 # own entry (ADR-037, ADR-038).
 
 # style(backend): apply palantir-java-format (#161)

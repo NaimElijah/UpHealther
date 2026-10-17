@@ -20,7 +20,9 @@ import org.springframework.stereotype.Component;
  *   <li><strong>{@code HttpOnly}</strong> — script cannot read it. This is the whole reason the
  *       long-lived credential lives in a cookie and the short-lived access token lives in memory:
  *       injected script can take what it can read, and it cannot read this.</li>
- *   <li><strong>{@code Secure}</strong> — TLS only, except on a local machine that has none.</li>
+ *   <li><strong>{@code Secure}</strong> — TLS only, everywhere. A developer on {@code http://localhost}
+ *       needs no exception: browsers waive the TLS requirement for a {@code Secure} cookie set by
+ *       {@code localhost} (ADR-041).</li>
  *   <li><strong>{@code SameSite=Strict}</strong> — never sent on a cross-site request, which is the
  *       first of the two things standing between this cookie and CSRF. The second is the
  *       {@code X-Requested-With} header the endpoints require: a form post from another origin cannot
@@ -64,8 +66,9 @@ public class RefreshCookies {
     /**
      * The {@code Set-Cookie} value that removes the credential from the browser.
      *
-     * <p>Every attribute must match the cookie being replaced or the browser stores a second one beside
-     * it, which is why this goes through the same builder rather than writing its own.
+     * <p>The name and path must match the cookie being replaced or the browser stores a second one
+     * beside it, and {@code Secure} must match too, or over plain HTTP the browser ignores the
+     * replacement. That is why this goes through the same builder rather than writing its own.
      *
      * @return an empty cookie that expires immediately
      */
@@ -97,7 +100,7 @@ public class RefreshCookies {
     private ResponseCookie.ResponseCookieBuilder base(String value) {
         return ResponseCookie.from(properties.name(), value)
                 .httpOnly(true)
-                .secure(properties.secure())
+                .secure(true)
                 .sameSite("Strict")
                 .path(properties.path());
     }

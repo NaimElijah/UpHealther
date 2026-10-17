@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
  */
 class JwtTokenProviderTest {
 
-    /** Exactly 64 ASCII characters: 512 bits, comfortably over the HS256 minimum. */
+    /** 65 ASCII characters: 520 bits, comfortably over the HS256 minimum. */
     private static final String STRONG_SECRET = "a-signing-secret-long-enough-for-hs256-at-least-256-bits-long!!!!";
 
     private static final String OTHER_SECRET = "a-completely-different-secret-also-long-enough-for-hs256-hmac!!!!";
