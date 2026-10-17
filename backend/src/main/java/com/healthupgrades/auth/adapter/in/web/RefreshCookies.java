@@ -66,8 +66,9 @@ public class RefreshCookies {
     /**
      * The {@code Set-Cookie} value that removes the credential from the browser.
      *
-     * <p>Every attribute must match the cookie being replaced or the browser stores a second one beside
-     * it, which is why this goes through the same builder rather than writing its own.
+     * <p>The name and path must match the cookie being replaced or the browser stores a second one
+     * beside it, and {@code Secure} must match too, or over plain HTTP the browser ignores the
+     * replacement. That is why this goes through the same builder rather than writing its own.
      *
      * @return an empty cookie that expires immediately
      */
