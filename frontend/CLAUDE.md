@@ -5,6 +5,11 @@ architecture and the ADRs, and has the commands.
 
 `npm run dev` serves on :3000 and proxies `/api` and `/ws` → `http://localhost:8080` (see `vite.config.ts`).
 
+`src/` holds `api/` (the axios client, the token store, the error decoder, and one module per backend
+area), `components/` (`ui/` primitives, plus `layout/`, `notifications/`, `theme/`, `upgrade/`),
+`contexts/` and `hooks/`, `lib/` (query client, view refresh, local dates), `pages/`, `router/`,
+`types/`, and `test/` (shared test helpers, and guards that span files, like `bootScriptCsp.test.ts`).
+
 **Node is pinned.** `.nvmrc` names the release CI and the image build with, and `.npmrc`'s
 `engine-strict` makes npm refuse to install outside `package.json`'s `engines` range
 ([ADR-030](../docs/ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md),
@@ -17,7 +22,20 @@ fails the backend build if the image and `.nvmrc` name different releases.
   beside what they test. `npm run test:coverage` adds a coverage summary; nothing gates on the number.
   Two harness details worth knowing before writing one: `window.location` has to be redefined to
   observe a navigation, because jsdom refuses to perform one; and an axios call is tested by replacing
-  `client.defaults.adapter`, so the real interceptor chain still runs.
+  `client.defaults.adapter`, so the real interceptor chain still runs. Every test runs in
+  `America/Los_Angeles`, pinned in `vitest.config.ts`, so a date bug shows on every machine (#95).
+
+  Three traps this suite has already hit:
+  - TanStack Query runs `mutationFn` a microtask after `mutate`, so a "called once" or "not called
+    again" check made straight after the second click cannot fail. Let pending promises run first
+    (`await act(() => new Promise<void>((r) => setTimeout(r, 0)))`), then show it RED without the
+    guard.
+  - `mutationFn` is called as `(variables, context)`, so `toHaveBeenCalledWith(body)` on an API mock
+    wired straight in fails on the extra argument; assert on `mock.calls[0][0]`.
+  - Run from an agent, Vitest 5 switches to its minimal reporter and hides output CI prints. Check a
+    run is quiet with `npx vitest run --reporter=default`; a test that throws on purpose uses
+    `silenceExpectedRenderErrors()` from `src/test/expectedRenderErrors.ts`, not a bare
+    `console.error` spy.
 
 - **Lint** is ESLint 10 with a flat config, `eslint.config.js`, and `npm run lint` fails on any
   warning ([ADR-035](../docs/ADRs/ADR-035-the-frontend-lints-with-eslint-10-and-a-flat-config.md)).
@@ -73,10 +91,11 @@ fails the backend build if the image and `.nvmrc` name different releases.
   own thirty-second staleness window.
 - **A write that changes an upgrade calls `refreshUpgradeViews(queryClient)`** (`src/lib/upgradeViews.ts`),
   not `invalidateQueries` on its own page's key. A tracking-configuration save is one: the upgrade
-  carries its configuration, and the daily check-in picks each entry's input from it. An upgrade shows on several pages under different
-  keys, and a page opened again within the staleness window renders from the cache, so refreshing one
-  key left the others showing a state the upgrade had left (#189). A new page that shows upgrades under
-  a new key adds that key there ([ADR-029](../docs/ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)).
+  carries its configuration, and the daily check-in picks each entry's input from it. An upgrade shows
+  on several pages under different keys, and a page opened again within the staleness window renders
+  from the cache, so refreshing one key left the others showing a state the upgrade had left (#189).
+  A new page that shows upgrades under a new key adds that key there
+  ([ADR-029](../docs/ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)).
 - **Auth** flows through `contexts/AuthContext.tsx` (the context object lives in `contexts/authContextValue.ts`)
   + `hooks/useAuth.ts`; routes are gated by `router/ProtectedRoute.tsx`, and the administration page
   also by `router/RequireRole.tsx` — a courtesy, not a wall: the API decides. Routing is React Router 6,
