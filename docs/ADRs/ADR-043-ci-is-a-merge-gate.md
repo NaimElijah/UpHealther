@@ -92,6 +92,16 @@ with the workflow rather than in a repository setting.
   - Every merge would become a squash, `dev` and `main` would diverge on each promotion, and the
     `.git-blame-ignore-revs` SHAs would stop resolving.
   - **Revisit:** if the project moves to squash merges deliberately.
+- **Remove the bypass from ruleset 18678702, and change its merge rules to match practice:**
+  `allowed_merge_methods: ["merge"]`, no `required_linear_history`, plus the required checks. This is
+  the variant #163 hinted at. One ruleset would then bind everyone and keep merge commits. Rejected:
+  - It rewrites the branches' whole protection to add one rule.
+  - It makes every rule in it unbypassable for the admin at once: deletion, force-push and PR-only.
+    The only escape from any of them would be disabling the protection itself, where today disabling
+    25310599 lifts the check alone.
+  - Keeping the gate in a ruleset of its own lets each be changed, or switched off, without the other.
+  - **Revisit:** if the owner wants 18678702 to describe the merge method actually used. That variant
+    would then replace both rulesets.
 - **Also cancel superseded runs (`concurrency:`), bound each job's time (`timeout-minutes:`), and pin
   actions by commit SHA.** Left out, as #163 marks all three optional; none is needed for the gate.
   - **Revisit `timeout-minutes`** if a job ever hangs: a hung required check now holds a PR for the
