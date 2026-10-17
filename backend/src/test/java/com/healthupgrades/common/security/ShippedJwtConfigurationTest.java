@@ -27,8 +27,8 @@ import org.springframework.validation.FieldError;
  */
 class ShippedJwtConfigurationTest {
 
-    /** Exactly 64 ASCII characters: 512 bits, comfortably over the HS256 minimum. */
-    private static final String STRONG_SECRET = "a-signing-secret-long-enough-for-hs256-at-least-256-bits-long!!!!";
+    /** Only bound, never turned into a key, so its strength does not matter here. */
+    private static final String SUPPLIED_SECRET = "a-secret-the-deployment-supplied";
 
     private final ApplicationContextRunner shipped = new ApplicationContextRunner()
             .withInitializer(context -> {
@@ -55,10 +55,10 @@ class ShippedJwtConfigurationTest {
     }
 
     @Test
-    void GivenTheShippedConfigurationAndAJwtSecret_WhenTheApplicationStarts_ThenItSignsWithThatSecret() {
-        shipped.withPropertyValues("JWT_SECRET=" + STRONG_SECRET).run(context -> {
+    void GivenTheShippedConfigurationAndAJwtSecret_WhenTheApplicationStarts_ThenItBindsThatSecret() {
+        shipped.withPropertyValues("JWT_SECRET=" + SUPPLIED_SECRET).run(context -> {
             assertThat(context).hasNotFailed();
-            assertThat(context.getBean(JwtProperties.class).secret()).isEqualTo(STRONG_SECRET);
+            assertThat(context.getBean(JwtProperties.class).secret()).isEqualTo(SUPPLIED_SECRET);
         });
     }
 
