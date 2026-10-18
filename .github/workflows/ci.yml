@@ -160,3 +160,25 @@ jobs:
           name: frontend-coverage
           path: frontend/coverage/
           retention-days: 14
+
+  images:
+    name: Images - Build & Start
+    runs-on: ubuntu-latest
+    # The job most exposed to a hang: both images download every Maven and npm dependency over the
+    # network with no layer cache, and `--wait-timeout` bounds only the start. A hung required check
+    # would hold a PR for the default 360 minutes, the case ADR-043 said to revisit. See ADR-045.
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+
+      # Builds both images from their Dockerfiles, starts the stack, and waits until every service is
+      # healthy: the backend ready once Flyway has migrated an empty database, nginx serving with
+      # nginx.conf loaded. On failure the stack's logs are printed, and it is always taken down.
+      - name: Build both images and start the stack from them
+        run: npm run test:images

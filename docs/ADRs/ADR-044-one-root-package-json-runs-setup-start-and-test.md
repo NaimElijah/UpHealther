@@ -1,6 +1,7 @@
 # ADR-044: One root `package.json` sets up, starts and tests the repository, and CI runs its scripts
 
-- **Status:** Accepted
+- **Status:** Accepted — extended by [ADR-045](ADR-045-ci-builds-and-starts-both-images.md), which adds
+  `test:images` to the end of `npm test` and to CI as a fourth job
 - **Date:** 2026-10-18
 - **Scope:** the root `package.json`, `scripts/mvnw.mjs`, `scripts/python.mjs`, the `format` and
   `format:check` scripts in `frontend/package.json`, and `.github/workflows/ci.yml`. NFR-52 in

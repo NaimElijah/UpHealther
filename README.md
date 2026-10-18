@@ -315,24 +315,36 @@ the wrong way.
 | Frontend | Session restore and silent token renewal, the notification socket, the route and role gates, the administration page, the content security policy, theme, error boundary | `npm test` in `frontend/` |
 
 ```bash
-npm test                # the whole CI gate, the three parts below in turn — needs Docker
+npm test                # the whole CI gate, the four parts below in turn — needs Docker
 npm run test:diagrams   # the generated diagrams still match their source
 npm run test:frontend   # format check, lint, colour tokens, tests with coverage, audit, build
 npm run test:backend    # ./mvnw clean verify: lint, unit and integration tests, format check
+npm run test:images     # both images build, and the stack they make starts healthy
 ```
+
+`test:images` runs as a throwaway compose project with no published ports, and takes it down again,
+so your data volume is never touched. It does reuse the stack's fixed container names, so it refuses
+to start while your own stack's containers exist: `docker compose down` first. Interrupted, it
+leaves its containers holding those names, and your own `docker compose up` conflicts with them until
+you run the check again, which clears them first, or `docker compose -p uphealther-images-check down
+--volumes`. It needs a Compose that understands the override's `!reset` tag. Docker's documentation
+names no minimum version; the check has run on Compose 5.6.0 and on the CI runner's 2.38.2
+([ADR-045](docs/ADRs/ADR-045-ci-builds-and-starts-both-images.md)).
 
 Inside a module the usual commands still work: `./mvnw test` in `backend/` needs neither a database
 nor Docker, and `npm test` in `frontend/` runs Vitest once.
 
 **What CI gates on** ([`ci.yml`](.github/workflows/ci.yml), on every push and PR to `main` and
-`dev`): the same three `test:*` scripts, one job each, so `npm test` applies the same checks; only
-the dependencies can differ, because CI installs them fresh
+`dev`): the same four `test:*` scripts, one job each, so `npm test` applies the same checks. Only
+the inputs can differ: CI installs the dependencies fresh, and sets none of the variables
+`docker-compose.yml` reads, which a root `.env` or your shell may
 ([ADR-044](docs/ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md)). That is
 `./mvnw clean verify`, which includes javac's lint at `-Werror` and the Java format check; the
 generated diagrams still matching their source; the frontend format check; frontend lint at
 `--max-warnings 0`; the colour-token check; `vitest run --coverage`; `npm audit --omit=dev
---audit-level=high`; and the production build. A PR into `main` or `dev` cannot merge while any of the
-three jobs is red or still running, whoever merges it
+--audit-level=high`; the production build; and both images built, with the stack started from them
+until every service reports healthy. A PR into `main` or `dev` cannot merge while any of the four
+jobs is red or still running, whoever merges it
 ([ADR-043](docs/ADRs/ADR-043-ci-is-a-merge-gate.md)).
 
 **Coverage is reported, never gated** — both suites publish one every run, and no threshold fails a
@@ -376,9 +388,9 @@ docs/              The documentation the repository baseline requires
   requirements/      What the system must do, each naming its enforcing test
   architecture/      What the system is, plus seven diagrams (three generated)
   ADRs/              Why — one file per decision, append-only
-scripts/           mvnw.mjs and python.mjs, for the two commands no one string runs in every shell
+scripts/           The image check, and the Maven and Python launchers that work in every shell
 package.json       npm run setup, npm start, npm test — no dependencies; CI runs its test:* scripts
-.github/workflows/ CI: backend verify, diagram drift, frontend format/lint/test/audit/build
+.github/workflows/ CI: backend verify, diagram drift, frontend format/lint/test/audit/build, images
 ```
 
 ## 🧭 Design decisions

@@ -1,6 +1,7 @@
 # ADR-043: CI is a merge gate — a second ruleset, with no bypass, requires all three checks
 
-- **Status:** Accepted
+- **Status:** Accepted — extended by [ADR-045](ADR-045-ci-builds-and-starts-both-images.md), which adds a
+  fourth required check, `Images - Build & Start`, and gives that one job a timeout
 - **Date:** 2026-10-17
 - **Scope:** repository ruleset 25310599, "CI must pass : to main & dev". It is a GitHub setting, not
   a file: this record is where the tree says it exists. Also `.github/workflows/ci.yml`.
