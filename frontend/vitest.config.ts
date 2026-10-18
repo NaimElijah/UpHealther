@@ -31,6 +31,9 @@ export default mergeConfig(
       // `types` array — and therefore the production type check — untouched.
       globals: false,
       restoreMocks: true,
+      // Vitest's default is `!process.env.CI`: a committed `.only` silently skipped the rest of the suite
+      // on a developer's machine and failed only in CI. Refused everywhere, so `npm test` and CI agree.
+      allowOnly: false,
       css: false,
       coverage: {
         // Reported, never gated: a threshold is satisfied by tests written to move a number, and says
