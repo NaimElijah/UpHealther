@@ -150,7 +150,7 @@ Seven diagrams, outside in: [arch-diagrams](docs/architecture/arch-diagrams/READ
 
 ```bash
 git clone https://github.com/NaimElijah/UpHealther.git && cd UpHealther
-docker compose up --build
+docker compose up --build   # with Node installed, `npm start` runs the same command
 ```
 
 Frontend at **http://localhost:3000**, API at **http://localhost:8080**. Compose waits for the
@@ -262,16 +262,23 @@ The rest of the surface — every endpoint, the full status contract, and the er
 ## 💻 Development
 
 Running natively needs **JDK 21**, **Node 24** (`frontend/.nvmrc` names the exact release; npm
-refuses any Node outside `^24.16.0`), and a PostgreSQL 15 on `:5432`. Maven is not a
-prerequisite: `backend/mvnw` downloads the version the repository pins, checks its checksum and runs
-it ([ADR-030](docs/ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md)). From PowerShell or
+refuses any Node outside `^24.16.0`), and a PostgreSQL 15 on `:5432`. Testing also needs **Python 3**,
+for the diagram check, and **Docker**, for the integration tests. Maven is not a prerequisite:
+`backend/mvnw` downloads the version the repository pins, checks its checksum and runs it
+([ADR-030](docs/ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md)). From PowerShell or
 `cmd`, use `mvnw.cmd`.
 
+The `npm` and `docker` commands below run from the repository root, the same in PowerShell, Git Bash
+and a Linux shell ([ADR-044](docs/ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md)).
+The two `cd` lines are written for Git Bash or Linux. Windows PowerShell 5.1 has no `&&`, so there they
+are `cd backend; .\mvnw.cmd spring-boot:run` and `cd frontend; npm run dev`.
+
 ```bash
+npm run setup                               # once, and after the lockfile changes
 docker compose up -d postgres               # or bring your own PostgreSQL
 
 cd backend  && ./mvnw spring-boot:run        # terminal 1 — :8080, migrates on start
-cd frontend && npm install && npm run dev   # terminal 2 — :3000, proxies /api and /ws to :8080
+cd frontend && npm run dev                  # terminal 2 — :3000, proxies /api and /ws to :8080
 ```
 
 **Migrations** are Flyway SQL in `backend/src/main/resources/db/migration`, named `V{n}__snake_case.sql`
@@ -305,23 +312,39 @@ the wrong way.
 | Web slice | Each controller against the real security chain: status codes, validation, another user's row as a 404 | `./mvnw test` |
 | Structural | Fourteen ArchUnit rules, plus the frontend enum, column-bound and pinned-image contracts | `./mvnw test` |
 | Integration | The app booted against a real PostgreSQL that Testcontainers starts — bean graph, migrations, database-enforced invariants | `./mvnw verify` |
-| Frontend | Session restore and silent token renewal, the notification socket, the route and role gates, the administration page, the content security policy, theme, error boundary | `npm run test` |
+| Frontend | Session restore and silent token renewal, the notification socket, the route and role gates, the administration page, the content security policy, theme, error boundary | `npm test` in `frontend/` |
 
 ```bash
-cd backend
-./mvnw test     # 756 unit and structural tests — no database, no Docker
-./mvnw verify   # the above, 97 integration tests in 16 *IT classes, and the format check — needs Docker
-
-cd ../frontend
-npm run format:check && npm run lint && npm run check:colours && npm run test
+npm test                # the whole CI gate, the four parts below in turn — needs Docker
+npm run test:diagrams   # the generated diagrams still match their source
+npm run test:frontend   # format check, lint, colour tokens, tests with coverage, audit, build
+npm run test:backend    # ./mvnw clean verify: lint, unit and integration tests, format check
+npm run test:images     # both images build, and the stack they make starts healthy
 ```
 
+`test:images` runs as a throwaway compose project with no published ports, and takes it down again,
+so your data volume is never touched. It does reuse the stack's fixed container names, so it refuses
+to start while your own stack's containers exist: `docker compose down` first. Interrupted, it
+leaves its containers holding those names, and your own `docker compose up` conflicts with them until
+you run the check again, which clears them first, or `docker compose -p uphealther-images-check down
+--volumes`. It needs a Compose that understands the override's `!reset` tag. Docker's documentation
+names no minimum version; the check has run on Compose 5.6.0 and on the CI runner's 2.38.2
+([ADR-045](docs/ADRs/ADR-045-ci-builds-and-starts-both-images.md)).
+
+Inside a module the usual commands still work: `./mvnw test` in `backend/` needs neither a database
+nor Docker, and `npm test` in `frontend/` runs Vitest once.
+
 **What CI gates on** ([`ci.yml`](.github/workflows/ci.yml), on every push and PR to `main` and
-`dev`): `./mvnw clean verify`, which includes javac's lint at `-Werror` and the Java format check; the
+`dev`): the same four `test:*` scripts, one job each, so `npm test` applies the same checks. Only
+the inputs can differ: CI installs the dependencies fresh, and sets none of the variables
+`docker-compose.yml` reads, which a root `.env` or your shell may
+([ADR-044](docs/ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md)). That is
+`./mvnw clean verify`, which includes javac's lint at `-Werror` and the Java format check; the
 generated diagrams still matching their source; the frontend format check; frontend lint at
 `--max-warnings 0`; the colour-token check; `vitest run --coverage`; `npm audit --omit=dev
---audit-level=high`; and the production build. A PR into `main` or `dev` cannot merge while any of the
-three jobs is red or still running, whoever merges it
+--audit-level=high`; the production build; and both images built, with the stack started from them
+until every service reports healthy. A PR into `main` or `dev` cannot merge while any of the four
+jobs is red or still running, whoever merges it
 ([ADR-043](docs/ADRs/ADR-043-ci-is-a-merge-gate.md)).
 
 **Coverage is reported, never gated** — both suites publish one every run, and no threshold fails a
@@ -365,7 +388,9 @@ docs/              The documentation the repository baseline requires
   requirements/      What the system must do, each naming its enforcing test
   architecture/      What the system is, plus seven diagrams (three generated)
   ADRs/              Why — one file per decision, append-only
-.github/workflows/ CI: backend verify, diagram drift, frontend format/lint/test/audit/build
+scripts/           The image check, and the Maven and Python launchers that work in every shell
+package.json       npm run setup, npm start, npm test — no dependencies; CI runs its test:* scripts
+.github/workflows/ CI: backend verify, diagram drift, frontend format/lint/test/audit/build, images
 ```
 
 ## 🧭 Design decisions
@@ -398,9 +423,9 @@ outside contribution.
 
 ## 🚦 Status and limitations
 
-**Feature-complete and unshipped.** Every capability above works and is covered — 756 unit and
-structural tests, 97 integration tests, 413 frontend tests, all green — but it has never run in a
-hosted environment, has no release tags, and is versioned `0.0.1-SNAPSHOT`.
+**Feature-complete and unshipped.** Every capability above works and is covered by tests at every
+level, and `npm test` is green, but it has never run in a hosted environment, has no release tags, and
+is versioned `0.0.1-SNAPSHOT`.
 
 Known limitations, load-bearing rather than accidental:
 

@@ -1,0 +1,14 @@
+# Layered over docker-compose.yml by scripts/check-images.mjs, and by nothing else.
+#
+# The check publishes no host ports. Compose's health-checks run inside the containers, so it needs
+# none. A published port would make the check fail wherever something on the host already holds 3000,
+# 5432 or 8080. `!reset` drops the base file's list instead of adding to it, which is what a plain
+# `ports:` here would do. A browser suite that needs to reach the stack (#167) publishes its one port
+# here. See docs/ADRs/ADR-045-ci-builds-and-starts-both-images.md.
+services:
+  postgres:
+    ports: !reset []
+  backend:
+    ports: !reset []
+  frontend:
+    ports: !reset []
