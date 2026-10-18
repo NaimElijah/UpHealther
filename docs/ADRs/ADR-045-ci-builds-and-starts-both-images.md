@@ -31,8 +31,13 @@ machines. Open issues are about to edit exactly these files: #213 hardens both i
 1. **It takes down anything an interrupted earlier run left behind.**
 2. **It refuses to run while containers hold the stack's fixed names.** `docker-compose.yml` fixes the
    three `container_name`s and the network's subnet, and both are global across compose projects.
-   That is almost always the developer's own stack, stopped but not removed, and the message says to
-   run `docker compose down`.
+   Containers holding those names are almost always the developer's own stack, stopped but not
+   removed, and the message says to run `docker compose down`. The names are read from the merged
+   configuration, not copied.
+   - The subnet is not checked. A network that holds it with no such containers is rare, for
+     example one left by `docker compose rm`, or another project's network that the daemon happened
+     to place there. It fails the check after the build, with Docker's "Pool overlaps" error, and the
+     developer's own `docker compose up` fails on it the same way.
 3. **It runs `docker compose build`, then `docker compose up --detach --wait --wait-timeout 240`.**
    `--wait` returns once every service reports healthy:
    - the backend's readiness probe has passed after Flyway migrated an empty database;

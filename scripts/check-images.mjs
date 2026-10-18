@@ -13,8 +13,10 @@
  * It runs as a compose project of its own, so taking it down never touches a developer's stack or its
  * `postgres_data` volume. `compose.images-check.yml` publishes no host ports, so none has to be free.
  * `docker-compose.yml` fixes the container names and the network's subnet, though. Both are global
- * across projects, so the check cannot run beside the developer's own stack, and it refuses to start
- * rather than fail halfway.
+ * across projects, so the check cannot run beside the developer's own stack. It refuses to start while
+ * containers hold those names, which is how a developer's stack shows even when stopped. It does not
+ * look for the subnet: a network that already holds it with no such containers fails the check later,
+ * when compose creates its own, with Docker's "Pool overlaps" error.
  */
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
