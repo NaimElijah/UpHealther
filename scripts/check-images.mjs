@@ -37,9 +37,6 @@ const COMPOSE = [
  */
 const WAIT_TIMEOUT_SECONDS = 240;
 
-/** The `container_name`s in `docker-compose.yml`. */
-const FIXED_CONTAINER_NAMES = ['healthupgrades-db', 'healthupgrades-backend', 'healthupgrades-frontend'];
-
 /** Runs `docker` with its output shown, and returns its exit status. */
 function docker(args) {
   const result = spawnSync('docker', args, { cwd: ROOT, stdio: 'inherit' });
@@ -54,20 +51,38 @@ function takeDown() {
   return docker([...COMPOSE, 'down', '--volumes', '--rmi', 'local']);
 }
 
+/** Runs `docker` and returns what it printed, failing loudly when it fails. */
+function dockerOutput(args) {
+  const result = spawnSync('docker', args, { cwd: ROOT, encoding: 'utf8' });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(`docker ${args.join(' ')} failed: ${result.stderr.trim()}`);
+  }
+  return result.stdout;
+}
+
+/**
+ * The `container_name`s the merged configuration sets, read from it rather than copied, so a rename in
+ * `docker-compose.yml` cannot leave the refusal below checking stale names.
+ */
+function fixedContainerNames() {
+  const { services } = JSON.parse(dockerOutput([...COMPOSE, 'config', '--format', 'json']));
+  return Object.values(services)
+    .map((service) => service.container_name)
+    .filter((name) => name !== undefined);
+}
+
 /**
  * Fails when containers of another project hold the fixed names. That is almost always the developer's
  * own stack, stopped but not removed. Run after `takeDown`, so a check interrupted earlier is not
  * mistaken for it.
  */
 function refuseBesideAnotherStack() {
-  const listed = spawnSync('docker', ['ps', '--all', '--format', '{{.Names}}'], { cwd: ROOT, encoding: 'utf8' });
-  if (listed.error) {
-    throw listed.error;
-  }
-  if (listed.status !== 0) {
-    throw new Error(`docker ps failed: ${listed.stderr.trim()}`);
-  }
-  const clashing = listed.stdout.split(/\r?\n/).filter((name) => FIXED_CONTAINER_NAMES.includes(name));
+  const fixed = fixedContainerNames();
+  const existing = dockerOutput(['ps', '--all', '--format', '{{.Names}}']).split(/\r?\n/);
+  const clashing = existing.filter((name) => fixed.includes(name));
   if (clashing.length > 0) {
     throw new Error(
       `containers named ${clashing.join(', ')} already exist, and the check needs those names and their network. ` +
