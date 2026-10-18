@@ -91,8 +91,9 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
 
 A change is ready for a PR when the root `npm test` passes: it runs what CI's three jobs run, the
 backend's `clean verify`, the frontend list above and the diagram check. The jobs are required
-checks, so a PR into `dev` or `main` cannot merge until they pass (ADR-043). Renaming, adding or removing a job means editing ruleset 25310599 just before
-merging that PR, then re-triggering the other open PRs with a push or a close and reopen.
+checks, so a PR into `dev` or `main` cannot merge until they pass (ADR-043). Renaming, adding or
+removing a job means editing ruleset 25310599 just before merging that PR, then re-triggering the
+other open PRs with a push or a close and reopen.
 
 ## Conventions across both modules
 
