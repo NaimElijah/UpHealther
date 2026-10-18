@@ -15,7 +15,8 @@ and in CI. Only the run command existed: `docker compose up --build` (NFR-13).
 
 Testing meant several commands across two directories, and the README's list was not CI's:
 
-- **The README** listed `mvn test`, `mvn verify`, and the frontend's lint, colour check and tests.
+- **The README** listed `./mvnw test`, `./mvnw verify`, and the frontend's format check, lint, colour
+  check and tests.
 - **`ci.yml`** spelled out its own list. It also ran the diagram check, the audit and
   `npm run build`, which the README skipped. `build` is the only step that type-checks the test files.
 
