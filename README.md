@@ -327,7 +327,8 @@ so your data volume is never touched. It does reuse the stack's fixed container 
 to start while your own stack's containers exist: `docker compose down` first. Interrupted, it
 leaves its containers holding those names, and your own `docker compose up` conflicts with them until
 you run the check again, which clears them first, or `docker compose -p uphealther-images-check down
---volumes`. It needs a Compose that understands `!reset`
+--volumes`. It needs a Compose that understands the override's `!reset` tag. Docker's documentation
+names no minimum version; the check has run on Compose 5.6.0 and on the CI runner's 2.38.2
 ([ADR-045](docs/ADRs/ADR-045-ci-builds-and-starts-both-images.md)).
 
 Inside a module the usual commands still work: `./mvnw test` in `backend/` needs neither a database
