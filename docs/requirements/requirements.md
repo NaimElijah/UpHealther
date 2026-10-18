@@ -2,9 +2,9 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. A hundred and fifteen of the hundred and twenty-three entries below name a test —
-a hundred and seventeen distinct test classes and files between them. Five of the remaining eight name the command,
-workflow or script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48). The last three —
+rather than trusted. A hundred and fifteen of the hundred and twenty-four entries below name a test —
+a hundred and seventeen distinct test classes and files between them. Six of the remaining nine name the command,
+workflow or script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48, NFR-52). The last three —
 FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is about a rendered width, a
 colour or an overflow, and jsdom has no layout engine to observe any of them; §6 records what closing
 that gap would take.
@@ -286,9 +286,10 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-10 | The frontend's mirrored enums cannot drift from the backend's | `FrontendEnumContractTest` |
 | NFR-11 | The unit test suite runs without a database | `./mvnw test` — needs neither a database nor Docker |
 | NFR-12 | Every push and pull request is built, tested, linted, format-checked, and the shipped frontend dependencies audited, and fails when the generated architecture diagrams have drifted from their source; and a pull request into `main` or `dev` cannot merge while any of those checks is red or pending, whoever merges it | `.github/workflows/ci.yml`; the merge gate is repository ruleset 25310599, "CI must pass", which requires the workflow's three jobs and has no bypass ([ADR-043](../ADRs/ADR-043-ci-is-a-merge-gate.md)), checked by `gh api repos/NaimElijah/UpHealther/rules/branches/dev` (and `…/main`), which must list `required_status_checks` from ruleset 25310599 naming the three job `name:`s in `ci.yml`; the backend's lint is javac's own, `-Xlint:all,-processing,-serial` (and `-Xlint:-try` for test sources) with `-Werror`, configured on `maven-compiler-plugin` in `backend/pom.xml` ([ADR-039](../ADRs/ADR-039-the-backend-compiles-under-javacs-lint-and-fails-on-a-warning.md)); the format check is `spotless:check`, bound to `verify` in `backend/pom.xml` ([ADR-037](../ADRs/ADR-037-the-backend-is-formatted-by-palantir-java-format-through-spotless.md)), and `npm run format:check` ([ADR-038](../ADRs/ADR-038-the-frontend-is-formatted-by-prettier.md)) |
-| NFR-13 | The whole stack starts with one command | `docker-compose up --build` |
+| NFR-13 | The whole stack starts with one command | `docker compose up --build`, which the root `npm start` runs |
 | NFR-48 | The integration suite starts its own PostgreSQL in a container and never runs against a database it finds already running, so a local one on the same port cannot make it pass against the wrong schema | `./mvnw verify`, through `support/PostgresIT.java`, which every `*IT` extends ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)) |
 | NFR-51 | The build uses the toolchain versions the repository records: a JDK, a Maven or a Node outside them is refused before anything compiles or installs, and every container image names an exact version | `ContainerImagesArePinnedTest`, which also holds compose's PostgreSQL to the integration tests' and the frontend image's Node to `frontend/.nvmrc`; `backend/pom.xml` (`maven-enforcer-plugin`), run through `./mvnw`, which downloads the pinned Maven and checks its checksum; `frontend/.npmrc` (`engine-strict`) against the `engines` range in `frontend/package.json`, with CI and the image building on `frontend/.nvmrc`'s release ([ADR-030](../ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md), [ADR-031](../ADRs/ADR-031-the-frontend-toolchain-runs-on-node-24-lts.md)) |
+| NFR-52 | Setting up the repository, and running the whole CI gate, each take one command from the repository root, from PowerShell, Git Bash or a Linux shell alike; and CI runs its gate through those same scripts, so passing locally and passing in CI mean the same thing | the root `package.json`: `npm run setup`, and `npm test`, which runs `test:diagrams`, `test:frontend` and `test:backend`; `.github/workflows/ci.yml`, whose jobs run those scripts and nothing else that gates; `scripts/mvnw.mjs` and `scripts/python.mjs`, which spell the two commands no single string runs under both `cmd.exe` and `sh` ([ADR-044](../ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md)) |
 
 ---
 

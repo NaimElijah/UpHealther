@@ -449,7 +449,9 @@ Integration points a maintainer will need:
   ([ADR-042](../ADRs/ADR-042-the-jar-carries-no-jwt-signing-key.md)). `CORS_ALLOWED_ORIGINS` and
   `VITE_API_URL` only matter when frontend and API are on different origins. The cron expressions are
   overridable per environment. `.env.example` lists them all.
-- **CI** — GitHub Actions on every push and PR to `main` and `dev`: the backend runs `./mvnw verify`,
+- **CI** — GitHub Actions on every push and PR to `main` and `dev`. Each job runs its part of the gate
+  through the root `package.json`, the same scripts `npm test` runs locally
+  ([ADR-044](../ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md)): the backend runs `./mvnw verify`,
   which compiles under javac's lint with `-Werror`, every category but `processing` and `serial`
   ([ADR-039](../ADRs/ADR-039-the-backend-compiles-under-javacs-lint-and-fails-on-a-warning.md)),
   whose integration tests start their own PostgreSQL through Testcontainers
@@ -569,6 +571,14 @@ returns 500 rather than 400 (BR-16). Nothing structural connects the two: the en
 column disagree, or when a new bounded column is neither mirrored by a DTO nor listed as one no
 request body writes to.
 
+**The repository's commands are defined once, in the root `package.json`.** `npm run setup`,
+`npm start` and `npm test` are its entry points, and CI's jobs call its `test:*` scripts rather than
+spelling out their own, so local and CI cannot disagree about what passing means. It has no
+dependencies. npm runs its scripts through `cmd.exe` on Windows and `sh` elsewhere, so each body stays
+`cd dir && tool args`, and the two commands no one string runs under both shells live in `scripts/`:
+`mvnw.mjs` picks the Maven wrapper's spelling, and `python.mjs` finds a Python 3 under whichever name
+the machine gives it ([ADR-044](../ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md)).
+
 ### Known constraints
 
 Stated because they are load-bearing, not because they are problems yet:
@@ -657,6 +667,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why a lifecycle notification is stored in its own transaction after the write commits, and why a failed one can be lost but never fails the write | [ADR-028](../ADRs/ADR-028-a-raised-notification-is-stored-in-its-own-transaction-after-the-write-commits.md) |
 | Why the container's error page is let through security by dispatcher type, and how it gets the trace id the request's own dispatch saw | [ADR-024](../ADRs/ADR-024-the-container-error-page-keeps-its-status-and-carries-the-trace-id.md) |
 | Why an unauthenticated request is a 401 with the API's own body rather than the framework's 403 | [ADR-014](../ADRs/ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md) |
+| Why one root `package.json` sets up, starts and tests the repository rather than `make` or `just`; why CI runs its scripts; why two small Node scripts | [ADR-044](../ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

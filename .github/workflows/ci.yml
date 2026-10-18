@@ -37,11 +37,19 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
+      # Each job runs its part of the gate through the root package.json, the script `npm test` runs
+      # locally, so the two cannot disagree about what passing means (ADR-044). Node is only the entry
+      # point here: no cache, since the root installs nothing.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+
       # `verify` compiles, runs the unit tests, runs the *IT integration tests against a PostgreSQL
       # container they start themselves, packages the jar, and last checks the Java layout (ADR-037).
       # Splitting those into separate `mvn` invocations only recompiled the same sources repeatedly.
       - name: Build, test and verify backend
-        run: cd backend && ./mvnw -B --no-transfer-progress clean verify
+        run: npm run test:backend
 
       # Coverage is reported, never gated — a threshold is satisfied by tests written to move a number
       # and says nothing about whether a requirement is enforced (ADR-009). Printed into the job summary
@@ -110,11 +118,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+
       # Three of the diagrams in docs/architecture/arch-diagrams/ are derived from the imports, the
       # package layout and the migrations. Regenerating here and failing on a difference is what stops
       # them describing an architecture the code no longer has — the failure ADR-002 was written about.
       - name: Check the generated diagrams still match the source
-        run: python3 docs/architecture/arch-diagrams/generate.py --check
+        run: npm run test:diagrams
 
   frontend:
     name: Frontend - Build & Lint
@@ -131,27 +144,13 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: cd frontend && npm ci
+        run: npm run setup
 
-      # Before the lint, so a layout failure is reported as one rather than as a lint finding. The
-      # backend's equivalent is `spotless:check`, which `verify` above already runs. See ADR-038.
-      - name: Check frontend formatting
-        run: cd frontend && npm run format:check
-
-      - name: Lint frontend
-        run: cd frontend && npm run lint
-
-      # Tailwind emits nothing for an unknown class and raises no error, so a mistyped or missed colour
-      # renders as no colour at all rather than failing. This is the only check that catches it.
-      - name: Check no palette colours bypass the theme tokens
-        run: cd frontend && npm run check:colours
-
-      # After the lint, so a failure here is a behaviour failure rather than a style one. `npm run
-      # test:coverage` is `vitest run --coverage` and not the watcher — a bare `vitest` would hold the
-      # runner until the job times out. See ADR-004 for why the frontend has a test harness at all, and
-      # ADR-009 for why the coverage it prints gates nothing.
-      - name: Test frontend
-        run: cd frontend && npm run test:coverage
+      # One step, because it is the same list `npm test` runs locally. ADR-044 says why each check is in
+      # it, and in that order. npm prints a `> ` banner before each command, so the last one above the
+      # error names the check that failed.
+      - name: Check, test, audit and build frontend
+        run: npm run test:frontend
 
       - name: Upload the frontend coverage report
         if: always()
@@ -160,11 +159,3 @@ jobs:
           name: frontend-coverage
           path: frontend/coverage/
           retention-days: 14
-
-      # Scoped to what ships. Auditing the dev tree here would redden every unrelated PR whenever an
-      # advisory lands against the Vite or ESLint toolchain, none of which reaches a user's browser.
-      - name: Audit shipped frontend dependencies for known vulnerabilities
-        run: cd frontend && npm audit --omit=dev --audit-level=high
-
-      - name: Build frontend
-        run: cd frontend && npm run build

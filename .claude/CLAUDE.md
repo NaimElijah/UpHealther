@@ -43,6 +43,18 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
 
 ## Commands
 
+### Repository root
+- `npm run setup` — installs the frontend's dependencies (`npm ci` in `frontend/`). Once per clone,
+  and after the lockfile changes.
+- `npm start` — `docker compose up --build`.
+- `npm test` — the whole CI gate, the same scripts CI's jobs run (ADR-044): `test:diagrams`,
+  `test:frontend`, then `test:backend`. Each also runs alone. Needs Docker, for the backend's ITs.
+- These run identically from PowerShell, Git Bash and a Linux shell, because npm runs them through
+  `cmd.exe` or `sh` and their bodies stay `cd dir && tool args`. A command no one string spells in
+  both shells goes into `scripts/*.mjs`, as `mvnw.mjs` and `python.mjs` do. `mvnw.cmd` calls
+  `powershell`, so a session whose `PATH` lacks `C:\Windows\System32\WindowsPowerShell\v1.0` fails
+  in the wrapper.
+
 ### Backend (run from `backend/`)
 - `./mvnw spring-boot:run` — the API on :8080. Needs a PostgreSQL on `localhost:5432` with database,
   user and password all `healthupgrades` (`docker compose up -d postgres`). `DB_URL`, `DB_USERNAME`
@@ -65,8 +77,10 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
 - `npx tsc` — typecheck. Vitest does not typecheck, so otherwise a type error surfaces only at
   `npm run build`.
 - `npm run format` — format.
-- What CI runs, in its order: `npm run format:check`, `npm run lint`, `npm run check:colours`,
-  `npm run test:coverage`, `npm audit --omit=dev --audit-level=high`, `npm run build`.
+- What CI runs is the root's `npm run test:frontend`: `npm run format:check`, `npm run lint`,
+  `npm run check:colours`, `npm run test:coverage`, `npm audit --omit=dev --audit-level=high`,
+  `npm run build`, in that order. `format` and `format:check` also cover the root `package.json` and
+  `scripts/`.
 
 ### Full stack
 - `docker compose up --build` — Postgres + backend + frontend. Frontend :3000, backend :8080,
@@ -75,9 +89,9 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
   hash is corrected in `V3` and raised to the eight-character minimum of BR-17 in `V6`). Never edit an
   applied migration to change it — Flyway checksums the comments too; add another `UPDATE`.
 
-A change is ready for a PR when CI's three jobs would pass: backend `clean verify`, the frontend list
-above, and the diagram check. They are required checks, so a PR into `dev` or `main` cannot merge until
-they do (ADR-043). Renaming, adding or removing a job means editing ruleset 25310599 just before
+A change is ready for a PR when the root `npm test` passes: it runs what CI's three jobs run, the
+backend's `clean verify`, the frontend list above and the diagram check. The jobs are required
+checks, so a PR into `dev` or `main` cannot merge until they pass (ADR-043). Renaming, adding or removing a job means editing ruleset 25310599 just before
 merging that PR, then re-triggering the other open PRs with a push or a close and reopen.
 
 ## Conventions across both modules
