@@ -19,8 +19,12 @@ import { fileURLToPath } from 'node:url';
 
 const BACKEND = fileURLToPath(new URL('../backend/', import.meta.url));
 
-/** Whitespace, or a character `cmd.exe` treats as quoting, piping, redirection, escaping or expansion. */
-const UNSAFE_FOR_CMD = /[\s"&|<>^%!]/;
+/**
+ * Whitespace, or a character `cmd.exe` treats as quoting, piping, redirection, escaping or expansion.
+ * Parentheses too: `mvnw.cmd` expands its arguments inside an `IF … ( … )` block, where a `)` ends the
+ * block early.
+ */
+const UNSAFE_FOR_CMD = /[\s"&|<>^%!()]/;
 
 const args = process.argv.slice(2);
 
@@ -30,7 +34,9 @@ function run() {
   }
   const unsafe = args.find((arg) => UNSAFE_FOR_CMD.test(arg));
   if (unsafe !== undefined) {
-    throw new Error(`refusing to pass ${JSON.stringify(unsafe)} to cmd.exe: it contains whitespace or one of "&|<>^%!`);
+    throw new Error(
+      `refusing to pass ${JSON.stringify(unsafe)} to cmd.exe: it contains whitespace or one of "&|<>^%!()`,
+    );
   }
   return spawnSync(['.\\mvnw.cmd', ...args].join(' '), { cwd: BACKEND, stdio: 'inherit', shell: true });
 }

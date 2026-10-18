@@ -55,7 +55,9 @@ gets a short Node script in `scripts/`, following `frontend/scripts/check-colour
     stops looking there too, and only an explicit `.\mvnw.cmd` is found.
   - Node runs a `.cmd` only through a shell (CVE-2024-27980), and an argument array with
     `shell: true` is deprecated (DEP0190). So on Windows the command line is one string, and an
-    argument containing whitespace or a character `cmd.exe` would read as syntax is refused.
+    argument containing whitespace or a character `cmd.exe` would read as syntax is refused. That
+    includes parentheses: `mvnw.cmd` expands its arguments inside an `IF … ( … )` block, so a `)`
+    ended the block early and the wrapper failed with `… was unexpected at this time`.
 - **`scripts/python.mjs` runs the diagram generator.**
   - CI's runner has `python3`. A Windows install has `python` or `py`.
   - A Windows `python3` is often the Microsoft Store's alias, which may be a different Python or may
