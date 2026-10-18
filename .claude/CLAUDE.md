@@ -48,7 +48,12 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
   and after the lockfile changes.
 - `npm start` — `docker compose up --build`.
 - `npm test` — the whole CI gate, the same scripts CI's jobs run (ADR-044): `test:diagrams`,
-  `test:frontend`, then `test:backend`. Each also runs alone. Needs Docker, for the backend's ITs.
+  `test:frontend`, `test:backend`, then `test:images`. Each also runs alone. Needs Docker, for the
+  backend's ITs and the image check.
+- `npm run test:images` — builds both images and starts the stack from them until every service is
+  healthy, as a throwaway compose project with no published ports, then takes it down (ADR-045).
+  It refuses to start while the `healthupgrades-*` containers of your own stack exist: their names
+  and subnet are fixed, so `docker compose down` first.
 - These run identically from PowerShell, Git Bash and a Linux shell, because npm runs them through
   `cmd.exe` or `sh` and their bodies stay `cd dir && tool args`. A command no one string spells in
   both shells goes into `scripts/*.mjs`, as `mvnw.mjs` and `python.mjs` do. `mvnw.cmd` calls
@@ -89,11 +94,11 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
   hash is corrected in `V3` and raised to the eight-character minimum of BR-17 in `V6`). Never edit an
   applied migration to change it — Flyway checksums the comments too; add another `UPDATE`.
 
-A change is ready for a PR when the root `npm test` passes: it runs what CI's three jobs run, the
-backend's `clean verify`, the frontend list above and the diagram check. The jobs are required
-checks, so a PR into `dev` or `main` cannot merge until they pass (ADR-043). Renaming, adding or
-removing a job means editing ruleset 25310599 just before merging that PR, then re-triggering the
-other open PRs with a push or a close and reopen.
+A change is ready for a PR when the root `npm test` passes: it runs what CI's four jobs run, the
+backend's `clean verify`, the frontend list above, the diagram check and the image check. The jobs
+are required checks, so a PR into `dev` or `main` cannot merge until they pass (ADR-043). Renaming,
+adding or removing a job means editing ruleset 25310599 just before merging that PR, then
+re-triggering the other open PRs with a push or a close and reopen.
 
 ## Conventions across both modules
 

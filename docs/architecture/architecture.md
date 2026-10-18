@@ -459,9 +459,11 @@ Integration points a maintainer will need:
   checks the Java layout ([ADR-037](../ADRs/ADR-037-the-backend-is-formatted-by-palantir-java-format-through-spotless.md));
   the generated diagrams are checked against their source; the frontend checks its layout
   ([ADR-038](../ADRs/ADR-038-the-frontend-is-formatted-by-prettier.md)), lints, tests, audits its
-  shipped dependencies and builds. The three jobs are required checks: a repository ruleset with no
-  bypass refuses a merge into `main` or `dev` while any of them is red or pending
-  ([ADR-043](../ADRs/ADR-043-ci-is-a-merge-gate.md)).
+  shipped dependencies and builds; and both images are built and the stack started from them until
+  every service reports healthy, as its own compose project with no published ports
+  ([ADR-045](../ADRs/ADR-045-ci-builds-and-starts-both-images.md)). The four jobs are required checks:
+  a repository ruleset with no bypass refuses a merge into `main` or `dev` while any of them is red or
+  pending ([ADR-043](../ADRs/ADR-043-ci-is-a-merge-gate.md)).
 
 ---
 
@@ -669,6 +671,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the container's error page is let through security by dispatcher type, and how it gets the trace id the request's own dispatch saw | [ADR-024](../ADRs/ADR-024-the-container-error-page-keeps-its-status-and-carries-the-trace-id.md) |
 | Why an unauthenticated request is a 401 with the API's own body rather than the framework's 403 | [ADR-014](../ADRs/ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md) |
 | Why one root `package.json` sets up, starts and tests the repository rather than `make` or `just`; why CI runs its scripts; why two small Node scripts | [ADR-044](../ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md) |
+| Why CI builds both images and starts the stack rather than two bare builds; why the check is its own compose project with no published ports; why no image scan yet | [ADR-045](../ADRs/ADR-045-ci-builds-and-starts-both-images.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |
