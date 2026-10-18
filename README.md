@@ -268,8 +268,10 @@ for the diagram check, and **Docker**, for the integration tests. Maven is not a
 ([ADR-030](docs/ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md)). From PowerShell or
 `cmd`, use `mvnw.cmd`.
 
-Every command below runs from the repository root unless it changes directory first, the same in
-PowerShell, Git Bash and a Linux shell ([ADR-044](docs/ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md)).
+The `npm` and `docker` commands below run from the repository root, the same in PowerShell, Git Bash
+and a Linux shell ([ADR-044](docs/ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md)).
+The two `cd` lines are written for Git Bash or Linux. Windows PowerShell 5.1 has no `&&`, so there they
+are `cd backend; .\mvnw.cmd spring-boot:run` and `cd frontend; npm run dev`.
 
 ```bash
 npm run setup                               # once, and after the lockfile changes
