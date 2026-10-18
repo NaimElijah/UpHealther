@@ -86,8 +86,12 @@ the reasons live here:
 
 ## Consequences
 
-- **A branch that passes `npm test` passes CI**, and the README states one command rather than a list
-  that drifts.
+- **`npm test` applies the checks CI applies**, and the README states one command rather than a list
+  that drifts. What can still differ is the input:
+  - CI installs the frontend's dependencies fresh, while a local run uses whatever the last
+    `npm run setup` left, so it is rerun after the lockfile changes.
+  - Vitest's `allowOnly` defaults to `!process.env.CI`, which let a committed `.only` pass locally
+    and fail in CI. `vitest.config.ts` sets it to `false`, so a focused test fails in both.
 - **Node is now the entry point for the backend's gate as well.** `./mvnw` still works directly from
   `backend/`; it is just no longer *the* command.
 - **The backend and diagram jobs set up Node**, from `frontend/.nvmrc`. The runner ships Node 22.

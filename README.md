@@ -272,7 +272,7 @@ Every command below runs from the repository root unless it changes directory fi
 PowerShell, Git Bash and a Linux shell ([ADR-044](docs/ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md)).
 
 ```bash
-npm run setup                               # once: installs the frontend's dependencies
+npm run setup                               # once, and after the lockfile changes
 docker compose up -d postgres               # or bring your own PostgreSQL
 
 cd backend  && ./mvnw spring-boot:run        # terminal 1 — :8080, migrates on start
@@ -323,7 +323,8 @@ Inside a module the usual commands still work: `./mvnw test` in `backend/` needs
 nor Docker, and `npm test` in `frontend/` runs Vitest once.
 
 **What CI gates on** ([`ci.yml`](.github/workflows/ci.yml), on every push and PR to `main` and
-`dev`): the same three `test:*` scripts, one job each, so a branch that passes `npm test` passes CI
+`dev`): the same three `test:*` scripts, one job each, so `npm test` applies the same checks; only
+the dependencies can differ, because CI installs them fresh
 ([ADR-044](docs/ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md)). That is
 `./mvnw clean verify`, which includes javac's lint at `-Werror` and the Java format check; the
 generated diagrams still matching their source; the frontend format check; frontend lint at

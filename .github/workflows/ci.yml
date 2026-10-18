@@ -38,8 +38,8 @@ jobs:
           cache: maven
 
       # Each job runs its part of the gate through the root package.json, the script `npm test` runs
-      # locally, so the two cannot disagree about what passing means (ADR-044). Node is only the entry
-      # point here: no cache, since the root installs nothing.
+      # locally, so both apply the same checks (ADR-044). Node is only the entry point here: no cache,
+      # since the root installs nothing.
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:

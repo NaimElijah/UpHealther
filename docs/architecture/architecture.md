@@ -573,9 +573,10 @@ request body writes to.
 
 **The repository's commands are defined once, in the root `package.json`.** `npm run setup`,
 `npm start` and `npm test` are its entry points, and CI's jobs call its `test:*` scripts rather than
-spelling out their own, so local and CI cannot disagree about what passing means. It has no
-dependencies. npm runs its scripts through `cmd.exe` on Windows and `sh` elsewhere, so each body stays
-`cd dir && tool args`, and the two commands no one string runs under both shells live in `scripts/`:
+spelling out their own, so a local run applies the checks CI applies; only the installed dependencies
+can differ, because CI installs them fresh. It has no dependencies of its own. npm runs its scripts
+through `cmd.exe` on Windows and `sh` elsewhere, so each body stays `cd dir && tool args`, and the two
+commands no one string runs under both shells live in `scripts/`:
 `mvnw.mjs` picks the Maven wrapper's spelling, and `python.mjs` finds a Python 3 under whichever name
 the machine gives it ([ADR-044](../ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md)).
 
