@@ -60,8 +60,9 @@ ADR-043 requires. The job needs no registry, no login and no secret: the workflo
 `contents: read` is enough.
 
 **The job has `timeout-minutes: 20`.** ADR-043 left job timeouts out, to revisit if a job ever hangs.
-This job is the one that can:
-- both images download every dependency with no layer cache;
+This job is the most exposed to a hang, though not the only one that could; the backend job has no
+test timeout either:
+- both images download every dependency over the network, with no layer cache;
 - `--wait-timeout` bounds only the start, not the build;
 - a hung required check holds a PR for the default 360 minutes.
 

@@ -164,9 +164,9 @@ jobs:
   images:
     name: Images - Build & Start
     runs-on: ubuntu-latest
-    # The only job whose build is unbounded: both images download every Maven and npm dependency with no
-    # layer cache, and `--wait-timeout` bounds only the start. A hung required check would hold a PR for
-    # the default 360 minutes, the case ADR-043 said to revisit. See ADR-045.
+    # The job most exposed to a hang: both images download every Maven and npm dependency over the
+    # network with no layer cache, and `--wait-timeout` bounds only the start. A hung required check
+    # would hold a PR for the default 360 minutes, the case ADR-043 said to revisit. See ADR-045.
     timeout-minutes: 20
 
     steps:
