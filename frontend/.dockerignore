@@ -1,9 +1,13 @@
 # Kept out of the image's build context, so a local build sees what CI's clean checkout does.
 # `COPY . .` in the Dockerfile would otherwise lay the host's node_modules over the container's own,
 # Windows-native binaries included, and Vite would bake a local .env file into the bundle.
+# The env patterns are .gitignore's, no wider: a committed .env file is in CI's checkout, so it belongs
+# in the image too.
 # Never `.*`: the Dockerfile copies .npmrc, whose engine-strict guards the image's install (ADR-030).
 node_modules
 dist
 coverage
 .vite
-.env*
+.env
+.env.local
+.env.*.local
