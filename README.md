@@ -408,9 +408,9 @@ outside contribution.
 
 ## 🚦 Status and limitations
 
-**Feature-complete and unshipped.** Every capability above works and is covered — 756 unit and
-structural tests, 97 integration tests, 413 frontend tests, all green — but it has never run in a
-hosted environment, has no release tags, and is versioned `0.0.1-SNAPSHOT`.
+**Feature-complete and unshipped.** Every capability above works and is covered by tests at every
+level, and `npm test` is green, but it has never run in a hosted environment, has no release tags, and
+is versioned `0.0.1-SNAPSHOT`.
 
 Known limitations, load-bearing rather than accidental:
 
