@@ -334,8 +334,9 @@ Inside a module the usual commands still work: `./mvnw test` in `backend/` needs
 nor Docker, and `npm test` in `frontend/` runs Vitest once.
 
 **What CI gates on** ([`ci.yml`](.github/workflows/ci.yml), on every push and PR to `main` and
-`dev`): the same four `test:*` scripts, one job each, so `npm test` applies the same checks; only
-the dependencies can differ, because CI installs them fresh
+`dev`): the same four `test:*` scripts, one job each, so `npm test` applies the same checks. Only
+the inputs can differ: CI installs the dependencies fresh, and sets none of the variables
+`docker-compose.yml` reads, which a root `.env` or your shell may
 ([ADR-044](docs/ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md)). That is
 `./mvnw clean verify`, which includes javac's lint at `-Werror` and the Java format check; the
 generated diagrams still matching their source; the frontend format check; frontend lint at

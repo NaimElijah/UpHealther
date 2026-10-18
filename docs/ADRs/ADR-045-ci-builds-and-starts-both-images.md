@@ -88,8 +88,13 @@ clean checkout builds. The context went from 182.93 MB to 7.68 kB.
   README gives the one-line `down` too. Catching the signal so the script tears down after an
   interrupt was not done: how Windows delivers Ctrl+C to a child started with `spawnSync` was not
   tested here. Revisit if a leftover stack is reported in practice.
-- **A developer's root `.env` applies to the local check**, because compose reads it from the project
-  directory. CI has none. It is the one input that can make a local image check differ from CI's.
+- **A developer's environment applies to the local check.** Compose fills `docker-compose.yml`'s
+  variables from a root `.env` and from the shell, so an exported `JWT_SECRET` or
+  `SPRING_PROFILES_ACTIVE` changes the stack the check starts. CI sets none of them.
+  - Stripping them in the script would mean a hand-kept copy of the variable list, the drift this
+    record removes elsewhere.
+  - A developer who exports one does so on purpose.
+  - So it is stated rather than prevented.
 - **The check needs a Compose that understands `!reset`.** What has been shown:
   - On Compose 5.6.0 locally, `config` with the override renders no `ports` on any service.
   - The runner's Compose 2.38.2 (image `ubuntu-24.04` 20261012.334) accepts the file, in run

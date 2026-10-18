@@ -575,8 +575,9 @@ request body writes to.
 
 **The repository's commands are defined once, in the root `package.json`.** `npm run setup`,
 `npm start` and `npm test` are its entry points, and CI's jobs call its `test:*` scripts rather than
-spelling out their own, so a local run applies the checks CI applies; only the installed dependencies
-can differ, because CI installs them fresh. It has no dependencies of its own. npm runs its scripts
+spelling out their own, so a local run applies the checks CI applies. Only the inputs can differ: CI
+installs the dependencies fresh, and sets none of the variables `docker-compose.yml` reads, which a
+root `.env` or the shell may. It has no dependencies of its own. npm runs its scripts
 through `cmd.exe` on Windows and `sh` elsewhere, so each body stays `cd dir && tool args`, and the two
 commands no one string runs under both shells live in `scripts/`:
 `mvnw.mjs` picks the Maven wrapper's spelling, and `python.mjs` finds a Python 3 under whichever name
