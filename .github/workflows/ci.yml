@@ -147,8 +147,9 @@ jobs:
         run: npm run setup
 
       # One step, because it is the same list `npm test` runs locally. ADR-044 says why each check is in
-      # it, and in that order. npm prints a `> ` banner before each command, so the last one above the
-      # error names the check that failed.
+      # it, and in that order. npm prints a `> ` banner before each script it runs, so the last one above
+      # the error names the check that failed. The audit is the exception: it is npm's own command, not a
+      # script, so it prints `# npm audit report` instead, straight after the tests' banner.
       - name: Check, test, audit and build frontend
         run: npm run test:frontend
 

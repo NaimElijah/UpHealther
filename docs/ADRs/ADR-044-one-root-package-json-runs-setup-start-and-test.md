@@ -98,8 +98,9 @@ the reasons live here:
   `backend/`; it is just no longer *the* command.
 - **The backend and diagram jobs set up Node**, from `frontend/.nvmrc`. The runner ships Node 22.
 - **The frontend's CI step is one step rather than six.** The Actions UI no longer marks which check
-  went red, but npm prints a `> <script>` banner before each command, so the last banner above the
-  error names it.
+  went red, but npm prints a `> <script>` banner before each script it runs, so the last banner above
+  the error names it. The audit is the exception: `npm audit` is npm's own command, not a script, so
+  it prints `# npm audit report` with no banner, directly under the tests' one.
 - **The script bodies are read by two different shells**, and that has to stay safe. Anything beyond
   `cd dir && tool args` goes into a `.mjs` file.
 - **`mvnw.cmd` needs `powershell` on `PATH`**, as every stock Windows has. A session without
