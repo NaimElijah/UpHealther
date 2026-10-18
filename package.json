@@ -1,0 +1,13 @@
+{
+  "name": "uphealther",
+  "private": true,
+  "description": "One command to set up, one to start and one to test the repository; CI runs the same scripts (ADR-044).",
+  "scripts": {
+    "setup": "cd frontend && npm ci",
+    "start": "docker compose up --build",
+    "test": "npm run test:diagrams && npm run test:frontend && npm run test:backend",
+    "test:diagrams": "node scripts/python.mjs docs/architecture/arch-diagrams/generate.py --check",
+    "test:frontend": "cd frontend && npm run format:check && npm run lint && npm run check:colours && npm run test:coverage && npm audit --omit=dev --audit-level=high && npm run build",
+    "test:backend": "node scripts/mvnw.mjs -B --no-transfer-progress clean verify"
+  }
+}

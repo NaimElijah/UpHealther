@@ -18,7 +18,8 @@ frontend/dist/
 # Coverage is reported on every run and read from the CI artifact, never committed.
 frontend/coverage/
 frontend/.vite/
-# Vitest and npx write a cache here when a command is run from the repo root by mistake.
+# The root package.json has no dependencies, so nothing should install here (ADR-044). Vitest and npx
+# still write a cache here when a frontend command is run from the root by mistake.
 node_modules/
 
 # Environment

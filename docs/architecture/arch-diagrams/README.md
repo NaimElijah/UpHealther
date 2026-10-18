@@ -525,7 +525,7 @@ what makes "one entry per upgrade per day" survive a race the application-level 
 
 ```bash
 python docs/architecture/arch-diagrams/generate.py           # rewrite the generated diagrams
-python docs/architecture/arch-diagrams/generate.py --check   # fail if they are out of date (CI runs this)
+python docs/architecture/arch-diagrams/generate.py --check   # fail if they are out of date; CI runs it as `npm run test:diagrams`
 ```
 
 Editing a generated region by hand is pointless — the next run overwrites it, and CI will fail before
