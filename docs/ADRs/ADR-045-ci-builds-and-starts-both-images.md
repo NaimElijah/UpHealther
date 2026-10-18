@@ -71,7 +71,8 @@ gate" now includes it.
 **`frontend/.dockerignore` keeps the host's build output out of the image context.** `COPY . .` would
 otherwise lay a developer's `node_modules` over the container's, Windows-native binaries included,
 and Vite would bake a local `.env*` into the bundle. A local check would then not build what CI's
-clean checkout builds. The context went from 182.93 MB to 7.68 kB.
+clean checkout builds. Without the file, a local build sent a 182.93 MB context. With it, the context
+is what CI's fresh build transfers: 831.35 kB, mostly `package-lock.json` and the sources.
 
 ## Consequences
 
