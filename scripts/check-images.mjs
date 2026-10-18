@@ -103,6 +103,13 @@ function buildAndStart() {
   return started;
 }
 
+// The check relies on `!reset` in the override, and CI's runner image changes under it, so every run
+// records which Compose it ran on.
+const versioned = docker(['compose', 'version']);
+if (versioned !== 0) {
+  process.exit(versioned);
+}
+
 const cleared = takeDown();
 if (cleared !== 0) {
   process.exit(cleared);

@@ -78,8 +78,13 @@ clean checkout builds. The context went from 182.93 MB to 7.68 kB.
   own compose stack has to be down, though their data volume is kept.
 - **A developer's root `.env` applies to the local check**, because compose reads it from the project
   directory. CI has none. It is the one input that can make a local image check differ from CI's.
-- **The check needs a Compose that understands `!reset`.** That has been verified on Compose 5.6.0
-  locally and on the runner's Compose.
+- **The check needs a Compose that understands `!reset`.** What has been shown:
+  - On Compose 5.6.0 locally, `config` with the override renders no `ports` on any service.
+  - The runner's Compose 2.38.2 (image `ubuntu-24.04` 20261012.334) accepts the file, in run
+    39150920073. The runner has nothing on 3000, 5432 or 8080, so a green run there cannot show that
+    the ports were reset, only that the tag parsed.
+  - The script prints `docker compose version` first, because the runner image changes under the
+    check.
 - **`ContainerImagesArePinnedTest` reads `scripts/compose.images-check.yml`**, because its name matches
   the test's pattern. The file names no image, so it adds nothing to check, and any image added to it
   later is held to an exact tag like the rest.
