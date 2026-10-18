@@ -54,7 +54,9 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
   healthy, as a throwaway compose project with no published ports, then takes it down (ADR-045).
   It refuses to start while the `healthupgrades-*` containers of your own stack exist, because their
   names are fixed, so `docker compose down` first. The stack's subnet is fixed too, and is not
-  checked first: a network already on it fails the check after the build.
+  checked first: a network already on it fails the check after the build. Interrupted, it leaves its
+  containers holding those names, and the next run clears them first; a plain `docker compose down`
+  does not, because they belong to project `uphealther-images-check`.
 - These run identically from PowerShell, Git Bash and a Linux shell, because npm runs them through
   `cmd.exe` or `sh` and their bodies stay `cd dir && tool args`. A command no one string spells in
   both shells goes into `scripts/*.mjs`, as `mvnw.mjs` and `python.mjs` do. `mvnw.cmd` calls

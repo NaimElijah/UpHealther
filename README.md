@@ -324,8 +324,10 @@ npm run test:images     # both images build, and the stack they make starts heal
 
 `test:images` runs as a throwaway compose project with no published ports, and takes it down again,
 so your data volume is never touched. It does reuse the stack's fixed container names, so it refuses
-to start while your own stack's containers exist: `docker compose down` first. It needs a Compose
-that understands `!reset`
+to start while your own stack's containers exist: `docker compose down` first. Interrupted, it
+leaves its containers holding those names, and your own `docker compose up` conflicts with them until
+you run the check again, which clears them first, or `docker compose -p uphealther-images-check down
+--volumes`. It needs a Compose that understands `!reset`
 ([ADR-045](docs/ADRs/ADR-045-ci-builds-and-starts-both-images.md)).
 
 Inside a module the usual commands still work: `./mvnw test` in `backend/` needs neither a database

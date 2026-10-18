@@ -81,6 +81,13 @@ clean checkout builds. The context went from 182.93 MB to 7.68 kB.
   job.** The jobs run in parallel. Its durations are recorded on #201's PR.
 - **Locally, `npm test` now needs Docker for the whole run, and takes minutes longer.** The developer's
   own compose stack has to be down, though their data volume is kept.
+- **An interrupted check leaves its containers behind.** Ctrl+C ends the script before it can take
+  the stack down, and those containers hold the stack's fixed names. So the developer's own
+  `docker compose up` conflicts with them, and a plain `docker compose down` does not remove them,
+  because they belong to the check's project. The next run clears them first (step 1), and the
+  README gives the one-line `down` too. Catching the signal so the script tears down after an
+  interrupt was not done: how Windows delivers Ctrl+C to a child started with `spawnSync` was not
+  tested here. Revisit if a leftover stack is reported in practice.
 - **A developer's root `.env` applies to the local check**, because compose reads it from the project
   directory. CI has none. It is the one input that can make a local image check differ from CI's.
 - **The check needs a Compose that understands `!reset`.** What has been shown:
