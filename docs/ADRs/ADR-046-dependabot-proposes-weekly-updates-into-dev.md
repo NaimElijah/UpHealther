@@ -106,7 +106,16 @@ promoted to `main`, not when it merges into `dev`.
 ## Consequences
 
 - **A pinned version now has something that proposes its bump.** This meets the consequence ADR-030
-  left open.
+  left open, with one limit:
+  - **The Alpine release in an image tag never moves.** dependabot-core's `docker/tag.rb` reads
+    `24.21.0-alpine3.24`, `1.30.5-alpine3.24` and `15.19-alpine3.24` as a version plus the suffix
+    `-alpine3.24`. It proposes only candidates with an equal suffix.
+  - So `node`, `nginx` and `postgres` get patches on Alpine 3.24 for as long as upstream publishes
+    them there. After that the proposals stop, silently.
+  - The `eclipse-temurin` tags carry the Alpine release inside the version
+    (`21.0.12.1_1-jre-alpine-3.24`), and are unaffected.
+  - Moving the Alpine release is a hand-made change. For `postgres`, it moves in
+    `docker-compose.yml` and `PostgresImage` together.
 - **Nothing reaches `main` that did not pass through `dev`.** A Dependabot PR is gated by the same four
   required checks as any other.
 - **Two kinds of Dependabot PR go red by design, and a person finishes them.**
@@ -172,6 +181,9 @@ promoted to `main`, not when it merges into `dev`.
 
 ## When to revisit
 
+- **A pinned image stops receiving proposals** while its upstream has moved to a newer Alpine release:
+  move the suffix by hand. That is ADR-030's "Dependabot cannot keep exact tags current" trigger, for
+  the Alpine part of a tag.
 - **An alert that no ADR accepts sits unactioned past a weekly run:** security updates, and the
   default branch (above). The four development-scope alerts of the first read count once #302 has
   had its week.

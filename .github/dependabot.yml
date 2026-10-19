@@ -62,6 +62,9 @@ updates:
       actions-minor-and-patch:
         update-types: [ minor, patch ]
 
+  # Only tags with the same suffix are proposed, so `-alpine3.24` on node, nginx and postgres never moves
+  # by itself: changing the Alpine release is a hand-made change (ADR-046).
+  #
   # A bump of the frontend's `node` image fails `ContainerImagesArePinnedTest` until `frontend/.nvmrc`
   # moves with it, which Dependabot cannot do: push that change onto the PR's branch (ADR-046).
   - package-ecosystem: docker
