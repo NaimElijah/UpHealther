@@ -1,6 +1,8 @@
 # ADR-045: CI builds both container images and starts the stack from them, as a fourth required check
 
-- **Status:** Accepted
+- **Status:** Accepted — extended by
+  [ADR-047](ADR-047-the-backend-audits-its-dependencies-with-osv-scanner.md), which decides the image
+  scan this record left for #59: not yet, while nothing publishes an image
 - **Date:** 2026-10-18
 - **Scope:** `scripts/check-images.mjs`, `scripts/compose.images-check.yml`, the root `package.json`'s
   `test:images`, the `images` job in `.github/workflows/ci.yml`, ruleset 25310599, and

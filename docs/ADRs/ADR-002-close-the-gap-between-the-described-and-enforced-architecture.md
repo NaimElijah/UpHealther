@@ -1,6 +1,8 @@
 # ADR-002: Close the gap between the described and the enforced architecture
 
-- **Status:** Accepted
+- **Status:** Accepted — superseded in part by
+  [ADR-047](ADR-047-the-backend-audits-its-dependencies-with-osv-scanner.md), which closes its known gap
+  "The backend has no vulnerability audit yet" with a scanner that needs no key
 - **Date:** 2026-08-17
 - **Supersedes in part:** ADR-001 (the pragmatic DTO exception, the claim of a uniform layout, and the
   enforced-rules list)

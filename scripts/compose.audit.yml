@@ -1,0 +1,20 @@
+# The backend's dependency audit: `npm run audit:backend`, which `npm run test:backend` runs after the
+# tests, and CI's backend job with it. See
+# docs/ADRs/ADR-047-the-backend-audits-its-dependencies-with-osv-scanner.md.
+#
+# OSV-Scanner resolves backend/pom.xml's whole tree, test scope included, and fails on any known
+# vulnerability. An accepted one is an [[IgnoredVulns]] entry, with a reason and an expiry, in
+# backend/osv-scanner.toml. It is pointed at the pom alone: a recursive scan would also read target/.
+#
+# Compose resolves `../backend` against this file, so the one script string runs from cmd.exe and sh
+# alike. The container gets the sources read-only and no credentials. The default bridge network
+# leaves no project network behind after `run --rm`. Dependabot's docker-compose entry reads this
+# directory, so the image's pin moves by PR like every other.
+name: uphealther-audit
+services:
+  osv-scanner:
+    image: ghcr.io/google/osv-scanner:v2.7.0
+    network_mode: bridge
+    volumes:
+      - ../backend:/src:ro
+    command: ['scan', 'source', '--lockfile', '/src/pom.xml']

@@ -70,8 +70,11 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
   `backend/config/application.yml`, which only a run from `backend/` reads, and `JWT_SECRET` overrides
   it; the jar has none and refuses to start without one (ADR-042).
 - `./mvnw test` — unit, web-slice and architecture tests; **no database, no Docker**.
-- `./mvnw clean verify` — what CI runs: the above, the `*IT` integration tests and the format check.
-  Needs a running **Docker daemon**: the ITs start their own PostgreSQL through Testcontainers.
+- `./mvnw clean verify` — the above, the `*IT` integration tests and the format check. Needs a running
+  **Docker daemon**: the ITs start their own PostgreSQL through Testcontainers. What CI runs is the
+  root's `npm run test:backend`: this, then `npm run audit:backend`, OSV-Scanner over the whole
+  dependency tree, failing on any known vulnerability (ADR-047). A finding is fixed by a bump, or
+  accepted in `backend/osv-scanner.toml` with a reason and an `ignoreUntil`.
 - `./mvnw spotless:apply` — format.
 - One test: `./mvnw test -Dtest=UpgradeServiceTest` (or `Class#method`). One IT:
   `./mvnw verify -Dtest=NONE -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=ApplicationContextIT`.
@@ -98,9 +101,9 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
   applied migration to change it — Flyway checksums the comments too; add another `UPDATE`.
 
 A change is ready for a PR when the root `npm test` passes: it runs what CI's four jobs run, the
-backend's `clean verify`, the frontend list above, the diagram check and the image check. The jobs
-are required checks, so a PR into `dev` or `main` cannot merge until they pass (ADR-043). Renaming,
-adding or removing a job means editing ruleset 25310599 just before merging that PR, then
+backend's `clean verify` and audit, the frontend list above, the diagram check and the image check.
+The jobs are required checks, so a PR into `dev` or `main` cannot merge until they pass (ADR-043).
+Renaming, adding or removing a job means editing ruleset 25310599 just before merging that PR, then
 re-triggering the other open PRs with a push or a close and reopen.
 
 ## Conventions across both modules
