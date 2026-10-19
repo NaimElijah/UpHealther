@@ -68,10 +68,15 @@ Here the default branch is `main`. Each security fix would then land on `main` w
 through `dev`, and would have to be merged back. Until it was, `main` would hold commits `dev`
 lacks, which is the divergence the merge-commit-only promotion exists to prevent.
 
-So a known vulnerability raises an alert, and its fix arrives in one of two ways:
+So a known vulnerability raises an alert, and how its fix arrives depends on where the package sits:
 
-- with the next weekly version update into `dev`;
-- or as a hand-made bump on `dev` the day the alert arrives.
+- **A dependency a manifest declares** is moved by the next weekly version update into `dev`, or by
+  hand sooner.
+- **A transitive dependency is moved only by hand.** Version updates keep current "all dependencies
+  explicitly defined in a manifest", and for npm the options reference supports no `indirect`
+  dependency type. Lock-file-only packages are what security updates would have moved. On `dev`, the
+  fix is `npm update <package>` inside the existing ranges, or an `overrides` entry when the fix lies
+  outside them.
 
 ### `.github/dependabot.yml`: version updates
 
@@ -117,11 +122,14 @@ promoted to `main`, not when it merges into `dev`.
 - **Alerts arrive before CI notices.** The first read, on 2026-10-19, listed six open alerts, all in
   `frontend/package-lock.json`:
   - **Four are development-scope**: `browserslist` (high), `baseline-browser-mapping`, and two in
-    `postcss-selector-parser`. `npm audit --omit=dev` deliberately ignores them (ADR-044), and the
-    weekly `npm` group is where their fixes arrive.
+    `postcss-selector-parser`. `npm audit --omit=dev` deliberately ignores them (ADR-044). All four are
+    transitive, so no weekly run will move them. Three are fixed inside their ranges, and the
+    fourth, `postcss-selector-parser` 7.1.6, lies outside Tailwind 3's. They are tracked as
+    [#302](https://github.com/NaimElijah/UpHealther/issues/302).
   - **Two are `react-router` advisories** that [ADR-034](ADR-034-stay-on-react-router-6-while-its-open-advisories-do-not-reach-the-spa.md)
     already accepts, because neither reaches the SPA.
-- **A security fix waits up to a week unless someone acts on its alert.**
+- **A fix for a declared dependency waits up to a week unless someone acts on its alert. A fix for a
+  transitive one waits until someone does.** That is the cost of leaving security updates off.
 - **The backend's managed and transitive tree raises no alert until #301 lands.** An advisory against
   Tomcat or Jackson is announced only by whatever else watches that tree.
 - **The `github-actions` updates will propose new majors** of `checkout`, `setup-java`, `setup-node`
@@ -143,8 +151,8 @@ promoted to `main`, not when it merges into `dev`.
 
 - **Turn security updates on and accept their PRs into `main`.** Rejected. Fixes would arrive
   fastest, but each one would put commits on `main` that `dev` lacks until it was merged back.
-  - **Revisit when** an alert sits unactioned past a weekly run, so the wait has actually cost
-    something.
+  - **Revisit when** an alert that no ADR accepts sits unactioned past a weekly run, so the wait
+    has actually cost something.
 - **Make `dev` the default branch,** so security PRs land where everything else does. Rejected
   here. It changes what a visitor sees first and where every PR opens by default, which is a bigger
   decision than this one.
@@ -164,7 +172,9 @@ promoted to `main`, not when it merges into `dev`.
 
 ## When to revisit
 
-- **An alert sits unactioned past a weekly run:** security updates, and the default branch (above).
+- **An alert that no ADR accepts sits unactioned past a weekly run:** security updates, and the
+  default branch (above). The four development-scope alerts of the first read count once #302 has
+  had its week.
 - **The first Dependabot runs fail on a tag or on `engine-strict`:** adjust the entry. If `node` cannot
   be updated without `.nvmrc`, consider Renovate.
 - **The PR backlog from the first runs has cleared:** raise `open-pull-requests-limit`.

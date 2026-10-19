@@ -8,7 +8,8 @@
 #
 # Security updates are switched off in the repository settings, deliberately: GitHub opens them against
 # the default branch whatever `target-branch` says, which would put commits on `main` that `dev` lacks.
-# Alerts stay on, and a fix arrives with the next weekly run or by hand (ADR-046).
+# Alerts stay on. A declared dependency's fix arrives with the next weekly run; a transitive one's only
+# by hand, because version updates never move a lock-file-only package (ADR-046).
 #
 # `labels: [ ]` keeps Dependabot's own labels (`dependencies`, `java`, `docker`, ...) out of the
 # repository's label taxonomy, which is for issues. The limit of two open PRs per entry holds the first
