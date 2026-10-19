@@ -41,6 +41,16 @@ These are switched on outside the tree, and read back with `gh api`:
 - **Dependabot alerts.**
   - `gh api repos/NaimElijah/UpHealther/vulnerability-alerts` answers 204.
   - They are read with `gh api repos/NaimElijah/UpHealther/dependabot/alerts`.
+  - They cover only what GitHub's dependency graph sees:
+    - every package in `frontend/package-lock.json`;
+    - in `backend/pom.xml`, only the artifacts that state their own version, such as jjwt and
+      logstash-logback-encoder.
+
+    The graph reads the pom without resolving it. It records the parent-managed starters with no
+    version and no transitive dependency at all, so Tomcat, Spring, Jackson and Hibernate raise no
+    alert. Automatic dependency submission would resolve the tree. It is a switch in the settings UI,
+    with no REST endpoint, so it is left to the owner as
+    [#301](https://github.com/NaimElijah/UpHealther/issues/301).
 - **Secret scanning and push protection.**
   - `gh api repos/NaimElijah/UpHealther --jq .security_and_analysis` shows both `enabled`.
   - Push protection refuses a push that contains a token in a format GitHub recognises, such as a
@@ -112,6 +122,8 @@ promoted to `main`, not when it merges into `dev`.
   - **Two are `react-router` advisories** that [ADR-034](ADR-034-stay-on-react-router-6-while-its-open-advisories-do-not-reach-the-spa.md)
     already accepts, because neither reaches the SPA.
 - **A security fix waits up to a week unless someone acts on its alert.**
+- **The backend's managed and transitive tree raises no alert until #301 lands.** An advisory against
+  Tomcat or Jackson is announced only by whatever else watches that tree.
 - **The `github-actions` updates will propose new majors** of `checkout`, `setup-java`, `setup-node`
   and `upload-artifact`. That is the route out of #292's forced move from Node 20 to Node 24 on the
   runner.
