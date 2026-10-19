@@ -74,7 +74,8 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
   **Docker daemon**: the ITs start their own PostgreSQL through Testcontainers. What CI runs is the
   root's `npm run test:backend`: this, then `npm run audit:backend`, OSV-Scanner over the whole
   dependency tree, failing on any known vulnerability (ADR-047). A finding is fixed by a bump, or
-  accepted in `backend/osv-scanner.toml` with a reason and an `ignoreUntil`.
+  accepted in `backend/osv-scanner.toml` with a reason and an `ignoreUntil`, which
+  `OsvScannerExceptionsAreDatedTest` requires because the scanner would take a bare `id`.
 - `./mvnw spotless:apply` — format.
 - One test: `./mvnw test -Dtest=UpgradeServiceTest` (or `Class#method`). One IT:
   `./mvnw verify -Dtest=NONE -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=ApplicationContextIT`.

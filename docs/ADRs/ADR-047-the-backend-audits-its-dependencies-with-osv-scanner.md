@@ -5,7 +5,8 @@
 - **Supersedes in part:** [ADR-002](ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)
   (its known gap, "The backend has no vulnerability audit yet")
 - **Scope:** `scripts/compose.audit.yml`, the root `package.json`'s `audit:backend` and `test:backend`,
-  the version overrides in `backend/pom.xml`, `ContainerImagesArePinnedTest`, the backend job in
+  the version overrides in `backend/pom.xml`, `ContainerImagesArePinnedTest`,
+  `OsvScannerExceptionsAreDatedTest`, the backend job in
   `.github/workflows/ci.yml`, and `.github/dependabot.yml`'s `docker-compose` entry. NFR-12 in
   `docs/requirements/requirements.md`.
 - **Issue:** [#59](https://github.com/NaimElijah/UpHealther/issues/59), part of the repository
@@ -110,6 +111,13 @@ So a misconfigured audit fails rather than passing empty, and:
   `reason` and an `ignoreUntil` date;
 - every exception is a dated, reviewed decision rather than a blanket rule;
 - no such file exists today, because nothing is accepted.
+
+**The scanner does not enforce that rule, so a test does.** OSV-Scanner honours a bare `id`: it
+filters the finding "because: (no reason given)", and with no `ignoreUntil` the finding never comes
+back. A `[[PackageOverrides]]` entry can silence a whole package the same way.
+`OsvScannerExceptionsAreDatedTest` fails the build on any `[[IgnoredVulns]]` without a non-blank
+`reason` and an `ignoreUntil`, and on any `[[PackageOverrides]]` without a `reason` and an
+`effectiveUntil`. It reads the file only when it exists.
 
 ### The day-one findings are fixed, not accepted
 
