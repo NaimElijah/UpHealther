@@ -84,10 +84,11 @@ PRs ([ADR-046](ADR-046-dependabot-proposes-weekly-updates-into-dev.md)).
 So it audits the build Maven actually runs, not a re-resolution that might disagree. Test scope
 cannot be left out, which would mirror the frontend's `--omit=dev`:
 
-- OSV-Scanner marks only the 19 *direct* test dependencies with the `test` group;
+- OSV-Scanner marks only the 10 *direct* test dependencies, the ones `pom.xml` declares with
+  `<scope>test</scope>`, with the `test` group;
 - their transitive tree, such as Testcontainers' `docker-java`, carries no group at all;
-- so a `[[PackageOverrides]] group = "test"` rule would exclude half the test tree and keep the other
-  half.
+- so a `[[PackageOverrides]] group = "test"` rule would exclude 10 of Maven's 62 test-scope packages
+  and keep the other 52.
 
 Auditing it all is the stricter of the two honest options. The test tree also runs in CI, with the
 Docker socket.
