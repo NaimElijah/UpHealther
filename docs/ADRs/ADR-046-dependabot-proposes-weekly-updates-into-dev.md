@@ -80,13 +80,13 @@ So a known vulnerability raises an alert, and how its fix arrives depends on whe
 
 ### `.github/dependabot.yml`: version updates
 
-| Ecosystem | Directories | Majors ignored |
+| Ecosystem | Directories | Ignored, as a decision rather than a routine bump |
 |---|---|---|
-| `maven` | `/backend` | `spring-boot-starter-parent`: it moves Spring, Security, Hibernate and Jackson at once ([ADR-032](ADR-032-the-backend-runs-on-spring-boot-4-1.md)) |
-| `npm` | `/frontend` | none |
+| `maven` | `/backend` | `spring-boot-starter-parent` majors: one moves Spring, Security, Hibernate and Jackson at once ([ADR-032](ADR-032-the-backend-runs-on-spring-boot-4-1.md)) |
+| `npm` | `/frontend` | `prettier`, every update: a formatter bump is a `style(frontend)` commit of its own, whose SHA goes into `.git-blame-ignore-revs` ([ADR-038](ADR-038-the-frontend-is-formatted-by-prettier.md)), not a line in a grouped `build(deps-dev)` PR |
 | `github-actions` | `/` | none |
-| `docker` | `/backend`, `/frontend` | `eclipse-temurin` and `node`: a runtime change ([ADR-030](ADR-030-the-toolchain-is-pinned-in-the-repository.md), [ADR-031](ADR-031-the-frontend-toolchain-runs-on-node-24-lts.md)) |
-| `docker-compose` | `/` | `postgres`: a major will not start on the existing data volume, so it is a data migration |
+| `docker` | `/backend`, `/frontend` | `eclipse-temurin` and `node` majors: a runtime change ([ADR-030](ADR-030-the-toolchain-is-pinned-in-the-repository.md), [ADR-031](ADR-031-the-frontend-toolchain-runs-on-node-24-lts.md)) |
+| `docker-compose` | `/` | `postgres` majors: a major will not start on the existing data volume, so it is a data migration |
 
 Every entry:
 

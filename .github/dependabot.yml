@@ -47,6 +47,10 @@ updates:
     groups:
       npm-minor-and-patch:
         update-types: [ minor, patch ]
+    ignore:
+      # A formatter bump is a style(frontend) commit of its own, whose SHA goes into
+      # .git-blame-ignore-revs; inside a grouped PR it would turn format:check red (ADR-038).
+      - dependency-name: prettier
 
   - package-ecosystem: github-actions
     directory: /
