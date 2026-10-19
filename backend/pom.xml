@@ -19,8 +19,8 @@
 
     <properties>
         <java.version>21</java.version>
-        <jjwt.version>0.12.3</jjwt.version>
-        <jacoco.version>0.8.12</jacoco.version>
+        <jjwt.version>0.13.0</jjwt.version>
+        <jacoco.version>0.8.15</jacoco.version>
         <!--
           Not managed by spring-boot-dependencies, so the version is ours to keep correct. 9.x is the line
           built against Jackson 3, which Boot 4 uses; 8.x is Jackson 2's. Re-check this pin on any Boot
