@@ -102,10 +102,10 @@ checked against v2.7.0:
 |---|---|
 | 0 | nothing found |
 | 1 | a known vulnerability |
-| 127 | the pom path does not resolve |
+| 127 | a general error: the pom path does not resolve, or deps.dev, Maven Central or api.osv.dev cannot be reached |
 | 128 | no packages found |
 
-So a misconfigured audit fails rather than passing empty, and:
+So a misconfigured or offline audit fails rather than passing empty, and:
 
 - there is no equivalent of the frontend's `--audit-level=high`;
 - accepting a finding is an `[[IgnoredVulns]]` entry in `backend/osv-scanner.toml`, with its `id`, a
@@ -156,8 +156,9 @@ for the images that will. ADR-045's revisit trigger is unchanged.
     meant to be temporary needs.
 - **The backend's rule is stricter than the frontend's.** Any finding fails, not only high and
   critical, and the test tree is included. A finding nobody can act on costs one dated ignore.
-- **The audit needs the network.** It resolves through deps.dev and queries api.osv.dev, as Maven
-  already needs Maven Central. A run took about 55 s locally with the image cached, most of it
+- **The audit needs the network.** It resolves through deps.dev, reads the parent poms from Maven
+  Central, and queries api.osv.dev. Blocking any one of them fails the run with exit 127, so an
+  outage reddens the backend job rather than letting it pass unaudited. A run took about 55 s locally with the image cached, most of it
   resolution. CI's time is recorded on #59's PR.
 - **ADR-002's known gap is closed**, and its "Revisit when an `NVD_API_KEY` secret exists" no longer
   applies.

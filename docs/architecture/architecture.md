@@ -458,8 +458,8 @@ Integration points a maintainer will need:
   ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)), and which also
   checks the Java layout ([ADR-037](../ADRs/ADR-037-the-backend-is-formatted-by-palantir-java-format-through-spotless.md));
   then OSV-Scanner, from its own container with the sources read-only and no token, resolves the
-  backend's whole dependency tree through deps.dev, checks it against api.osv.dev, and fails on any
-  known vulnerability ([ADR-047](../ADRs/ADR-047-the-backend-audits-its-dependencies-with-osv-scanner.md));
+  backend's whole dependency tree through deps.dev and Maven Central, checks it against api.osv.dev,
+  and fails on any known vulnerability, or when any of the three cannot be reached ([ADR-047](../ADRs/ADR-047-the-backend-audits-its-dependencies-with-osv-scanner.md));
   the generated diagrams are checked against their source; the frontend checks its layout
   ([ADR-038](../ADRs/ADR-038-the-frontend-is-formatted-by-prettier.md)), lints, tests, audits its
   shipped dependencies and builds; and both images are built and the stack started from them until
