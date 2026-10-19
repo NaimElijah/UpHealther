@@ -83,7 +83,7 @@ So a known vulnerability raises an alert, and how its fix arrives depends on whe
 | Ecosystem | Directories | Ignored, as a decision rather than a routine bump |
 |---|---|---|
 | `maven` | `/backend` | `spring-boot-starter-parent` majors: one moves Spring, Security, Hibernate and Jackson at once ([ADR-032](ADR-032-the-backend-runs-on-spring-boot-4-1.md)); `org.apache.maven:apache-maven` majors, for the wrapper: the enforcer refuses Maven 4 (`requireMavenVersion [3.9.16,4)`, [ADR-030](ADR-030-the-toolchain-is-pinned-in-the-repository.md)) |
-| `npm` | `/frontend` | `prettier`, every update: a formatter bump is a `style(frontend)` commit of its own, whose SHA goes into `.git-blame-ignore-revs` ([ADR-038](ADR-038-the-frontend-is-formatted-by-prettier.md)), not a line in a grouped `build(deps-dev)` PR |
+| `npm` | `/frontend` | `prettier`, every update: a formatter bump is a `style(frontend)` commit of its own, whose SHA goes into `.git-blame-ignore-revs` ([ADR-038](ADR-038-the-frontend-is-formatted-by-prettier.md)), not a line in a grouped `build(deps-dev)` PR; `react-router-dom` majors: [ADR-034](ADR-034-stay-on-react-router-6-while-its-open-advisories-do-not-reach-the-spa.md) holds it on 6 until its own triggers fire, and a declined 7.x PR would otherwise hold an open-PR slot, or be ignored through a `@dependabot` command that leaves no trace in the tree |
 | `github-actions` | `/` | none |
 | `docker` | `/backend`, `/frontend` | `eclipse-temurin` and `node` majors: a runtime change ([ADR-030](ADR-030-the-toolchain-is-pinned-in-the-repository.md), [ADR-031](ADR-031-the-frontend-toolchain-runs-on-node-24-lts.md)) |
 | `docker-compose` | `/` | `postgres` majors: a major will not start on the existing data volume, so it is a data migration |

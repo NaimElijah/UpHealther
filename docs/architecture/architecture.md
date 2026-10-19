@@ -468,8 +468,8 @@ Integration points a maintainer will need:
   they pass the same four checks as any other. Once a week it groups each ecosystem's minor and patch
   updates into one PR: the backend's Maven dependencies, the frontend's npm dependencies, CI's actions,
   the Dockerfiles' base images and compose's images. Each major gets a PR of its own. Updates that are a
-  decision are ignored and moved by hand: the Spring Boot, Java, Node and PostgreSQL majors, and every
-  Prettier release. GitHub also scans pushes for secrets and refuses one
+  decision, which ADR-046 lists, are ignored and moved by hand: runtime, toolchain and database majors,
+  React Router's major, and every Prettier release. GitHub also scans pushes for secrets and refuses one
   carrying a credential it recognises. It raises Dependabot alerts for every npm package, but for a Maven
   artifact only when `backend/pom.xml` states its version: its dependency graph does not resolve the
   pom, so nothing the Spring Boot parent manages and no transitive dependency is seen (#301). Those are
