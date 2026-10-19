@@ -48,7 +48,10 @@ jobs:
       # `verify` compiles, runs the unit tests, runs the *IT integration tests against a PostgreSQL
       # container they start themselves, packages the jar, and last checks the Java layout (ADR-037).
       # Splitting those into separate `mvn` invocations only recompiled the same sources repeatedly.
-      - name: Build, test and verify backend
+      # Then OSV-Scanner audits the resolved dependency tree and fails on any known vulnerability, in a
+      # container of its own with no token (ADR-047). The step's name is free to change; the job's is
+      # the required check.
+      - name: Build, test, verify and audit backend
         run: npm run test:backend
 
       # Coverage is reported, never gated — a threshold is satisfied by tests written to move a number
@@ -106,10 +109,6 @@ jobs:
           name: backend-coverage
           path: backend/target/site/jacoco/
           retention-days: 14
-
-      # There is deliberately no backend vulnerability audit yet: OWASP dependency-check cannot populate
-      # its database without an NVD API key and fails outright without one. See the known gaps in
-      # ADR-002 for what enabling it requires.
 
   diagrams:
     name: Diagrams - Drift check

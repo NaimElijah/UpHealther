@@ -1,6 +1,8 @@
 # ADR-046: Dependabot proposes weekly updates into `dev`; alerts, secret scanning and push protection are on
 
-- **Status:** Accepted
+- **Status:** Accepted — extended by
+  [ADR-047](ADR-047-the-backend-audits-its-dependencies-with-osv-scanner.md), which adds `/scripts`
+  to the `docker-compose` entry for the audit's OSV-Scanner image
 - **Date:** 2026-10-19
 - **Scope:** `.github/dependabot.yml`, and the repository's code-security settings, which live outside
   the tree. NFR-53 in `docs/requirements/requirements.md`.

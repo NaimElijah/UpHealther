@@ -24,7 +24,8 @@ import org.junit.jupiter.api.Test;
  * nginx majors, {@code postgres:15-alpine} over every patch and Alpine release. So an image here must
  * name its full version and, when it is an Alpine image, the Alpine release too. Three numeric
  * components, except PostgreSQL: since version 10 its own versions have two (15.19), so two is already
- * exact there.
+ * exact there. A leading {@code v}, as OSV-Scanner tags its releases ({@code v2.7.0}), changes nothing:
+ * the count still decides, so {@code v2} floats as surely as {@code 2} does.
  *
  * <p>It also holds compose's PostgreSQL to the one the integration tests run. The schema is
  * PostgreSQL-specific and Hibernate boots with {@code validate}, so tests against a different image
@@ -56,8 +57,8 @@ class ContainerImagesArePinnedTest {
     private static final Pattern COMPOSE_IMAGE =
             Pattern.compile("^\\s*image:\\s*['\"]?([^'\"\\s#]+)", Pattern.MULTILINE);
 
-    /** The version a tag starts with: {@code 1.30.5}, {@code 15.19}, {@code 21.0.12.1}. */
-    private static final Pattern LEADING_VERSION = Pattern.compile("^\\d+(?:\\.\\d+)*");
+    /** The version a tag starts with: {@code 1.30.5}, {@code 15.19}, {@code 21.0.12.1}, {@code v2.7.0}. */
+    private static final Pattern LEADING_VERSION = Pattern.compile("^v?(\\d+(?:\\.\\d+)*)");
 
     /** An Alpine base named with its release: {@code alpine3.24} or {@code alpine-3.24}. */
     private static final Pattern PINNED_ALPINE = Pattern.compile("alpine-?\\d+\\.\\d+");
@@ -108,7 +109,7 @@ class ContainerImagesArePinnedTest {
         if (!version.find()) {
             return false;
         }
-        int components = version.group().split("\\.").length;
+        int components = version.group(1).split("\\.").length;
         int required = repository(image).equals("postgres") ? 2 : 3;
         boolean alpinePinned =
                 !tag.contains("alpine") || PINNED_ALPINE.matcher(tag).find();
