@@ -464,6 +464,18 @@ Integration points a maintainer will need:
   ([ADR-045](../ADRs/ADR-045-ci-builds-and-starts-both-images.md)). The four jobs are required checks:
   a repository ruleset with no bypass refuses a merge into `main` or `dev` while any of them is red or
   pending ([ADR-043](../ADRs/ADR-043-ci-is-a-merge-gate.md)).
+- **Dependabot** — reads `.github/dependabot.yml` from `main` and opens its PRs against `dev`, where
+  they pass the same four checks as any other. Once a week it groups each ecosystem's minor and patch
+  updates into one PR: the backend's Maven dependencies, the frontend's npm dependencies, CI's actions,
+  the Dockerfiles' base images and compose's images. Each major gets a PR of its own. Updates that are a
+  decision, which ADR-046 lists, are ignored and moved by hand: runtime, toolchain and database majors,
+  React Router's major, and every Prettier release. GitHub also scans pushes for secrets and refuses one
+  carrying a credential it recognises. It raises Dependabot alerts for every npm package, but for a Maven
+  artifact only when `backend/pom.xml` states its version: its dependency graph does not resolve the
+  pom, so nothing the Spring Boot parent manages and no transitive dependency is seen (#301). Those are
+  repository settings, not files,
+  and security-update PRs are off because GitHub would open them against `main`
+  ([ADR-046](../ADRs/ADR-046-dependabot-proposes-weekly-updates-into-dev.md)).
 
 ---
 
@@ -673,6 +685,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why an unauthenticated request is a 401 with the API's own body rather than the framework's 403 | [ADR-014](../ADRs/ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md) |
 | Why one root `package.json` sets up, starts and tests the repository rather than `make` or `just`; why CI runs its scripts; why two small Node scripts | [ADR-044](../ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md) |
 | Why CI builds both images and starts the stack rather than two bare builds; why the check is its own compose project with no published ports; why no image scan yet | [ADR-045](../ADRs/ADR-045-ci-builds-and-starts-both-images.md) |
+| Why Dependabot opens weekly grouped updates against `dev`; why its security-update PRs are off; why some updates are ignored; why a `node` or `postgres` bump goes red until a person moves its companion | [ADR-046](../ADRs/ADR-046-dependabot-proposes-weekly-updates-into-dev.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

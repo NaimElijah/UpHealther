@@ -347,6 +347,15 @@ until every service reports healthy. A PR into `main` or `dev` cannot merge whil
 jobs is red or still running, whoever merges it
 ([ADR-043](docs/ADRs/ADR-043-ci-is-a-merge-gate.md)).
 
+**Dependencies move by Dependabot** ([`dependabot.yml`](.github/dependabot.yml),
+[ADR-046](docs/ADRs/ADR-046-dependabot-proposes-weekly-updates-into-dev.md)): once a week, one PR per
+ecosystem into `dev` carries the minor and patch bumps, and each major comes on its own. A bump of the
+`node` image stays red until `frontend/.nvmrc` moves with it, and one of `postgres` until
+`support/PostgresImage.java` does; push that change onto the PR's branch. An update that moves a
+version the tech-stack table above names moves that row too, because Dependabot edits neither.
+Dependabot alerts, secret scanning and push protection are on; security-update PRs are off, because
+GitHub opens them against `main`.
+
 **Coverage is reported, never gated** — both suites publish one every run, and no threshold fails a
 build. The gate is [`requirements.md`](docs/requirements/requirements.md), where each requirement
 names the test that enforces it — or, for the few no test can observe, the check
@@ -391,6 +400,7 @@ docs/              The documentation the repository baseline requires
 scripts/           The image check, and the Maven and Python launchers that work in every shell
 package.json       npm run setup, npm start, npm test — no dependencies; CI runs its test:* scripts
 .github/workflows/ CI: backend verify, diagram drift, frontend format/lint/test/audit/build, images
+.github/           dependabot.yml — weekly dependency updates into dev
 ```
 
 ## 🧭 Design decisions
