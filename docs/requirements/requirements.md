@@ -2,12 +2,12 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. A hundred and fifteen of the hundred and twenty-four entries below name a test —
-a hundred and seventeen distinct test classes and files between them. Six of the remaining nine name the command,
-workflow or script that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48, NFR-52). The last three —
-FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is about a rendered width, a
-colour or an overflow, and jsdom has no layout engine to observe any of them; §6 records what closing
-that gap would take.
+rather than trusted. A hundred and fifteen of the hundred and twenty-five entries below name a test —
+a hundred and seventeen distinct test classes and files between them. Seven of the remaining ten name the
+command, workflow, script or setting that *is* the check (NFR-11, NFR-12, NFR-13, NFR-18, NFR-48, NFR-52,
+NFR-53). The last three — FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is
+about a rendered width, a colour or an overflow, and jsdom has no layout engine to observe any of them;
+§6 records what closing that gap would take.
 
 **A functional requirement is met in the shipped product, not merely in the API.** There is no public
 API (§5.4), so "a user can" means through the interface. Where the implementation falls short of an
@@ -290,6 +290,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-48 | The integration suite starts its own PostgreSQL in a container and never runs against a database it finds already running, so a local one on the same port cannot make it pass against the wrong schema | `./mvnw verify`, through `support/PostgresIT.java`, which every `*IT` extends ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)) |
 | NFR-51 | The build uses the toolchain versions the repository records: a JDK, a Maven or a Node outside them is refused before anything compiles or installs, and every container image names an exact version | `ContainerImagesArePinnedTest`, which also holds compose's PostgreSQL to the integration tests' and the frontend image's Node to `frontend/.nvmrc`; `backend/pom.xml` (`maven-enforcer-plugin`), run through `./mvnw`, which downloads the pinned Maven and checks its checksum; `frontend/.npmrc` (`engine-strict`) against the `engines` range in `frontend/package.json`, with CI and the image building on `frontend/.nvmrc`'s release ([ADR-030](../ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md), [ADR-031](../ADRs/ADR-031-the-frontend-toolchain-runs-on-node-24-lts.md)) |
 | NFR-52 | Setting up the repository, and running the whole CI gate, each take one command from the repository root, from PowerShell, Git Bash or a Linux shell alike; and CI runs its gate through those same scripts, so a local run and CI apply the same checks, and differ only in their inputs: the frontend dependencies installed, which CI installs fresh while a local run uses those the last `npm run setup` left; and, for the image check, any value a root `.env` or the shell gives the variables `docker-compose.yml` reads, where CI sets none | the root `package.json`: `npm run setup`, and `npm test`, which runs `test:diagrams`, `test:frontend`, `test:backend` and `test:images`; `.github/workflows/ci.yml`, whose jobs run those scripts and nothing else that gates; `scripts/mvnw.mjs` and `scripts/python.mjs`, which spell the two commands no single string runs under both `cmd.exe` and `sh` ([ADR-044](../ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md)) |
+| NFR-53 | Every pinned dependency has something that proposes its update: once a week, for the backend's Maven dependencies, the frontend's npm dependencies, CI's actions, both Dockerfiles' base images and compose's images, a pull request into `dev` carries the minor and patch updates, and each major comes in one of its own, except a major of Spring Boot, Java, Node or PostgreSQL, which is taken on purpose. A dependency with a known vulnerability raises an alert, and a push carrying a credential in a format GitHub recognises is refused | `.github/dependabot.yml` ([ADR-046](../ADRs/ADR-046-dependabot-proposes-weekly-updates-into-dev.md)); the alerts, secret scanning and push protection are repository settings, checked by `gh api repos/NaimElijah/UpHealther/vulnerability-alerts`, which must answer 204, and `gh api repos/NaimElijah/UpHealther --jq .security_and_analysis`, which must show `secret_scanning` and `secret_scanning_push_protection` as `enabled` |
 
 ---
 

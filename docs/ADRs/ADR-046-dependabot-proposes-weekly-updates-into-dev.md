@@ -1,0 +1,158 @@
+# ADR-046: Dependabot proposes weekly updates into `dev`; alerts, secret scanning and push protection are on
+
+- **Status:** Accepted
+- **Date:** 2026-10-19
+- **Scope:** `.github/dependabot.yml`, and the repository's code-security settings, which live outside
+  the tree. NFR-53 in `docs/requirements/requirements.md`.
+- **Issue:** [#164](https://github.com/NaimElijah/UpHealther/issues/164), part of the repository
+  baseline epic [#197](https://github.com/NaimElijah/UpHealther/issues/197). It extends
+  [ADR-030](ADR-030-the-toolchain-is-pinned-in-the-repository.md), whose pinned versions it keeps
+  moving.
+
+## Context
+
+Every security feature GitHub gives a public repository for free was off:
+
+- Dependabot alerts;
+- Dependabot security updates;
+- secret scanning;
+- push protection.
+
+No `.github/dependabot.yml` existed either, so nothing proposed a dependency update.
+
+ADR-030 pinned every toolchain and image to an exact version, and named the cost: "Lost: security
+patches arriving on their own." It made #164 "the counterpart of this decision, not an optional
+extra". Until now, a version moved only when someone remembered. The Spring Boot 3.2 line had left
+even extended support before #73 moved it.
+
+The repository's flow constrains how updates can arrive:
+
+- **Work merges into `dev`, and `dev` reaches `main` only by a release PR.** That PR is a merge commit,
+  never a squash. Ruleset 18678702 is bypassed for this (ADR-043).
+- **Every PR into either branch must pass the four CI jobs.** Ruleset 25310599 has no bypass.
+- **`main` is the default branch.**
+
+## Decision
+
+### Repository settings
+
+These are switched on outside the tree, and read back with `gh api`:
+
+- **Dependabot alerts.**
+  - `gh api repos/NaimElijah/UpHealther/vulnerability-alerts` answers 204.
+  - They are read with `gh api repos/NaimElijah/UpHealther/dependabot/alerts`.
+- **Secret scanning and push protection.**
+  - `gh api repos/NaimElijah/UpHealther --jq .security_and_analysis` shows both `enabled`.
+  - Push protection refuses a push that contains a token in a format GitHub recognises, such as a
+    cloud key or a GitHub token.
+  - It does not flag the published development signing key in `backend/config/application.yml` and
+    `docker-compose.yml`. The key matches no provider pattern, and it is published on purpose
+    ([ADR-042](ADR-042-the-jar-carries-no-jwt-signing-key.md), #285).
+
+**Dependabot security updates stay off.** GitHub's options reference is explicit on two points:
+
+- once an entry sets `target-branch`, its options "no longer apply to security updates";
+- security updates "always use the default branch".
+
+Here the default branch is `main`. Each security fix would then land on `main` without passing
+through `dev`, and would have to be merged back. Until it was, `main` would hold commits `dev`
+lacks, which is the divergence the merge-commit-only promotion exists to prevent.
+
+So a known vulnerability raises an alert, and its fix arrives in one of two ways:
+
+- with the next weekly version update into `dev`;
+- or as a hand-made bump on `dev` the day the alert arrives.
+
+### `.github/dependabot.yml`: version updates
+
+| Ecosystem | Directories | Majors ignored |
+|---|---|---|
+| `maven` | `/backend` | `spring-boot-starter-parent`: it moves Spring, Security, Hibernate and Jackson at once ([ADR-032](ADR-032-the-backend-runs-on-spring-boot-4-1.md)) |
+| `npm` | `/frontend` | none |
+| `github-actions` | `/` | none |
+| `docker` | `/backend`, `/frontend` | `eclipse-temurin` and `node`: a runtime change ([ADR-030](ADR-030-the-toolchain-is-pinned-in-the-repository.md), [ADR-031](ADR-031-the-frontend-toolchain-runs-on-node-24-lts.md)) |
+| `docker-compose` | `/` | `postgres`: a major will not start on the existing data volume, so it is a data migration |
+
+Every entry:
+
+- **runs weekly**;
+- **targets `dev`**, like every other change;
+- **groups minor and patch updates into one PR per ecosystem.** Any update outside the group, which
+  means a major, gets a PR of its own and is reviewed as the decision it is;
+- **is limited to two open PRs**, to hold the first runs to a reviewable burst;
+- **writes a Conventional Commit**: `build(deps): …`, `build(deps-dev): …`, and `ci(deps): …` for
+  actions;
+- **adds no labels** (`labels: [ ]`). The repository's four-family taxonomy is for issues, and
+  Dependabot's default labels would add `dependencies`, `java` and `docker` beside it.
+
+Dependabot reads this file from the default branch only. The configuration takes effect when it is
+promoted to `main`, not when it merges into `dev`.
+
+## Consequences
+
+- **A pinned version now has something that proposes its bump.** This meets the consequence ADR-030
+  left open.
+- **Nothing reaches `main` that did not pass through `dev`.** A Dependabot PR is gated by the same four
+  required checks as any other.
+- **Two kinds of Dependabot PR go red by design, and a person finishes them.**
+
+  | Bump | Fails on | Companion change |
+  |---|---|---|
+  | `node` image (`frontend/Dockerfile`) | `ContainerImagesArePinnedTest`'s `.nvmrc` check | Move `frontend/.nvmrc` with it |
+  | `postgres` image (`docker-compose.yml`) | `ContainerImagesArePinnedTest`'s compose check | Move `support/PostgresImage.NAME`, which the integration tests run, with it |
+
+  Dependabot cannot edit either companion: one is a plain-text file no ecosystem reads, the other a
+  Java string. The fix is to push the companion change onto the PR's branch. Ignoring both images
+  instead would bring back the lost patches ADR-030 named.
+- **Alerts arrive before CI notices.** The first read, on 2026-10-19, listed six open alerts, all in
+  `frontend/package-lock.json`:
+  - **Four are development-scope**: `browserslist` (high), `baseline-browser-mapping`, and two in
+    `postcss-selector-parser`. `npm audit --omit=dev` deliberately ignores them (ADR-044), and the
+    weekly `npm` group is where their fixes arrive.
+  - **Two are `react-router` advisories** that [ADR-034](ADR-034-stay-on-react-router-6-while-its-open-advisories-do-not-reach-the-spa.md)
+    already accepts, because neither reaches the SPA.
+- **A security fix waits up to a week unless someone acts on its alert.**
+- **The `github-actions` updates will propose new majors** of `checkout`, `setup-java`, `setup-node`
+  and `upload-artifact`. That is the route out of #292's forced move from Node 20 to Node 24 on the
+  runner.
+- **Two revisit triggers have fired**, and are tracked as
+  [#299](https://github.com/NaimElijah/UpHealther/issues/299) rather than done here:
+  - ADR-030's digest pinning, now that something can keep a digest current;
+  - ADR-043's commit-SHA pinning of actions.
+- **Not verified until the first runs on `main`:**
+  - whether Dependabot parses every exact tag here, for example
+    `eclipse-temurin:21.0.12.1_1-jre-alpine-3.24`;
+  - whether its npm updater accepts `engine-strict` with `engines.node` at `^24.16.0`. Its image runs
+    Node 24 (`NODEJS_VERSION=24` in dependabot-core's `npm_and_yarn/Dockerfile`), so ADR-031's
+    trigger should not fire.
+- **Push protection was verified by its setting only.** No real token was pushed to prove the refusal.
+
+## Alternatives considered
+
+- **Turn security updates on and accept their PRs into `main`.** Rejected. Fixes would arrive
+  fastest, but each one would put commits on `main` that `dev` lacks until it was merged back.
+  - **Revisit when** an alert sits unactioned past a weekly run, so the wait has actually cost
+    something.
+- **Make `dev` the default branch,** so security PRs land where everything else does. Rejected
+  here. It changes what a visitor sees first and where every PR opens by default, which is a bigger
+  decision than this one.
+  - **Revisit together with** the security-update trigger above.
+- **Renovate.** Rejected. It does all of this and more, including merge confidence and SHA pinning
+  presets. But it is a third-party app with write access to the repository, where Dependabot is
+  built into GitHub and needs no installation.
+  - **Revisit when** Dependabot cannot express a rule this repository needs, for example updating
+    `frontend/.nvmrc` with the `node` image.
+- **No grouping, and Dependabot's default limit of five PRs per entry.** Rejected. Five entries could
+  open 25 PRs at once, each running the full CI.
+- **Secret scanning's non-provider patterns and validity checks.** Not turned on, because #164 asked
+  for neither.
+  - Non-provider patterns match generic secrets such as private keys and connection strings.
+  - Validity checks ask a provider whether a found token is live.
+  - **Revisit when** a public deployment makes a leaked generic secret costly, with #198.
+
+## When to revisit
+
+- **An alert sits unactioned past a weekly run:** security updates, and the default branch (above).
+- **The first Dependabot runs fail on a tag or on `engine-strict`:** adjust the entry. If `node` cannot
+  be updated without `.nvmrc`, consider Renovate.
+- **The PR backlog from the first runs has cleared:** raise `open-pull-requests-limit`.

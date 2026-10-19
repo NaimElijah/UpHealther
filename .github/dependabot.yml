@@ -1,0 +1,104 @@
+# Weekly version updates for every manifest the repository pins (ADR-046). Dependabot reads this file
+# from the default branch, `main`, so a change here takes effect only once it is promoted there.
+#
+# Every entry opens its PRs against `dev`, the branch all work merges into, and routine minor and patch
+# bumps arrive as one grouped PR per ecosystem. A major arrives on its own, so it is reviewed as the
+# decision it is; the ones that change a runtime or the database are ignored outright, and moved by hand
+# when someone takes them on.
+#
+# Security updates are switched off in the repository settings, deliberately: GitHub opens them against
+# the default branch whatever `target-branch` says, which would put commits on `main` that `dev` lacks.
+# Alerts stay on, and a fix arrives with the next weekly run or by hand (ADR-046).
+#
+# `labels: [ ]` keeps Dependabot's own labels (`dependencies`, `java`, `docker`, ...) out of the
+# repository's label taxonomy, which is for issues. The limit of two open PRs per entry holds the first
+# runs to a reviewable burst; raise it once the backlog clears.
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /backend
+    target-branch: dev
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    labels: [ ]
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      maven-minor-and-patch:
+        update-types: [ minor, patch ]
+    ignore:
+      # A Spring Boot major moves Spring, Security, Hibernate and Jackson at once (ADR-032).
+      - dependency-name: org.springframework.boot:spring-boot-starter-parent
+        update-types: [ version-update:semver-major ]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    target-branch: dev
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    labels: [ ]
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      npm-minor-and-patch:
+        update-types: [ minor, patch ]
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    labels: [ ]
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions-minor-and-patch:
+        update-types: [ minor, patch ]
+
+  # A bump of the frontend's `node` image fails `ContainerImagesArePinnedTest` until `frontend/.nvmrc`
+  # moves with it, which Dependabot cannot do: push that change onto the PR's branch (ADR-046).
+  - package-ecosystem: docker
+    directories: [ /backend, /frontend ]
+    target-branch: dev
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    labels: [ ]
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      images-minor-and-patch:
+        update-types: [ minor, patch ]
+    ignore:
+      # A new Java or Node major is a toolchain decision, not a routine update (ADR-030, ADR-031).
+      - dependency-name: eclipse-temurin
+        update-types: [ version-update:semver-major ]
+      - dependency-name: node
+        update-types: [ version-update:semver-major ]
+
+  # A bump of `postgres` fails `ContainerImagesArePinnedTest` until `PostgresImage.NAME`, which the
+  # integration tests run, moves with it: push that change onto the PR's branch (ADR-046).
+  - package-ecosystem: docker-compose
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    labels: [ ]
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      compose-minor-and-patch:
+        update-types: [ minor, patch ]
+    ignore:
+      # A PostgreSQL major will not start on the existing data volume: it is a data migration.
+      - dependency-name: postgres
+        update-types: [ version-update:semver-major ]
