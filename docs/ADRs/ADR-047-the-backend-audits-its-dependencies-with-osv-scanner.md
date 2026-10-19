@@ -158,8 +158,9 @@ for the images that will. ADR-045's revisit trigger is unchanged.
   critical, and the test tree is included. A finding nobody can act on costs one dated ignore.
 - **The audit needs the network.** It resolves through deps.dev, reads the parent poms from Maven
   Central, and queries api.osv.dev. Blocking any one of them fails the run with exit 127, so an
-  outage reddens the backend job rather than letting it pass unaudited. A run took about 55 s locally with the image cached, most of it
-  resolution. CI's time is recorded on #59's PR.
+  outage reddens the backend job rather than letting it pass unaudited.
+- **It adds under a minute to the backend's run.** About 55 s locally with the image cached, most of
+  it resolution. About 46 s in CI on #59's PR, 9 s of it pulling the image (run 39314189272).
 - **ADR-002's known gap is closed**, and its "Revisit when an `NVD_API_KEY` secret exists" no longer
   applies.
 
