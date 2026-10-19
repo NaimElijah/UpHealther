@@ -351,9 +351,10 @@ jobs is red or still running, whoever merges it
 [ADR-046](docs/ADRs/ADR-046-dependabot-proposes-weekly-updates-into-dev.md)): once a week, one PR per
 ecosystem into `dev` carries the minor and patch bumps, and each major comes on its own. A bump of the
 `node` image stays red until `frontend/.nvmrc` moves with it, and one of `postgres` until
-`support/PostgresImage.java` does; push that change onto the PR's branch. Dependabot alerts, secret
-scanning and push protection are on; security-update PRs are off, because GitHub opens them against
-`main`.
+`support/PostgresImage.java` does; push that change onto the PR's branch. An update that moves a
+version the tech-stack table above names moves that row too, because Dependabot edits neither.
+Dependabot alerts, secret scanning and push protection are on; security-update PRs are off, because
+GitHub opens them against `main`.
 
 **Coverage is reported, never gated** — both suites publish one every run, and no threshold fails a
 build. The gate is [`requirements.md`](docs/requirements/requirements.md), where each requirement

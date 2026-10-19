@@ -128,6 +128,9 @@ promoted to `main`, not when it merges into `dev`.
   Dependabot cannot edit either companion: one is a plain-text file no ecosystem reads, the other a
   Java string. The fix is to push the companion change onto the PR's branch. Ignoring both images
   instead would bring back the lost patches ADR-030 named.
+- **A merged update also moves the README's tech-stack table.** The table names about twenty exact
+  versions (Spring Boot 4.1.1, Flyway 12.4.0, Vite 8.3.4 and others), and Dependabot edits none of them.
+  Whoever finishes an update moves the row it changes, so the README keeps describing the code.
 - **Alerts arrive before CI notices.** The first read, on 2026-10-19, listed six open alerts, all in
   `frontend/package-lock.json`:
   - **Four are development-scope**: `browserslist` (high), `baseline-browser-mapping`, and two in
