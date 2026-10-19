@@ -31,8 +31,8 @@
           Overrides of versions spring-boot-dependencies 4.1.1 manages, each to the newest patch of the line
           it already uses: OSV-Scanner reports known vulnerabilities in the managed 11.0.24, 3.1.5 and 2.21.5
           (Jackson 2 is the one jjwt-jackson brings), and no Boot release carries the fixes yet. Delete each
-          one once spring-boot-starter-parent manages that version or newer, or it holds the tree back.
-          See ADR-047.
+          one once spring-boot-starter-parent manages that version or newer, or it holds the tree back:
+          Dependabot never sees these properties, so nothing proposes their update (#304). See ADR-047.
         -->
         <tomcat.version>11.0.27</tomcat.version>
         <jackson-bom.version>3.1.8</jackson-bom.version>

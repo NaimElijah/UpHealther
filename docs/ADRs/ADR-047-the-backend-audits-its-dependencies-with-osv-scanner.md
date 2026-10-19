@@ -137,6 +137,14 @@ for the images that will. ADR-045's revisit trigger is unchanged.
   once it is vulnerable, not once it is merely old. The comment in `pom.xml` says to delete each
   override once the parent manages that version or newer. The Dependabot PR that moves
   `spring-boot-starter-parent` is where that gets checked.
+- **Nothing proposes the overrides' next patch.** Dependabot reads a Maven version only from a
+  dependency, plugin, extension or parent declaration, and these properties only override the
+  parent's. That breaks NFR-53 for them, so NFR-53 carries a Known deviation against
+  [#304](https://github.com/NaimElijah/UpHealther/issues/304), which deletes the overrides once Boot
+  catches up.
+  - Declaring each artifact in `<dependencyManagement>` would make Dependabot see them. But it would
+    also keep them pinned past the point Boot manages them, which is the opposite of what an override
+    meant to be temporary needs.
 - **The backend's rule is stricter than the frontend's.** Any finding fails, not only high and
   critical, and the test tree is included. A finding nobody can act on costs one dated ignore.
 - **The audit needs the network.** It resolves through deps.dev and queries api.osv.dev, as Maven
