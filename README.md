@@ -318,7 +318,7 @@ the wrong way.
 npm test                # the whole CI gate, the four parts below in turn — needs Docker
 npm run test:diagrams   # the generated diagrams still match their source
 npm run test:frontend   # format check, lint, colour tokens, tests with coverage, audit, build
-npm run test:backend    # ./mvnw clean verify: lint, unit and integration tests, format check
+npm run test:backend    # ./mvnw clean verify (lint, unit and integration tests, format check), then audit
 npm run test:images     # both images build, and the stack they make starts healthy
 ```
 
@@ -339,13 +339,24 @@ nor Docker, and `npm test` in `frontend/` runs Vitest once.
 the inputs can differ: CI installs the dependencies fresh, and sets none of the variables
 `docker-compose.yml` reads, which a root `.env` or your shell may
 ([ADR-044](docs/ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md)). That is
-`./mvnw clean verify`, which includes javac's lint at `-Werror` and the Java format check; the
+`./mvnw clean verify`, which includes javac's lint at `-Werror` and the Java format check; OSV-Scanner
+on the backend's whole dependency tree, failing on any known vulnerability
+([ADR-047](docs/ADRs/ADR-047-the-backend-audits-its-dependencies-with-osv-scanner.md)); the
 generated diagrams still matching their source; the frontend format check; frontend lint at
 `--max-warnings 0`; the colour-token check; `vitest run --coverage`; `npm audit --omit=dev
 --audit-level=high`; the production build; and both images built, with the stack started from them
 until every service reports healthy. A PR into `main` or `dev` cannot merge while any of the four
 jobs is red or still running, whoever merges it
 ([ADR-043](docs/ADRs/ADR-043-ci-is-a-merge-gate.md)).
+
+**Dependencies move by Dependabot** ([`dependabot.yml`](.github/dependabot.yml),
+[ADR-046](docs/ADRs/ADR-046-dependabot-proposes-weekly-updates-into-dev.md)): once a week, one PR per
+ecosystem into `dev` carries the minor and patch bumps, and each major comes on its own. A bump of the
+`node` image stays red until `frontend/.nvmrc` moves with it, and one of `postgres` until
+`support/PostgresImage.java` does; push that change onto the PR's branch. An update that moves a
+version the tech-stack table above names moves that row too, because Dependabot edits neither.
+Dependabot alerts, secret scanning and push protection are on; security-update PRs are off, because
+GitHub opens them against `main`.
 
 **Coverage is reported, never gated** — both suites publish one every run, and no threshold fails a
 build. The gate is [`requirements.md`](docs/requirements/requirements.md), where each requirement
@@ -388,9 +399,10 @@ docs/              The documentation the repository baseline requires
   requirements/      What the system must do, each naming its enforcing test
   architecture/      What the system is, plus seven diagrams (three generated)
   ADRs/              Why — one file per decision, append-only
-scripts/           The image check, and the Maven and Python launchers that work in every shell
+scripts/           The image check, the backend audit, and the Maven and Python launchers for every shell
 package.json       npm run setup, npm start, npm test — no dependencies; CI runs its test:* scripts
-.github/workflows/ CI: backend verify, diagram drift, frontend format/lint/test/audit/build, images
+.github/workflows/ CI: backend verify/audit, diagram drift, frontend format/lint/test/audit/build, images
+.github/           dependabot.yml — weekly dependency updates into dev
 ```
 
 ## 🧭 Design decisions
@@ -431,9 +443,6 @@ Known limitations, load-bearing rather than accidental:
 
 - **Single instance only.** The STOMP broker is in memory, so a push reaches only clients on the
   instance that raised it; a second instance needs a broker relay first.
-- **No backend dependency audit.** OWASP dependency-check needs an `NVD_API_KEY` to fill its
-  database, and a check that always fails was judged worse than none; the frontend's shipped
-  dependencies *are* audited on every run.
 - **Observability stops at the process.** `docker logs` is the only sink, nothing scrapes
   `/actuator/prometheus`, no span leaves the process, and the SPA has no telemetry.
 - **A live WebSocket outlives a sign-out until it reconnects.** Its session is checked when it

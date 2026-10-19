@@ -1,7 +1,9 @@
 # ADR-044: One root `package.json` sets up, starts and tests the repository, and CI runs its scripts
 
 - **Status:** Accepted — extended by [ADR-045](ADR-045-ci-builds-and-starts-both-images.md), which adds
-  `test:images` to the end of `npm test` and to CI as a fourth job
+  `test:images` to the end of `npm test` and to CI as a fourth job; and by
+  [ADR-047](ADR-047-the-backend-audits-its-dependencies-with-osv-scanner.md), which adds
+  `audit:backend` to the end of `test:backend`
 - **Date:** 2026-10-18
 - **Scope:** the root `package.json`, `scripts/mvnw.mjs`, `scripts/python.mjs`, the `format` and
   `format:check` scripts in `frontend/package.json`, and `.github/workflows/ci.yml`. NFR-52 in

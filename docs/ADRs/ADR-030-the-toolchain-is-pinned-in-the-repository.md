@@ -1,6 +1,8 @@
 # ADR-030: The toolchain is pinned in the repository
 
-- **Status:** Accepted
+- **Status:** Accepted — extended by
+  [ADR-046](ADR-046-dependabot-proposes-weekly-updates-into-dev.md), which turns on the Dependabot
+  updates its "Lost: security patches arriving on their own" waited for
 - **Date:** 2026-10-13
 - **Scope:** `backend/mvnw`, `backend/.mvn/`, `backend/pom.xml` (maven-enforcer-plugin), `frontend/.nvmrc`,
   `frontend/.npmrc`, the `engines` field of `frontend/package.json`, both Dockerfiles,

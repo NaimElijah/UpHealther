@@ -457,6 +457,9 @@ Integration points a maintainer will need:
   whose integration tests start their own PostgreSQL through Testcontainers
   ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)), and which also
   checks the Java layout ([ADR-037](../ADRs/ADR-037-the-backend-is-formatted-by-palantir-java-format-through-spotless.md));
+  then OSV-Scanner, from its own container with the sources read-only and no token, resolves the
+  backend's whole dependency tree through deps.dev and Maven Central, checks it against api.osv.dev,
+  and fails on any known vulnerability, or when any of the three cannot be reached ([ADR-047](../ADRs/ADR-047-the-backend-audits-its-dependencies-with-osv-scanner.md));
   the generated diagrams are checked against their source; the frontend checks its layout
   ([ADR-038](../ADRs/ADR-038-the-frontend-is-formatted-by-prettier.md)), lints, tests, audits its
   shipped dependencies and builds; and both images are built and the stack started from them until
@@ -464,6 +467,18 @@ Integration points a maintainer will need:
   ([ADR-045](../ADRs/ADR-045-ci-builds-and-starts-both-images.md)). The four jobs are required checks:
   a repository ruleset with no bypass refuses a merge into `main` or `dev` while any of them is red or
   pending ([ADR-043](../ADRs/ADR-043-ci-is-a-merge-gate.md)).
+- **Dependabot** — reads `.github/dependabot.yml` from `main` and opens its PRs against `dev`, where
+  they pass the same four checks as any other. Once a week it groups each ecosystem's minor and patch
+  updates into one PR: the backend's Maven dependencies, the frontend's npm dependencies, CI's actions,
+  the Dockerfiles' base images and compose's images. Each major gets a PR of its own. Updates that are a
+  decision, which ADR-046 lists, are ignored and moved by hand: runtime, toolchain and database majors,
+  React Router's major, and every Prettier release. GitHub also scans pushes for secrets and refuses one
+  carrying a credential it recognises. It raises Dependabot alerts for every npm package, but for a Maven
+  artifact only when `backend/pom.xml` states its version: its dependency graph does not resolve the
+  pom, so nothing the Spring Boot parent manages and no transitive dependency is seen (#301). Those are
+  repository settings, not files,
+  and security-update PRs are off because GitHub would open them against `main`
+  ([ADR-046](../ADRs/ADR-046-dependabot-proposes-weekly-updates-into-dev.md)).
 
 ---
 
@@ -595,9 +610,6 @@ Stated because they are load-bearing, not because they are problems yet:
   application against a real PostgreSQL that they start themselves through Testcontainers, so the
   database is described in the test source rather than supplied to it ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)).
   Keeping the unit suite database-free is a constraint worth preserving.
-- **The backend has no dependency vulnerability audit.** OWASP dependency-check cannot populate its
-  database without an `NVD_API_KEY`. ADR-002 records why a check that always fails, or one that cannot
-  fail, was judged worse than none.
 - **The container's error page runs outside the observation scope.** `ServerHttpObservationFilter`
   is registered for `REQUEST` and `ASYNC` dispatches but not `ERROR`, so a container error dispatch to
   `/error` has no span. Its body still carries the id the request's own dispatch saw, through a request
@@ -673,6 +685,8 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why an unauthenticated request is a 401 with the API's own body rather than the framework's 403 | [ADR-014](../ADRs/ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md) |
 | Why one root `package.json` sets up, starts and tests the repository rather than `make` or `just`; why CI runs its scripts; why two small Node scripts | [ADR-044](../ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md) |
 | Why CI builds both images and starts the stack rather than two bare builds; why the check is its own compose project with no published ports; why no image scan yet | [ADR-045](../ADRs/ADR-045-ci-builds-and-starts-both-images.md) |
+| Why Dependabot opens weekly grouped updates against `dev`; why its security-update PRs are off; why some updates are ignored; why a `node` or `postgres` bump goes red until a person moves its companion | [ADR-046](../ADRs/ADR-046-dependabot-proposes-weekly-updates-into-dev.md) |
+| Why the backend is audited by OSV-Scanner rather than dependency-check, Trivy or OSS Index; why any finding fails; why test scope is included; why Tomcat and Jackson are overridden; why images are not scanned yet | [ADR-047](../ADRs/ADR-047-the-backend-audits-its-dependencies-with-osv-scanner.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |
