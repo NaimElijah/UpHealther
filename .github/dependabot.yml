@@ -33,6 +33,10 @@ updates:
       # A Spring Boot major moves Spring, Security, Hibernate and Jackson at once (ADR-032).
       - dependency-name: org.springframework.boot:spring-boot-starter-parent
         update-types: [ version-update:semver-major ]
+      # The wrapper's Maven, should Dependabot's wrapper updater reach this repository: Maven 4 is a
+      # toolchain decision, and the enforcer refuses it until someone takes it (ADR-030).
+      - dependency-name: org.apache.maven:apache-maven
+        update-types: [ version-update:semver-major ]
 
   - package-ecosystem: npm
     directory: /frontend

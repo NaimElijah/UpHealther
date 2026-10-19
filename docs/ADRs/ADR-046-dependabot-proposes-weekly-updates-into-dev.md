@@ -82,7 +82,7 @@ So a known vulnerability raises an alert, and how its fix arrives depends on whe
 
 | Ecosystem | Directories | Ignored, as a decision rather than a routine bump |
 |---|---|---|
-| `maven` | `/backend` | `spring-boot-starter-parent` majors: one moves Spring, Security, Hibernate and Jackson at once ([ADR-032](ADR-032-the-backend-runs-on-spring-boot-4-1.md)) |
+| `maven` | `/backend` | `spring-boot-starter-parent` majors: one moves Spring, Security, Hibernate and Jackson at once ([ADR-032](ADR-032-the-backend-runs-on-spring-boot-4-1.md)); `org.apache.maven:apache-maven` majors, for the wrapper: the enforcer refuses Maven 4 (`requireMavenVersion [3.9.16,4)`, [ADR-030](ADR-030-the-toolchain-is-pinned-in-the-repository.md)) |
 | `npm` | `/frontend` | `prettier`, every update: a formatter bump is a `style(frontend)` commit of its own, whose SHA goes into `.git-blame-ignore-revs` ([ADR-038](ADR-038-the-frontend-is-formatted-by-prettier.md)), not a line in a grouped `build(deps-dev)` PR |
 | `github-actions` | `/` | none |
 | `docker` | `/backend`, `/frontend` | `eclipse-temurin` and `node` majors: a runtime change ([ADR-030](ADR-030-the-toolchain-is-pinned-in-the-repository.md), [ADR-031](ADR-031-the-frontend-toolchain-runs-on-node-24-lts.md)) |
@@ -149,6 +149,9 @@ promoted to `main`, not when it merges into `dev`.
   - ADR-030's digest pinning, now that something can keep a digest current;
   - ADR-043's commit-SHA pinning of actions.
 - **Not verified until the first runs on `main`:**
+  - whether Dependabot updates the Maven wrapper at all. dependabot-core has a wrapper updater for
+    `org.apache.maven:apache-maven` behind a feature flag, and its rollout is not known. The entry
+    ignores its majors in case it is live;
   - whether Dependabot parses every exact tag here, for example
     `eclipse-temurin:21.0.12.1_1-jre-alpine-3.24`;
   - whether its npm updater accepts `engine-strict` with `engines.node` at `^24.16.0`. Its image
