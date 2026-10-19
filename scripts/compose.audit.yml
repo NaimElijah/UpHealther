@@ -10,7 +10,8 @@
 # Compose resolves `../backend` against this file, so the one script string runs from cmd.exe and sh
 # alike. The container gets the sources read-only and no credentials. The default bridge network
 # leaves no project network behind after `run --rm`. Dependabot's docker-compose entry reads this
-# directory, so the image's pin moves by PR like every other.
+# directory, so the image's pin should move by PR like every other; whether it handles the v-prefixed
+# ghcr.io tag is checked after the first runs on main (ADR-047).
 name: uphealther-audit
 services:
   osv-scanner:

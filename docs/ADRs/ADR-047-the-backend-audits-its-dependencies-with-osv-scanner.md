@@ -66,8 +66,15 @@ unchanged and ruleset 25310599 needs no edit.
 **The image is held to an exact version like every other.** `ContainerImagesArePinnedTest` already
 reads `scripts/compose.audit.yml`. OSV-Scanner tags its releases `v2.7.0`, so the test now accepts a
 leading `v`: `v2.7.0` names an exact version as surely as `2.7.0` does. `v2`, `latest` and `stable`
-are still refused. Dependabot's `docker-compose` entry reads `/scripts` too, so the scanner gets bump
-PRs ([ADR-046](ADR-046-dependabot-proposes-weekly-updates-into-dev.md)).
+are still refused. Dependabot's `docker-compose` entry reads `/scripts` too
+([ADR-046](ADR-046-dependabot-proposes-weekly-updates-into-dev.md)), so the scanner should get bump
+PRs:
+- its file fetcher's pattern matches `compose.audit.yml`;
+- the reviewer of #303 confirmed that the YAML loader, called the way Dependabot calls it, parses
+  both files in `scripts/`, `!reset` included.
+
+Whether its update checker handles a `v`-prefixed tag on ghcr.io is not verified until the first
+runs on `main`, alongside ADR-046's own unknowns.
 
 ### What it scans
 
