@@ -151,9 +151,17 @@ promoted to `main`, not when it merges into `dev`.
 - **Not verified until the first runs on `main`:**
   - whether Dependabot parses every exact tag here, for example
     `eclipse-temurin:21.0.12.1_1-jre-alpine-3.24`;
-  - whether its npm updater accepts `engine-strict` with `engines.node` at `^24.16.0`. Its image runs
-    Node 24 (`NODEJS_VERSION=24` in dependabot-core's `npm_and_yarn/Dockerfile`), so ADR-031's
-    trigger should not fire.
+  - whether its npm updater accepts `engine-strict` with `engines.node` at `^24.16.0`. Its image
+    runs Node 24 today (`NODEJS_VERSION=24` in dependabot-core's `npm_and_yarn/Dockerfile`). The same
+    file says to "Always use the Active LTS version", and Node 26 is due to become Active LTS in
+    October 2026.
+    - So expect ADR-031's trigger soon after this reaches `main`: the npm update fails on
+      `engine-strict`.
+    - Its response is ADR-031's to choose. One option is to relax `engine-strict` for that job, with a
+      recorded reason. The other is to widen `engines` to admit Node 26, which is a toolchain decision
+      of its own.
+    - Whether npm enforces the root package's `engines` during Dependabot's lockfile update is itself
+      unverified.
 - **Push protection was verified by its setting only.** No real token was pushed to prove the refusal.
 
 ## Alternatives considered
