@@ -273,7 +273,7 @@
                                     <message>This build needs JDK 21: the runtime image is a JRE 21, so the tests must run on 21 (ADR-030).</message>
                                 </requireJavaVersion>
                                 <requireMavenVersion>
-                                    <version>[3.9.16,4)</version>
+                                    <version>[3.10.0,4)</version>
                                     <message>Build with ./mvnw (mvnw.cmd on Windows), which runs the Maven version the repository pins (ADR-030).</message>
                                 </requireMavenVersion>
                             </rules>
