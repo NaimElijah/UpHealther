@@ -289,7 +289,7 @@ class AuthSessionServiceTest {
 
         assertThat(service.revoke(opened.refreshToken())).isTrue();
 
-        assertThat(service.isActive(opened.sessionId())).isFalse();
+        assertThat(service.isActive(opened.sessionId(), USER_ID)).isFalse();
         assertThat(auditTrail.recorded(AuditAction.AUTH_LOGOUT, AuditOutcome.ALLOWED))
                 .isTrue();
     }
@@ -300,7 +300,7 @@ class AuthSessionServiceTest {
 
         assertThat(service.revoke(opened.sessionId() + ".not-the-secret")).isFalse();
 
-        assertThat(service.isActive(opened.sessionId()))
+        assertThat(service.isActive(opened.sessionId(), USER_ID))
                 .as("knowing a session id is not authority to end it")
                 .isTrue();
     }
@@ -316,7 +316,7 @@ class AuthSessionServiceTest {
 
         assertThat(service.revoke(opened.refreshToken())).isFalse();
 
-        assertThat(service.isActive(opened.sessionId())).isTrue();
+        assertThat(service.isActive(opened.sessionId(), USER_ID)).isTrue();
         assertThat(auditTrail.recorded(AuditAction.AUTH_LOGOUT, AuditOutcome.ALLOWED))
                 .isFalse();
     }
@@ -330,7 +330,7 @@ class AuthSessionServiceTest {
 
         assertThat(service.revoke(opened.refreshToken())).isTrue();
 
-        assertThat(service.isActive(opened.sessionId())).isFalse();
+        assertThat(service.isActive(opened.sessionId(), USER_ID)).isFalse();
     }
 
     // ---- NFR-23: every sign-out is audited, on the same terms as a refresh ----
@@ -402,7 +402,7 @@ class AuthSessionServiceTest {
 
         service.revoke(first.refreshToken());
 
-        assertThat(service.isActive(second.sessionId())).isTrue();
+        assertThat(service.isActive(second.sessionId(), USER_ID)).isTrue();
     }
 
     @Test
@@ -412,13 +412,26 @@ class AuthSessionServiceTest {
 
         assertThat(service.revokeAllForUser(USER_ID)).isEqualTo(2);
 
-        assertThat(service.isActive(first.sessionId())).isFalse();
-        assertThat(service.isActive(second.sessionId())).isFalse();
+        assertThat(service.isActive(first.sessionId(), USER_ID)).isFalse();
+        assertThat(service.isActive(second.sessionId(), USER_ID)).isFalse();
     }
 
     @Test
     void GivenASessionIdNothingIssued_WhenItIsCheckedForLiveness_ThenItIsNotActive() {
-        assertThat(service.isActive(UUID.randomUUID())).isFalse();
+        assertThat(service.isActive(UUID.randomUUID(), USER_ID)).isFalse();
+    }
+
+    @Test
+    void GivenAnotherAccountsLiveSession_WhenItIsCheckedForThisAccount_ThenItIsNotActive() {
+        // A token's sid and sub are checked together. The server never issues a token pairing one
+        // account with another's session, so being asked about one means the signing key has leaked -
+        // and that must not be enough to borrow a live session as anybody (#286).
+        SessionGrant theirs = service.open(USER_ID);
+
+        assertThat(service.isActive(theirs.sessionId(), UUID.randomUUID()))
+                .as("the session is live, but not for this account")
+                .isFalse();
+        assertThat(service.isActive(theirs.sessionId(), USER_ID)).isTrue();
     }
 
     @Test

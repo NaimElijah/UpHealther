@@ -23,7 +23,9 @@ import org.springframework.security.core.GrantedAuthority;
 
 /**
  * Covers NFR-5: the account behind a token is re-loaded on every request, so a deleted account stops
- * working on the next request rather than at token expiry.
+ * working on the next request rather than at token expiry, and the session the token names is checked
+ * as a live session of that same account, so a token pairing one account with another's session is
+ * nobody's.
  *
  * <p>Covers NFR-34 for the same reason: an account an administrator has switched off stops working on
  * its next request, rather than carrying on until the token it already holds happens to lapse.
@@ -53,10 +55,19 @@ class BearerTokenAuthenticatorTest {
     @BeforeEach
     void setUp() {
         authenticator = new BearerTokenAuthenticator(tokenProvider, userQuery, sessionStatus);
-        // A live session is the precondition of every case below except the one about a dead
-        // one, which overrides it. Lenient, so the tests that never reach the check - a token
-        // the provider refuses outright - are not failed for an unused stub.
-        lenient().when(sessionStatus.isActive(SESSION_ID)).thenReturn(true);
+        // A live session is the precondition of every case below except the ones about a dead or
+        // a borrowed one. It is live for user alone, so a token naming any other account finds it
+        // ended unless the test says whose else it is.
+        givenALiveSessionOf(user.getId());
+    }
+
+    /**
+     * Makes {@link #SESSION_ID} live for one account; asked about any other, the port answers false.
+     * Lenient, so the tests that never reach the check - a token the provider refuses outright - are
+     * not failed for an unused stub.
+     */
+    private void givenALiveSessionOf(UUID owner) {
+        lenient().when(sessionStatus.isActive(SESSION_ID, owner)).thenReturn(true);
     }
 
     @Test
@@ -86,6 +97,7 @@ class BearerTokenAuthenticatorTest {
     void GivenATokenForADeletedAccount_WhenItIsAuthenticated_ThenNobodyIsAuthenticated() {
         // NFR-5, and the reason the token carries an id rather than the account itself.
         UUID deleted = UUID.randomUUID();
+        givenALiveSessionOf(deleted);
         when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(deleted, SESSION_ID)));
         when(userQuery.findById(deleted)).thenReturn(Optional.empty());
 
@@ -99,6 +111,7 @@ class BearerTokenAuthenticatorTest {
         // between disabled meaning now and disabled meaning within the token's remaining lifetime.
         User disabled = AUser.aUser().build();
         disabled.disable();
+        givenALiveSessionOf(disabled.getId());
         when(tokenProvider.verify(TOKEN))
                 .thenReturn(Optional.of(new VerifiedAccessToken(disabled.getId(), SESSION_ID)));
         when(userQuery.findById(disabled.getId())).thenReturn(Optional.of(disabled));
@@ -109,6 +122,7 @@ class BearerTokenAuthenticatorTest {
     @Test
     void GivenATokenForAnAdministrator_WhenItIsAuthenticated_ThenThePrincipalCarriesTheAdminAuthority() {
         User admin = AUser.withRole(UUID.randomUUID(), Role.ADMIN);
+        givenALiveSessionOf(admin.getId());
         when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(admin.getId(), SESSION_ID)));
         when(userQuery.findById(admin.getId())).thenReturn(Optional.of(admin));
 
@@ -123,7 +137,18 @@ class BearerTokenAuthenticatorTest {
         // The token itself is perfectly valid and unexpired; its session has been signed out of.
         // Without this check signing out would be a suggestion until the token lapsed.
         when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(user.getId(), SESSION_ID)));
-        when(sessionStatus.isActive(SESSION_ID)).thenReturn(false);
+        when(sessionStatus.isActive(SESSION_ID, user.getId())).thenReturn(false);
+
+        assertThat(authenticator.authenticate(TOKEN)).isEmpty();
+        verify(userQuery, never()).findById(any());
+    }
+
+    @Test
+    void GivenATokenWhoseSessionBelongsToAnotherAccount_WhenItIsAuthenticated_ThenNobodyIsAuthenticated() {
+        // The session is live, but it is user's, and the token names somebody else. Only a leaked
+        // signing key can produce that pair, and the key alone must not borrow a session (#286).
+        UUID intruder = UUID.randomUUID();
+        when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(intruder, SESSION_ID)));
 
         assertThat(authenticator.authenticate(TOKEN)).isEmpty();
         verify(userQuery, never()).findById(any());

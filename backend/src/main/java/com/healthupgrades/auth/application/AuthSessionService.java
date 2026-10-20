@@ -210,8 +210,9 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
      * the repository already reads within one.
      */
     @Override
-    public boolean isActive(UUID sessionId) {
+    public boolean isActive(UUID sessionId, UUID userId) {
         return sessions.findById(sessionId)
+                .filter(session -> session.getUserId().equals(userId))
                 .map(session -> session.isActive(clock.instant()))
                 .orElse(false);
     }

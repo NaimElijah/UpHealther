@@ -15,14 +15,21 @@ import java.util.UUID;
  *
  * <p>Deliberately one boolean. The security adapter has no business knowing when a session was opened,
  * how often it has been refreshed, or why it ended, and a richer answer would invite it to care.
+ *
+ * <p>The owner is part of the question, not left for the caller to compare. A session id is no secret
+ * and neither is an account id, so a session asked about alone would let a token pairing one account
+ * with another's live session authenticate as the first. The server never issues that pair; only a
+ * leaked signing key can mint it, and the key alone must not be enough (#286).
  */
 public interface SessionStatusPort {
 
     /**
-     * Whether a session may still be used.
+     * Whether a session may still be used by the account a token names.
      *
      * @param sessionId the session named by an access token's {@code sid} claim
-     * @return false when it is unknown, revoked, idled out, or past its absolute cap
+     * @param userId    the account named by the same token's {@code sub} claim
+     * @return false when the session is unknown, revoked, idled out, past its absolute cap, or another
+     *         account's
      */
-    boolean isActive(UUID sessionId);
+    boolean isActive(UUID sessionId, UUID userId);
 }

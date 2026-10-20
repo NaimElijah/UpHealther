@@ -3,6 +3,8 @@ package com.healthupgrades.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.healthupgrades.auth.adapter.in.web.RefreshCookies;
+import com.healthupgrades.auth.domain.model.RefreshToken;
+import com.healthupgrades.common.security.JwtTokenProvider;
 import com.healthupgrades.support.PostgresIT;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -11,6 +13,7 @@ import java.net.http.HttpResponse;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.TestPropertySource;
@@ -43,6 +46,9 @@ class AuthSessionFlowIT extends PostgresIT {
 
     @LocalServerPort
     private int port;
+
+    @Autowired
+    private JwtTokenProvider tokens;
 
     @Test
     void GivenANewAccount_WhenItRegisters_ThenTheCredentialArrivesInACookieAndTheTokenInTheBody() throws Exception {
@@ -114,6 +120,24 @@ class AuthSessionFlowIT extends PostgresIT {
         logout(credential(registered));
 
         assertThat(me(accessToken).statusCode()).isEqualTo(401);
+    }
+
+    @Test
+    void GivenATokenNamingOneAccountWithinAnothersSession_WhenItIsPresented_ThenItIsRefused() throws Exception {
+        // Minting with the application's own provider stands in for a leaked signing key: the one
+        // thing that can produce this pair, since the server never issues it. A session id is no
+        // secret and an account id is in every audit entry, so the key alone must not be enough to
+        // borrow one account's live session as another (#286).
+        UUID mine = accountId(register());
+        HttpResponse<String> theirs = register();
+        UUID theirSession = RefreshToken.parse(credential(theirs)).orElseThrow().sessionId();
+
+        assertThat(me(tokens.issue(accountId(theirs), theirSession).value()).statusCode())
+                .as("a token minted this way for the session's own account is accepted, so the mint is sound")
+                .isEqualTo(200);
+        assertThat(me(tokens.issue(mine, theirSession).value()).statusCode())
+                .as("the session is live, but it is not the session of the account the token names")
+                .isEqualTo(401);
     }
 
     @Test
@@ -204,6 +228,10 @@ class AuthSessionFlowIT extends PostgresIT {
                 .as("the response was expected to set the refresh cookie")
                 .isPresent();
         return header.orElseThrow();
+    }
+
+    private UUID accountId(HttpResponse<String> signedIn) throws Exception {
+        return UUID.fromString(body(signedIn).get("user").get("id").asString());
     }
 
     /** The credential out of a Set-Cookie header, as a browser would have stored it. */
