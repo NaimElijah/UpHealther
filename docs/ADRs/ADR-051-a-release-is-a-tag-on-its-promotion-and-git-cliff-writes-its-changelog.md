@@ -20,7 +20,8 @@
   merged as a merge commit. That merge is "the code as of that promotion", and it had no name: there
   was no tag, no release page and no changelog.
 - **The changelog's input already exists.** Of the 505 non-merge commits, 497 follow Conventional
-  Commits. The 8 that do not are the earliest.
+  Commits. The 8 that do not are from 2026-08-19 or before: five from the first day, and three
+  others.
 - **Both branches take changes only by pull request.** Ruleset 25310599 refuses a direct push to `dev`
   or `main`, so a release's version bump reaches `dev` the way every other change does.
 - **The root `package.json` has no dependencies and no lockfile** (ADR-044), so a tool distributed
@@ -76,7 +77,7 @@ handled like OSV-Scanner ([ADR-047](ADR-047-the-backend-audits-its-dependencies-
 - **Entries.** Each commit is one line with its scope, its subject and its short id. A breaking change
   is marked.
 - **What is left out:**
-  - GitHub's merge commits and the 8 early commits are dropped as unconventional;
+  - GitHub's merge commits and those 8 commits are dropped as unconventional;
   - `chore(release)` commits are skipped, because they are the release itself;
   - git-cliff also drops, by rules of its own, every commit `.git-blame-ignore-revs` lists, which are
     the formatter runs, and every commit that only edits that file, of whatever type. `d5fda1f`, a

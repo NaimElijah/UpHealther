@@ -35,7 +35,8 @@ trim = false
 
 [git]
 conventional_commits = true
-# The eight earliest commits predate the convention, and a merge commit's subject is GitHub's own.
+# Eight commits follow no convention, none of them later than 2026-08-19, and a merge commit's subject
+# is GitHub's own.
 # git-cliff also drops, without being asked, every commit .git-blame-ignore-revs lists, which are the
 # formatter runs, and every commit that only edits that file, whatever kind of commit it is. Upstream
 # tracks the second as a bug (orhun/git-cliff#1643). It is accepted, because such a commit changes
