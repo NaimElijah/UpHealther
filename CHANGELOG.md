@@ -186,6 +186,7 @@ that only edits that list. How a release is cut is in the README's Releasing sec
 - **build:** Refuse a parenthesis in an argument passed to mvnw.cmd (97debf7)
 - **deps:** Move Tomcat and both Jackson lines past known advisories (4fa668f)
 - **auth:** Accept a token only within its own account's session (693874f)
+- **deps:** Move follow-redirects past two credential-leak advisories (9bf163f)
 
 ### Performance
 
@@ -389,6 +390,10 @@ that only edits that list. How a release is cut is in the README's Releasing sec
 - Mark ADR-046 as extended by ADR-048 (ba8a3bc)
 - **requirements:** Say NFR-5 refuses the pair, not that it cannot exist (089c4c7)
 - **adr:** Record that a session is live only for its owner (a551c19)
+- **requirements:** Put NFR-47 back inside its table (f5a7385)
+- Say git-cliff drops edits to the ignore list, not only formatters (212f75d)
+- Stop calling the eight unconventional commits the earliest (4807318)
+- Allow that a promotion merge can come back into dev (dbe2307)
 
 ### Tests
 
@@ -462,6 +467,7 @@ that only edits that list. How a release is cut is in the README's Releasing sec
 - **backend:** Hold a v-prefixed image tag to the exact-version rule (1bc8320)
 - **backend:** Refuse an audit exception without a reason and an expiry (048e4da)
 - **auth:** Stop claiming every audit entry names an account (0ddbf01)
+- **contract:** Fail when the changelog's commit ids cannot be read (a2f22a2)
 
 ### Build
 
@@ -492,6 +498,7 @@ that only edits that list. How a release is cut is in the README's Releasing sec
 - **deps:** Bump the images-minor-and-patch group across 1 directory with 2 updates (600187b)
 - **frontend:** Build on Node 24.22.0 in CI and locally, as the image does (103ac9f)
 - Name one version, 0.1.0, in both modules (4bb21eb)
+- Write CHANGELOG.md with git-cliff, run from its image (ef1a7ba)
 
 ### CI
 
