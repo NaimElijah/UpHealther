@@ -129,8 +129,8 @@ Seven diagrams, outside in: [arch-diagrams](docs/architecture/arch-diagrams/READ
 |:---|:---|---:|:---|
 | Language | Java | 21 | Records carry the commands, ports and DTOs — most of the boundary code |
 | Framework | Spring Boot | 4.1.1 | Confined to the adapters; ArchUnit keeps it out of the domain ([ADR-032](docs/ADRs/ADR-032-the-backend-runs-on-spring-boot-4-1.md)) |
-| Backend build | Maven, through `./mvnw` | 3.9.16 | Pinned and checksummed by the wrapper; the enforcer refuses any other Maven or JDK ([ADR-030](docs/ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md)) |
-| Auth | Spring Security + JJWT | 7.1.1 / 0.12.3 | A short-lived token renewed from a rotating cookie against a server-side session ([ADR-015](docs/ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
+| Backend build | Maven, through `./mvnw` | 3.10.0 | Pinned and checksummed by the wrapper; the enforcer refuses any other Maven or JDK ([ADR-030](docs/ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md)) |
+| Auth | Spring Security + JJWT | 7.1.1 / 0.13.0 | A short-lived token renewed from a rotating cookie against a server-side session ([ADR-015](docs/ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
 | Database | PostgreSQL | 15 | The partial unique constraint and optimistic locking are real constraints, not application checks |
 | Migrations | Flyway | 12.4.0 | Owns the schema; Hibernate only validates against it and refuses to start on a mismatch |
 | Observability | Micrometer Tracing, Logstash encoder | 1.7.1 / 9.0 | W3C `traceparent`, vendor-neutral; JSON logs with the trace id as a field ([ADR-007](docs/ADRs/ADR-007-request-correlation-through-micrometer-tracing.md)) |
