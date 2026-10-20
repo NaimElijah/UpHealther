@@ -471,9 +471,9 @@ Integration points a maintainer will need:
   they pass the same four checks as any other. Once a week it groups each ecosystem's minor and patch
   updates into one PR: the backend's Maven dependencies, the frontend's npm dependencies, CI's actions,
   the Dockerfiles' base images and compose's images. Each major gets a PR of its own. Updates that are a
-  decision, which ADR-046 lists, are ignored and moved by hand: runtime, toolchain and database majors,
-  React Router's major, and every Prettier release. GitHub also scans pushes for secrets and refuses one
-  carrying a credential it recognises. It raises Dependabot alerts for every npm package, but for a Maven
+  decision, which ADR-046 and ADR-048 list, are ignored and moved by hand: runtime, toolchain and
+  database majors, React's and React Router's majors, and every Prettier release. GitHub also scans
+  pushes for secrets and refuses one carrying a credential it recognises. It raises Dependabot alerts for every npm package, but for a Maven
   artifact only when `backend/pom.xml` states its version: its dependency graph does not resolve the
   pom, so nothing the Spring Boot parent manages and no transitive dependency is seen (#301). Those are
   repository settings, not files,
@@ -687,6 +687,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why CI builds both images and starts the stack rather than two bare builds; why the check is its own compose project with no published ports; why no image scan yet | [ADR-045](../ADRs/ADR-045-ci-builds-and-starts-both-images.md) |
 | Why Dependabot opens weekly grouped updates against `dev`; why its security-update PRs are off; why some updates are ignored; why a `node` or `postgres` bump goes red until a person moves its companion | [ADR-046](../ADRs/ADR-046-dependabot-proposes-weekly-updates-into-dev.md) |
 | Why the backend is audited by OSV-Scanner rather than dependency-check, Trivy or OSS Index; why any finding fails; why test scope is included; why Tomcat and Jackson are overridden; why images are not scanned yet | [ADR-047](../ADRs/ADR-047-the-backend-audits-its-dependencies-with-osv-scanner.md) |
+| Why Dependabot ignores React majors; why `react`, `react-dom` and their types move together, by hand | [ADR-048](../ADRs/ADR-048-dependabot-holds-react-majors-back.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |
