@@ -2,7 +2,7 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. A hundred and seventeen of the hundred and twenty-six entries below name a test —
+rather than trusted. A hundred and eighteen of the hundred and twenty-seven entries below name a test —
 a hundred and nineteen distinct test classes and files between them. Six of the remaining nine name the
 command, workflow, script or setting that *is* the check (NFR-11, NFR-13, NFR-18, NFR-48, NFR-52,
 NFR-53). The last three — FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is
@@ -266,6 +266,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-28 | Latency, error rate, saturation, connection-pool depth and the domain's own counters are readable from one scrape endpoint, and no metric tag is unbounded | `ActuatorEndpointsIT`, `LoggingAuditTrailTest`, `JobMetricsTest`, `RateLimitInterceptorTest` ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) |
 | NFR-29 | The actuator surface is closed by name: only health, info and the metrics scrape answer, and an endpoint that would expose configuration or process memory does not | `ActuatorEndpointsIT` (env, heapdump, loggers, beans, mappings, configprops, threaddump) ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) |
 | NFR-30 | A request that fails shows the user the trace id that finds it in the log, from the error body or the response header, and offers none when the request never reached the server | `apiError.test.ts`, `ErrorState.test.tsx`, `UpgradeDetailsPage.test.tsx` (its four forms, for a refusal that names no field, and a refused reminder removal; see §6), `ActiveUpgradesPage.test.tsx`, `PlannedUpgradesPage.test.tsx`, `DashboardPage.test.tsx` (a refused status change), `HealthAreasPage.test.tsx` (a refused delete), `DailyCheckinPage.test.tsx` (a failed load or submit), `NotificationProvider.test.tsx`, `NotificationDropdown.test.tsx`, `NotificationsPage.test.tsx` (a failed fetch or mark-read) — **Known deviation:** [#148](https://github.com/NaimElijah/UpHealther/issues/148), the upgrade details page's progress, reflections, streak and reminders reads, and the backlog's area picker, render as empty when they fail, and a failed sign-out shows no trace id |
+| NFR-55 | A running backend names the version it was built from: `/actuator/info` answers it as `build.version`, the version `backend/pom.xml` declares | `ActuatorEndpointsIT` ([ADR-050](../ADRs/ADR-050-one-version-names-the-whole-repository.md)) |
 
 ### 4.5 Interface
 

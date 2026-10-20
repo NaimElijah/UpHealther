@@ -2,8 +2,9 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-21
-- **Scope:** the `<version>` in `backend/pom.xml`, the `version` in `frontend/package.json` and both
-  of its lockfile's, `RepositoryVersionContractTest` and `support/RepositoryVersion`. NFR-54 in
+- **Scope:** the `<version>` in `backend/pom.xml` and its `build-info` execution, the `version` in
+  `frontend/package.json` and both of its lockfile's, `RepositoryVersionContractTest`,
+  `support/RepositoryVersion` and `ActuatorEndpointsIT`. NFR-54 and NFR-55 in
   `docs/requirements/requirements.md`.
 - **Issue:** [#153](https://github.com/NaimElijah/UpHealther/issues/153), part of the repository
   baseline epic [#197](https://github.com/NaimElijah/UpHealther/issues/197).
@@ -15,6 +16,8 @@
   "the code as of that promotion". The only one was a merge-commit SHA.
 - **The two version fields disagreed, and nothing read either.** `backend/pom.xml` said
   `0.0.1-SNAPSHOT`. `frontend/package.json` and its lockfile said `1.0.0`.
+- **A running instance could not say which it was.** `/actuator/info` is exposed (NFR-29), and it
+  answered `{}`: no `info.*` property was set, and nothing wrote build information into the jar.
 - **Work already waits on a version.** #154 tags the images it publishes with it, and #215 deploys by
   it.
 
@@ -52,6 +55,18 @@ differs from the pom's, and when the pom's is not plain `MAJOR.MINOR.PATCH`.
 - **It reads files and never asks git.** CI's checkout is shallow and has no tags, and a release's tag
   exists only after its promotion has merged.
 
+**A running backend says which version it is.** `spring-boot-maven-plugin`'s `build-info` goal writes
+`META-INF/build-info.properties` into the jar, and `/actuator/info` reports it as `build`: group,
+artifact, name and version. `ActuatorEndpointsIT` holds `build.version` to the pom's.
+
+- **`build.time` is off.** The goal takes it from `project.build.outputTimestamp`, which neither the
+  pom nor the Spring Boot parent sets, and which Maven 3.10 fills with a fixed
+  `1980-02-01T00:00:00Z`. Every build would report that same false date.
+- **The version is not public.** `/actuator/**` is `permitAll`, and
+  [ADR-012](ADR-012-metrics-through-a-prometheus-scrape-endpoint.md) already accepts build info among
+  what it exposes. nginx proxies only `/api` and `/ws`, so the version is readable only by someone who
+  reaches the backend's port directly.
+
 ## Consequences
 
 - **A release that bumps one module and forgets the other fails on its own pull request**, not in a
@@ -62,6 +77,9 @@ differs from the pom's, and when the pom's is not plain `MAJOR.MINOR.PATCH`.
 - **A pre-release or build suffix such as `0.2.0-rc.1` is refused.** Nothing needs one.
 - **The frontend's version is not shown in the interface.** The backend's is what an operator asks
   for, and it is the same number.
+- **`build-info.properties` exists only once Maven has run `generate-resources`.** A run from an IDE
+  that does not delegate to Maven reports no `build`, and `ActuatorEndpointsIT` fails there for that
+  reason.
 
 ## Alternatives considered
 
@@ -71,6 +89,12 @@ differs from the pom's, and when the pom's is not plain `MAJOR.MINOR.PATCH`.
   repository's other cross-module contracts are backend tests, and a requirement names a test.
 - **Separate versions for the backend and the frontend.** Rejected while they ship as one.
   - **Revisit when** they are deployed on different cadences.
+- **The commit in `/actuator/info`, through `git-commit-id-maven-plugin`**, which the Spring Boot
+  parent manages. Rejected for now. The backend image is built from `backend/` alone, with no `.git`,
+  so the image would have no commit to report, and a release is already named by its version.
+  - **Revisit when** a build that is not a release has to be identified in a running instance.
+- **`info.app.version=@project.version@` through resource filtering.** Rejected. `build-info` is the
+  source the actuator reads natively, and it needs no property kept in step.
 - **A `-SNAPSHOT` suffix on `dev` between releases**, Maven's convention. Rejected. Every release would
   then be two version bumps instead of one, for a distinction nothing reads.
   - **Revisit when** builds from `dev` are deployed anywhere.

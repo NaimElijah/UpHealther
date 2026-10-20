@@ -374,6 +374,7 @@ names the test that enforces it — or, for the few no test can observe, the che
 |---|---|
 | Liveness | `GET /actuator/health/liveness` |
 | Readiness | `GET /actuator/health/readiness` — not ready until Flyway has finished; the backend image's `HEALTHCHECK` polls it |
+| Version | `GET /actuator/info` — `build.version`, the version `backend/pom.xml` named when the jar was built ([ADR-050](docs/ADRs/ADR-050-one-version-names-the-whole-repository.md)) |
 | Metrics | `GET /actuator/prometheus` — HTTP latency, error rate, JVM, HikariCP saturation, audit and scheduled-job counters |
 | Traces | Micrometer Tracing over the OpenTelemetry bridge; sampled at 1.0, **no exporter configured**, so no span leaves the process |
 | Logs | `docker logs` only — one JSON object per line under compose, Boot's readable pattern locally |

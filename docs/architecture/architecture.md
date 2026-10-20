@@ -445,7 +445,11 @@ Integration points a maintainer will need:
 
 - **`/actuator/health`, `/actuator/health/{liveness,readiness}`, `/actuator/info`,
   `/actuator/prometheus`** — the backend's operational surface, unauthenticated and closed to these by
-  name. The compose and image health-checks poll **readiness**. Nothing else under `/actuator` answers.
+  name. The compose and image health-checks poll **readiness**. `/actuator/info` answers the `build` the
+  jar was made from — its group, artifact, name and version — which the `build-info` goal of
+  `spring-boot-maven-plugin` writes into it
+  ([ADR-050](../ADRs/ADR-050-one-version-names-the-whole-repository.md)). Nothing else under
+  `/actuator` answers.
 - **Environment variables** — `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET` are required in any
   real deployment, and without `JWT_SECRET` the application refuses to start: the jar carries no
   signing key. A run from `backend/` reads a published development key from
