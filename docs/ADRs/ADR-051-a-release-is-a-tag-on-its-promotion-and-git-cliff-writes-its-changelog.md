@@ -39,12 +39,14 @@ is annotated, and the first one is `v0.1.0`. It is cut by hand once the promotio
 
 A promotion every few days, by one person, is a short checklist.
 
-**The tag is never in `dev`'s history**, because `main`'s merge commits do not come back into `dev`.
-That does not matter to the changelog:
+**The tag is normally not in `dev`'s history.** `main`'s merge commits reach `dev` only when `main` is
+merged back into it, which has happened once: `94f0bdb` brought back #26's promotion. Either way, the
+changelog is right:
 
 - git-cliff's `--unreleased` takes the range `<newest tag>..HEAD`;
 - git's range excludes everything the tag reaches, which is all of `dev` up to that promotion;
-- so the next section holds exactly the commits since the last release.
+- so the next section holds exactly the commits since the last release, whether or not the tagged
+  merge later comes back into `dev`.
 
 This was checked on a scratch repository with the same shape before it was written down.
 
@@ -131,8 +133,8 @@ has no tags. The check is `git describe --exact-match origin/main`, after `git f
   reader of the changelog sees.
 - **Writing a changelog needs Docker**, as `npm test` already does.
 - **The file is only ever prepended to.** Regenerating it whole from `dev` puts every release under one
-  heading, because the tags sit on `main`'s merge commits, outside `dev`'s history. This was seen on the
-  scratch repository.
+  heading, because the tags sit on `main`'s merge commits, which are normally outside `dev`'s history.
+  This was seen on the scratch repository.
 - **The header is fixed text.** `--prepend` drops the old header by matching it exactly, so changing
   `cliff.toml`'s header means changing the one in `CHANGELOG.md` in the same commit.
 - **It cannot run from a git worktree.** A worktree's `.git` is a file pointing at a path outside the
