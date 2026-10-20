@@ -129,20 +129,20 @@ Seven diagrams, outside in: [arch-diagrams](docs/architecture/arch-diagrams/READ
 |:---|:---|---:|:---|
 | Language | Java | 21 | Records carry the commands, ports and DTOs — most of the boundary code |
 | Framework | Spring Boot | 4.1.1 | Confined to the adapters; ArchUnit keeps it out of the domain ([ADR-032](docs/ADRs/ADR-032-the-backend-runs-on-spring-boot-4-1.md)) |
-| Backend build | Maven, through `./mvnw` | 3.9.16 | Pinned and checksummed by the wrapper; the enforcer refuses any other Maven or JDK ([ADR-030](docs/ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md)) |
-| Auth | Spring Security + JJWT | 7.1.1 / 0.12.3 | A short-lived token renewed from a rotating cookie against a server-side session ([ADR-015](docs/ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
+| Backend build | Maven, through `./mvnw` | 3.10.0 | Pinned and checksummed by the wrapper; the enforcer refuses any other Maven or JDK ([ADR-030](docs/ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md)) |
+| Auth | Spring Security + JJWT | 7.1.1 / 0.13.0 | A short-lived token renewed from a rotating cookie against a server-side session ([ADR-015](docs/ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
 | Database | PostgreSQL | 15 | The partial unique constraint and optimistic locking are real constraints, not application checks |
 | Migrations | Flyway | 12.4.0 | Owns the schema; Hibernate only validates against it and refuses to start on a mismatch |
 | Observability | Micrometer Tracing, Logstash encoder | 1.7.1 / 9.0 | W3C `traceparent`, vendor-neutral; JSON logs with the trace id as a field ([ADR-007](docs/ADRs/ADR-007-request-correlation-through-micrometer-tracing.md)) |
-| Frontend | React + TypeScript | 18.3.1 / 5.9.3 | Enums mirrored from the backend, with a test that fails when they drift |
+| Frontend | React + TypeScript | 18.3.1 / 5.9.3 | Enums mirrored from the backend, with a test that fails when they drift; React held on 18 until its migration, [#314](https://github.com/NaimElijah/UpHealther/issues/314) ([ADR-048](docs/ADRs/ADR-048-dependabot-holds-react-majors-back.md)) |
 | Routing | React Router | 6.30.6 | Held on 6 while its open advisories cannot reach the SPA ([ADR-034](docs/ADRs/ADR-034-stay-on-react-router-6-while-its-open-advisories-do-not-reach-the-spa.md)) |
-| Build | Vite, on Node | 8.3.4 / 24.21.0 | The same `/api` and `/ws` proxy in dev as nginx serves in prod ([ADR-031](docs/ADRs/ADR-031-the-frontend-toolchain-runs-on-node-24-lts.md), [ADR-036](docs/ADRs/ADR-036-the-frontend-builds-on-vite-8-and-tests-on-vitest-5.md)) |
-| Data fetching | TanStack Query | 5.100.10 | One cache, refreshed by every write rather than refetched by hand ([ADR-029](docs/ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)) |
+| Build | Vite, on Node | 8.3.4 / 24.22.0 | The same `/api` and `/ws` proxy in dev as nginx serves in prod ([ADR-031](docs/ADRs/ADR-031-the-frontend-toolchain-runs-on-node-24-lts.md), [ADR-036](docs/ADRs/ADR-036-the-frontend-builds-on-vite-8-and-tests-on-vitest-5.md)) |
+| Data fetching | TanStack Query | 5.104.3 | One cache, refreshed by every write rather than refetched by hand ([ADR-029](docs/ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)) |
 | Styling | Tailwind CSS | 3.4.19 | Semantic tokens only — `npm run check:colours` fails on a palette shade |
-| Real-time | STOMP over WebSocket | 7.3.0 | Push authenticates with the same token, through a channel interceptor |
+| Real-time | STOMP over WebSocket | 7.5.0 | Push authenticates with the same token, through a channel interceptor |
 | Backend tests | JUnit, ArchUnit, Testcontainers | 6.0.3 / 1.5.1 / 2.0.5 | A real PostgreSQL in the integration suite; architecture rules as ordinary tests ([ADR-008](docs/ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)) |
-| Frontend tests | Vitest, on jsdom | 5.0.4 / 30.1.2 | Colocated with the code they test |
-| Lint and format | palantir-java-format, ESLint, Prettier | 2.102.0 / 10.12.0 / 3.9.10 | Layout belongs to the formatters; javac's lint and ESLint fail on any warning ([ADR-035](docs/ADRs/ADR-035-the-frontend-lints-with-eslint-10-and-a-flat-config.md), [ADR-037](docs/ADRs/ADR-037-the-backend-is-formatted-by-palantir-java-format-through-spotless.md), [ADR-038](docs/ADRs/ADR-038-the-frontend-is-formatted-by-prettier.md), [ADR-039](docs/ADRs/ADR-039-the-backend-compiles-under-javacs-lint-and-fails-on-a-warning.md)) |
+| Frontend tests | Vitest, on jsdom | 5.0.5 / 30.1.3 | Colocated with the code they test |
+| Lint and format | palantir-java-format, ESLint, Prettier | 2.102.0 / 10.13.0 / 3.9.10 | Layout belongs to the formatters; javac's lint and ESLint fail on any warning ([ADR-035](docs/ADRs/ADR-035-the-frontend-lints-with-eslint-10-and-a-flat-config.md), [ADR-037](docs/ADRs/ADR-037-the-backend-is-formatted-by-palantir-java-format-through-spotless.md), [ADR-038](docs/ADRs/ADR-038-the-frontend-is-formatted-by-prettier.md), [ADR-039](docs/ADRs/ADR-039-the-backend-compiles-under-javacs-lint-and-fails-on-a-warning.md)) |
 
 ## 🚀 Quick start
 

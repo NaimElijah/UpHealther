@@ -26,7 +26,7 @@ public class SessionStatusAdapter implements SessionStatusPort {
 
     /** {@inheritDoc} */
     @Override
-    public boolean isActive(UUID sessionId) {
-        return sessionQuery.isActive(sessionId);
+    public boolean isActive(UUID sessionId, UUID userId) {
+        return sessionQuery.isActive(sessionId, userId);
     }
 }

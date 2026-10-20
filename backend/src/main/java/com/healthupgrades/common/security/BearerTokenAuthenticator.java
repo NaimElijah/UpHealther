@@ -12,8 +12,8 @@ import org.springframework.stereotype.Component;
  *
  * <p>The single place the rules for "this token is usable" live, shared by the HTTP filter and the STOMP
  * interceptor so the two transports cannot drift apart. A token is usable when it verifies, the
- * session it was issued within is still live, the account it names still exists, and that account is
- * enabled. All three are re-read on every call rather than trusted from the token, so signing out,
+ * session it names is still live and belongs to the account it names, that account still exists, and
+ * it is enabled. All three are re-read on every call rather than trusted from the token, so signing out,
  * deleting the account or disabling it takes effect on the next request (NFR-5, NFR-34, NFR-35)
  * rather than whenever the token happens to expire.
  */
@@ -31,16 +31,18 @@ public class BearerTokenAuthenticator {
      *
      * @param token the compact JWT, without the {@code Bearer } prefix
      * @return the principal for the account the token names, with no password hash on it; empty when the
-     *         token does not verify, its session has ended, its account is gone, or that account has
-     *         been disabled
+     *         token does not verify, its session has ended or is another account's, its account is gone,
+     *         or that account has been disabled
      */
     public Optional<SecurityUser> authenticate(String token) {
         return tokenProvider.verify(token).flatMap(verified -> {
-            if (!sessionStatus.isActive(verified.sessionId())) {
+            if (!sessionStatus.isActive(verified.sessionId(), verified.userId())) {
                 // Checked before the account is loaded: a signed-out token is the commonest reason to
                 // land here, and there is no point reading a user to then discard the principal.
                 // DEBUG, because a token outliving its session is what signing out is supposed to do.
-                log.debug("A token names a session that has ended; left anonymous");
+                // A session that is another account's lands here too and reads the same (#286): the
+                // port answers one boolean, so the two cannot be told apart at this line.
+                log.debug("A token names a session that has ended or is another account's; left anonymous");
                 return Optional.<SecurityUser>empty();
             }
             Optional<SecurityUser> principal =

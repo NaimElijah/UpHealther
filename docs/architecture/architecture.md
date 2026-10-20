@@ -95,13 +95,16 @@ is trusted to report one
 identifies it, and it is accepted only under this application's issuer, audience and signing
 algorithm, so one minted by another service that happens to share the secret is refused.
 `BearerTokenAuthenticator` is the single place those rules live — the HTTP filter and the STOMP
-interceptor both authenticate through it, so the two transports cannot drift apart. It re-reads the
-account on every request, so the role it holds and whether it is enabled are decided by the row as
-it stands and never by the token: revoking ADMIN, or switching an account off, takes effect on the
-next request rather than whenever the token happens to lapse. The HTTP filter,
-`JwtAuthenticationFilter`, runs only inside Spring Security's chain: its registration as a servlet
-filter of its own is switched off, because a copy running ahead of the chain would have its
-authentication discarded and leave every request anonymous (#238). Same-origin
+interceptor both authenticate through it, so the two transports cannot drift apart. It accepts a
+token only while the session its `sid` names is live and belongs to the account its `sub` names, so
+a token pairing one account with another's session — which only a leaked key could mint —
+authenticates nobody ([ADR-049](../ADRs/ADR-049-a-session-is-live-only-for-the-account-that-owns-it.md)).
+It re-reads the account on every request, so the role it holds and whether it
+is enabled are decided by the row as it stands and never by the token: revoking ADMIN, or switching
+an account off, takes effect on the next request rather than whenever the token happens to lapse.
+The HTTP filter, `JwtAuthenticationFilter`, runs only inside Spring Security's chain: its
+registration as a servlet filter of its own is switched off, because a copy running ahead of the
+chain would have its authentication discarded and leave every request anonymous (#238). Same-origin
 through the proxy, so no CORS preflight in the default setup; the `CORS_ALLOWED_ORIGINS` policy
 exists only for deployments that split the origins.
 
@@ -250,8 +253,9 @@ Three things worth noticing. The row is read **`FOR UPDATE`**, so two tabs refre
 serialise instead of both rotating from the same starting state. The old digest is kept, which is the
 only reason a replay is distinguishable from a guess — and a credential matching *neither* digest
 revokes nothing, because the session id travels in a token claim and is therefore not a secret.
-And the `sid` claim is checked on every authenticated request, which is what turns a revoked row
-into a refused request rather than a wait for the token to expire.
+And the `sid` claim is checked on every authenticated request, together with the `sub` the row must
+name as its owner, which is what turns a revoked row into a refused request rather than a wait for the
+token to expire.
 
 Every refresh and every sign-out the service is asked for is audited, as `auth.refresh` and
 `auth.logout`, refused ones included (NFR-23). A refusal names the session whenever the row exists, and
@@ -471,9 +475,9 @@ Integration points a maintainer will need:
   they pass the same four checks as any other. Once a week it groups each ecosystem's minor and patch
   updates into one PR: the backend's Maven dependencies, the frontend's npm dependencies, CI's actions,
   the Dockerfiles' base images and compose's images. Each major gets a PR of its own. Updates that are a
-  decision, which ADR-046 lists, are ignored and moved by hand: runtime, toolchain and database majors,
-  React Router's major, and every Prettier release. GitHub also scans pushes for secrets and refuses one
-  carrying a credential it recognises. It raises Dependabot alerts for every npm package, but for a Maven
+  decision, which ADR-046 and ADR-048 list, are ignored and moved by hand: runtime, toolchain and
+  database majors, React's and React Router's majors, and every Prettier release. GitHub also scans
+  pushes for secrets and refuses one carrying a credential it recognises. It raises Dependabot alerts for every npm package, but for a Maven
   artifact only when `backend/pom.xml` states its version: its dependency graph does not resolve the
   pom, so nothing the Spring Boot parent manages and no transitive dependency is seen (#301). Those are
   repository settings, not files,
@@ -687,6 +691,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why CI builds both images and starts the stack rather than two bare builds; why the check is its own compose project with no published ports; why no image scan yet | [ADR-045](../ADRs/ADR-045-ci-builds-and-starts-both-images.md) |
 | Why Dependabot opens weekly grouped updates against `dev`; why its security-update PRs are off; why some updates are ignored; why a `node` or `postgres` bump goes red until a person moves its companion | [ADR-046](../ADRs/ADR-046-dependabot-proposes-weekly-updates-into-dev.md) |
 | Why the backend is audited by OSV-Scanner rather than dependency-check, Trivy or OSS Index; why any finding fails; why test scope is included; why Tomcat and Jackson are overridden; why images are not scanned yet | [ADR-047](../ADRs/ADR-047-the-backend-audits-its-dependencies-with-osv-scanner.md) |
+| Why Dependabot ignores React majors; why `react`, `react-dom` and their types move together, by hand | [ADR-048](../ADRs/ADR-048-dependabot-holds-react-majors-back.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

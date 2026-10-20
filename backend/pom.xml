@@ -19,8 +19,8 @@
 
     <properties>
         <java.version>21</java.version>
-        <jjwt.version>0.12.3</jjwt.version>
-        <jacoco.version>0.8.12</jacoco.version>
+        <jjwt.version>0.13.0</jjwt.version>
+        <jacoco.version>0.8.15</jacoco.version>
         <!--
           Not managed by spring-boot-dependencies, so the version is ours to keep correct. 9.x is the line
           built against Jackson 3, which Boot 4 uses; 8.x is Jackson 2's. Re-check this pin on any Boot
@@ -273,7 +273,7 @@
                                     <message>This build needs JDK 21: the runtime image is a JRE 21, so the tests must run on 21 (ADR-030).</message>
                                 </requireJavaVersion>
                                 <requireMavenVersion>
-                                    <version>[3.9.16,4)</version>
+                                    <version>[3.10.0,4)</version>
                                     <message>Build with ./mvnw (mvnw.cmd on Windows), which runs the Maven version the repository pins (ADR-030).</message>
                                 </requireMavenVersion>
                             </rules>
