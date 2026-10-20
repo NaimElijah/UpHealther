@@ -13,7 +13,7 @@
 
     <groupId>com.healthupgrades</groupId>
     <artifactId>health-upgrades-tracker</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.1.0</version>
     <name>health-upgrades-tracker</name>
     <description>Health Upgrades Tracker Backend</description>
 
@@ -236,9 +236,26 @@
 
     <build>
         <plugins>
+            <!--
+              `build-info` writes META-INF/build-info.properties, which /actuator/info reports as
+              `build`, so a running instance names the version it was built from (ADR-050, NFR-55).
+              `build.time` is off: it would be `project.build.outputTimestamp`, which neither this pom
+              nor the Boot parent sets and Maven 3.10 fills with a fixed 1980-02-01T00:00:00Z, so every
+              build would report the same false date.
+            -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>build-info</goal>
+                        </goals>
+                        <configuration>
+                            <time>off</time>
+                        </configuration>
+                    </execution>
+                </executions>
                 <configuration>
                     <excludes>
                         <exclude>

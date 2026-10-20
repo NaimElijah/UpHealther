@@ -47,6 +47,9 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
 - `npm run setup` — installs the frontend's dependencies (`npm ci` in `frontend/`). Once per clone,
   and after the lockfile changes.
 - `npm start` — `docker compose up --build`.
+- `npm run changelog -- --tag vX.Y.Z` — prepends release X.Y.Z's section to `CHANGELOG.md`, through
+  git-cliff's image (needs Docker, and the tags fetched). One step of the README's Releasing section;
+  `npm test` does not run it (ADR-051).
 - `npm test` — the whole CI gate, the same scripts CI's jobs run (ADR-044): `test:diagrams`,
   `test:frontend`, `test:backend`, then `test:images`. Each also runs alone. Needs Docker, for the
   backend's ITs and the image check.

@@ -445,7 +445,11 @@ Integration points a maintainer will need:
 
 - **`/actuator/health`, `/actuator/health/{liveness,readiness}`, `/actuator/info`,
   `/actuator/prometheus`** — the backend's operational surface, unauthenticated and closed to these by
-  name. The compose and image health-checks poll **readiness**. Nothing else under `/actuator` answers.
+  name. The compose and image health-checks poll **readiness**. `/actuator/info` answers the `build` the
+  jar was made from — its group, artifact, name and version — which the `build-info` goal of
+  `spring-boot-maven-plugin` writes into it
+  ([ADR-050](../ADRs/ADR-050-one-version-names-the-whole-repository.md)). Nothing else under
+  `/actuator` answers.
 - **Environment variables** — `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET` are required in any
   real deployment, and without `JWT_SECRET` the application refuses to start: the jar carries no
   signing key. A run from `backend/` reads a published development key from
@@ -483,6 +487,14 @@ Integration points a maintainer will need:
   repository settings, not files,
   and security-update PRs are off because GitHub would open them against `main`
   ([ADR-046](../ADRs/ADR-046-dependabot-proposes-weekly-updates-into-dev.md)).
+- **Releases** — one version names both modules, and `RepositoryVersionContractTest` holds their four
+  version fields together ([ADR-050](../ADRs/ADR-050-one-version-names-the-whole-repository.md)). A release is an
+  annotated `v<version>` tag on its promotion merge on `main`, cut by hand. Its section of
+  `CHANGELOG.md` is written beforehand by git-cliff, run from the pinned image in
+  `scripts/compose.changelog.yml` as `npm run changelog`, and reaches `dev` with the version bump in
+  a pull request of its own
+  ([ADR-051](../ADRs/ADR-051-a-release-is-a-tag-on-its-promotion-and-git-cliff-writes-its-changelog.md)).
+  Nothing runs when a tag is pushed.
 
 ---
 
@@ -692,6 +704,8 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why Dependabot opens weekly grouped updates against `dev`; why its security-update PRs are off; why some updates are ignored; why a `node` or `postgres` bump goes red until a person moves its companion | [ADR-046](../ADRs/ADR-046-dependabot-proposes-weekly-updates-into-dev.md) |
 | Why the backend is audited by OSV-Scanner rather than dependency-check, Trivy or OSS Index; why any finding fails; why test scope is included; why Tomcat and Jackson are overridden; why images are not scanned yet | [ADR-047](../ADRs/ADR-047-the-backend-audits-its-dependencies-with-osv-scanner.md) |
 | Why Dependabot ignores React majors; why `react`, `react-dom` and their types move together, by hand | [ADR-048](../ADRs/ADR-048-dependabot-holds-react-majors-back.md) |
+| Why one version names both modules rather than one each; why a test, not a CI step, holds the four fields together; why `dev` carries the last release's version | [ADR-050](../ADRs/ADR-050-one-version-names-the-whole-repository.md) |
+| Why a release is a tag on its promotion merge, cut by hand; why git-cliff runs from an image rather than release-please, a script or an npm dependency; why the changelog is only ever prepended to | [ADR-051](../ADRs/ADR-051-a-release-is-a-tag-on-its-promotion-and-git-cliff-writes-its-changelog.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

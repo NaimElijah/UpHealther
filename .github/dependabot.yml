@@ -112,7 +112,8 @@ updates:
   # A bump of `postgres` fails `ContainerImagesArePinnedTest` until `PostgresImage.NAME`, which the
   # integration tests run, moves with it: push that change onto the PR's branch (ADR-046).
   - package-ecosystem: docker-compose
-    # /scripts holds the audit's OSV-Scanner image (ADR-047).
+    # /scripts holds the audit's OSV-Scanner image (ADR-047) and the changelog's git-cliff image
+    # (ADR-051).
     directories: [ /, /scripts ]
     target-branch: dev
     schedule:
