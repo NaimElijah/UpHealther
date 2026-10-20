@@ -8,6 +8,7 @@
   `docs/requirements/requirements.md`.
 - **Issue:** [#153](https://github.com/NaimElijah/UpHealther/issues/153), part of the repository
   baseline epic [#197](https://github.com/NaimElijah/UpHealther/issues/197).
+  [ADR-051](ADR-051-a-release-is-a-tag-on-its-promotion-and-git-cliff-writes-its-changelog.md) records how a release is named and described.
 
 ## Context
 
@@ -34,12 +35,12 @@ is no public API (requirements §5.4).
 - the `version` in `frontend/package.json`;
 - the two its lockfile repeats, `version` and `packages[""].version`.
 
-A release sets them with two commands, which run the same from PowerShell, Git Bash and a Linux
-shell:
+A release sets them with two commands, each of which runs the same from PowerShell, Git Bash and a
+Linux shell:
 
-- `cd frontend && npm version X.Y.Z --no-git-tag-version` sets the manifest and the lockfile;
-- `node scripts/mvnw.mjs versions:set "-DnewVersion=X.Y.Z" -DgenerateBackupPoms=false` sets the
-  pom.
+- in `frontend/`, `npm version X.Y.Z --no-git-tag-version` sets the manifest and the lockfile;
+- from the repository root, `node scripts/mvnw.mjs versions:set "-DnewVersion=X.Y.Z"
+  -DgenerateBackupPoms=false` sets the pom.
   - It uses versions-maven-plugin 2.21.0, the version the Spring Boot parent manages, so the pom
     declares no plugin for it.
   - The quotes are for PowerShell 5.1. Without them it splits `-DnewVersion=0.1.0` at the first dot.

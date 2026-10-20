@@ -1,0 +1,21 @@
+# Writes the next release's section of CHANGELOG.md: `npm run changelog -- --tag vX.Y.Z`, one step of
+# the README's Releasing section. See
+# docs/ADRs/ADR-051-a-release-is-a-tag-on-its-promotion-and-git-cliff-writes-its-changelog.md.
+#
+# git-cliff reads the commits since the newest v* tag, groups them by Conventional Commit type as
+# cliff.toml says, and prepends the section to CHANGELOG.md. It needs the tags fetched
+# (`git fetch origin --tags`), or it takes the whole history for one release.
+#
+# Compose resolves `..` against this file, so the one script string runs from cmd.exe and sh alike.
+# The mount is the repository root, read-write, because the changelog is written back into it. The
+# image runs git-cliff as the owner of that directory, so the file is not left owned by root. It has
+# no network: git-cliff needs none for a changelog built from local history. A git worktree cannot
+# be used, because its .git file points at a path outside the mount. Dependabot's docker-compose
+# entry reads this directory, so the image's pin moves by PR like every other.
+name: uphealther-changelog
+services:
+  git-cliff:
+    image: orhunp/git-cliff:2.14.2
+    network_mode: none
+    volumes:
+      - ..:/app

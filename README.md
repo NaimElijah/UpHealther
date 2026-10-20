@@ -49,7 +49,7 @@ flowchart LR
 **Contents** · [🎯 What and why](#-what-and-why) · [✨ Features](#-features) ·
 [🧱 Architecture](#-architecture) · [🧰 Tech stack](#-tech-stack) · [🚀 Quick start](#-quick-start) ·
 [🔩 Configuration](#-configuration) · [📖 Usage](#-usage) · [💻 Development](#-development) ·
-[🧪 Testing](#-testing) · [📡 Operations](#-operations) ·
+[🧪 Testing](#-testing) · [📡 Operations](#-operations) · [🔖 Releasing](#-releasing) ·
 [📁 Project structure](#-project-structure) · [🧭 Design decisions](#-design-decisions) ·
 [🚦 Status and limitations](#-status-and-limitations) · [📜 Licence](#-licence)
 
@@ -339,7 +339,8 @@ nor Docker, and `npm test` in `frontend/` runs Vitest once.
 the inputs can differ: CI installs the dependencies fresh, and sets none of the variables
 `docker-compose.yml` reads, which a root `.env` or your shell may
 ([ADR-044](docs/ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md)). That is
-`./mvnw clean verify`, which includes javac's lint at `-Werror` and the Java format check; OSV-Scanner
+`./mvnw clean verify`, which includes javac's lint at `-Werror`, the Java format check, and the check
+that both modules name one version and `CHANGELOG.md` has its section; OSV-Scanner
 on the backend's whole dependency tree, failing on any known vulnerability
 ([ADR-047](docs/ADRs/ADR-047-the-backend-audits-its-dependencies-with-osv-scanner.md)); the
 generated diagrams still matching their source; the frontend format check; frontend lint at
@@ -385,6 +386,59 @@ Migrations run at application start, so a bad one leaves the container un-ready 
 corrupting the schema. To chase a reported failure:
 `docker logs healthupgrades-backend | grep <trace id>`.
 
+## 🔖 Releasing
+
+One version names both modules, and a release is an annotated `v<version>` tag on the promotion merge
+that ships it, with its section in [`CHANGELOG.md`](CHANGELOG.md)
+([ADR-050](docs/ADRs/ADR-050-one-version-names-the-whole-repository.md),
+[ADR-051](docs/ADRs/ADR-051-a-release-is-a-tag-on-its-promotion-and-git-cliff-writes-its-changelog.md)).
+Each line below runs the same from PowerShell, Git Bash or a Linux shell. Run them one at a time,
+because PowerShell 5.1 has no `&&`.
+
+1. Fetch the tags, then branch from `dev`. Without the tags, the changelog takes the whole history as
+   one release.
+
+   ```bash
+   git fetch origin --tags
+   git switch --no-track -c chore/release-X.Y.Z origin/dev
+   ```
+
+2. Set the version in both modules, the frontend's from `frontend/` and the pom's from the root:
+
+   ```bash
+   cd frontend
+   npm version X.Y.Z --no-git-tag-version
+   cd ..
+   node scripts/mvnw.mjs versions:set "-DnewVersion=X.Y.Z" -DgenerateBackupPoms=false
+   ```
+
+3. Write the release's section of the changelog. It needs Docker, and it prepends, so run it once:
+
+   ```bash
+   npm run changelog -- --tag vX.Y.Z
+   ```
+
+4. Commit all of it as `chore(release): X.Y.Z`, and merge this *version PR* into `dev`. Nothing else
+   merges into `dev` until the promotion has, because whatever does would ship with no line in the
+   changelog.
+5. Promote: the release PR from `dev` into `main`, labelled `release`, merged as a merge commit.
+6. Tag the promotion merge, and push the tag:
+
+   ```bash
+   git fetch origin
+   git tag -a vX.Y.Z origin/main -m "UpHealther X.Y.Z"
+   git push origin vX.Y.Z
+   ```
+
+`RepositoryVersionContractTest` fails the version PR in three cases:
+
+- a version field was not set;
+- the changelog's newest section is not the new version;
+- a release or a commit appears in the changelog twice.
+
+Once the tag is pushed, `git describe --exact-match origin/main` names it. Pushing a tag starts no
+workflow yet.
+
 ## 📁 Project structure
 
 ```
@@ -400,8 +454,9 @@ docs/              The documentation the repository baseline requires
   requirements/      What the system must do, each naming its enforcing test
   architecture/      What the system is, plus seven diagrams (three generated)
   ADRs/              Why — one file per decision, append-only
-scripts/           The image check, the backend audit, and the Maven and Python launchers for every shell
-package.json       npm run setup, npm start, npm test — no dependencies; CI runs its test:* scripts
+scripts/           The image check, the backend audit, the changelog's git-cliff, and the Maven and Python launchers
+package.json       npm run setup, npm start, npm test, npm run changelog — no dependencies; CI runs its test:* scripts
+CHANGELOG.md       Every release, newest first, written by git-cliff as cliff.toml says
 .github/workflows/ CI: backend verify/audit, diagram drift, frontend format/lint/test/audit/build, images
 .github/           dependabot.yml — weekly dependency updates into dev
 ```
@@ -438,7 +493,8 @@ outside contribution.
 
 **Feature-complete and unshipped.** Every capability above works and is covered by tests at every
 level, and `npm test` is green, but it has never run in a hosted environment. One version names both
-modules ([ADR-050](docs/ADRs/ADR-050-one-version-names-the-whole-repository.md)).
+modules ([ADR-050](docs/ADRs/ADR-050-one-version-names-the-whole-repository.md)), and each release
+is a `v<version>` tag on `main`, listed in [`CHANGELOG.md`](CHANGELOG.md).
 
 Known limitations, load-bearing rather than accidental:
 
