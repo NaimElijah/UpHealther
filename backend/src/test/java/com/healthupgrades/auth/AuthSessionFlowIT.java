@@ -126,8 +126,8 @@ class AuthSessionFlowIT extends PostgresIT {
     void GivenATokenNamingOneAccountWithinAnothersSession_WhenItIsPresented_ThenItIsRefused() throws Exception {
         // Minting with the application's own provider stands in for a leaked signing key: the one
         // thing that can produce this pair, since the server never issues it. A session id is no
-        // secret and an account id is in every audit entry, so the key alone must not be enough to
-        // borrow one account's live session as another (#286).
+        // secret and an account id appears in audit entries and log lines (NFR-6), so the key alone
+        // must not be enough to borrow one account's live session as another (#286).
         UUID mine = accountId(register());
         HttpResponse<String> theirs = register();
         UUID theirSession = RefreshToken.parse(credential(theirs)).orElseThrow().sessionId();
