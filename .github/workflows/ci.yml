@@ -104,7 +104,7 @@ jobs:
 
       - name: Upload the backend coverage report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-coverage
           path: backend/target/site/jacoco/
@@ -154,7 +154,7 @@ jobs:
 
       - name: Upload the frontend coverage report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-coverage
           path: frontend/coverage/
