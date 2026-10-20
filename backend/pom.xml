@@ -13,7 +13,7 @@
 
     <groupId>com.healthupgrades</groupId>
     <artifactId>health-upgrades-tracker</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.1.0</version>
     <name>health-upgrades-tracker</name>
     <description>Health Upgrades Tracker Backend</description>
 

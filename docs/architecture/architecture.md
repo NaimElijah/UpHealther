@@ -692,6 +692,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why Dependabot opens weekly grouped updates against `dev`; why its security-update PRs are off; why some updates are ignored; why a `node` or `postgres` bump goes red until a person moves its companion | [ADR-046](../ADRs/ADR-046-dependabot-proposes-weekly-updates-into-dev.md) |
 | Why the backend is audited by OSV-Scanner rather than dependency-check, Trivy or OSS Index; why any finding fails; why test scope is included; why Tomcat and Jackson are overridden; why images are not scanned yet | [ADR-047](../ADRs/ADR-047-the-backend-audits-its-dependencies-with-osv-scanner.md) |
 | Why Dependabot ignores React majors; why `react`, `react-dom` and their types move together, by hand | [ADR-048](../ADRs/ADR-048-dependabot-holds-react-majors-back.md) |
+| Why one version names both modules rather than one each; why a test, not a CI step, holds the four fields together; why `dev` carries the last release's version | [ADR-050](../ADRs/ADR-050-one-version-names-the-whole-repository.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

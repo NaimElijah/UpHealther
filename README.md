@@ -310,7 +310,7 @@ the wrong way.
 | Domain | The `HealthUpgrade` state machine and construction invariants, streaks, reminder scheduling, entry scoring | `./mvnw test` |
 | Application | Every use case in every context, including what a *rejected* operation must not leave behind | `./mvnw test` |
 | Web slice | Each controller against the real security chain: status codes, validation, another user's row as a 404 | `./mvnw test` |
-| Structural | Fourteen ArchUnit rules, plus the frontend enum, column-bound and pinned-image contracts | `./mvnw test` |
+| Structural | Fourteen ArchUnit rules, plus the frontend enum, column-bound, pinned-image and version contracts | `./mvnw test` |
 | Integration | The app booted against a real PostgreSQL that Testcontainers starts — bean graph, migrations, database-enforced invariants | `./mvnw verify` |
 | Frontend | Session restore and silent token renewal, the notification socket, the route and role gates, the administration page, the content security policy, theme, error boundary | `npm test` in `frontend/` |
 
@@ -436,8 +436,8 @@ outside contribution.
 ## 🚦 Status and limitations
 
 **Feature-complete and unshipped.** Every capability above works and is covered by tests at every
-level, and `npm test` is green, but it has never run in a hosted environment, has no release tags, and
-is versioned `0.0.1-SNAPSHOT`.
+level, and `npm test` is green, but it has never run in a hosted environment. One version names both
+modules ([ADR-050](docs/ADRs/ADR-050-one-version-names-the-whole-repository.md)).
 
 Known limitations, load-bearing rather than accidental:
 
