@@ -3,6 +3,7 @@ package com.healthupgrades;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.healthupgrades.support.PostgresIT;
+import com.healthupgrades.support.RepositoryVersion;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -73,6 +74,24 @@ class ActuatorEndpointsIT extends PostgresIT {
 
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(json.readTree(response.body()).path("status").asString()).isEqualTo("UP");
+    }
+
+    /**
+     * The version a running instance was built from, which a deployment, a bug report and a rollback all
+     * need a name for (NFR-55, ADR-050).
+     *
+     * <p>It comes from {@code META-INF/build-info.properties}, which the {@code build-info} goal writes
+     * during Maven's {@code generate-resources} phase. A build that skips Maven, such as an IDE that does
+     * not delegate to it, has no such file, and this fails there for that reason.
+     */
+    @Test
+    void GivenARunningApplication_WhenInfoIsRequested_ThenItNamesTheRepositoryVersion() throws Exception {
+        HttpResponse<String> response = get("/actuator/info");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(response.body()).path("build").path("version").asString())
+                .as("the version /actuator/info reports, against backend/pom.xml's")
+                .isEqualTo(RepositoryVersion.declaredByThePom());
     }
 
     @Test
