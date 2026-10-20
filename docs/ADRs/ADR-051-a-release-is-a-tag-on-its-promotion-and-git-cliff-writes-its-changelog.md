@@ -78,8 +78,11 @@ handled like OSV-Scanner ([ADR-047](ADR-047-the-backend-audits-its-dependencies-
 - **What is left out:**
   - GitHub's merge commits and the 8 early commits are dropped as unconventional;
   - `chore(release)` commits are skipped, because they are the release itself;
-  - git-cliff also drops, by a rule of its own, every commit `.git-blame-ignore-revs` lists and every
-    commit that only edits that file. Those are the formatter runs, which change no behaviour.
+  - git-cliff also drops, by rules of its own, every commit `.git-blame-ignore-revs` lists, which are
+    the formatter runs, and every commit that only edits that file, of whatever type. `d5fda1f`, a
+    `docs` commit, is one. Upstream tracks that second rule as a bug
+    ([orhun/git-cliff#1643](https://github.com/orhun/git-cliff/issues/1643)). It is accepted, because
+    such a commit changes nothing but the list.
 - **A commit type no parser names fails the run** (`fail_on_unmatched_commit`) rather than vanishing.
 - **The section's date** is the day it was generated, in UTC.
 
