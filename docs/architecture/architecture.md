@@ -98,7 +98,8 @@ algorithm, so one minted by another service that happens to share the secret is 
 interceptor both authenticate through it, so the two transports cannot drift apart. It accepts a
 token only while the session its `sid` names is live and belongs to the account its `sub` names, so
 a token pairing one account with another's session — which only a leaked key could mint —
-authenticates nobody. It re-reads the account on every request, so the role it holds and whether it
+authenticates nobody ([ADR-049](../ADRs/ADR-049-a-session-is-live-only-for-the-account-that-owns-it.md)).
+It re-reads the account on every request, so the role it holds and whether it
 is enabled are decided by the row as it stands and never by the token: revoking ADMIN, or switching
 an account off, takes effect on the next request rather than whenever the token happens to lapse.
 The HTTP filter, `JwtAuthenticationFilter`, runs only inside Spring Security's chain: its
