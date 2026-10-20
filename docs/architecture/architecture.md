@@ -95,13 +95,16 @@ is trusted to report one
 identifies it, and it is accepted only under this application's issuer, audience and signing
 algorithm, so one minted by another service that happens to share the secret is refused.
 `BearerTokenAuthenticator` is the single place those rules live — the HTTP filter and the STOMP
-interceptor both authenticate through it, so the two transports cannot drift apart. It re-reads the
-account on every request, so the role it holds and whether it is enabled are decided by the row as
-it stands and never by the token: revoking ADMIN, or switching an account off, takes effect on the
-next request rather than whenever the token happens to lapse. The HTTP filter,
-`JwtAuthenticationFilter`, runs only inside Spring Security's chain: its registration as a servlet
-filter of its own is switched off, because a copy running ahead of the chain would have its
-authentication discarded and leave every request anonymous (#238). Same-origin
+interceptor both authenticate through it, so the two transports cannot drift apart. It accepts a
+token only while the session its `sid` names is live and belongs to the account its `sub` names, so
+a token pairing one account with another's session — which only a leaked key could mint —
+authenticates nobody ([ADR-049](../ADRs/ADR-049-a-session-is-live-only-for-the-account-that-owns-it.md)).
+It re-reads the account on every request, so the role it holds and whether it
+is enabled are decided by the row as it stands and never by the token: revoking ADMIN, or switching
+an account off, takes effect on the next request rather than whenever the token happens to lapse.
+The HTTP filter, `JwtAuthenticationFilter`, runs only inside Spring Security's chain: its
+registration as a servlet filter of its own is switched off, because a copy running ahead of the
+chain would have its authentication discarded and leave every request anonymous (#238). Same-origin
 through the proxy, so no CORS preflight in the default setup; the `CORS_ALLOWED_ORIGINS` policy
 exists only for deployments that split the origins.
 
@@ -250,8 +253,9 @@ Three things worth noticing. The row is read **`FOR UPDATE`**, so two tabs refre
 serialise instead of both rotating from the same starting state. The old digest is kept, which is the
 only reason a replay is distinguishable from a guess — and a credential matching *neither* digest
 revokes nothing, because the session id travels in a token claim and is therefore not a secret.
-And the `sid` claim is checked on every authenticated request, which is what turns a revoked row
-into a refused request rather than a wait for the token to expire.
+And the `sid` claim is checked on every authenticated request, together with the `sub` the row must
+name as its owner, which is what turns a revoked row into a refused request rather than a wait for the
+token to expire.
 
 Every refresh and every sign-out the service is asked for is audited, as `auth.refresh` and
 `auth.logout`, refused ones included (NFR-23). A refusal names the session whenever the row exists, and
