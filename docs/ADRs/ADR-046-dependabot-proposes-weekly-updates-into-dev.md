@@ -2,7 +2,9 @@
 
 - **Status:** Accepted — extended by
   [ADR-047](ADR-047-the-backend-audits-its-dependencies-with-osv-scanner.md), which adds `/scripts`
-  to the `docker-compose` entry for the audit's OSV-Scanner image
+  to the `docker-compose` entry for the audit's OSV-Scanner image; and by
+  [ADR-048](ADR-048-dependabot-holds-react-majors-back.md), which adds React majors to the `npm`
+  entry's ignored updates
 - **Date:** 2026-10-19
 - **Scope:** `.github/dependabot.yml`, and the repository's code-security settings, which live outside
   the tree. NFR-53 in `docs/requirements/requirements.md`.
