@@ -136,7 +136,7 @@ Seven diagrams, outside in: [arch-diagrams](docs/architecture/arch-diagrams/READ
 | Observability | Micrometer Tracing, Logstash encoder | 1.7.1 / 9.0 | W3C `traceparent`, vendor-neutral; JSON logs with the trace id as a field ([ADR-007](docs/ADRs/ADR-007-request-correlation-through-micrometer-tracing.md)) |
 | Frontend | React + TypeScript | 18.3.1 / 5.9.3 | Enums mirrored from the backend, with a test that fails when they drift |
 | Routing | React Router | 6.30.6 | Held on 6 while its open advisories cannot reach the SPA ([ADR-034](docs/ADRs/ADR-034-stay-on-react-router-6-while-its-open-advisories-do-not-reach-the-spa.md)) |
-| Build | Vite, on Node | 8.3.4 / 24.21.0 | The same `/api` and `/ws` proxy in dev as nginx serves in prod ([ADR-031](docs/ADRs/ADR-031-the-frontend-toolchain-runs-on-node-24-lts.md), [ADR-036](docs/ADRs/ADR-036-the-frontend-builds-on-vite-8-and-tests-on-vitest-5.md)) |
+| Build | Vite, on Node | 8.3.4 / 24.22.0 | The same `/api` and `/ws` proxy in dev as nginx serves in prod ([ADR-031](docs/ADRs/ADR-031-the-frontend-toolchain-runs-on-node-24-lts.md), [ADR-036](docs/ADRs/ADR-036-the-frontend-builds-on-vite-8-and-tests-on-vitest-5.md)) |
 | Data fetching | TanStack Query | 5.104.3 | One cache, refreshed by every write rather than refetched by hand ([ADR-029](docs/ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)) |
 | Styling | Tailwind CSS | 3.4.19 | Semantic tokens only — `npm run check:colours` fails on a palette shade |
 | Real-time | STOMP over WebSocket | 7.5.0 | Push authenticates with the same token, through a channel interceptor |
