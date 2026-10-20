@@ -43,8 +43,14 @@ class RepositoryVersionContractTest {
     /** A release's heading, as {@code cliff.toml} writes it: {@code ## [0.1.0] - 2026-10-21}. */
     private static final Pattern SECTION_HEADING = Pattern.compile("^## \\[([^]]+)]", Pattern.MULTILINE);
 
-    /** The short id that ends each commit's line, as {@code cliff.toml} writes it. */
+    /**
+     * The short id that ends each commit's line, as {@code cliff.toml} writes it. A template that writes it
+     * any other way, as a link for instance, needs this pattern changed with it.
+     */
     private static final Pattern COMMIT_ID = Pattern.compile("\\(([0-9a-f]{7})\\)$", Pattern.MULTILINE);
+
+    /** The start of each commit's line: one per commit, whatever the template writes after it. */
+    private static final Pattern ENTRY = Pattern.compile("^- ", Pattern.MULTILINE);
 
     /** Three numbers and nothing after them: a version that names a release, never {@code -SNAPSHOT}. */
     private static final String RELEASE_VERSION = "\\d+\\.\\d+\\.\\d+";
@@ -100,6 +106,9 @@ class RepositoryVersionContractTest {
     /**
      * Catches {@code --prepend} run twice, which repeats a release, and a run without the tags fetched,
      * which writes the whole history again under the new version.
+     *
+     * <p>Every entry must yield an id before the ids can be compared. Otherwise a template that wrote them
+     * differently would leave nothing to compare, and the check would pass on any changelog.
      */
     @Test
     void GivenTheChangelog_WhenItsSectionsAreRead_ThenNoReleaseAndNoCommitIsListedTwice() {
@@ -109,6 +118,13 @@ class RepositoryVersionContractTest {
                 .describedAs("the releases in %s", CHANGELOG)
                 .isNotEmpty()
                 .doesNotHaveDuplicates();
+        assertThat(matches(COMMIT_ID, changelog))
+                .describedAs(
+                        "the commit ids in %s, one per entry; if cliff.toml's template changed how it writes "
+                                + "them, COMMIT_ID has to change with it",
+                        CHANGELOG)
+                .isNotEmpty()
+                .hasSize((int) ENTRY.matcher(changelog).results().count());
         assertThat(matches(COMMIT_ID, changelog))
                 .describedAs(
                         "the commits in %s; one listed twice means a section was generated from the whole "

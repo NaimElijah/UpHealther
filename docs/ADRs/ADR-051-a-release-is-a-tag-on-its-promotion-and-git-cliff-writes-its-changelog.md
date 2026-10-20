@@ -164,4 +164,5 @@ has no tags. The check is `git describe --exact-match origin/main`, after `git f
 - **#154 publishes images when a `v*` tag is pushed:** the tag becomes a trigger, so decide there
   whether a mistaken tag may be deleted and pushed again.
 - **The changelog should link each commit:** add a link to the repository's commit page in
-  `cliff.toml`'s template. It needs no network.
+  `cliff.toml`'s template. It needs no network. `COMMIT_ID` in `RepositoryVersionContractTest` changes
+  with it, and the test fails until it does.
