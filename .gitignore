@@ -18,6 +18,11 @@ frontend/dist/
 # Coverage is reported on every run and read from the CI artifact, never committed.
 frontend/coverage/
 frontend/.vite/
+e2e/node_modules/
+# What a failed browser-suite run leaves: its trace and screenshots, read from the CI artifact.
+e2e/test-results/
+e2e/playwright-report/
+e2e/blob-report/
 # The root package.json has no dependencies, so nothing should install here (ADR-044). Vitest and npx
 # still write a cache here when a frontend command is run from the root by mistake.
 node_modules/

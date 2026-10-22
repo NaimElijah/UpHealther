@@ -1,0 +1,15 @@
+{
+  "name": "uphealther-e2e",
+  "private": true,
+  "description": "A browser-driven smoke suite against the composed stack, run by the root's npm run test:images (ADR-052).",
+  "type": "module",
+  "engines": {
+    "node": "^24.16.0"
+  },
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1"
+  }
+}
