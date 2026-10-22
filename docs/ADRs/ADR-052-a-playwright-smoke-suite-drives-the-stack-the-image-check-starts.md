@@ -69,8 +69,11 @@ It does not use the demo account, which #84 means to remove; each run registers 
 
 `scripts/check-images.mjs` now:
 
-1. resolves Playwright's command-line entry point before any Docker work, and stops with "Run `npm run
-   setup:e2e` first" when `e2e/` is not installed;
+1. before any Docker work, resolves Playwright's command-line entry point and launches and closes the
+   Chromium it drives, and stops pointing at `npm run setup:e2e` when either is missing. The browser
+   lives in Playwright's cache, outside `e2e/`, so a bare `npm ci` there after a Playwright bump leaves
+   the package new and the browser absent. The suite runs Chromium's headless shell, whose path no
+   public API gives, so the check launches it rather than looking for a file;
 2. after its existing clean-up and name check, refuses to start while something answers on an address
    the merged configuration publishes, before minutes of building end in Docker's bind error;
 3. after `up --wait`, runs the suite with `node <cli> test`, so no shell parses anything, as in

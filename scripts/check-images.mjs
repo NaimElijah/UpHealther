@@ -73,15 +73,33 @@ function dockerOutput(args) {
 }
 
 /**
- * The browser suite's command-line entry point, found before any image is built: a clone that has not
- * installed `e2e/` would otherwise learn so only after the build.
+ * The browser suite's command-line entry point, once the Chromium it drives has launched and closed.
+ * Both are checked before any image is built. Otherwise a clone that never ran `npm run setup:e2e`, or
+ * ran a bare `npm ci` in `e2e/` after a Playwright bump that moved the browser, learns so only once
+ * the stack is up. The package being installed is not enough: the browser lives outside it, in
+ * Playwright's cache, and the suite runs the headless shell, whose path no public API gives, so it is
+ * launched rather than looked for.
  */
-function playwrightCli() {
+async function preparedPlaywrightCli() {
+  const fromE2e = createRequire(new URL('../e2e/package.json', import.meta.url));
+  let cli;
+  let chromium;
   try {
-    return createRequire(new URL('../e2e/package.json', import.meta.url)).resolve('@playwright/test/cli');
+    cli = fromE2e.resolve('@playwright/test/cli');
+    ({ chromium } = fromE2e('@playwright/test'));
   } catch (cause) {
     throw new Error('the browser suite in e2e/ is not installed. Run `npm run setup:e2e` first.', { cause });
   }
+  try {
+    const browser = await chromium.launch();
+    await browser.close();
+  } catch (cause) {
+    throw new Error(
+      "Playwright's Chromium did not launch. If it is missing, run `npm run setup:e2e`; the cause follows.",
+      { cause },
+    );
+  }
+  return cli;
 }
 
 /** The configuration compose merges from both files, as the services it would run. */
@@ -192,7 +210,7 @@ function buildStartAndDrive(cli) {
   return started === 0 ? driveWithABrowser(cli) : started;
 }
 
-const cli = playwrightCli();
+const cli = await preparedPlaywrightCli();
 
 // The check relies on `!reset` and `!override` in the override, and CI's runner image changes under
 // it, so every run records which Compose it ran on.
