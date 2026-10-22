@@ -70,6 +70,20 @@ updates:
       - dependency-name: "@types/react-dom"
         update-types: [ version-update:semver-major ]
 
+  # The browser suite's own entry rather than a second directory on the one above: a Playwright release
+  # also moves the Chromium the suite drives, so it arrives in a PR of its own, under its own limit, and
+  # its CI run is the one that shows whether the new browser still passes (ADR-052).
+  - package-ecosystem: npm
+    directory: /e2e
+    target-branch: dev
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    labels: [ ]
+    commit-message:
+      prefix: build
+      include: scope
+
   - package-ecosystem: github-actions
     directory: /
     target-branch: dev

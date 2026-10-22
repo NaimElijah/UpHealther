@@ -18,6 +18,9 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
   `docs/ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md`; the layering
   is enforced by `HexagonalArchitectureTest` (ArchUnit).
 - `frontend/` — the SPA: React 18, Vite 8, TanStack Query, Tailwind.
+- `e2e/` — the Playwright smoke suite: one browser run through the composed stack, which
+  `npm run test:images` starts and CI's images job runs (ADR-052). A package of its own, formatted by
+  the frontend's Prettier and neither linted nor type-checked.
 - `docs/requirements/requirements.md` — what the system must do.
 - `docs/architecture/architecture.md` — the system as it is; `docs/architecture/arch-diagrams/` holds
   its diagrams, three of them generated from the code.
@@ -44,8 +47,9 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
 ## Commands
 
 ### Repository root
-- `npm run setup` — installs the frontend's dependencies (`npm ci` in `frontend/`). Once per clone,
-  and after the lockfile changes.
+- `npm run setup` — `setup:frontend` (`npm ci` in `frontend/`), then `setup:e2e` (`npm ci` in `e2e/`
+  and the Chromium Playwright pins, about 315 MiB). Once per clone, and after either lockfile changes.
+  CI's frontend job runs only the first, and its images job only the second.
 - `npm start` — `docker compose up --build`.
 - `npm run changelog -- --tag vX.Y.Z` — prepends release X.Y.Z's section to `CHANGELOG.md`, through
   git-cliff's image (needs Docker, and the tags fetched). One step of the README's Releasing section;
@@ -54,12 +58,22 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
   `test:frontend`, `test:backend`, then `test:images`. Each also runs alone. Needs Docker, for the
   backend's ITs and the image check.
 - `npm run test:images` — builds both images and starts the stack from them until every service is
-  healthy, as a throwaway compose project with no published ports, then takes it down (ADR-045).
-  It refuses to start while the `healthupgrades-*` containers of your own stack exist, because their
-  names are fixed, so `docker compose down` first. The stack's subnet is fixed too, and is not
+  healthy, as a throwaway compose project, then drives it with the Playwright suite in `e2e/` and
+  takes it down (ADR-045, ADR-052). It publishes only the frontend, on `127.0.0.1:3000`, keeping
+  port 3000 because `http://localhost:3000` is the one origin CORS allows, and refuses to start while
+  something answers there. A dev server bound only to `::1`, as Vite is where `localhost` resolves to
+  IPv6 first, does not collide. It refuses to start while the
+  `healthupgrades-*` containers of your own stack exist, because their names are fixed, so
+  `docker compose down` first. The stack's subnet is fixed too, and is not
   checked first: a network already on it fails the check after the build. Interrupted, it leaves its
   containers holding those names, and the next run clears them first; a plain `docker compose down`
-  does not, because they belong to project `uphealther-images-check`.
+  does not, because they belong to project `uphealther-images-check`. A failed suite leaves its
+  trace in `e2e/test-results/` (`npx playwright show-trace <zip>` in `e2e/`); CI uploads the same as
+  the artifact `e2e-test-results`.
+- `cd e2e && npm test` — the browser suite alone, against whatever answers on `127.0.0.1:3000` (your
+  own `npm start` stack, say). The browser resolves `localhost` to IPv4, so a dev server bound only to
+  `::1` is out of its reach. Each run registers an account there and spends two of the ten sign-in
+  attempts a minute; `docker compose restart backend` resets the limiter.
 - These run identically from PowerShell, Git Bash and a Linux shell, because npm runs them through
   `cmd.exe` or `sh` and their bodies stay `cd dir && tool args`. A command no one string spells in
   both shells goes into `scripts/*.mjs`, as `mvnw.mjs` and `python.mjs` do. `mvnw.cmd` calls
@@ -94,8 +108,8 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
 - `npm run format` — format.
 - What CI runs is the root's `npm run test:frontend`: `npm run format:check`, `npm run lint`,
   `npm run check:colours`, `npm run test:coverage`, `npm audit --omit=dev --audit-level=high`,
-  `npm run build`, in that order. `format` and `format:check` also cover the root `package.json` and
-  `scripts/`.
+  `npm run build`, in that order. `format` and `format:check` also cover the root `package.json`,
+  `scripts/`, and `e2e/`'s `package.json`, `playwright.config.ts` and `tests/`.
 
 ### Full stack
 - `docker compose up --build` — Postgres + backend + frontend. Frontend :3000, backend :8080,

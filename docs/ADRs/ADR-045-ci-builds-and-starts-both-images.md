@@ -2,7 +2,10 @@
 
 - **Status:** Accepted — extended by
   [ADR-047](ADR-047-the-backend-audits-its-dependencies-with-osv-scanner.md), which decides the image
-  scan this record left for #59: not yet, while nothing publishes an image
+  scan this record left for #59: not yet, while nothing publishes an image; and by
+  [ADR-052](ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md), which
+  publishes the frontend on `127.0.0.1:3000` and drives the started stack with a browser before taking
+  it down, in the same job and under the same name
 - **Date:** 2026-10-18
 - **Scope:** `scripts/check-images.mjs`, `scripts/compose.images-check.yml`, the root `package.json`'s
   `test:images`, the `images` job in `.github/workflows/ci.yml`, ruleset 25310599, and

@@ -471,14 +471,19 @@ Integration points a maintainer will need:
   the generated diagrams are checked against their source; the frontend checks its layout
   ([ADR-038](../ADRs/ADR-038-the-frontend-is-formatted-by-prettier.md)), lints, tests, audits its
   shipped dependencies and builds; and both images are built and the stack started from them until
-  every service reports healthy, as its own compose project with no published ports
-  ([ADR-045](../ADRs/ADR-045-ci-builds-and-starts-both-images.md)). The four jobs are required checks:
+  every service reports healthy, as its own compose project
+  ([ADR-045](../ADRs/ADR-045-ci-builds-and-starts-both-images.md)), and then Playwright drives it in
+  Chromium: a new account registers, plans and activates an upgrade, logs a day and reads the
+  dashboard, through the frontend's one port, published on `127.0.0.1:3000` only
+  ([ADR-052](../ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md)).
+  That suite lives in `e2e/`, a package of its own beside the two modules. The four jobs are required checks:
   a repository ruleset with no bypass refuses a merge into `main` or `dev` while any of them is red or
   pending ([ADR-043](../ADRs/ADR-043-ci-is-a-merge-gate.md)).
 - **Dependabot** — reads `.github/dependabot.yml` from `main` and opens its PRs against `dev`, where
   they pass the same four checks as any other. Once a week it groups each ecosystem's minor and patch
   updates into one PR: the backend's Maven dependencies, the frontend's npm dependencies, CI's actions,
-  the Dockerfiles' base images and compose's images. Each major gets a PR of its own. Updates that are a
+  the Dockerfiles' base images and compose's images. The browser suite's Playwright, which moves the
+  Chromium it drives, comes in a PR of its own. Each major gets a PR of its own. Updates that are a
   decision, which ADR-046 and ADR-048 list, are ignored and moved by hand: runtime, toolchain and
   database majors, React's and React Router's majors, and every Prettier release. GitHub also scans
   pushes for secrets and refuses one carrying a credential it recognises. It raises Dependabot alerts for every npm package, but for a Maven
@@ -606,7 +611,9 @@ request body writes to.
 
 **The repository's commands are defined once, in the root `package.json`.** `npm run setup`,
 `npm start` and `npm test` are its entry points, and CI's jobs call its `test:*` scripts rather than
-spelling out their own, so a local run applies the checks CI applies. Only the inputs can differ: CI
+spelling out their own, so a local run applies the checks CI applies. `setup` runs `setup:frontend`
+and `setup:e2e`, and each CI job installs only the half it runs
+([ADR-052](../ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md)). Only the inputs can differ: CI
 installs the dependencies fresh, and sets none of the variables `docker-compose.yml` reads, which a
 root `.env` or the shell may. It has no dependencies of its own. npm runs its scripts
 through `cmd.exe` on Windows and `sh` elsewhere, so each body stays `cd dir && tool args`, and the two
@@ -700,12 +707,13 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the container's error page is let through security by dispatcher type, and how it gets the trace id the request's own dispatch saw | [ADR-024](../ADRs/ADR-024-the-container-error-page-keeps-its-status-and-carries-the-trace-id.md) |
 | Why an unauthenticated request is a 401 with the API's own body rather than the framework's 403 | [ADR-014](../ADRs/ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md) |
 | Why one root `package.json` sets up, starts and tests the repository rather than `make` or `just`; why CI runs its scripts; why two small Node scripts | [ADR-044](../ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md) |
-| Why CI builds both images and starts the stack rather than two bare builds; why the check is its own compose project with no published ports; why no image scan yet | [ADR-045](../ADRs/ADR-045-ci-builds-and-starts-both-images.md) |
+| Why CI builds both images and starts the stack rather than two bare builds; why the check is its own compose project; why no image scan yet | [ADR-045](../ADRs/ADR-045-ci-builds-and-starts-both-images.md) |
 | Why Dependabot opens weekly grouped updates against `dev`; why its security-update PRs are off; why some updates are ignored; why a `node` or `postgres` bump goes red until a person moves its companion | [ADR-046](../ADRs/ADR-046-dependabot-proposes-weekly-updates-into-dev.md) |
 | Why the backend is audited by OSV-Scanner rather than dependency-check, Trivy or OSS Index; why any finding fails; why test scope is included; why Tomcat and Jackson are overridden; why images are not scanned yet | [ADR-047](../ADRs/ADR-047-the-backend-audits-its-dependencies-with-osv-scanner.md) |
 | Why Dependabot ignores React majors; why `react`, `react-dom` and their types move together, by hand | [ADR-048](../ADRs/ADR-048-dependabot-holds-react-majors-back.md) |
 | Why one version names both modules rather than one each; why a test, not a CI step, holds the four fields together; why `dev` carries the last release's version | [ADR-050](../ADRs/ADR-050-one-version-names-the-whole-repository.md) |
 | Why a release is a tag on its promotion merge, cut by hand; why git-cliff runs from an image rather than release-please, a script or an npm dependency; why the changelog is only ever prepended to | [ADR-051](../ADRs/ADR-051-a-release-is-a-tag-on-its-promotion-and-git-cliff-writes-its-changelog.md) |
+| Why a browser drives the composed stack inside the image check, in Playwright's Chromium, rather than in a job of its own or only before a release; why `e2e/` is its own package; why the frontend publishes `127.0.0.1:3000` and the browser runs in UTC | [ADR-052](../ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |
