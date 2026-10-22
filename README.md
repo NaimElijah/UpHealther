@@ -336,7 +336,7 @@ leaves its containers holding those names, and your own `docker compose up` conf
 you run the check again, which clears them first, or `docker compose -p uphealther-images-check down
 --volumes`. It needs a Compose that understands the override's `!reset` and `!override` tags, which
 Docker's documentation dates to Compose 2.24.4; the check has run on Compose 5.6.0 and on the CI
-runner's 2.38.2 ([ADR-045](docs/ADRs/ADR-045-ci-builds-and-starts-both-images.md),
+runner's 5.1.3, and `!reset` alone on its earlier 2.38.2 ([ADR-045](docs/ADRs/ADR-045-ci-builds-and-starts-both-images.md),
 [ADR-052](docs/ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md)).
 
 Inside a module the usual commands still work: `./mvnw test` in `backend/` needs neither a database
