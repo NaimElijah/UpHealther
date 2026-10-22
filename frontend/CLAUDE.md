@@ -14,8 +14,11 @@ area), `components/` (`ui/` primitives, plus `layout/`, `notifications/`, `theme
 `engine-strict` makes npm refuse to install outside `package.json`'s `engines` range
 ([ADR-030](../docs/ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md),
 [ADR-031](../docs/ADRs/ADR-031-the-frontend-toolchain-runs-on-node-24-lts.md)). Moving Node means
-moving `.nvmrc`, `engines` and the `FROM` tag in `Dockerfile` together; `ContainerImagesArePinnedTest`
-fails the backend build if the image and `.nvmrc` name different releases.
+moving `.nvmrc`, `engines` and the `FROM` tag in `Dockerfile` together, and the `engines` copy in
+`../e2e/package.json` with them, since CI installs the browser suite on `.nvmrc`'s release too
+([ADR-052](../docs/ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md)).
+`ContainerImagesArePinnedTest` fails the backend build if the image and `.nvmrc` name different
+releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENGINE when left behind.
 
 - **Tests** are Vitest on jsdom ([ADR-004](../docs/ADRs/ADR-004-frontend-test-harness.md),
   [ADR-036](../docs/ADRs/ADR-036-the-frontend-builds-on-vite-8-and-tests-on-vitest-5.md)), colocated
