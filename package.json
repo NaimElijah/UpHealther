@@ -3,7 +3,9 @@
   "private": true,
   "description": "One command to set up, one to start and one to test the repository, which CI runs too (ADR-044); and one to write a release's changelog (ADR-051).",
   "scripts": {
-    "setup": "cd frontend && npm ci",
+    "setup": "npm run setup:frontend && npm run setup:e2e",
+    "setup:frontend": "cd frontend && npm ci",
+    "setup:e2e": "cd e2e && npm ci && npx playwright install chromium",
     "start": "docker compose up --build",
     "test": "npm run test:diagrams && npm run test:frontend && npm run test:backend && npm run test:images",
     "test:diagrams": "node scripts/python.mjs docs/architecture/arch-diagrams/generate.py --check",

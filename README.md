@@ -142,6 +142,7 @@ Seven diagrams, outside in: [arch-diagrams](docs/architecture/arch-diagrams/READ
 | Real-time | STOMP over WebSocket | 7.5.0 | Push authenticates with the same token, through a channel interceptor |
 | Backend tests | JUnit, ArchUnit, Testcontainers | 6.0.3 / 1.5.1 / 2.0.5 | A real PostgreSQL in the integration suite; architecture rules as ordinary tests ([ADR-008](docs/ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)) |
 | Frontend tests | Vitest, on jsdom | 5.0.5 / 30.1.3 | Colocated with the code they test |
+| Smoke test | Playwright, in Chromium | 1.64.1 | One browser run through the composed stack, inside the image check ([ADR-052](docs/ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md)) |
 | Lint and format | palantir-java-format, ESLint, Prettier | 2.102.0 / 10.13.0 / 3.9.10 | Layout belongs to the formatters; javac's lint and ESLint fail on any warning ([ADR-035](docs/ADRs/ADR-035-the-frontend-lints-with-eslint-10-and-a-flat-config.md), [ADR-037](docs/ADRs/ADR-037-the-backend-is-formatted-by-palantir-java-format-through-spotless.md), [ADR-038](docs/ADRs/ADR-038-the-frontend-is-formatted-by-prettier.md), [ADR-039](docs/ADRs/ADR-039-the-backend-compiles-under-javacs-lint-and-fails-on-a-warning.md)) |
 
 ## 🚀 Quick start
@@ -274,7 +275,7 @@ The two `cd` lines are written for Git Bash or Linux. Windows PowerShell 5.1 has
 are `cd backend; .\mvnw.cmd spring-boot:run` and `cd frontend; npm run dev`.
 
 ```bash
-npm run setup                               # once, and after the lockfile changes
+npm run setup                               # once, and after a lockfile changes: frontend/, e2e/ and its Chromium
 docker compose up -d postgres               # or bring your own PostgreSQL
 
 cd backend  && ./mvnw spring-boot:run        # terminal 1 — :8080, migrates on start
@@ -313,26 +314,33 @@ the wrong way.
 | Structural | Fourteen ArchUnit rules, plus the frontend enum, column-bound, pinned-image and version contracts | `./mvnw test` |
 | Integration | The app booted against a real PostgreSQL that Testcontainers starts — bean graph, migrations, database-enforced invariants | `./mvnw verify` |
 | Frontend | Session restore and silent token renewal, the notification socket, the route and role gates, the administration page, the content security policy, theme, error boundary | `npm test` in `frontend/` |
+| Smoke | A browser drives both modules together: a new account registers, plans and activates an upgrade, hears of it over the socket, logs a day and reads the dashboard, under nginx's CSP | `npm run test:images` |
 
 ```bash
 npm test                # the whole CI gate, the four parts below in turn — needs Docker
 npm run test:diagrams   # the generated diagrams still match their source
 npm run test:frontend   # format check, lint, colour tokens, tests with coverage, audit, build
 npm run test:backend    # ./mvnw clean verify (lint, unit and integration tests, format check), then audit
-npm run test:images     # both images build, and the stack they make starts healthy
+npm run test:images     # both images build, the stack they make starts healthy, and a browser drives it
 ```
 
-`test:images` runs as a throwaway compose project with no published ports, and takes it down again,
-so your data volume is never touched. It does reuse the stack's fixed container names, so it refuses
+`test:images` runs as a throwaway compose project, and takes it down again, so your data volume is
+never touched. It publishes one port, the frontend's on `127.0.0.1:3000`, for the browser suite in
+`e2e/`, and refuses to start while something already answers there; on a machine where `localhost` is
+`::1`, a running `npm run dev` listens only there and does not collide. Each run registers an account
+in the throwaway database and spends two of the ten sign-in attempts a minute. It does reuse the stack's fixed container names, so it refuses
 to start while your own stack's containers exist: `docker compose down` first. Interrupted, it
 leaves its containers holding those names, and your own `docker compose up` conflicts with them until
 you run the check again, which clears them first, or `docker compose -p uphealther-images-check down
---volumes`. It needs a Compose that understands the override's `!reset` tag. Docker's documentation
-names no minimum version; the check has run on Compose 5.6.0 and on the CI runner's 2.38.2
-([ADR-045](docs/ADRs/ADR-045-ci-builds-and-starts-both-images.md)).
+--volumes`. It needs a Compose that understands the override's `!reset` and `!override` tags, which
+Docker's documentation dates to Compose 2.24.4; the check has run on Compose 5.6.0 and on the CI
+runner's 2.38.2 ([ADR-045](docs/ADRs/ADR-045-ci-builds-and-starts-both-images.md),
+[ADR-052](docs/ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md)).
 
 Inside a module the usual commands still work: `./mvnw test` in `backend/` needs neither a database
-nor Docker, and `npm test` in `frontend/` runs Vitest once.
+nor Docker, and `npm test` in `frontend/` runs Vitest once. `npm test` in `e2e/` runs the browser suite
+against whatever serves `http://localhost:3000`, such as your own `npm start` stack, and leaves an
+account in it each time.
 
 **What CI gates on** ([`ci.yml`](.github/workflows/ci.yml), on every push and PR to `main` and
 `dev`): the same four `test:*` scripts, one job each, so `npm test` applies the same checks. Only
@@ -346,7 +354,7 @@ on the backend's whole dependency tree, failing on any known vulnerability
 generated diagrams still matching their source; the frontend format check; frontend lint at
 `--max-warnings 0`; the colour-token check; `vitest run --coverage`; `npm audit --omit=dev
 --audit-level=high`; the production build; and both images built, with the stack started from them
-until every service reports healthy. A PR into `main` or `dev` cannot merge while any of the four
+until every service reports healthy and then driven by the browser suite. A PR into `main` or `dev` cannot merge while any of the four
 jobs is red or still running, whoever merges it
 ([ADR-043](docs/ADRs/ADR-043-ci-is-a-merge-gate.md)).
 
@@ -450,6 +458,7 @@ backend/           Spring Boot API — ten bounded contexts, hexagonal, ArchUnit
 frontend/          React + TypeScript SPA, served by nginx in production
   src/api/           Typed client per resource, the axios instance, error mapping
   src/pages/         One page per route; components/, contexts/, hooks/ alongside
+e2e/               Playwright smoke suite: a browser through the composed stack, run by the image check
 docs/              The documentation the repository baseline requires
   requirements/      What the system must do, each naming its enforcing test
   architecture/      What the system is, plus seven diagrams (three generated)
@@ -457,7 +466,7 @@ docs/              The documentation the repository baseline requires
 scripts/           The image check, the backend audit, the changelog's git-cliff, and the Maven and Python launchers
 package.json       npm run setup, npm start, npm test, npm run changelog — no dependencies; CI runs its test:* scripts
 CHANGELOG.md       Every release, newest first, written by git-cliff as cliff.toml says
-.github/workflows/ CI: backend verify/audit, diagram drift, frontend format/lint/test/audit/build, images
+.github/workflows/ CI: backend verify/audit, diagram drift, frontend format/lint/test/audit/build, images and the smoke test
 .github/           dependabot.yml — weekly dependency updates into dev
 ```
 

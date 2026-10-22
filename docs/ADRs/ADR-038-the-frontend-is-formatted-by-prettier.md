@@ -1,7 +1,9 @@
 # ADR-038: The frontend is formatted by Prettier
 
 - **Status:** Accepted — its scope extended to the root `package.json` and `scripts/` by
-  [ADR-044](ADR-044-one-root-package-json-runs-setup-start-and-test.md), with the same configuration
+  [ADR-044](ADR-044-one-root-package-json-runs-setup-start-and-test.md), with the same configuration;
+  and to `e2e/`'s `package.json`, configuration and tests by
+  [ADR-052](ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md)
 - **Date:** 2026-10-15
 - **Scope:** every file in `frontend/` that Prettier can parse, except those `frontend/.prettierignore`
   names; `frontend/prettier.config.js`; the `format` and `format:check` scripts; the frontend job in

@@ -142,8 +142,10 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
+      # Only the frontend's half of `npm run setup`: the browser suite and its Chromium are the images
+      # job's, below.
       - name: Install dependencies
-        run: npm run setup
+        run: npm run setup:frontend
 
       # One step, because it is the same list `npm test` runs locally. ADR-044 says why each check is in
       # it, and in that order. npm prints a `> ` banner before each script it runs, so the last one above
@@ -176,8 +178,23 @@ jobs:
         with:
           node-version-file: frontend/.nvmrc
 
+      # A step of its own, so the run shows what the browser suite adds to the job's time (ADR-052).
+      - name: Install the browser suite and Chromium
+        run: npm run setup:e2e
+
       # Builds both images from their Dockerfiles, starts the stack, and waits until every service is
       # healthy: the backend ready once Flyway has migrated an empty database, nginx serving with
-      # nginx.conf loaded. On failure the stack's logs are printed, and it is always taken down.
-      - name: Build both images and start the stack from them
+      # nginx.conf loaded. Then the browser suite in e2e/ drives a new account through it. On failure the
+      # stack's logs are printed, and it is always taken down. The job keeps its name, a required check,
+      # although it now drives a browser too (ADR-052).
+      - name: Build both images, start the stack, and drive it with a browser
         run: npm run test:images
+
+      # The trace and screenshot of a failed step: what the page showed, and every request it made.
+      - name: Upload the browser suite's failure trace
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-test-results
+          path: e2e/test-results/
+          retention-days: 14
