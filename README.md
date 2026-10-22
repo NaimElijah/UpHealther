@@ -325,11 +325,13 @@ npm run test:images     # both images build, the stack they make starts healthy,
 ```
 
 `test:images` runs as a throwaway compose project, and takes it down again, so your data volume is
-never touched. It publishes one port, the frontend's on `127.0.0.1:3000`, for the browser suite in
-`e2e/`, and refuses to start while something already answers there; on a machine where `localhost` is
-`::1`, a running `npm run dev` listens only there and does not collide. Each run registers an account
-in the throwaway database and spends two of the ten sign-in attempts a minute. It does reuse the stack's fixed container names, so it refuses
-to start while your own stack's containers exist: `docker compose down` first. Interrupted, it
+never touched. It publishes one port for the browser suite in `e2e/`: the frontend's, on
+`127.0.0.1:3000`, keeping 3000 because `http://localhost:3000` is the only origin the stack accepts. It
+refuses to start while something already answers there; on a machine where `localhost` is `::1`, a
+running `npm run dev` listens only there and does not collide. Each run registers an account in the
+throwaway database and spends two of the ten sign-in attempts a minute. It does reuse the stack's
+fixed container names, so it refuses to start while your own stack's containers exist:
+`docker compose down` first. Interrupted, it
 leaves its containers holding those names, and your own `docker compose up` conflicts with them until
 you run the check again, which clears them first, or `docker compose -p uphealther-images-check down
 --volumes`. It needs a Compose that understands the override's `!reset` and `!override` tags, which
@@ -339,8 +341,9 @@ runner's 2.38.2 ([ADR-045](docs/ADRs/ADR-045-ci-builds-and-starts-both-images.md
 
 Inside a module the usual commands still work: `./mvnw test` in `backend/` needs neither a database
 nor Docker, and `npm test` in `frontend/` runs Vitest once. `npm test` in `e2e/` runs the browser suite
-against whatever serves `http://localhost:3000`, such as your own `npm start` stack, and leaves an
-account in it each time.
+against whatever answers on `127.0.0.1:3000`, such as your own `npm start` stack, and leaves an
+account in it each time. The browser resolves `localhost` to IPv4, so a dev server bound only to
+`::1` is out of its reach.
 
 **What CI gates on** ([`ci.yml`](.github/workflows/ci.yml), on every push and PR to `main` and
 `dev`): the same four `test:*` scripts, one job each, so `npm test` applies the same checks. Only

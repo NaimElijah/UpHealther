@@ -59,9 +59,10 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
   backend's ITs and the image check.
 - `npm run test:images` — builds both images and starts the stack from them until every service is
   healthy, as a throwaway compose project, then drives it with the Playwright suite in `e2e/` and
-  takes it down (ADR-045, ADR-052). It publishes only the frontend, on `127.0.0.1:3000`, the one
-  origin CORS allows, and refuses to start while something answers there; Vite's dev server on this
-  machine listens on `::1` only and does not collide. It refuses to start while the
+  takes it down (ADR-045, ADR-052). It publishes only the frontend, on `127.0.0.1:3000`, keeping
+  port 3000 because `http://localhost:3000` is the one origin CORS allows, and refuses to start while
+  something answers there. A dev server bound only to `::1`, as Vite is where `localhost` resolves to
+  IPv6 first, does not collide. It refuses to start while the
   `healthupgrades-*` containers of your own stack exist, because their names are fixed, so
   `docker compose down` first. The stack's subnet is fixed too, and is not
   checked first: a network already on it fails the check after the build. Interrupted, it leaves its
@@ -69,9 +70,10 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
   does not, because they belong to project `uphealther-images-check`. A failed suite leaves its
   trace in `e2e/test-results/` (`npx playwright show-trace <zip>` in `e2e/`); CI uploads the same as
   the artifact `e2e-test-results`.
-- `cd e2e && npm test` — the browser suite alone, against whatever serves `http://localhost:3000`
-  (your own `npm start` stack, say). Each run registers an account there and spends two of the ten
-  sign-in attempts a minute; `docker compose restart backend` resets the limiter.
+- `cd e2e && npm test` — the browser suite alone, against whatever answers on `127.0.0.1:3000` (your
+  own `npm start` stack, say). The browser resolves `localhost` to IPv4, so a dev server bound only to
+  `::1` is out of its reach. Each run registers an account there and spends two of the ten sign-in
+  attempts a minute; `docker compose restart backend` resets the limiter.
 - These run identically from PowerShell, Git Bash and a Linux shell, because npm runs them through
   `cmd.exe` or `sh` and their bodies stay `cd dir && tool args`. A command no one string spells in
   both shells goes into `scripts/*.mjs`, as `mvnw.mjs` and `python.mjs` do. `mvnw.cmd` calls
