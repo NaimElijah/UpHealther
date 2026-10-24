@@ -53,6 +53,12 @@ which a session outlived its end.
      the interceptor attached.
    - It forgets the socket on `SessionDisconnectEvent`, which fires however the socket ends, a dropped
      connection included.
+   - It asks `SessionStatusPort` once more as it records a socket, and closes the socket at once if the
+     session has ended. The connect event comes after the CONNECT's own session check, and a session that
+     ended between the two would otherwise slip past both: the sweep ran before the socket was
+     recorded. Recording first and checking second leaves no gap, because either the sweep runs after
+     the record and finds the socket, or the end committed before the check and the check sees it. A
+     check that fails closes the socket too, since its client can reconnect and be authenticated afresh.
 3. **`auth` announces the end, after the commit.**
    - `AuthSessionService` publishes `AuthSessionEnded` when it ends one session: a sign-out, or a
      replayed credential.
@@ -90,9 +96,8 @@ devices stay connected.
   (requirements §5.3). A session ended on one instance could not close a socket held by another, so
   running two instances now needs a way to reach every instance's sockets, as well as the broker relay
   it already needed.
-- **A short race is left open.** A CONNECT can pass its session check just before a revocation commits
-  and be recorded after the registry's sweep. That socket stays open until it next reconnects. The
-  window is milliseconds, the same one an HTTP request already in flight has.
+- **One more session read per CONNECT.** It is the read the CONNECT itself just made, and sockets
+  connect rarely: once per tab, and again after each drop.
 - **A session's natural expiry closes nothing.** A session that idles out (7 days) or reaches its
   30-day cap ends by the passage of time, and nothing marks that moment. A socket that stayed quietly
   open past it keeps receiving until it reconnects. Filed as

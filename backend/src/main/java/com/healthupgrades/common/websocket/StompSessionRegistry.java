@@ -3,6 +3,7 @@ package com.healthupgrades.common.websocket;
 import static net.logstash.logback.argument.StructuredArguments.keyValue;
 
 import com.healthupgrades.common.domain.port.out.LiveSocketPort;
+import com.healthupgrades.common.domain.port.out.SessionStatusPort;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -28,7 +29,9 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
  * <p>Follows Spring's own lifecycle events rather than the inbound frames: {@link SessionConnectedEvent}
  * carries the {@link StompPrincipal} {@code JwtChannelInterceptor} attached at CONNECT, and
  * {@link SessionDisconnectEvent} fires however a socket ends, a dropped connection included, which no
- * frame announces.
+ * frame announces. Because the connect event comes after the CONNECT frame's own session check, a session
+ * that ends between the two would slip past both; so a socket's session is checked once more as it is
+ * recorded.
  *
  * <p>A socket is closed by sending it a STOMP ERROR frame through the client outbound channel. Spring
  * closes the WebSocket after sending any ERROR frame ({@code StompSubProtocolHandler.sendToClient}), so
@@ -51,20 +54,26 @@ public class StompSessionRegistry implements LiveSocketPort {
     private static final byte[] EMPTY_PAYLOAD = new byte[0];
 
     private final MessageChannel clientOutboundChannel; // the channel Spring writes client frames from
+    private final SessionStatusPort sessionStatus; // inverted; the auth context answers it
     private final Map<String, StompPrincipal> openSockets = new ConcurrentHashMap<>(); // by socket id
 
     /**
      * @param clientOutboundChannel the broker configuration's channel to clients; named, because the
      *                              inbound and broker channels are message channels too
+     * @param sessionStatus         asked once more as each socket is recorded, whether its session is
+     *                              still live
      */
-    public StompSessionRegistry(@Qualifier("clientOutboundChannel") MessageChannel clientOutboundChannel) {
+    public StompSessionRegistry(
+            @Qualifier("clientOutboundChannel") MessageChannel clientOutboundChannel, SessionStatusPort sessionStatus) {
         this.clientOutboundChannel = clientOutboundChannel;
+        this.sessionStatus = sessionStatus;
     }
 
     /**
-     * Starts tracking a socket once its CONNECT has been accepted.
+     * Starts tracking a socket once its CONNECT has been accepted, and closes it at once if its session
+     * has ended in the meantime.
      *
-     * @param event Spring's notice that a CONNECTED frame went to the client
+     * @param event Spring's notice that a CONNECTED frame is about to go to the client
      */
     @EventListener
     public void onConnected(SessionConnectedEvent event) {
@@ -72,8 +81,16 @@ public class StompSessionRegistry implements LiveSocketPort {
                 SimpMessageHeaderAccessor.getSessionId(event.getMessage().getHeaders());
         // Every CONNECT that reaches CONNECTED was authenticated, so the principal is always one of ours;
         // anything else names no session and no account, and could never be matched to either.
-        if (socket != null && event.getUser() instanceof StompPrincipal principal) {
-            openSockets.put(socket, principal);
+        if (socket == null || !(event.getUser() instanceof StompPrincipal principal)) {
+            return;
+        }
+        openSockets.put(socket, principal);
+        // The session was checked at CONNECT, but it can end before this point, and a sweep that ran in
+        // between could not see this socket. So it is asked again, after the put and never before it:
+        // either the sweep runs after the put and finds the socket, or the end committed before this
+        // check and the check sees it. Without this the socket would stay open until it reconnected.
+        if (!stillLive(principal)) {
+            close(socket);
         }
     }
 
@@ -98,6 +115,23 @@ public class StompSessionRegistry implements LiveSocketPort {
     public void closeForUser(UUID userId) {
         String name = userId.toString();
         closeWhere(principal -> principal.name().equals(name));
+    }
+
+    /**
+     * Whether the session that opened a socket is still live, failing closed: a socket whose session
+     * cannot be confirmed is ended, and its client reconnects and is authenticated afresh. The fault is
+     * handled here because Spring swallows a listener's exception, which would leave the socket open.
+     */
+    private boolean stillLive(StompPrincipal principal) {
+        try {
+            return sessionStatus.isActive(principal.sessionId(), UUID.fromString(principal.name()));
+        } catch (RuntimeException unconfirmed) {
+            log.warn(
+                    "{} {}",
+                    keyValue("event", "websocket.session-check-failed"),
+                    keyValue("exception", unconfirmed.getClass().getName()));
+            return false;
+        }
     }
 
     private void closeWhere(Predicate<StompPrincipal> ended) {

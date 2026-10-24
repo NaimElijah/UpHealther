@@ -133,7 +133,10 @@ A connected socket sends nothing the interceptor could check again, so the serve
 when its session ends ([ADR-054](../ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md)).
 The principal the CONNECT attaches also keeps the session its token was issued within, and
 `StompSessionRegistry` in `common.websocket` follows Spring's connect and disconnect events to know
-which socket belongs to which session and account. When `auth` ends one session — a sign-out, or a
+which socket belongs to which session and account. It asks `SessionStatusPort` once more as it records
+a socket, because a session can end after the CONNECT's own check and before the socket is recorded,
+which no sweep could see; a socket whose session has ended, or cannot be confirmed, is closed at once.
+When `auth` ends one session — a sign-out, or a
 replayed refresh credential — it publishes `AuthSessionEnded`; when it ends all of an account's, as
 switching the account off does, it publishes `UserSessionsEnded`. `SessionEndSocketListener` takes
 both after the commit and calls `LiveSocketPort`, which the registry implements: inverted, like

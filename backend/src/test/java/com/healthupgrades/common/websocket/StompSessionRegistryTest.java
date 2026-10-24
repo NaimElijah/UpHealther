@@ -3,9 +3,12 @@ package com.healthupgrades.common.websocket;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 
+import com.healthupgrades.common.domain.port.out.SessionStatusPort;
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.messaging.Message;
@@ -37,7 +40,12 @@ class StompSessionRegistryTest {
     private final List<Message<?>> sent = new ArrayList<>();
     private final MessageChannel channel = (message, timeout) -> sent.add(message);
 
-    private final StompSessionRegistry registry = new StompSessionRegistry(channel);
+    /** Sessions that have ended; every other session is live, as the auth context would answer. */
+    private final Set<UUID> ended = new HashSet<>();
+
+    private final SessionStatusPort sessionStatus = (sessionId, userId) -> !ended.contains(sessionId);
+
+    private final StompSessionRegistry registry = new StompSessionRegistry(channel, sessionStatus);
 
     @Test
     void GivenTwoSocketsOfOneSessionAndOneOfAnother_WhenThatSessionEnds_ThenOnlyItsSocketsAreClosed() {
@@ -97,7 +105,7 @@ class StompSessionRegistryTest {
             }
             return sent.add(message);
         };
-        StompSessionRegistry flaky = new StompSessionRegistry(refusingTheFirst);
+        StompSessionRegistry flaky = new StompSessionRegistry(refusingTheFirst, sessionStatus);
         UUID session = UUID.randomUUID();
         connect(flaky, "tab-1", ALICE, session);
         connect(flaky, "tab-2", ALICE, session);
@@ -106,6 +114,39 @@ class StompSessionRegistryTest {
 
         assertThat(attempted).containsExactlyInAnyOrder("tab-1", "tab-2");
         assertThat(closedSockets()).hasSize(1);
+    }
+
+    @Test
+    void GivenASessionThatEndedWhileItsSocketWasConnecting_WhenTheSocketConnects_ThenItIsClosedAtOnce() {
+        // The CONNECT passed its session check, then the session ended and the sweep ran before this
+        // socket was recorded, so the sweep could not see it. Asking again once it is recorded closes it.
+        UUID session = UUID.randomUUID();
+        ended.add(session);
+
+        connect("tab", ALICE, session);
+
+        assertThat(closedSockets()).containsExactly("tab");
+    }
+
+    @Test
+    void GivenTheSessionCannotBeChecked_WhenASocketConnects_ThenItIsClosed() {
+        // Fails closed: a socket whose session cannot be confirmed is ended, and its client reconnects
+        // and is authenticated afresh. Spring would swallow the exception and leave the socket open.
+        SessionStatusPort unreachable = (sessionId, userId) -> {
+            throw new IllegalStateException("the session store is unreachable");
+        };
+        StompSessionRegistry blind = new StompSessionRegistry(channel, unreachable);
+
+        assertThatNoException().isThrownBy(() -> connect(blind, "tab", ALICE, UUID.randomUUID()));
+
+        assertThat(closedSockets()).containsExactly("tab");
+    }
+
+    @Test
+    void GivenALiveSession_WhenItsSocketConnects_ThenItIsLeftOpen() {
+        connect("tab", ALICE, UUID.randomUUID());
+
+        assertThat(sent).isEmpty();
     }
 
     @Test
