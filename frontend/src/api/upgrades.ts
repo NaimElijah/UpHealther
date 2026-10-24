@@ -1,5 +1,12 @@
 import client from './client';
-import type { ActionTarget, HealthUpgrade, CreateUpgradeRequest, UpgradeStatus } from '../types';
+import type {
+  ActionTarget,
+  HealthUpgrade,
+  CreateUpgradeRequest,
+  PlanRequest,
+  RescheduleRequest,
+  UpgradeStatus,
+} from '../types';
 
 /** Lists the caller's upgrades, optionally narrowed to one status. */
 export const getUpgrades = async (status?: UpgradeStatus): Promise<HealthUpgrade[]> => {
@@ -56,7 +63,9 @@ export const performUpgradeAction = async (id: string, status: ActionTarget): Pr
  * @throws the API's 422 when the upgrade is no longer an idea, and 404 when it is not the caller's
  */
 export const planUpgrade = async (id: string, plannedStartDate: string): Promise<HealthUpgrade> => {
-  const { data } = await client.post<HealthUpgrade>(`/api/upgrades/${id}/plan`, { plannedStartDate });
+  const { data } = await client.post<HealthUpgrade>(`/api/upgrades/${id}/plan`, {
+    plannedStartDate,
+  } satisfies PlanRequest);
   return data;
 };
 
@@ -65,7 +74,9 @@ export const planUpgrade = async (id: string, plannedStartDate: string): Promise
  * to `PLANNED`.
  */
 export const rescheduleUpgrade = async (id: string, newDate: string): Promise<HealthUpgrade> => {
-  const { data } = await client.post<HealthUpgrade>(`/api/upgrades/${id}/reschedule`, { newDate });
+  const { data } = await client.post<HealthUpgrade>(`/api/upgrades/${id}/reschedule`, {
+    newDate,
+  } satisfies RescheduleRequest);
   return data;
 };
 

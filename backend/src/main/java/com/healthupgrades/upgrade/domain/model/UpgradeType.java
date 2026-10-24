@@ -8,8 +8,8 @@ package com.healthupgrades.upgrade.domain.model;
  *
  * <p>The first eight values are the kinds the README defines as the product. They and the frontend's
  * {@code UpgradeType} union must stay identical: the value is bound straight from the request body, so
- * a name the frontend offers and this enum lacks fails to deserialize. {@code FrontendEnumContractTest}
- * fails the build when the two drift apart.
+ * a name the frontend offers and this enum lacks fails to deserialize. The union is generated from this
+ * enum, and {@code FrontendWireTypesContractTest} fails the build when the generated file is behind it.
  */
 public enum UpgradeType {
 

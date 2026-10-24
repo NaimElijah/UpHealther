@@ -75,7 +75,7 @@ no aggregate at all, orchestrating over `user` and `auth`.
 | `src/router/` | The route table, and `ProtectedRoute`, which gates every authenticated page |
 | `src/pages/` | One component per route |
 | `src/components/` | `ui/` primitives — including `PageContainer`, which decides how wide a page may grow — `upgrade/` cards, badges, the fields that describe an upgrade and the actions an upgrade's page offers on it, `notifications/` bell, dropdown, items and toasts, `layout/` navbar, sidebar and the phone menu, the last two rendering one shared list of links |
-| `src/types/` | Hand-written mirrors of the backend's response shapes and enums |
+| `src/types/` | `api.generated.ts`, the request and response shapes and enums rendered from the backend's records, and `index.ts`, which gives them the frontend's names (see "The frontend's wire types are generated from the backend's records") |
 | `src/lib/` | Helpers shared by several pages. `localDate.ts` turns the API's zone-less `YYYY-MM-DD` dates into the user's own day and back, because JavaScript's shortcuts for both go through UTC; `queryClient.ts` builds the one server-state cache and its thirty-second staleness window; `upgradeViews.ts` marks every cached view of upgrades out of date after a write that changed one ([ADR-029](../ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)) |
 
 ---
@@ -595,11 +595,25 @@ queries treat an `aria-hidden` ancestor as non-existent, so using it would leave
 test that opens a dialog unable to query the page it is standing on. See
 [ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md).
 
-**The frontend's types are hand-written, not generated.** `src/types/index.ts` mirrors the backend's
-DTOs and enums by hand. The **enums** are checked: `FrontendEnumContractTest` reads that file and fails
-the build if any mirrored union stops matching its backend enum, which is what stops an unbindable
-value reaching the UI. The **DTO shapes** are not checked — a renamed or retyped field still drifts
-silently, and only a type generated from the API contract would close that gap.
+**The frontend's wire types are generated from the backend's records.**
+`frontend/src/types/api.generated.ts` is written by a backend test, not by hand.
+`FrontendWireTypes`, in the backend's test sources, finds every `@RestController` on the classpath,
+then takes each handler's `@RequestBody` and return type. It renders every record they reach as an
+`interface` and every enum as a union of its names. A component marked with JSpecify's `@Nullable`
+admits `null`. A response declares every key, because Jackson writes nulls. A request may leave out
+only the keys that admit null.
+
+`FrontendWireTypesContractTest` fails `./mvnw test` when the committed file differs from that
+render, and `npm run generate:wire-types` rewrites the file. `src/types/index.ts` gives the generated
+types the frontend's names (`HealthUpgrade` for `UpgradeDto`, and so on), and adds by intersection
+only what the API does not send. The same test fails if that file declares an interface or an enum
+union of its own. So a wire change reaches the frontend as a `tsc` error at each use rather than as
+a runtime surprise.
+
+Calls are not covered: each `src/api/*.ts` function still pairs its method and path with its types
+by hand (#328). The STOMP payload is covered only because it is `NotificationDto`, the REST
+inbox's own type
+([ADR-053](../ADRs/ADR-053-the-frontends-wire-types-are-generated-from-the-apis-records.md)).
 
 **Request DTO bounds are hand-copied from the migrations, and checked the same way.** Every
 `@Size(max = ...)` that mirrors a `VARCHAR(n)` exists because an unbounded field reaches the flush and

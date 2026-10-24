@@ -20,6 +20,7 @@ const streakToast: ToastData = {
   category: 'SUCCESS',
   title: '🔥 7-day streak!',
   message: 'Drink more water',
+  relatedUpgradeId: null,
 };
 
 /** A page holding both, the way a toast and a dialog meet in the app: a dialog open, a toast arriving. */

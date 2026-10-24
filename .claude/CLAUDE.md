@@ -135,7 +135,11 @@ re-triggering the other open PRs with a push or a close and reopen.
 - A formatter version bump is a `style(backend)` or `style(frontend)` commit of its own, and its SHA
   goes into `.git-blame-ignore-revs`.
 - The status enum is `IDEA` (not `DRAFT`); keep backend enum, frontend type, and any seed data in sync
-  when touching it. `FrontendEnumContractTest` fails the build when the enum and the type drift; nothing
-  checks the seed data.
+  when touching it. The frontend type is generated from the enum, and `FrontendWireTypesContractTest`
+  fails the build until `npm run generate:wire-types` has been run; nothing checks the seed data.
+- The frontend's request and response types are generated from the backend's records, never written by
+  hand (NFR-10, ADR-053). A wire record's component that can be null carries JSpecify's `@Nullable`;
+  a request component is either `@Nullable` or carries a not-null constraint; no Jackson annotation
+  shapes a wire record. The generator fails the build on any of these, or on a type it cannot map.
 - Branches are `type/short-kebab-description`, cut from `dev` and merged back by PR; `dev` → `main` is
   the release PR. Commits are Conventional Commits, one logical change each.

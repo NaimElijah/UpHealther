@@ -84,7 +84,7 @@ const UpgradeFormFields: React.FC<Props> = ({ value, onChange, areas, titleError
       />
       <Select
         label="Difficulty"
-        value={value.difficulty}
+        value={value.difficulty ?? ''}
         options={difficultyOptions}
         onChange={(e) => set({ difficulty: e.target.value as Difficulty })}
       />

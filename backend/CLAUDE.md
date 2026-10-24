@@ -129,6 +129,15 @@ read/composition model with no domain or outbound side. All three are deliberate
   an HTTP request record or a DTO — the ArchUnit rule will fail the build, which is the point: a
   wire-format change must not reach a use-case signature.
 
+- **A request or response record is also the frontend's type.** `FrontendWireTypesContractTest`
+  renders every record a controller accepts or returns into `frontend/src/types/api.generated.ts`
+  and fails until `npm run generate:wire-types` has been run and its output committed (ADR-053).
+  Mark a component that can be null on the wire with JSpecify's `@Nullable`, judged from its mapper,
+  its entity and its column. An unmarked one is typed non-null, and nothing at runtime checks that
+  claim. A request component is either `@Nullable` or carries `@NotNull`, `@NotBlank` or
+  `@NotEmpty`. Shape the JSON with the record, not with Jackson annotations: the generator models
+  none, and fails on one.
+
 - **Cross-context reads go through the other context's inbound port**, never its service class — e.g.
   `TrackingService` calls `upgradeQuery.getOwnedUpgrade(userId, id)` to confirm ownership first.
 

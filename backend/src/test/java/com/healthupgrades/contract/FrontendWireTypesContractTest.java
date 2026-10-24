@@ -12,10 +12,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
@@ -43,6 +46,9 @@ import org.springframework.web.bind.annotation.RequestBody;
  *
  * <p>Run with {@code -Dwire-types.write=true}, which {@code npm run generate:wire-types} passes, it
  * writes the file instead of only comparing it.
+ *
+ * <p>{@code frontend/src/types/index.ts} gives the generated types the names the frontend uses. It is
+ * checked too, because a shape written there by hand would be exactly the drift this class ends.
  */
 class FrontendWireTypesContractTest {
 
@@ -53,6 +59,16 @@ class FrontendWireTypesContractTest {
     private static final String WRITE_PROPERTY = "wire-types.write";
 
     private static final String REGENERATE = "npm run generate:wire-types";
+
+    /** The frontend's shared types, which name the generated ones, relative to the repository root. */
+    private static final Path SHARED = Paths.get("frontend", "src", "types", "index.ts");
+
+    /** A union of screaming-caps string literals: how a backend enum is spelled when it is copied. */
+    private static final Pattern COPIED_ENUM =
+            Pattern.compile("export type (\\w+)\\s*=\\s*(?:\\s*\\|?\\s*'[A-Z_]+')+\\s*;", Pattern.DOTALL);
+
+    /** An interface declaration: how a response or request shape is spelled when it is copied. */
+    private static final Pattern COPIED_SHAPE = Pattern.compile("^\\s*export interface (\\w+)", Pattern.MULTILINE);
 
     @Test
     void GivenTheApisControllers_WhenTheirBodiesAreRendered_ThenTheCommittedFrontendFileIsTheResult()
@@ -83,6 +99,26 @@ class FrontendWireTypesContractTest {
                                 + " every place the change reaches",
                         GENERATED, REGENERATE)
                 .isEqualTo(rendered);
+    }
+
+    @Test
+    void GivenTheFrontendsSharedTypes_WhenRead_ThenNoBackendEnumIsCopiedByHand() throws IOException {
+        assertThat(declarations(COPIED_ENUM))
+                .describedAs(
+                        "%s spells out these unions of constant names by hand. Alias the union %s generates"
+                                + " from the backend enum instead, which cannot drift from it",
+                        SHARED, GENERATED)
+                .isEmpty();
+    }
+
+    @Test
+    void GivenTheFrontendsSharedTypes_WhenRead_ThenNoWireShapeIsWrittenByHand() throws IOException {
+        assertThat(declarations(COPIED_SHAPE))
+                .describedAs(
+                        "%s declares these interfaces by hand. Alias the type %s generates from the API's"
+                                + " record, and add only what the API does not send, as an intersection with it",
+                        SHARED, GENERATED)
+                .isEmpty();
     }
 
     @Test
@@ -166,6 +202,17 @@ class FrontendWireTypesContractTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining(
                         "Unconstrained.title is a request component that nothing keeps from being" + " null");
+    }
+
+    /** The names of every declaration in {@link #SHARED} the pattern matches. */
+    private static List<String> declarations(Pattern declaration) throws IOException {
+        Matcher matches = declaration.matcher(
+                Files.readString(RepositoryVersion.repositoryRoot().resolve(SHARED)));
+        List<String> names = new ArrayList<>();
+        while (matches.find()) {
+            names.add(matches.group(1));
+        }
+        return names;
     }
 
     /** An enum reached through a response. */

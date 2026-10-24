@@ -1,5 +1,5 @@
 import client from './client';
-import type { AppNotification } from '../types';
+import type { AppNotification, UnreadCount } from '../types';
 
 /** Fetches the fifty most recent notifications, newest first. Not paginated. */
 export const getNotifications = async (): Promise<AppNotification[]> => {
@@ -13,7 +13,7 @@ export const getNotifications = async (): Promise<AppNotification[]> => {
  * Counts every unread notification, so it can exceed what {@link getNotifications} returns.
  */
 export const getUnreadCount = async (): Promise<number> => {
-  const { data } = await client.get<{ count: number }>('/api/notifications/unread-count');
+  const { data } = await client.get<UnreadCount>('/api/notifications/unread-count');
   return data.count;
 };
 
