@@ -3,6 +3,7 @@ package com.healthupgrades.reflection.adapter.in.web;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import java.time.LocalDate;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Request body for writing a reflection.
@@ -18,9 +19,9 @@ import java.time.LocalDate;
  * @param nextAdjustment   what the user intends to change
  */
 public record ReflectionRequest(
-        LocalDate date,
-        @Min(1) @Max(5) Integer difficultyRating,
-        @Min(1) @Max(5) Integer benefitRating,
-        String whatWorked,
-        String whatDidNotWork,
-        String nextAdjustment) {}
+        @Nullable LocalDate date,
+        @Min(1) @Max(5) @Nullable Integer difficultyRating,
+        @Min(1) @Max(5) @Nullable Integer benefitRating,
+        @Nullable String whatWorked,
+        @Nullable String whatDidNotWork,
+        @Nullable String nextAdjustment) {}

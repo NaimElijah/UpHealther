@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getUpgradeById } from '../api/upgrades';
 import { getProgressByUpgrade, createProgress, getStreak } from '../api/progress';
 import { getReflectionsByUpgrade, createReflection } from '../api/reflections';
-import { saveTrackingConfig, type SaveTrackingConfigRequest } from '../api/trackingConfig';
+import { saveTrackingConfig } from '../api/trackingConfig';
 import { getReminders, createReminder, deleteReminder, updateReminder } from '../api/reminders';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Card from '../components/ui/Card';
@@ -21,8 +21,9 @@ import type {
   CreateProgressRequest,
   CreateReflectionRequest,
   CreateReminderRequest,
+  HealthUpgrade,
   Reminder,
-  TrackingConfig,
+  SaveTrackingConfigRequest,
   TrackingType,
   Frequency,
 } from '../types';
@@ -32,13 +33,19 @@ import { toApiError, toFormMessage } from '../api/apiError';
 import { parseLocalDate, todayLocal } from '../lib/localDate';
 import { refreshUpgradeViews } from '../lib/upgradeViews';
 
+/** What the Log Progress form holds: the request without its URL-only id, for a date it always has. */
+type ProgressForm = Omit<CreateProgressRequest, 'upgradeId'> & { date: string };
+
+/** What the Add Reflection form holds: the request, for a date it always has. */
+type ReflectionForm = CreateReflectionRequest & { date: string };
+
 /**
  * A blank progress entry for today, set each time **Log Progress** opens (#119).
  *
  * Opening is when a new entry starts. Set only at mount, a page left open past midnight offered
  * yesterday, and a second entry in one visit started from the last one's values.
  */
-const newProgressForm = (): Omit<CreateProgressRequest, 'upgradeId'> => ({
+const newProgressForm = (): ProgressForm => ({
   date: todayLocal(),
   completed: false,
   note: '',
@@ -48,7 +55,7 @@ const newProgressForm = (): Omit<CreateProgressRequest, 'upgradeId'> => ({
 const DEFAULT_REFLECTION_RATING = 3;
 
 /** A blank reflection for today, set each time **Add Reflection** opens; see {@link newProgressForm}. */
-const newReflectionForm = (): Omit<CreateReflectionRequest, 'upgradeId'> => ({
+const newReflectionForm = (): ReflectionForm => ({
   date: todayLocal(),
   whatWorked: '',
   whatDidNotWork: '',
@@ -67,6 +74,42 @@ const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 
 /** Where the reminder form's time starts, and returns to once a reminder is added or rescheduled. */
 const DEFAULT_REMINDER_TIME = '09:00';
+
+/** A select's choices, in the order a label map lists them. */
+const optionsOf = <T extends string>(labels: Record<T, string>): { value: T; label: string }[] =>
+  (Object.keys(labels) as T[]).map((value) => ({ value, label: labels[value] }));
+
+/**
+ * What the configuration form calls each tracking type. Keyed by the generated union, so a type the API
+ * adds is a compile error here rather than an option the form lacks: `offered` would then read a saved
+ * one as the default, and a save would overwrite it.
+ */
+const TRACKING_TYPE_LABELS: Record<TrackingType, string> = {
+  BOOLEAN: 'Yes / No (did it)',
+  NUMERIC: 'Numeric (amount vs target)',
+  RATING: 'Rating (1-5)',
+  TEXT: 'Text note',
+};
+
+/** What the configuration form calls each frequency; total over the union for the same reason. */
+const FREQUENCY_LABELS: Record<Frequency, string> = {
+  DAILY: 'Daily',
+  WEEKLY: 'Weekly',
+  MONTHLY: 'Monthly',
+};
+
+const TRACKING_TYPE_OPTIONS = optionsOf(TRACKING_TYPE_LABELS);
+const FREQUENCY_OPTIONS = optionsOf(FREQUENCY_LABELS);
+
+/**
+ * The option a saved value names, or nothing when it names none of them.
+ *
+ * The upgrade carries its tracking configuration with the type and frequency as plain strings, since
+ * the upgrade context restates them rather than borrowing the tracking context's enums. So a value is
+ * matched against what the form offers rather than cast to it.
+ */
+const offered = <T extends string>(options: { value: T }[], saved: string | null | undefined): T | undefined =>
+  options.find((option) => option.value === saved)?.value;
 
 /** A reminder's time as the form and its controls show it: `HH:mm`, whether or not the API sent seconds. */
 const reminderClock = (reminder: Reminder): string => reminder.reminderTime.slice(0, 5);
@@ -275,10 +318,10 @@ const UpgradeDetails: React.FC = () => {
   });
 
   /** Edits the tracking configuration from what is saved, on the same terms as {@link openProgress}. */
-  const openTracking = (saved: TrackingConfig | undefined) => {
+  const openTracking = (saved: HealthUpgrade['trackingConfig']) => {
     setTrackingForm({
-      trackingType: saved?.trackingType ?? 'BOOLEAN',
-      frequency: saved?.frequency ?? 'DAILY',
+      trackingType: offered(TRACKING_TYPE_OPTIONS, saved?.trackingType) ?? 'BOOLEAN',
+      frequency: offered(FREQUENCY_OPTIONS, saved?.frequency) ?? 'DAILY',
       targetNumericValue: saved?.targetNumericValue,
       targetUnit: saved?.targetUnit,
       requiredDaily: saved?.requiredDaily ?? true,
@@ -739,22 +782,13 @@ const UpgradeDetails: React.FC = () => {
             value={trackingForm.trackingType}
             onChange={(e) => setTrackingForm({ ...trackingForm, trackingType: e.target.value as TrackingType })}
             error={refusalMessage(trackingMutation.error, 'trackingType')}
-            options={[
-              { value: 'BOOLEAN', label: 'Yes / No (did it)' },
-              { value: 'NUMERIC', label: 'Numeric (amount vs target)' },
-              { value: 'RATING', label: 'Rating (1-5)' },
-              { value: 'TEXT', label: 'Text note' },
-            ]}
+            options={TRACKING_TYPE_OPTIONS}
           />
           <Select
             label="Frequency"
             value={trackingForm.frequency ?? 'DAILY'}
             onChange={(e) => setTrackingForm({ ...trackingForm, frequency: e.target.value as Frequency })}
-            options={[
-              { value: 'DAILY', label: 'Daily' },
-              { value: 'WEEKLY', label: 'Weekly' },
-              { value: 'MONTHLY', label: 'Monthly' },
-            ]}
+            options={FREQUENCY_OPTIONS}
           />
           {trackingForm.trackingType === 'NUMERIC' && (
             <div className="grid grid-cols-2 gap-4">

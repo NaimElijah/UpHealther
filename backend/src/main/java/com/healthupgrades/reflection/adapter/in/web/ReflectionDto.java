@@ -3,6 +3,7 @@ package com.healthupgrades.reflection.adapter.in.web;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A reflection as returned on the wire.
@@ -23,9 +24,9 @@ public record ReflectionDto(
         UUID upgradeId,
         UUID userId,
         LocalDate date,
-        Integer difficultyRating,
-        Integer benefitRating,
-        String whatWorked,
-        String whatDidNotWork,
-        String nextAdjustment,
+        @Nullable Integer difficultyRating,
+        @Nullable Integer benefitRating,
+        @Nullable String whatWorked,
+        @Nullable String whatDidNotWork,
+        @Nullable String nextAdjustment,
         LocalDateTime createdAt) {}

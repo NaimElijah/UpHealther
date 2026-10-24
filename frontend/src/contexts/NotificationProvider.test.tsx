@@ -136,7 +136,7 @@ const PUSHED: AppNotification = {
   category: 'SUCCESS',
   title: 'Upgrade completed',
   message: 'Congrats!',
-  relatedUpgradeId: undefined,
+  relatedUpgradeId: null,
   read: false,
   createdAt: '2026-03-15T09:00:00',
 };

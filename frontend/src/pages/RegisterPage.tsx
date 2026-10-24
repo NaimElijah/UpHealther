@@ -7,8 +7,9 @@ import ThemeToggle from '../components/theme/ThemeToggle';
 import { toApiError, toFormMessage } from '../api/apiError';
 
 /**
- * Must match `AuthController.PASSWORD_MIN`. Nothing keeps the two in step automatically — a contract
- * test in the shape of `FrontendEnumContractTest` would, and is more machinery than one integer earns.
+ * Must match `AuthController.PASSWORD_MIN`. Nothing keeps the two in step automatically. The generated
+ * wire types carry shapes, not constraints, and a contract test for one integer is more machinery than
+ * it earns.
  * The server is the enforcer; this only decides when the message appears without a round trip.
  */
 const PASSWORD_MIN_LENGTH = 8;

@@ -3,6 +3,7 @@ package com.healthupgrades.tracking.adapter.in.web;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A logged progress entry as returned on the wire.
@@ -27,9 +28,9 @@ public record ProgressDto(
         UUID upgradeId,
         UUID userId,
         LocalDate date,
-        Boolean completed,
-        Double numericValue,
-        String unit,
-        Integer rating,
-        String note,
+        @Nullable Boolean completed,
+        @Nullable Double numericValue,
+        @Nullable String unit,
+        @Nullable Integer rating,
+        @Nullable String note,
         LocalDateTime createdAt) {}

@@ -33,7 +33,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  * migration that narrows a column leaves the DTO bound behind, and the exact 500 BR-16 exists to
  * prevent comes back — while {@code requirements.md} still claims it cannot.
  *
- * <p>This is the same class of gap as {@link FrontendEnumContractTest}: two sides of a contract with
+ * <p>This is the same class of gap as {@link FrontendWireTypesContractTest}: two sides of a contract with
  * no compiler between them. It is filled the same way, by reading the source of truth directly and
  * failing the build on a divergence.
  *

@@ -79,7 +79,7 @@ const HealthAreasPage: React.FC = () => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, req }: { id: string; req: Partial<CreateHealthAreaRequest> }) => updateHealthArea(id, req),
+    mutationFn: ({ id, req }: { id: string; req: CreateHealthAreaRequest }) => updateHealthArea(id, req),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['healthAreas'] });
       setEditArea(null);

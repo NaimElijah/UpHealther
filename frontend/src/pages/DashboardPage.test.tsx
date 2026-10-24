@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import DashboardPage from './DashboardPage';
 import type { AreaSummary, DashboardDto, HealthUpgrade } from '../types';
+import { upgradeAsSent } from '../test/wireFixtures';
 
 const getDashboard = vi.fn();
 const performUpgradeAction = vi.fn();
@@ -27,7 +28,7 @@ function aDashboard(areaSummary: AreaSummary[]): DashboardDto {
 }
 
 function anActiveUpgrade(id: string, title: string): HealthUpgrade {
-  return {
+  return upgradeAsSent({
     id,
     userId: 'user-1',
     title,
@@ -36,7 +37,7 @@ function anActiveUpgrade(id: string, title: string): HealthUpgrade {
     difficulty: 'MEDIUM',
     version: 0,
     createdAt: '2026-03-01T09:00:00',
-  };
+  });
 }
 
 /**

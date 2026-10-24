@@ -1,5 +1,5 @@
 import client from './client';
-import type { AccountPage, AdminAccount, UserRole } from '../types';
+import type { AccountPage, AdminAccount, RoleRequest, UserRole } from '../types';
 
 /**
  * The account-administration endpoints.
@@ -43,6 +43,6 @@ export const enableAccount = async (id: string): Promise<AdminAccount> => {
 
 /** Grants or revokes the administrator role. */
 export const changeAccountRole = async (id: string, role: UserRole): Promise<AdminAccount> => {
-  const { data } = await client.put<AdminAccount>(`/api/admin/users/${id}/role`, { role });
+  const { data } = await client.put<AdminAccount>(`/api/admin/users/${id}/role`, { role } satisfies RoleRequest);
   return data;
 };

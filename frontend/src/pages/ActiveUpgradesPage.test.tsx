@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import ActiveUpgradesPage from './ActiveUpgradesPage';
 import type { ActionTarget, HealthUpgrade, UpgradeStatus } from '../types';
+import { upgradeAsSent } from '../test/wireFixtures';
 
 const getUpgrades = vi.fn();
 const performUpgradeAction = vi.fn();
@@ -15,7 +16,7 @@ vi.mock('../api/upgrades', () => ({
 }));
 
 function anActiveUpgrade(id = 'upgrade-1', title = 'Evening walk'): HealthUpgrade {
-  return {
+  return upgradeAsSent({
     id,
     userId: 'user-1',
     title,
@@ -24,7 +25,7 @@ function anActiveUpgrade(id = 'upgrade-1', title = 'Evening walk'): HealthUpgrad
     difficulty: 'MEDIUM',
     version: 0,
     createdAt: '2026-03-01T09:00:00',
-  };
+  });
 }
 
 function aPausedUpgrade(id = 'upgrade-9', title = 'Morning stretch'): HealthUpgrade {

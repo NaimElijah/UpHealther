@@ -8,6 +8,7 @@
  */
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { clearAccessToken, getAccessToken, setAccessToken } from './tokenStore';
+import type { AuthResponse } from '../types';
 
 // Default to a relative base URL so every `/api/...` call is same-origin and flows through the
 // Vite dev proxy (vite.config.ts) in development and the nginx proxy (nginx.conf) in production.
@@ -100,7 +101,7 @@ async function withTabLock<T>(work: () => Promise<T>): Promise<T> {
  */
 async function refreshOnce(retryOnConflict = true): Promise<boolean> {
   try {
-    const { data } = await client.post(REFRESH_PATH, null, {
+    const { data } = await client.post<AuthResponse>(REFRESH_PATH, null, {
       headers: { [REQUESTED_WITH]: 'XMLHttpRequest' },
     });
     setAccessToken(data.accessToken, data.expiresAt);

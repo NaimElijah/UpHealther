@@ -16,6 +16,7 @@ import type {
   Reminder,
   UpgradeStatus,
 } from '../types';
+import { healthAreaAsSent, reflectionAsSent, upgradeAsSent } from '../test/wireFixtures';
 
 const getUpgradeById = vi.fn();
 const updateUpgrade = vi.fn();
@@ -60,10 +61,10 @@ vi.mock('../api/trackingConfig', () => ({ saveTrackingConfig: (...a: unknown[]) 
 
 const UPGRADE_ID = 'upgrade-1';
 const OTHER_UPGRADE_ID = 'upgrade-2';
-const AN_AREA: HealthArea = { id: 'area-1', userId: 'user-1', name: 'Recovery', createdAt: '2026-03-01T09:00:00' };
+const AN_AREA: HealthArea = healthAreaAsSent({ id: 'area-1', name: 'Recovery' });
 
 function anUpgrade(id = UPGRADE_ID, title = 'Cold showers'): HealthUpgrade {
-  return {
+  return upgradeAsSent({
     id,
     userId: 'user-1',
     title,
@@ -72,7 +73,7 @@ function anUpgrade(id = UPGRADE_ID, title = 'Cold showers'): HealthUpgrade {
     difficulty: 'MEDIUM',
     version: 0,
     createdAt: '2026-03-01T09:00:00',
-  };
+  });
 }
 
 /** Built the way the API sends an entry: a field the entry does not use is `null`, not missing. */
@@ -93,7 +94,7 @@ function anEntry(id: string, date: string, note: string, values: Partial<Progres
 }
 
 function aReflection(id: string, date: string, whatWorked: string): Reflection {
-  return { id, upgradeId: UPGRADE_ID, userId: 'user-1', date, whatWorked, createdAt: `${date}T20:00:00` };
+  return reflectionAsSent({ id, upgradeId: UPGRADE_ID, date, whatWorked, createdAt: `${date}T20:00:00` });
 }
 
 /** A refusal shaped the way axios delivers one, so `toApiError` decodes it as it would in production. */

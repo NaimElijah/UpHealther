@@ -112,7 +112,19 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   fails `npm run lint` when a `.tsx` file exports a context, or any other value that is neither a
   component nor a constant. `contexts/NotificationProvider.tsx` + `notificationContextValue.ts` +
   `hooks/useNotifications.ts` follow it too; so must any new context.
-- Shared TypeScript types (mirroring backend DTOs/enums, e.g. `UpgradeStatus`) live in `src/types/index.ts`.
+- **Wire types are generated, not written.** `src/types/api.generated.ts` is rendered from the
+  backend's request and response records by `FrontendWireTypesContractTest` (NFR-10,
+  [ADR-053](../docs/ADRs/ADR-053-the-frontends-wire-types-are-generated-from-the-apis-records.md)).
+  `npm run generate:wire-types` from the repository root rewrites it after a record changes; never
+  edit it by hand. `src/types/index.ts` gives those types the names the frontend imports
+  (`HealthUpgrade`, `AppNotification`, …). What the API does not send is added there as an
+  intersection with a generated type. That test fails the build if `index.ts` declares an interface,
+  an object type (`export type X = { … }`) or an enum union of its own.
+  - Every response key is present, and a missing value is `null`, so test for it with `!= null` (#117).
+    Test fixtures follow suit: build them with `src/test/wireFixtures.ts`, which fills every key, and
+    override what the test is about.
+  - Type an inline request body with `satisfies` and its generated request type, as `api/auth.ts` does,
+    so a key the endpoint does not take, or a missing one, is a compile error.
 - Styling is Tailwind CSS; reusable primitives are in `src/components/ui/`.
 - **The page is served under a CSP, and the inline boot script is permitted by a hash.** It is in
   `nginx.conf`, so `npm run dev` serves no headers and a violation only appears in a compose run or

@@ -8,10 +8,7 @@ export const getReflectionsByUpgrade = async (upgradeId: string): Promise<Reflec
 };
 
 /** Writes a reflection about an upgrade. There is no edit or delete counterpart. */
-export const createReflection = async (
-  upgradeId: string,
-  req: Omit<CreateReflectionRequest, 'upgradeId'>,
-): Promise<Reflection> => {
+export const createReflection = async (upgradeId: string, req: CreateReflectionRequest): Promise<Reflection> => {
   const { data } = await client.post<Reflection>(`/api/upgrades/${upgradeId}/reflections`, req);
   return data;
 };

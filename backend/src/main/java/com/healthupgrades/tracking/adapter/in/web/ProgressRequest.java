@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Request body for logging a day's progress.
@@ -21,12 +22,12 @@ import java.time.LocalDate;
  * @param note         free-text note; the scored field under TEXT tracking
  */
 public record ProgressRequest(
-        LocalDate date,
-        Boolean completed,
-        @PositiveOrZero Double numericValue,
-        @Size(max = UNIT_MAX) String unit,
-        @Min(1) @Max(5) Integer rating,
-        String note) {
+        @Nullable LocalDate date,
+        @Nullable Boolean completed,
+        @PositiveOrZero @Nullable Double numericValue,
+        @Size(max = UNIT_MAX) @Nullable String unit,
+        @Min(1) @Max(5) @Nullable Integer rating,
+        @Nullable String note) {
     /** Mirrors {@code progress_entries.unit VARCHAR(100)}; see BR-16 for why the bound is here. */
     public static final int UNIT_MAX = 100;
 }

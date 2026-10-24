@@ -13,6 +13,7 @@
     "test:backend": "node scripts/mvnw.mjs -B --no-transfer-progress clean verify && npm run audit:backend",
     "audit:backend": "docker compose -f scripts/compose.audit.yml run --rm osv-scanner",
     "test:images": "node scripts/check-images.mjs",
+    "generate:wire-types": "node scripts/mvnw.mjs -B -q --no-transfer-progress test -Dtest=FrontendWireTypesContractTest -Dwire-types.write=true",
     "changelog": "docker compose -f scripts/compose.changelog.yml run --rm git-cliff --unreleased --prepend CHANGELOG.md"
   }
 }

@@ -54,6 +54,10 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
 - `npm run changelog -- --tag vX.Y.Z` — prepends release X.Y.Z's section to `CHANGELOG.md`, through
   git-cliff's image (needs Docker, and the tags fetched). One step of the README's Releasing section;
   `npm test` does not run it (ADR-051).
+- `npm run generate:wire-types` — rewrites `frontend/src/types/api.generated.ts` from the request and
+  response records the controllers declare, by running `FrontendWireTypesContractTest` with
+  `-Dwire-types.write=true` (ADR-053). Run it after changing a wire record, and commit the file with
+  the change: `./mvnw test` fails until they agree. Needs a JDK, not Docker.
 - `npm test` — the whole CI gate, the same scripts CI's jobs run (ADR-044): `test:diagrams`,
   `test:frontend`, `test:backend`, then `test:images`. Each also runs alone. Needs Docker, for the
   backend's ITs and the image check.
@@ -131,7 +135,14 @@ re-triggering the other open PRs with a push or a close and reopen.
 - A formatter version bump is a `style(backend)` or `style(frontend)` commit of its own, and its SHA
   goes into `.git-blame-ignore-revs`.
 - The status enum is `IDEA` (not `DRAFT`); keep backend enum, frontend type, and any seed data in sync
-  when touching it. `FrontendEnumContractTest` fails the build when the enum and the type drift; nothing
-  checks the seed data.
+  when touching it. The frontend type is generated from the enum, and `FrontendWireTypesContractTest`
+  fails the build until `npm run generate:wire-types` has been run; nothing checks the seed data.
+- The frontend's request and response types are generated from the backend's records, never written by
+  hand (NFR-10, ADR-053). A wire record's component that can be null carries JSpecify's `@Nullable`;
+  a request component is either `@Nullable` or carries a not-null constraint; no Jackson annotation
+  shapes a wire record. The generator fails the build on a type it cannot map, on a Jackson annotation,
+  and on a request component with neither; `FrontendWireTypesJsonTest` fails it when Boot's mapper
+  writes or reads a record differently. Nothing can check that a response component without
+  `@Nullable` is never null: that claim is the reviewer's to check.
 - Branches are `type/short-kebab-description`, cut from `dev` and merged back by PR; `dev` → `main` is
   the release PR. Commits are Conventional Commits, one logical change each.

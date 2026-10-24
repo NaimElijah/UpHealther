@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ProgressHistoryPage from './ProgressHistoryPage';
 import type { HealthUpgrade, ProgressEntry } from '../types';
+import { upgradeAsSent } from '../test/wireFixtures';
 
 const getWeekProgress = vi.fn();
 const getUpgrades = vi.fn();
@@ -13,7 +14,7 @@ vi.mock('../api/upgrades', () => ({ getUpgrades: (...a: unknown[]) => getUpgrade
 const UPGRADE_ID = 'upgrade-1';
 
 function anUpgrade(): HealthUpgrade {
-  return {
+  return upgradeAsSent({
     id: UPGRADE_ID,
     userId: 'user-1',
     title: 'Morning stretch',
@@ -22,7 +23,7 @@ function anUpgrade(): HealthUpgrade {
     difficulty: 'EASY',
     version: 0,
     createdAt: '2026-03-01T09:00:00',
-  };
+  });
 }
 
 /** Built the way the API sends an entry: a field the entry does not use is `null`, not missing. */

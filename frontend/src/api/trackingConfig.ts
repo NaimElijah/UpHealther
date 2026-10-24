@@ -1,19 +1,5 @@
 import client from './client';
-import type { TrackingConfig, TrackingType, Frequency } from '../types';
-
-/**
- * Body for saving an upgrade's tracking configuration.
- *
- * `trackingType` decides which of the other fields are meaningful; the numeric target applies to
- * `NUMERIC` tracking only.
- */
-export interface SaveTrackingConfigRequest {
-  trackingType: TrackingType;
-  frequency?: Frequency;
-  targetNumericValue?: number;
-  targetUnit?: string;
-  requiredDaily?: boolean;
-}
+import type { SaveTrackingConfigRequest, TrackingConfig } from '../types';
 
 /** Fetches an upgrade's tracking configuration. Rejects with a 404 when none is set up. */
 export const getTrackingConfig = async (upgradeId: string): Promise<TrackingConfig> => {
@@ -24,7 +10,8 @@ export const getTrackingConfig = async (upgradeId: string): Promise<TrackingConf
 /**
  * Creates or replaces an upgrade's tracking configuration.
  *
- * Idempotent, and never rescores entries already logged — a past day keeps the verdict it was given
+ * `trackingType` decides which of the other fields are meaningful; the numeric target applies to
+ * `NUMERIC` tracking only. Idempotent, and never rescores entries already logged — a past day keeps the verdict it was given
  * under the rule in force at the time.
  */
 export const saveTrackingConfig = async (
