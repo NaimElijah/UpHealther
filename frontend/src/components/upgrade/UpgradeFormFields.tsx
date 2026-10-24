@@ -62,8 +62,10 @@ const UpgradeFormFields: React.FC<Props> = ({ value, onChange, areas, titleError
         ...typeOptions,
         { value: value.type, label: `${value.type.charAt(0)}${value.type.slice(1).toLowerCase()} (no longer offered)` },
       ];
-  // An upgrade with no difficulty, which only the API can create, keeps none as a choice. Without one,
-  // the select would show the first difficulty and read as an upgrade the user had marked Easy.
+  // An upgrade with no difficulty, which only the API can create, is shown as having none until a
+  // difficulty is chosen. Without the option, the select would show the first difficulty and read as an
+  // upgrade the user had marked Easy. Like a retired type, it is not offered again once left, so a
+  // change event only ever carries a difficulty.
   const difficulties = value.difficulty
     ? difficultyOptions
     : [{ value: NO_DIFFICULTY, label: 'Not set' }, ...difficultyOptions];
@@ -94,7 +96,7 @@ const UpgradeFormFields: React.FC<Props> = ({ value, onChange, areas, titleError
         label="Difficulty"
         value={value.difficulty ?? NO_DIFFICULTY}
         options={difficulties}
-        onChange={(e) => set({ difficulty: e.target.value === NO_DIFFICULTY ? null : (e.target.value as Difficulty) })}
+        onChange={(e) => set({ difficulty: e.target.value as Difficulty })}
       />
       <Select
         label="Health Area"
