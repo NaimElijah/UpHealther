@@ -128,7 +128,10 @@ declares.
 
 `FrontendEnumContractTest` is retired. Its subject, the hand-written unions, no longer exists, and the
 render produces the unions from the enums themselves. Its reverse guard, that `index.ts` declares no
-screaming-caps union by hand, moves into the new test.
+screaming-caps union by hand, moves into the new test. Beside it, a second guard refuses an interface
+or an object type written there by hand. Neither guard covers files other than `index.ts`, because
+`src/api/` holds frontend-side types such as `ApiError`, and a rule over it would need a list of
+exceptions to keep.
 
 ### The file is not Prettier's
 

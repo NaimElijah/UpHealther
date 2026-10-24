@@ -67,8 +67,13 @@ class FrontendWireTypesContractTest {
     private static final Pattern COPIED_ENUM =
             Pattern.compile("export type (\\w+)\\s*=\\s*(?:\\s*\\|?\\s*'[A-Z_]+')+\\s*;", Pattern.DOTALL);
 
-    /** An interface declaration: how a response or request shape is spelled when it is copied. */
-    private static final Pattern COPIED_SHAPE = Pattern.compile("^\\s*export interface (\\w+)", Pattern.MULTILINE);
+    /**
+     * An interface, or a type alias that starts with an object literal: the two ways a response or request
+     * shape is spelled when it is copied. An alias that intersects a generated type with an object, such as
+     * {@code Wire.HealthAreaDto & { upgradeCount?: number }}, starts with the generated type and is allowed.
+     */
+    private static final Pattern COPIED_SHAPE =
+            Pattern.compile("^\\s*export\\s+(?:interface\\s+(\\w+)|type\\s+(\\w+)\\s*=\\s*\\{)", Pattern.MULTILINE);
 
     @Test
     void GivenTheApisControllers_WhenTheirBodiesAreRendered_ThenTheCommittedFrontendFileIsTheResult()
@@ -115,7 +120,7 @@ class FrontendWireTypesContractTest {
     void GivenTheFrontendsSharedTypes_WhenRead_ThenNoWireShapeIsWrittenByHand() throws IOException {
         assertThat(declarations(COPIED_SHAPE))
                 .describedAs(
-                        "%s declares these interfaces by hand. Alias the type %s generates from the API's"
+                        "%s declares these shapes by hand. Alias the type %s generates from the API's"
                                 + " record, and add only what the API does not send, as an intersection with it",
                         SHARED, GENERATED)
                 .isEmpty();
@@ -232,7 +237,11 @@ class FrontendWireTypesContractTest {
                 Files.readString(RepositoryVersion.repositoryRoot().resolve(SHARED)));
         List<String> names = new ArrayList<>();
         while (matches.find()) {
-            names.add(matches.group(1));
+            for (int group = 1; group <= matches.groupCount(); group++) {
+                if (matches.group(group) != null) {
+                    names.add(matches.group(group));
+                }
+            }
         }
         return names;
     }

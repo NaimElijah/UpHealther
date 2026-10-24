@@ -118,8 +118,8 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   `npm run generate:wire-types` from the repository root rewrites it after a record changes; never
   edit it by hand. `src/types/index.ts` gives those types the names the frontend imports
   (`HealthUpgrade`, `AppNotification`, …). What the API does not send is added there as an
-  intersection with a generated type. That test fails the build if `index.ts` declares an interface
-  or an enum union of its own.
+  intersection with a generated type. That test fails the build if `index.ts` declares an interface,
+  an object type (`export type X = { … }`) or an enum union of its own.
   - Every response key is present, and a missing value is `null`, so test for it with `!= null` (#117).
     Test fixtures follow suit: build them with `src/test/wireFixtures.ts`, which fills every key, and
     override what the test is about.
