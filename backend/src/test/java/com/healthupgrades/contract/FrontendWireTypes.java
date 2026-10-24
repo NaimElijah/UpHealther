@@ -246,11 +246,11 @@ final class FrontendWireTypes {
         if (!enums.containsKey(name)) {
             rejectJackson(type, type.getCanonicalName());
             List<String> constants = new ArrayList<>();
-            for (Field field : type.getDeclaredFields()) {
-                if (field.isEnumConstant()) {
-                    rejectJackson(field, type.getCanonicalName() + "." + field.getName());
-                    constants.add("'" + field.getName() + "'");
-                }
+            // getEnumConstants() is in declaration order; getDeclaredFields() is in no order the JDK promises.
+            for (Object constant : type.getEnumConstants()) {
+                String constantName = ((Enum<?>) constant).name();
+                rejectJackson(constantField(type, constantName), type.getCanonicalName() + "." + constantName);
+                constants.add("'" + constantName + "'");
             }
             enums.put(
                     name,
@@ -359,6 +359,15 @@ final class FrontendWireTypes {
         Stream.concat(enums.values().stream(), interfaces.values().stream())
                 .forEach(declaration -> source.append('\n').append(declaration));
         return source.toString();
+    }
+
+    /** The field behind an enum constant, which is where an annotation on the constant lives. */
+    private static Field constantField(Class<?> type, String constantName) {
+        try {
+            return type.getDeclaredField(constantName);
+        } catch (NoSuchFieldException e) {
+            throw new IllegalStateException(type.getName() + " has no field for its constant " + constantName, e);
+        }
     }
 
     private static Class<?> load(@Nullable String className) {
