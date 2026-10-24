@@ -94,6 +94,26 @@ class BearerTokenAuthenticatorTest {
     }
 
     @Test
+    void GivenAVerifiedToken_WhenItIsAuthenticatedWithItsSession_ThenTheSessionItNamesComesWithThePrincipal() {
+        // The socket keeps the session it was opened in, so that ending the session can close it.
+        when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(user.getId(), SESSION_ID)));
+        when(userQuery.findById(user.getId())).thenReturn(Optional.of(user));
+
+        assertThat(authenticator.authenticateWithSession(TOKEN)).hasValueSatisfying(authenticated -> {
+            assertThat(authenticated.user().getId()).isEqualTo(user.getId());
+            assertThat(authenticated.sessionId()).isEqualTo(SESSION_ID);
+        });
+    }
+
+    @Test
+    void GivenATokenForAnEndedSession_WhenItIsAuthenticatedWithItsSession_ThenNobodyIsAuthenticated() {
+        when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(user.getId(), SESSION_ID)));
+        when(sessionStatus.isActive(SESSION_ID, user.getId())).thenReturn(false);
+
+        assertThat(authenticator.authenticateWithSession(TOKEN)).isEmpty();
+    }
+
+    @Test
     void GivenATokenForADeletedAccount_WhenItIsAuthenticated_ThenNobodyIsAuthenticated() {
         // NFR-5, and the reason the token carries an id rather than the account itself.
         UUID deleted = UUID.randomUUID();

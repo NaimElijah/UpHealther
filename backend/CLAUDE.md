@@ -48,11 +48,11 @@ read/composition model with no domain or outbound side. All three are deliberate
 - **Domain events are in-process.** Publish via the injected `DomainEventPublisher` (a thin wrapper
   over Spring's `ApplicationEventPublisher`) after a successful state change. The port itself is
   cross-cutting and lives in `common/domain/port/out/`; each **event** belongs to the context that
-  raises it (`upgrade/domain/event/`, `tracking/domain/event/`, `reflection/domain/event/`), and only
-  the `DomainEvent` marker is shared. Publishing is logged once, generically, in
-  `SpringDomainEventPublisher` — do not add per-event log-only listeners. A context's published events
-  are part of its published language, so other contexts may consume them; that is why
-  `..domain.event..` is a sanctioned cross-context surface in the ArchUnit rules.
+  raises it (`upgrade/domain/event/`, `tracking/domain/event/`, `reflection/domain/event/`,
+  `auth/domain/event/`), and only the `DomainEvent` marker is shared. Publishing is logged once,
+  generically, in `SpringDomainEventPublisher` — do not add per-event log-only listeners. A context's
+  published events are part of its published language, so other contexts may consume them; that is
+  why `..domain.event..` is a sanctioned cross-context surface in the ArchUnit rules.
 
   A `@TransactionalEventListener(phase = AFTER_COMMIT)` that writes must also be
   `@Transactional(propagation = REQUIRES_NEW)`. Without it, the write joins the transaction that has

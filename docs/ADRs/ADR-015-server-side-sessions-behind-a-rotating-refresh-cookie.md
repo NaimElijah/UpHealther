@@ -2,7 +2,9 @@
 
 - **Status:** Accepted — extended by
   [ADR-049](ADR-049-a-session-is-live-only-for-the-account-that-owns-it.md), which makes the session
-  check ask whether the `sid` is live for the account the token's `sub` names
+  check ask whether the `sid` is live for the account the token's `sub` names, and by
+  [ADR-054](ADR-054-a-session-that-ends-closes-its-open-sockets.md), which closes the known gap below:
+  a session that ends now closes its open sockets
 - **Date:** 2026-09-20
 - **Scope:** `backend/` — a new aggregate in `auth`, a new table, two new endpoints, and a session check
   on the path of every authenticated request. Extends [ADR-014](ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md),

@@ -4,9 +4,10 @@ import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
+import com.healthupgrades.common.security.BearerAuthentication;
 import com.healthupgrades.common.security.BearerTokenAuthenticator;
-import com.healthupgrades.common.security.SecurityUser;
 import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -24,7 +25,8 @@ import org.springframework.stereotype.Component;
  * <p>On the CONNECT frame it checks the bearer token supplied in the {@code Authorization} native header,
  * through the same {@link BearerTokenAuthenticator} the HTTP filter uses, and attaches a
  * {@link StompPrincipal} named by user id to the session, so per-user messaging is routed to the right
- * account. A missing or unusable token refuses the connection.
+ * account. The principal also keeps the server-side session the token was issued within. A missing or
+ * unusable token refuses the connection.
  *
  * <p>Authenticating the connection is not enough on its own. Once a session exists it may name any
  * destination it likes, and the broker destination a user queue resolves to is guessable, so the later
@@ -119,14 +121,15 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
             }
             throw new IllegalArgumentException("Missing or malformed Authorization header on STOMP CONNECT");
         }
-        SecurityUser principal = authenticateBearer(authorization.substring(BEARER_PREFIX.length()))
+        BearerAuthentication authenticated = authenticateBearer(authorization.substring(BEARER_PREFIX.length()))
                 .orElseThrow(() -> {
                     log.debug("Refused a STOMP CONNECT: the token is not usable");
                     auditTrail.record(REFUSED_CONNECT);
                     return new IllegalArgumentException("Unusable token on STOMP CONNECT");
                 });
-        auditTrail.record(AuditEvent.allowed(AuditAction.AUTH_CONNECT, principal.getId(), principal.getId()));
-        return new StompPrincipal(principal.getId().toString());
+        UUID userId = authenticated.user().getId();
+        auditTrail.record(AuditEvent.allowed(AuditAction.AUTH_CONNECT, userId, userId));
+        return new StompPrincipal(userId.toString(), authenticated.sessionId());
     }
 
     /**
@@ -135,9 +138,9 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
      * <p>The authenticator reads the session and the account on every call, so an exception from it is an
      * outage rather than a refused token, and recording it as a refusal would hide it in ordinary traffic.
      */
-    private Optional<SecurityUser> authenticateBearer(String token) {
+    private Optional<BearerAuthentication> authenticateBearer(String token) {
         try {
-            return authenticator.authenticate(token);
+            return authenticator.authenticateWithSession(token);
         } catch (RuntimeException thrown) {
             auditTrail.record(AuditEvent.from(AuditAction.AUTH_CONNECT, null, null, thrown));
             throw thrown;
