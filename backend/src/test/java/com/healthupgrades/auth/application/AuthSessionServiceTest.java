@@ -621,12 +621,12 @@ class AuthSessionServiceTest {
         }
     }
 
-    /** A clock that can be moved, because the grace window cannot be crossed with a fixed one. */
     /** The moment the clock reads, as an event this service publishes stamps it. */
     private LocalDateTime now() {
         return LocalDateTime.now(clock);
     }
 
+    /** A clock that can be moved, because the grace window cannot be crossed with a fixed one. */
     private static final class MovableClock extends Clock {
 
         private Instant now;
