@@ -83,6 +83,20 @@ class StompSessionRegistryTest {
     }
 
     @Test
+    void GivenASocketAlreadyClosedForItsSession_WhenItsAccountsSessionsAllEnd_ThenItIsNotSentAnotherFrame() {
+        // A socket is forgotten as its close is sent, not only when Spring reports it gone. One that drops
+        // just as it connects can be reported gone before it is recorded, and its entry would otherwise
+        // outlive it for good; this bounds it to the next end that names it.
+        UUID session = UUID.randomUUID();
+        connect("tab", ALICE, session);
+        registry.closeForSession(session);
+
+        registry.closeForUser(ALICE);
+
+        assertThat(closedSockets()).containsExactly("tab");
+    }
+
+    @Test
     void GivenNoSocketOpenedInASession_WhenItEnds_ThenNothingIsSent() {
         // The commonest case by far: most sign-outs come from a tab whose socket has already gone.
         connect("tab", ALICE, UUID.randomUUID());

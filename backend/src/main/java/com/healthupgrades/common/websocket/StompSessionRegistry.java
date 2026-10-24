@@ -36,7 +36,12 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
  * <p>A socket is closed by sending it a STOMP ERROR frame through the client outbound channel. Spring
  * closes the WebSocket after sending any ERROR frame ({@code StompSubProtocolHandler.sendToClient}), so
  * the frame both ends the socket and tells the client why, through Spring's own serialised send path.
- * The entry itself goes when the disconnect event arrives, so the map mirrors the sockets actually open.
+ *
+ * <p>An entry goes as its close is sent, or when the disconnect event arrives, whichever is first. The map
+ * is close to the sockets actually open, not exactly them: Spring publishes the disconnect event without
+ * ordering it against the connect event, so a socket that drops in the instant between its CONNECT being
+ * accepted and its CONNECTED being sent can be recorded after it was forgotten. Forgetting a socket as it
+ * is closed bounds such an entry to the next session end that names it.
  *
  * <p>In memory, and so per instance, exactly as the broker is: a session ended on one instance could not
  * close a socket held by another. The application runs as one instance (requirements §5.3).
@@ -147,6 +152,7 @@ public class StompSessionRegistry implements LiveSocketPort {
     }
 
     private void close(String socket) {
+        openSockets.remove(socket);
         StompHeaderAccessor error = StompHeaderAccessor.create(StompCommand.ERROR);
         error.setMessage(SESSION_ENDED);
         error.setSessionId(socket);
