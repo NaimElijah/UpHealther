@@ -46,8 +46,9 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 public class StompSessionRegistry implements LiveSocketPort {
 
     /**
-     * The {@code message} header of the ERROR frame that closes a socket whose session ended. Said to
-     * the client and to anybody reading the frames; the client acts on the frame, not on these words.
+     * The {@code message} header of the ERROR frame that closes a socket whose session ended. The browser
+     * drops its access token on a frame with exactly these words and on no other ERROR, so they are a
+     * contract with the frontend, which {@code SessionEndedFrameContractTest} checks.
      */
     public static final String SESSION_ENDED = "Session ended";
 

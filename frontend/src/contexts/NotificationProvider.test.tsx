@@ -583,23 +583,40 @@ describe('NotificationProvider', () => {
     expect(lastClient?.connectHeaders).toEqual({ Authorization: 'Bearer still.good.token' });
   });
 
-  it('GivenTheServerRefusedTheConnection_WhenTheSocketReconnects_ThenTheTokenIsRenewedFirst', async () => {
-    // A CONNECT whose session has ended is refused with an ERROR frame, and the server ends an open
-    // socket the same way when its session ends (ADR-054). The token can still look usable by its clock,
-    // and presenting it again would be refused on every attempt, each refusal an audit entry, until it
-    // lapsed fifteen minutes later.
+  it('GivenTheServerEndedTheSession_WhenTheSocketReconnects_ThenTheTokenIsRenewedFirst', async () => {
+    // The server ends an open socket with this ERROR frame when its session ends (ADR-054). The token
+    // can still look usable by its clock, and presenting it again would be refused on every attempt,
+    // each refusal an audit entry, until it lapsed fifteen minutes later.
     setAccessToken('revoked.jwt.token', '2099-01-01T00:00:00Z');
     renewSession.mockReturnValue(true);
     renderProvider(authenticated());
     await waitFor(() => expect(lastClient).toBeDefined());
 
-    act(() => lastClient?.fail('Unusable token on STOMP CONNECT'));
+    act(() => lastClient?.fail('Session ended'));
     await act(async () => {
       await lastClient?.prepareConnect();
     });
 
     expect(renewSession).toHaveBeenCalled();
     expect(lastClient?.connectHeaders).toEqual({ Authorization: 'Bearer renewed.jwt.token' });
+  });
+
+  it('GivenAnErrorFrameForAnyOtherReason_WhenTheSocketReconnects_ThenTheTokenIsKept', async () => {
+    // What Spring sends for any refused frame, an outage included. Dropping the token on one would send
+    // the tab's next request out anonymous, and with the server failing, the renewal that 401 triggers
+    // fails too and signs the user out of a session that is still live.
+    setAccessToken('still.good.token', '2099-01-01T00:00:00Z');
+    renewSession.mockReturnValue(true);
+    renderProvider(authenticated());
+    await waitFor(() => expect(lastClient).toBeDefined());
+
+    act(() => lastClient?.fail('Failed to send message to ExecutorSubscribableChannel[clientInboundChannel]'));
+    await act(async () => {
+      await lastClient?.prepareConnect();
+    });
+
+    expect(renewSession).not.toHaveBeenCalled();
+    expect(lastClient?.connectHeaders).toEqual({ Authorization: 'Bearer still.good.token' });
   });
 
   it('GivenTheTokenWasRenewed_WhenTheSocketReconnects_ThenItAuthenticatesWithTheCurrentOne', async () => {

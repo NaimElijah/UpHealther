@@ -7,7 +7,8 @@
     `StompPrincipal`, `JwtChannelInterceptor` and the new `StompSessionRegistry` in `common.websocket`;
     the new `LiveSocketPort` in `common.domain.port.out`; and in `auth`, `AuthSessionService`, the
     events `AuthSessionEnded` and `UserSessionsEnded`, and `SessionEndSocketListener`.
-  - `frontend/` — `NotificationProvider`, which drops its access token on a STOMP ERROR frame.
+  - `frontend/` — `NotificationProvider`, which drops its access token on the server's session-ended
+    ERROR frame.
   - FR-43, NFR-5 and NFR-35 in `docs/requirements/requirements.md`.
   - No schema change, no new dependency.
 - **Issue:** [#83](https://github.com/NaimElijah/UpHealther/issues/83). It extends
@@ -75,12 +76,17 @@ which a session outlived its end.
      (read in spring-websocket 7.0.9). So the frame ends the socket and tells the client why, through
      Spring's own serialised send path.
    - A send that fails is a WARN line naming the exception's type, and the other sockets still close.
-5. **The client renews after an ERROR.**
-   - `NotificationProvider` drops its access token on any ERROR frame, so its next attempt renews from
-     the cookie.
+5. **The client renews after the session-ended frame.**
+   - `NotificationProvider` drops its access token on an ERROR whose message is `Session ended`, so its
+     next attempt renews from the cookie. `SessionEndedFrameContractTest` fails the build if the
+     frontend's copy of the words drifts from `StompSessionRegistry.SESSION_ENDED`.
    - Without this, the dead token is still unexpired by its clock. Every other tab of the session would
      reconnect with it every five seconds, be refused, and be audited as a refused `auth.connect`, until
      the token lapsed fifteen minutes later.
+   - Any other ERROR leaves the token alone. Spring answers every refused frame with one generic
+     message, whatever the cause, so a CONNECT refused for a dead token cannot be told from one refused
+     because the database is down. Dropping a live token on the second would send the tab's next
+     request out anonymous, and its renewal would fail against the same outage and sign the user out.
 
 Sign-out is per device, so it closes only the sockets opened in that session. The account's other
 devices stay connected.
@@ -102,6 +108,10 @@ devices stay connected.
   30-day cap ends by the passage of time, and nothing marks that moment. A socket that stayed quietly
   open past it keeps receiving until it reconnects. Filed as
   [#331](https://github.com/NaimElijah/UpHealther/issues/331).
+- **A CONNECT refused for a dead token still retries it, as before.** A socket that was down when its
+  session ended never receives the frame, and its reconnect is refused with Spring's generic ERROR. Its
+  client keeps the token and retries it every five seconds until it lapses, each refusal audited. Telling
+  that refusal apart would need an error handler of our own on the STOMP endpoint.
 - **A tab whose session ended is not sent to the sign-in page.** Its socket closes, its renewal is
   refused, and it reconnects without a token, which is not audited, until its next HTTP call ends the
   session in the interface. That is what a tab whose session expired already did.

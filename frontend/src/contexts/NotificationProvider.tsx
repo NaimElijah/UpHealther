@@ -20,6 +20,13 @@ const NOTIF_KEY = ['notifications'];
 const UNREAD_KEY = [...NOTIF_KEY, 'unread-count'];
 
 /**
+ * The `message` of the ERROR frame the server closes a socket with once its session has ended: the
+ * backend's `StompSessionRegistry.SESSION_ENDED`. `SessionEndedFrameContractTest` fails the backend build
+ * if the two differ.
+ */
+const SESSION_ENDED = 'Session ended';
+
+/**
  * Builds the WebSocket URL.
  *
  * Same-origin `/ws` through the Vite or nginx proxy by default, so the socket needs no CORS setup;
@@ -175,12 +182,15 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         });
       },
       onWebSocketClose: () => setConnected(false),
-      // An ERROR frame is the server refusing this connection, or ending it because the session behind
-      // the token has ended (ADR-054). The token can still look usable by its clock, so it is dropped:
-      // the next attempt renews first instead of presenting it again, which would be refused - and
-      // audited - every five seconds until it lapsed.
-      onStompError: () => {
-        clearAccessToken();
+      // The server ends a socket whose session has ended with this frame (ADR-054). The token can still
+      // look usable by its clock, so it is dropped: the next attempt renews first instead of presenting
+      // it again, which would be refused - and audited - every five seconds until it lapsed. Any other
+      // ERROR leaves the token alone. Spring sends the same generic one for every refused frame, an
+      // outage included, and dropping a live token then would sign the tab out of a live session.
+      onStompError: (frame) => {
+        if (frame.headers.message === SESSION_ENDED) {
+          clearAccessToken();
+        }
         setConnected(false);
       },
     });

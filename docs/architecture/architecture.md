@@ -116,9 +116,9 @@ resolves per session using that principal. Every CONNECT that presents a credent
 `auth.connect`, allowed or refused (NFR-23), because the socket stays signed in as that user for as long
 as it is open; a refusal names nobody, as a refused login does. A CONNECT with no `Authorization` header
 — what a tab whose session could not be renewed sends every five seconds — presented nothing and is not
-an entry, as a refresh with no cookie is not. A refusal reaches the browser as a STOMP ERROR frame, and
-the client drops its access token on one, so its next attempt renews from the cookie rather than
-presenting a token the server has already refused.
+an entry, as a refresh with no cookie is not. A refusal reaches the browser as a STOMP ERROR frame
+whose message is Spring's generic one, the same whatever the cause, an outage included, so the client
+keeps its token through one and retries.
 
 The same interceptor authorises the frames that follow, because a session that is merely connected
 can still name any destination it likes. A SUBSCRIBE must come from an authenticated session and
@@ -142,8 +142,10 @@ switching the account off does, it publishes `UserSessionsEnded`. `SessionEndSoc
 both after the commit and calls `LiveSocketPort`, which the registry implements: inverted, like
 `SessionStatusPort`, because `common` may not depend on `auth`. The registry sends each matching socket
 a STOMP ERROR frame (`message: Session ended`), after which Spring closes the WebSocket. Sign-out is
-per device, so only the sockets opened in that session close. The client takes the ERROR as it takes
-a refused CONNECT, and renews before it connects again.
+per device, so only the sockets opened in that session close. That frame, and no other ERROR, makes
+the client drop its access token, so it renews from the cookie before it connects again instead of
+presenting the dead token on every attempt; `SessionEndedFrameContractTest` holds the two copies of
+the message together.
 
 The broker is Spring's in-memory simple broker. There is no external broker, so a push reaches only
 clients connected to *this* instance — see "Known constraints" below.
