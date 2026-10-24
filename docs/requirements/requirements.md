@@ -13,7 +13,7 @@ about a rendered width, a colour or an overflow, and jsdom has no layout engine 
 API (§5.4), so "a user can" means through the interface. Where the implementation falls short of an
 entry — in the interface or anywhere else — the entry is not weakened to match. Its *Enforced by* cell
 says **Known deviation** and links the issue that tracks the gap; the tests named there enforce the
-part that holds. Eight entries carry one today, and the change that closes an issue takes its
+part that holds. Nine entries carry one today, and the change that closes an issue takes its
 marker out.
 
 **IDs are permanent.** Tests, code comments, migrations and ADRs cite them, so an ID is never
@@ -222,7 +222,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-37 | The two endpoints that act on the cookie alone cannot be driven from another site: the cookie is `SameSite=Strict`, and both additionally require a header that a cross-site form post cannot set, refusing the request before any session is read | `AuthControllerTest`, `AuthSessionFlowIT` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
 | NFR-38 | The access token is never written to browser storage: it is held in memory for the life of the tab, so it cannot be read by injected script and does not outlive the page. A reload restores the session from the refresh cookie instead, and the credentials of an earlier version are removed from storage on load | `tokenStore.test.ts`, `AuthContext.test.tsx`, `client.test.ts` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
 | NFR-39 | An expired access token is renewed and the request retried, rather than ending the session: the renewal is single-flight within a tab and across tabs, so a burst of parallel calls rotates the refresh credential once. A renewal answered 409, because another tab rotated first, is tried once more. Only a refusal from the renewal itself signs the user out, and a 403 never does | `client.test.ts`, `AuthSessionFlowIT` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
-| NFR-47 | A session ends when it goes unused for `app.auth.session.idle`, and at `app.auth.session.absolute` however often it is refreshed, so neither an abandoned session nor a busy one lives indefinitely | `AuthSessionTest` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
+| NFR-47 | A session ends when it goes unused for `app.auth.session.idle`, and at `app.auth.session.absolute` however often it is refreshed, so neither an abandoned session nor a busy one lives indefinitely | `AuthSessionTest` ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) — **Known deviation:** [#331](https://github.com/NaimElijah/UpHealther/issues/331), a notification socket opened in the session outlives its idle or absolute expiry until it reconnects |
 
 ### 4.2 Access control and hardening
 
