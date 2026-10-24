@@ -597,7 +597,7 @@ test that opens a dialog unable to query the page it is standing on. See
 
 **The frontend's wire types are generated from the backend's records.**
 `frontend/src/types/api.generated.ts` is written by a backend test, not by hand.
-`FrontendWireTypes`, in the backend's test sources, finds every `@RestController` on the classpath,
+`FrontendWireTypes`, in the backend's test sources, finds every `@RestController` under `com.healthupgrades`,
 then takes each handler's `@RequestBody` and return type. It renders every record they reach as an
 `interface` and every enum as a union of its names. A component marked with JSpecify's `@Nullable`
 admits `null`. A response declares every key, because Jackson writes nulls. A request may leave out

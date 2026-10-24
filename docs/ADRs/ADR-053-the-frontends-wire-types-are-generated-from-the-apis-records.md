@@ -115,7 +115,7 @@ with the mapper the application runs with:
 alias of a generated type: `HealthUpgrade` of `UpgradeDto`, `AuthResponse` of `TokenPair`, and so on.
 The enum unions are re-exported. Only what the API does not send stays hand-written, and it is derived
 from a generated type: `HealthArea`'s client-side `upgradeCount`, `ActionTarget`, and the URL-only
-`upgradeId` of two request types. `npx tsc` then checks every consumer against the shape the API
+`upgradeId` of the progress request. `npx tsc` then checks every consumer against the shape the API
 declares.
 
 ### The rules a wire record follows

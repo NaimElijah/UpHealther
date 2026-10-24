@@ -140,6 +140,9 @@ re-triggering the other open PRs with a push or a close and reopen.
 - The frontend's request and response types are generated from the backend's records, never written by
   hand (NFR-10, ADR-053). A wire record's component that can be null carries JSpecify's `@Nullable`;
   a request component is either `@Nullable` or carries a not-null constraint; no Jackson annotation
-  shapes a wire record. The generator fails the build on any of these, or on a type it cannot map.
+  shapes a wire record. The generator fails the build on a type it cannot map, on a Jackson annotation,
+  and on a request component with neither; `FrontendWireTypesJsonTest` fails it when Boot's mapper
+  writes or reads a record differently. Nothing can check that a response component without
+  `@Nullable` is never null: that claim is the reviewer's to check.
 - Branches are `type/short-kebab-description`, cut from `dev` and merged back by PR; `dev` → `main` is
   the release PR. Commits are Conventional Commits, one logical change each.
