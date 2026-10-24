@@ -3,8 +3,8 @@
 - **Status:** Accepted
 - **Date:** 2026-10-24
 - **Scope:**
-  - `backend/src/test/java/com/healthupgrades/contract/FrontendWireTypes.java` and
-    `FrontendWireTypesContractTest.java`;
+  - `backend/src/test/java/com/healthupgrades/contract/FrontendWireTypes.java`,
+    `FrontendWireTypesContractTest.java` and `FrontendWireTypesJsonTest.java`;
   - `frontend/src/types/api.generated.ts`, which they write, and `frontend/src/types/index.ts`, which
     derives the frontend's names from it;
   - JSpecify's `@Nullable` on the components of the request and response records under
@@ -87,6 +87,25 @@ Spring's classpath scanner, so no context starts and the check stays in `./mvnw 
 instead. It is a root script because that one spelling works in PowerShell, Git Bash and `sh`, as
 ADR-044 requires.
 
+### Boot's own mapper is held to the same rules
+
+The table above is the generator's model of Jackson, and Jackson can depart from it without a line of
+the record changing:
+
+- Jackson 3 writes and reads an enum through its `toString()` by default.
+- An extra `getX()` on a record is written as a key, and a `@JsonValue` replaces the whole object.
+- A module or a mixin can reshape anything.
+- One `spring.jackson.default-property-inclusion` drops every null key a response declares present.
+
+`FrontendWireTypesJsonTest`, a `@JsonTest`, takes every record the generator rendered and checks it
+with the mapper the application runs with:
+
+- **Each response is written twice.** Filled in, it must produce exactly its components as keys, each
+  of the JSON kind its type is rendered as, with each enum spelled as its constant's name. With its
+  `@Nullable` components unset, every key must still be there, holding `null`.
+- **Each request is read twice.** Once from JSON spelled exactly as its generated interface says, and
+  once with its optional keys left out. Both must bind to the same values.
+
 ### The frontend's names derive from the generated file
 
 `index.ts` keeps every name the frontend already imports, so no import site changes. Each one is an
@@ -128,7 +147,11 @@ still check it.
   `@Nullable` is never null. A missing annotation types a nullable field as non-null, which is #117 in
   reverse. Review is the guard, helped by the rule above that names where the evidence is.
 - **A new kind of wire value stops the build** until `FrontendWireTypes` learns it: a `BigDecimal`, an
-  `Optional`, a polymorphic type, a custom serializer. That is the intended trade.
+  `Optional`, a polymorphic type. So does a serializer that writes something other than the rendered
+  shape, whether it is declared by annotation or registered on the mapper, because
+  `FrontendWireTypesJsonTest` writes through the real mapper. That is the intended trade.
+- **The mapper check proves the shape for one sample per record.** A serializer whose output depends
+  on the value, such as writing large numbers as strings, would pass it.
 - **A call is still paired with its path and method by hand.** A missing body or a wrong response type
   on a call is not caught by the types alone (#328).
 - **A frontend-only change cannot alter a wire type.** The backend's records are the only source.

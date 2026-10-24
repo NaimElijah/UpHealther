@@ -136,7 +136,9 @@ read/composition model with no domain or outbound side. All three are deliberate
   its entity and its column. An unmarked one is typed non-null, and nothing at runtime checks that
   claim. A request component is either `@Nullable` or carries `@NotNull`, `@NotBlank` or
   `@NotEmpty`. Shape the JSON with the record, not with Jackson annotations: the generator models
-  none, and fails on one.
+  none, and fails on one. `FrontendWireTypesJsonTest` writes and reads every wire record through
+  Boot's mapper and fails when the JSON differs from the rendered type, so an enum's `toString()`, an
+  extra getter or a mapper setting fails the build too.
 
 - **Cross-context reads go through the other context's inbound port**, never its service class — e.g.
   `TrackingService` calls `upgradeQuery.getOwnedUpgrade(userId, id)` to confirm ownership first.

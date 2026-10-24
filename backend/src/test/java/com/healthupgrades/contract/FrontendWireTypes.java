@@ -58,10 +58,12 @@ final class FrontendWireTypes {
     /** The package every controller lives under. */
     static final String API_PACKAGE = "com.healthupgrades";
 
-    private static final Set<Class<?>> STRINGS =
+    /** The Java types Jackson writes as a JSON string, rendered as {@code string}. */
+    static final Set<Class<?>> STRINGS =
             Set.of(String.class, UUID.class, LocalDate.class, LocalDateTime.class, LocalTime.class, Instant.class);
 
-    private static final Set<Class<?>> NUMBERS = Set.of(
+    /** The Java types Jackson writes as a JSON number, rendered as {@code number}. */
+    static final Set<Class<?>> NUMBERS = Set.of(
             int.class,
             Integer.class,
             long.class,
@@ -75,7 +77,8 @@ final class FrontendWireTypes {
             byte.class,
             Byte.class);
 
-    private static final Set<Class<?>> BOOLEANS = Set.of(boolean.class, Boolean.class);
+    /** The Java types Jackson writes as a JSON boolean, rendered as {@code boolean}. */
+    static final Set<Class<?>> BOOLEANS = Set.of(boolean.class, Boolean.class);
 
     /**
      * The constraints that make a request component non-null. Bean validation runs before a handler is
@@ -94,7 +97,7 @@ final class FrontendWireTypes {
             """;
 
     /** Which way a record crosses the wire, which decides whether a key that admits null may be absent. */
-    private enum Direction {
+    enum Direction {
         REQUEST("Request body"),
         RESPONSE("Response body");
 
@@ -143,6 +146,20 @@ final class FrontendWireTypes {
         FrontendWireTypes types = new FrontendWireTypes();
         handlerClasses.forEach(types::collect);
         return types.source();
+    }
+
+    /**
+     * The records the given handler classes reach, each with the direction it crosses the wire in: the
+     * same set {@link #render} declares, for a test that holds the rendering rules to the real mapper.
+     *
+     * @param handlerClasses classes whose {@link RequestMapping}-annotated methods are the endpoints
+     * @return every record reached, mapped to whether it is a request or a response body
+     * @throws IllegalStateException on anything {@link #render} refuses
+     */
+    static Map<Class<?>, Direction> records(Collection<Class<?>> handlerClasses) {
+        FrontendWireTypes types = new FrontendWireTypes();
+        handlerClasses.forEach(types::collect);
+        return Map.copyOf(types.directions);
     }
 
     private void collect(Class<?> handlerClass) {

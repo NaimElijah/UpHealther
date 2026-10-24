@@ -604,7 +604,11 @@ admits `null`. A response declares every key, because Jackson writes nulls. A re
 only the keys that admit null.
 
 `FrontendWireTypesContractTest` fails `./mvnw test` when the committed file differs from that
-render, and `npm run generate:wire-types` rewrites the file. `src/types/index.ts` gives the generated
+render, and `npm run generate:wire-types` rewrites the file. `FrontendWireTypesJsonTest` holds the
+render to the mapper the application runs with. It writes every response, filled in and with its
+nullable components unset, and reads every request as its generated type spells it. So an enum's
+`toString()`, an extra getter, a module or a global inclusion setting cannot make the API's JSON
+differ from its generated type. `src/types/index.ts` gives the generated
 types the frontend's names (`HealthUpgrade` for `UpgradeDto`, and so on), and adds by intersection
 only what the API does not send. The same test fails if that file declares an interface or an enum
 union of its own. So a wire change reaches the frontend as a `tsc` error at each use rather than as
