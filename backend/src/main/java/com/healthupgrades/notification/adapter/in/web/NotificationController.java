@@ -3,7 +3,6 @@ package com.healthupgrades.notification.adapter.in.web;
 import com.healthupgrades.common.security.SecurityUser;
 import com.healthupgrades.notification.application.NotificationService;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -43,14 +42,11 @@ public class NotificationController {
     /**
      * Returns how many of the caller's notifications are unread.
      *
-     * <p>Wrapped in an object rather than returned as a bare number so the response stays extensible
-     * without breaking clients that parse it.
-     *
      * @return 200 with {@code {"count": n}}, counting every unread notification, not only the listed fifty
      */
     @GetMapping("/unread-count")
-    public ResponseEntity<Map<String, Long>> unreadCount(@AuthenticationPrincipal SecurityUser principal) {
-        return ResponseEntity.ok(Map.of("count", service.unreadCount(principal.getId())));
+    public ResponseEntity<UnreadCountDto> unreadCount(@AuthenticationPrincipal SecurityUser principal) {
+        return ResponseEntity.ok(new UnreadCountDto(service.unreadCount(principal.getId())));
     }
 
     /**
