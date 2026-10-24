@@ -37,7 +37,8 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
  * closes the WebSocket after sending any ERROR frame ({@code StompSubProtocolHandler.sendToClient}), so
  * the frame both ends the socket and tells the client why, through Spring's own serialised send path.
  *
- * <p>An entry goes as its close is sent, or when the disconnect event arrives, whichever is first. The map
+ * <p>An entry goes once its close has been handed to the channel, or when the disconnect event arrives,
+ * whichever is first; a close the channel refuses leaves it, to be tried again by the next end. The map
  * is close to the sockets actually open, not exactly them: Spring publishes the disconnect event without
  * ordering it against the connect event, so a socket that drops in the instant between its CONNECT being
  * accepted and its CONNECTED being sent can be recorded after it was forgotten. Forgetting a socket as it
@@ -152,16 +153,20 @@ public class StompSessionRegistry implements LiveSocketPort {
     }
 
     private void close(String socket) {
-        openSockets.remove(socket);
         StompHeaderAccessor error = StompHeaderAccessor.create(StompCommand.ERROR);
         error.setMessage(SESSION_ENDED);
         error.setSessionId(socket);
         try {
-            clientOutboundChannel.send(MessageBuilder.createMessage(EMPTY_PAYLOAD, error.getMessageHeaders()));
+            // Forgotten only once the close is handed off. A send refused says nothing about whether the
+            // socket is gone, and one forgotten while still open could never be closed by a later end.
+            if (clientOutboundChannel.send(MessageBuilder.createMessage(EMPTY_PAYLOAD, error.getMessageHeaders()))) {
+                openSockets.remove(socket);
+            }
         } catch (MessagingException unreachable) {
             // Handled rather than thrown: the session's end has already committed, and one socket that
-            // cannot be reached must not keep the others open or fail the request that ended it. The
-            // type and not the message, since this repeats per socket (ADR-010).
+            // cannot be reached must not keep the others open or fail the request that ended it. It stays
+            // recorded, so the next end that names it tries again. The type and not the message, since
+            // this repeats per socket (ADR-010).
             log.warn(
                     "{} {} {}",
                     keyValue("event", "websocket.close-failed"),

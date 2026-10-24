@@ -131,6 +131,29 @@ class StompSessionRegistryTest {
     }
 
     @Test
+    void GivenTheChannelRefusedASocketsClose_WhenItsAccountsSessionsNextEnd_ThenTheCloseIsTriedAgain() {
+        // A refused send says nothing about whether the socket is gone, so it is not forgotten: a socket
+        // the registry lost track of could never be closed by a later end, and would stay open.
+        List<String> attempted = new ArrayList<>();
+        MessageChannel refusingTheFirst = (message, timeout) -> {
+            attempted.add(StompHeaderAccessor.wrap(message).getSessionId());
+            if (attempted.size() == 1) {
+                throw new MessageDeliveryException(message, "the outbound channel is saturated");
+            }
+            return sent.add(message);
+        };
+        StompSessionRegistry flaky = new StompSessionRegistry(refusingTheFirst, sessionStatus);
+        UUID session = UUID.randomUUID();
+        connect(flaky, "tab", ALICE, session);
+        flaky.closeForSession(session);
+
+        flaky.closeForUser(ALICE);
+
+        assertThat(attempted).containsExactly("tab", "tab");
+        assertThat(closedSockets()).containsExactly("tab");
+    }
+
+    @Test
     void GivenASessionThatEndedWhileItsSocketWasConnecting_WhenTheSocketConnects_ThenItIsClosedAtOnce() {
         // The CONNECT passed its session check, then the session ended and the sweep ran before this
         // socket was recorded, so the sweep could not see it. Asking again once it is recorded closes it.
