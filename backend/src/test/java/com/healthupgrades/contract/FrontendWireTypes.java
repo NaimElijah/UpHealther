@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.AnnotatedParameterizedType;
+import java.lang.reflect.AnnotatedType;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -180,34 +182,42 @@ final class FrontendWireTypes {
             String endpoint = handlerClass.getSimpleName() + "." + method.getName();
             for (Parameter parameter : method.getParameters()) {
                 if (parameter.isAnnotationPresent(RequestBody.class)) {
-                    body(parameter.getParameterizedType(), Direction.REQUEST, endpoint + " request body");
+                    body(parameter.getAnnotatedType(), Direction.REQUEST, endpoint + " request body");
                 }
             }
-            body(method.getGenericReturnType(), Direction.RESPONSE, endpoint + " response body");
+            body(method.getAnnotatedReturnType(), Direction.RESPONSE, endpoint + " response body");
         }
     }
 
     /** A handler's body type, minus the {@code ResponseEntity} around it; an empty body declares nothing. */
-    private void body(Type type, Direction direction, String path) {
-        Type payload = type;
-        if (type instanceof ParameterizedType parameterized && parameterized.getRawType() == ResponseEntity.class) {
-            payload = parameterized.getActualTypeArguments()[0];
+    private void body(AnnotatedType type, Direction direction, String path) {
+        AnnotatedType payload = type;
+        if (type instanceof AnnotatedParameterizedType parameterized && rawClass(type) == ResponseEntity.class) {
+            payload = parameterized.getAnnotatedActualTypeArguments()[0];
         }
-        if (payload == void.class || payload == Void.class) {
+        if (payload.getType() == void.class || payload.getType() == Void.class) {
             return;
         }
         typeScript(payload, direction, path);
     }
 
-    private String typeScript(Type type, Direction direction, String path) {
-        if (type instanceof ParameterizedType parameterized && parameterized.getRawType() instanceof Class<?> raw) {
-            Type[] arguments = parameterized.getActualTypeArguments();
+    /**
+     * The TypeScript for a type, read as an {@link AnnotatedType} so that a {@code @Nullable} on a
+     * collection's element or a map's value is seen: that annotation is on the type argument, and a plain
+     * {@link Type} does not carry it.
+     */
+    private String typeScript(AnnotatedType annotated, Direction direction, String path) {
+        Type type = annotated.getType();
+        if (annotated instanceof AnnotatedParameterizedType parameterized
+                && rawClass(annotated) instanceof Class<?> raw) {
+            AnnotatedType[] arguments = parameterized.getAnnotatedActualTypeArguments();
             if (Collection.class.isAssignableFrom(raw)) {
-                return typeScript(arguments[0], direction, path + "[]") + "[]";
+                String element = orNull(arguments[0], typeScript(arguments[0], direction, path + "[]"));
+                return (element.contains("|") ? "(" + element + ")" : element) + "[]";
             }
             if (Map.class.isAssignableFrom(raw)) {
-                requireStringKeyed(arguments[0], path);
-                return "Record<string, " + typeScript(arguments[1], direction, path + "{}") + ">";
+                requireStringKeyed(arguments[0].getType(), path);
+                return "Record<string, " + orNull(arguments[1], typeScript(arguments[1], direction, path + "{}")) + ">";
             }
         }
         if (type instanceof Class<?> cls) {
@@ -230,6 +240,19 @@ final class FrontendWireTypes {
         throw new IllegalStateException(path + " is a " + type.getTypeName()
                 + ", which has no TypeScript mapping here. Add one to " + FrontendWireTypes.class.getSimpleName()
                 + " only if Jackson writes it as a plain JSON value; otherwise give the API a record for it");
+    }
+
+    /** The class a parameterized type is of, such as {@code List} for {@code List<String>}; otherwise null. */
+    private static @Nullable Class<?> rawClass(AnnotatedType type) {
+        return type.getType() instanceof ParameterizedType parameterized
+                        && parameterized.getRawType() instanceof Class<?> raw
+                ? raw
+                : null;
+    }
+
+    /** A type argument's TypeScript, admitting null when the argument carries {@code @Nullable}. */
+    private static String orNull(AnnotatedType argument, String typeScript) {
+        return argument.isAnnotationPresent(Nullable.class) ? typeScript + " | null" : typeScript;
     }
 
     /** JSON object keys are strings, so only a key Jackson writes as its own string has a faithful mapping. */
@@ -294,7 +317,7 @@ final class FrontendWireTypes {
                     .append("  ")
                     .append(component.getName())
                     .append(direction == Direction.REQUEST && nullable ? "?: " : ": ")
-                    .append(typeScript(component.getGenericType(), direction, componentPath))
+                    .append(typeScript(component.getAnnotatedType(), direction, componentPath))
                     .append(nullable ? " | null" : "")
                     .append(";\n");
         }

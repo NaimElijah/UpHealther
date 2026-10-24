@@ -204,6 +204,15 @@ class FrontendWireTypesContractTest {
     }
 
     @Test
+    void GivenACollectionAndAMapWhoseValuesMayBeNull_WhenRendered_ThenTheirElementTypesAdmitNull() {
+        assertThat(FrontendWireTypes.render(List.of(ReturnsNullableElements.class)))
+                .contains("export interface WithNullableElements {\n"
+                        + "  names: (string | null)[];\n"
+                        + "  counts: Record<string, number | null>;\n"
+                        + "}\n");
+    }
+
+    @Test
     void GivenAHandlerClassWithASuperclass_WhenRendered_ThenItFailsRatherThanMissTheEndpointsItInherits() {
         assertThatThrownBy(() -> FrontendWireTypes.render(List.of(InheritsItsEndpoints.class)))
                 .isInstanceOf(IllegalStateException.class)
@@ -334,6 +343,15 @@ class FrontendWireTypesContractTest {
         @PostMapping
         ResponseEntity<Void> post(@RequestBody Unconstrained body) {
             return ResponseEntity.noContent().build();
+        }
+    }
+
+    record WithNullableElements(List<@Nullable String> names, Map<String, @Nullable Integer> counts) {}
+
+    static class ReturnsNullableElements {
+        @GetMapping
+        WithNullableElements get() {
+            return new WithNullableElements(List.of(), Map.of());
         }
     }
 

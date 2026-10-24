@@ -67,7 +67,8 @@ Spring's classpath scanner, so no context starts and the check stays in `./mvnw 
   - `String`, `UUID`, `LocalDate`, `LocalDateTime`, `LocalTime` and `Instant` become `string`.
   - Numbers become `number`, and booleans `boolean`.
 - **Containers.** A collection becomes `T[]`, and a map keyed by a `String`, a `UUID` or an enum
-  becomes `Record<string, V>`.
+  becomes `Record<string, V>`. An element or a value whose type argument carries `@Nullable` admits
+  null: `List<@Nullable String>` is `(string | null)[]`.
 - **Nullness.**
   - A component whose type carries `org.jspecify.annotations.Nullable` admits `null`.
   - A response declares every key, because the wire always carries it.
