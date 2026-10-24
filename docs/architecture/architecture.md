@@ -116,7 +116,9 @@ resolves per session using that principal. Every CONNECT that presents a credent
 `auth.connect`, allowed or refused (NFR-23), because the socket stays signed in as that user for as long
 as it is open; a refusal names nobody, as a refused login does. A CONNECT with no `Authorization` header
 — what a tab whose session could not be renewed sends every five seconds — presented nothing and is not
-an entry, as a refresh with no cookie is not.
+an entry, as a refresh with no cookie is not. A refusal reaches the browser as a STOMP ERROR frame, and
+the client drops its access token on one, so its next attempt renews from the cookie rather than
+presenting a token the server has already refused.
 
 The same interceptor authorises the frames that follow, because a session that is merely connected
 can still name any destination it likes. A SUBSCRIBE must come from an authenticated session and

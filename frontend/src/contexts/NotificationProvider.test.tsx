@@ -31,6 +31,13 @@ let lastClient: FakeClient | undefined;
 
 type StompHandler = (message: { body: string }) => void;
 
+/** The part of stompjs's client configuration the provider supplies and these tests drive. */
+type FakeClientConfig = {
+  onConnect?: () => void;
+  beforeConnect?: () => unknown;
+  onStompError?: (frame: { headers: Record<string, string> }) => void;
+};
+
 /** Stands in for `@stomp/stompjs`'s Client, recording the lifecycle calls the provider makes. */
 class FakeClient {
   activated = 0;
@@ -39,9 +46,9 @@ class FakeClient {
   /** Written by the provider's beforeConnect hook, and read by the real client on every attempt. */
   connectHeaders: Record<string, string> = {};
   private handler?: StompHandler;
-  private readonly config: { onConnect?: () => void; beforeConnect?: () => unknown };
+  private readonly config: FakeClientConfig;
 
-  constructor(config: { onConnect?: () => void; beforeConnect?: () => unknown }) {
+  constructor(config: FakeClientConfig) {
     this.config = config;
   }
 
@@ -80,11 +87,16 @@ class FakeClient {
   deliver(body: string) {
     this.handler?.({ body });
   }
+
+  /** Simulates the server answering with an ERROR frame, which it follows by closing the socket. */
+  fail(message: string) {
+    this.config.onStompError?.({ headers: { message } });
+  }
 }
 
 vi.mock('@stomp/stompjs', () => ({
   Client: class {
-    constructor(config: { onConnect?: () => void; beforeConnect?: () => unknown }) {
+    constructor(config: FakeClientConfig) {
       // Recorded here rather than in FakeClient's own constructor: aliasing `this` out of a
       // constructor is what `no-this-alias` exists to stop, and the seam belongs to the mock anyway.
       const client = new FakeClient(config);
@@ -570,6 +582,25 @@ describe('NotificationProvider', () => {
     expect(renewSession).not.toHaveBeenCalled();
     expect(lastClient?.connectHeaders).toEqual({ Authorization: 'Bearer still.good.token' });
   });
+
+  it('GivenTheServerRefusedTheConnection_WhenTheSocketReconnects_ThenTheTokenIsRenewedFirst', async () => {
+    // A CONNECT whose session has ended is refused with an ERROR frame. The token can still look usable
+    // by its clock, and presenting it again would be refused on every attempt, each refusal an audit
+    // entry, until it lapsed fifteen minutes later.
+    setAccessToken('revoked.jwt.token', '2099-01-01T00:00:00Z');
+    renewSession.mockReturnValue(true);
+    renderProvider(authenticated());
+    await waitFor(() => expect(lastClient).toBeDefined());
+
+    act(() => lastClient?.fail('Unusable token on STOMP CONNECT'));
+    await act(async () => {
+      await lastClient?.prepareConnect();
+    });
+
+    expect(renewSession).toHaveBeenCalled();
+    expect(lastClient?.connectHeaders).toEqual({ Authorization: 'Bearer renewed.jwt.token' });
+  });
+
   it('GivenTheTokenWasRenewed_WhenTheSocketReconnects_ThenItAuthenticatesWithTheCurrentOne', async () => {
     // The access token now lasts minutes and is replaced underneath this component. A header
     // captured when the effect ran would be stale by the first reconnect, and putting the token in

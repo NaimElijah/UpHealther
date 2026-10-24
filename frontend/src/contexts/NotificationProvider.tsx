@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Client } from '@stomp/stompjs';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
-import { getAccessToken, hasUsableAccessToken } from '../api/tokenStore';
+import { clearAccessToken, getAccessToken, hasUsableAccessToken } from '../api/tokenStore';
 import { renewSession } from '../api/client';
 import { getNotifications, getUnreadCount, markNotificationRead, markAllNotificationsRead } from '../api/notifications';
 import { NotificationContext } from './notificationContextValue';
@@ -175,7 +175,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         });
       },
       onWebSocketClose: () => setConnected(false),
-      onStompError: () => setConnected(false),
+      // An ERROR frame is the server refusing this connection, most often because the session behind
+      // the token has ended. The token can still look usable by its clock, so it is dropped: the next
+      // attempt renews first instead of presenting it again, which would be refused - and audited -
+      // every five seconds until it lapsed.
+      onStompError: () => {
+        clearAccessToken();
+        setConnected(false);
+      },
     });
     client.activate();
     clientRef.current = client;
