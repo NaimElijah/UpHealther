@@ -584,9 +584,10 @@ describe('NotificationProvider', () => {
   });
 
   it('GivenTheServerRefusedTheConnection_WhenTheSocketReconnects_ThenTheTokenIsRenewedFirst', async () => {
-    // A CONNECT whose session has ended is refused with an ERROR frame. The token can still look usable
-    // by its clock, and presenting it again would be refused on every attempt, each refusal an audit
-    // entry, until it lapsed fifteen minutes later.
+    // A CONNECT whose session has ended is refused with an ERROR frame, and the server ends an open
+    // socket the same way when its session ends (ADR-054). The token can still look usable by its clock,
+    // and presenting it again would be refused on every attempt, each refusal an audit entry, until it
+    // lapsed fifteen minutes later.
     setAccessToken('revoked.jwt.token', '2099-01-01T00:00:00Z');
     renewSession.mockReturnValue(true);
     renderProvider(authenticated());

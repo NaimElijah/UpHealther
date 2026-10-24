@@ -54,10 +54,10 @@ Ten contexts, each owning its own vocabulary, plus a cross-cutting `common`.
 | `notification` | `Notification` — the inbox and the real-time push | Full, and the only context with a messaging adapter |
 | `healtharea` | `HealthArea` — the groupings upgrades are filed under | Full |
 | `user` | `User` — identity and the stored password hash; `EmailAddress`, the one rule for when two addresses are the same identity | Full |
-| `auth` | Registration, sign-in, sign-out, and the sessions tokens are issued within | `AuthSession` — a signed-in session, the row that makes revocation possible; orchestrates over `user` for identity |
+| `auth` | Registration, sign-in, sign-out, and the sessions tokens are issued within; announcing a session's end, so the sockets it opened close | `AuthSession` — a signed-in session, the row that makes revocation possible; orchestrates over `user` for identity |
 | `admin` | Listing accounts, switching one off or back on, and granting or revoking a role | Two-layer: orchestrates over `user` and `auth`, owns no aggregate. It depends on no context holding a user's own records, and ArchUnit keeps it that way |
 | `dashboard` | The composed dashboard read model | Two-layer: reads through other contexts' ports, persists nothing |
-| `common` | Cross-cutting: the `DomainEvent` marker, shared exceptions, the event-publisher port, the global exception handler, JWT security and the WebSocket configuration | Not a context; a shared kernel plus cross-cutting adapters |
+| `common` | Cross-cutting: the `DomainEvent` marker, shared exceptions, the event-publisher port, the global exception handler, JWT security, and the WebSocket configuration with the registry of open sockets | Not a context; a shared kernel plus cross-cutting adapters |
 
 The shapes that differ are deliberate, not drift. `dashboard` is two-layer by design
 ([ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)); `auth` began
@@ -129,6 +129,19 @@ they name nothing, and refusing a DISCONNECT would leave sessions to time out ra
 A refused SUBSCRIBE or SEND is a WARN line, not an audit entry: it authorises a frame on a connection
 that is already authenticated.
 
+A connected socket sends nothing the interceptor could check again, so the server closes it instead
+when its session ends ([ADR-054](../ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md)).
+The principal the CONNECT attaches also keeps the session its token was issued within, and
+`StompSessionRegistry` in `common.websocket` follows Spring's connect and disconnect events to know
+which socket belongs to which session and account. When `auth` ends one session — a sign-out, or a
+replayed refresh credential — it publishes `AuthSessionEnded`; when it ends all of an account's, as
+switching the account off does, it publishes `UserSessionsEnded`. `SessionEndSocketListener` takes
+both after the commit and calls `LiveSocketPort`, which the registry implements: inverted, like
+`SessionStatusPort`, because `common` may not depend on `auth`. The registry sends each matching socket
+a STOMP ERROR frame (`message: Session ended`), after which Spring closes the WebSocket. Sign-out is
+per device, so only the sockets opened in that session close. The client takes the ERROR as it takes
+a refused CONNECT, and renews before it connects again.
+
 The broker is Spring's in-memory simple broker. There is no external broker, so a push reaches only
 clients connected to *this* instance — see "Known constraints" below.
 
@@ -140,7 +153,10 @@ rolls back. Such a listener stores its notification in a transaction of its own 
 committed transaction is still bound to the thread when the listener runs, and an insert that joined it
 would never be committed ([ADR-028](../ADRs/ADR-028-a-raised-notification-is-stored-in-its-own-transaction-after-the-write-commits.md)).
 Events raised outside a transaction — by the scheduled sweeps — use a plain `@EventListener`,
-because there is no commit for a transactional listener to wait for.
+because there is no commit for a transactional listener to wait for. `auth` raises the two events that
+end a session's sockets, and consumes them itself: `SessionEndSocketListener` writes nothing, so it
+needs no transaction of its own, and it waits for the commit so that a socket's reconnect cannot read
+a session whose end has not landed yet as live.
 
 Events are asynchronous only in the sense of being decoupled; they are delivered in the same process,
 and nothing is queued or persisted between publisher and consumer.
@@ -647,8 +663,10 @@ Stated because they are load-bearing, not because they are problems yet:
 
 - **A single backend instance.** The STOMP broker is in-memory, so a notification pushed by one
   instance reaches only the clients connected to that instance. Notifications are persisted, so a
-  client on another instance sees them on its next fetch rather than instantly. Running more than one
-  instance needs a real broker relay first.
+  client on another instance sees them on its next fetch rather than instantly. The registry that
+  closes a session's sockets when it ends is in memory too, so a session ended on one instance could
+  not close a socket held by another. Running more than one instance needs a real broker relay first,
+  and a way to reach every instance's sockets with it.
 - **`./mvnw test` needs no database; `./mvnw verify` needs Docker.** The integration tests boot the
   application against a real PostgreSQL that they start themselves through Testcontainers, so the
   database is described in the test source rather than supplied to it ([ADR-008](../ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)).
@@ -734,6 +752,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why one version names both modules rather than one each; why a test, not a CI step, holds the four fields together; why `dev` carries the last release's version | [ADR-050](../ADRs/ADR-050-one-version-names-the-whole-repository.md) |
 | Why a release is a tag on its promotion merge, cut by hand; why git-cliff runs from an image rather than release-please, a script or an npm dependency; why the changelog is only ever prepended to | [ADR-051](../ADRs/ADR-051-a-release-is-a-tag-on-its-promotion-and-git-cliff-writes-its-changelog.md) |
 | Why a browser drives the composed stack inside the image check, in Playwright's Chromium, rather than in a job of its own or only before a release; why `e2e/` is its own package; why the frontend publishes `127.0.0.1:3000` and the browser runs in UTC | [ADR-052](../ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md) |
+| Why a session that ends closes its open sockets with an ERROR frame, after the commit; why not a check on every push or on the client's heartbeats; why a session's natural expiry is not covered | [ADR-054](../ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

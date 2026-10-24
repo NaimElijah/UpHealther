@@ -175,10 +175,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         });
       },
       onWebSocketClose: () => setConnected(false),
-      // An ERROR frame is the server refusing this connection, most often because the session behind
-      // the token has ended. The token can still look usable by its clock, so it is dropped: the next
-      // attempt renews first instead of presenting it again, which would be refused - and audited -
-      // every five seconds until it lapsed.
+      // An ERROR frame is the server refusing this connection, or ending it because the session behind
+      // the token has ended (ADR-054). The token can still look usable by its clock, so it is dropped:
+      // the next attempt renews first instead of presenting it again, which would be refused - and
+      // audited - every five seconds until it lapsed.
       onStompError: () => {
         clearAccessToken();
         setConnected(false);

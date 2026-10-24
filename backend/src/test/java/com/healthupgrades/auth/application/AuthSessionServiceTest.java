@@ -3,16 +3,20 @@ package com.healthupgrades.auth.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.healthupgrades.auth.domain.event.AuthSessionEnded;
+import com.healthupgrades.auth.domain.event.UserSessionsEnded;
 import com.healthupgrades.auth.domain.model.AuthSession;
 import com.healthupgrades.auth.domain.port.out.AuthSessionRepositoryPort;
 import com.healthupgrades.auth.domain.port.out.SecretGeneratorPort;
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
+import com.healthupgrades.common.domain.event.DomainEvent;
 import com.healthupgrades.support.RecordingAuditTrail;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -49,13 +53,15 @@ class AuthSessionServiceTest {
     private final QueuedSecrets secrets = new QueuedSecrets();
     private final RecordingAuditTrail auditTrail = new RecordingAuditTrail();
     private final MovableClock clock = new MovableClock(START);
+    /** Our own port, recorded rather than mocked, like the rest of this class's collaborators. */
+    private final List<DomainEvent> published = new ArrayList<>();
 
     private AuthSessionService service;
 
     @BeforeEach
     void setUp() {
         service = new AuthSessionService(
-                sessions, secrets, new AuthSessionProperties(IDLE, ABSOLUTE, GRACE), auditTrail, clock);
+                sessions, secrets, new AuthSessionProperties(IDLE, ABSOLUTE, GRACE), auditTrail, published::add, clock);
     }
 
     @Test
@@ -101,6 +107,30 @@ class AuthSessionServiceTest {
         assertThat(sessions.byId(opened.sessionId()).isActive(clock.instant()))
                 .as("being told to retry must not have cost the user their session")
                 .isTrue();
+    }
+
+    @Test
+    void GivenACredentialAlreadyExchanged_WhenItIsPresentedInsideTheGraceWindow_ThenNoEndIsPublished() {
+        // Two tabs racing is not a session ending, so neither tab's socket may be closed for it.
+        SessionGrant opened = service.open(USER_ID);
+        service.refresh(opened.refreshToken());
+        clock.moveTo(START.plus(GRACE));
+
+        service.refresh(opened.refreshToken());
+
+        assertThat(published).isEmpty();
+    }
+
+    @Test
+    void GivenACredentialAlreadyExchanged_WhenItIsPresentedAfterTheGraceWindow_ThenTheSessionsEndIsPublished() {
+        // Reuse ends the session for both holders, and a socket either of them opened ends with it.
+        SessionGrant opened = service.open(USER_ID);
+        service.refresh(opened.refreshToken());
+        clock.moveTo(START.plus(GRACE).plusSeconds(1));
+
+        service.refresh(opened.refreshToken());
+
+        assertThat(published).containsExactly(new AuthSessionEnded(opened.sessionId(), USER_ID, now()));
     }
 
     @Test
@@ -274,6 +304,7 @@ class AuthSessionServiceTest {
                 secrets,
                 new AuthSessionProperties(IDLE, ABSOLUTE, GRACE),
                 auditTrail,
+                published::add,
                 clock);
 
         assertThatThrownBy(() -> broken.refresh(UUID.randomUUID() + ".a-secret"))
@@ -295,6 +326,17 @@ class AuthSessionServiceTest {
     }
 
     @Test
+    void GivenALiveSession_WhenItIsSignedOutOf_ThenItsEndIsPublished() {
+        // What closes a socket the session opened: one checked only when it connected, and which would
+        // otherwise go on receiving the account's notifications after the sign-out (#83).
+        SessionGrant opened = service.open(USER_ID);
+
+        service.revoke(opened.refreshToken());
+
+        assertThat(published).containsExactly(new AuthSessionEnded(opened.sessionId(), USER_ID, now()));
+    }
+
+    @Test
     void GivenACredentialThatDoesNotMatch_WhenSignOutIsAttempted_ThenTheSessionIsLeftAlone() {
         SessionGrant opened = service.open(USER_ID);
 
@@ -303,6 +345,16 @@ class AuthSessionServiceTest {
         assertThat(service.isActive(opened.sessionId(), USER_ID))
                 .as("knowing a session id is not authority to end it")
                 .isTrue();
+    }
+
+    @Test
+    void GivenACredentialThatDoesNotMatch_WhenSignOutIsAttempted_ThenNoEndIsPublished() {
+        // A session id is no secret, so a refused sign-out must not close the socket of the session it names.
+        SessionGrant opened = service.open(USER_ID);
+
+        service.revoke(opened.sessionId() + ".not-the-secret");
+
+        assertThat(published).isEmpty();
     }
 
     @Test
@@ -384,6 +436,7 @@ class AuthSessionServiceTest {
                 secrets,
                 new AuthSessionProperties(IDLE, ABSOLUTE, GRACE),
                 auditTrail,
+                published::add,
                 clock);
 
         assertThatThrownBy(() -> broken.revoke(UUID.randomUUID() + ".a-secret"))
@@ -414,6 +467,18 @@ class AuthSessionServiceTest {
 
         assertThat(service.isActive(first.sessionId(), USER_ID)).isFalse();
         assertThat(service.isActive(second.sessionId(), USER_ID)).isFalse();
+    }
+
+    @Test
+    void GivenSeveralSessionsForOneAccount_WhenTheyAreAllRevoked_ThenTheEndOfEveryOneIsPublishedOnce() {
+        // One event for the account rather than one per session: the bulk revocation does not say which
+        // sessions it ended, and every socket the account holds is to close regardless.
+        service.open(USER_ID);
+        service.open(USER_ID);
+
+        service.revokeAllForUser(USER_ID);
+
+        assertThat(published).containsExactly(new UserSessionsEnded(USER_ID, now()));
     }
 
     @Test
@@ -548,6 +613,11 @@ class AuthSessionServiceTest {
     }
 
     /** A clock that can be moved, because the grace window cannot be crossed with a fixed one. */
+    /** The moment the clock reads, as an event this service publishes stamps it. */
+    private LocalDateTime now() {
+        return LocalDateTime.now(clock);
+    }
+
     private static final class MovableClock extends Clock {
 
         private Instant now;
