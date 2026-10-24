@@ -75,20 +75,31 @@ const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 /** Where the reminder form's time starts, and returns to once a reminder is added or rescheduled. */
 const DEFAULT_REMINDER_TIME = '09:00';
 
-/** The tracking types the configuration form offers, in the order it offers them. */
-const TRACKING_TYPE_OPTIONS: { value: TrackingType; label: string }[] = [
-  { value: 'BOOLEAN', label: 'Yes / No (did it)' },
-  { value: 'NUMERIC', label: 'Numeric (amount vs target)' },
-  { value: 'RATING', label: 'Rating (1-5)' },
-  { value: 'TEXT', label: 'Text note' },
-];
+/** A select's choices, in the order a label map lists them. */
+const optionsOf = <T extends string>(labels: Record<T, string>): { value: T; label: string }[] =>
+  (Object.keys(labels) as T[]).map((value) => ({ value, label: labels[value] }));
 
-/** The frequencies the configuration form offers. */
-const FREQUENCY_OPTIONS: { value: Frequency; label: string }[] = [
-  { value: 'DAILY', label: 'Daily' },
-  { value: 'WEEKLY', label: 'Weekly' },
-  { value: 'MONTHLY', label: 'Monthly' },
-];
+/**
+ * What the configuration form calls each tracking type. Keyed by the generated union, so a type the API
+ * adds is a compile error here rather than an option the form lacks: `offered` would then read a saved
+ * one as the default, and a save would overwrite it.
+ */
+const TRACKING_TYPE_LABELS: Record<TrackingType, string> = {
+  BOOLEAN: 'Yes / No (did it)',
+  NUMERIC: 'Numeric (amount vs target)',
+  RATING: 'Rating (1-5)',
+  TEXT: 'Text note',
+};
+
+/** What the configuration form calls each frequency; total over the union for the same reason. */
+const FREQUENCY_LABELS: Record<Frequency, string> = {
+  DAILY: 'Daily',
+  WEEKLY: 'Weekly',
+  MONTHLY: 'Monthly',
+};
+
+const TRACKING_TYPE_OPTIONS = optionsOf(TRACKING_TYPE_LABELS);
+const FREQUENCY_OPTIONS = optionsOf(FREQUENCY_LABELS);
 
 /**
  * The option a saved value names, or nothing when it names none of them.
