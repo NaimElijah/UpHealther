@@ -95,7 +95,8 @@ devices stay connected.
 
 - **Ending a session ends all of it.** A socket no longer outlives a sign-out, a switch-off or a
   replayed credential. The three known deviations are closed, and `StompSessionEndIT` drives two of
-  the paths over a real socket.
+  the paths over a real socket. `SessionEndSocketCommitIT` shows the close waits for the commit and
+  skips a rollback, which no other test can tell apart from closing inside the transaction.
 - **#57 gets this for free.** A password change or an account deletion that revokes through
   `revokeAllForUser` closes the account's sockets with no further work.
 - **A second piece of per-instance memory.** The registry lives in one process, as the broker does

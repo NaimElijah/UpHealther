@@ -482,6 +482,15 @@ class AuthSessionServiceTest {
     }
 
     @Test
+    void GivenAnAccountWithNoLiveSession_WhenAllItsSessionsAreRevoked_ThenTheirEndIsStillPublished() {
+        // A socket outlives the session that opened it, so one can still be open on a session that had
+        // already expired. Announcing only when a row was revoked would leave that socket open.
+        assertThat(service.revokeAllForUser(USER_ID)).isZero();
+
+        assertThat(published).containsExactly(new UserSessionsEnded(USER_ID, now()));
+    }
+
+    @Test
     void GivenASessionIdNothingIssued_WhenItIsCheckedForLiveness_ThenItIsNotActive() {
         assertThat(service.isActive(UUID.randomUUID(), USER_ID)).isFalse();
     }
