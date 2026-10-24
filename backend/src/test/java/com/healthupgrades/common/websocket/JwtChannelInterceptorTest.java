@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
+import com.healthupgrades.common.security.BearerAuthentication;
 import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.RecordingAuditTrail;
@@ -45,6 +46,7 @@ import org.springframework.messaging.support.MessageBuilder;
 class JwtChannelInterceptorTest {
 
     private static final String TOKEN = "a.signed.token";
+    private static final UUID SESSION_ID = UUID.randomUUID();
 
     @Mock
     BearerTokenAuthenticator authenticator;
@@ -63,7 +65,7 @@ class JwtChannelInterceptorTest {
     @Test
     void GivenAConnectWithAUsableToken_WhenItArrives_ThenTheSessionPrincipalIsTheUsersId() {
         UUID userId = UUID.randomUUID();
-        when(authenticator.authenticate(TOKEN)).thenReturn(Optional.of(AUser.principalFor(userId)));
+        when(authenticator.authenticateWithSession(TOKEN)).thenReturn(Optional.of(signedIn(userId)));
 
         Message<?> passed = interceptor.preSend(frame(StompCommand.CONNECT, "Bearer " + TOKEN), channel);
 
@@ -73,8 +75,22 @@ class JwtChannelInterceptorTest {
     }
 
     @Test
+    void GivenAConnectWithAUsableToken_WhenItArrives_ThenTheSessionPrincipalNamesTheSessionItWasOpenedIn() {
+        // Kept so that ending that session can find this socket and close it, and leave the account's
+        // sockets opened in its other sessions alone: sign-out is per device.
+        when(authenticator.authenticateWithSession(TOKEN)).thenReturn(Optional.of(signedIn(UUID.randomUUID())));
+
+        Message<?> passed = interceptor.preSend(frame(StompCommand.CONNECT, "Bearer " + TOKEN), channel);
+
+        assertThat(StompHeaderAccessor.wrap(passed).getUser())
+                .isInstanceOfSatisfying(
+                        StompPrincipal.class,
+                        principal -> assertThat(principal.sessionId()).isEqualTo(SESSION_ID));
+    }
+
+    @Test
     void GivenAConnectWithAnUnusableToken_WhenItArrives_ThenTheConnectionIsRefused() {
-        when(authenticator.authenticate(TOKEN)).thenReturn(Optional.empty());
+        when(authenticator.authenticateWithSession(TOKEN)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> interceptor.preSend(frame(StompCommand.CONNECT, "Bearer " + TOKEN), channel))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -85,7 +101,7 @@ class JwtChannelInterceptorTest {
         assertThatThrownBy(() -> interceptor.preSend(frame(StompCommand.CONNECT, null), channel))
                 .isInstanceOf(IllegalArgumentException.class);
 
-        verify(authenticator, never()).authenticate(any());
+        verify(authenticator, never()).authenticateWithSession(any());
     }
 
     @Test
@@ -99,7 +115,7 @@ class JwtChannelInterceptorTest {
     @Test
     void GivenAConnectWithAUsableToken_WhenItArrives_ThenTheConnectionIsAuditedAsAllowedForThatUser() {
         UUID userId = UUID.randomUUID();
-        when(authenticator.authenticate(TOKEN)).thenReturn(Optional.of(AUser.principalFor(userId)));
+        when(authenticator.authenticateWithSession(TOKEN)).thenReturn(Optional.of(signedIn(userId)));
 
         interceptor.preSend(frame(StompCommand.CONNECT, "Bearer " + TOKEN), channel);
 
@@ -111,7 +127,7 @@ class JwtChannelInterceptorTest {
     void GivenAConnectWithAnUnusableToken_WhenItArrives_ThenTheRefusalIsAuditedWithNoSubject() {
         // A token that does not authenticate proves nothing about whose it was - the same reason a
         // refused login names nobody.
-        when(authenticator.authenticate(TOKEN)).thenReturn(Optional.empty());
+        when(authenticator.authenticateWithSession(TOKEN)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> interceptor.preSend(frame(StompCommand.CONNECT, "Bearer " + TOKEN), channel))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -145,7 +161,7 @@ class JwtChannelInterceptorTest {
     void GivenTheAuthenticatorFails_WhenAConnectArrives_ThenTheAttemptIsAuditedAsFailedAndTheFaultPropagates() {
         // The authenticator reads the session and the account on every call, so a failure there is an
         // outage, not a refused token, and counting it as a refusal would hide it in ordinary traffic.
-        when(authenticator.authenticate(TOKEN))
+        when(authenticator.authenticateWithSession(TOKEN))
                 .thenThrow(new DataAccessResourceFailureException("the database is unreachable"));
 
         assertThatThrownBy(() -> interceptor.preSend(frame(StompCommand.CONNECT, "Bearer " + TOKEN), channel))
@@ -235,9 +251,14 @@ class JwtChannelInterceptorTest {
         assertThat(interceptor.preSend(disconnect, channel)).isSameAs(disconnect);
     }
 
+    /** What the authenticator answers for a usable token: the account, and the session it was issued in. */
+    private static BearerAuthentication signedIn(UUID userId) {
+        return new BearerAuthentication(AUser.principalFor(userId), SESSION_ID);
+    }
+
     /** The principal a CONNECT leaves on the session, which later frames arrive carrying. */
     private static Principal session() {
-        return new StompPrincipal(UUID.randomUUID().toString());
+        return new StompPrincipal(UUID.randomUUID().toString(), UUID.randomUUID());
     }
 
     private static Message<byte[]> frameFrom(StompCommand command, String destination, Principal user) {
