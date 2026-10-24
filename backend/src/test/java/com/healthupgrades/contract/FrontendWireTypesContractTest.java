@@ -200,8 +200,21 @@ class FrontendWireTypesContractTest {
     void GivenARequestComponentNeitherNullableNorConstrained_WhenRendered_ThenItFailsRatherThanTypeItOnTrust() {
         assertThatThrownBy(() -> FrontendWireTypes.render(List.of(AcceptsAnUnconstrainedBody.class)))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining(
-                        "Unconstrained.title is a request component that nothing keeps from being" + " null");
+                .hasMessageContaining("Unconstrained.title is a request component that nothing keeps from being null");
+    }
+
+    @Test
+    void GivenAHandlerClassWithASuperclass_WhenRendered_ThenItFailsRatherThanMissTheEndpointsItInherits() {
+        assertThatThrownBy(() -> FrontendWireTypes.render(List.of(InheritsItsEndpoints.class)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(InheritsItsEndpoints.class.getName() + " extends or implements");
+    }
+
+    @Test
+    void GivenAHandlerClassImplementingAnInterface_WhenRendered_ThenItFailsRatherThanMissTheEndpointsItInherits() {
+        assertThatThrownBy(() -> FrontendWireTypes.render(List.of(ImplementsItsEndpoints.class)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(ImplementsItsEndpoints.class.getName() + " extends or implements");
     }
 
     /** The names of every declaration in {@link #SHARED} the pattern matches. */
@@ -323,4 +336,24 @@ class FrontendWireTypesContractTest {
             return ResponseEntity.noContent().build();
         }
     }
+
+    static class EndpointsToInherit {
+        @GetMapping
+        Part get() {
+            return new Part(LocalDate.of(2026, 3, 1));
+        }
+    }
+
+    /** Spring MVC maps the endpoint it inherits, which {@code getDeclaredMethods()} does not list. */
+    static class InheritsItsEndpoints extends EndpointsToInherit {}
+
+    interface EndpointsToImplement {
+        @GetMapping
+        default Part get() {
+            return new Part(LocalDate.of(2026, 3, 1));
+        }
+    }
+
+    /** Spring MVC maps an interface's default method, and honours a {@code @RequestBody} declared there. */
+    static class ImplementsItsEndpoints implements EndpointsToImplement {}
 }

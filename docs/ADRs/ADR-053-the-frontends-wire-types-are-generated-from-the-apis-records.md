@@ -74,6 +74,8 @@ Spring's classpath scanner, so no context starts and the check stays in `./mvnw 
   - A request may leave out a key that admits null, and must carry every other one.
 - **The table is closed. Each of these is a failure, not a guess:**
   - a type outside the mapping, named by the path that reached it;
+  - a controller that extends or implements a type, since it could inherit endpoints, or a
+    `@RequestBody` declared on an interface, that its own methods do not show;
   - a record that is both a request and a response;
   - two wire types with one simple name;
   - any Jackson annotation on a record, a component or an enum constant;
@@ -186,5 +188,10 @@ still check it.
   description would then be part of the product.
 - **The API adopts a shape the table cannot express:** polymorphic bodies, renamed keys, custom
   serializers.
+- **A controller becomes conditional, or one is declared in test sources.** The classpath scan skips
+  a `@Profile` or `@Conditional` controller, because it evaluates conditions against an empty
+  environment. It would include a `@RestController` under `com.healthupgrades` in test sources. Neither
+  exists, and a test-only one would also be registered by every web slice, which the suite avoids for
+  that reason. When either is wanted, decide which API the generated file describes.
 - **swagger-core reads TYPE_USE `@Nullable` and treats a record's components as required.** The custom
   converter, OpenAPI's main extra cost, would then disappear.

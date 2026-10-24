@@ -163,6 +163,14 @@ final class FrontendWireTypes {
     }
 
     private void collect(Class<?> handlerClass) {
+        // Spring MVC maps an inherited handler and an interface's default method, and honours a
+        // @RequestBody declared on an interface's parameter. Reading only this class's own methods would
+        // miss all three without a sound, so a controller that could have any of them is refused instead.
+        if (handlerClass.getSuperclass() != Object.class || handlerClass.getInterfaces().length > 0) {
+            throw new IllegalStateException(handlerClass.getName() + " extends or implements a type, so it may"
+                    + " inherit endpoints or a @RequestBody that its own methods do not show. Declare them on the"
+                    + " controller itself, or teach " + FrontendWireTypes.class.getSimpleName() + " to read them");
+        }
         Method[] methods = handlerClass.getDeclaredMethods();
         Arrays.sort(methods, Comparator.comparing(Method::toGenericString));
         for (Method method : methods) {
