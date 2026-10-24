@@ -3,6 +3,7 @@ package com.healthupgrades.tracking.adapter.in.web;
 import com.healthupgrades.tracking.domain.model.Frequency;
 import com.healthupgrades.tracking.domain.model.TrackingType;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 
 /**
  * An upgrade's tracking configuration as returned on the wire.
@@ -23,7 +24,7 @@ public record TrackingConfigDto(
         UUID id,
         UUID upgradeId,
         TrackingType trackingType,
-        Frequency frequency,
-        Double targetNumericValue,
-        String targetUnit,
-        Boolean requiredDaily) {}
+        @Nullable Frequency frequency,
+        @Nullable Double targetNumericValue,
+        @Nullable String targetUnit,
+        @Nullable Boolean requiredDaily) {}

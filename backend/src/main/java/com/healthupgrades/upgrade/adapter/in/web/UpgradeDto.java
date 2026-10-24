@@ -6,6 +6,7 @@ import com.healthupgrades.upgrade.domain.model.UpgradeType;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 
 /**
  * An upgrade as returned on the wire.
@@ -41,19 +42,19 @@ import java.util.UUID;
 public record UpgradeDto(
         UUID id,
         UUID userId,
-        UUID areaId,
+        @Nullable UUID areaId,
         String title,
-        String description,
+        @Nullable String description,
         UpgradeType type,
         UpgradeStatus status,
-        Difficulty difficulty,
-        LocalDate plannedStartDate,
-        LocalDate actualStartDate,
-        LocalDate targetEndDate,
-        String motivation,
-        String successCriteria,
+        @Nullable Difficulty difficulty,
+        @Nullable LocalDate plannedStartDate,
+        @Nullable LocalDate actualStartDate,
+        @Nullable LocalDate targetEndDate,
+        @Nullable String motivation,
+        @Nullable String successCriteria,
         boolean overdue,
         Long version,
-        UpgradeTrackingConfigDto trackingConfig,
+        @Nullable UpgradeTrackingConfigDto trackingConfig,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {}

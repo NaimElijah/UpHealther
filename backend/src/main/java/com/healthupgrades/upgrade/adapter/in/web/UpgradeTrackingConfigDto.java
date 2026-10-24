@@ -1,6 +1,7 @@
 package com.healthupgrades.upgrade.adapter.in.web;
 
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The tracking configuration as embedded in an upgrade response.
@@ -14,7 +15,7 @@ public record UpgradeTrackingConfigDto(
         UUID id,
         UUID upgradeId,
         String trackingType,
-        String frequency,
-        Double targetNumericValue,
-        String targetUnit,
-        Boolean requiredDaily) {}
+        @Nullable String frequency,
+        @Nullable Double targetNumericValue,
+        @Nullable String targetUnit,
+        @Nullable Boolean requiredDaily) {}

@@ -4,6 +4,7 @@ import com.healthupgrades.tracking.domain.model.Frequency;
 import com.healthupgrades.tracking.domain.model.TrackingType;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Request body for creating or replacing an upgrade's tracking configuration.
@@ -20,10 +21,10 @@ import jakarta.validation.constraints.Size;
  */
 public record TrackingConfigRequest(
         @NotNull TrackingType trackingType,
-        Frequency frequency,
-        Double targetNumericValue,
-        @Size(max = TARGET_UNIT_MAX) String targetUnit,
-        Boolean requiredDaily) {
+        @Nullable Frequency frequency,
+        @Nullable Double targetNumericValue,
+        @Size(max = TARGET_UNIT_MAX) @Nullable String targetUnit,
+        @Nullable Boolean requiredDaily) {
     /** Mirrors {@code tracking_configs.target_unit VARCHAR(100)}; see BR-16 for why the bound is here. */
     public static final int TARGET_UNIT_MAX = 100;
 }

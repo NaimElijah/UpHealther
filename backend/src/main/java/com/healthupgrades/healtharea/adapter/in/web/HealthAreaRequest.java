@@ -2,6 +2,7 @@ package com.healthupgrades.healtharea.adapter.in.web;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Request body for creating or replacing a health area.
@@ -18,10 +19,10 @@ import jakarta.validation.constraints.Size;
  */
 public record HealthAreaRequest(
         @NotBlank @Size(max = NAME_MAX) String name,
-        String description,
-        Integer priority,
-        @Size(max = ICON_MAX) String icon,
-        @Size(max = COLOR_MAX) String color) {
+        @Nullable String description,
+        @Nullable Integer priority,
+        @Size(max = ICON_MAX) @Nullable String icon,
+        @Size(max = COLOR_MAX) @Nullable String color) {
     /** Mirrors {@code health_areas.name VARCHAR(255)}; see BR-16 for why the bound is here. */
     public static final int NAME_MAX = 255;
 

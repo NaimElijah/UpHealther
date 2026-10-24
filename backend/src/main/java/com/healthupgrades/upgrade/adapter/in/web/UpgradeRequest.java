@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Request body for creating or replacing an upgrade.
@@ -26,15 +27,15 @@ import java.util.UUID;
  * @param successCriteria  how the user will know it worked, optional
  */
 public record UpgradeRequest(
-        UUID areaId,
+        @Nullable UUID areaId,
         @NotBlank @Size(max = TITLE_MAX) String title,
-        String description,
+        @Nullable String description,
         @NotNull UpgradeType type,
-        Difficulty difficulty,
-        LocalDate plannedStartDate,
-        LocalDate targetEndDate,
-        String motivation,
-        String successCriteria) {
+        @Nullable Difficulty difficulty,
+        @Nullable LocalDate plannedStartDate,
+        @Nullable LocalDate targetEndDate,
+        @Nullable String motivation,
+        @Nullable String successCriteria) {
     /**
      * Mirrors {@code health_upgrades.title VARCHAR(255)}; see BR-16 for why the bound is here.
      *
