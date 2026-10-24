@@ -54,6 +54,10 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
 - `npm run changelog -- --tag vX.Y.Z` — prepends release X.Y.Z's section to `CHANGELOG.md`, through
   git-cliff's image (needs Docker, and the tags fetched). One step of the README's Releasing section;
   `npm test` does not run it (ADR-051).
+- `npm run generate:wire-types` — rewrites `frontend/src/types/api.generated.ts` from the request and
+  response records the controllers declare, by running `FrontendWireTypesContractTest` with
+  `-Dwire-types.write=true` (ADR-053). Run it after changing a wire record, and commit the file with
+  the change: `./mvnw test` fails until they agree. Needs a JDK, not Docker.
 - `npm test` — the whole CI gate, the same scripts CI's jobs run (ADR-044): `test:diagrams`,
   `test:frontend`, `test:backend`, then `test:images`. Each also runs alone. Needs Docker, for the
   backend's ITs and the image check.

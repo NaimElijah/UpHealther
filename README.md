@@ -300,9 +300,11 @@ Prettier for the frontend (`npm run format`,
 `domain/service`) with a failing test; what it needs from outside into `domain/port/out`; a
 `@Transactional` service in `application` with its command and result records in
 `application/port/in`; the port implemented in `adapter/out/persistence`; the route in
-`adapter/in/web` with a request record, DTO and mapper; the Flyway migration; then
+`adapter/in/web` with a request record, DTO and mapper, each component that can be null marked
+`@Nullable`; the Flyway migration; then `npm run generate:wire-types`, which writes the frontend's
+copy of those records ([ADR-053](docs/ADRs/ADR-053-the-frontends-wire-types-are-generated-from-the-apis-records.md)),
 `frontend/src/api` and the page. `HexagonalArchitectureTest` fails the build on any arrow that runs
-the wrong way.
+the wrong way, and `FrontendWireTypesContractTest` on a record the frontend's copy no longer matches.
 
 ## 🧪 Testing
 
@@ -311,7 +313,7 @@ the wrong way.
 | Domain | The `HealthUpgrade` state machine and construction invariants, streaks, reminder scheduling, entry scoring | `./mvnw test` |
 | Application | Every use case in every context, including what a *rejected* operation must not leave behind | `./mvnw test` |
 | Web slice | Each controller against the real security chain: status codes, validation, another user's row as a 404 | `./mvnw test` |
-| Structural | Fourteen ArchUnit rules, plus the frontend enum, column-bound, pinned-image and version contracts | `./mvnw test` |
+| Structural | Fourteen ArchUnit rules, plus the frontend enum, frontend wire-type, column-bound, pinned-image and version contracts | `./mvnw test` |
 | Integration | The app booted against a real PostgreSQL that Testcontainers starts — bean graph, migrations, database-enforced invariants | `./mvnw verify` |
 | Frontend | Session restore and silent token renewal, the notification socket, the route and role gates, the administration page, the content security policy, theme, error boundary | `npm test` in `frontend/` |
 | Smoke | A browser drives both modules together: a new account registers, plans and activates an upgrade, hears of it over the socket, logs a day and reads the dashboard, under nginx's CSP | `npm run test:images` |
@@ -467,7 +469,7 @@ docs/              The documentation the repository baseline requires
   architecture/      What the system is, plus seven diagrams (three generated)
   ADRs/              Why — one file per decision, append-only
 scripts/           The image check, the backend audit, the changelog's git-cliff, and the Maven and Python launchers
-package.json       npm run setup, npm start, npm test, npm run changelog — no dependencies; CI runs its test:* scripts
+package.json       npm run setup, npm start, npm test, npm run changelog, npm run generate:wire-types — no dependencies; CI runs its test:* scripts
 CHANGELOG.md       Every release, newest first, written by git-cliff as cliff.toml says
 .github/workflows/ CI: backend verify/audit, diagram drift, frontend format/lint/test/audit/build, images and the smoke test
 .github/           dependabot.yml — weekly dependency updates into dev
