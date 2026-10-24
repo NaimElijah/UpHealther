@@ -1,6 +1,7 @@
 package com.healthupgrades.upgrade.adapter.in.web;
 
 import java.time.LocalDate;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Optional body for the activate endpoint.
@@ -10,4 +11,4 @@ import java.time.LocalDate;
  *
  * @param startDate the date the upgrade starts running; today when null
  */
-public record ActivateRequest(LocalDate startDate) {}
+public record ActivateRequest(@Nullable LocalDate startDate) {}

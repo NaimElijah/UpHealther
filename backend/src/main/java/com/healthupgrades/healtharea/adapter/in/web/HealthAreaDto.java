@@ -2,6 +2,7 @@ package com.healthupgrades.healtharea.adapter.in.web;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Health area as returned on the wire.
@@ -22,9 +23,9 @@ public record HealthAreaDto(
         UUID id,
         UUID userId,
         String name,
-        String description,
-        Integer priority,
-        String icon,
-        String color,
+        @Nullable String description,
+        @Nullable Integer priority,
+        @Nullable String icon,
+        @Nullable String color,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {}

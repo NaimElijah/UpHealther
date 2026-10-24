@@ -16,9 +16,11 @@ import type {
   DashboardDto,
   HealthArea,
   HealthUpgrade,
+  SaveTrackingConfigRequest,
+  TrackingConfig,
   UpgradeStatus,
 } from '../types';
-import type { SaveTrackingConfigRequest } from '../api/trackingConfig';
+import { healthAreaAsSent, upgradeAsSent } from '../test/wireFixtures';
 
 const getUpgrades = vi.fn();
 const getUpgradeById = vi.fn();
@@ -62,10 +64,10 @@ vi.mock('../api/trackingConfig', () => ({ saveTrackingConfig: (...a: unknown[]) 
 
 const UPGRADE_ID = 'upgrade-1';
 const TITLE = 'Evening walk';
-const AREA: HealthArea = { id: 'area-1', userId: 'user-1', name: 'Movement', createdAt: '2026-03-01T09:00:00' };
+const AREA: HealthArea = healthAreaAsSent({ id: 'area-1', name: 'Movement' });
 
 function anUpgrade(status: UpgradeStatus): HealthUpgrade {
-  return {
+  return upgradeAsSent({
     id: UPGRADE_ID,
     userId: 'user-1',
     title: TITLE,
@@ -74,7 +76,7 @@ function anUpgrade(status: UpgradeStatus): HealthUpgrade {
     difficulty: 'MEDIUM',
     version: 0,
     createdAt: '2026-03-01T09:00:00',
-  };
+  });
 }
 
 /**
@@ -137,7 +139,15 @@ function serve(...initial: HealthUpgrade[]) {
     return Promise.resolve();
   });
   saveTrackingConfig.mockImplementation((upgradeId: string, req: SaveTrackingConfigRequest) => {
-    const trackingConfig = { id: 'config-1', upgradeId, ...req, frequency: req.frequency ?? 'DAILY' } as const;
+    const trackingConfig: TrackingConfig = {
+      id: 'config-1',
+      upgradeId,
+      trackingType: req.trackingType,
+      frequency: req.frequency ?? 'DAILY',
+      targetNumericValue: req.targetNumericValue ?? null,
+      targetUnit: req.targetUnit ?? null,
+      requiredDaily: req.requiredDaily ?? null,
+    };
     change(upgradeId, { trackingConfig });
     return Promise.resolve(trackingConfig);
   });

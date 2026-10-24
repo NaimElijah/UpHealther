@@ -73,8 +73,9 @@ const TRACE_ID_HEADER = 'x-trace-id';
 /**
  * Normalises anything a failed call threw into an {@link ApiError}.
  *
- * One place decodes the wire contract, mirroring how `types/index.ts` mirrors the DTOs — so a change
- * to the error body is a change to this file rather than to each of the pages that renders one.
+ * One place decodes the error body, which is not one of the generated wire types: the exception
+ * handler writes it, not a controller. So a change to it is a change to this file rather than to each
+ * of the pages that renders one.
  *
  * The trace id is read from the body first and the header second. Every error body the backend builds
  * carries it, and agrees with the header, so the header is the fallback for a response whose body is

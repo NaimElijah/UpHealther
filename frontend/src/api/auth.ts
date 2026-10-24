@@ -1,15 +1,19 @@
 import client, { REQUESTED_WITH } from './client';
-import type { AuthResponse, User } from '../types';
+import type { AuthResponse, LoginRequest, RegisterRequest, User } from '../types';
 
 /** Exchanges credentials for an access token and profile. Rejects with a 401 when they do not match. */
 export const loginApi = async (email: string, password: string): Promise<AuthResponse> => {
-  const { data } = await client.post<AuthResponse>('/api/auth/login', { email, password });
+  const { data } = await client.post<AuthResponse>('/api/auth/login', { email, password } satisfies LoginRequest);
   return data;
 };
 
 /** Creates an account and returns an access token for it. Rejects with a 422 if the email is taken. */
 export const registerApi = async (name: string, email: string, password: string): Promise<AuthResponse> => {
-  const { data } = await client.post<AuthResponse>('/api/auth/register', { name, email, password });
+  const { data } = await client.post<AuthResponse>('/api/auth/register', {
+    name,
+    email,
+    password,
+  } satisfies RegisterRequest);
   return data;
 };
 

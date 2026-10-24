@@ -31,7 +31,7 @@ import org.junit.jupiter.api.Test;
  * PostgreSQL-specific and Hibernate boots with {@code validate}, so tests against a different image
  * validate against something nobody deploys.
  *
- * <p>Like {@code FrontendEnumContractTest}, it reads files outside {@code backend/} and searches upward
+ * <p>Like {@code FrontendWireTypesContractTest}, it reads files outside {@code backend/} and searches upward
  * for the repository root, so it runs the same from Maven and from an IDE.
  */
 class ContainerImagesArePinnedTest {

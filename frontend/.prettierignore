@@ -5,6 +5,10 @@ coverage
 # npm writes the lockfile; formatting it would only fight the next install.
 package-lock.json
 
+# Rendered from the API's records by the backend's FrontendWireTypesContractTest, which compares every
+# byte (ADR-053). Prettier would rewrap its longer unions, and the next regeneration would undo that.
+src/types/api.generated.ts
+
 # Prose is wrapped by hand, as it is everywhere else in the repository.
 *.md
 

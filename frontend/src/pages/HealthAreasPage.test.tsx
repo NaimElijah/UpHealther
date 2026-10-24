@@ -4,6 +4,7 @@ import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequest
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import HealthAreasPage from './HealthAreasPage';
 import type { HealthArea } from '../types';
+import { healthAreaAsSent } from '../test/wireFixtures';
 
 const getHealthAreas = vi.fn();
 const createHealthArea = vi.fn();
@@ -20,7 +21,7 @@ vi.mock('../api/healthAreas', () => ({
 const AREA_ID = 'area-1';
 
 function anArea(values: Partial<HealthArea> = {}): HealthArea {
-  return {
+  return healthAreaAsSent({
     id: AREA_ID,
     userId: 'user-1',
     name: 'Sleep',
@@ -30,7 +31,7 @@ function anArea(values: Partial<HealthArea> = {}): HealthArea {
     color: '#6366f1',
     createdAt: '2026-03-01T09:00:00',
     ...values,
-  };
+  });
 }
 
 /** A refusal shaped the way axios delivers one, so `toApiError` decodes it as it would in production. */

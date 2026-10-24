@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import UpgradeBacklogPage from './UpgradeBacklogPage';
 import type { HealthUpgrade } from '../types';
+import { upgradeAsSent } from '../test/wireFixtures';
 
 const getUpgrades = vi.fn();
 const planUpgrade = vi.fn();
@@ -23,7 +24,7 @@ vi.mock('../api/healthAreas', () => ({
 const UPGRADE_ID = 'upgrade-1';
 
 function anIdea(values: Partial<HealthUpgrade> = {}): HealthUpgrade {
-  return {
+  return upgradeAsSent({
     id: UPGRADE_ID,
     userId: 'user-1',
     title: 'Cold showers',
@@ -33,7 +34,7 @@ function anIdea(values: Partial<HealthUpgrade> = {}): HealthUpgrade {
     createdAt: '2026-03-01T09:00:00',
     version: 0,
     ...values,
-  };
+  });
 }
 
 /** A refusal shaped the way axios delivers one, so `toApiError` decodes it as it would in production. */

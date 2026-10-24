@@ -4,6 +4,7 @@ import com.healthupgrades.notification.domain.model.NotificationCategory;
 import com.healthupgrades.notification.domain.model.NotificationType;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A notification as delivered to the client.
@@ -27,7 +28,7 @@ public record NotificationDto(
         NotificationType type,
         NotificationCategory category,
         String title,
-        String message,
-        UUID relatedUpgradeId,
+        @Nullable String message,
+        @Nullable UUID relatedUpgradeId,
         boolean read,
         LocalDateTime createdAt) {}
