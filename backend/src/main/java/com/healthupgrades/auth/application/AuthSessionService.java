@@ -4,6 +4,8 @@ import static net.logstash.logback.argument.StructuredArguments.keyValue;
 
 import com.healthupgrades.auth.application.port.in.SessionCommand;
 import com.healthupgrades.auth.application.port.in.SessionQuery;
+import com.healthupgrades.auth.domain.event.AuthSessionEnded;
+import com.healthupgrades.auth.domain.event.UserSessionsEnded;
 import com.healthupgrades.auth.domain.model.AuthSession;
 import com.healthupgrades.auth.domain.model.RefreshToken;
 import com.healthupgrades.auth.domain.port.out.AuthSessionRepositoryPort;
@@ -12,8 +14,10 @@ import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
+import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -60,6 +64,7 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
     private final SecretGeneratorPort secrets; // outbound randomness port
     private final AuthSessionProperties properties; // validated app.auth.session settings
     private final AuditTrail auditTrail; // records every refresh and sign-out, and detected reuse
+    private final DomainEventPublisher events; // announces a session's end, so its open sockets close too
     private final Clock clock; // injectable, so expiry is testable without waiting
 
     /** {@inheritDoc} */
@@ -143,6 +148,7 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
                     keyValue("userId", session.getUserId()));
             auditTrail.record(new AuditEvent(
                     AuditAction.AUTH_TOKEN_REUSE, session.getUserId(), session.getId(), AuditOutcome.REFUSED));
+            publishEnd(session);
             return new RefreshOutcome.Rejected();
         }
         recordRefusal(AuditAction.AUTH_REFRESH, session, presentedHash);
@@ -193,14 +199,31 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
         session.revoke();
         sessions.save(session);
         auditTrail.record(AuditEvent.allowed(AuditAction.AUTH_LOGOUT, session.getUserId(), session.getId()));
+        publishEnd(session);
         return true;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Announces the end once for the account whether or not any session was live: a socket outlives
+     * the session that opened it, so one may still be open on a session that had already expired.
+     */
     @Override
     @Transactional
     public int revokeAllForUser(UUID userId) {
-        return sessions.revokeAllForUser(userId);
+        int revoked = sessions.revokeAllForUser(userId);
+        events.publish(new UserSessionsEnded(userId, LocalDateTime.now(clock)));
+        return revoked;
+    }
+
+    /**
+     * Announces that a session has ended, so the sockets it opened are closed (ADR-054). A socket is
+     * authenticated once, when it connects, and sends nothing afterwards that could be checked, so
+     * without this it would go on receiving the account's notifications until it next reconnected.
+     */
+    private void publishEnd(AuthSession session) {
+        events.publish(new AuthSessionEnded(session.getId(), session.getUserId(), LocalDateTime.now(clock)));
     }
 
     /**

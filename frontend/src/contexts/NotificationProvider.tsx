@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Client } from '@stomp/stompjs';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
-import { getAccessToken, hasUsableAccessToken } from '../api/tokenStore';
+import { clearAccessToken, getAccessToken, hasUsableAccessToken } from '../api/tokenStore';
 import { renewSession } from '../api/client';
 import { getNotifications, getUnreadCount, markNotificationRead, markAllNotificationsRead } from '../api/notifications';
 import { NotificationContext } from './notificationContextValue';
@@ -18,6 +18,13 @@ const NOTIF_KEY = ['notifications'];
  * prefix after a failed write refetches the count along with the list.
  */
 const UNREAD_KEY = [...NOTIF_KEY, 'unread-count'];
+
+/**
+ * The `message` of the ERROR frame the server closes a socket with once its session has ended: the
+ * backend's `StompSessionRegistry.SESSION_ENDED`. `SessionEndedFrameContractTest` fails the backend build
+ * if the two differ.
+ */
+const SESSION_ENDED = 'Session ended';
 
 /**
  * Builds the WebSocket URL.
@@ -175,7 +182,17 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         });
       },
       onWebSocketClose: () => setConnected(false),
-      onStompError: () => setConnected(false),
+      // The server ends a socket whose session has ended with this frame (ADR-054). The token can still
+      // look usable by its clock, so it is dropped: the next attempt renews first instead of presenting
+      // it again, which would be refused - and audited - every five seconds until it lapsed. Any other
+      // ERROR leaves the token alone. Spring sends the same generic one for every refused frame, an
+      // outage included, and dropping a live token then would sign the tab out of a live session.
+      onStompError: (frame) => {
+        if (frame.headers.message === SESSION_ENDED) {
+          clearAccessToken();
+        }
+        setConnected(false);
+      },
     });
     client.activate();
     clientRef.current = client;

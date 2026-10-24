@@ -516,8 +516,11 @@ Known limitations, load-bearing rather than accidental:
   instance that raised it; a second instance needs a broker relay first.
 - **Observability stops at the process.** `docker logs` is the only sink, nothing scrapes
   `/actuator/prometheus`, no span leaves the process, and the SPA has no telemetry.
-- **A live WebSocket outlives a sign-out until it reconnects.** Its session is checked when it
-  connects and not again — and it only ever receives its own user's notifications.
+- **A live WebSocket outlives its session's expiry until it reconnects.** Signing out, switching an
+  account off and a replayed refresh credential each close the session's sockets at once
+  ([ADR-054](docs/ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md)), but a session that
+  idles out or reaches its cap ends with no event to close them (#331) — and a socket only ever
+  receives its own user's notifications.
 - **The rate limit is per instance**, counted in process memory, so two instances double it
   ([ADR-017](docs/ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)).
 - **Server time is UTC, and a user has no zone**, so a reminder set for 09:00 rings at 09:00 UTC

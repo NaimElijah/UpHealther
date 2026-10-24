@@ -35,6 +35,18 @@ public class BearerTokenAuthenticator {
      *         or that account has been disabled
      */
     public Optional<SecurityUser> authenticate(String token) {
+        return authenticateWithSession(token).map(BearerAuthentication::user);
+    }
+
+    /**
+     * Authenticates a bearer token by the same rules as {@link #authenticate}, and also says which
+     * session it was issued within.
+     *
+     * @param token the compact JWT, without the {@code Bearer } prefix
+     * @return the principal and the live session its {@code sid} names; empty in every case
+     *         {@link #authenticate} is
+     */
+    public Optional<BearerAuthentication> authenticateWithSession(String token) {
         return tokenProvider.verify(token).flatMap(verified -> {
             if (!sessionStatus.isActive(verified.sessionId(), verified.userId())) {
                 // Checked before the account is loaded: a signed-out token is the commonest reason to
@@ -43,7 +55,7 @@ public class BearerTokenAuthenticator {
                 // A session that is another account's lands here too and reads the same (#286): the
                 // port answers one boolean, so the two cannot be told apart at this line.
                 log.debug("A token names a session that has ended or is another account's; left anonymous");
-                return Optional.<SecurityUser>empty();
+                return Optional.<BearerAuthentication>empty();
             }
             Optional<SecurityUser> principal =
                     userQuery.findById(verified.userId()).map(SecurityUser::from);
@@ -53,7 +65,7 @@ public class BearerTokenAuthenticator {
                 // The id is not logged either: it would join this line to an account that has been
                 // deleted, which is exactly the record deletion was meant to end.
                 log.warn("A validly signed token names an account that no longer exists; left anonymous");
-                return Optional.<SecurityUser>empty();
+                return Optional.<BearerAuthentication>empty();
             }
             if (!principal.get().isEnabled()) {
                 // DEBUG, not WARN: a token issued before an account was switched off, still being
@@ -61,10 +73,10 @@ public class BearerTokenAuthenticator {
                 // anomaly. Checking it here and not only at sign-in is what makes disabled mean now,
                 // instead of meaning within the token's remaining lifetime.
                 log.debug("A token names a disabled account; left anonymous");
-                return Optional.<SecurityUser>empty();
+                return Optional.<BearerAuthentication>empty();
             }
             principal.ifPresent(SecurityUser::eraseCredentials);
-            return principal;
+            return principal.map(user -> new BearerAuthentication(user, verified.sessionId()));
         });
     }
 }
