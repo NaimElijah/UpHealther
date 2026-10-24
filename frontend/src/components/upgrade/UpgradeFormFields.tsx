@@ -27,6 +27,9 @@ const difficultyOptions: { value: Difficulty; label: string }[] = [
   { value: 'HARD', label: 'Hard' },
 ];
 
+/** The select's value for an upgrade that has no difficulty, which the API stores as null. */
+const NO_DIFFICULTY = '';
+
 /**
  * @param value          the upgrade as the form currently holds it
  * @param onChange       receives the whole upgrade with one field changed
@@ -59,6 +62,11 @@ const UpgradeFormFields: React.FC<Props> = ({ value, onChange, areas, titleError
         ...typeOptions,
         { value: value.type, label: `${value.type.charAt(0)}${value.type.slice(1).toLowerCase()} (no longer offered)` },
       ];
+  // An upgrade with no difficulty, which only the API can create, keeps none as a choice. Without one,
+  // the select would show the first difficulty and read as an upgrade the user had marked Easy.
+  const difficulties = value.difficulty
+    ? difficultyOptions
+    : [{ value: NO_DIFFICULTY, label: 'Not set' }, ...difficultyOptions];
   const areaOptions = [{ value: '', label: 'No area' }, ...areas.map((a) => ({ value: a.id, label: a.name }))];
 
   return (
@@ -84,9 +92,9 @@ const UpgradeFormFields: React.FC<Props> = ({ value, onChange, areas, titleError
       />
       <Select
         label="Difficulty"
-        value={value.difficulty ?? ''}
-        options={difficultyOptions}
-        onChange={(e) => set({ difficulty: e.target.value as Difficulty })}
+        value={value.difficulty ?? NO_DIFFICULTY}
+        options={difficulties}
+        onChange={(e) => set({ difficulty: e.target.value === NO_DIFFICULTY ? null : (e.target.value as Difficulty) })}
       />
       <Select
         label="Health Area"

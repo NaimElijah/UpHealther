@@ -3,7 +3,7 @@
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
 rather than trusted. A hundred and nineteen of the hundred and twenty-eight entries below name a test —
-a hundred and twenty distinct test classes and files between them. Six of the remaining nine name the
+a hundred and twenty-one distinct test classes and files between them. Six of the remaining nine name the
 command, workflow, script or setting that *is* the check (NFR-11, NFR-13, NFR-18, NFR-48, NFR-52,
 NFR-53). The last three — FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is
 about a rendered width, a colour or an overflow, and jsdom has no layout engine to observe any of them;
@@ -79,7 +79,7 @@ no way at all — to read another person's health records
 | ID | Requirement | Enforced by |
 |---|---|---|
 | FR-9 | A user can create an upgrade of any of the eight kinds: habit, one-time action, product replacement, routine, goal, experiment, learning task, medical/preventive | `FrontendWireTypesContractTest`, `UpgradeControllerTest` |
-| FR-10 | An upgrade carries a title and type, and optionally an area, description, difficulty, planned start, target end, motivation and success criteria | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeBacklogPage.test.tsx` (a new idea's success criteria and target end), `UpgradeDetailsPage.test.tsx` (the planned start moved by rescheduling) |
+| FR-10 | An upgrade carries a title and type, and optionally an area, description, difficulty, planned start, target end, motivation and success criteria | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeBacklogPage.test.tsx` (a new idea's success criteria and target end), `UpgradeDetailsPage.test.tsx` (the planned start moved by rescheduling), `UpgradeFormFields.test.tsx` (an upgrade without a difficulty is edited as one) |
 | FR-11 | A user can list their upgrades, narrowed by one of status, type, area or difficulty | `UpgradeServiceTest`, `UpgradeControllerTest` — **Known deviation:** [#90](https://github.com/NaimElijah/UpHealther/issues/90), the interface filters by status only |
 | FR-12 | A user can move an upgrade through its lifecycle: plan, activate, pause, complete, abandon, reschedule | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeControllerTest`, `UpgradeBacklogPage.test.tsx`, `ActiveUpgradesPage.test.tsx` (a paused upgrade is listed and can be resumed), `upgradeViews.test.tsx` (a change made on one page reaches every page that shows the upgrade), `UpgradeDetailsPage.test.tsx` (an upgrade's page abandons it from any state that is not final, and reschedules it from PLANNED, ACTIVE, PAUSED or ABANDONED; an idea is planned instead), `upgrades.test.ts` |
 | FR-13 | A user can edit an upgrade's descriptive fields at any point in its lifecycle | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeDetailsPage.test.tsx` (an upgrade's page edits it, completed or not, and sends every field) |
