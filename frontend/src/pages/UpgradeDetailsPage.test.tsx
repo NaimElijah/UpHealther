@@ -129,6 +129,14 @@ const OVERLONG_UNIT = apiFailure(400, {
 });
 const OVERLONG_UNIT_MESSAGE = 'TargetUnit: size must be between 0 and 100.';
 
+/** The answer to a save against an upgrade deleted from another tab: no field to blame, so a reference. */
+const UPGRADE_GONE = apiFailure(404, {
+  status: 404,
+  message: 'Upgrade not found: upgrade-1',
+  traceId: 'trace-gone',
+});
+const UPGRADE_GONE_MESSAGE = 'Upgrade not found: upgrade-1 (reference trace-gone)';
+
 /** The API's answer to a reminder sent with its time cleared: `reminderTime` is required. */
 const NO_REMINDER_TIME = apiFailure(400, {
   status: 400,
@@ -542,6 +550,17 @@ describe('UpgradeDetailsPage', () => {
     expect(await within(dialog).findByText(RATING_OUT_OF_RANGE_MESSAGE)).toBeDefined();
   });
 
+  it('GivenTheUpgradeIsGone_WhenAReflectionIsSaved_ThenTheDialogSaysWhyWithItsReference', async () => {
+    createReflection.mockRejectedValue(UPGRADE_GONE);
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Add Reflection' });
+    expect(await within(dialog).findByText(UPGRADE_GONE_MESSAGE)).toBeDefined();
+  });
+
   it('GivenAReflectionWasRefused_WhenAddReflectionIsOpenedAgain_ThenTheRefusalIsGone', async () => {
     createReflection.mockRejectedValue(RATING_OUT_OF_RANGE);
     renderPage();
@@ -588,6 +607,17 @@ describe('UpgradeDetailsPage', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'Configure Tracking' });
     expect(await within(dialog).findByText(OVERLONG_UNIT_MESSAGE)).toBeDefined();
+  });
+
+  it('GivenTheUpgradeIsGone_WhenTheTrackingConfigurationIsSaved_ThenTheDialogSaysWhyWithItsReference', async () => {
+    saveTrackingConfig.mockRejectedValue(UPGRADE_GONE);
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Configure Tracking' });
+    expect(await within(dialog).findByText(UPGRADE_GONE_MESSAGE)).toBeDefined();
   });
 
   it('GivenAValidConfiguration_WhenTrackingIsSaved_ThenTheDialogCloses', async () => {
