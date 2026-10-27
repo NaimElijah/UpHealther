@@ -157,11 +157,16 @@ class NotificationPersistenceIT extends PostgresIT {
     }
 
     @Test
-    void GivenFiftyOneNotifications_WhenTheRecentOnesAreRead_ThenTheFiftyNewestComeBackNewestFirst() {
+    void
+            GivenFiftyOneNotificationsAndAnotherUsersNewerOnes_WhenTheRecentOnesAreRead_ThenTheirFiftyNewestComeBackNewestFirst() {
         UUID userId = persistedUser();
+        UUID other = persistedUser();
         for (int minute = 0; minute <= INBOX_SIZE; minute++) {
             repository.save(inboxEntry(userId, MIDNIGHT.plusMinutes(minute), false));
         }
+        // Newer than every one of the user's, so an inbox that lost its user scope would lead with them.
+        repository.save(inboxEntry(other, MIDNIGHT.plusMinutes(INBOX_SIZE).plusSeconds(30), false));
+        repository.save(inboxEntry(other, MIDNIGHT.plusMinutes(INBOX_SIZE / 2).plusSeconds(30), false));
         entityManager.flush();
 
         List<LocalDateTime> listed = repository.findTop50ByUserIdOrderByCreatedAtDesc(userId).stream()
@@ -175,14 +180,18 @@ class NotificationPersistenceIT extends PostgresIT {
     }
 
     @Test
-    void GivenMoreUnreadNotificationsThanTheInboxLists_WhenTheUnreadAreCounted_ThenEveryUnreadOneCountsAndNoReadOne() {
-        // FR-33: the badge counts every unread notification, not only the fifty the inbox lists.
+    void
+            GivenMoreUnreadNotificationsThanTheInboxLists_WhenTheUnreadAreCounted_ThenEveryUnreadOneOfTheirsCountsAndNoOtherOne() {
+        // FR-33: the badge counts every unread notification, not only the fifty the inbox lists. BR-15:
+        // and only the user's own, so another user's unread one must not count.
         UUID userId = persistedUser();
+        UUID other = persistedUser();
         int unread = INBOX_SIZE + 2;
         for (int minute = 0; minute < unread; minute++) {
             repository.save(inboxEntry(userId, MIDNIGHT.plusMinutes(minute), false));
         }
         repository.save(inboxEntry(userId, MIDNIGHT.minusHours(1), true));
+        repository.save(inboxEntry(other, MIDNIGHT, false));
         entityManager.flush();
 
         assertThat(repository.countByUserIdAndReadFalse(userId)).isEqualTo(unread);
