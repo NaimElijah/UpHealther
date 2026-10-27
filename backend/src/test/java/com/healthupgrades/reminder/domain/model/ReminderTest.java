@@ -127,6 +127,13 @@ class ReminderTest {
     }
 
     @Test
+    void GivenAReminderOnThisDayAtTheSameMinuteOfAnotherHour_WhenDueIsChecked_ThenItIsNotDue() {
+        // Matching the minute alone would fire a 09:00 reminder at the top of every hour.
+        Reminder reminder = reminderAt(NINE_AM, List.of("MON"), true);
+        assertThat(reminder.isDueAt(DayOfWeek.MONDAY, LocalTime.of(10, 0))).isFalse();
+    }
+
+    @Test
     void GivenAReminderDueThisMinute_WhenDueIsCheckedPartWayThroughIt_ThenTheSecondsAreIgnored() {
         // The dispatch job runs once a minute, so matching to the minute is the intended granularity.
         Reminder reminder = reminderAt(NINE_AM, List.of("MON"), true);
