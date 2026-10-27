@@ -3,6 +3,7 @@ package com.healthupgrades.notification.adapter.in.scheduling;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -15,6 +16,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.healthupgrades.common.observability.JobMetrics;
+import com.healthupgrades.notification.domain.model.NotificationCategory;
 import com.healthupgrades.notification.domain.model.NotificationType;
 import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort;
 import com.healthupgrades.reminder.application.port.in.ReminderQuery;
@@ -140,6 +142,23 @@ class NotificationSchedulerTest {
     }
 
     @Test
+    void GivenAReminderDueNow_WhenRemindersAreDispatched_ThenTheNotificationIsAReminderNamingTheUpgrade() {
+        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder()));
+        when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
+
+        scheduler.dispatchReminders();
+
+        verify(notificationService)
+                .create(
+                        eq(userId),
+                        eq(NotificationType.REMINDER),
+                        eq(NotificationCategory.REMINDER),
+                        any(),
+                        contains("\"Meditate\""),
+                        eq(upgradeId));
+    }
+
+    @Test
     void GivenNoReminderIsDue_WhenRemindersAreDispatched_ThenNobodyIsNotified() {
         Reminder reminder = Reminder.builder()
                 .id(UUID.randomUUID())
@@ -166,6 +185,41 @@ class NotificationSchedulerTest {
 
         verify(notificationService)
                 .create(eq(userId), eq(NotificationType.CHECKIN_REMINDER), any(), any(), any(), eq(null));
+    }
+
+    @Test
+    void GivenOneActiveUpgrade_WhenTheCheckinSweepRuns_ThenTheNudgeIsAReminderCountingOneUpgrade() {
+        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgrade()));
+        guards(Set.of(), Set.of());
+
+        scheduler.notifyDailyCheckin();
+
+        verify(notificationService)
+                .create(
+                        eq(userId),
+                        eq(NotificationType.CHECKIN_REMINDER),
+                        eq(NotificationCategory.REMINDER),
+                        any(),
+                        eq("You have 1 active upgrade to track today."),
+                        eq(null));
+    }
+
+    @Test
+    void GivenTwoActiveUpgrades_WhenTheCheckinSweepRuns_ThenTheNudgeCountsBothInThePlural() {
+        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
+                .thenReturn(List.of(activeUpgrade(), activeUpgradeOf(userId)));
+        guards(Set.of(), Set.of());
+
+        scheduler.notifyDailyCheckin();
+
+        verify(notificationService)
+                .create(
+                        eq(userId),
+                        eq(NotificationType.CHECKIN_REMINDER),
+                        eq(NotificationCategory.REMINDER),
+                        any(),
+                        eq("You have 2 active upgrades to track today."),
+                        eq(null));
     }
 
     @Test
