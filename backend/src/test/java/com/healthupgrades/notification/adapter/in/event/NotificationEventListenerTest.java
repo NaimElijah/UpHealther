@@ -102,6 +102,7 @@ class NotificationEventListenerTest {
                         any(),
                         contains("Walk daily"),
                         eq(upgradeId));
+        verifyNoInteractions(upgradeQuery);
     }
 
     @Test
