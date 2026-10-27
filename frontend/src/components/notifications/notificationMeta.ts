@@ -16,19 +16,61 @@ export const categoryMeta: Record<NotificationCategory, { icon: string; bg: stri
 };
 
 /**
+ * `YYYY-MM-DDTHH:mm:ss[.fraction]` as `ISO_LOCAL_DATE_TIME` writes it, which is what the API's
+ * `LocalDateTime` serialiser uses: the year as `ISO_LOCAL_DATE` writes it, always the seconds, a fraction
+ * of up to nine digits only when it is non-zero, and no offset.
+ */
+const LOCAL_DATE_TIME = /^([+-]?\d{4,})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?$/;
+
+/** The fraction digits a `Date` can hold, which counts milliseconds; finer ones are dropped. */
+const MILLISECOND_DIGITS = 3;
+
+/**
+ * Reads the API's offset-less date-time as the UTC instant the server meant (ADR-020).
+ *
+ * Built from the fields rather than through `new Date`, which takes a date-time without an offset as
+ * the browser's local time, and rolls an impossible day such as `2026-02-30` over into the next month.
+ */
+const parseUtcLocalDateTime = (iso: string): Date => {
+  const match = LOCAL_DATE_TIME.exec(iso);
+  if (!match) throw new RangeError(`Expected a date-time as YYYY-MM-DDTHH:mm:ss[.fraction], got "${iso}"`);
+  const [year, month, day, hour, minute, second] = match.slice(1, 7).map(Number);
+  const millisecond = Number((match[7] ?? '').slice(0, MILLISECOND_DIGITS).padEnd(MILLISECOND_DIGITS, '0'));
+  const parsed = new Date(0);
+  parsed.setUTCFullYear(year, month - 1, day);
+  parsed.setUTCHours(hour, minute, second, millisecond);
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day ||
+    parsed.getUTCHours() !== hour ||
+    parsed.getUTCMinutes() !== minute ||
+    parsed.getUTCSeconds() !== second
+  ) {
+    throw new RangeError(`"${iso}" is not a calendar date-time`);
+  }
+  return parsed;
+};
+
+/**
  * Formats a notification's `createdAt` as "just now", "5m ago", "3h ago" or "2d ago", falling back to
  * the user's locale date beyond a week.
  *
- * `iso` must be the API's offset-less ISO date-time, such as `2026-01-14T09:13:02`, which the server
- * writes in UTC (ADR-020). It is read as UTC because `new Date` takes a date-time without an offset as
- * the browser's local time, which shifted every age by the user's own offset. A string that already
- * carries an offset is not the wire's shape and formats as "Invalid Date".
+ * Read as UTC, because the server writes its date-times in UTC with no offset on them (ADR-020); read
+ * as the browser's local time, every age shifted by the user's own offset.
  *
  * Coarse on purpose: a notification list is scanned, not read closely, and a rounded figure is quicker
  * to take in than an exact one.
+ *
+ * @param iso an offset-less ISO local date-time exactly as the API sends it, such as
+ *        `2026-01-14T09:13:02` or `2026-01-14T09:13:02.123456`
+ * @returns the age of that instant, or its local date once it is a week old or more
+ * @throws RangeError when `iso` is not an ISO local date-time with seconds — one carrying an offset or
+ *         a `Z` included — or names a moment that does not exist (such as `2026-02-30T09:00:00`), rather
+ *         than rendering "Invalid Date" or a rolled-over day
  */
 export const relativeTime = (iso: string): string => {
-  const instant = new Date(`${iso}Z`);
+  const instant = parseUtcLocalDateTime(iso);
   const diffMs = Date.now() - instant.getTime();
   const sec = Math.round(diffMs / 1000);
   if (sec < 60) return 'just now';

@@ -58,4 +58,31 @@ describe('relativeTime', () => {
   it('GivenATimestampInTheFuture_WhenFormatted_ThenItReadsJustNow', () => {
     expect(relativeTime(asSent(new Date(NOW.getTime() + 60_000)))).toBe('just now');
   });
+
+  // ISO_LOCAL_DATE_TIME, which the API's LocalDateTime serialiser uses, writes a fraction only when there
+  // is one, with its trailing zeros dropped. It always writes the seconds, so `2026-08-19T09:00` is not
+  // the wire's shape.
+  it.each(['2026-08-19T09:00:00', '2026-08-19T09:00:00.123456', '2026-08-19T09:00:00.12'])(
+    'GivenTheWiresShape %j_WhenFormatted_ThenItReadsItsAge',
+    (sent) => {
+      expect(relativeTime(sent)).toBe('3h ago');
+    },
+  );
+
+  // A value outside the contract is a bug worth a loud failure, as in `parseLocalDate`: formatted, it
+  // would read "Invalid Date" in every row, with nothing to say why.
+  it.each(['2026-08-19T09:00:00Z', '2026-08-19T09:00:00+02:00', 'not a date'])(
+    'GivenAValueOutsideTheWiresShape %j_WhenFormatted_ThenItThrows',
+    (sent) => {
+      expect(() => relativeTime(sent)).toThrow(RangeError);
+    },
+  );
+
+  // These match the wire's shape, and `Date` would roll each over into the next day rather than refuse it.
+  it.each(['2026-02-30T09:00:00', '2026-08-19T24:00:00'])(
+    'GivenAMomentThatDoesNotExist %j_WhenFormatted_ThenItThrows',
+    (sent) => {
+      expect(() => relativeTime(sent)).toThrow(RangeError);
+    },
+  );
 });
