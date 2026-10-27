@@ -276,4 +276,30 @@ describe('UpgradeBacklogPage creating an idea', () => {
     await settled();
     expect(createUpgrade).not.toHaveBeenCalled();
   });
+
+  it('GivenATitleTheApiRefuses_WhenAnIdeaIsCreated_ThenTheDialogStaysOpenAndNamesTheReason', async () => {
+    // BR-16: the API refuses an over-long title with a 400 naming the field.
+    createUpgrade.mockRejectedValue(
+      apiFailure(400, { message: 'Validation failed', fieldErrors: { title: 'size must be between 0 and 255' } }),
+    );
+    renderPage();
+    const dialog = await openCreate();
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Add Idea' }));
+
+    expect(await dialog.findByText('Size must be between 0 and 255')).toBeDefined();
+    expect(screen.getByRole('dialog', { name: 'New Upgrade Idea' })).toBeDefined();
+  });
+
+  it('GivenARefusalThatNamesNoField_WhenAnIdeaIsCreated_ThenTheDialogSaysWhyWithTheReference', async () => {
+    createUpgrade.mockRejectedValue(
+      apiFailure(500, { status: 500, message: 'An unexpected error occurred', traceId: 'trace-create' }),
+    );
+    renderPage();
+    const dialog = await openCreate();
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Add Idea' }));
+
+    expect(await dialog.findByText('An unexpected error occurred (reference trace-create)')).toBeDefined();
+  });
 });

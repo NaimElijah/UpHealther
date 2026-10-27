@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import DailyCheckinPage from './DailyCheckinPage';
+import { createQueryClient } from '../lib/queryClient';
 import type { HealthUpgrade } from '../types';
+import { trackingConfigAsSent, upgradeAsSent } from '../test/wireFixtures';
 
 const getUpgrades = vi.fn();
 const createProgress = vi.fn();
@@ -13,27 +15,12 @@ vi.mock('../api/upgrades', () => ({ getUpgrades: (...a: unknown[]) => getUpgrade
 vi.mock('../api/progress', () => ({ createProgress: (...a: unknown[]) => createProgress(...a) }));
 
 function anUpgrade(overrides: Partial<HealthUpgrade> = {}): HealthUpgrade {
-  return {
-    id: 'upgrade-1',
-    userId: 'user-1',
-    areaId: null,
+  return upgradeAsSent({
     title: 'Cold showers',
-    description: null,
-    type: 'HABIT',
-    status: 'ACTIVE',
-    difficulty: 'MEDIUM',
-    plannedStartDate: null,
-    actualStartDate: null,
-    targetEndDate: null,
-    motivation: null,
-    successCriteria: null,
-    overdue: false,
-    version: 0,
-    trackingConfig: null,
     createdAt: '2026-03-15T09:00:00',
     updatedAt: '2026-03-15T09:00:00',
     ...overrides,
-  } as HealthUpgrade;
+  });
 }
 
 /** A refusal shaped the way axios delivers one, so `toApiError` decodes it as it would in production. */
@@ -141,7 +128,7 @@ describe('DailyCheckinPage', () => {
     getUpgrades.mockResolvedValue([
       anUpgrade({
         id: 'a',
-        trackingConfig: { trackingType: 'NUMERIC', targetUnit: 'steps' } as HealthUpgrade['trackingConfig'],
+        trackingConfig: trackingConfigAsSent({ upgradeId: 'a', trackingType: 'NUMERIC', targetUnit: 'steps' }),
       }),
     ]);
     renderPage();
@@ -160,7 +147,7 @@ describe('DailyCheckinPage', () => {
     getUpgrades.mockResolvedValue([
       anUpgrade({
         id: 'a',
-        trackingConfig: { trackingType: 'NUMERIC', targetUnit: 'steps' } as HealthUpgrade['trackingConfig'],
+        trackingConfig: trackingConfigAsSent({ upgradeId: 'a', trackingType: 'NUMERIC', targetUnit: 'steps' }),
       }),
     ]);
     renderPage();
@@ -178,7 +165,7 @@ describe('DailyCheckinPage', () => {
     getUpgrades.mockResolvedValue([
       anUpgrade({
         id: 'a',
-        trackingConfig: { trackingType: 'RATING' } as HealthUpgrade['trackingConfig'],
+        trackingConfig: trackingConfigAsSent({ upgradeId: 'a', trackingType: 'RATING' }),
       }),
     ]);
     renderPage();
@@ -252,24 +239,36 @@ describe('DailyCheckinPage', () => {
     expect(screen.queryByText('Check-in Complete!')).toBeNull();
   });
 
-  it('GivenOneEntryOfSeveralIsRefused_WhenTheCheckinIsSubmitted_ThenCachedProgressIsMarkedStale', async () => {
+  it('GivenOneEntryOfSeveralIsRefused_WhenTheCheckinIsSubmitted_ThenAnotherViewOfProgressIsReadAgain', async () => {
     // The entries are posted together, so the others may already be stored when one is refused. The
     // progress cache is shared with every other page and kept for thirty seconds, so it has to be
-    // invalidated on a failure too, or those pages would show the day as not logged.
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    queryClient.setQueryData(['progress', 'a'], []);
+    // refreshed on a failure too, or those pages would show the day as not logged.
+    const readProgressOfA = vi.fn(() => Promise.resolve([]));
+    /** Another page's view of upgrade a's progress, read under the key the details page uses. */
+    function ProgressOfA() {
+      useQuery({ queryKey: ['progress', 'a'], queryFn: readProgressOfA });
+      return null;
+    }
     getUpgrades.mockResolvedValue([anUpgrade({ id: 'a' }), anUpgrade({ id: 'b', title: 'Evening walk' })]);
     createProgress
       .mockResolvedValueOnce({})
       .mockRejectedValueOnce(
         apiFailure(409, { status: 409, message: 'Progress already recorded for date: 2026-03-15' }),
       );
-    renderPage(queryClient);
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <MemoryRouter>
+          <ProgressOfA />
+          <DailyCheckinPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
     await screen.findByText('Evening walk');
+    await waitFor(() => expect(readProgressOfA).toHaveBeenCalledTimes(1));
 
     fireEvent.submit(screen.getByRole('button', { name: /submit check-in/i }));
 
     await screen.findByRole('alert');
-    expect(queryClient.getQueryState(['progress', 'a'])?.isInvalidated).toBe(true);
+    await waitFor(() => expect(readProgressOfA).toHaveBeenCalledTimes(2));
   });
 });

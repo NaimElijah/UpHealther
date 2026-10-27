@@ -143,8 +143,12 @@ describe('LoginPage', () => {
 
   it('GivenAnUnknownEmailAndAWrongPassword_WhenEachIsTried_ThenTheMessageIsTheSame', async () => {
     // Two different failures, one message. A different message per case is an account-enumeration
-    // oracle that costs nothing to hand out.
-    login.mockRejectedValue(apiFailure(401, { message: 'Invalid credentials' }));
+    // oracle that costs nothing to hand out. The two refusals are worded differently on purpose: the
+    // page must not relay a 401's own wording, so a server that ever told the cases apart could not leak
+    // it through this form.
+    login
+      .mockRejectedValueOnce(apiFailure(401, { message: 'No account for that email' }))
+      .mockRejectedValueOnce(apiFailure(401, { message: 'Wrong password' }));
     const { unmount } = renderLogin();
     await signIn('nobody@example.com', 'whatever');
     await waitFor(() => expect(screen.getByText('Invalid email or password.')).toBeDefined());

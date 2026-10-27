@@ -38,6 +38,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -466,6 +467,36 @@ class AuthControllerTest {
                 .andExpect(status().isNoContent());
 
         verify(sessions, never()).revoke(any());
+    }
+
+    @Test
+    void GivenTheSessionStoreIsUnreachable_WhenASignOutIsAttempted_ThenItFailsAndTheCookieIsKept() throws Exception {
+        // FR-48. A 204 that cleared the cookie would tell the browser it had signed out while the session
+        // lived on, holding a credential the user can no longer reach to end it.
+        when(sessions.revoke(GRANT.refreshToken())).thenThrow(storeDown());
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .cookie(PRESENTED)
+                        .header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest"))
+                .andExpect(status().is5xxServerError())
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, nullValue()));
+    }
+
+    @Test
+    void GivenTheSessionStoreIsUnreachable_WhenARefreshIsAttempted_ThenItFailsAndTheCookieIsKept() throws Exception {
+        // NFR-39: only a refusal from the renewal itself signs the user out. An outage answered as a
+        // refusal would clear a credential that is still good, and sign out every tab at once.
+        when(sessions.refresh(GRANT.refreshToken())).thenThrow(storeDown());
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(PRESENTED)
+                        .header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest"))
+                .andExpect(status().is5xxServerError())
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, nullValue()));
+    }
+
+    private static DataAccessResourceFailureException storeDown() {
+        return new DataAccessResourceFailureException("the session store is unreachable");
     }
 
     private static User aUser() {

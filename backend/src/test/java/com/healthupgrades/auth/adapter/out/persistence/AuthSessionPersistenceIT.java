@@ -22,13 +22,13 @@ import org.springframework.context.annotation.Import;
 /**
  * What the session table actually does, which no in-memory fake can tell us.
  *
- * <p>Three things are being checked and only one of them is a query. The first is that the mapping and
- * the migration agree at all — Hibernate boots with {@code ddl-auto: validate}, so an {@code Instant}
- * against a naive {@code TIMESTAMP} or a {@code byte[]} against the wrong type fails the context rather
- * than this method. The second is that the digests survive a round trip through {@code BYTEA} byte for
- * byte, because a comparison against a mangled digest would refuse every refresh. The third is that
- * deleting an account takes its sessions with it, which is a property of the foreign key and of nothing
- * in Java.
+ * <p>Three kinds of thing are checked. The mapping: it has to agree with the migration at all —
+ * Hibernate boots with {@code ddl-auto: validate}, so an {@code Instant} against a naive
+ * {@code TIMESTAMP} or a {@code byte[]} against the wrong type fails the context rather than a method
+ * here — and the digests and instants have to survive a round trip unchanged, because a comparison
+ * against a mangled digest would refuse every refresh. The queries: revoking every session of one
+ * account, and no other account's, and the sweep's choice of which rows nothing can use again. And the
+ * foreign key: deleting an account takes its sessions with it, which nothing in Java does.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -92,6 +92,25 @@ class AuthSessionPersistenceIT extends PostgresIT {
     }
 
     @Test
+    void GivenLiveSessionsForTwoAccounts_WhenOneAccountsSessionsAreRevoked_ThenTheOtherAccountStaysSignedIn() {
+        // Switching one account off (FR-43) must not sign everybody out. The count above cannot show it:
+        // it holds only while no other live session is in the shared table.
+        User switchedOff = persistedUser();
+        User bystander = persistedUser();
+        AuthSession ended = repository.save(openedFor(switchedOff, "one"));
+        AuthSession untouched = repository.save(openedFor(bystander, "two"));
+        flushAndClear();
+
+        repository.revokeAllForUser(switchedOff.getId());
+
+        assertThat(repository.findById(ended.getId()).orElseThrow().isActive(NOW))
+                .isFalse();
+        assertThat(repository.findById(untouched.getId()).orElseThrow().isActive(NOW))
+                .as("another account's session")
+                .isTrue();
+    }
+
+    @Test
     void GivenAnAlreadyRevokedSession_WhenEverySessionIsRevokedAgain_ThenItIsNotCountedTwice() {
         // The statement is bounded to the live ones, so a caller can use the count as "how many devices
         // were signed out" rather than "how many rows exist".
@@ -120,12 +139,26 @@ class AuthSessionPersistenceIT extends PostgresIT {
         AuthSession signedOut = openedFor(owner, "signed-out");
         signedOut.revoke();
         repository.save(signedOut);
+        // Each expiry on its own: unused past its idle window but inside its cap, and past its cap with
+        // an idle window that has not run out, so each row is unusable for exactly one reason.
+        AuthSession idledOut =
+                repository.save(openedFor(owner, "idled-out", NOW.minus(IDLE).minusSeconds(1), IDLE));
+        AuthSession capped =
+                repository.save(openedFor(owner, "capped", NOW.minus(ABSOLUTE).minusSeconds(1), ABSOLUTE.plus(IDLE)));
         flushAndClear();
 
-        assertThat(repository.deleteUnusableAsOf(NOW)).isEqualTo(1);
+        assertThat(repository.deleteUnusableAsOf(NOW)).isEqualTo(3);
 
         assertThat(repository.findById(live.getId())).isPresent();
-        assertThat(repository.findById(signedOut.getId())).isEmpty();
+        assertThat(repository.findById(signedOut.getId()))
+                .as("the revoked session")
+                .isEmpty();
+        assertThat(repository.findById(idledOut.getId()))
+                .as("the idled-out session")
+                .isEmpty();
+        assertThat(repository.findById(capped.getId()))
+                .as("the session past its cap")
+                .isEmpty();
     }
 
     @Test
@@ -152,9 +185,14 @@ class AuthSessionPersistenceIT extends PostgresIT {
     }
 
     private AuthSession openedFor(User owner, String secret) {
+        return openedFor(owner, secret, NOW, IDLE);
+    }
+
+    /** A session opened at {@code openedAt} with the given idle window, under the usual absolute cap. */
+    private AuthSession openedFor(User owner, String secret, Instant openedAt, Duration idle) {
         UUID sessionId = UUID.randomUUID();
         return AuthSession.opened(
-                sessionId, owner.getId(), new RefreshToken(sessionId, secret).hash(), NOW, IDLE, ABSOLUTE);
+                sessionId, owner.getId(), new RefreshToken(sessionId, secret).hash(), openedAt, idle, ABSOLUTE);
     }
 
     /**

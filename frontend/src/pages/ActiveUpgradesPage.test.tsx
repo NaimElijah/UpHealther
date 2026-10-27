@@ -298,3 +298,35 @@ describe('ActiveUpgradesPage, paused upgrades', () => {
     expect(alert.textContent).toContain('trace-61');
   });
 });
+
+/**
+ * FR-12 — an active upgrade can be completed from its card.
+ *
+ * Complete and Pause sit side by side and call the same handler with a different target, so a slip
+ * between the two would still send a request and still move the card; only where it lands tells them
+ * apart.
+ */
+describe('ActiveUpgradesPage, completing an upgrade', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    performUpgradeAction.mockReset();
+  });
+
+  it('GivenAnActiveUpgrade_WhenCompleteIsPressed_ThenItIsCompletedAndLeavesBothLists', async () => {
+    let upgrade = anActiveUpgrade();
+    getUpgrades.mockImplementation((status: UpgradeStatus) =>
+      Promise.resolve(upgrade.status === status ? [upgrade] : []),
+    );
+    performUpgradeAction.mockImplementation((_id: string, status: ActionTarget) => {
+      upgrade = { ...upgrade, status };
+      return Promise.resolve(upgrade);
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Complete' }));
+
+    expect(await screen.findByText('No active upgrades')).toBeDefined();
+    expect(performUpgradeAction.mock.calls).toEqual([['upgrade-1', 'COMPLETED']]);
+    expect(screen.queryByRole('region', { name: 'Paused' })).toBeNull();
+  });
+});

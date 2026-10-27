@@ -95,3 +95,31 @@ describe('PlannedUpgradesPage', () => {
     expect(performUpgradeAction).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * The planned list reads as a timeline: soonest start first, and an upgrade with no start date last
+ * rather than first. The API returns the list unordered, so this order is the page's alone.
+ */
+describe('PlannedUpgradesPage order', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    performUpgradeAction.mockReset();
+  });
+
+  it('GivenPlannedUpgradesInNoParticularOrder_WhenThePageRenders_ThenTheSoonestIsFirstAndTheUnscheduledLast', async () => {
+    getUpgrades.mockResolvedValue([
+      upgradeAsSent({ id: 'u-1', title: 'Starts on the tenth', status: 'PLANNED', plannedStartDate: '2026-04-10' }),
+      upgradeAsSent({ id: 'u-2', title: 'Not scheduled', status: 'PLANNED', plannedStartDate: null }),
+      upgradeAsSent({ id: 'u-3', title: 'Starts on the second', status: 'PLANNED', plannedStartDate: '2026-04-02' }),
+    ]);
+
+    renderPage();
+
+    await screen.findByText('Not scheduled');
+    expect(screen.getAllByRole('heading', { level: 3 }).map((title) => title.textContent)).toEqual([
+      'Starts on the second',
+      'Starts on the tenth',
+      'Not scheduled',
+    ]);
+  });
+});
