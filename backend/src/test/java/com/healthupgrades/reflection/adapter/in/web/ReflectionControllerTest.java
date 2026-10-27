@@ -17,6 +17,7 @@ import com.healthupgrades.common.security.JwtAuthenticationFilter;
 import com.healthupgrades.common.security.SecurityConfig;
 import com.healthupgrades.common.security.UserDetailsServiceImpl;
 import com.healthupgrades.reflection.application.ReflectionService;
+import com.healthupgrades.reflection.application.port.in.ReflectionDetails;
 import com.healthupgrades.reflection.domain.model.Reflection;
 import com.healthupgrades.support.WebSliceSupport;
 import java.time.LocalDate;
@@ -80,6 +81,32 @@ class ReflectionControllerTest {
                 .andExpect(jsonPath("$.difficultyRating").value(4))
                 .andExpect(jsonPath("$.benefitRating").value(5))
                 .andExpect(jsonPath("$.whatWorked").value("Phone out of the bedroom"));
+    }
+
+    @Test
+    void GivenEveryField_WhenAReflectionIsWritten_ThenTheUseCaseReceivesEachInItsOwnPlace() throws Exception {
+        // The two ratings share a type and a range, so a swap between them passes validation unnoticed.
+        when(service.create(eq(userId), eq(upgradeId), any())).thenReturn(aReflection());
+
+        mockMvc.perform(bearer(post(base))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"date":"2026-03-14","difficultyRating":2,"benefitRating":5,
+                                 "whatWorked":"Phone out of the bedroom","whatDidNotWork":"Late coffee",
+                                 "nextAdjustment":"Lights out at eleven"}"""))
+                .andExpect(status().isCreated());
+
+        verify(service)
+                .create(
+                        userId,
+                        upgradeId,
+                        new ReflectionDetails(
+                                LocalDate.of(2026, 3, 14),
+                                2,
+                                5,
+                                "Phone out of the bedroom",
+                                "Late coffee",
+                                "Lights out at eleven"));
     }
 
     @Test
