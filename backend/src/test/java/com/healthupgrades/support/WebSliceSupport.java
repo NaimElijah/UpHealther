@@ -25,9 +25,10 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * Shared wiring for the {@code @WebMvcTest} slices.
  *
  * <p>A slice test here runs the <em>real</em> {@code SecurityConfig} and {@code JwtAuthenticationFilter}
- * rather than a disabled chain. That matters: FR-5 — every endpoint but registration, login and the
- * health checks requires a valid token — has no other test, and a slice with security switched off
- * would assert the opposite of the requirement while looking green.
+ * rather than a disabled chain. That matters: FR-5 — every endpoint except registration, sign-in,
+ * refresh, sign-out, the actuator and the WebSocket handshake requires a valid token — has no other
+ * test, and a slice with security switched off would assert the opposite of the requirement while
+ * looking green.
  *
  * <p>Authenticating therefore means presenting a token, exactly as a caller does. {@link #authenticateAs}
  * stubs the collaborator the filter consults so a chosen bearer token resolves to a chosen
