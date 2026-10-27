@@ -35,13 +35,12 @@ describe('the upgrades API', () => {
   });
 
   it('GivenAPlannedTarget_WhenItIsPassedToTheGenericAction_ThenTheBuildRefusesIt', () => {
-    // Enforced by `tsc` in `npm run build`, not by this run: the generic action posts no body, and both
-    // ways into PLANNED carry a date. Should its parameter ever accept PLANNED again, the directive
-    // below goes unused and the build fails. The function is never called, so nothing is sent.
-    const datelessPlan = () =>
+    // Enforced by `tsc` in `npm run build`, not by this run, so the test asserts nothing at run time: a
+    // runtime check here could not fail. The generic action posts no body, and both ways into PLANNED
+    // carry a date. Should its parameter ever accept PLANNED again, the directive below goes unused and
+    // the build fails. The function is never called, so nothing is sent.
+    void (() =>
       // @ts-expect-error PLANNED is not an ActionTarget
-      performUpgradeAction('upgrade-1', 'PLANNED');
-
-    expect(datelessPlan).toBeTypeOf('function');
+      performUpgradeAction('upgrade-1', 'PLANNED'));
   });
 });
