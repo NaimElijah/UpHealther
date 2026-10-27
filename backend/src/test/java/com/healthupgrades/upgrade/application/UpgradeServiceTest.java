@@ -517,18 +517,6 @@ class UpgradeServiceTest {
     // ---- The audit trail ----
 
     @Test
-    void GivenARunningUpgrade_WhenItIsCompleted_ThenTheTransitionIsAuditedAgainstItsOwner() {
-        HealthUpgrade upgrade = upgradeWith(UpgradeStatus.ACTIVE, Difficulty.EASY);
-        when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.of(upgrade));
-        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-
-        service.complete(userId, upgradeId);
-
-        assertThat(auditTrail.only(AuditAction.UPGRADE_COMPLETE))
-                .hasValue(new AuditEvent(AuditAction.UPGRADE_COMPLETE, userId, upgradeId, AuditOutcome.ALLOWED));
-    }
-
-    @Test
     void GivenACompletedUpgrade_WhenItIsPaused_ThenTheRefusalIsAuditedRatherThanLost() {
         // The half of the trail that is easy to leave out: nothing changed, nothing was published, and
         // an attempt to move a terminal upgrade is exactly the entry somebody would come looking for.
@@ -539,18 +527,6 @@ class UpgradeServiceTest {
 
         assertThat(auditTrail.only(AuditAction.UPGRADE_PAUSE))
                 .hasValue(new AuditEvent(AuditAction.UPGRADE_PAUSE, userId, upgradeId, AuditOutcome.REFUSED));
-    }
-
-    @Test
-    void GivenAnUpgradeOwnedBySomebodyElse_WhenItIsDeleted_ThenTheRefusedAttemptIsAudited() {
-        // BR-15 reports a foreign record as absent, so the response says nothing happened. The trail is
-        // the only place that records somebody having reached for a record that was not theirs.
-        when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> service.delete(userId, upgradeId)).isInstanceOf(ResourceNotFoundException.class);
-
-        assertThat(auditTrail.recorded(AuditAction.UPGRADE_DELETE, AuditOutcome.REFUSED))
-                .isTrue();
     }
 
     // NFR-23 for every use case that changes an upgrade: one entry, under its own action, allowed when
@@ -602,6 +578,8 @@ class UpgradeServiceTest {
     @MethodSource("everyAuditedUseCaseOnAnUpgrade")
     void GivenAnUpgradeOwnedBySomebodyElse_WhenTheUseCaseRuns_ThenItAloneIsAuditedAsRefused(
             AuditAction action, UpgradeStatus allowedFrom, AuditedUseCase useCase) {
+        // BR-15 reports a foreign record as absent, so the response says nothing happened. The trail is
+        // the only place that records somebody having reached for a record that was not theirs.
         when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.run(service, userId, upgradeId)).isInstanceOf(ResourceNotFoundException.class);
