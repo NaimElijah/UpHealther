@@ -751,12 +751,12 @@ describe('NotificationProvider desktop notifications', () => {
   });
 });
 
-/** How long a toast stays up on its own: FR-32's toasts dismiss themselves after six seconds. */
+/** How long a toast stays up on its own: the provider dismisses each one after six seconds. */
 const TOAST_LIFETIME_MS = 6000;
 
 /**
- * FR-32's toasts: a live notification is shown as a toast, at most four at once, each gone after six
- * seconds, and one that names an upgrade opens it.
+ * The provider's toasts: a live notification is shown as a toast, at most four at once, each gone after
+ * six seconds, and one that names an upgrade opens it.
  *
  * The cap is what keeps a burst of notifications from covering the page, and the timer is what clears
  * them without a click; neither is visible to `ToastContainer.test.tsx`, which is handed its toasts.

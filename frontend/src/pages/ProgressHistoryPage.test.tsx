@@ -89,7 +89,7 @@ describe('ProgressHistoryPage', () => {
   });
 });
 
-/** FR-21 — the week reads newest first, whatever order the API sends the entries in. */
+/** The page lists the week newest first, whatever order the API sends the entries in. */
 describe('ProgressHistoryPage order', () => {
   beforeEach(() => {
     getWeekProgress.mockReset();
