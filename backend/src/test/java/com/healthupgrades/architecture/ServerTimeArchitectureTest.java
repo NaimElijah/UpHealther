@@ -1,21 +1,27 @@
 package com.healthupgrades.architecture;
 
+import static com.tngtech.archunit.base.DescribedPredicate.not;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import com.healthupgrades.HealthUpgradesApplication;
 import com.healthupgrades.common.time.ServerZone;
 import com.tngtech.archunit.base.DescribedPredicate;
+import com.tngtech.archunit.core.domain.AccessTarget.CodeUnitAccessTarget;
+import com.tngtech.archunit.core.domain.JavaAccess;
 import com.tngtech.archunit.core.domain.JavaAnnotation;
 import com.tngtech.archunit.core.domain.JavaClass;
-import com.tngtech.archunit.core.domain.JavaMethodCall;
+import com.tngtech.archunit.core.domain.JavaCodeUnit;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
-import jakarta.persistence.Entity;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import java.time.Clock;
+import java.time.InstantSource;
 import java.util.List;
+import java.util.function.Predicate;
 import org.springframework.scheduling.annotation.Scheduled;
 
 /**
@@ -46,52 +52,85 @@ class ServerTimeArchitectureTest {
             .as("every @Scheduled job must resolve its cron in ServerZone.ID, the zone the clock reads");
 
     /**
-     * Nothing outside an entity reads the time without the injected clock.
+     * Nothing outside an entity's lifecycle hook reads the time without the injected clock.
      *
      * <p>Every call site that stamps, announces or decides by the time has a test of its own, but a new
-     * one reading the wall clock would pass all of them. So every {@code now} in {@code java.time} is
-     * forbidden unless its one argument is a {@link Clock} — {@code ZonedDateTime.now()} and
-     * {@code LocalDate.now(zone)} read the system clock as surely as {@code LocalDateTime.now()} does —
-     * and so is {@code System.currentTimeMillis()}. Entities are left out because their
-     * {@code @PrePersist}/{@code @PreUpdate} hooks are #51's known deviation; the exclusion goes when #51
-     * routes those through the clock.
+     * one reading the wall clock would pass all of them. So every {@code now} in {@code java.time} and
+     * its subpackages is forbidden unless its one argument is a {@link Clock} — {@code ZonedDateTime.now()}
+     * and {@code LocalDate.now(zone)} read the system clock as surely as {@code LocalDateTime.now()}
+     * does — and so is {@code System.currentTimeMillis()}, whether called or passed as a method
+     * reference. Only {@code @PrePersist} and {@code @PreUpdate} methods are left out: their timestamps
+     * are #51's known deviation, and the exemption goes when #51 routes them through the clock. The rest
+     * of an entity is not, because under ADR-001 the entity is the domain model, where due and overdue
+     * are decided.
      */
     @ArchTest
-    static final ArchRule nothing_outside_an_entity_reads_the_time_without_the_clock = noClasses()
-            .that()
-            .areNotAnnotatedWith(Entity.class)
+    static final ArchRule nothing_outside_a_lifecycle_hook_reads_the_time_without_the_clock = noClasses()
             .should()
-            .callMethodWhere(readsTheWallClock())
-            .as("nothing outside an entity may read the time without the injected clock");
+            .accessTargetWhere(readsTheWallClock()
+                    .and(not(originatesIn(
+                            "a @PrePersist or @PreUpdate method",
+                            origin -> origin.isAnnotatedWith(PrePersist.class)
+                                    || origin.isAnnotatedWith(PreUpdate.class)))))
+            .as("nothing outside a @PrePersist or @PreUpdate method may read the time without the injected clock");
 
     /**
      * Only the application's {@code clock()} bean builds a clock from the system's.
      *
-     * <p>{@code Clock.systemDefaultZone()} anywhere else would hand a caller a clock nobody injected and
-     * in the host's zone, which is the two things NFR-15 and ADR-020 rule out at once.
+     * <p>{@code Clock.systemDefaultZone()} or {@code InstantSource.system()} anywhere else would hand a
+     * caller a clock nobody injected, the first in the host's zone, which is what NFR-15 and ADR-020 rule
+     * out. The exemption is that one method, not its class, so {@code main} gets none.
      */
     @ArchTest
     static final ArchRule only_the_clock_bean_builds_a_system_clock = noClasses()
-            .that()
-            .doNotHaveFullyQualifiedName(HealthUpgradesApplication.class.getName())
             .should()
-            .callMethodWhere(DescribedPredicate.describe(
-                    "Clock.system*()",
-                    call -> call.getTargetOwner().isEquivalentTo(Clock.class)
-                            && call.getName().startsWith("system")))
+            .accessTargetWhere(buildsASystemClock()
+                    .and(not(originatesIn(
+                            "HealthUpgradesApplication.clock()",
+                            origin -> origin.getOwner().isEquivalentTo(HealthUpgradesApplication.class)
+                                    && origin.getName().equals("clock")
+                                    && origin.getRawParameterTypes().isEmpty()))))
             .as("only HealthUpgradesApplication.clock() may build a clock from the system's");
 
-    /** A {@code java.time} {@code now} that does not take a {@link Clock}, or {@code currentTimeMillis}. */
-    private static DescribedPredicate<JavaMethodCall> readsTheWallClock() {
-        return DescribedPredicate.describe(
+    /**
+     * A {@code java.time} {@code now} that does not take a {@link Clock}, or {@code currentTimeMillis},
+     * called or referenced.
+     */
+    private static DescribedPredicate<JavaAccess<?>> readsTheWallClock() {
+        return targets(
                 "a java.time now() without a Clock, or System.currentTimeMillis()",
-                call -> (call.getTargetOwner().getPackageName().equals("java.time")
-                                && call.getName().equals("now")
-                                && !call.getTarget().getRawParameterTypes().stream()
+                target -> (target.getOwner().getPackageName().startsWith("java.time")
+                                && target.getName().equals("now")
+                                && !target.getRawParameterTypes().stream()
                                         .map(JavaClass::getName)
                                         .toList()
                                         .equals(List.of(Clock.class.getName())))
-                        || (call.getTargetOwner().isEquivalentTo(System.class)
-                                && call.getName().equals("currentTimeMillis")));
+                        || (target.getOwner().isEquivalentTo(System.class)
+                                && target.getName().equals("currentTimeMillis")));
+    }
+
+    /** {@code Clock.system*()} or {@code InstantSource.system()}, called or referenced. */
+    private static DescribedPredicate<JavaAccess<?>> buildsASystemClock() {
+        return targets(
+                "Clock.system*() or InstantSource.system()",
+                target -> (target.getOwner().isEquivalentTo(Clock.class)
+                                || target.getOwner().isEquivalentTo(InstantSource.class))
+                        && target.getName().startsWith("system"));
+    }
+
+    /**
+     * An access to a method or constructor the predicate accepts. A method reference such as
+     * {@code LocalDate::now} is an access but not a call, so {@code callMethodWhere} would miss it.
+     */
+    private static DescribedPredicate<JavaAccess<?>> targets(
+            String description, Predicate<CodeUnitAccessTarget> target) {
+        return DescribedPredicate.describe(
+                description,
+                access -> access.getTarget() instanceof CodeUnitAccessTarget codeUnit && target.test(codeUnit));
+    }
+
+    /** An access made from a method or constructor the predicate accepts. */
+    private static DescribedPredicate<JavaAccess<?>> originatesIn(String description, Predicate<JavaCodeUnit> origin) {
+        return DescribedPredicate.describe("made from " + description, access -> origin.test(access.getOrigin()));
     }
 }
