@@ -12,7 +12,7 @@ const NOW = new Date('2026-08-19T12:00:00.000Z');
  * which is UTC (ADR-020), with no offset on it (`docs/api.md`, `wireFixtures.ts`). `toISOString()` alone
  * ends in `Z`, a shape the API never sends, and a fixture in that shape agreed with a function that reads
  * the wire's string as local time: the suite runs in Los Angeles, where that put every notification
- * seven hours in the future.
+ * seven hours later than it was raised.
  */
 const asSent = (instant: Date) => instant.toISOString().slice(0, 19);
 
