@@ -3,18 +3,19 @@ package com.healthupgrades.architecture;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
+import com.healthupgrades.HealthUpgradesApplication;
 import com.healthupgrades.common.time.ServerZone;
 import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.JavaAnnotation;
+import com.tngtech.archunit.core.domain.JavaClass;
+import com.tngtech.archunit.core.domain.JavaMethodCall;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 import jakarta.persistence.Entity;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
+import java.time.Clock;
+import java.util.List;
 import org.springframework.scheduling.annotation.Scheduled;
 
 /**
@@ -48,7 +49,10 @@ class ServerTimeArchitectureTest {
      * Nothing outside an entity reads the time without the injected clock.
      *
      * <p>Every call site that stamps, announces or decides by the time has a test of its own, but a new
-     * one calling {@code LocalDateTime.now()} would pass all of them. Entities are left out because their
+     * one reading the wall clock would pass all of them. So every {@code now} in {@code java.time} is
+     * forbidden unless its one argument is a {@link Clock} — {@code ZonedDateTime.now()} and
+     * {@code LocalDate.now(zone)} read the system clock as surely as {@code LocalDateTime.now()} does —
+     * and so is {@code System.currentTimeMillis()}. Entities are left out because their
      * {@code @PrePersist}/{@code @PreUpdate} hooks are #51's known deviation; the exclusion goes when #51
      * routes those through the clock.
      */
@@ -57,12 +61,37 @@ class ServerTimeArchitectureTest {
             .that()
             .areNotAnnotatedWith(Entity.class)
             .should()
-            .callMethod(LocalDateTime.class, "now")
-            .orShould()
-            .callMethod(LocalDate.class, "now")
-            .orShould()
-            .callMethod(LocalTime.class, "now")
-            .orShould()
-            .callMethod(Instant.class, "now")
+            .callMethodWhere(readsTheWallClock())
             .as("nothing outside an entity may read the time without the injected clock");
+
+    /**
+     * Only the application's {@code clock()} bean builds a clock from the system's.
+     *
+     * <p>{@code Clock.systemDefaultZone()} anywhere else would hand a caller a clock nobody injected and
+     * in the host's zone, which is the two things NFR-15 and ADR-020 rule out at once.
+     */
+    @ArchTest
+    static final ArchRule only_the_clock_bean_builds_a_system_clock = noClasses()
+            .that()
+            .doNotHaveFullyQualifiedName(HealthUpgradesApplication.class.getName())
+            .should()
+            .callMethodWhere(DescribedPredicate.describe(
+                    "Clock.system*()",
+                    call -> call.getTargetOwner().isEquivalentTo(Clock.class)
+                            && call.getName().startsWith("system")))
+            .as("only HealthUpgradesApplication.clock() may build a clock from the system's");
+
+    /** A {@code java.time} {@code now} that does not take a {@link Clock}, or {@code currentTimeMillis}. */
+    private static DescribedPredicate<JavaMethodCall> readsTheWallClock() {
+        return DescribedPredicate.describe(
+                "a java.time now() without a Clock, or System.currentTimeMillis()",
+                call -> (call.getTargetOwner().getPackageName().equals("java.time")
+                                && call.getName().equals("now")
+                                && !call.getTarget().getRawParameterTypes().stream()
+                                        .map(JavaClass::getName)
+                                        .toList()
+                                        .equals(List.of(Clock.class.getName())))
+                        || (call.getTargetOwner().isEquivalentTo(System.class)
+                                && call.getName().equals("currentTimeMillis")));
+    }
 }
