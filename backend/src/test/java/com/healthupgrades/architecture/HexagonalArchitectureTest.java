@@ -1,6 +1,7 @@
 package com.healthupgrades.architecture;
 
 import static com.tngtech.archunit.base.DescribedPredicate.alwaysTrue; // matches any origin class
+import static com.tngtech.archunit.base.DescribedPredicate.not; // inverts an allow-list into a ban
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage; // single-package predicate
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage; // package predicate for ignores
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.simpleNameEndingWith; // class-name predicate
@@ -218,22 +219,24 @@ class HexagonalArchitectureTest {
      * administrator gains <em>paths</em> and not <em>rows</em>, and what makes that true is that
      * {@code admin} has no way to reach a health context at all. A reviewer cannot see the absence of
      * an import; this rule can (ADR-016).
+     *
+     * <p>An allow-list rather than a list of the forbidden contexts, so a context added later is out of
+     * reach until somebody decides otherwise: {@code admin} manages accounts through {@code user} and
+     * ends sessions through {@code auth}, and reaches nothing else of this codebase but {@code common}.
      */
     @ArchTest
     static final ArchRule admin_cannot_reach_a_users_own_records = noClasses()
             .that()
             .resideInAPackage("com.healthupgrades.admin..")
             .should()
-            .dependOnClassesThat()
-            .resideInAnyPackage(
-                    "com.healthupgrades.upgrade..",
-                    "com.healthupgrades.tracking..",
-                    "com.healthupgrades.healtharea..",
-                    "com.healthupgrades.reflection..",
-                    "com.healthupgrades.reminder..",
-                    "com.healthupgrades.notification..",
-                    "com.healthupgrades.dashboard..")
-            .as("the admin context must not depend on any context holding a user's own records");
+            .dependOnClassesThat(resideInAPackage("com.healthupgrades..")
+                    .and(not(resideInAnyPackage(
+                            "com.healthupgrades.admin..",
+                            "com.healthupgrades.user..",
+                            "com.healthupgrades.auth..",
+                            "com.healthupgrades.common.."))))
+            .as("the admin context must not depend on any context holding a user's own records: it may reach "
+                    + "only user, auth and common");
 
     /**
      * Spring Data repositories stay package-private, so reaching past a port into another context's
