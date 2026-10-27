@@ -2,11 +2,15 @@ package com.healthupgrades.reminder.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.healthupgrades.common.domain.audit.AuditAction;
+import com.healthupgrades.common.domain.audit.AuditEvent;
+import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.reminder.application.port.in.ReminderSchedule;
@@ -30,7 +34,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
  * Covers FR-25 (attach a reminder with a time and a day filter) and FR-26 (reschedule, enable, disable,
- * delete).
+ * delete), and NFR-23 for each of those writes.
  *
  * <p>The ownership story here is the one worth pinning: a reminder has no owner column. It is the
  * caller's only because the upgrade it hangs off is, so every path resolves that upgrade through
@@ -234,6 +238,78 @@ class ReminderServiceTest {
         when(repository.findByEnabledTrue()).thenReturn(enabled);
 
         assertThat(service.findEnabled()).isEqualTo(enabled);
+    }
+
+    // ---- NFR-23: every attempt is audited, allowed or refused ----
+
+    @Test
+    void GivenAnOwnedUpgrade_WhenAReminderIsAttached_ThenTheAttemptIsAuditedAsAllowedAgainstTheUpgrade() {
+        when(upgradeQuery.getOwnedUpgrade(userId, upgradeId)).thenReturn(AnUpgrade.active(userId));
+        when(repository.save(any(Reminder.class))).thenAnswer(call -> call.getArgument(0));
+
+        service.create(userId, upgradeId, new ReminderSchedule(NINE_AM, List.of("MON"), true));
+
+        assertThat(auditTrail.only(AuditAction.REMINDER_CREATE))
+                .hasValue(new AuditEvent(AuditAction.REMINDER_CREATE, userId, upgradeId, AuditOutcome.ALLOWED));
+    }
+
+    @Test
+    void GivenAnUpgradeOwnedBySomebodyElse_WhenAReminderIsAttached_ThenTheAttemptIsAuditedAsRefused() {
+        when(upgradeQuery.getOwnedUpgrade(userId, upgradeId))
+                .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
+
+        catchThrowable(() -> service.create(userId, upgradeId, new ReminderSchedule(NINE_AM, List.of("MON"), true)));
+
+        assertThat(auditTrail.only(AuditAction.REMINDER_CREATE))
+                .hasValue(new AuditEvent(AuditAction.REMINDER_CREATE, userId, upgradeId, AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenAnOwnedReminder_WhenItIsRescheduled_ThenTheAttemptIsAuditedAsAllowedAgainstTheReminder() {
+        Reminder reminder = aReminder(true);
+        when(repository.findById(reminderId)).thenReturn(Optional.of(reminder));
+        when(upgradeQuery.getOwnedUpgrade(userId, upgradeId)).thenReturn(AnUpgrade.active(userId));
+        when(repository.save(reminder)).thenReturn(reminder);
+
+        service.update(userId, reminderId, new ReminderSchedule(SIX_PM, List.of("SAT"), null));
+
+        assertThat(auditTrail.only(AuditAction.REMINDER_UPDATE))
+                .hasValue(new AuditEvent(AuditAction.REMINDER_UPDATE, userId, reminderId, AuditOutcome.ALLOWED));
+    }
+
+    @Test
+    void GivenAReminderOnAnotherUsersUpgrade_WhenItIsRescheduled_ThenTheAttemptIsAuditedAsRefused() {
+        when(repository.findById(reminderId)).thenReturn(Optional.of(aReminder(true)));
+        when(upgradeQuery.getOwnedUpgrade(userId, upgradeId))
+                .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
+
+        catchThrowable(() -> service.update(userId, reminderId, new ReminderSchedule(SIX_PM, List.of("SAT"), null)));
+
+        assertThat(auditTrail.only(AuditAction.REMINDER_UPDATE))
+                .hasValue(new AuditEvent(AuditAction.REMINDER_UPDATE, userId, reminderId, AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenAnOwnedReminder_WhenItIsDeleted_ThenTheAttemptIsAuditedAsAnAllowedDelete() {
+        when(repository.findById(reminderId)).thenReturn(Optional.of(aReminder(true)));
+        when(upgradeQuery.getOwnedUpgrade(userId, upgradeId)).thenReturn(AnUpgrade.active(userId));
+
+        service.delete(userId, reminderId);
+
+        assertThat(auditTrail.recorded())
+                .containsExactly(new AuditEvent(AuditAction.REMINDER_DELETE, userId, reminderId, AuditOutcome.ALLOWED));
+    }
+
+    @Test
+    void GivenAReminderOnAnotherUsersUpgrade_WhenItIsDeleted_ThenTheAttemptIsAuditedAsARefusedDelete() {
+        when(repository.findById(reminderId)).thenReturn(Optional.of(aReminder(true)));
+        when(upgradeQuery.getOwnedUpgrade(userId, upgradeId))
+                .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
+
+        catchThrowable(() -> service.delete(userId, reminderId));
+
+        assertThat(auditTrail.recorded())
+                .containsExactly(new AuditEvent(AuditAction.REMINDER_DELETE, userId, reminderId, AuditOutcome.REFUSED));
     }
 
     private Reminder aReminder(boolean enabled) {

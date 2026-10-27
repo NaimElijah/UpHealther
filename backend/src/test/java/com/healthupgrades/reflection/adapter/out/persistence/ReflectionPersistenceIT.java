@@ -45,13 +45,17 @@ class ReflectionPersistenceIT extends PostgresIT {
 
     @BeforeEach
     void createAnUpgradeToReflectOn() {
-        userId = entityManager.persistAndFlush(AUser.aUser().id(null).build()).getId();
+        // A fresh email: users.email is unique, and committing ITs may already hold the fixture's default.
+        userId = entityManager
+                .persistAndFlush(AUser.aUser()
+                        .id(null)
+                        .email("reflecting-" + UUID.randomUUID() + "@example.com")
+                        .build())
+                .getId();
         upgradeId = entityManager
                 .persistAndFlush(AnUpgrade.ownedBy(userId)
                         .id(null)
                         .status(UpgradeStatus.ACTIVE)
-                        .createdAt(LocalDateTime.now())
-                        .updatedAt(LocalDateTime.now())
                         .build())
                 .getId();
     }

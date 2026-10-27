@@ -57,7 +57,7 @@ read/composition model with no domain or outbound side. All three are deliberate
   A `@TransactionalEventListener(phase = AFTER_COMMIT)` that writes must also be
   `@Transactional(propagation = REQUIRES_NEW)`. Without it, the write joins the transaction that has
   just committed, and it is silently never stored (#169, ADR-028). A new notification listener also
-  goes into `NotificationCommitIT`'s parameters.
+  goes into `NotificationCommitIT`'s parameters, and that IT fails until it does.
 
 - **Exception → HTTP status is centralized** in the global exception handler. Throw the right domain
   exception rather than building `ResponseEntity` status by hand: `ResourceNotFoundException` → 404,
