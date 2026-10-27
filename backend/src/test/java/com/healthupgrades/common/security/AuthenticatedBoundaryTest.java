@@ -31,7 +31,8 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 
 /**
  * FR-5, as one rule over the whole API rather than a line repeated in nine controller tests: every
- * endpoint except registration, login and the health checks requires a valid token.
+ * endpoint except registration, sign-in, refresh, sign-out, the actuator and the WebSocket handshake
+ * requires a valid token.
  *
  * <p>This is the only test of that requirement, so the slice runs the real {@code SecurityConfig} and
  * the real {@code JwtAuthenticationFilter}; only the token check behind the filter is stubbed. Every service below is mocked, which is the point — a
@@ -43,7 +44,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
  * bare 403, because no {@code AuthenticationEntryPoint} was configured, which left clients unable to tell
  * "sign in again" from "this is not yours" (#58).
  *
- * <p>{@link #GivenTheApiSurface_WhenItIsEnumerated_ThenEveryProtectedRouteIsListedHere} is the guard
+ * <p>{@link #GivenTheApiSurface_WhenItIsEnumerated_ThenEveryProtectedMethodAndPathIsListedHere} is the guard
  * that keeps the table below honest: a new endpoint that nobody adds a row for fails this class rather
  * than quietly shipping unasserted.
  */
