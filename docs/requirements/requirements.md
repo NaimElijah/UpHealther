@@ -111,8 +111,8 @@ no way at all — to read another person's health records
 
 | ID | Requirement | Enforced by |
 |---|---|---|
-| FR-27 | A user can see, in one request, their active, planned, due-today, overdue and recently completed upgrades, their weekly completion rate, their streaks and per-area counts | `DashboardAggregationServiceTest`, `DashboardControllerTest`, `DashboardPage.test.tsx` |
-| FR-28 | A user is notified when an upgrade is created, planned, activated, paused, completed or abandoned, when a reflection is added, and when a streak milestone is reached | `NotificationEventListenerTest`, `NotificationCommitIT` (each of them stored once the write commits) |
+| FR-27 | A user can see, in one request, their active, planned, due-today, overdue and recently completed upgrades, their weekly completion rate, their streaks and per-area counts | `DashboardAggregationServiceTest`, `DashboardControllerTest`, `HealthUpgradeTest` (the window an upgrade is due today in), `DashboardPage.test.tsx` |
+| FR-28 | A user is notified when an upgrade is created, planned, activated, paused, completed or abandoned, when a reflection is added, and when a streak milestone is reached | `UpgradeServiceTest` (each lifecycle move announces its own event), `NotificationEventListenerTest`, `NotificationCommitIT` (each of them stored once the write commits) |
 | FR-29 | A user is notified when an active upgrade passes its target date | `UpgradeOverdueSchedulerTest`, `UpgradeBacklogPage.test.tsx` (a target end can be set) |
 | FR-30 | A user with active upgrades and nothing logged is nudged once a day | `NotificationSchedulerTest` |
 | FR-31 | A user's reminders fire at the configured time and day | `NotificationSchedulerTest`, `ReminderTest` |
