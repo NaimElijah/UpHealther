@@ -43,9 +43,18 @@ class OsvScannerExceptionsAreDatedTest {
     private static final Pattern TABLE_HEADER =
             Pattern.compile("^\\s*(\\[\\[?)\\s*([\\w.]+)\\s*]]?", Pattern.MULTILINE);
 
-    /** A non-blank {@code reason}, in either kind of TOML string. A commented-out line does not match. */
-    private static final Pattern REASON =
-            Pattern.compile("^\\s*reason\\s*=\\s*(\"[^\"]*\\S[^\"]*\"|'[^']*\\S[^']*')", Pattern.MULTILINE);
+    /**
+     * A {@code reason} and its value, in any of TOML's four kinds of string: the multiline ones first, so
+     * that {@code """} is not read as an empty string followed by a quote. A commented-out line does not
+     * match. Whether the value is blank is decided after the match.
+     */
+    private static final Pattern REASON = Pattern.compile(
+            "^\\s*reason\\s*=\\s*(?:\"\"\"(?<multilineBasic>.*?)\"\"\"|'''(?<multilineLiteral>.*?)'''"
+                    + "|\"(?<basic>(?:[^\"\\\\\\n]|\\\\.)*)\"|'(?<literal>[^'\\n]*)')",
+            Pattern.MULTILINE | Pattern.DOTALL);
+
+    /** The groups of {@link #REASON}, one of which holds the value of any match. */
+    private static final List<String> REASON_VALUES = List.of("multilineBasic", "multilineLiteral", "basic", "literal");
 
     /** What names an exception in the failure message: the advisory, or the package. */
     private static final Pattern SUBJECT =
@@ -67,6 +76,109 @@ class OsvScannerExceptionsAreDatedTest {
                 .isEmpty();
     }
 
+    // ---- the parser, on fixture TOML: there is no config file today, so nothing else runs it ----
+
+    @Test
+    void GivenABareId_WhenTheExceptionsAreChecked_ThenItIsListedAsMissingBothAReasonAndAnExpiry() {
+        String toml = """
+                [[IgnoredVulns]]
+                id = "GHSA-aaaa-bbbb-cccc"
+                """;
+
+        assertThat(exceptionsMissingAReasonOrAnExpiry(toml))
+                .containsExactly("[[IgnoredVulns]] GHSA-aaaa-bbbb-cccc: no reason no ignoreUntil");
+    }
+
+    @Test
+    void GivenAnIdWithAReasonAndAnExpiry_WhenTheExceptionsAreChecked_ThenNothingIsListed() {
+        String toml = """
+                [[IgnoredVulns]]
+                id = "GHSA-aaaa-bbbb-cccc"
+                ignoreUntil = 2026-12-31
+                reason = "Only reachable through the XML parser, which the backend never configures"
+                """;
+
+        assertThat(exceptionsMissingAReasonOrAnExpiry(toml)).isEmpty();
+    }
+
+    @Test
+    void GivenAMultilineReason_WhenTheExceptionsAreChecked_ThenItCounts() {
+        String toml = """
+                [[IgnoredVulns]]
+                id = "GHSA-aaaa-bbbb-cccc"
+                ignoreUntil = 2026-12-31
+                reason = \"""
+                  Fixed upstream in 2.1; the bump waits for the framework's next release.
+                  \"""
+                """;
+
+        assertThat(exceptionsMissingAReasonOrAnExpiry(toml)).isEmpty();
+    }
+
+    @Test
+    void GivenABlankMultilineReason_WhenTheExceptionsAreChecked_ThenItIsListedAsMissingAReason() {
+        // Its delimiters are quotes, which a pattern looking for "some non-blank character between
+        // quotes" reads as the reason itself.
+        String toml = """
+                [[IgnoredVulns]]
+                id = "GHSA-aaaa-bbbb-cccc"
+                ignoreUntil = 2026-12-31
+                reason = \"""
+
+                  \"""
+                """;
+
+        assertThat(exceptionsMissingAReasonOrAnExpiry(toml))
+                .containsExactly("[[IgnoredVulns]] GHSA-aaaa-bbbb-cccc: no reason");
+    }
+
+    @Test
+    void GivenABlankMultilineLiteralReason_WhenTheExceptionsAreChecked_ThenItIsListedAsMissingAReason() {
+        String toml = """
+                [[IgnoredVulns]]
+                id = "GHSA-aaaa-bbbb-cccc"
+                ignoreUntil = 2026-12-31
+                reason = '''   '''
+                """;
+
+        assertThat(exceptionsMissingAReasonOrAnExpiry(toml))
+                .containsExactly("[[IgnoredVulns]] GHSA-aaaa-bbbb-cccc: no reason");
+    }
+
+    @Test
+    void GivenAnEmptyOrCommentedOutReason_WhenTheExceptionsAreChecked_ThenEachIsListedAsMissingAReason() {
+        String toml = """
+                [[IgnoredVulns]]
+                id = "GHSA-empty"
+                ignoreUntil = 2026-12-31
+                reason = ""
+
+                [[IgnoredVulns]]
+                id = "GHSA-commented"
+                ignoreUntil = 2026-12-31
+                # reason = "decided later"
+                """;
+
+        assertThat(exceptionsMissingAReasonOrAnExpiry(toml))
+                .containsExactly(
+                        "[[IgnoredVulns]] GHSA-empty: no reason", "[[IgnoredVulns]] GHSA-commented: no reason");
+    }
+
+    @Test
+    void GivenAPackageOverrideWithoutAnEffectiveUntil_WhenTheExceptionsAreChecked_ThenItIsListed() {
+        // An ignoreUntil does not end a package override; only its own key does.
+        String toml = """
+                [[PackageOverrides]]
+                name = "com.example:legacy"
+                ignore = true
+                ignoreUntil = 2026-12-31
+                reason = "Test-scope only"
+                """;
+
+        assertThat(exceptionsMissingAReasonOrAnExpiry(toml))
+                .containsExactly("[[PackageOverrides]] com.example:legacy: no effectiveUntil");
+    }
+
     /** One line per exception that lacks a reason or an expiry, naming what it silences. */
     private static List<String> exceptionsMissingAReasonOrAnExpiry(String toml) {
         List<String> missing = new ArrayList<>();
@@ -75,7 +187,7 @@ class OsvScannerExceptionsAreDatedTest {
             if (expiryKey == null) {
                 continue;
             }
-            boolean hasReason = REASON.matcher(table.body()).find();
+            boolean hasReason = hasNonBlankReason(table.body());
             boolean hasExpiry = Pattern.compile("^\\s*" + expiryKey + "\\s*=\\s*\\S", Pattern.MULTILINE)
                     .matcher(table.body())
                     .find();
@@ -90,6 +202,12 @@ class OsvScannerExceptionsAreDatedTest {
             }
         }
         return missing;
+    }
+
+    private static boolean hasNonBlankReason(String tableBody) {
+        Matcher reason = REASON.matcher(tableBody);
+        return reason.find()
+                && REASON_VALUES.stream().map(reason::group).anyMatch(value -> value != null && !value.isBlank());
     }
 
     /** One {@code [[name]]} entry, with everything up to the next table header. */
