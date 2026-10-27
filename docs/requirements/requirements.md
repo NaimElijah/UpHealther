@@ -3,7 +3,7 @@
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
 rather than trusted. A hundred and nineteen of the hundred and twenty-eight entries below name a test —
-a hundred and twenty-four distinct test classes and files between them. Six of the remaining nine name the
+a hundred and twenty-five distinct test classes and files between them. Six of the remaining nine name the
 command, workflow, script or setting that *is* the check (NFR-11, NFR-13, NFR-18, NFR-48, NFR-52,
 NFR-53). The last three — FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is
 about a rendered width, a colour or an overflow, and jsdom has no layout engine to observe any of them;
@@ -84,7 +84,7 @@ no way at all — to read another person's health records
 | FR-12 | A user can move an upgrade through its lifecycle: plan, activate, pause, complete, abandon, reschedule | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeControllerTest`, `UpgradeBacklogPage.test.tsx`, `ActiveUpgradesPage.test.tsx` (a paused upgrade is listed and can be resumed), `upgradeViews.test.tsx` (a change made on one page reaches every page that shows the upgrade), `UpgradeDetailsPage.test.tsx` (an upgrade's page abandons it from any state that is not final, and reschedules it from PLANNED, ACTIVE, PAUSED or ABANDONED; an idea is planned instead), `upgrades.test.ts` |
 | FR-13 | A user can edit an upgrade's descriptive fields at any point in its lifecycle | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeDetailsPage.test.tsx` (an upgrade's page edits it, completed or not, and sends every field) |
 | FR-14 | A user can delete an upgrade, and with it everything recorded against it: its tracking configuration, progress, reminders and reflections. Its notifications stay, detached from it | `UpgradeServiceTest`, `UpgradeControllerTest`, `UpgradePersistenceIT`, `UpgradeDetailsPage.test.tsx` (an upgrade's page deletes it, in any state, after saying what goes with it) |
-| FR-15 | An upgrade's response carries its tracking configuration, so a list view needs no second call | `UpgradeDtoSerializationTest`, `UpgradeControllerTest` |
+| FR-15 | An upgrade's response carries its tracking configuration, so a list view needs no second call | `UpgradeDtoSerializationTest`, `UpgradeControllerTest`, `UpgradeTrackingSummaryAdapterTest` |
 
 ### 2.4 Tracking and progress
 

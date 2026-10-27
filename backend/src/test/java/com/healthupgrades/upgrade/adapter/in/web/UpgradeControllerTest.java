@@ -24,6 +24,7 @@ import com.healthupgrades.common.security.UserDetailsServiceImpl;
 import com.healthupgrades.support.AnUpgrade;
 import com.healthupgrades.support.WebSliceSupport;
 import com.healthupgrades.upgrade.application.UpgradeService;
+import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummary;
 import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort;
 import com.healthupgrades.upgrade.domain.model.Difficulty;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
@@ -172,6 +173,28 @@ class UpgradeControllerTest {
                 .andExpect(jsonPath("$.type").value("HABIT"))
                 .andExpect(jsonPath("$.overdue").exists())
                 .andExpect(jsonPath("$.trackingConfig").doesNotExist());
+    }
+
+    @Test
+    void GivenAnUpgradeWithATrackingConfig_WhenItIsRead_ThenTheResponseCarriesEveryFieldOfIt() throws Exception {
+        // FR-15: a list view needs no second call, so the configuration rides on the upgrade. Each field
+        // has a value no other field shares, so a field mapped into the wrong slot fails here.
+        UUID configId = UUID.randomUUID();
+        when(service.getOwnedUpgrade(userId, upgradeId)).thenReturn(anUpgrade(UpgradeStatus.ACTIVE));
+        when(trackingSummaries.findByUpgradeIds(List.of(upgradeId)))
+                .thenReturn(Map.of(
+                        upgradeId,
+                        new UpgradeTrackingSummary(configId, upgradeId, "NUMERIC", "WEEKLY", 10_000.0, "steps", true)));
+
+        mockMvc.perform(bearer(get(BASE + "/" + upgradeId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.trackingConfig.id").value(configId.toString()))
+                .andExpect(jsonPath("$.trackingConfig.upgradeId").value(upgradeId.toString()))
+                .andExpect(jsonPath("$.trackingConfig.trackingType").value("NUMERIC"))
+                .andExpect(jsonPath("$.trackingConfig.frequency").value("WEEKLY"))
+                .andExpect(jsonPath("$.trackingConfig.targetNumericValue").value(10_000.0))
+                .andExpect(jsonPath("$.trackingConfig.targetUnit").value("steps"))
+                .andExpect(jsonPath("$.trackingConfig.requiredDaily").value(true));
     }
 
     @Test
