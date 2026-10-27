@@ -24,8 +24,8 @@ class ObservabilityConfigTest {
 
     @Test
     void GivenScheduledJobsAreConfigured_WhenTheRegistrarIsBuilt_ThenItObservesThem() {
-        // Spring wraps every @Scheduled run in an observation already, but only if it is given a
-        // registry - and Boot 3.2.5 never gives it one.
+        // Spring wraps every @Scheduled run in an observation already, but only if the registrar is
+        // given a registry, which is the whole of what this configurer does.
         ScheduledTaskRegistrar registrar = new ScheduledTaskRegistrar();
 
         config.configureTasks(registrar);

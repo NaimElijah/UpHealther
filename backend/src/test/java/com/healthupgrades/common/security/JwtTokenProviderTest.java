@@ -163,6 +163,15 @@ class JwtTokenProviderTest {
     }
 
     @Test
+    void GivenAHandBuiltTokenWithEveryClaimRight_WhenItIsVerified_ThenItIsAccepted() {
+        // The control for the refusals below: each changes one argument of this token, so each can only
+        // be refused for the reason its name gives.
+        String genuine = signed(Jwts.SIG.HS256, ISSUER, AUDIENCE, USER_ID.toString());
+
+        assertThat(providerAt(ISSUED_AT).verify(genuine)).hasValue(new VerifiedAccessToken(USER_ID, SESSION_ID));
+    }
+
+    @Test
     void GivenATokenFromAnotherIssuer_WhenItIsVerified_ThenItIsRejected() {
         String foreign = signed(Jwts.SIG.HS256, "someone-else", AUDIENCE, USER_ID.toString());
 
@@ -190,6 +199,7 @@ class JwtTokenProviderTest {
     void GivenAnUnsignedToken_WhenItIsVerified_ThenItIsRejected() {
         String unsigned = Jwts.builder()
                 .subject(USER_ID.toString())
+                .claim(JwtTokenProvider.SESSION_CLAIM, SESSION_ID.toString())
                 .issuer(ISSUER)
                 .audience()
                 .add(AUDIENCE)
@@ -220,10 +230,16 @@ class JwtTokenProviderTest {
         assertThat(provider.verify("")).isEmpty();
     }
 
+    /**
+     * A token that differs from a genuine one only in what the arguments say. It names a session, because
+     * the provider refuses any token that names none: without it every refusal built here would pass for
+     * that reason instead of for the one its test names.
+     */
     private static String signed(
             io.jsonwebtoken.security.MacAlgorithm algorithm, String issuer, String audience, String subject) {
         return Jwts.builder()
                 .subject(subject)
+                .claim(JwtTokenProvider.SESSION_CLAIM, SESSION_ID.toString())
                 .issuer(issuer)
                 .audience()
                 .add(audience)

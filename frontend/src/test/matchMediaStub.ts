@@ -13,13 +13,23 @@ export interface MatchMediaStub {
   listenerCount: () => number;
 }
 
+/** The query `ThemeProvider` and the boot script ask, and the one stubbed unless a test names another. */
+const DARK_QUERY = '(prefers-color-scheme: dark)';
+
 /**
- * Replaces `window.matchMedia` with a controllable stub.
+ * Replaces `window.matchMedia` with a controllable stub for one query.
  *
  * Installed for every test by `setupTests.ts` reporting `false`, so a test that does not care about the
  * system preference still gets a deterministic one. Call it again with `true` to start dark.
+ *
+ * Only `media` is controlled. Any other query is answered with a list that never matches and never
+ * fires, so a component asking the wrong query, such as a breakpoint moved out of step with Tailwind's,
+ * fails its test instead of being handed the stub regardless.
+ *
+ * @param initialMatches what the query reports until `setMatches` changes it
+ * @param media          the query to control, exactly as the code under test spells it
  */
-export const installMatchMedia = (initialMatches = false): MatchMediaStub => {
+export const installMatchMedia = (initialMatches = false, media: string = DARK_QUERY): MatchMediaStub => {
   const listeners = new Set<(event: MediaQueryListEvent) => void>();
   let matches = initialMatches;
 
@@ -27,7 +37,7 @@ export const installMatchMedia = (initialMatches = false): MatchMediaStub => {
     get matches() {
       return matches;
     },
-    media: '(prefers-color-scheme: dark)',
+    media,
     onchange: null,
     addEventListener: (_type: string, listener: EventListener) =>
       listeners.add(listener as (event: MediaQueryListEvent) => void),
@@ -38,7 +48,7 @@ export const installMatchMedia = (initialMatches = false): MatchMediaStub => {
     dispatchEvent: () => true,
   } as unknown as MediaQueryList;
 
-  window.matchMedia = () => query;
+  window.matchMedia = (asked: string) => (asked === media ? query : neverMatching(asked));
 
   return {
     setMatches: (next: boolean) => {
@@ -48,6 +58,19 @@ export const installMatchMedia = (initialMatches = false): MatchMediaStub => {
     listenerCount: () => listeners.size,
   };
 };
+
+/** A media query list for a query no test controls: it does not match, and nothing it is given ever fires. */
+const neverMatching = (media: string): MediaQueryList =>
+  ({
+    matches: false,
+    media,
+    onchange: null,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    dispatchEvent: () => true,
+  }) as unknown as MediaQueryList;
 
 /**
  * Removes `window.matchMedia` entirely, standing in for the embedded webviews that lack it.

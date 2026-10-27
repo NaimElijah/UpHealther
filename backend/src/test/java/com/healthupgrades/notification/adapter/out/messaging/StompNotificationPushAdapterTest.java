@@ -8,23 +8,30 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.healthupgrades.common.websocket.JwtChannelInterceptor;
 import com.healthupgrades.notification.adapter.in.web.NotificationDto;
 import com.healthupgrades.notification.adapter.in.web.NotificationWebMapper;
 import com.healthupgrades.notification.domain.model.Notification;
 import com.healthupgrades.notification.domain.model.NotificationCategory;
 import com.healthupgrades.notification.domain.model.NotificationType;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.messaging.MessageDeliveryException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 /**
- * Covers the real-time half of FR-32.
+ * Covers the real-time half of FR-32, and NFR-26: a push that cannot be delivered is reported, not
+ * raised.
  *
  * <p>Two things here are easy to break and impossible to see from the application layer, which only
  * knows it called a port.
@@ -88,6 +95,43 @@ class StompNotificationPushAdapterTest {
 
         assertThatCode(() -> new StompNotificationPushAdapter(messagingTemplate, mapper).push(userId, aNotification()))
                 .doesNotThrowAnyException();
+    }
+
+    @Test
+    void GivenNoReachableSession_WhenANotificationIsPushed_ThenOneWarningNamesItByIds() {
+        // NFR-26: degraded, not silent. The ids are what find the notification nobody received; the
+        // title and message are the user's own words and stay out of the line (NFR-6).
+        doThrow(new MessageDeliveryException("no session"))
+                .when(messagingTemplate)
+                .convertAndSendToUser(anyString(), anyString(), any(Object.class));
+        Notification notification = aNotification();
+
+        List<ILoggingEvent> logged = logsFromAdapter(
+                () -> new StompNotificationPushAdapter(messagingTemplate, mapper).push(userId, notification));
+
+        assertThat(logged).singleElement().satisfies(warning -> {
+            assertThat(warning.getLevel()).isEqualTo(Level.WARN);
+            assertThat(warning.getFormattedMessage())
+                    .contains(
+                            "event=notification.push-failed",
+                            "userId=" + userId,
+                            "notificationId=" + notification.getId())
+                    .doesNotContain(notification.getTitle(), notification.getMessage());
+        });
+    }
+
+    /** Collects what {@link StompNotificationPushAdapter} logs while {@code push} runs. */
+    private static List<ILoggingEvent> logsFromAdapter(Runnable push) {
+        Logger logger = (Logger) LoggerFactory.getLogger(StompNotificationPushAdapter.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            push.run();
+        } finally {
+            logger.detachAppender(appender);
+        }
+        return appender.list;
     }
 
     private Notification aNotification() {

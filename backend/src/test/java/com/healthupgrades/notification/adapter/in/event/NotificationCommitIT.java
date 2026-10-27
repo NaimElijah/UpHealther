@@ -25,20 +25,28 @@ import com.healthupgrades.upgrade.domain.event.HealthUpgradePaused;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradePlanned;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import com.healthupgrades.user.application.port.in.UserCommand;
+import java.lang.reflect.Method;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -57,7 +65,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * a user created for each test, because the integration tests share one database.
  *
  * <p>A listener method added to {@link NotificationEventListener} for a new event has to be added to
- * {@link #lifecycleEvents()} as well; nothing else would notice it storing nothing.
+ * {@link #lifecycleEvents()} as well, or nothing would notice it storing nothing; the last case here
+ * fails until it is.
  */
 @SpringBootTest
 class NotificationCommitIT extends PostgresIT {
@@ -129,11 +138,38 @@ class NotificationCommitIT extends PostgresIT {
         verify(pushPort, never()).push(eq(userId), any());
     }
 
+    @Test
+    void GivenEveryListenerThatWaitsForTheCommit_WhenTheEventsProvedHereAreListed_ThenItsEventIsAmongThem() {
+        Set<Class<?>> proved = raisedEvents().stream()
+                .map(raised -> raised.raised()
+                        .apply(UUID.randomUUID(), UUID.randomUUID())
+                        .getClass())
+                .collect(Collectors.toSet());
+
+        assertThat(afterCommitListeners())
+                .isNotEmpty()
+                .allSatisfy(listener -> assertThat(proved)
+                        .as("%s waits for the commit, so its event belongs in lifecycleEvents()", listener)
+                        .contains(listener.getParameterTypes()[0]));
+    }
+
     /** Every event a lifecycle listener waits for the commit on, with the notification it must leave. */
     static Stream<Arguments> lifecycleEvents() {
+        return raisedEvents().stream().map(Raised::arguments);
+    }
+
+    /** One event, the notification type it must leave, and how to raise it for an upgrade and a user. */
+    private record Raised(String event, NotificationType expected, BiFunction<UUID, UUID, DomainEvent> raised) {
+
+        Arguments arguments() {
+            return Arguments.of(event, expected, raised);
+        }
+    }
+
+    private static List<Raised> raisedEvents() {
         LocalDateTime at = LocalDateTime.of(2026, 10, 11, 9, 0);
         LocalDate day = at.toLocalDate();
-        return Stream.of(
+        return List.of(
                 raises(
                         "created",
                         NotificationType.UPGRADE_CREATED,
@@ -168,9 +204,19 @@ class NotificationCommitIT extends PostgresIT {
                         (upgrade, user) -> new ReflectionAdded(UUID.randomUUID(), upgrade, user, at)));
     }
 
-    private static Arguments raises(
-            String event, NotificationType expected, BiFunction<UUID, UUID, DomainEvent> raised) {
-        return Arguments.of(event, expected, raised);
+    private static Raised raises(String event, NotificationType expected, BiFunction<UUID, UUID, DomainEvent> raised) {
+        return new Raised(event, expected, raised);
+    }
+
+    /** Every method of {@link NotificationEventListener} that runs once its event's transaction commits. */
+    private static List<Method> afterCommitListeners() {
+        return Arrays.stream(NotificationEventListener.class.getDeclaredMethods())
+                .filter(method -> {
+                    TransactionalEventListener listener =
+                            AnnotatedElementUtils.findMergedAnnotation(method, TransactionalEventListener.class);
+                    return listener != null && listener.phase() == TransactionPhase.AFTER_COMMIT;
+                })
+                .toList();
     }
 
     private List<Notification> storedForUser() {

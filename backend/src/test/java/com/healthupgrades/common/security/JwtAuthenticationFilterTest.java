@@ -7,7 +7,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.healthupgrades.support.AUser;
-import jakarta.servlet.FilterChain;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -16,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.Authentication;
@@ -40,9 +40,7 @@ class JwtAuthenticationFilterTest {
     @Mock
     BearerTokenAuthenticator authenticator;
 
-    @Mock
-    FilterChain chain;
-
+    private MockFilterChain chain;
     private JwtAuthenticationFilter filter;
     private MockHttpServletRequest request;
     private MockHttpServletResponse response;
@@ -52,6 +50,7 @@ class JwtAuthenticationFilterTest {
         filter = new JwtAuthenticationFilter(authenticator);
         request = new MockHttpServletRequest();
         response = new MockHttpServletResponse();
+        chain = new MockFilterChain();
     }
 
     @AfterEach
@@ -71,7 +70,7 @@ class JwtAuthenticationFilterTest {
         assertThat(auth).isNotNull();
         assertThat(auth.isAuthenticated()).isTrue();
         assertThat(((SecurityUser) auth.getPrincipal()).getId()).isEqualTo(userId);
-        verify(chain).doFilter(request, response);
+        assertContinuedDownTheChain();
     }
 
     @Test
@@ -85,7 +84,7 @@ class JwtAuthenticationFilterTest {
         filter.doFilter(request, response, chain);
 
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
-        verify(chain).doFilter(request, response);
+        assertContinuedDownTheChain();
     }
 
     @Test
@@ -94,7 +93,7 @@ class JwtAuthenticationFilterTest {
 
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
         verify(authenticator, never()).authenticate(any());
-        verify(chain).doFilter(request, response);
+        assertContinuedDownTheChain();
     }
 
     @Test
@@ -105,7 +104,7 @@ class JwtAuthenticationFilterTest {
 
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
         verify(authenticator, never()).authenticate(any());
-        verify(chain).doFilter(request, response);
+        assertContinuedDownTheChain();
     }
 
     @Test
@@ -115,6 +114,14 @@ class JwtAuthenticationFilterTest {
         filter.doFilter(request, response, chain);
 
         verify(authenticator, never()).authenticate(any());
-        verify(chain).doFilter(request, response);
+        assertContinuedDownTheChain();
+    }
+
+    /** The filter never answers a request itself: whatever it decided, the chain carries on with it. */
+    private void assertContinuedDownTheChain() {
+        assertThat(chain.getRequest())
+                .as("the request continued down the chain")
+                .isSameAs(request);
+        assertThat(chain.getResponse()).isSameAs(response);
     }
 }

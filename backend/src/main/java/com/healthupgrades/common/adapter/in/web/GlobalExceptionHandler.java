@@ -14,6 +14,7 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.TypeMismatchException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -44,7 +45,9 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
  *   <tr><td>{@link ResourceNotFoundException}</td><td>404 Not Found</td></tr>
  *   <tr><td>{@link BusinessRuleException}</td><td>422 Unprocessable Content</td></tr>
  *   <tr><td>{@link DuplicateProgressException}</td><td>409 Conflict</td></tr>
- *   <tr><td>{@link OptimisticLockException} and the JPA one</td><td>409 Conflict</td></tr>
+ *   <tr><td>{@link OptimisticLockException}, the JPA one and Spring's {@link OptimisticLockingFailureException}</td><td>409 Conflict, asking for a retry</td></tr>
+ *   <tr><td>{@link RetryableConflictException}</td><td>409 Conflict, which the client retries</td></tr>
+ *   <tr><td>{@link TooManyRequestsException}</td><td>429 Too Many Requests, with {@code Retry-After}</td></tr>
  *   <tr><td>{@link MethodArgumentNotValidException}</td><td>400 Bad Request, with field errors</td></tr>
  *   <tr><td>{@link HttpMessageNotReadableException}</td><td>400 Bad Request, parser detail withheld</td></tr>
  *   <tr><td>{@link TypeMismatchException}</td><td>400 Bad Request</td></tr>
@@ -133,12 +136,21 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
-     * Maps a concurrent-edit conflict to 409, from either the domain or the JPA exception.
+     * Maps a concurrent-edit conflict to 409, from the domain, the JPA or Spring's exception.
+     *
+     * <p>Spring's is the one a real clash produces: Hibernate detects it at commit, after the service
+     * has returned, and Spring translates it into {@code ObjectOptimisticLockingFailureException}. The
+     * supertype is named so that an optimistic-lock failure from any Spring data-access path answers
+     * the same way.
      *
      * <p>The original message is replaced: a version clash is meaningless to a client, whereas "retry"
      * is the action it can actually take.
      */
-    @ExceptionHandler({OptimisticLockException.class, jakarta.persistence.OptimisticLockException.class})
+    @ExceptionHandler({
+        OptimisticLockException.class,
+        jakarta.persistence.OptimisticLockException.class,
+        OptimisticLockingFailureException.class
+    })
     public ResponseEntity<ErrorResponse> handleOptimisticLock(Exception ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(body(

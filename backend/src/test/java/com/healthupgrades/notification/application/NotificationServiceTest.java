@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -83,6 +84,40 @@ class NotificationServiceTest {
         verify(repository).save(any(Notification.class));
         // pushed to the user's real-time channel via the outbound push port
         verify(pushPort).push(eq(userId), any(Notification.class));
+    }
+
+    @Test
+    void GivenANewNotification_WhenItIsCreated_ThenEveryFieldItWasGivenIsStored() {
+        // The row is what the inbox shows later (FR-32), so a field dropped here is lost for good.
+        when(repository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.create(
+                userId,
+                NotificationType.UPGRADE_COMPLETED,
+                NotificationCategory.SUCCESS,
+                "Upgrade completed",
+                "Congrats!",
+                upgradeId);
+
+        ArgumentCaptor<Notification> saved = ArgumentCaptor.forClass(Notification.class);
+        verify(repository).save(saved.capture());
+        assertThat(saved.getValue())
+                .extracting(
+                        Notification::getUserId,
+                        Notification::getType,
+                        Notification::getCategory,
+                        Notification::getTitle,
+                        Notification::getMessage,
+                        Notification::getRelatedUpgradeId,
+                        Notification::isRead)
+                .containsExactly(
+                        userId,
+                        NotificationType.UPGRADE_COMPLETED,
+                        NotificationCategory.SUCCESS,
+                        "Upgrade completed",
+                        "Congrats!",
+                        upgradeId,
+                        false);
     }
 
     @Test

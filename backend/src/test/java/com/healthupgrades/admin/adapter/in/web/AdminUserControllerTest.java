@@ -28,6 +28,8 @@ import com.healthupgrades.user.domain.model.User;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -179,6 +181,29 @@ class AdminUserControllerTest {
         mockMvc.perform(bearer(get("/api/admin/users").param("size", "1000"))).andExpect(status().isBadRequest());
 
         verify(adminUserQuery, never()).list(anyPage(), anyPage());
+    }
+
+    @ParameterizedTest(name = "page={0}, size={1}")
+    @CsvSource({"0, 101", "0, 0", "-1, 25"})
+    void GivenAPageOutsideItsBounds_WhenAccountsAreListed_ThenItIsRefusedAs400(String page, String size)
+            throws Exception {
+        // FR-42: a page of at most a hundred. One past each bound, so a bound that drifted by one shows.
+        asAdmin();
+
+        mockMvc.perform(bearer(get("/api/admin/users").param("page", page).param("size", size)))
+                .andExpect(status().isBadRequest());
+
+        verify(adminUserQuery, never()).list(anyPage(), anyPage());
+    }
+
+    @Test
+    void GivenAPageOfExactlyTheMaximum_WhenAccountsAreListed_ThenItIsAnswered() throws Exception {
+        asAdmin();
+        when(adminUserQuery.list(0, 100)).thenReturn(new AccountPage(List.of(), 0, 100, 0L));
+
+        mockMvc.perform(bearer(get("/api/admin/users").param("size", "100")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.size").value(100));
     }
 
     /** Authenticates the slice's bearer token as an administrator. */
