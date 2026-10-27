@@ -525,8 +525,8 @@ class AuthSessionServiceTest {
      * An in-memory stand-in for the repository port.
      *
      * <p>{@code findForUpdate} returns the same instance as {@code findById} and locks nothing: the lock
-     * is a database concern, and asserting it needs a database — {@code AuthSessionPersistenceIT} is
-     * where that happens.
+     * is a database concern, and asserting it needs two real transactions — {@code AuthSessionRowLockIT}
+     * is where that happens.
      */
     private static final class InMemorySessions implements AuthSessionRepositoryPort {
 
