@@ -74,6 +74,13 @@ class ColumnBoundContractTest {
             Pattern.compile("ALTER\\s+TABLE\\s+(?:IF\\s+EXISTS\\s+)?(?:ONLY\\s+)?([a-z_]+)", Pattern.CASE_INSENSITIVE);
 
     /**
+     * A {@code CREATE TABLE} or {@code ALTER TABLE} anywhere in a statement, to catch one that does not
+     * open it, as one inside a {@code DO} block does not.
+     */
+    private static final Pattern TABLE_DDL =
+            Pattern.compile("\\b(?:CREATE|ALTER)\\s+TABLE\\b", Pattern.CASE_INSENSITIVE);
+
+    /**
      * One clause of an {@code ALTER TABLE} that changes a column's width, matched in the order written:
      * {@code ADD [COLUMN] c VARCHAR(n)}, {@code ALTER [COLUMN] c [SET DATA] TYPE t} and
      * {@code DROP [COLUMN] c}. A type change to anything but a bounded type leaves the column unbounded.
@@ -264,6 +271,21 @@ class ColumnBoundContractTest {
                 .hasMessageContaining("init.sql");
     }
 
+    @Test
+    void GivenANarrowingInsideADoBlock_WhenTheMigrationsAreParsed_ThenItIsRefusedRatherThanSkipped() {
+        // Skipped, the narrowing would leave the title at a width it no longer has.
+        Map<String, String> migrations = Map.of("V1__init.sql", CREATE_UPGRADES, "V2__narrow_title.sql", """
+                DO $$
+                BEGIN
+                    ALTER TABLE health_upgrades ALTER COLUMN title TYPE VARCHAR(100);
+                END $$;
+                """);
+
+        assertThatThrownBy(() -> boundedColumns(migrations))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("V2__narrow_title.sql");
+    }
+
     /**
      * Every {@code table.column} the real migrations leave as a {@code VARCHAR(n)}, mapped to that
      * {@code n}.
@@ -299,18 +321,20 @@ class ColumnBoundContractTest {
      *
      * @param sqlByFileName each migration's file name and its SQL, in any order
      * @return the bounded columns, in the order they were first declared
-     * @throws IllegalArgumentException if a file name is not a versioned migration's
+     * @throws IllegalArgumentException if a file name is not a versioned migration's, or a file has a
+     *     {@code CREATE TABLE} or {@code ALTER TABLE} that does not start its statement, whose widths
+     *     this parser cannot follow
      */
     private static Map<String, Integer> boundedColumns(Map<String, String> sqlByFileName) {
         Map<String, Integer> columns = new LinkedHashMap<>();
         sqlByFileName.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey(ColumnBoundContractTest::compareVersions))
-                .forEach(migration -> apply(migration.getValue(), columns));
+                .forEach(migration -> apply(migration.getKey(), migration.getValue(), columns));
         return columns;
     }
 
     /** Applies one migration's statements, in order, to the widths read so far. */
-    private static void apply(String sql, Map<String, Integer> columns) {
+    private static void apply(String fileName, String sql, Map<String, Integer> columns) {
         for (String statement : COMMENT.matcher(sql).replaceAll("").split(";")) {
             String trimmed = statement.strip();
             Matcher create = CREATE_TABLE.matcher(trimmed);
@@ -325,6 +349,12 @@ class ColumnBoundContractTest {
             Matcher alter = ALTER_TABLE.matcher(trimmed);
             if (alter.lookingAt()) {
                 applyAlter(alter.group(1).toLowerCase(), trimmed.substring(alter.end()), columns);
+                continue;
+            }
+            if (TABLE_DDL.matcher(trimmed).find()) {
+                throw new IllegalArgumentException(fileName
+                        + " has a CREATE TABLE or ALTER TABLE that does not start its statement, so the widths"
+                        + " it sets cannot be read: " + trimmed);
             }
         }
     }
