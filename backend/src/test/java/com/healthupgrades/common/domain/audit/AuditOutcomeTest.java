@@ -7,6 +7,9 @@ import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.exception.DuplicateProgressException;
 import com.healthupgrades.common.domain.exception.OptimisticLockException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.common.domain.exception.RetryableConflictException;
+import com.healthupgrades.common.domain.exception.TooManyRequestsException;
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -52,6 +55,20 @@ class AuditOutcomeTest {
     @Test
     void GivenARequestWithNoUsableCredential_WhenTheOutcomeIsClassified_ThenItIsARefusal() {
         assertThat(AuditOutcome.of(AuthenticationRequiredException.rejectedToken()))
+                .isEqualTo(AuditOutcome.REFUSED);
+    }
+
+    @Test
+    void GivenARequestOvertakenByAConcurrentOne_WhenTheOutcomeIsClassified_ThenItIsARefusal() {
+        // A lost race the client simply retries, as with a refresh that lost its rotation: not a fault.
+        assertThat(AuditOutcome.of(new RetryableConflictException("overtaken by a concurrent request")))
+                .isEqualTo(AuditOutcome.REFUSED);
+    }
+
+    @Test
+    void GivenACallerOverTheRateLimit_WhenTheOutcomeIsClassified_ThenItIsARefusal() {
+        // The limiter working as intended; counted as a fault, a guessing run would read as an outage.
+        assertThat(AuditOutcome.of(new TooManyRequestsException(Duration.ofSeconds(30))))
                 .isEqualTo(AuditOutcome.REFUSED);
     }
 
