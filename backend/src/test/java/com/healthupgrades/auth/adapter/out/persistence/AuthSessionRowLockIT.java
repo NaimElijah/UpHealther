@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -120,7 +121,7 @@ class AuthSessionRowLockIT extends PostgresIT {
         }));
 
         try {
-            awaitOrFail(locked, "the holder to lock the session");
+            awaitTheLock(locked, holder);
 
             Throwable probe =
                     catchThrowable(() -> transaction.executeWithoutResult(status -> new JdbcTemplate(dataSource)
@@ -136,6 +137,28 @@ class AuthSessionRowLockIT extends PostgresIT {
             probed.countDown();
         }
         holder.get(WAIT_SECONDS, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Waits for the holder to take its lock. A holder that fails first never counts the latch down, and
+     * its failure stays inside its {@code Future}; reporting only the timeout would hide the cause.
+     */
+    private static void awaitTheLock(CountDownLatch locked, Future<?> holder) {
+        try {
+            if (locked.await(WAIT_SECONDS, TimeUnit.SECONDS)) {
+                return;
+            }
+            if (holder.isDone()) {
+                holder.get();
+            }
+        } catch (ExecutionException failed) {
+            throw new AssertionError(
+                    "the holder failed before it locked the session: " + failed.getCause(), failed.getCause());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("interrupted waiting for the holder to lock the session", e);
+        }
+        throw new AssertionError("timed out waiting for the holder to lock the session");
     }
 
     private static void awaitOrFail(CountDownLatch latch, String what) {
