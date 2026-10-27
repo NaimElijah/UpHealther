@@ -117,7 +117,7 @@ no way at all — to read another person's health records
 | FR-30 | A user with active upgrades and nothing logged is nudged once a day | `NotificationSchedulerTest` |
 | FR-31 | A user's reminders fire at the configured time and day | `NotificationSchedulerTest`, `ReminderTest` |
 | FR-32 | Notifications arrive in real time on a connected client, and are readable afterwards regardless | `StompNotificationPushAdapterTest`, `NotificationServiceTest`, `NotificationCommitIT` (each lifecycle notification is stored, not only pushed), `NotificationProvider.test.tsx` |
-| FR-33 | A user can read their fifty most recent notifications, see an unread count that covers every notification rather than only the fifty listed, and mark one or all as read | `NotificationServiceTest`, `NotificationControllerTest`, `NotificationProvider.test.tsx` |
+| FR-33 | A user can read their fifty most recent notifications, see an unread count that covers every notification rather than only the fifty listed, and mark one or all as read | `NotificationServiceTest`, `NotificationControllerTest`, `NotificationProvider.test.tsx`, `NotificationBell.test.tsx` (the count the bell shows, capped at 9+) |
 | FR-49 | A user can opt in to desktop notifications, which are raised only while the tab is in the background — with the tab in view, the in-page notice already says it | `NotificationProvider.test.tsx` |
 
 FR-27's terms are the server's, and `DashboardAggregationServiceTest` pins each. An upgrade is **due
