@@ -145,11 +145,17 @@ class ReflectionControllerTest {
 
     @Test
     void GivenAnOwnedUpgrade_WhenItsReflectionsAreRead_ThenTheyAnswer200InTheOrderTheServiceReturns() throws Exception {
-        when(service.getForUpgrade(userId, upgradeId)).thenReturn(List.of(aReflection()));
+        // Newest first is the query's ordering (FR-24); the controller's job is to keep it.
+        when(service.getForUpgrade(userId, upgradeId))
+                .thenReturn(List.of(
+                        aReflectionOn(LocalDate.of(2026, 3, 15), "newer"),
+                        aReflectionOn(LocalDate.of(2026, 3, 14), "older")));
 
         mockMvc.perform(bearer(get(base)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].upgradeId").value(upgradeId.toString()));
+                .andExpect(jsonPath("$[0].upgradeId").value(upgradeId.toString()))
+                .andExpect(jsonPath("$[0].whatWorked").value("newer"))
+                .andExpect(jsonPath("$[1].whatWorked").value("older"));
 
         verify(service).getForUpgrade(userId, upgradeId);
     }
@@ -159,6 +165,16 @@ class ReflectionControllerTest {
         // BR-13 at the wire: reflections are append-only, so no delete route exists to reach a handler.
         mockMvc.perform(bearer(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(base)))
                 .andExpect(status().isMethodNotAllowed());
+    }
+
+    private Reflection aReflectionOn(LocalDate date, String whatWorked) {
+        return Reflection.builder()
+                .id(UUID.randomUUID())
+                .upgradeId(upgradeId)
+                .userId(userId)
+                .date(date)
+                .whatWorked(whatWorked)
+                .build();
     }
 
     private Reflection aReflection() {
