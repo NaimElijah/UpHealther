@@ -17,6 +17,7 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 
 /**
  * FR-4 as the database enforces it: one address, one account, however it was typed.
@@ -95,6 +96,21 @@ class UserPersistenceIT extends PostgresIT {
                         AUser.aUser().id(null).email("taken@example.com").build()))
                 .isInstanceOf(EmailAlreadyRegisteredException.class)
                 .hasMessageNotContaining("taken@example.com");
+    }
+
+    @Test
+    void GivenAnIntegrityFailureThatIsNotTheEmail_WhenAUserIsSaved_ThenItIsRethrownUnchanged() {
+        // Only the email's unique constraint means "already registered". Translating anything else
+        // would answer a defect with a 422 telling somebody their address is taken.
+        User nameless = AUser.aUser()
+                .id(null)
+                .name(null)
+                .email(UUID.randomUUID() + "@example.com")
+                .build();
+
+        assertThatThrownBy(() -> repository.saveAndFlush(nameless))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .isNotInstanceOf(EmailAlreadyRegisteredException.class);
     }
 
     @Test
