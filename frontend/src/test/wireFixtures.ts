@@ -34,6 +34,25 @@ export function upgradeAsSent(values: Partial<HealthUpgrade> = {}): HealthUpgrad
   };
 }
 
+/**
+ * A yes/no tracking configuration as an upgrade carries it, every target unset. Each key is filled, so a
+ * test that sets only the tracking type still gets the shape the API sends.
+ */
+export function trackingConfigAsSent(
+  values: Partial<NonNullable<HealthUpgrade['trackingConfig']>> = {},
+): NonNullable<HealthUpgrade['trackingConfig']> {
+  return {
+    id: 'tracking-config-1',
+    upgradeId: 'upgrade-1',
+    trackingType: 'BOOLEAN',
+    frequency: 'DAILY',
+    targetNumericValue: null,
+    targetUnit: null,
+    requiredDaily: true,
+    ...values,
+  };
+}
+
 /** A health area with a name and nothing else. */
 export function healthAreaAsSent(values: Partial<HealthArea> = {}): HealthArea {
   return {

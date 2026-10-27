@@ -132,7 +132,7 @@ describe('HealthAreasPage', () => {
   });
 
   it('GivenAnAreaWithNoPriority_WhenItIsEditedAndSaved_ThenNoneIsSent', async () => {
-    getHealthAreas.mockResolvedValue([anArea({ priority: undefined })]);
+    getHealthAreas.mockResolvedValue([anArea({ priority: null })]);
     renderPage();
     const dialog = await openEdit();
 

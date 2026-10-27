@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import DailyCheckinPage from './DailyCheckinPage';
 import type { HealthUpgrade } from '../types';
+import { trackingConfigAsSent, upgradeAsSent } from '../test/wireFixtures';
 
 const getUpgrades = vi.fn();
 const createProgress = vi.fn();
@@ -13,27 +14,12 @@ vi.mock('../api/upgrades', () => ({ getUpgrades: (...a: unknown[]) => getUpgrade
 vi.mock('../api/progress', () => ({ createProgress: (...a: unknown[]) => createProgress(...a) }));
 
 function anUpgrade(overrides: Partial<HealthUpgrade> = {}): HealthUpgrade {
-  return {
-    id: 'upgrade-1',
-    userId: 'user-1',
-    areaId: null,
+  return upgradeAsSent({
     title: 'Cold showers',
-    description: null,
-    type: 'HABIT',
-    status: 'ACTIVE',
-    difficulty: 'MEDIUM',
-    plannedStartDate: null,
-    actualStartDate: null,
-    targetEndDate: null,
-    motivation: null,
-    successCriteria: null,
-    overdue: false,
-    version: 0,
-    trackingConfig: null,
     createdAt: '2026-03-15T09:00:00',
     updatedAt: '2026-03-15T09:00:00',
     ...overrides,
-  } as HealthUpgrade;
+  });
 }
 
 /** A refusal shaped the way axios delivers one, so `toApiError` decodes it as it would in production. */
@@ -141,7 +127,7 @@ describe('DailyCheckinPage', () => {
     getUpgrades.mockResolvedValue([
       anUpgrade({
         id: 'a',
-        trackingConfig: { trackingType: 'NUMERIC', targetUnit: 'steps' } as HealthUpgrade['trackingConfig'],
+        trackingConfig: trackingConfigAsSent({ upgradeId: 'a', trackingType: 'NUMERIC', targetUnit: 'steps' }),
       }),
     ]);
     renderPage();
@@ -160,7 +146,7 @@ describe('DailyCheckinPage', () => {
     getUpgrades.mockResolvedValue([
       anUpgrade({
         id: 'a',
-        trackingConfig: { trackingType: 'NUMERIC', targetUnit: 'steps' } as HealthUpgrade['trackingConfig'],
+        trackingConfig: trackingConfigAsSent({ upgradeId: 'a', trackingType: 'NUMERIC', targetUnit: 'steps' }),
       }),
     ]);
     renderPage();
@@ -178,7 +164,7 @@ describe('DailyCheckinPage', () => {
     getUpgrades.mockResolvedValue([
       anUpgrade({
         id: 'a',
-        trackingConfig: { trackingType: 'RATING' } as HealthUpgrade['trackingConfig'],
+        trackingConfig: trackingConfigAsSent({ upgradeId: 'a', trackingType: 'RATING' }),
       }),
     ]);
     renderPage();
