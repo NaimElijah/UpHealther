@@ -22,6 +22,7 @@ import com.healthupgrades.common.security.JwtAuthenticationFilter;
 import com.healthupgrades.common.security.SecurityConfig;
 import com.healthupgrades.common.security.UserDetailsServiceImpl;
 import com.healthupgrades.reminder.application.ReminderService;
+import com.healthupgrades.reminder.application.port.in.ReminderSchedule;
 import com.healthupgrades.reminder.domain.model.Reminder;
 import com.healthupgrades.reminder.domain.model.ReminderDays;
 import com.healthupgrades.support.WebSliceSupport;
@@ -61,6 +62,8 @@ class ReminderControllerTest {
     @MockitoBean
     UserDetailsServiceImpl userDetailsService;
 
+    private static final LocalTime NINE_AM = LocalTime.of(9, 0);
+
     private UUID userId;
     private final UUID upgradeId = UUID.randomUUID();
     private final UUID reminderId = UUID.randomUUID();
@@ -86,6 +89,8 @@ class ReminderControllerTest {
                 .andExpect(jsonPath("$.reminderTime").value("09:00:00"))
                 .andExpect(jsonPath("$.daysOfWeek[0]").value("MON"))
                 .andExpect(jsonPath("$.enabled").value(true));
+
+        verify(service).create(userId, upgradeId, new ReminderSchedule(NINE_AM, List.of("MON", "WED"), true));
     }
 
     @Test
@@ -129,6 +134,22 @@ class ReminderControllerTest {
                         .content("{\"reminderTime\":\"09:00\",\"daysOfWeek\":[\"MON\"],\"enabled\":false}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.enabled").value(false));
+
+        verify(service).update(userId, reminderId, new ReminderSchedule(NINE_AM, List.of("MON"), false));
+    }
+
+    @Test
+    void GivenNoEnabledFlag_WhenAReminderIsRescheduled_ThenTheUseCaseIsToldToLeaveItsStateAlone() throws Exception {
+        // A null flag is what keeps rescheduling a disabled reminder from switching it back on, so the
+        // mapping must pass the absence through rather than default it.
+        when(service.update(eq(userId), eq(reminderId), any())).thenReturn(aReminder(false));
+
+        mockMvc.perform(bearer(put(reminderScoped))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reminderTime\":\"09:00\",\"daysOfWeek\":[\"SAT\"]}"))
+                .andExpect(status().isOk());
+
+        verify(service).update(userId, reminderId, new ReminderSchedule(NINE_AM, List.of("SAT"), null));
     }
 
     @Test
@@ -164,7 +185,7 @@ class ReminderControllerTest {
         return Reminder.builder()
                 .id(reminderId)
                 .upgradeId(upgradeId)
-                .reminderTime(LocalTime.of(9, 0))
+                .reminderTime(NINE_AM)
                 .daysOfWeek(ReminderDays.of(List.of("MON", "WED")).toStorageValue())
                 .enabled(enabled)
                 .build();

@@ -19,9 +19,9 @@ import org.xml.sax.SAXException;
  *
  * <p>One version names the whole repository (ADR-050), and the pom is the field every other one is held
  * to: {@code RepositoryVersionContractTest} compares the frontend's fields and the changelog with it, and
- * {@code ActuatorEndpointsIT} compares what a running instance reports. Like
- * {@code ContainerImagesArePinnedTest}, it searches upward for the repository root, so it runs the same
- * from Maven and from an IDE.
+ * {@code ActuatorEndpointsIT} compares what a running instance reports. It searches upward for the
+ * repository root, so it runs the same from Maven and from an IDE, and {@link #repositoryRoot()} is the one
+ * place the tests that read files outside {@code backend/} find that root.
  */
 public final class RepositoryVersion {
 

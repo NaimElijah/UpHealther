@@ -41,6 +41,24 @@ class AuthSessionTest {
     }
 
     @Test
+    void GivenASessionUnused_WhenItIsJudgedAtTheExactEndOfItsIdleWindow_ThenItIsNotUsable() {
+        // The window is half-open: its last usable instant is the one before it ends.
+        AuthSession session = opened();
+
+        assertThat(session.isActive(session.getIdleExpiresAt())).isFalse();
+    }
+
+    @Test
+    void GivenAnIdleWindowLongerThanTheCap_WhenTheSessionIsJudgedAtTheCap_ThenItIsNotUsable() {
+        // Opening does not clamp the idle window the way a rotation does, so the cap has to hold on its
+        // own: a configuration with idle > absolute must not outlive the absolute limit.
+        AuthSession session = AuthSession.opened(
+                UUID.randomUUID(), UUID.randomUUID(), FIRST, OPENED_AT, ABSOLUTE.plus(IDLE), ABSOLUTE);
+
+        assertThat(session.isActive(OPENED_AT.plus(ABSOLUTE))).isFalse();
+    }
+
+    @Test
     void GivenASessionRefreshedRegularly_WhenTheIdleWindowWouldHavePassed_ThenItIsStillUsable() {
         AuthSession session = opened();
 

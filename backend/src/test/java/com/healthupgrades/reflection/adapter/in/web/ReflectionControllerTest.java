@@ -17,6 +17,7 @@ import com.healthupgrades.common.security.JwtAuthenticationFilter;
 import com.healthupgrades.common.security.SecurityConfig;
 import com.healthupgrades.common.security.UserDetailsServiceImpl;
 import com.healthupgrades.reflection.application.ReflectionService;
+import com.healthupgrades.reflection.application.port.in.ReflectionDetails;
 import com.healthupgrades.reflection.domain.model.Reflection;
 import com.healthupgrades.support.WebSliceSupport;
 import java.time.LocalDate;
@@ -83,6 +84,32 @@ class ReflectionControllerTest {
     }
 
     @Test
+    void GivenEveryField_WhenAReflectionIsWritten_ThenTheUseCaseReceivesEachInItsOwnPlace() throws Exception {
+        // The two ratings share a type and a range, so a swap between them passes validation unnoticed.
+        when(service.create(eq(userId), eq(upgradeId), any())).thenReturn(aReflection());
+
+        mockMvc.perform(bearer(post(base))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"date":"2026-03-14","difficultyRating":2,"benefitRating":5,
+                                 "whatWorked":"Phone out of the bedroom","whatDidNotWork":"Late coffee",
+                                 "nextAdjustment":"Lights out at eleven"}"""))
+                .andExpect(status().isCreated());
+
+        verify(service)
+                .create(
+                        userId,
+                        upgradeId,
+                        new ReflectionDetails(
+                                LocalDate.of(2026, 3, 14),
+                                2,
+                                5,
+                                "Phone out of the bedroom",
+                                "Late coffee",
+                                "Lights out at eleven"));
+    }
+
+    @Test
     void GivenARatingOutsideOneToFive_WhenAReflectionIsWritten_ThenItAnswers400NamingTheField() throws Exception {
         mockMvc.perform(bearer(post(base))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -118,11 +145,17 @@ class ReflectionControllerTest {
 
     @Test
     void GivenAnOwnedUpgrade_WhenItsReflectionsAreRead_ThenTheyAnswer200InTheOrderTheServiceReturns() throws Exception {
-        when(service.getForUpgrade(userId, upgradeId)).thenReturn(List.of(aReflection()));
+        // Newest first is the query's ordering (FR-24); the controller's job is to keep it.
+        when(service.getForUpgrade(userId, upgradeId))
+                .thenReturn(List.of(
+                        aReflectionOn(LocalDate.of(2026, 3, 15), "newer"),
+                        aReflectionOn(LocalDate.of(2026, 3, 14), "older")));
 
         mockMvc.perform(bearer(get(base)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].upgradeId").value(upgradeId.toString()));
+                .andExpect(jsonPath("$[0].upgradeId").value(upgradeId.toString()))
+                .andExpect(jsonPath("$[0].whatWorked").value("newer"))
+                .andExpect(jsonPath("$[1].whatWorked").value("older"));
 
         verify(service).getForUpgrade(userId, upgradeId);
     }
@@ -132,6 +165,16 @@ class ReflectionControllerTest {
         // BR-13 at the wire: reflections are append-only, so no delete route exists to reach a handler.
         mockMvc.perform(bearer(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(base)))
                 .andExpect(status().isMethodNotAllowed());
+    }
+
+    private Reflection aReflectionOn(LocalDate date, String whatWorked) {
+        return Reflection.builder()
+                .id(UUID.randomUUID())
+                .upgradeId(upgradeId)
+                .userId(userId)
+                .date(date)
+                .whatWorked(whatWorked)
+                .build();
     }
 
     private Reflection aReflection() {

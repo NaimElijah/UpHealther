@@ -59,7 +59,7 @@ describe('ProtectedRoute', () => {
     expect(screen.queryByText('the dashboard')).toBeNull();
   });
 
-  it('GivenAStoredTokenStillBeingVerified_WhenAProtectedPageIsVisited_ThenNeitherIsShownYet', () => {
+  it('GivenASessionStillBeingRestored_WhenAProtectedPageIsVisited_ThenNeitherIsShownYet', () => {
     renderGate(contextWith({ isLoading: true, isAuthenticated: false }));
 
     expect(screen.queryByText('the login page')).toBeNull();

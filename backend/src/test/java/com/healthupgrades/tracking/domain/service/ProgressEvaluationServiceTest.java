@@ -30,7 +30,7 @@ class ProgressEvaluationServiceTest {
                 .id(UUID.randomUUID())
                 .upgradeId(UUID.randomUUID())
                 .userId(UUID.randomUUID())
-                .date(LocalDate.now())
+                .date(LocalDate.of(2026, 3, 15))
                 .build();
     }
 
@@ -157,6 +157,15 @@ class ProgressEvaluationServiceTest {
         TrackingConfig c = buildConfig(TrackingType.NUMERIC);
         c.setTargetNumericValue(30.0);
         assertThat(service.isSuccessful(e, c)).isTrue();
+    }
+
+    @Test
+    void GivenANumericConfigWithNoTarget_WhenAnEntryIsEvaluated_ThenItDoesNotCount() {
+        // BR-21: with no target there is nothing for the value to reach, so no value counts, however large.
+        ProgressEntry e = buildEntry();
+        e.setNumericValue(1_000_000.0);
+        TrackingConfig c = buildConfig(TrackingType.NUMERIC);
+        assertThat(service.isSuccessful(e, c)).isFalse();
     }
 
     // RATING tests

@@ -138,11 +138,19 @@ class AuditCommitIT extends PostgresIT {
     void GivenARefusalInsideATransaction_WhenItIsAudited_ThenItIsWrittenWithoutWaitingForACommit() {
         // Refusals are not deferred: they already describe an attempt that did not land, they are the
         // security-relevant half, and a process that dies before commit should not take them with it.
+        // Read inside the transaction, before it completes: a deferred refusal is still written at
+        // completion, so a read after it could not tell the two apart.
         UUID missing = UUID.randomUUID();
 
-        assertThat(catchThrowable(() -> upgradeService.pause(userId, missing))).isNotNull();
+        List<String> writtenBeforeCompletion = transactionTemplate.execute(status -> {
+            assertThat(catchThrowable(() -> upgradeService.pause(userId, missing)))
+                    .isNotNull();
+            List<String> written = linesFor("upgrade.pause");
+            status.setRollbackOnly();
+            return written;
+        });
 
-        assertThat(linesFor("upgrade.pause"))
+        assertThat(writtenBeforeCompletion)
                 .singleElement(org.assertj.core.api.InstanceOfAssertFactories.STRING)
                 .contains("outcome=REFUSED");
     }

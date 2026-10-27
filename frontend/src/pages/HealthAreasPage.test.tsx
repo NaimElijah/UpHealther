@@ -132,7 +132,7 @@ describe('HealthAreasPage', () => {
   });
 
   it('GivenAnAreaWithNoPriority_WhenItIsEditedAndSaved_ThenNoneIsSent', async () => {
-    getHealthAreas.mockResolvedValue([anArea({ priority: undefined })]);
+    getHealthAreas.mockResolvedValue([anArea({ priority: null })]);
     renderPage();
     const dialog = await openEdit();
 
@@ -236,6 +236,32 @@ describe('HealthAreasPage', () => {
     expect(createHealthArea).not.toHaveBeenCalled();
   });
 
+  // FR-41 — an icon the card cannot draw is shown as the default, and editing the area must not write it
+  // back: a key like `water_drop` in a field labelled "Icon (emoji)" invites the user to save it unchanged.
+
+  it('GivenAnAreaWhoseIconCannotBeDrawn_WhenItIsEditedAndSaved_ThenTheUndrawableIconIsNotWrittenBack', async () => {
+    getHealthAreas.mockResolvedValue([anArea({ icon: 'water_drop' })]);
+    renderPage();
+    const dialog = await openEdit();
+
+    expect((dialog.getByLabelText('Icon (emoji)') as HTMLInputElement).value).toBe('');
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => expect(updateHealthArea).toHaveBeenCalledTimes(1));
+    expect(updateHealthArea.mock.calls[0][1].icon ?? '').toBe('');
+  });
+
+  it('GivenAnAreaWithADrawableIcon_WhenItIsEditedAndSaved_ThenTheIconIsKept', async () => {
+    renderPage();
+    const dialog = await openEdit();
+
+    expect((dialog.getByLabelText('Icon (emoji)') as HTMLInputElement).value).toBe('😴');
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => expect(updateHealthArea).toHaveBeenCalledTimes(1));
+    expect(updateHealthArea.mock.calls[0][1].icon).toBe('😴');
+  });
+
   // Each dialog says why a submit was refused, and only its own refusal. The two dialogs share one form
   // and one pair of messages, so a message left over from the last submit would otherwise open with the
   // next dialog.
@@ -253,6 +279,23 @@ describe('HealthAreasPage', () => {
     fireEvent.submit(dialog.getByRole('button', { name: 'Save Changes' }));
 
     expect(await dialog.findByText('Size must be between 1 and 255')).toBeDefined();
+  });
+
+  it('GivenTheApiRefusesACreate_WhenItIsSubmitted_ThenTheDialogStaysOpenAndSaysWhy', async () => {
+    createHealthArea.mockRejectedValue(
+      apiFailure(400, {
+        message: 'Validation failed',
+        fieldErrors: { name: 'size must be between 0 and 255' },
+      }),
+    );
+    renderPage();
+    const dialog = await openCreate();
+
+    fireEvent.change(dialog.getByLabelText('Name'), { target: { value: 'Nutrition' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Create' }));
+
+    expect(await dialog.findByText('Size must be between 0 and 255')).toBeDefined();
+    expect(screen.getByRole('dialog', { name: 'New Health Area' })).toBeDefined();
   });
 
   it('GivenACreateWasRefused_WhenTheCreateDialogIsOpenedAgain_ThenItStartsWithoutTheOldMessage', async () => {
@@ -324,5 +367,22 @@ describe('HealthAreasPage', () => {
     dialog = await openDelete();
 
     expect(dialog.queryByRole('alert')).toBeNull();
+  });
+
+  it('GivenTwoAreas_WhenTheSecondIsDeletedAndConfirmed_ThenThatAreaIsDeletedAndTheListRefreshes', async () => {
+    const nutrition = anArea({ id: 'area-2', name: 'Nutrition' });
+    getHealthAreas.mockResolvedValueOnce([anArea(), nutrition]).mockResolvedValue([anArea()]);
+    deleteHealthArea.mockResolvedValue(undefined);
+    renderPage();
+    await screen.findByText('Nutrition');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Delete' })[1]);
+    const dialog = within(screen.getByRole('dialog', { name: 'Delete Health Area' }));
+    fireEvent.click(dialog.getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete Health Area' })).toBeNull());
+    expect(deleteHealthArea.mock.calls.map((call) => call[0])).toEqual(['area-2']);
+    await waitFor(() => expect(screen.queryByText('Nutrition')).toBeNull());
+    expect(screen.getByText('Sleep')).toBeDefined();
   });
 });

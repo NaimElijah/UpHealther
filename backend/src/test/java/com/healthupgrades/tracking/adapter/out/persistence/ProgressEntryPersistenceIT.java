@@ -13,7 +13,6 @@ import com.healthupgrades.tracking.domain.port.out.ProgressEntryRepositoryPort;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import org.hibernate.exception.ConstraintViolationException;
@@ -63,12 +62,8 @@ class ProgressEntryPersistenceIT extends PostgresIT {
     @BeforeEach
     void createAnUpgradeToLogAgainst() {
         userId = entityManager.persistAndFlush(AUser.aUser().id(null).build()).getId();
-        HealthUpgrade upgrade = entityManager.persistAndFlush(AnUpgrade.ownedBy(userId)
-                .id(null)
-                .status(UpgradeStatus.ACTIVE)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build());
+        HealthUpgrade upgrade = entityManager.persistAndFlush(
+                AnUpgrade.ownedBy(userId).id(null).status(UpgradeStatus.ACTIVE).build());
         upgradeId = upgrade.getId();
     }
 
@@ -97,8 +92,6 @@ class ProgressEntryPersistenceIT extends PostgresIT {
                 .persistAndFlush(AnUpgrade.ownedBy(userId)
                         .id(null)
                         .status(UpgradeStatus.ACTIVE)
-                        .createdAt(LocalDateTime.now())
-                        .updatedAt(LocalDateTime.now())
                         .build())
                 .getId();
 
@@ -121,9 +114,11 @@ class ProgressEntryPersistenceIT extends PostgresIT {
     @Test
     void GivenEntriesOnSeveralDays_WhenAnUpgradesHistoryIsRead_ThenItComesBackNewestFirst() {
         // FR-20's ordering, which lives in the query's name rather than in any Java the services run.
-        for (int daysAgo = 0; daysAgo < 3; daysAgo++) {
-            repository.save(entry(upgradeId, userId, DAY.minusDays(daysAgo), true));
-        }
+        // Inserted in neither order the answer could fall into without the ORDER BY: newest first is
+        // the heap's order and oldest first is the index's, so the middle day goes in first.
+        repository.save(entry(upgradeId, userId, DAY.minusDays(1), true));
+        repository.save(entry(upgradeId, userId, DAY, true));
+        repository.save(entry(upgradeId, userId, DAY.minusDays(2), true));
         entityManager.flush();
         entityManager.clear();
 
@@ -168,8 +163,6 @@ class ProgressEntryPersistenceIT extends PostgresIT {
                 .persistAndFlush(AnUpgrade.ownedBy(loggedYesterday)
                         .id(null)
                         .status(UpgradeStatus.ACTIVE)
-                        .createdAt(LocalDateTime.now())
-                        .updatedAt(LocalDateTime.now())
                         .build())
                 .getId();
         repository.save(entry(upgradeId, userId, DAY, false));
@@ -203,8 +196,6 @@ class ProgressEntryPersistenceIT extends PostgresIT {
                 .persistAndFlush(AnUpgrade.ownedBy(strangerId)
                         .id(null)
                         .status(UpgradeStatus.ACTIVE)
-                        .createdAt(LocalDateTime.now())
-                        .updatedAt(LocalDateTime.now())
                         .build())
                 .getId();
         repository.save(entry(strangerUpgradeId, strangerId, DAY, true));
@@ -219,8 +210,6 @@ class ProgressEntryPersistenceIT extends PostgresIT {
                 .persistAndFlush(AnUpgrade.ownedBy(userId)
                         .id(null)
                         .status(UpgradeStatus.ACTIVE)
-                        .createdAt(LocalDateTime.now())
-                        .updatedAt(LocalDateTime.now())
                         .build())
                 .getId();
     }

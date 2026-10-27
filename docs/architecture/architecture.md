@@ -441,7 +441,8 @@ user id, an upgrade title and a raw path are not.
 The exposed endpoint set is stated by name — `health,info,prometheus` — because `/actuator/**` is
 `permitAll`, so the exposure list is the only thing standing between a reader and `/actuator/env`.
 `ActuatorEndpointsIT` asserts the negative: `env`, `heapdump`, `loggers`, `beans`, `mappings`,
-`configprops` and `threaddump` answer `404`.
+`configprops` and `threaddump` answer `404`. It also pins the exposed set exactly: the discovery page
+lists health, info and the scrape, and nothing else.
 
 Liveness and readiness are separate, because an orchestrator acts on them differently — a failed
 liveness probe means restart the process, a failed readiness probe means stop sending it traffic, and

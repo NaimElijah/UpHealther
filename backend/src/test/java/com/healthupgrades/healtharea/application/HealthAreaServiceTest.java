@@ -7,6 +7,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.healthupgrades.common.domain.audit.AuditAction;
+import com.healthupgrades.common.domain.audit.AuditEvent;
+import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.healtharea.application.port.in.HealthAreaDetails;
 import com.healthupgrades.healtharea.domain.model.HealthArea;
@@ -15,12 +18,11 @@ import com.healthupgrades.support.RecordingAuditTrail;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
@@ -46,12 +48,16 @@ class HealthAreaServiceTest {
 
     @Mock
     HealthAreaRepositoryPort repository;
-    /** A real implementation, not a mock: AuditTrail.recording is a default method. */
-    @Spy
-    RecordingAuditTrail auditTrail = new RecordingAuditTrail();
 
-    @InjectMocks
-    HealthAreaService service;
+    /** A real implementation, not a mock: AuditTrail.recording is a default method. */
+    private final RecordingAuditTrail auditTrail = new RecordingAuditTrail();
+
+    private HealthAreaService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new HealthAreaService(repository, auditTrail);
+    }
 
     @Test
     void GivenAreaDetails_WhenAnAreaIsCreated_ThenItIsStoredAgainstTheOwnerWithEveryAttribute() {
@@ -181,6 +187,58 @@ class HealthAreaServiceTest {
         when(repository.findByUserId(userId)).thenReturn(List.of());
 
         assertThat(service.listByUser(userId)).isEmpty();
+    }
+
+    // ---- NFR-23: every change is audited, allowed or refused ----
+
+    @Test
+    void GivenAreaDetails_WhenAnAreaIsCreated_ThenTheCreationIsAuditedAgainstTheNewId() {
+        when(repository.save(any(HealthArea.class))).thenReturn(anArea(userId));
+
+        service.create(userId, DETAILS);
+
+        assertThat(auditTrail.recorded()).containsExactly(AuditEvent.allowed(AuditAction.AREA_CREATE, userId, areaId));
+    }
+
+    @Test
+    void GivenAnOwnedArea_WhenItIsUpdated_ThenTheUpdateAloneIsAuditedAsAllowed() {
+        HealthArea area = anArea(userId);
+        when(repository.findByIdAndUserId(areaId, userId)).thenReturn(Optional.of(area));
+        when(repository.save(area)).thenReturn(area);
+
+        service.update(userId, areaId, DETAILS);
+
+        assertThat(auditTrail.recorded()).containsExactly(AuditEvent.allowed(AuditAction.AREA_UPDATE, userId, areaId));
+    }
+
+    @Test
+    void GivenAnAreaOwnedBySomebodyElse_WhenItIsUpdated_ThenTheAttemptIsAuditedAsRefused() {
+        when(repository.findByIdAndUserId(areaId, otherUserId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.update(otherUserId, areaId, DETAILS))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        assertThat(auditTrail.recorded())
+                .containsExactly(new AuditEvent(AuditAction.AREA_UPDATE, otherUserId, areaId, AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenAnOwnedArea_WhenItIsDeleted_ThenTheDeleteAloneIsAuditedAsAllowed() {
+        when(repository.findByIdAndUserId(areaId, userId)).thenReturn(Optional.of(anArea(userId)));
+
+        service.delete(userId, areaId);
+
+        assertThat(auditTrail.recorded()).containsExactly(AuditEvent.allowed(AuditAction.AREA_DELETE, userId, areaId));
+    }
+
+    @Test
+    void GivenAnAreaOwnedBySomebodyElse_WhenItIsDeleted_ThenTheAttemptIsAuditedAsRefused() {
+        when(repository.findByIdAndUserId(areaId, otherUserId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.delete(otherUserId, areaId)).isInstanceOf(ResourceNotFoundException.class);
+
+        assertThat(auditTrail.recorded())
+                .containsExactly(new AuditEvent(AuditAction.AREA_DELETE, otherUserId, areaId, AuditOutcome.REFUSED));
     }
 
     private HealthArea anArea(UUID owner) {

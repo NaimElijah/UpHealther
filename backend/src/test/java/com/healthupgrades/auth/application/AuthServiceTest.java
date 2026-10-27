@@ -34,6 +34,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -105,6 +106,20 @@ class AuthServiceTest {
         assertThat(result.token()).isEqualTo(ISSUED.value());
         assertThat(result.user().getEmail()).isEqualTo(AUser.EMAIL);
         assertThat(result.user().getName()).isEqualTo(AUser.NAME);
+    }
+
+    @Test
+    void GivenAnUnregisteredEmail_WhenTheVisitorRegisters_ThenTheRegistrationIsAuditedAgainstTheNewAccount() {
+        // NFR-23. The new account is both who acted and what was acted on: there was nobody before it.
+        when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
+        when(userCommand.register(any(User.class))).thenAnswer(AuthServiceTest::persisted);
+        when(tokenProvider.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
+
+        UUID registered =
+                service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD).user().getId();
+
+        assertThat(auditTrail.only(AuditAction.AUTH_REGISTER))
+                .hasValue(AuditEvent.allowed(AuditAction.AUTH_REGISTER, registered, registered));
     }
 
     @Test
@@ -235,6 +250,19 @@ class AuthServiceTest {
         // would confirm the account exists, which is what handleBadCredentials refuses to do on the
         // wire. What is left is a rate signal and a trace id — the honest limit of auditing an
         // anonymous endpoint, and the reason this is asserted rather than left to a reader's goodwill.
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGIN))
+                .hasValue(new AuditEvent(AuditAction.AUTH_LOGIN, null, null, AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenADisabledAccount_WhenItsOwnerSignsIn_ThenTheRefusalIsAuditedWithNoSubject() {
+        // A disabled account is refused like a wrong password (NFR-34), and audited like one too (NFR-23,
+        // NFR-24). A FAILED entry would count a switched-off account as an outage, and naming it would
+        // confirm it exists.
+        when(authenticationManager.authenticate(any())).thenThrow(new DisabledException("User is disabled"));
+
+        assertThatThrownBy(() -> service.login(AUser.EMAIL, RAW_PASSWORD)).isInstanceOf(DisabledException.class);
+
         assertThat(auditTrail.only(AuditAction.AUTH_LOGIN))
                 .hasValue(new AuditEvent(AuditAction.AUTH_LOGIN, null, null, AuditOutcome.REFUSED));
     }

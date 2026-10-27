@@ -1,7 +1,6 @@
 package com.healthupgrades.common.observability;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
 
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
@@ -33,8 +32,9 @@ import org.springframework.messaging.support.MessageBuilder;
 class StompTracingChannelInterceptorTest {
 
     private final SimpleTracer tracer = new SimpleTracer();
-    private final MessageChannel channel = mock(MessageChannel.class);
-    private final MessageHandler handler = mock(MessageHandler.class);
+    // Placeholders the interceptor only passes along; nothing is sent to or handled by them.
+    private final MessageChannel channel = (message, timeout) -> true;
+    private final MessageHandler handler = message -> {};
     private final StompTracingChannelInterceptor interceptor =
             new StompTracingChannelInterceptor(tracer, propagatorStartingAFreshSpan());
 

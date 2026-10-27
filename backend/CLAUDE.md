@@ -57,7 +57,7 @@ read/composition model with no domain or outbound side. All three are deliberate
   A `@TransactionalEventListener(phase = AFTER_COMMIT)` that writes must also be
   `@Transactional(propagation = REQUIRES_NEW)`. Without it, the write joins the transaction that has
   just committed, and it is silently never stored (#169, ADR-028). A new notification listener also
-  goes into `NotificationCommitIT`'s parameters.
+  goes into `NotificationCommitIT`'s parameters, and that IT fails until it does.
 
 - **Exception → HTTP status is centralized** in the global exception handler. Throw the right domain
   exception rather than building `ResponseEntity` status by hand: `ResourceNotFoundException` → 404,
@@ -202,8 +202,9 @@ that.
   itself (not a test) needs `backend/` as its working directory, or `JWT_SECRET` exported, or it refuses
   to start.
 - **Every `*IT` shares one database.** `PostgresIT` starts a single container for the whole run;
-  `@DataJpaTest` ITs roll back, but `@SpringBootTest` ITs commit rows that every later class sees, and
-  failsafe's order is the filesystem's. Assert only on rows the test itself created. When an IT fails
+  `@DataJpaTest` ITs roll back, unless one opts out as `AuthSessionRowLockIT` does to hold a lock across
+  two transactions (it deletes what it commits), but `@SpringBootTest` ITs commit rows that every later
+  class sees, and failsafe's order is the filesystem's. Assert only on rows the test itself created. When an IT fails
   on a tree that passed elsewhere, reproduce with `-Dfailsafe.runOrder=alphabetical` and
   `reversealphabetical` before re-running anything.
 - **After changing a signature, a constructor's arity or a record's shape, build with `clean`.** An

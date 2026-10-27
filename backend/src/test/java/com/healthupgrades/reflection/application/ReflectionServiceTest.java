@@ -2,11 +2,15 @@ package com.healthupgrades.reflection.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.healthupgrades.common.domain.audit.AuditAction;
+import com.healthupgrades.common.domain.audit.AuditEvent;
+import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.reflection.application.port.in.ReflectionDetails;
@@ -34,7 +38,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
  * Covers FR-23 (write a reflection), FR-24 (read an upgrade's reflections, newest first) and BR-13
- * (reflections are append-only).
+ * (reflections are append-only), and NFR-23 for the write.
  *
  * <p>BR-13 is a claim about what the service does <em>not</em> offer, which no ordinary test can make by
  * calling something. It is asserted against the public method surface instead: an {@code update} or
@@ -158,6 +162,29 @@ class ReflectionServiceTest {
 
         verify(repository, never()).save(any());
         verify(eventPublisher, never()).publish(any());
+    }
+
+    @Test
+    void GivenAnOwnedUpgrade_WhenAReflectionIsWritten_ThenTheAttemptIsAuditedAsAllowedAgainstTheUpgrade() {
+        // NFR-23. Audited against the upgrade: the reflection has no id until it is saved.
+        when(upgradeQuery.getOwnedUpgrade(userId, upgradeId)).thenReturn(AnUpgrade.active(userId));
+        when(repository.save(any(Reflection.class))).thenAnswer(call -> call.getArgument(0));
+
+        service.create(userId, upgradeId, DETAILS);
+
+        assertThat(auditTrail.only(AuditAction.REFLECTION_CREATE))
+                .hasValue(new AuditEvent(AuditAction.REFLECTION_CREATE, userId, upgradeId, AuditOutcome.ALLOWED));
+    }
+
+    @Test
+    void GivenAnUpgradeOwnedBySomebodyElse_WhenAReflectionIsWritten_ThenTheAttemptIsAuditedAsRefused() {
+        when(upgradeQuery.getOwnedUpgrade(userId, upgradeId))
+                .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
+
+        catchThrowable(() -> service.create(userId, upgradeId, DETAILS));
+
+        assertThat(auditTrail.only(AuditAction.REFLECTION_CREATE))
+                .hasValue(new AuditEvent(AuditAction.REFLECTION_CREATE, userId, upgradeId, AuditOutcome.REFUSED));
     }
 
     @Test

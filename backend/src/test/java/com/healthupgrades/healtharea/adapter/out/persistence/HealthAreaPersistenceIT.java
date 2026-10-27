@@ -9,7 +9,6 @@ import com.healthupgrades.support.AnUpgrade;
 import com.healthupgrades.support.PostgresIT;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
-import java.time.LocalDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -61,8 +60,6 @@ class HealthAreaPersistenceIT extends PostgresIT {
                 .id(null)
                 .areaId(area.getId())
                 .status(UpgradeStatus.ACTIVE)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
                 .build());
         UUID upgradeId = upgrade.getId();
 
@@ -104,8 +101,6 @@ class HealthAreaPersistenceIT extends PostgresIT {
                 .priority(1)
                 .icon("🌙")
                 .color("#4B6BFB")
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
                 .build());
     }
 }

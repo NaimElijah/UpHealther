@@ -5,7 +5,11 @@ import static org.assertj.core.api.Assertions.*;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import java.time.LocalDate;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 
 /**
  * Covers the aggregate's state machine and construction invariants: which transitions are legal from
@@ -95,24 +99,34 @@ class HealthUpgradeTest {
     // ---- editing details ----
 
     @Test
-    void GivenAnUpgrade_WhenItsDetailsAreUpdated_ThenTheEditableFieldsAreReplaced() {
+    void GivenAnUpgrade_WhenEveryEditableFieldIsReplaced_ThenEachHoldsItsNewValue() {
+        // FR-13 names seven editable fields; each gets a value no other one has, so a field left
+        // unassigned or assigned into its neighbour shows here.
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
+        UUID areaId = UUID.randomUUID();
 
         upgrade.updateDetails(
-                null, "New title", "New description", UpgradeType.EXPERIMENT, REFERENCE_DAY, "Because", "Done when");
+                areaId, "New title", "New description", UpgradeType.GOAL, REFERENCE_DAY, "Because", "Done when");
 
+        assertThat(upgrade.getAreaId()).isEqualTo(areaId);
         assertThat(upgrade.getTitle()).isEqualTo("New title");
-        assertThat(upgrade.getType()).isEqualTo(UpgradeType.EXPERIMENT);
+        assertThat(upgrade.getDescription()).isEqualTo("New description");
+        assertThat(upgrade.getType()).isEqualTo(UpgradeType.GOAL);
         assertThat(upgrade.getTargetEndDate()).isEqualTo(REFERENCE_DAY);
+        assertThat(upgrade.getMotivation()).isEqualTo("Because");
+        assertThat(upgrade.getSuccessCriteria()).isEqualTo("Done when");
     }
 
-    @Test
-    void GivenAnUpgradeInAnyState_WhenItsDetailsAreUpdated_ThenItsLifecycleIsUntouched() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
+    @ParameterizedTest
+    @EnumSource(UpgradeStatus.class)
+    void GivenAnUpgradeInEachState_WhenItsDetailsAreUpdated_ThenTheEditLandsAndTheStateIsKept(UpgradeStatus status) {
+        // FR-13: editable "at any point in its lifecycle", COMPLETED and ABANDONED included.
+        HealthUpgrade upgrade = upgradeIn(status);
 
         upgrade.updateDetails(null, "New title", null, UpgradeType.HABIT, null, null, null);
 
-        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.ACTIVE);
+        assertThat(upgrade.getTitle()).isEqualTo("New title");
+        assertThat(upgrade.getStatus()).isEqualTo(status);
     }
 
     @Test
@@ -137,12 +151,6 @@ class HealthUpgradeTest {
     }
 
     @Test
-    void GivenAnActiveUpgrade_WhenItIsPlanned_ThenItIsRejected() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
-        assertThatThrownBy(() -> upgrade.plan(REFERENCE_DAY)).isInstanceOf(BusinessRuleException.class);
-    }
-
-    @Test
     void GivenAPlannedUpgrade_WhenItIsActivated_ThenItBecomesActive() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.PLANNED);
 
@@ -150,70 +158,6 @@ class HealthUpgradeTest {
 
         assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.ACTIVE);
         assertThat(upgrade.getActualStartDate()).isEqualTo(REFERENCE_DAY);
-    }
-
-    @Test
-    void GivenAPausedUpgrade_WhenItIsActivated_ThenItBecomesActive() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.PAUSED);
-        upgrade.activate(REFERENCE_DAY);
-        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.ACTIVE);
-    }
-
-    @Test
-    void GivenAnIdea_WhenItIsActivated_ThenItIsRejected() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.IDEA);
-        assertThatThrownBy(() -> upgrade.activate(REFERENCE_DAY)).isInstanceOf(BusinessRuleException.class);
-    }
-
-    @Test
-    void GivenAnActiveUpgrade_WhenItIsPaused_ThenItBecomesPaused() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
-        upgrade.pause();
-        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.PAUSED);
-    }
-
-    @Test
-    void GivenAnIdea_WhenItIsPaused_ThenItIsRejected() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.IDEA);
-        assertThatThrownBy(upgrade::pause).isInstanceOf(BusinessRuleException.class);
-    }
-
-    @Test
-    void GivenAnActiveUpgrade_WhenItIsCompleted_ThenItBecomesCompleted() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
-        upgrade.complete();
-        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.COMPLETED);
-    }
-
-    @Test
-    void GivenAPausedUpgrade_WhenItIsCompleted_ThenItIsRejected() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.PAUSED);
-        assertThatThrownBy(upgrade::complete).isInstanceOf(BusinessRuleException.class);
-    }
-
-    @Test
-    void GivenAnActiveUpgrade_WhenItIsAbandoned_ThenItBecomesAbandoned() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
-        upgrade.abandon();
-        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.ABANDONED);
-    }
-
-    @Test
-    void GivenACompletedUpgrade_WhenItIsAbandoned_ThenItIsRejected() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.COMPLETED);
-        assertThatThrownBy(upgrade::abandon).isInstanceOf(BusinessRuleException.class);
-    }
-
-    @Test
-    void GivenAnAbandonedUpgrade_WhenItIsAbandonedAgain_ThenItIsRejected() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ABANDONED);
-        assertThatThrownBy(upgrade::abandon).isInstanceOf(BusinessRuleException.class);
-    }
-
-    @Test
-    void GivenACompletedUpgrade_WhenItIsRescheduled_ThenItIsRejected() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.COMPLETED);
-        assertThatThrownBy(() -> upgrade.reschedule(REFERENCE_DAY)).isInstanceOf(BusinessRuleException.class);
     }
 
     @Test
@@ -238,25 +182,125 @@ class HealthUpgradeTest {
         assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.IDEA);
     }
 
-    @Test
-    void GivenAPlannedUpgrade_WhenItIsRescheduled_ThenItStaysPlanned() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.PLANNED);
-        upgrade.reschedule(REFERENCE_DAY.plusDays(10));
-        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.PLANNED);
+    // ---- BR-2's transition table, every move from every state ----
+
+    /** The outcome column's value for a move BR-2 refuses from the row's state. */
+    private static final String REFUSED = "REFUSED";
+
+    /**
+     * Applies a move to an upgrade in {@code from} and checks the outcome BR-2 gives for it: the state it
+     * ends in, or a refusal that leaves the state where it was.
+     *
+     * @return the upgrade after the move, for a row that has more than the state to check
+     */
+    private HealthUpgrade assertTransition(UpgradeStatus from, String outcome, Consumer<HealthUpgrade> move) {
+        HealthUpgrade upgrade = upgradeIn(from);
+
+        if (REFUSED.equals(outcome)) {
+            assertThat(catchThrowable(() -> move.accept(upgrade)))
+                    .as("BR-2 refuses this move from %s", from)
+                    .isInstanceOf(BusinessRuleException.class);
+            assertThat(upgrade.getStatus())
+                    .as("a refused move leaves the state alone")
+                    .isEqualTo(from);
+        } else {
+            move.accept(upgrade);
+            assertThat(upgrade.getStatus())
+                    .as("BR-2's outcome from %s", from)
+                    .isEqualTo(UpgradeStatus.valueOf(outcome));
+        }
+        return upgrade;
     }
 
-    @Test
-    void GivenAnActiveUpgrade_WhenItIsRescheduled_ThenItStaysActive() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
-        upgrade.reschedule(REFERENCE_DAY.plusDays(10));
-        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.ACTIVE);
+    @ParameterizedTest(name = "{0} -> {1}")
+    @CsvSource({
+        "IDEA, PLANNED",
+        "PLANNED, REFUSED",
+        "ACTIVE, REFUSED",
+        "PAUSED, REFUSED",
+        "COMPLETED, REFUSED",
+        "ABANDONED, REFUSED"
+    })
+    void GivenAnUpgradeInEachState_WhenItIsPlanned_ThenOnlyAnIdeaBecomesPlanned(UpgradeStatus from, String outcome) {
+        assertTransition(from, outcome, upgrade -> upgrade.plan(REFERENCE_DAY));
     }
 
-    @Test
-    void GivenAPausedUpgrade_WhenItIsRescheduled_ThenItStaysPaused() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.PAUSED);
-        upgrade.reschedule(REFERENCE_DAY.plusDays(10));
-        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.PAUSED);
+    @ParameterizedTest(name = "{0} -> {1}")
+    @CsvSource({
+        "IDEA, REFUSED",
+        "PLANNED, ACTIVE",
+        "ACTIVE, REFUSED",
+        "PAUSED, ACTIVE",
+        "COMPLETED, REFUSED",
+        "ABANDONED, REFUSED"
+    })
+    void GivenAnUpgradeInEachState_WhenItIsActivated_ThenOnlyAPlannedOrPausedOneBecomesActive(
+            UpgradeStatus from, String outcome) {
+        assertTransition(from, outcome, upgrade -> upgrade.activate(REFERENCE_DAY));
+    }
+
+    @ParameterizedTest(name = "{0} -> {1}")
+    @CsvSource({
+        "IDEA, REFUSED",
+        "PLANNED, REFUSED",
+        "ACTIVE, PAUSED",
+        "PAUSED, REFUSED",
+        "COMPLETED, REFUSED",
+        "ABANDONED, REFUSED"
+    })
+    void GivenAnUpgradeInEachState_WhenItIsPaused_ThenOnlyAnActiveOneBecomesPaused(UpgradeStatus from, String outcome) {
+        assertTransition(from, outcome, HealthUpgrade::pause);
+    }
+
+    @ParameterizedTest(name = "{0} -> {1}")
+    @CsvSource({
+        "IDEA, REFUSED",
+        "PLANNED, REFUSED",
+        "ACTIVE, COMPLETED",
+        "PAUSED, REFUSED",
+        "COMPLETED, REFUSED",
+        "ABANDONED, REFUSED"
+    })
+    void GivenAnUpgradeInEachState_WhenItIsCompleted_ThenOnlyAnActiveOneBecomesCompleted(
+            UpgradeStatus from, String outcome) {
+        assertTransition(from, outcome, HealthUpgrade::complete);
+    }
+
+    @ParameterizedTest(name = "{0} -> {1}")
+    @CsvSource({
+        "IDEA, ABANDONED",
+        "PLANNED, ABANDONED",
+        "ACTIVE, ABANDONED",
+        "PAUSED, ABANDONED",
+        "COMPLETED, REFUSED",
+        "ABANDONED, REFUSED"
+    })
+    void GivenAnUpgradeInEachState_WhenItIsAbandoned_ThenOnlyANonFinalOneBecomesAbandoned(
+            UpgradeStatus from, String outcome) {
+        assertTransition(from, outcome, HealthUpgrade::abandon);
+    }
+
+    @ParameterizedTest(name = "{0} -> {1}")
+    @CsvSource({
+        "IDEA, IDEA",
+        "PLANNED, PLANNED",
+        "ACTIVE, ACTIVE",
+        "PAUSED, PAUSED",
+        "COMPLETED, REFUSED",
+        "ABANDONED, PLANNED"
+    })
+    void GivenAnUpgradeInEachState_WhenItIsRescheduled_ThenOnlyAnAbandonedOneChangesStateAndACompletedOneIsRefused(
+            UpgradeStatus from, String outcome) {
+        LocalDate newDate = REFERENCE_DAY.plusDays(7);
+
+        HealthUpgrade upgrade = assertTransition(from, outcome, it -> it.reschedule(newDate));
+
+        // BR-2: whatever the state does, every reschedule it allows moves the planned start.
+        if (!REFUSED.equals(outcome)) {
+            assertThat(upgrade.getPlannedStartDate())
+                    .as("BR-2's planned start after rescheduling from %s", from)
+                    .isEqualTo(newDate);
+        }
     }
 
     // ---- derived date questions ----
@@ -295,6 +339,46 @@ class HealthUpgradeTest {
                 .targetEndDate(REFERENCE_DAY.plusDays(3))
                 .build();
         assertThat(upgrade.isActiveOn(REFERENCE_DAY)).isTrue();
+    }
+
+    @Test
+    void GivenAnActiveUpgradeThatStartsAfterTheDate_WhenActivityOnThatDateIsChecked_ThenItIsNotActive() {
+        HealthUpgrade upgrade = activeBetween(REFERENCE_DAY.plusDays(1), REFERENCE_DAY.plusDays(30));
+        assertThat(upgrade.isActiveOn(REFERENCE_DAY)).isFalse();
+    }
+
+    @Test
+    void GivenAnActiveUpgradeThatEndedBeforeTheDate_WhenActivityOnThatDateIsChecked_ThenItIsNotActive() {
+        HealthUpgrade upgrade = activeBetween(REFERENCE_DAY.minusDays(30), REFERENCE_DAY.minusDays(1));
+        assertThat(upgrade.isActiveOn(REFERENCE_DAY)).isFalse();
+    }
+
+    @Test
+    void GivenAnActiveUpgradeStartingAndEndingOnTheDate_WhenActivityOnThatDateIsChecked_ThenBothEndsAreInclusive() {
+        HealthUpgrade upgrade = activeBetween(REFERENCE_DAY, REFERENCE_DAY);
+        assertThat(upgrade.isActiveOn(REFERENCE_DAY)).isTrue();
+    }
+
+    @Test
+    void GivenAnActiveUpgradeWithNoStartDate_WhenActivityOnADateIsChecked_ThenTheStartIsOpenEnded() {
+        HealthUpgrade upgrade = activeBetween(null, REFERENCE_DAY.plusDays(3));
+        assertThat(upgrade.isActiveOn(REFERENCE_DAY)).isTrue();
+    }
+
+    @Test
+    void GivenAnActiveUpgradeWithNoTargetDate_WhenActivityOnADateIsChecked_ThenTheEndIsOpenEnded() {
+        HealthUpgrade upgrade = activeBetween(REFERENCE_DAY.minusDays(3), null);
+        assertThat(upgrade.isActiveOn(REFERENCE_DAY)).isTrue();
+    }
+
+    private HealthUpgrade activeBetween(LocalDate actualStart, LocalDate targetEnd) {
+        return HealthUpgrade.builder()
+                .title("Test Upgrade")
+                .type(UpgradeType.HABIT)
+                .status(UpgradeStatus.ACTIVE)
+                .actualStartDate(actualStart)
+                .targetEndDate(targetEnd)
+                .build();
     }
 
     @Test

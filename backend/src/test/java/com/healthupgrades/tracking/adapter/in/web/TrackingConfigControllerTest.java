@@ -1,6 +1,7 @@
 package com.healthupgrades.tracking.adapter.in.web;
 
 import static com.healthupgrades.support.WebSliceSupport.bearer;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -19,9 +20,13 @@ import com.healthupgrades.common.security.UserDetailsServiceImpl;
 import com.healthupgrades.support.ATrackingConfig;
 import com.healthupgrades.support.WebSliceSupport;
 import com.healthupgrades.tracking.application.TrackingService;
+import com.healthupgrades.tracking.application.port.in.TrackingConfigDetails;
+import com.healthupgrades.tracking.domain.model.Frequency;
+import com.healthupgrades.tracking.domain.model.TrackingType;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -79,6 +84,23 @@ class TrackingConfigControllerTest {
     }
 
     @Test
+    void GivenEveryField_WhenAConfigurationIsSaved_ThenEachReachesTheUseCaseUnderItsOwnName() throws Exception {
+        when(trackingService.saveConfig(eq(userId), eq(upgradeId), any()))
+                .thenReturn(ATrackingConfig.numeric(upgradeId, 10_000.0, "steps"));
+
+        mockMvc.perform(bearer(put(path))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"trackingType\":\"NUMERIC\",\"frequency\":\"WEEKLY\","
+                                + "\"targetNumericValue\":10000,\"targetUnit\":\"steps\",\"requiredDaily\":true}"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<TrackingConfigDetails> details = ArgumentCaptor.forClass(TrackingConfigDetails.class);
+        verify(trackingService).saveConfig(eq(userId), eq(upgradeId), details.capture());
+        assertThat(details.getValue())
+                .isEqualTo(new TrackingConfigDetails(TrackingType.NUMERIC, Frequency.WEEKLY, 10_000.0, "steps", true));
+    }
+
+    @Test
     void GivenNoTrackingType_WhenAConfigurationIsSaved_ThenItAnswers400AndNothingIsSaved() throws Exception {
         // The type decides which value field is scored, so a configuration without one cannot judge
         // anything.
@@ -123,6 +145,19 @@ class TrackingConfigControllerTest {
         mockMvc.perform(bearer(get(path)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.trackingType").value("BOOLEAN"));
+    }
+
+    @Test
+    void GivenAnUpgradeOwnedBySomebodyElse_WhenItsConfigurationIsSaved_ThenItAnswers404AndNot403() throws Exception {
+        // BR-15: a configuration hangs off an upgrade, so another user's upgrade is as absent here as
+        // it is on its own route.
+        when(trackingService.saveConfig(eq(userId), eq(upgradeId), any()))
+                .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
+
+        mockMvc.perform(bearer(put(path))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"trackingType\":\"BOOLEAN\"}"))
+                .andExpect(status().isNotFound());
     }
 
     @Test

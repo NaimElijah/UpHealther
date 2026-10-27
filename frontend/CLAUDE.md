@@ -122,7 +122,9 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   an object type (`export type X = { … }`) or an enum union of its own.
   - Every response key is present, and a missing value is `null`, so test for it with `!= null` (#117).
     Test fixtures follow suit: build them with `src/test/wireFixtures.ts`, which fills every key, and
-    override what the test is about.
+    override what the test is about. A date-time on the wire has no offset (`2026-01-14T09:13:02`), so a
+    fixture built from an instant takes `toISOString().slice(0, 19)`: one ending in `Z` is a shape the
+    API never sends, and it hid a notification age read in the browser's zone (#335).
   - Type an inline request body with `satisfies` and its generated request type, as `api/auth.ts` does,
     so a key the endpoint does not take, or a missing one, is a compile error.
 - Styling is Tailwind CSS; reusable primitives are in `src/components/ui/`.

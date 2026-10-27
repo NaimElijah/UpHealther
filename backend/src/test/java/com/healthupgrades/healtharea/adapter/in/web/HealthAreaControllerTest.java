@@ -1,6 +1,7 @@
 package com.healthupgrades.healtharea.adapter.in.web;
 
 import static com.healthupgrades.support.WebSliceSupport.bearer;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -21,12 +22,14 @@ import com.healthupgrades.common.security.JwtAuthenticationFilter;
 import com.healthupgrades.common.security.SecurityConfig;
 import com.healthupgrades.common.security.UserDetailsServiceImpl;
 import com.healthupgrades.healtharea.application.HealthAreaService;
+import com.healthupgrades.healtharea.application.port.in.HealthAreaDetails;
 import com.healthupgrades.healtharea.domain.model.HealthArea;
 import com.healthupgrades.support.WebSliceSupport;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -83,6 +86,20 @@ class HealthAreaControllerTest {
                 .andExpect(jsonPath("$.priority").value(1))
                 .andExpect(jsonPath("$.icon").value("🌙"))
                 .andExpect(jsonPath("$.color").value("#4B6BFB"));
+    }
+
+    @Test
+    void GivenEveryField_WhenAnAreaIsCreated_ThenEachReachesTheUseCaseUnderItsOwnName() throws Exception {
+        when(service.create(eq(userId), any())).thenReturn(anArea());
+
+        mockMvc.perform(bearer(post(BASE))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY))
+                .andExpect(status().isCreated());
+
+        ArgumentCaptor<HealthAreaDetails> details = ArgumentCaptor.forClass(HealthAreaDetails.class);
+        verify(service).create(eq(userId), details.capture());
+        assertThat(details.getValue()).isEqualTo(new HealthAreaDetails("Sleep", "Bed on time", 1, "🌙", "#4B6BFB"));
     }
 
     @Test
@@ -176,6 +193,18 @@ class HealthAreaControllerTest {
                         .content(BODY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(areaId.toString()));
+    }
+
+    @Test
+    void GivenANameLongerThanItsColumn_WhenAnAreaIsUpdated_ThenItAnswers400NamingTheField() throws Exception {
+        // BR-16 on the PUT as well as the POST: the same column, reached by a different route.
+        mockMvc.perform(bearer(put(BASE + "/" + areaId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"" + "a".repeat(HealthAreaRequest.NAME_MAX + 1) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.name").exists());
+
+        verify(service, never()).update(any(), any(), any());
     }
 
     @Test

@@ -20,7 +20,11 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * The upgrade invariants that only a real database can decide.
@@ -50,6 +54,9 @@ class UpgradePersistenceIT extends PostgresIT {
 
     @Autowired
     TestEntityManager entityManager;
+
+    @Autowired
+    PlatformTransactionManager transactionManager;
 
     private UUID ownerId;
     private UUID strangerId;
@@ -86,6 +93,44 @@ class UpgradePersistenceIT extends PostgresIT {
     }
 
     @Test
+    void GivenAnUpgradeChangedUnderAnOpenTransaction_WhenThatTransactionCommits_ThenItIsRefusedAsAConflict() {
+        // BR-14 on the path the services take: the entity stays attached, and the write is the flush at
+        // the commit of their @Transactional method, after save() has returned. The clash therefore
+        // surfaces from the commit, as whatever the transaction manager makes of it, and
+        // GlobalExceptionHandler answers 409 only for an OptimisticLockingFailureException; any other
+        // type would be a 500. The test's own transaction never commits, so every transaction here is a
+        // new one, on an account of its own, which is deleted afterwards along with its upgrade.
+        TransactionTemplate committing = new TransactionTemplate(transactionManager);
+        committing.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        UUID editorId = committing.execute(
+                status -> persistedUser(UUID.randomUUID() + "@example.com").getId());
+        try {
+            UUID id = committing.execute(status -> entityManager
+                    .persistAndFlush(anUpgradeFor(editorId, UpgradeStatus.ACTIVE))
+                    .getId());
+
+            assertThatThrownBy(() -> committing.executeWithoutResult(firstEditor -> {
+                        HealthUpgrade first =
+                                repository.findByIdAndUserId(id, editorId).orElseThrow();
+                        first.updateDetails(null, "Saved by the first editor", null, first.getType(), null, null, null);
+                        repository.save(first);
+
+                        committing.executeWithoutResult(secondEditor -> {
+                            HealthUpgrade second =
+                                    repository.findByIdAndUserId(id, editorId).orElseThrow();
+                            second.updateDetails(
+                                    null, "Saved by the second editor", null, second.getType(), null, null, null);
+                            repository.save(second);
+                        });
+                    }))
+                    .isInstanceOf(OptimisticLockingFailureException.class);
+        } finally {
+            committing.executeWithoutResult(
+                    status -> execute("DELETE FROM users WHERE id = CAST(?1 AS uuid)", editorId));
+        }
+    }
+
+    @Test
     void GivenAFreshlyPersistedUpgrade_WhenItIsRead_ThenItCarriesAVersionToCompareAgainst() {
         // The precondition BR-14 rests on: no version column, no conflict detection.
         UUID id = persistedUpgrade().getId();
@@ -113,8 +158,6 @@ class UpgradePersistenceIT extends PostgresIT {
         entityManager.persistAndFlush(AnUpgrade.ownedBy(strangerId)
                 .id(null)
                 .status(UpgradeStatus.ACTIVE)
-                .createdAt(java.time.LocalDateTime.now())
-                .updatedAt(java.time.LocalDateTime.now())
                 .build());
         entityManager.clear();
 
@@ -222,8 +265,6 @@ class UpgradePersistenceIT extends PostgresIT {
                 .id(null)
                 .status(status)
                 .plannedStartDate(LocalDate.of(2026, 3, 1))
-                .createdAt(java.time.LocalDateTime.now())
-                .updatedAt(java.time.LocalDateTime.now())
                 .build();
     }
 
@@ -232,8 +273,6 @@ class UpgradePersistenceIT extends PostgresIT {
                 .id(null)
                 .status(UpgradeStatus.ACTIVE)
                 .difficulty(Difficulty.HARD)
-                .createdAt(java.time.LocalDateTime.now())
-                .updatedAt(java.time.LocalDateTime.now())
                 .build();
     }
 }

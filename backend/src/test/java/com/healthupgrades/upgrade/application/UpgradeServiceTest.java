@@ -3,6 +3,7 @@ package com.healthupgrades.upgrade.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,9 +18,11 @@ import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.healtharea.application.port.in.HealthAreaQuery;
 import com.healthupgrades.support.RecordingAuditTrail;
 import com.healthupgrades.upgrade.application.port.in.UpgradeDetails;
+import com.healthupgrades.upgrade.domain.event.HealthUpgradeAbandoned;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradeActivated;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradeCompleted;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradeCreated;
+import com.healthupgrades.upgrade.domain.event.HealthUpgradePaused;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradePlanned;
 import com.healthupgrades.upgrade.domain.model.Difficulty;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
@@ -514,18 +517,6 @@ class UpgradeServiceTest {
     // ---- The audit trail ----
 
     @Test
-    void GivenARunningUpgrade_WhenItIsCompleted_ThenTheTransitionIsAuditedAgainstItsOwner() {
-        HealthUpgrade upgrade = upgradeWith(UpgradeStatus.ACTIVE, Difficulty.EASY);
-        when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.of(upgrade));
-        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-
-        service.complete(userId, upgradeId);
-
-        assertThat(auditTrail.only(AuditAction.UPGRADE_COMPLETE))
-                .hasValue(new AuditEvent(AuditAction.UPGRADE_COMPLETE, userId, upgradeId, AuditOutcome.ALLOWED));
-    }
-
-    @Test
     void GivenACompletedUpgrade_WhenItIsPaused_ThenTheRefusalIsAuditedRatherThanLost() {
         // The half of the trail that is easy to leave out: nothing changed, nothing was published, and
         // an attempt to move a terminal upgrade is exactly the entry somebody would come looking for.
@@ -538,16 +529,82 @@ class UpgradeServiceTest {
                 .hasValue(new AuditEvent(AuditAction.UPGRADE_PAUSE, userId, upgradeId, AuditOutcome.REFUSED));
     }
 
-    @Test
-    void GivenAnUpgradeOwnedBySomebodyElse_WhenItIsDeleted_ThenTheRefusedAttemptIsAudited() {
+    // NFR-23 for every use case that changes an upgrade: one entry, under its own action, allowed when
+    // the move went through and refused when the upgrade was somebody else's.
+
+    /** A state-changing use case, run against this class's upgrade and owner. */
+    @FunctionalInterface
+    private interface AuditedUseCase {
+        void run(UpgradeService service, UUID userId, UUID upgradeId);
+    }
+
+    /** Every use case on an existing upgrade, its audit action, and a status it is allowed from. */
+    static Stream<Arguments> everyAuditedUseCaseOnAnUpgrade() {
+        LocalDate date = LocalDate.of(2026, 4, 1);
+        UpgradeDetails edit =
+                new UpgradeDetails(null, "Cold showers", null, UpgradeType.HABIT, null, null, null, null, null);
+        return Stream.of(
+                Arguments.of(AuditAction.UPGRADE_UPDATE, UpgradeStatus.ACTIVE, (AuditedUseCase)
+                        (s, user, id) -> s.update(user, id, edit)),
+                Arguments.of(AuditAction.UPGRADE_DELETE, UpgradeStatus.ACTIVE, (AuditedUseCase) UpgradeService::delete),
+                Arguments.of(AuditAction.UPGRADE_PLAN, UpgradeStatus.IDEA, (AuditedUseCase)
+                        (s, user, id) -> s.plan(user, id, date)),
+                Arguments.of(AuditAction.UPGRADE_ACTIVATE, UpgradeStatus.PLANNED, (AuditedUseCase)
+                        (s, user, id) -> s.activate(user, id, date)),
+                Arguments.of(AuditAction.UPGRADE_PAUSE, UpgradeStatus.ACTIVE, (AuditedUseCase) UpgradeService::pause),
+                Arguments.of(
+                        AuditAction.UPGRADE_COMPLETE, UpgradeStatus.ACTIVE, (AuditedUseCase) UpgradeService::complete),
+                Arguments.of(
+                        AuditAction.UPGRADE_ABANDON, UpgradeStatus.ACTIVE, (AuditedUseCase) UpgradeService::abandon),
+                Arguments.of(AuditAction.UPGRADE_RESCHEDULE, UpgradeStatus.ABANDONED, (AuditedUseCase)
+                        (s, user, id) -> s.reschedule(user, id, date)));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("everyAuditedUseCaseOnAnUpgrade")
+    void GivenAnOwnedUpgradeTheMoveIsAllowedFrom_WhenTheUseCaseRuns_ThenItAloneIsAuditedAsAllowed(
+            AuditAction action, UpgradeStatus allowedFrom, AuditedUseCase useCase) {
+        when(repository.findByIdAndUserId(upgradeId, userId))
+                .thenReturn(Optional.of(upgradeWith(allowedFrom, Difficulty.MEDIUM)));
+        // Delete never saves, so this stub is not used on every row.
+        lenient().when(repository.save(any(HealthUpgrade.class))).thenAnswer(call -> call.getArgument(0));
+
+        useCase.run(service, userId, upgradeId);
+
+        assertThat(auditTrail.recorded()).containsExactly(AuditEvent.allowed(action, userId, upgradeId));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("everyAuditedUseCaseOnAnUpgrade")
+    void GivenAnUpgradeOwnedBySomebodyElse_WhenTheUseCaseRuns_ThenItAloneIsAuditedAsRefused(
+            AuditAction action, UpgradeStatus allowedFrom, AuditedUseCase useCase) {
         // BR-15 reports a foreign record as absent, so the response says nothing happened. The trail is
         // the only place that records somebody having reached for a record that was not theirs.
         when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.delete(userId, upgradeId)).isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> useCase.run(service, userId, upgradeId)).isInstanceOf(ResourceNotFoundException.class);
 
-        assertThat(auditTrail.recorded(AuditAction.UPGRADE_DELETE, AuditOutcome.REFUSED))
-                .isTrue();
+        assertThat(auditTrail.recorded())
+                .containsExactly(new AuditEvent(action, userId, upgradeId, AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenValidDetails_WhenAnUpgradeIsCreated_ThenTheCreationIsAuditedAgainstTheNewId() {
+        UUID createdId = UUID.randomUUID();
+        when(repository.save(any(HealthUpgrade.class))).thenAnswer(call -> {
+            HealthUpgrade toSave = call.getArgument(0);
+            return HealthUpgrade.builder()
+                    .id(createdId)
+                    .userId(toSave.getUserId())
+                    .title(toSave.getTitle())
+                    .type(toSave.getType())
+                    .build();
+        });
+
+        service.create(userId, detailsWithDifficulty(null));
+
+        assertThat(auditTrail.recorded())
+                .containsExactly(AuditEvent.allowed(AuditAction.UPGRADE_CREATE, userId, createdId));
     }
 
     // ---- NFR-15: an announcement is timed by the injected clock ----
@@ -558,29 +615,38 @@ class UpgradeServiceTest {
         void run(UpgradeService service, UUID userId, UUID upgradeId);
     }
 
-    /** Every use case that publishes, with the status its upgrade has to start in — none for create. */
+    /**
+     * Every use case that publishes, with the status its upgrade has to start in — none for create — and
+     * the event it announces, which FR-28's notifications are chosen by.
+     */
     static Stream<Arguments> everyUseCaseThatAnnounces() {
         LocalDate date = LocalDate.of(2026, 4, 1);
         return Stream.of(
-                Arguments.of("create", null, (AnnouncingUseCase) (s, user, id) -> s.create(
+                Arguments.of("create", null, HealthUpgradeCreated.class, (AnnouncingUseCase) (s, user, id) -> s.create(
                         user,
                         new UpgradeDetails(
                                 null, "Cold showers", null, UpgradeType.HABIT, null, null, null, null, null))),
-                Arguments.of("plan", UpgradeStatus.IDEA, (AnnouncingUseCase) (s, user, id) -> s.plan(user, id, date)),
-                Arguments.of("activate", UpgradeStatus.PLANNED, (AnnouncingUseCase)
+                Arguments.of("plan", UpgradeStatus.IDEA, HealthUpgradePlanned.class, (AnnouncingUseCase)
+                        (s, user, id) -> s.plan(user, id, date)),
+                Arguments.of("activate", UpgradeStatus.PLANNED, HealthUpgradeActivated.class, (AnnouncingUseCase)
                         (s, user, id) -> s.activate(user, id, null)),
-                Arguments.of("pause", UpgradeStatus.ACTIVE, (AnnouncingUseCase) (s, user, id) -> s.pause(user, id)),
-                Arguments.of(
-                        "complete", UpgradeStatus.ACTIVE, (AnnouncingUseCase) (s, user, id) -> s.complete(user, id)),
-                Arguments.of("abandon", UpgradeStatus.ACTIVE, (AnnouncingUseCase) (s, user, id) -> s.abandon(user, id)),
-                Arguments.of("reschedule", UpgradeStatus.ABANDONED, (AnnouncingUseCase)
+                Arguments.of("pause", UpgradeStatus.ACTIVE, HealthUpgradePaused.class, (AnnouncingUseCase)
+                        (s, user, id) -> s.pause(user, id)),
+                Arguments.of("complete", UpgradeStatus.ACTIVE, HealthUpgradeCompleted.class, (AnnouncingUseCase)
+                        (s, user, id) -> s.complete(user, id)),
+                Arguments.of("abandon", UpgradeStatus.ACTIVE, HealthUpgradeAbandoned.class, (AnnouncingUseCase)
+                        (s, user, id) -> s.abandon(user, id)),
+                Arguments.of("reschedule", UpgradeStatus.ABANDONED, HealthUpgradePlanned.class, (AnnouncingUseCase)
                         (s, user, id) -> s.reschedule(user, id, date)));
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("everyUseCaseThatAnnounces")
-    void GivenAUseCaseThatAnnounces_WhenItRuns_ThenTheAnnouncementIsTimedByTheInjectedClock(
-            String useCase, UpgradeStatus startingStatus, AnnouncingUseCase announcing) {
+    void GivenAUseCaseThatAnnounces_WhenItRuns_ThenItsOwnEventIsAnnouncedTimedByTheInjectedClock(
+            String useCase,
+            UpgradeStatus startingStatus,
+            Class<? extends DomainEvent> announces,
+            AnnouncingUseCase announcing) {
         // #100: the wall clock stamps whatever time and zone the host happens to have.
         if (startingStatus != null) {
             when(repository.findByIdAndUserId(upgradeId, userId))
@@ -592,6 +658,7 @@ class UpgradeServiceTest {
 
         ArgumentCaptor<DomainEvent> event = ArgumentCaptor.forClass(DomainEvent.class);
         verify(eventPublisher).publish(event.capture());
+        assertThat(event.getValue()).isInstanceOf(announces);
         assertThat(event.getValue().occurredAt()).isEqualTo(LocalDateTime.now(fixedClock));
     }
 }
