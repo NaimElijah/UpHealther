@@ -68,6 +68,9 @@ class RateLimitedSignInTest {
     @Autowired
     MockMvc mockMvc;
 
+    @Autowired
+    RateLimitProperties properties;
+
     @MockitoBean
     AuthService authService;
 
@@ -151,9 +154,11 @@ class RateLimitedSignInTest {
     }
 
     @Test
-    void GivenTheRetryAfterHeader_WhenARefusalIsRead_ThenItIsAWholeNumberOfSecondsAndNotZero() throws Exception {
-        // Retry-After: 0 invites an immediate retry that is refused again, so a client honouring it
-        // would spin. The value is rounded up for that reason.
+    void GivenTheAllowanceIsSpentAtTheStartOfAWindow_WhenARefusalIsRead_ThenRetryAfterIsTheWholeWindowInSeconds()
+            throws Exception {
+        // The limiter's clock stands still (WebSliceSupport.LIMITER_NOW), so every attempt lands at the
+        // instant the window opened and the wait is exactly the configured window: a client told less
+        // retries early into a refusal, and one told more waits longer than the limit requires.
         String client = "203.0.113.14";
         for (int attempt = 0; attempt < LIMIT; attempt++) {
             mockMvc.perform(signInFrom(client));
@@ -165,8 +170,7 @@ class RateLimitedSignInTest {
                 .getResponse()
                 .getHeader(HttpHeaders.RETRY_AFTER);
 
-        assertThat(retryAfter).isNotNull();
-        assertThat(Long.parseLong(retryAfter)).isPositive();
+        assertThat(retryAfter).isEqualTo(String.valueOf(properties.window().toSeconds()));
     }
 
     @Test
