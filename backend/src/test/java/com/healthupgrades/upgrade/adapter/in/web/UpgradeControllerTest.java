@@ -231,6 +231,37 @@ class UpgradeControllerTest {
                 .andExpect(jsonPath("$.trackingConfig.requiredDaily").value(true));
     }
 
+    // The slice runs on the application's system clock, so the dates below sit far enough either side of
+    // any day it could run on.
+
+    @Test
+    void GivenAnActiveUpgradeLongPastItsTargetDate_WhenItIsRead_ThenItIsReportedOverdue() throws Exception {
+        when(service.getOwnedUpgrade(userId, upgradeId))
+                .thenReturn(AnUpgrade.ownedBy(userId)
+                        .id(upgradeId)
+                        .status(UpgradeStatus.ACTIVE)
+                        .targetEndDate(LocalDate.of(2000, 1, 1))
+                        .build());
+
+        mockMvc.perform(bearer(get(BASE + "/" + upgradeId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.overdue").value(true));
+    }
+
+    @Test
+    void GivenAnActiveUpgradeLongBeforeItsTargetDate_WhenItIsRead_ThenItIsNotReportedOverdue() throws Exception {
+        when(service.getOwnedUpgrade(userId, upgradeId))
+                .thenReturn(AnUpgrade.ownedBy(userId)
+                        .id(upgradeId)
+                        .status(UpgradeStatus.ACTIVE)
+                        .targetEndDate(LocalDate.of(2999, 1, 1))
+                        .build());
+
+        mockMvc.perform(bearer(get(BASE + "/" + upgradeId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.overdue").value(false));
+    }
+
     @Test
     void GivenAnUpgradeOwnedBySomebodyElse_WhenItIsRead_ThenItAnswers404AndNot403() throws Exception {
         // BR-15. A 403 would confirm the row exists; a 404 says nothing at all.
