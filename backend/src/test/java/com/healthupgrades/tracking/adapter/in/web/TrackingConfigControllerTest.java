@@ -1,6 +1,7 @@
 package com.healthupgrades.tracking.adapter.in.web;
 
 import static com.healthupgrades.support.WebSliceSupport.bearer;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -19,9 +20,13 @@ import com.healthupgrades.common.security.UserDetailsServiceImpl;
 import com.healthupgrades.support.ATrackingConfig;
 import com.healthupgrades.support.WebSliceSupport;
 import com.healthupgrades.tracking.application.TrackingService;
+import com.healthupgrades.tracking.application.port.in.TrackingConfigDetails;
+import com.healthupgrades.tracking.domain.model.Frequency;
+import com.healthupgrades.tracking.domain.model.TrackingType;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -76,6 +81,23 @@ class TrackingConfigControllerTest {
                 .andExpect(jsonPath("$.trackingType").value("NUMERIC"))
                 .andExpect(jsonPath("$.targetNumericValue").value(10000.0))
                 .andExpect(jsonPath("$.targetUnit").value("steps"));
+    }
+
+    @Test
+    void GivenEveryField_WhenAConfigurationIsSaved_ThenEachReachesTheUseCaseUnderItsOwnName() throws Exception {
+        when(trackingService.saveConfig(eq(userId), eq(upgradeId), any()))
+                .thenReturn(ATrackingConfig.numeric(upgradeId, 10_000.0, "steps"));
+
+        mockMvc.perform(bearer(put(path))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"trackingType\":\"NUMERIC\",\"frequency\":\"WEEKLY\","
+                                + "\"targetNumericValue\":10000,\"targetUnit\":\"steps\",\"requiredDaily\":true}"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<TrackingConfigDetails> details = ArgumentCaptor.forClass(TrackingConfigDetails.class);
+        verify(trackingService).saveConfig(eq(userId), eq(upgradeId), details.capture());
+        assertThat(details.getValue())
+                .isEqualTo(new TrackingConfigDetails(TrackingType.NUMERIC, Frequency.WEEKLY, 10_000.0, "steps", true));
     }
 
     @Test

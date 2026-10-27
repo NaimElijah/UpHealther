@@ -1,6 +1,7 @@
 package com.healthupgrades.upgrade.adapter.in.web;
 
 import static com.healthupgrades.support.WebSliceSupport.bearer;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -24,17 +25,20 @@ import com.healthupgrades.common.security.UserDetailsServiceImpl;
 import com.healthupgrades.support.AnUpgrade;
 import com.healthupgrades.support.WebSliceSupport;
 import com.healthupgrades.upgrade.application.UpgradeService;
+import com.healthupgrades.upgrade.application.port.in.UpgradeDetails;
 import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummary;
 import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort;
 import com.healthupgrades.upgrade.domain.model.Difficulty;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.model.UpgradeType;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -99,6 +103,36 @@ class UpgradeControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.title").value(AnUpgrade.TITLE))
                 .andExpect(jsonPath("$.status").value("IDEA"));
+    }
+
+    @Test
+    void GivenEveryField_WhenAnUpgradeIsCreated_ThenEachReachesTheUseCaseUnderItsOwnName() throws Exception {
+        // Every text field holds a different value, so two of them swapped on the way down shows here.
+        UUID areaId = UUID.randomUUID();
+        when(service.create(eq(userId), any())).thenReturn(anUpgrade(UpgradeStatus.IDEA));
+
+        mockMvc.perform(bearer(post(BASE))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"areaId\":\"" + areaId + "\",\"title\":\"Cold showers\","
+                                + "\"description\":\"Thirty seconds cold\",\"type\":\"EXPERIMENT\","
+                                + "\"difficulty\":\"HARD\",\"plannedStartDate\":\"2026-04-01\","
+                                + "\"targetEndDate\":\"2026-05-01\",\"motivation\":\"Wake up faster\","
+                                + "\"successCriteria\":\"Thirty days in a row\"}"))
+                .andExpect(status().isCreated());
+
+        ArgumentCaptor<UpgradeDetails> details = ArgumentCaptor.forClass(UpgradeDetails.class);
+        verify(service).create(eq(userId), details.capture());
+        assertThat(details.getValue())
+                .isEqualTo(new UpgradeDetails(
+                        areaId,
+                        "Cold showers",
+                        "Thirty seconds cold",
+                        UpgradeType.EXPERIMENT,
+                        Difficulty.HARD,
+                        LocalDate.of(2026, 4, 1),
+                        LocalDate.of(2026, 5, 1),
+                        "Wake up faster",
+                        "Thirty days in a row"));
     }
 
     @Test
