@@ -41,6 +41,12 @@ import org.springframework.dao.DataIntegrityViolationException;
 @Import(ProgressEntryRepositoryAdapter.class)
 class ProgressEntryPersistenceIT extends PostgresIT {
 
+    /**
+     * For the NOT NULL timestamp columns of rows built here. The entity's {@code @PrePersist} stamps its own
+     * value over it, so any fixed value serves, and a fixed one keeps the wall clock out of the test.
+     */
+    private static final LocalDateTime STAMP = LocalDateTime.of(2026, 3, 15, 9, 0);
+
     private static final LocalDate DAY = LocalDate.of(2026, 3, 15);
 
     @Autowired
@@ -66,8 +72,8 @@ class ProgressEntryPersistenceIT extends PostgresIT {
         HealthUpgrade upgrade = entityManager.persistAndFlush(AnUpgrade.ownedBy(userId)
                 .id(null)
                 .status(UpgradeStatus.ACTIVE)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
+                .createdAt(STAMP)
+                .updatedAt(STAMP)
                 .build());
         upgradeId = upgrade.getId();
     }
@@ -97,8 +103,8 @@ class ProgressEntryPersistenceIT extends PostgresIT {
                 .persistAndFlush(AnUpgrade.ownedBy(userId)
                         .id(null)
                         .status(UpgradeStatus.ACTIVE)
-                        .createdAt(LocalDateTime.now())
-                        .updatedAt(LocalDateTime.now())
+                        .createdAt(STAMP)
+                        .updatedAt(STAMP)
                         .build())
                 .getId();
 
@@ -170,8 +176,8 @@ class ProgressEntryPersistenceIT extends PostgresIT {
                 .persistAndFlush(AnUpgrade.ownedBy(loggedYesterday)
                         .id(null)
                         .status(UpgradeStatus.ACTIVE)
-                        .createdAt(LocalDateTime.now())
-                        .updatedAt(LocalDateTime.now())
+                        .createdAt(STAMP)
+                        .updatedAt(STAMP)
                         .build())
                 .getId();
         repository.save(entry(upgradeId, userId, DAY, false));
@@ -205,8 +211,8 @@ class ProgressEntryPersistenceIT extends PostgresIT {
                 .persistAndFlush(AnUpgrade.ownedBy(strangerId)
                         .id(null)
                         .status(UpgradeStatus.ACTIVE)
-                        .createdAt(LocalDateTime.now())
-                        .updatedAt(LocalDateTime.now())
+                        .createdAt(STAMP)
+                        .updatedAt(STAMP)
                         .build())
                 .getId();
         repository.save(entry(strangerUpgradeId, strangerId, DAY, true));
@@ -221,8 +227,8 @@ class ProgressEntryPersistenceIT extends PostgresIT {
                 .persistAndFlush(AnUpgrade.ownedBy(userId)
                         .id(null)
                         .status(UpgradeStatus.ACTIVE)
-                        .createdAt(LocalDateTime.now())
-                        .updatedAt(LocalDateTime.now())
+                        .createdAt(STAMP)
+                        .updatedAt(STAMP)
                         .build())
                 .getId();
     }

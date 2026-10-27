@@ -148,6 +148,19 @@ class TrackingConfigControllerTest {
     }
 
     @Test
+    void GivenAnUpgradeOwnedBySomebodyElse_WhenItsConfigurationIsSaved_ThenItAnswers404AndNot403() throws Exception {
+        // BR-15: a configuration hangs off an upgrade, so another user's upgrade is as absent here as
+        // it is on its own route.
+        when(trackingService.saveConfig(eq(userId), eq(upgradeId), any()))
+                .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
+
+        mockMvc.perform(bearer(put(path))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"trackingType\":\"BOOLEAN\"}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void GivenAnUpgradeWithNoConfiguration_WhenItIsRead_ThenItAnswers404() throws Exception {
         when(trackingService.getConfig(userId, upgradeId))
                 .thenThrow(new ResourceNotFoundException("Tracking config not found for upgrade: " + upgradeId));

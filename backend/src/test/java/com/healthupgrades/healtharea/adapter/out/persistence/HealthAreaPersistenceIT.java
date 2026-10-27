@@ -36,6 +36,12 @@ import org.springframework.context.annotation.Import;
 @Import(HealthAreaRepositoryAdapter.class)
 class HealthAreaPersistenceIT extends PostgresIT {
 
+    /**
+     * For the NOT NULL timestamp columns of rows built here. The entity's {@code @PrePersist} stamps its own
+     * value over it, so any fixed value serves, and a fixed one keeps the wall clock out of the test.
+     */
+    private static final LocalDateTime STAMP = LocalDateTime.of(2026, 3, 15, 9, 0);
+
     @Autowired
     HealthAreaRepositoryPort repository;
 
@@ -61,8 +67,8 @@ class HealthAreaPersistenceIT extends PostgresIT {
                 .id(null)
                 .areaId(area.getId())
                 .status(UpgradeStatus.ACTIVE)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
+                .createdAt(STAMP)
+                .updatedAt(STAMP)
                 .build());
         UUID upgradeId = upgrade.getId();
 
@@ -104,8 +110,8 @@ class HealthAreaPersistenceIT extends PostgresIT {
                 .priority(1)
                 .icon("🌙")
                 .color("#4B6BFB")
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
+                .createdAt(STAMP)
+                .updatedAt(STAMP)
                 .build());
     }
 }

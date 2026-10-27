@@ -30,7 +30,7 @@ class ProgressEvaluationServiceTest {
                 .id(UUID.randomUUID())
                 .upgradeId(UUID.randomUUID())
                 .userId(UUID.randomUUID())
-                .date(LocalDate.now())
+                .date(LocalDate.of(2026, 3, 15))
                 .build();
     }
 

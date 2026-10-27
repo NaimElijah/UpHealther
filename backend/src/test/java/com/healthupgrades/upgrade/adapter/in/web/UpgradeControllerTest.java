@@ -432,7 +432,7 @@ class UpgradeControllerTest {
     }
 
     @Test
-    void GivenTheAuthenticatedPrincipal_WhenAnyEndpointIsCalled_ThenItsIdIsWhatTheServiceIsScopedTo() throws Exception {
+    void GivenTheAuthenticatedPrincipal_WhenUpgradesAreListed_ThenItsIdIsWhatTheServiceIsScopedTo() throws Exception {
         // The one thing every endpoint shares: ownership comes from the token's principal, never from
         // the request. A controller reading a user id out of the body or a header would break BR-15
         // everywhere at once, and this is the assertion that would notice.
