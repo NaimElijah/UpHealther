@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useParams } from 'react-router-dom';
 import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { NotificationProvider } from './NotificationProvider';
 import { AuthContext, type AuthContextType } from './authContextValue';
 import { useNotifications } from '../hooks/useNotifications';
 import { clearAccessToken, setAccessToken } from '../api/tokenStore';
+import { notificationAsSent } from '../test/wireFixtures';
 
 const renewSession = vi.fn();
 vi.mock('../api/client', async () => {
@@ -743,3 +744,91 @@ describe('NotificationProvider desktop notifications', () => {
     expect(FakeDesktopNotification.raised).toEqual([]);
   });
 });
+
+/** How long a toast stays up on its own: FR-32's toasts dismiss themselves after six seconds. */
+const TOAST_LIFETIME_MS = 6000;
+
+/**
+ * FR-32's toasts: a live notification is shown as a toast, at most four at once, each gone after six
+ * seconds, and one that names an upgrade opens it.
+ *
+ * The cap is what keeps a burst of notifications from covering the page, and the timer is what clears
+ * them without a click; neither is visible to `ToastContainer.test.tsx`, which is handed its toasts.
+ */
+describe('NotificationProvider toasts', () => {
+  beforeEach(() => {
+    lastClient = undefined;
+    resetNotificationApi();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Mounts the provider beside a page for each upgrade, and connects its socket. */
+  async function renderConnected() {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <AuthContext.Provider value={authenticated()}>
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter initialEntries={['/dashboard']}>
+            <NotificationProvider>
+              <Routes>
+                <Route path="/dashboard" element={<p>the dashboard</p>} />
+                <Route path="/upgrades/:id" element={<UpgradePage />} />
+              </Routes>
+            </NotificationProvider>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </AuthContext.Provider>,
+    );
+    await waitFor(() => expect(lastClient).toBeDefined());
+    act(() => lastClient?.connect());
+  }
+
+  function deliver(notification: AppNotification) {
+    act(() => lastClient?.deliver(JSON.stringify(notification)));
+  }
+
+  /** What each toast on screen reads, newest first; its icon and close glyph are part of the text. */
+  const toastTexts = () => screen.queryAllByRole('status').map((toast) => toast.textContent);
+
+  /** Matches the toasts showing exactly these titles, in this order. */
+  const showing = (...titles: string[]) => titles.map((title) => expect.stringContaining(title));
+
+  it('GivenFiveNotificationsArriveTogether_WhenTheyAreToasted_ThenOnlyTheNewestFourAreShown', async () => {
+    await renderConnected();
+
+    for (const n of [1, 2, 3, 4, 5]) deliver(notificationAsSent({ id: `n-${n}`, title: `Toast ${n}` }));
+
+    expect(toastTexts()).toEqual(showing('Toast 5', 'Toast 4', 'Toast 3', 'Toast 2'));
+  });
+
+  it('GivenAToastShowing_WhenSixSecondsPass_ThenItDismissesItselfAndNotBefore', async () => {
+    await renderConnected();
+    vi.useFakeTimers();
+    deliver(notificationAsSent({ title: 'Upgrade created' }));
+
+    act(() => vi.advanceTimersByTime(TOAST_LIFETIME_MS - 1));
+    expect(toastTexts()).toEqual(showing('Upgrade created'));
+
+    act(() => vi.advanceTimersByTime(1));
+    expect(toastTexts()).toEqual([]);
+  });
+
+  it('GivenAToastAboutAnUpgrade_WhenItIsClicked_ThenThatUpgradeOpensAndTheToastGoes', async () => {
+    await renderConnected();
+    deliver(notificationAsSent({ title: 'Upgrade activated', relatedUpgradeId: 'upgrade-7' }));
+
+    fireEvent.click(within(screen.getByRole('status')).getByRole('button', { name: /Upgrade activated/ }));
+
+    expect(await screen.findByText('the page of upgrade-7')).toBeDefined();
+    expect(toastTexts()).toEqual([]);
+  });
+});
+
+/** Names the upgrade in the URL, so a test can read where a toast navigated to. */
+function UpgradePage() {
+  const { id } = useParams();
+  return <p>the page of {id}</p>;
+}
