@@ -46,6 +46,8 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
  *   <tr><td>{@link BusinessRuleException}</td><td>422 Unprocessable Content</td></tr>
  *   <tr><td>{@link DuplicateProgressException}</td><td>409 Conflict</td></tr>
  *   <tr><td>{@link OptimisticLockException}, the JPA one and Spring's {@link OptimisticLockingFailureException}</td><td>409 Conflict, asking for a retry</td></tr>
+ *   <tr><td>{@link RetryableConflictException}</td><td>409 Conflict, which the client retries</td></tr>
+ *   <tr><td>{@link TooManyRequestsException}</td><td>429 Too Many Requests, with {@code Retry-After}</td></tr>
  *   <tr><td>{@link MethodArgumentNotValidException}</td><td>400 Bad Request, with field errors</td></tr>
  *   <tr><td>{@link HttpMessageNotReadableException}</td><td>400 Bad Request, parser detail withheld</td></tr>
  *   <tr><td>{@link TypeMismatchException}</td><td>400 Bad Request</td></tr>
