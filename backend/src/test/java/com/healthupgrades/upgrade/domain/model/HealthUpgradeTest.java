@@ -9,6 +9,7 @@ import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 
 /**
  * Covers the aggregate's state machine and construction invariants: which transitions are legal from
@@ -116,6 +117,37 @@ class HealthUpgradeTest {
         upgrade.updateDetails(null, "New title", null, UpgradeType.HABIT, null, null, null);
 
         assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.ACTIVE);
+    }
+
+    @Test
+    void GivenAnUpgrade_WhenEveryEditableFieldIsReplaced_ThenEachHoldsItsNewValue() {
+        // FR-13 names seven editable fields; each gets a value no other one has, so a field left
+        // unassigned or assigned into its neighbour shows here.
+        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
+        UUID areaId = UUID.randomUUID();
+
+        upgrade.updateDetails(
+                areaId, "New title", "New description", UpgradeType.GOAL, REFERENCE_DAY, "Because", "Done when");
+
+        assertThat(upgrade.getAreaId()).isEqualTo(areaId);
+        assertThat(upgrade.getTitle()).isEqualTo("New title");
+        assertThat(upgrade.getDescription()).isEqualTo("New description");
+        assertThat(upgrade.getType()).isEqualTo(UpgradeType.GOAL);
+        assertThat(upgrade.getTargetEndDate()).isEqualTo(REFERENCE_DAY);
+        assertThat(upgrade.getMotivation()).isEqualTo("Because");
+        assertThat(upgrade.getSuccessCriteria()).isEqualTo("Done when");
+    }
+
+    @ParameterizedTest
+    @EnumSource(UpgradeStatus.class)
+    void GivenAnUpgradeInEachState_WhenItsDetailsAreUpdated_ThenTheEditLandsAndTheStateIsKept(UpgradeStatus status) {
+        // FR-13: editable "at any point in its lifecycle", COMPLETED and ABANDONED included.
+        HealthUpgrade upgrade = upgradeIn(status);
+
+        upgrade.updateDetails(null, "New title", null, UpgradeType.HABIT, null, null, null);
+
+        assertThat(upgrade.getTitle()).isEqualTo("New title");
+        assertThat(upgrade.getStatus()).isEqualTo(status);
     }
 
     @Test
