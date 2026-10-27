@@ -12,7 +12,9 @@ import com.healthupgrades.support.PostgresIT;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -21,8 +23,9 @@ import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
 
 /**
- * The check-in sweep's once-a-day guard (FR-30) and the overdue notice's once-per-target-date guard
- * (BR-11), each proved against the query that implements it.
+ * The check-in sweep's once-a-day guard (FR-30), the overdue notice's once-per-target-date guard
+ * (BR-11), and the inbox's reads and mark-all (FR-33, BR-15), each proved against the query that
+ * implements it.
  *
  * <p>{@code NotificationSchedulerTest} and {@code NotificationServiceTest} stub this port, so they would
  * pass just as happily against a query that ignored the notification's type or its time. Here the queries
@@ -37,6 +40,9 @@ import org.springframework.context.annotation.Import;
 class NotificationPersistenceIT extends PostgresIT {
 
     private static final LocalDateTime MIDNIGHT = LocalDate.of(2026, 3, 15).atStartOfDay();
+
+    /** How many notifications the inbox lists (FR-33). */
+    private static final int INBOX_SIZE = 50;
 
     /** The start of the day after a target date of 1 October: the earliest an overdue notice for it exists. */
     private static final LocalDateTime OVERDUE_SINCE = LocalDate.of(2026, 10, 2).atStartOfDay();
@@ -150,6 +156,71 @@ class NotificationPersistenceIT extends PostgresIT {
                 .isFalse();
     }
 
+    @Test
+    void GivenFiftyOneNotifications_WhenTheRecentOnesAreRead_ThenTheFiftyNewestComeBackNewestFirst() {
+        UUID userId = persistedUser();
+        for (int minute = 0; minute <= INBOX_SIZE; minute++) {
+            repository.save(inboxEntry(userId, MIDNIGHT.plusMinutes(minute), false));
+        }
+        entityManager.flush();
+
+        List<LocalDateTime> listed = repository.findTop50ByUserIdOrderByCreatedAtDesc(userId).stream()
+                .map(Notification::getCreatedAt)
+                .toList();
+
+        List<LocalDateTime> newestFirst = IntStream.iterate(INBOX_SIZE, minute -> minute >= 1, minute -> minute - 1)
+                .mapToObj(MIDNIGHT::plusMinutes)
+                .toList();
+        assertThat(listed).containsExactlyElementsOf(newestFirst);
+    }
+
+    @Test
+    void GivenMoreUnreadNotificationsThanTheInboxLists_WhenTheUnreadAreCounted_ThenEveryUnreadOneCountsAndNoReadOne() {
+        // FR-33: the badge counts every unread notification, not only the fifty the inbox lists.
+        UUID userId = persistedUser();
+        int unread = INBOX_SIZE + 2;
+        for (int minute = 0; minute < unread; minute++) {
+            repository.save(inboxEntry(userId, MIDNIGHT.plusMinutes(minute), false));
+        }
+        repository.save(inboxEntry(userId, MIDNIGHT.minusHours(1), true));
+        entityManager.flush();
+
+        assertThat(repository.countByUserIdAndReadFalse(userId)).isEqualTo(unread);
+    }
+
+    @Test
+    void GivenTwoUsersWithUnreadNotifications_WhenOneMarksAllRead_ThenOnlyTheirsAreRead() {
+        UUID marking = persistedUser();
+        UUID other = persistedUser();
+        UUID markingsOwn = repository.save(inboxEntry(marking, MIDNIGHT, false)).getId();
+        UUID othersOwn = repository.save(inboxEntry(other, MIDNIGHT, false)).getId();
+        entityManager.flush();
+
+        repository.markAllReadForUser(marking);
+        // The bulk update bypasses the persistence context, so the rows must be read back from the table.
+        entityManager.clear();
+
+        assertThat(entityManager.find(Notification.class, markingsOwn).isRead())
+                .as("the marking user's own notification")
+                .isTrue();
+        assertThat(entityManager.find(Notification.class, othersOwn).isRead())
+                .as("another user's notification")
+                .isFalse();
+    }
+
+    @Test
+    void GivenAnotherUsersNotification_WhenItIsLookedUpById_ThenItIsReportedAsAbsent() {
+        // BR-15: the lookup is scoped to the owner, so another user's id finds nothing rather than the row.
+        UUID owner = persistedUser();
+        UUID stranger = persistedUser();
+        UUID notificationId =
+                repository.save(inboxEntry(owner, MIDNIGHT, false)).getId();
+        entityManager.flush();
+
+        assertThat(repository.findByIdAndUserId(notificationId, stranger)).isEmpty();
+        assertThat(repository.findByIdAndUserId(notificationId, owner)).isPresent();
+    }
+
     /** A user row for a notification to belong to, with an email no other test's row can collide with. */
     private UUID persistedUser() {
         return entityManager
@@ -177,6 +248,17 @@ class NotificationPersistenceIT extends PostgresIT {
                 .type(NotificationType.UPGRADE_OVERDUE)
                 .category(NotificationCategory.WARNING)
                 .title("Upgrade overdue")
+                .createdAt(createdAt)
+                .build();
+    }
+
+    private static Notification inboxEntry(UUID userId, LocalDateTime createdAt, boolean read) {
+        return Notification.builder()
+                .userId(userId)
+                .type(NotificationType.REMINDER)
+                .category(NotificationCategory.REMINDER)
+                .title("Reminder")
+                .read(read)
                 .createdAt(createdAt)
                 .build();
     }
