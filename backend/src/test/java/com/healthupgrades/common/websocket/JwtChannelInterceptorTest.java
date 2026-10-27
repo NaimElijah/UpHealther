@@ -110,6 +110,34 @@ class JwtChannelInterceptorTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    // STOMP is the 1.2 spec's alias for CONNECT, so a client that sends it must meet the same door.
+
+    @Test
+    void GivenAStompFrameWithAUsableToken_WhenItArrives_ThenItIsAuthenticatedAndAuditedLikeAConnect() {
+        UUID userId = UUID.randomUUID();
+        when(authenticator.authenticateWithSession(TOKEN)).thenReturn(Optional.of(signedIn(userId)));
+
+        Message<?> passed = interceptor.preSend(frame(StompCommand.STOMP, "Bearer " + TOKEN), channel);
+
+        assertThat(StompHeaderAccessor.wrap(passed).getUser())
+                .isNotNull()
+                .extracting(Principal::getName)
+                .isEqualTo(userId.toString());
+        assertThat(auditTrail.only(AuditAction.AUTH_CONNECT))
+                .hasValue(AuditEvent.allowed(AuditAction.AUTH_CONNECT, userId, userId));
+    }
+
+    @Test
+    void GivenAStompFrameWithAnUnusableToken_WhenItArrives_ThenItIsRefusedAndAuditedLikeAConnect() {
+        when(authenticator.authenticateWithSession(TOKEN)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> interceptor.preSend(frame(StompCommand.STOMP, "Bearer " + TOKEN), channel))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(auditTrail.only(AuditAction.AUTH_CONNECT))
+                .hasValue(new AuditEvent(AuditAction.AUTH_CONNECT, null, null, AuditOutcome.REFUSED));
+    }
+
     // ---- NFR-23: opening a connection is an authentication outcome, allowed or refused ----
 
     @Test
