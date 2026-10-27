@@ -95,6 +95,12 @@ class FakeClient {
   }
 }
 
+// A third-party client is faked here, against the rule of mocking only what the project owns, because
+// nothing better exists at this level. Moving the client behind a project-owned module would not catch the
+// failure that matters, stompjs changing when it reads `connectHeaders`: that wiring would move into the
+// adapter, which no unit test could exercise either. There is no container for a browser socket client.
+// The real client is exercised by the Playwright smoke suite, `e2e/tests/smoke.test.ts`, which waits for
+// its SUBSCRIBE through nginx and for the toast an activation pushes over it (NFR-56).
 vi.mock('@stomp/stompjs', () => ({
   Client: class {
     constructor(config: FakeClientConfig) {
