@@ -157,6 +157,22 @@ describe('the shared API client', () => {
       expect(window.location.href).toBe('');
     });
 
+    it('GivenAnExpiredToken_WhenItIsRenewed_ThenTheRefreshCarriesTheHeaderACrossSiteFormCannotSet', async () => {
+      // NFR-37: the server refuses a refresh without it, before reading any session, so leaving it off
+      // would sign every user out at their first expired token.
+      setAccessToken('expired.jwt.token', '2099-01-01T00:00:00Z');
+      withAdapter((config) => {
+        if (config.url === '/api/auth/refresh') return ok(config, RENEWED);
+        return config.headers.Authorization === 'Bearer renewed.jwt.token' ? ok(config) : rejection(config, 401);
+      });
+
+      await client.get('/api/upgrades');
+
+      const refresh = sentConfigs.find((config) => config.url === '/api/auth/refresh');
+      expect(refresh?.method).toBe('post');
+      expect(refresh?.headers['X-Requested-With']).toBe('XMLHttpRequest');
+    });
+
     it('GivenNoLiveSession_WhenTheRenewalIsAlsoRefused_ThenTheSessionEndsAndTheUserIsSentToLogin', async () => {
       setAccessToken('expired.jwt.token', '2099-01-01T00:00:00Z');
       withAdapter(failWith(401));
