@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.healthupgrades.support.WebSliceSupport;
 import com.healthupgrades.user.domain.model.Role;
+import jakarta.servlet.http.HttpSession;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -215,6 +216,38 @@ class AuthenticatedBoundaryTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, "Bearer error=\"invalid_token\""))
                 .andExpect(jsonPath("$.message").value("Authentication required"));
+    }
+
+    @Test
+    void GivenNoToken_WhenAProtectedEndpointIsRefused_ThenNoHttpSessionIsCreated() throws Exception {
+        // NFR-1. A session-backed chain saves the refused request in the session so it can replay it
+        // after a sign-in, which hands an anonymous caller a JSESSIONID and this instance some state.
+        HttpSession session = mockMvc.perform(json(request(HttpMethod.GET, "/api/notifications")))
+                .andExpect(status().isUnauthorized())
+                .andReturn()
+                .getRequest()
+                .getSession(false);
+
+        assertThat(session)
+                .as("the refusal must leave nothing behind on the server")
+                .isNull();
+    }
+
+    @Test
+    void GivenAValidToken_WhenAProtectedEndpointIsCalled_ThenNoHttpSessionIsCreated() throws Exception {
+        // The token is the whole credential, request by request; any instance can serve the next one.
+        WebSliceSupport.authenticateAs(authenticator, UUID.randomUUID());
+
+        HttpSession session = mockMvc.perform(
+                        WebSliceSupport.bearer(json(request(HttpMethod.GET, "/api/notifications"))))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getRequest()
+                .getSession(false);
+
+        assertThat(session)
+                .as("an authenticated request must not open a server-side session")
+                .isNull();
     }
 
     @Test
