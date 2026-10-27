@@ -288,6 +288,34 @@ class UpgradeControllerTest {
     }
 
     @Test
+    void GivenATypeFilter_WhenUpgradesAreListed_ThenItIsPassedThroughAsAnEnum() throws Exception {
+        when(service.findAll(userId, null, UpgradeType.GOAL, null, null)).thenReturn(List.of());
+
+        mockMvc.perform(bearer(get(BASE).param("type", "GOAL"))).andExpect(status().isOk());
+
+        verify(service).findAll(userId, null, UpgradeType.GOAL, null, null);
+    }
+
+    @Test
+    void GivenAnAreaFilter_WhenUpgradesAreListed_ThenItIsPassedThroughAsAnId() throws Exception {
+        UUID areaId = UUID.randomUUID();
+        when(service.findAll(userId, null, null, areaId, null)).thenReturn(List.of());
+
+        mockMvc.perform(bearer(get(BASE).param("areaId", areaId.toString()))).andExpect(status().isOk());
+
+        verify(service).findAll(userId, null, null, areaId, null);
+    }
+
+    @Test
+    void GivenADifficultyFilter_WhenUpgradesAreListed_ThenItIsPassedThroughAsAnEnum() throws Exception {
+        when(service.findAll(userId, null, null, null, Difficulty.HARD)).thenReturn(List.of());
+
+        mockMvc.perform(bearer(get(BASE).param("difficulty", "HARD"))).andExpect(status().isOk());
+
+        verify(service).findAll(userId, null, null, null, Difficulty.HARD);
+    }
+
+    @Test
     void GivenAFilterValueThatIsNotInTheEnum_WhenUpgradesAreListed_ThenItAnswers400RatherThan500() throws Exception {
         mockMvc.perform(bearer(get(BASE).param("status", "NOPE"))).andExpect(status().isBadRequest());
     }
