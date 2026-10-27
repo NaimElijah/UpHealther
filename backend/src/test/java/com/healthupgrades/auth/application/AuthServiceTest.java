@@ -256,8 +256,9 @@ class AuthServiceTest {
 
     @Test
     void GivenADisabledAccount_WhenItsOwnerSignsIn_ThenTheRefusalIsAuditedWithNoSubject() {
-        // NFR-34: a disabled account is refused like a wrong password, and audited like one too. A FAILED
-        // entry would count a switched-off account as an outage, and naming it would confirm it exists.
+        // A disabled account is refused like a wrong password (NFR-34), and audited like one too (NFR-23,
+        // NFR-24). A FAILED entry would count a switched-off account as an outage, and naming it would
+        // confirm it exists.
         when(authenticationManager.authenticate(any())).thenThrow(new DisabledException("User is disabled"));
 
         assertThatThrownBy(() -> service.login(AUser.EMAIL, RAW_PASSWORD)).isInstanceOf(DisabledException.class);
