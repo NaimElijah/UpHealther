@@ -509,7 +509,9 @@ class AuthSessionServiceTest {
     }
 
     @Test
-    void GivenRevokedAndExpiredSessions_WhenTheCleanupRuns_ThenOnlyTheUsableOnesRemain() {
+    void GivenARevokedSession_WhenTheCleanupRuns_ThenOnlyTheUsableOnesRemain() {
+        // Which rows count as unusable is the query's to decide, and the fake only imitates it, so the
+        // expired cases are asserted against the database in AuthSessionPersistenceIT.
         SessionGrant live = service.open(USER_ID);
         SessionGrant signedOut = service.open(USER_ID);
         service.revoke(signedOut.refreshToken());
@@ -519,18 +521,55 @@ class AuthSessionServiceTest {
         assertThat(sessions.all()).extracting(AuthSession::getId).containsExactly(live.sessionId());
     }
 
+    // ---- NFR-39: a refresh and a sign-out decide on their session under its row lock ----
+
+    @Test
+    void GivenALiveSession_WhenItIsRefreshed_ThenTheSessionIsReadUnderTheRowLock() {
+        // AuthSessionRowLockIT shows the lock holds; this shows a refresh asks for it. Read plainly, two
+        // tabs refreshing together both rotate from one state, and the loser is signed out.
+        SessionGrant opened = service.open(USER_ID);
+
+        service.refresh(opened.refreshToken());
+
+        assertThat(sessions.reads())
+                .as("a refresh is read-decide-write on one row, so it must read through findForUpdate")
+                .containsExactly(Read.FOR_UPDATE);
+    }
+
+    @Test
+    void GivenALiveSession_WhenItIsSignedOutOf_ThenTheSessionIsReadUnderTheRowLock() {
+        // A sign-out decides too - whether the credential is the session's own - and a refresh rotating
+        // the row underneath it would leave that decision made on a state already gone.
+        SessionGrant opened = service.open(USER_ID);
+
+        service.revoke(opened.refreshToken());
+
+        assertThat(sessions.reads())
+                .as("a sign-out is read-decide-write on one row, so it must read through findForUpdate")
+                .containsExactly(Read.FOR_UPDATE);
+    }
+
     // ------------------------------------------------------------------ fakes
+
+    /** Which of the port's two lookups served a read. */
+    private enum Read {
+        PLAIN,
+        FOR_UPDATE
+    }
 
     /**
      * An in-memory stand-in for the repository port.
      *
      * <p>{@code findForUpdate} returns the same instance as {@code findById} and locks nothing: the lock
-     * is a database concern, and asserting it needs a database — {@code AuthSessionPersistenceIT} is
-     * where that happens.
+     * is a database concern, and asserting it needs two real transactions — {@code AuthSessionRowLockIT}
+     * is where that happens. What it does record, in order, is which of the two served each lookup the
+     * service made, so a test can show the service asked for the lock. The test's own {@code byId} and
+     * {@code all} are not recorded.
      */
     private static final class InMemorySessions implements AuthSessionRepositoryPort {
 
         private final Map<UUID, AuthSession> rows = new HashMap<>();
+        private final List<Read> reads = new ArrayList<>();
 
         @Override
         public AuthSession save(AuthSession session) {
@@ -540,12 +579,14 @@ class AuthSessionServiceTest {
 
         @Override
         public Optional<AuthSession> findById(UUID id) {
+            reads.add(Read.PLAIN);
             return Optional.ofNullable(rows.get(id));
         }
 
         @Override
         public Optional<AuthSession> findForUpdate(UUID id) {
-            return findById(id);
+            reads.add(Read.FOR_UPDATE);
+            return Optional.ofNullable(rows.get(id));
         }
 
         @Override
@@ -569,11 +610,15 @@ class AuthSessionServiceTest {
         }
 
         AuthSession byId(UUID id) {
-            return findById(id).orElseThrow(() -> new AssertionError("no session " + id));
+            return Optional.ofNullable(rows.get(id)).orElseThrow(() -> new AssertionError("no session " + id));
         }
 
         List<AuthSession> all() {
             return new ArrayList<>(rows.values());
+        }
+
+        List<Read> reads() {
+            return List.copyOf(reads);
         }
     }
 

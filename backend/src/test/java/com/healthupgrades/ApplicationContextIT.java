@@ -1,7 +1,5 @@
 package com.healthupgrades;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import com.healthupgrades.support.PostgresIT;
 import com.healthupgrades.tracking.domain.service.ProgressEvaluationService;
 import com.healthupgrades.tracking.domain.service.StreakCalculator;
@@ -44,10 +42,8 @@ class ApplicationContextIT extends PostgresIT {
 
     @Test
     void GivenTheRealSchemaAndTheHandWiredBeans_WhenTheApplicationStarts_ThenItComesUpWithBothIntact() {
-        // Reaching this point already proves the context started, which means Flyway migrated and
-        // Hibernate validated the resulting schema. The assertions pin the hand-wired beans specifically.
-        assertThat(upgradeSchedulingService).isNotNull();
-        assertThat(streakCalculator).isNotNull();
-        assertThat(progressEvaluationService).isNotNull();
+        // Reaching this point is the assertion. The context started, so Flyway migrated and Hibernate
+        // validated the resulting schema; and the hand-wired beans are the fields above, which Spring
+        // must inject before any test runs, so a missing @Bean fails the context rather than this body.
     }
 }
