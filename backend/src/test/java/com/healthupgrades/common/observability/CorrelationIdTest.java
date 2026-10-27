@@ -1,11 +1,8 @@
 package com.healthupgrades.common.observability;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import io.micrometer.tracing.Span;
-import io.micrometer.tracing.TraceContext;
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.test.simple.SimpleTraceContext;
 import io.micrometer.tracing.test.simple.SimpleTracer;
@@ -39,9 +36,9 @@ class CorrelationIdTest {
     @Test
     void GivenNoSpanIsInScope_WhenTheIdIsRead_ThenNothingIsReturned() {
         // A real tracer returns null rather than a blank span when nothing is being traced.
-        Tracer tracer = mock(Tracer.class);
-        when(tracer.currentSpan()).thenReturn(null);
+        SimpleTracer tracer = new SimpleTracer();
 
+        assertThat(tracer.currentSpan()).as("precondition: no span in scope").isNull();
         assertThat(CorrelationId.of(tracer)).isEmpty();
     }
 
@@ -52,13 +49,12 @@ class CorrelationIdTest {
 
     @Test
     void GivenAnInvalidTraceContext_WhenTheIdIsRead_ThenTheAllZeroIdIsRejected() {
-        Tracer tracer = mock(Tracer.class);
-        Span span = mock(Span.class);
-        TraceContext context = mock(TraceContext.class);
-        when(tracer.currentSpan()).thenReturn(span);
-        when(span.context()).thenReturn(context);
-        when(context.traceId()).thenReturn("0".repeat(32));
+        SimpleTracer tracer = new SimpleTracer();
+        Span span = tracer.nextSpan().start();
+        ((SimpleTraceContext) span.context()).setTraceId("0".repeat(32));
 
-        assertThat(CorrelationId.of(tracer)).isEmpty();
+        try (Tracer.SpanInScope ignored = tracer.withSpan(span)) {
+            assertThat(CorrelationId.of(tracer)).isEmpty();
+        }
     }
 }
