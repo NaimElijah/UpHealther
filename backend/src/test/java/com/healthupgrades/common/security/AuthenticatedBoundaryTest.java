@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.healthupgrades.support.WebSliceSupport;
 import com.healthupgrades.user.domain.model.Role;
+import jakarta.servlet.http.HttpSession;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -30,7 +31,8 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 
 /**
  * FR-5, as one rule over the whole API rather than a line repeated in nine controller tests: every
- * endpoint except registration, login and the health checks requires a valid token.
+ * endpoint except registration, sign-in, refresh, sign-out, the actuator and the WebSocket handshake
+ * requires a valid token.
  *
  * <p>This is the only test of that requirement, so the slice runs the real {@code SecurityConfig} and
  * the real {@code JwtAuthenticationFilter}; only the token check behind the filter is stubbed. Every service below is mocked, which is the point — a
@@ -42,7 +44,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
  * bare 403, because no {@code AuthenticationEntryPoint} was configured, which left clients unable to tell
  * "sign in again" from "this is not yours" (#58).
  *
- * <p>{@link #GivenTheApiSurface_WhenItIsEnumerated_ThenEveryProtectedRouteIsListedHere} is the guard
+ * <p>{@link #GivenTheApiSurface_WhenItIsEnumerated_ThenEveryProtectedMethodAndPathIsListedHere} is the guard
  * that keeps the table below honest: a new endpoint that nobody adds a row for fails this class rather
  * than quietly shipping unasserted.
  */
@@ -63,9 +65,15 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 })
 class AuthenticatedBoundaryTest {
 
-    /** The routes that must work without a token. Everything else must not. */
-    private static final Set<String> PUBLIC_ROUTES = Set.of(
-            "/api/auth/register", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/actuator/", "/ws/");
+    /**
+     * The handler routes that must work without a token, matched exactly: a prefix would also hide a
+     * new {@code /api/auth/logout-all} from the surface check below.
+     */
+    private static final Set<String> PUBLIC_ROUTES =
+            Set.of("/api/auth/register", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout");
+
+    /** The user a valid token stands for, where which user does not matter. */
+    private static final UUID SIGNED_IN_USER = UUID.fromString("3f2b8c1e-5a47-4d9b-8e21-6c0d4f7a9b13");
 
     /** The administration path used where one stands for the prefix. */
     private static final String ADMIN_PATH = "/api/admin/users";
@@ -218,6 +226,38 @@ class AuthenticatedBoundaryTest {
     }
 
     @Test
+    void GivenNoToken_WhenAProtectedEndpointIsRefused_ThenNoHttpSessionIsCreated() throws Exception {
+        // NFR-1. A session-backed chain saves the refused request in the session so it can replay it
+        // after a sign-in, which hands an anonymous caller a JSESSIONID and this instance some state.
+        HttpSession session = mockMvc.perform(json(request(HttpMethod.GET, "/api/notifications")))
+                .andExpect(status().isUnauthorized())
+                .andReturn()
+                .getRequest()
+                .getSession(false);
+
+        assertThat(session)
+                .as("the refusal must leave nothing behind on the server")
+                .isNull();
+    }
+
+    @Test
+    void GivenAValidToken_WhenAProtectedEndpointIsCalled_ThenNoHttpSessionIsCreated() throws Exception {
+        // The token is the whole credential, request by request; any instance can serve the next one.
+        WebSliceSupport.authenticateAs(authenticator, SIGNED_IN_USER);
+
+        HttpSession session = mockMvc.perform(
+                        WebSliceSupport.bearer(json(request(HttpMethod.GET, "/api/notifications"))))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getRequest()
+                .getSession(false);
+
+        assertThat(session)
+                .as("an authenticated request must not open a server-side session")
+                .isNull();
+    }
+
+    @Test
     void GivenNoToken_WhenTheErrorPathIsRequestedDirectly_ThenItIsRefusedAs401WithAChallenge() throws Exception {
         // SecurityConfig lets the container's ERROR dispatch through, so the error page keeps the status
         // the container chose (#105, ADR-024). That opens a dispatcher type, not a path: a client asking
@@ -239,7 +279,7 @@ class AuthenticatedBoundaryTest {
                         .flatMap(method ->
                                 info.getPatternValues().stream().map(pattern -> method.name() + " " + pattern)))
                 .filter(route -> !route.endsWith(" /error")) // Boot's error dispatch, not an API route
-                .filter(route -> PUBLIC_ROUTES.stream().noneMatch(route.split(" ")[1]::startsWith))
+                .filter(route -> !PUBLIC_ROUTES.contains(route.split(" ")[1]))
                 .collect(Collectors.toSet());
 
         Set<String> listed = Set.of(

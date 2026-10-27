@@ -1,14 +1,13 @@
 package com.healthupgrades.common.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 import com.healthupgrades.common.domain.exception.AuthenticationRequiredException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.access.AccessDeniedException;
@@ -26,7 +25,17 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
  */
 class ErrorBodySecurityHandlersTest {
 
-    private final HandlerExceptionResolver resolver = mock(HandlerExceptionResolver.class);
+    /** One call to the resolver, as the handlers made it. */
+    private record Resolution(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {}
+
+    private final List<Resolution> resolutions = new ArrayList<>();
+
+    /** Records what it is handed; resolving it into a body is {@code GlobalExceptionHandler}'s business. */
+    private final HandlerExceptionResolver resolver = (request, response, handler, ex) -> {
+        resolutions.add(new Resolution(request, response, handler, ex));
+        return null;
+    };
+
     private final ErrorBodySecurityHandlers handlers = new ErrorBodySecurityHandlers(resolver);
     private final MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -59,13 +68,16 @@ class ErrorBodySecurityHandlersTest {
 
         handlers.handle(request, response, denied);
 
-        verify(resolver).resolveException(eq(request), eq(response), isNull(), eq(denied));
+        assertThat(resolutions).singleElement().isEqualTo(new Resolution(request, response, null, denied));
     }
 
     private AuthenticationRequiredException resolvedFor(MockHttpServletRequest request) {
-        ArgumentCaptor<Exception> resolved = ArgumentCaptor.forClass(Exception.class);
-        verify(resolver).resolveException(eq(request), eq(response), isNull(), resolved.capture());
-        assertThat(resolved.getValue()).isInstanceOf(AuthenticationRequiredException.class);
-        return (AuthenticationRequiredException) resolved.getValue();
+        assertThat(resolutions).hasSize(1);
+        Resolution resolution = resolutions.get(0);
+        assertThat(resolution.request()).isSameAs(request);
+        assertThat(resolution.response()).isSameAs(response);
+        assertThat(resolution.handler()).isNull();
+        assertThat(resolution.ex()).isInstanceOf(AuthenticationRequiredException.class);
+        return (AuthenticationRequiredException) resolution.ex();
     }
 }

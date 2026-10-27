@@ -198,7 +198,8 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         if (origins.contains("*")) {
             // Browsers reject a wildcard origin combined with credentials, so use origin patterns
-            // and disable credentials in that case (this API authenticates via a bearer token, not cookies).
+            // and disable credentials. They must stay off: the refresh token is a cookie, so with
+            // credentials any origin could read a rotated token (WildcardCorsPolicyTest pins it).
             config.setAllowedOriginPatterns(List.of("*"));
             config.setAllowCredentials(false);
         } else {

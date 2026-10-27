@@ -25,9 +25,10 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * Shared wiring for the {@code @WebMvcTest} slices.
  *
  * <p>A slice test here runs the <em>real</em> {@code SecurityConfig} and {@code JwtAuthenticationFilter}
- * rather than a disabled chain. That matters: FR-5 — every endpoint but registration, login and the
- * health checks requires a valid token — has no other test, and a slice with security switched off
- * would assert the opposite of the requirement while looking green.
+ * rather than a disabled chain. That matters: FR-5 — every endpoint except registration, sign-in,
+ * refresh, sign-out, the actuator and the WebSocket handshake requires a valid token — has no other
+ * test, and a slice with security switched off would assert the opposite of the requirement while
+ * looking green.
  *
  * <p>Authenticating therefore means presenting a token, exactly as a caller does. {@link #authenticateAs}
  * stubs the collaborator the filter consults so a chosen bearer token resolves to a chosen
@@ -52,6 +53,12 @@ public class WebSliceSupport {
      * eventually go negative. Fixed here, a test can assert the number.
      */
     public static final Instant COOKIE_NOW = Instant.parse("2026-09-16T10:15:00Z");
+
+    /**
+     * The instant the rate limiter believes it is, for every request a slice sends. Fixed, so a slice's
+     * attempts all land in one window and a refusal's wait is always the whole window.
+     */
+    public static final Instant LIMITER_NOW = Instant.parse("2026-09-16T10:15:00Z");
 
     /**
      * A tracer that mints nothing. The error body's {@code traceId} is then absent rather than random,
@@ -80,10 +87,14 @@ public class WebSliceSupport {
      * <p>Deliberately fed from the bound properties rather than hard-wired permissive: a slice that
      * wants to <em>meet</em> the limit sets {@code app.rate-limit.limit} and gets a real limiter,
      * and one that does not care raises it and never notices.
+     *
+     * <p>Its clock stands still at {@link #LIMITER_NOW} (NFR-15). On the wall clock a slice that crossed
+     * a minute boundary would get a fresh allowance partway through, and a {@code Retry-After} would
+     * depend on when the test ran.
      */
     @Bean
     FixedWindowRateLimiter rateLimiter(RateLimitProperties properties) {
-        return new FixedWindowRateLimiter(properties, Clock.systemUTC());
+        return new FixedWindowRateLimiter(properties, Clock.fixed(LIMITER_NOW, ZoneOffset.UTC));
     }
 
     /**
