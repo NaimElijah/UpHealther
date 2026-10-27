@@ -55,11 +55,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
  * upgrade per date), BR-7 (the server decides whether an entry counts) and BR-10 (a milestone every
  * seventh day).
  *
- * <p>{@link StreakCalculator} and {@link ProgressEvaluationService} are mocked here even though they are
- * pure domain services with real tests of their own. That is deliberate: this class is about what the
- * service does <em>with</em> their verdicts, and stubbing the verdict is what lets BR-10's announcement
- * be exercised without constructing seven days of history that would then be testing
- * {@code StreakCalculator} a second time.
+ * <p>{@link StreakCalculator} is mocked here even though it is a pure domain service with real tests of
+ * its own. That is deliberate: this class is about what the service does <em>with</em> its verdict, and
+ * stubbing the verdict is what lets BR-10's announcement be exercised without constructing seven days of
+ * history that would then be testing {@code StreakCalculator} a second time.
+ *
+ * <p>{@link ProgressEvaluationService} is real. Its verdict is cheap to arrange from a config and an
+ * entry, and a stubbed one cannot tell whether the entry it judged carried the values the caller sent:
+ * an entry built without its numeric value was scored "met" by the stub and "not met" by the real rule.
  */
 @ExtendWith(MockitoExtension.class)
 class TrackingServiceTest {
@@ -77,15 +80,14 @@ class TrackingServiceTest {
     StreakCalculator streakCalculator;
 
     @Mock
-    ProgressEvaluationService evaluationService;
-
-    @Mock
     DomainEventPublisher eventPublisher;
 
     /** Fixed so "today" is decided here rather than by whenever the suite happens to run. */
     private final Clock fixedClock = Clock.fixed(Instant.parse("2026-03-15T09:00:00Z"), ZoneOffset.UTC);
 
     private final LocalDate today = LocalDate.of(2026, 3, 15);
+
+    private final ProgressEvaluationService evaluationService = new ProgressEvaluationService();
 
     private TrackingService service;
     /** A real implementation, not a mock: AuditTrail.recording is a default method. */
@@ -111,7 +113,7 @@ class TrackingServiceTest {
 
     @Test
     void GivenATrackingConfig_WhenProgressIsRecorded_ThenCompletionIsDecidedByTheEvaluation() {
-        // The client did not supply `completed`; a NUMERIC config exists and the evaluator says "met".
+        // The client did not supply `completed`; a NUMERIC config exists and the value clears its target.
         ProgressEntryDetails req = new ProgressEntryDetails(today, null, 2.5, "liters", null, null);
         TrackingConfig config = TrackingConfig.builder()
                 .upgradeId(upgradeId)
@@ -121,14 +123,41 @@ class TrackingServiceTest {
 
         when(progressRepository.existsByUpgradeIdAndDate(any(), any())).thenReturn(false);
         when(configRepository.findByUpgradeId(upgradeId)).thenReturn(Optional.of(config));
-        when(evaluationService.isSuccessful(any(), any())).thenReturn(true);
         when(progressRepository.save(any(ProgressEntry.class))).thenAnswer(inv -> inv.getArgument(0));
         when(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenReturn(List.of());
 
         ProgressEntry saved = service.recordProgress(userId, upgradeId, req);
 
         assertThat(saved.getCompleted()).isTrue();
-        verify(evaluationService).isSuccessful(any(), any());
+    }
+
+    @Test
+    void GivenEveryValueField_WhenProgressIsRecorded_ThenTheStoredEntryCarriesEachOneAndIsScoredOnThem() {
+        // FR-18 and BR-7 together: what is stored is what was sent, and the verdict is reached from it.
+        // The client's own `completed` says the opposite of the target, so a stored `true` can only
+        // have come from the numeric value reaching the rule.
+        ProgressEntryDetails req = new ProgressEntryDetails(today, false, 2.5, "liters", 4, "Before lunch");
+        when(progressRepository.existsByUpgradeIdAndDate(upgradeId, today)).thenReturn(false);
+        when(configRepository.findByUpgradeId(upgradeId))
+                .thenReturn(Optional.of(ATrackingConfig.numeric(upgradeId, 2.0, "liters")));
+        when(progressRepository.save(any(ProgressEntry.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenReturn(List.of());
+
+        service.recordProgress(userId, upgradeId, req);
+
+        ArgumentCaptor<ProgressEntry> saved = ArgumentCaptor.forClass(ProgressEntry.class);
+        verify(progressRepository).save(saved.capture());
+        ProgressEntry entry = saved.getValue();
+        assertThat(entry.getUpgradeId()).isEqualTo(upgradeId);
+        assertThat(entry.getUserId()).isEqualTo(userId);
+        assertThat(entry.getDate()).isEqualTo(today);
+        assertThat(entry.getNumericValue()).isEqualTo(2.5);
+        assertThat(entry.getUnit()).isEqualTo("liters");
+        assertThat(entry.getRating()).isEqualTo(4);
+        assertThat(entry.getNote()).isEqualTo("Before lunch");
+        assertThat(entry.getCompleted())
+                .as("2.5 liters clears a 2.0 liter target")
+                .isTrue();
     }
 
     @Test
@@ -151,7 +180,6 @@ class TrackingServiceTest {
         when(progressRepository.existsByUpgradeIdAndDate(any(), any())).thenReturn(false);
         when(configRepository.findByUpgradeId(upgradeId))
                 .thenReturn(Optional.of(ATrackingConfig.numeric(upgradeId, 2.0, "liters")));
-        when(evaluationService.isSuccessful(any(), any())).thenReturn(false);
         when(progressRepository.save(any(ProgressEntry.class))).thenAnswer(inv -> inv.getArgument(0));
         when(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenReturn(List.of());
 
@@ -172,7 +200,6 @@ class TrackingServiceTest {
 
         assertThat(service.recordProgress(userId, upgradeId, req).getCompleted())
                 .isTrue();
-        verify(evaluationService, never()).isSuccessful(any(), any());
     }
 
     @Test
@@ -425,7 +452,6 @@ class TrackingServiceTest {
                 userId, upgradeId, new TrackingConfigDetails(TrackingType.NUMERIC, Frequency.DAILY, 5.0, "km", false));
 
         verify(progressRepository, never()).save(any());
-        verify(evaluationService, never()).isSuccessful(any(), any());
     }
 
     @Test
