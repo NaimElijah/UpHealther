@@ -49,6 +49,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AccountStatusException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -452,6 +453,18 @@ class GlobalExceptionHandlerTest {
                     .andExpect(status().is(expected.value()))
                     .andExpect(jsonPath("$.status").value(expected.value()))
                     .andExpect(jsonPath("$.path").value(FailingController.PATH));
+        }
+
+        @Test
+        void GivenAVersionClashFoundAtCommit_WhenTheDispatcherResolvesIt_ThenTheAnswerIs409AskingForARetry()
+                throws Exception {
+            // BR-14 as it really arrives: Hibernate's clash surfaces at commit, translated by Spring into
+            // ObjectOptimisticLockingFailureException (UpgradePersistenceIT), not the domain exception.
+            controller.failure = new ObjectOptimisticLockingFailureException("HealthUpgrade", UUID.randomUUID());
+
+            mockMvc.perform(get(FailingController.PATH))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.message").value("Resource was modified concurrently. Please retry."));
         }
 
         @Test
