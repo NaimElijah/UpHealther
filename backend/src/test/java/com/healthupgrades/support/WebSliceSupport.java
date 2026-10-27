@@ -54,6 +54,12 @@ public class WebSliceSupport {
     public static final Instant COOKIE_NOW = Instant.parse("2026-09-16T10:15:00Z");
 
     /**
+     * The instant the rate limiter believes it is, for every request a slice sends. Fixed, so a slice's
+     * attempts all land in one window and a refusal's wait is always the whole window.
+     */
+    public static final Instant LIMITER_NOW = Instant.parse("2026-09-16T10:15:00Z");
+
+    /**
      * A tracer that mints nothing. The error body's {@code traceId} is then absent rather than random,
      * which keeps a JSON assertion stable.
      */
@@ -80,10 +86,14 @@ public class WebSliceSupport {
      * <p>Deliberately fed from the bound properties rather than hard-wired permissive: a slice that
      * wants to <em>meet</em> the limit sets {@code app.rate-limit.limit} and gets a real limiter,
      * and one that does not care raises it and never notices.
+     *
+     * <p>Its clock stands still at {@link #LIMITER_NOW} (NFR-15). On the wall clock a slice that crossed
+     * a minute boundary would get a fresh allowance partway through, and a {@code Retry-After} would
+     * depend on when the test ran.
      */
     @Bean
     FixedWindowRateLimiter rateLimiter(RateLimitProperties properties) {
-        return new FixedWindowRateLimiter(properties, Clock.systemUTC());
+        return new FixedWindowRateLimiter(properties, Clock.fixed(LIMITER_NOW, ZoneOffset.UTC));
     }
 
     /**
