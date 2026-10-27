@@ -64,9 +64,15 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 })
 class AuthenticatedBoundaryTest {
 
-    /** The routes that must work without a token. Everything else must not. */
-    private static final Set<String> PUBLIC_ROUTES = Set.of(
-            "/api/auth/register", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/actuator/", "/ws/");
+    /**
+     * The handler routes that must work without a token, matched exactly: a prefix would also hide a
+     * new {@code /api/auth/logout-all} from the surface check below.
+     */
+    private static final Set<String> PUBLIC_ROUTES =
+            Set.of("/api/auth/register", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout");
+
+    /** The public trees no controller of ours serves, matched by prefix. Everything else needs a token. */
+    private static final Set<String> PUBLIC_PREFIXES = Set.of("/actuator/", "/ws/");
 
     /** The administration path used where one stands for the prefix. */
     private static final String ADMIN_PATH = "/api/admin/users";
@@ -272,7 +278,8 @@ class AuthenticatedBoundaryTest {
                         .flatMap(method ->
                                 info.getPatternValues().stream().map(pattern -> method.name() + " " + pattern)))
                 .filter(route -> !route.endsWith(" /error")) // Boot's error dispatch, not an API route
-                .filter(route -> PUBLIC_ROUTES.stream().noneMatch(route.split(" ")[1]::startsWith))
+                .filter(route -> !PUBLIC_ROUTES.contains(route.split(" ")[1]))
+                .filter(route -> PUBLIC_PREFIXES.stream().noneMatch(route.split(" ")[1]::startsWith))
                 .collect(Collectors.toSet());
 
         Set<String> listed = Set.of(
