@@ -410,6 +410,46 @@ class HealthUpgradeTest {
     }
 
     @Test
+    void GivenAnActiveUpgradeThatStartsAfterTheDate_WhenActivityOnThatDateIsChecked_ThenItIsNotActive() {
+        HealthUpgrade upgrade = activeBetween(REFERENCE_DAY.plusDays(1), REFERENCE_DAY.plusDays(30));
+        assertThat(upgrade.isActiveOn(REFERENCE_DAY)).isFalse();
+    }
+
+    @Test
+    void GivenAnActiveUpgradeThatEndedBeforeTheDate_WhenActivityOnThatDateIsChecked_ThenItIsNotActive() {
+        HealthUpgrade upgrade = activeBetween(REFERENCE_DAY.minusDays(30), REFERENCE_DAY.minusDays(1));
+        assertThat(upgrade.isActiveOn(REFERENCE_DAY)).isFalse();
+    }
+
+    @Test
+    void GivenAnActiveUpgradeStartingAndEndingOnTheDate_WhenActivityOnThatDateIsChecked_ThenBothEndsAreInclusive() {
+        HealthUpgrade upgrade = activeBetween(REFERENCE_DAY, REFERENCE_DAY);
+        assertThat(upgrade.isActiveOn(REFERENCE_DAY)).isTrue();
+    }
+
+    @Test
+    void GivenAnActiveUpgradeWithNoStartDate_WhenActivityOnADateIsChecked_ThenTheStartIsOpenEnded() {
+        HealthUpgrade upgrade = activeBetween(null, REFERENCE_DAY.plusDays(3));
+        assertThat(upgrade.isActiveOn(REFERENCE_DAY)).isTrue();
+    }
+
+    @Test
+    void GivenAnActiveUpgradeWithNoTargetDate_WhenActivityOnADateIsChecked_ThenTheEndIsOpenEnded() {
+        HealthUpgrade upgrade = activeBetween(REFERENCE_DAY.minusDays(3), null);
+        assertThat(upgrade.isActiveOn(REFERENCE_DAY)).isTrue();
+    }
+
+    private HealthUpgrade activeBetween(LocalDate actualStart, LocalDate targetEnd) {
+        return HealthUpgrade.builder()
+                .title("Test Upgrade")
+                .type(UpgradeType.HABIT)
+                .status(UpgradeStatus.ACTIVE)
+                .actualStartDate(actualStart)
+                .targetEndDate(targetEnd)
+                .build();
+    }
+
+    @Test
     void GivenAnUpgradeThatIsNotActive_WhenActivityOnADateIsChecked_ThenItIsNotActive() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.PAUSED);
         assertThat(upgrade.isActiveOn(REFERENCE_DAY)).isFalse();
