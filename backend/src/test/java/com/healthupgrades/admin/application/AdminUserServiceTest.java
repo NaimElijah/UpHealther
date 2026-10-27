@@ -137,6 +137,8 @@ class AdminUserServiceTest {
                 .isInstanceOf(BusinessRuleException.class);
 
         verify(userCommand, never()).save(any());
+        assertThat(auditTrail.only(AuditAction.ADMIN_ROLE))
+                .hasValue(new AuditEvent(AuditAction.ADMIN_ROLE, ADMIN_ID, ADMIN_ID, AuditOutcome.REFUSED));
     }
 
     @Test
@@ -144,6 +146,9 @@ class AdminUserServiceTest {
         // Harmless in itself, and refused anyway: the rule is "not your own account", not "not the
         // dangerous half of your own account". A rule with an exception is a rule nobody can state.
         assertThatThrownBy(() -> service.enable(ADMIN_ID, ADMIN_ID)).isInstanceOf(BusinessRuleException.class);
+
+        assertThat(auditTrail.only(AuditAction.ADMIN_ENABLE))
+                .hasValue(new AuditEvent(AuditAction.ADMIN_ENABLE, ADMIN_ID, ADMIN_ID, AuditOutcome.REFUSED));
     }
 
     @Test
@@ -153,6 +158,10 @@ class AdminUserServiceTest {
         assertThatThrownBy(() -> service.disable(ADMIN_ID, TARGET_ID)).isInstanceOf(ResourceNotFoundException.class);
 
         verify(sessions, never()).revokeAllForUser(any());
+        // The one refusal whose actor and target differ, so the only one that shows a refusal names each
+        // in its own place.
+        assertThat(auditTrail.only(AuditAction.ADMIN_DISABLE))
+                .hasValue(new AuditEvent(AuditAction.ADMIN_DISABLE, ADMIN_ID, TARGET_ID, AuditOutcome.REFUSED));
     }
 
     @Test
