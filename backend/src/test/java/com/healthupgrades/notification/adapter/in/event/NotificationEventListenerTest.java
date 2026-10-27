@@ -63,6 +63,9 @@ class NotificationEventListenerTest {
     @InjectMocks
     NotificationEventListener listener;
 
+    /** When each event happened; the listener never reads it, so any fixed instant will do. */
+    private static final LocalDateTime OCCURRED_AT = LocalDateTime.of(2026, 10, 5, 8, 0);
+
     private final UUID userId = UUID.randomUUID();
     private final UUID upgradeId = UUID.randomUUID();
 
@@ -75,7 +78,7 @@ class NotificationEventListenerTest {
                         .title("Drink water")
                         .build()));
 
-        listener.onCompleted(new HealthUpgradeCompleted(upgradeId, userId, LocalDateTime.now()));
+        listener.onCompleted(new HealthUpgradeCompleted(upgradeId, userId, OCCURRED_AT));
 
         verify(notificationService)
                 .create(
@@ -89,7 +92,7 @@ class NotificationEventListenerTest {
 
     @Test
     void GivenACreatedUpgrade_WhenTheEventIsHandled_ThenTheEventTitleIsUsedWithoutALookup() {
-        listener.onCreated(new HealthUpgradeCreated(upgradeId, userId, "Walk daily", LocalDateTime.now()));
+        listener.onCreated(new HealthUpgradeCreated(upgradeId, userId, "Walk daily", OCCURRED_AT));
 
         verify(notificationService)
                 .create(
@@ -105,7 +108,7 @@ class NotificationEventListenerTest {
     void GivenAPlannedUpgrade_WhenTheEventIsHandled_ThenAnInfoNotificationCarriesTheTitleAndTheStartDate() {
         givenTheUpgradeIsTitled("Stretch");
 
-        listener.onPlanned(new HealthUpgradePlanned(upgradeId, userId, LocalDate.of(2026, 10, 1), LocalDateTime.now()));
+        listener.onPlanned(new HealthUpgradePlanned(upgradeId, userId, LocalDate.of(2026, 10, 1), OCCURRED_AT));
 
         verify(notificationService)
                 .create(
@@ -121,8 +124,7 @@ class NotificationEventListenerTest {
     void GivenAnActivatedUpgrade_WhenTheEventIsHandled_ThenASuccessNotificationCarriesTheLookedUpTitle() {
         givenTheUpgradeIsTitled("Stretch");
 
-        listener.onActivated(
-                new HealthUpgradeActivated(upgradeId, userId, LocalDate.of(2026, 10, 1), LocalDateTime.now()));
+        listener.onActivated(new HealthUpgradeActivated(upgradeId, userId, LocalDate.of(2026, 10, 1), OCCURRED_AT));
 
         verify(notificationService)
                 .create(
@@ -138,7 +140,7 @@ class NotificationEventListenerTest {
     void GivenAPausedUpgrade_WhenTheEventIsHandled_ThenAnInfoNotificationCarriesTheLookedUpTitle() {
         givenTheUpgradeIsTitled("Stretch");
 
-        listener.onPaused(new HealthUpgradePaused(upgradeId, userId, LocalDateTime.now()));
+        listener.onPaused(new HealthUpgradePaused(upgradeId, userId, OCCURRED_AT));
 
         verify(notificationService)
                 .create(
@@ -154,7 +156,7 @@ class NotificationEventListenerTest {
     void GivenAnAbandonedUpgrade_WhenTheEventIsHandled_ThenAnInfoNotificationCarriesTheLookedUpTitle() {
         givenTheUpgradeIsTitled("Stretch");
 
-        listener.onAbandoned(new HealthUpgradeAbandoned(upgradeId, userId, LocalDateTime.now()));
+        listener.onAbandoned(new HealthUpgradeAbandoned(upgradeId, userId, OCCURRED_AT));
 
         verify(notificationService)
                 .create(
@@ -170,7 +172,7 @@ class NotificationEventListenerTest {
     void GivenAStreakMilestone_WhenTheEventIsHandled_ThenASuccessNotificationNamesTheLengthAndTheUpgrade() {
         givenTheUpgradeIsTitled("Stretch");
 
-        listener.onStreak(new StreakAchieved(upgradeId, userId, 14, LocalDateTime.now()));
+        listener.onStreak(new StreakAchieved(upgradeId, userId, 14, OCCURRED_AT));
 
         verify(notificationService)
                 .create(
@@ -186,7 +188,7 @@ class NotificationEventListenerTest {
     void GivenAReflection_WhenTheEventIsHandled_ThenAnInfoNotificationCarriesTheLookedUpTitle() {
         givenTheUpgradeIsTitled("Stretch");
 
-        listener.onReflection(new ReflectionAdded(UUID.randomUUID(), upgradeId, userId, LocalDateTime.now()));
+        listener.onReflection(new ReflectionAdded(UUID.randomUUID(), upgradeId, userId, OCCURRED_AT));
 
         verify(notificationService)
                 .create(
@@ -204,7 +206,7 @@ class NotificationEventListenerTest {
         // owed the notification; failing to create it would lose it outright.
         when(upgradeQuery.findOwned(userId, upgradeId)).thenReturn(Optional.empty());
 
-        listener.onPaused(new HealthUpgradePaused(upgradeId, userId, LocalDateTime.now()));
+        listener.onPaused(new HealthUpgradePaused(upgradeId, userId, OCCURRED_AT));
 
         verify(notificationService)
                 .create(

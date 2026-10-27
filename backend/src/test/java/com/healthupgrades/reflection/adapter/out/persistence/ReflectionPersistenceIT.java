@@ -56,8 +56,8 @@ class ReflectionPersistenceIT extends PostgresIT {
                 .persistAndFlush(AnUpgrade.ownedBy(userId)
                         .id(null)
                         .status(UpgradeStatus.ACTIVE)
-                        .createdAt(LocalDateTime.now())
-                        .updatedAt(LocalDateTime.now())
+                        .createdAt(DAY.atStartOfDay())
+                        .updatedAt(DAY.atStartOfDay())
                         .build())
                 .getId();
     }
