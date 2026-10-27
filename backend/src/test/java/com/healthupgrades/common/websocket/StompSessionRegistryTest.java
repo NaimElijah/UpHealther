@@ -154,6 +154,26 @@ class StompSessionRegistryTest {
     }
 
     @Test
+    void GivenTheChannelDeclinedASocketsClose_WhenItsAccountsSessionsNextEnd_ThenTheCloseIsTriedAgain() {
+        // A channel may answer false rather than throw. That is a refusal too, and the socket must stay
+        // recorded for the same reason as above.
+        List<String> attempted = new ArrayList<>();
+        MessageChannel decliningTheFirst = (message, timeout) -> {
+            attempted.add(StompHeaderAccessor.wrap(message).getSessionId());
+            return attempted.size() > 1 && sent.add(message);
+        };
+        StompSessionRegistry flaky = new StompSessionRegistry(decliningTheFirst, sessionStatus);
+        UUID session = UUID.randomUUID();
+        connect(flaky, "tab", ALICE, session);
+        flaky.closeForSession(session);
+
+        flaky.closeForUser(ALICE);
+
+        assertThat(attempted).containsExactly("tab", "tab");
+        assertThat(closedSockets()).containsExactly("tab");
+    }
+
+    @Test
     void GivenASessionThatEndedWhileItsSocketWasConnecting_WhenTheSocketConnects_ThenItIsClosedAtOnce() {
         // The CONNECT passed its session check, then the session ended and the sweep ran before this
         // socket was recorded, so the sweep could not see it. Asking again once it is recorded closes it.
