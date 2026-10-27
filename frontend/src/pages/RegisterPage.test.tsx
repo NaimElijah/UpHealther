@@ -87,10 +87,15 @@ describe('RegisterPage', () => {
     expect(register).toHaveBeenCalledWith('Dana Walker', 'dana@example.com', 'eight-ch');
   });
 
-  it('GivenAnEmptyName_WhenTheFormIsSubmitted_ThenItIsRefusedWithoutCallingTheApi', async () => {
+  // An empty password is left out: it is also shorter than the minimum, so the length check would refuse
+  // it even without this one.
+  it.each([
+    ['Name', { name: '' }],
+    ['Email', { email: '' }],
+  ])('GivenAnEmpty%s_WhenTheFormIsSubmitted_ThenItIsRefusedWithoutCallingTheApi', async (_field, blank) => {
     renderRegister();
 
-    fillAndSubmit({ name: '' });
+    fillAndSubmit(blank);
 
     await waitFor(() => expect(screen.getByText('Please fill in all fields.')).toBeDefined());
     expect(register).not.toHaveBeenCalled();
