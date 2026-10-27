@@ -36,15 +36,18 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * ADR-015's row lock, which only two real transactions can observe: while one refresh holds a session
- * through {@code findForUpdate}, nobody else may lock that row.
+ * through {@code findForUpdate}, no other transaction can take that row for update.
  *
  * <p>Without the lock, two tabs refreshing at once both read the same state, both rotate from it, and
  * the second write signs the loser out (NFR-39). The in-memory fake in {@code AuthSessionServiceTest}
  * locks nothing, so this is the only place the lock is asserted.
  *
  * <p>The test does not race two refreshes and hope they collide. The holder takes the lock on its own
- * thread and waits on a latch; the prober asks for the same row with {@code NOWAIT}, which PostgreSQL
- * refuses at once rather than blocking, so the outcome is decided by the lock alone and never by timing.
+ * thread and waits on a latch; the prober asks for a share lock on the same row with {@code NOWAIT},
+ * which PostgreSQL refuses at once rather than blocking, so the outcome is decided by the lock alone and
+ * never by timing. The probe is a share lock because only a lock taken for update refuses one: were
+ * {@code findForUpdate} to take a share lock, two refreshes would both read the pre-rotation state and
+ * deadlock on their writes, and a {@code FOR UPDATE} probe, which a share lock refuses too, would pass.
  *
  * <p>Both transactions are real and commit, so the class opts out of {@code @DataJpaTest}'s rolled-back
  * transaction. It creates its own account and deletes it afterwards, which takes the session with it.
@@ -121,10 +124,10 @@ class AuthSessionRowLockIT extends PostgresIT {
 
             Throwable probe =
                     catchThrowable(() -> transaction.executeWithoutResult(status -> new JdbcTemplate(dataSource)
-                            .queryForList("SELECT id FROM auth_sessions WHERE id = ? FOR UPDATE NOWAIT", sessionId)));
+                            .queryForList("SELECT id FROM auth_sessions WHERE id = ? FOR SHARE NOWAIT", sessionId)));
 
             assertThat(probe)
-                    .as("a second lock on a session findForUpdate holds, which must be refused")
+                    .as("a share lock on a session findForUpdate holds, which only a lock taken for update refuses")
                     .isInstanceOfSatisfying(
                             DataAccessException.class,
                             refusal -> assertThat(((SQLException) refusal.getMostSpecificCause()).getSQLState())
