@@ -1,6 +1,7 @@
 package com.healthupgrades.tracking.adapter.in.web;
 
 import static com.healthupgrades.support.WebSliceSupport.bearer;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -20,12 +21,16 @@ import com.healthupgrades.common.security.UserDetailsServiceImpl;
 import com.healthupgrades.support.AProgressEntry;
 import com.healthupgrades.support.WebSliceSupport;
 import com.healthupgrades.tracking.application.TrackingService;
+import com.healthupgrades.tracking.application.port.in.ProgressEntryDetails;
 import com.healthupgrades.tracking.application.port.in.StreakSummary;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -83,6 +88,23 @@ class ProgressControllerTest {
     }
 
     @Test
+    void GivenEveryField_WhenProgressIsLogged_ThenEachReachesTheUseCaseUnderItsOwnName() throws Exception {
+        when(trackingService.recordProgress(eq(userId), eq(upgradeId), any()))
+                .thenReturn(AProgressEntry.completedOn(upgradeId, userId, DAY, true));
+
+        mockMvc.perform(bearer(post(progressPath))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\":\"2026-03-15\",\"completed\":false,\"numericValue\":2.5,"
+                                + "\"unit\":\"liters\",\"rating\":4,\"note\":\"Before lunch\"}"))
+                .andExpect(status().isCreated());
+
+        ArgumentCaptor<ProgressEntryDetails> details = ArgumentCaptor.forClass(ProgressEntryDetails.class);
+        verify(trackingService).recordProgress(eq(userId), eq(upgradeId), details.capture());
+        assertThat(details.getValue())
+                .isEqualTo(new ProgressEntryDetails(DAY, false, 2.5, "liters", 4, "Before lunch"));
+    }
+
+    @Test
     void GivenTheDayIsAlreadyLogged_WhenProgressIsLoggedAgain_ThenItAnswers409AndNot400() throws Exception {
         // BR-6. A conflict is a state the client can act on; a 400 would say the request was wrong.
         when(trackingService.recordProgress(eq(userId), eq(upgradeId), any()))
@@ -103,6 +125,44 @@ class ProgressControllerTest {
                 .andExpect(jsonPath("$.fieldErrors.rating").exists());
 
         verify(trackingService, never()).recordProgress(any(), any(), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 6})
+    void GivenARatingJustOutsideOneToFive_WhenProgressIsLogged_ThenItAnswers400AndNothingIsRecorded(int rating)
+            throws Exception {
+        // BR-19's bounds, one step past each end.
+        mockMvc.perform(bearer(post(progressPath))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"rating\":" + rating + "}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.rating").exists());
+
+        verify(trackingService, never()).recordProgress(any(), any(), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 5})
+    void GivenARatingAtEitherEndOfOneToFive_WhenProgressIsLogged_ThenItIsAccepted(int rating) throws Exception {
+        when(trackingService.recordProgress(eq(userId), eq(upgradeId), any()))
+                .thenReturn(AProgressEntry.completedOn(upgradeId, userId, DAY, true));
+
+        mockMvc.perform(bearer(post(progressPath))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"rating\":" + rating + "}"))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void GivenANumericValueOfZero_WhenProgressIsLogged_ThenItIsAccepted() throws Exception {
+        // BR-20 refuses a negative value, not an empty day: zero is a value somebody can honestly log.
+        when(trackingService.recordProgress(eq(userId), eq(upgradeId), any()))
+                .thenReturn(AProgressEntry.completedOn(upgradeId, userId, DAY, false));
+
+        mockMvc.perform(bearer(post(progressPath))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"numericValue\":0}"))
+                .andExpect(status().isCreated());
     }
 
     @Test

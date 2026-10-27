@@ -202,6 +202,28 @@ class DashboardAggregationServiceTest {
     }
 
     @Test
+    void GivenActiveUpgradesInsideAndOutsideTheirWindows_WhenTheDashboardIsBuilt_ThenOnlyTheOneInsideIsDueToday() {
+        // Every one of these is ACTIVE, so a bucket that checked only the status would list all three,
+        // including one that does not start until next week.
+        HealthUpgrade running = activeBetween(today.minusDays(3), today.plusDays(3));
+        HealthUpgrade startingNextWeek = activeBetween(today.plusDays(7), today.plusDays(30));
+        HealthUpgrade endedYesterday = activeBetween(today.minusDays(30), today.minusDays(1));
+        stubEmptyExceptUpgrades(List.of(startingNextWeek, running, endedYesterday));
+
+        assertThat(service.getDashboard(userId).today()).containsExactly(running);
+    }
+
+    @Test
+    void GivenActiveUpgradesOnEitherSideOfTheirTargetDates_WhenTheDashboardIsBuilt_ThenOnlyTheOnePastItIsOverdue() {
+        HealthUpgrade pastTarget = activeBetween(today.minusDays(30), today.minusDays(1));
+        HealthUpgrade dueToday = activeBetween(today.minusDays(30), today);
+        HealthUpgrade aheadOfTarget = activeBetween(today.minusDays(30), today.plusDays(1));
+        stubEmptyExceptUpgrades(List.of(dueToday, pastTarget, aheadOfTarget));
+
+        assertThat(service.getDashboard(userId).overdue()).containsExactly(pastTarget);
+    }
+
+    @Test
     void GivenMoreThanFiveCompletedUpgrades_WhenTheDashboardIsBuilt_ThenTheFiveMostRecentAreShownNewestFirst() {
         // Deliberately fed oldest-first. With a newest-first fixture the assertion cannot tell "sorted
         // then limited" from "just limited", so deleting the sort would leave this green while the
@@ -342,6 +364,17 @@ class DashboardAggregationServiceTest {
                 .userId(userId)
                 .status(UpgradeStatus.COMPLETED)
                 .updatedAt(updatedAt.atStartOfDay())
+                .build();
+    }
+
+    private HealthUpgrade activeBetween(LocalDate start, LocalDate targetEnd) {
+        return HealthUpgrade.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .status(UpgradeStatus.ACTIVE)
+                .actualStartDate(start)
+                .targetEndDate(targetEnd)
+                .updatedAt(today.atStartOfDay())
                 .build();
     }
 

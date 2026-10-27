@@ -1,6 +1,7 @@
 package com.healthupgrades.dashboard.adapter.in.web;
 
 import static com.healthupgrades.support.WebSliceSupport.bearer;
+import static org.hamcrest.Matchers.contains;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -18,6 +19,7 @@ import com.healthupgrades.support.AnUpgrade;
 import com.healthupgrades.support.WebSliceSupport;
 import com.healthupgrades.upgrade.adapter.in.web.UpgradeWebMapper;
 import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort;
+import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -96,6 +98,46 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.areaSummary[0].totalUpgrades").value(3));
 
         verify(dashboardQuery).getDashboard(userId);
+    }
+
+    @Test
+    void GivenEveryBucketHoldsADifferentUpgrade_WhenTheDashboardIsRead_ThenEachLandsInItsOwnSection() throws Exception {
+        // One distinct upgrade per bucket, a streak, and three different counts, so a section filled from
+        // the wrong bucket or a count put into the wrong field changes what the response says.
+        HealthUpgrade active = AnUpgrade.active(userId);
+        HealthUpgrade planned = AnUpgrade.planned(userId);
+        HealthUpgrade today = AnUpgrade.active(userId);
+        HealthUpgrade overdue = AnUpgrade.active(userId);
+        HealthUpgrade completed = AnUpgrade.completed(userId);
+        UUID areaId = UUID.randomUUID();
+        when(dashboardQuery.getDashboard(userId))
+                .thenReturn(new DashboardView(
+                        List.of(active),
+                        List.of(planned),
+                        List.of(today),
+                        List.of(overdue),
+                        List.of(completed),
+                        50.0,
+                        Map.of(active.getId(), 9),
+                        List.of(new DashboardView.AreaSummary(areaId, "Sleep", 6, 2, 1))));
+
+        mockMvc.perform(bearer(get("/api/dashboard")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                        "$.activeUpgrades[*].id", contains(active.getId().toString())))
+                .andExpect(jsonPath(
+                        "$.plannedUpgrades[*].id", contains(planned.getId().toString())))
+                .andExpect(
+                        jsonPath("$.todayUpgrades[*].id", contains(today.getId().toString())))
+                .andExpect(jsonPath(
+                        "$.overdueUpgrades[*].id", contains(overdue.getId().toString())))
+                .andExpect(jsonPath(
+                        "$.recentlyCompleted[*].id", contains(completed.getId().toString())))
+                .andExpect(jsonPath("$.streaks['" + active.getId() + "']").value(9))
+                .andExpect(jsonPath("$.areaSummary[0].areaId").value(areaId.toString()))
+                .andExpect(jsonPath("$.areaSummary[0].totalUpgrades").value(6))
+                .andExpect(jsonPath("$.areaSummary[0].activeCount").value(2))
+                .andExpect(jsonPath("$.areaSummary[0].completedCount").value(1));
     }
 
     @Test

@@ -105,11 +105,14 @@ class UpgradeDtoSerializationTest {
     }
 
     @Test
-    void GivenTheFrontendUpgradeType_WhenTheResponseIsSerialised_ThenEveryFieldItDeclaresIsPresent() throws Exception {
+    void GivenTheFrontendUpgradeType_WhenTheResponseIsSerialised_ThenItsFieldsAreExactlyTheDeclaredOnesInOrder()
+            throws Exception {
+        // UpgradeDto's Javadoc names this test as the one pinning its field order, so it pins the order
+        // and refuses an extra field, rather than only checking each name is somewhere in the object.
         JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(sampleDto(null)));
 
         assertThat(json.propertyNames())
-                .contains(
+                .containsExactly(
                         "id",
                         "userId",
                         "areaId",

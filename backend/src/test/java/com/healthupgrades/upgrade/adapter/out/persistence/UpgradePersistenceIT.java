@@ -158,8 +158,6 @@ class UpgradePersistenceIT extends PostgresIT {
         entityManager.persistAndFlush(AnUpgrade.ownedBy(strangerId)
                 .id(null)
                 .status(UpgradeStatus.ACTIVE)
-                .createdAt(java.time.LocalDateTime.now())
-                .updatedAt(java.time.LocalDateTime.now())
                 .build());
         entityManager.clear();
 
@@ -267,8 +265,6 @@ class UpgradePersistenceIT extends PostgresIT {
                 .id(null)
                 .status(status)
                 .plannedStartDate(LocalDate.of(2026, 3, 1))
-                .createdAt(java.time.LocalDateTime.now())
-                .updatedAt(java.time.LocalDateTime.now())
                 .build();
     }
 
@@ -277,8 +273,6 @@ class UpgradePersistenceIT extends PostgresIT {
                 .id(null)
                 .status(UpgradeStatus.ACTIVE)
                 .difficulty(Difficulty.HARD)
-                .createdAt(java.time.LocalDateTime.now())
-                .updatedAt(java.time.LocalDateTime.now())
                 .build();
     }
 }

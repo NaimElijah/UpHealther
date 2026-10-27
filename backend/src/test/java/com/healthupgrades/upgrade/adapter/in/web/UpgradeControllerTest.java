@@ -1,6 +1,7 @@
 package com.healthupgrades.upgrade.adapter.in.web;
 
 import static com.healthupgrades.support.WebSliceSupport.bearer;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -24,16 +25,22 @@ import com.healthupgrades.common.security.UserDetailsServiceImpl;
 import com.healthupgrades.support.AnUpgrade;
 import com.healthupgrades.support.WebSliceSupport;
 import com.healthupgrades.upgrade.application.UpgradeService;
+import com.healthupgrades.upgrade.application.port.in.UpgradeDetails;
+import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummary;
 import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort;
 import com.healthupgrades.upgrade.domain.model.Difficulty;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.model.UpgradeType;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -98,6 +105,67 @@ class UpgradeControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.title").value(AnUpgrade.TITLE))
                 .andExpect(jsonPath("$.status").value("IDEA"));
+    }
+
+    @Test
+    void GivenEveryField_WhenAnUpgradeIsCreated_ThenEachReachesTheUseCaseUnderItsOwnName() throws Exception {
+        // Every text field holds a different value, so two of them swapped on the way down shows here.
+        UUID areaId = UUID.randomUUID();
+        when(service.create(eq(userId), any())).thenReturn(anUpgrade(UpgradeStatus.IDEA));
+
+        mockMvc.perform(bearer(post(BASE))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"areaId\":\"" + areaId + "\",\"title\":\"Cold showers\","
+                                + "\"description\":\"Thirty seconds cold\",\"type\":\"EXPERIMENT\","
+                                + "\"difficulty\":\"HARD\",\"plannedStartDate\":\"2026-04-01\","
+                                + "\"targetEndDate\":\"2026-05-01\",\"motivation\":\"Wake up faster\","
+                                + "\"successCriteria\":\"Thirty days in a row\"}"))
+                .andExpect(status().isCreated());
+
+        ArgumentCaptor<UpgradeDetails> details = ArgumentCaptor.forClass(UpgradeDetails.class);
+        verify(service).create(eq(userId), details.capture());
+        assertThat(details.getValue())
+                .isEqualTo(new UpgradeDetails(
+                        areaId,
+                        "Cold showers",
+                        "Thirty seconds cold",
+                        UpgradeType.EXPERIMENT,
+                        Difficulty.HARD,
+                        LocalDate.of(2026, 4, 1),
+                        LocalDate.of(2026, 5, 1),
+                        "Wake up faster",
+                        "Thirty days in a row"));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(
+            value = UpgradeType.class,
+            names = {
+                "HABIT",
+                "ONE_TIME_ACTION",
+                "PRODUCT_REPLACEMENT",
+                "ROUTINE",
+                "GOAL",
+                "EXPERIMENT",
+                "LEARNING_TASK",
+                "MEDICAL_PREVENTIVE"
+            })
+    void GivenEachKindFr9Lists_WhenAnUpgradeOfThatKindIsCreated_ThenItReachesTheUseCaseAsThatKind(UpgradeType kind)
+            throws Exception {
+        // FR-9's eight kinds by name rather than the whole enum: the deprecated PROTOCOL is not one of
+        // them, and a kind dropped from the enum fails this source instead of silently leaving the list.
+        when(service.create(eq(userId), any())).thenReturn(anUpgrade(UpgradeStatus.IDEA));
+
+        mockMvc.perform(bearer(post(BASE))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Cold showers\",\"type\":\"" + kind.name() + "\"}"))
+                .andExpect(status().isCreated());
+
+        ArgumentCaptor<UpgradeDetails> details = ArgumentCaptor.forClass(UpgradeDetails.class);
+        verify(service).create(eq(userId), details.capture());
+        assertThat(details.getValue().type())
+                .as("the kind the use case is asked to create")
+                .isEqualTo(kind);
     }
 
     @Test
@@ -175,6 +243,59 @@ class UpgradeControllerTest {
     }
 
     @Test
+    void GivenAnUpgradeWithATrackingConfig_WhenItIsRead_ThenTheResponseCarriesEveryFieldOfIt() throws Exception {
+        // FR-15: a list view needs no second call, so the configuration rides on the upgrade. Each field
+        // has a value no other field shares, so a field mapped into the wrong slot fails here.
+        UUID configId = UUID.randomUUID();
+        when(service.getOwnedUpgrade(userId, upgradeId)).thenReturn(anUpgrade(UpgradeStatus.ACTIVE));
+        when(trackingSummaries.findByUpgradeIds(List.of(upgradeId)))
+                .thenReturn(Map.of(
+                        upgradeId,
+                        new UpgradeTrackingSummary(configId, upgradeId, "NUMERIC", "WEEKLY", 10_000.0, "steps", true)));
+
+        mockMvc.perform(bearer(get(BASE + "/" + upgradeId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.trackingConfig.id").value(configId.toString()))
+                .andExpect(jsonPath("$.trackingConfig.upgradeId").value(upgradeId.toString()))
+                .andExpect(jsonPath("$.trackingConfig.trackingType").value("NUMERIC"))
+                .andExpect(jsonPath("$.trackingConfig.frequency").value("WEEKLY"))
+                .andExpect(jsonPath("$.trackingConfig.targetNumericValue").value(10_000.0))
+                .andExpect(jsonPath("$.trackingConfig.targetUnit").value("steps"))
+                .andExpect(jsonPath("$.trackingConfig.requiredDaily").value(true));
+    }
+
+    // The slice runs on the application's system clock, so the dates below sit far enough either side of
+    // any day it could run on.
+
+    @Test
+    void GivenAnActiveUpgradeLongPastItsTargetDate_WhenItIsRead_ThenItIsReportedOverdue() throws Exception {
+        when(service.getOwnedUpgrade(userId, upgradeId))
+                .thenReturn(AnUpgrade.ownedBy(userId)
+                        .id(upgradeId)
+                        .status(UpgradeStatus.ACTIVE)
+                        .targetEndDate(LocalDate.of(2000, 1, 1))
+                        .build());
+
+        mockMvc.perform(bearer(get(BASE + "/" + upgradeId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.overdue").value(true));
+    }
+
+    @Test
+    void GivenAnActiveUpgradeLongBeforeItsTargetDate_WhenItIsRead_ThenItIsNotReportedOverdue() throws Exception {
+        when(service.getOwnedUpgrade(userId, upgradeId))
+                .thenReturn(AnUpgrade.ownedBy(userId)
+                        .id(upgradeId)
+                        .status(UpgradeStatus.ACTIVE)
+                        .targetEndDate(LocalDate.of(2999, 1, 1))
+                        .build());
+
+        mockMvc.perform(bearer(get(BASE + "/" + upgradeId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.overdue").value(false));
+    }
+
+    @Test
     void GivenAnUpgradeOwnedBySomebodyElse_WhenItIsRead_ThenItAnswers404AndNot403() throws Exception {
         // BR-15. A 403 would confirm the row exists; a 404 says nothing at all.
         when(service.getOwnedUpgrade(userId, upgradeId))
@@ -197,6 +318,34 @@ class UpgradeControllerTest {
         mockMvc.perform(bearer(get(BASE).param("status", "ACTIVE"))).andExpect(status().isOk());
 
         verify(service).findAll(userId, UpgradeStatus.ACTIVE, null, null, null);
+    }
+
+    @Test
+    void GivenATypeFilter_WhenUpgradesAreListed_ThenItIsPassedThroughAsAnEnum() throws Exception {
+        when(service.findAll(userId, null, UpgradeType.GOAL, null, null)).thenReturn(List.of());
+
+        mockMvc.perform(bearer(get(BASE).param("type", "GOAL"))).andExpect(status().isOk());
+
+        verify(service).findAll(userId, null, UpgradeType.GOAL, null, null);
+    }
+
+    @Test
+    void GivenAnAreaFilter_WhenUpgradesAreListed_ThenItIsPassedThroughAsAnId() throws Exception {
+        UUID areaId = UUID.randomUUID();
+        when(service.findAll(userId, null, null, areaId, null)).thenReturn(List.of());
+
+        mockMvc.perform(bearer(get(BASE).param("areaId", areaId.toString()))).andExpect(status().isOk());
+
+        verify(service).findAll(userId, null, null, areaId, null);
+    }
+
+    @Test
+    void GivenADifficultyFilter_WhenUpgradesAreListed_ThenItIsPassedThroughAsAnEnum() throws Exception {
+        when(service.findAll(userId, null, null, null, Difficulty.HARD)).thenReturn(List.of());
+
+        mockMvc.perform(bearer(get(BASE).param("difficulty", "HARD"))).andExpect(status().isOk());
+
+        verify(service).findAll(userId, null, null, null, Difficulty.HARD);
     }
 
     @Test
@@ -275,6 +424,29 @@ class UpgradeControllerTest {
     }
 
     @Test
+    void GivenATitleLongerThanItsColumn_WhenAnUpgradeIsUpdated_ThenItAnswers400NamingTheField() throws Exception {
+        // BR-16 on the PUT as well as the POST: the same column, reached by a different route.
+        mockMvc.perform(bearer(put(BASE + "/" + upgradeId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"" + "a".repeat(UpgradeRequest.TITLE_MAX + 1) + "\",\"type\":\"HABIT\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.title").exists());
+
+        verify(service, never()).update(any(), any(), any());
+    }
+
+    @Test
+    void GivenARescheduleWithNoDate_WhenItIsSent_ThenItAnswers400AndNothingIsRescheduled() throws Exception {
+        mockMvc.perform(bearer(post(BASE + "/" + upgradeId + "/reschedule"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.newDate").exists());
+
+        verify(service, never()).reschedule(any(), any(), any());
+    }
+
+    @Test
     void GivenAnOwnedUpgrade_WhenItIsDeleted_ThenItAnswers204WithNoBody() throws Exception {
         mockMvc.perform(bearer(delete(BASE + "/" + upgradeId)))
                 .andExpect(status().isNoContent())
@@ -293,7 +465,7 @@ class UpgradeControllerTest {
     }
 
     @Test
-    void GivenTheAuthenticatedPrincipal_WhenAnyEndpointIsCalled_ThenItsIdIsWhatTheServiceIsScopedTo() throws Exception {
+    void GivenTheAuthenticatedPrincipal_WhenUpgradesAreListed_ThenItsIdIsWhatTheServiceIsScopedTo() throws Exception {
         // The one thing every endpoint shares: ownership comes from the token's principal, never from
         // the request. A controller reading a user id out of the body or a header would break BR-15
         // everywhere at once, and this is the assertion that would notice.
