@@ -38,6 +38,8 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -133,6 +135,37 @@ class UpgradeControllerTest {
                         LocalDate.of(2026, 5, 1),
                         "Wake up faster",
                         "Thirty days in a row"));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(
+            value = UpgradeType.class,
+            names = {
+                "HABIT",
+                "ONE_TIME_ACTION",
+                "PRODUCT_REPLACEMENT",
+                "ROUTINE",
+                "GOAL",
+                "EXPERIMENT",
+                "LEARNING_TASK",
+                "MEDICAL_PREVENTIVE"
+            })
+    void GivenEachKindFr9Lists_WhenAnUpgradeOfThatKindIsCreated_ThenItReachesTheUseCaseAsThatKind(UpgradeType kind)
+            throws Exception {
+        // FR-9's eight kinds by name rather than the whole enum: the deprecated PROTOCOL is not one of
+        // them, and a kind dropped from the enum fails this source instead of silently leaving the list.
+        when(service.create(eq(userId), any())).thenReturn(anUpgrade(UpgradeStatus.IDEA));
+
+        mockMvc.perform(bearer(post(BASE))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Cold showers\",\"type\":\"" + kind.name() + "\"}"))
+                .andExpect(status().isCreated());
+
+        ArgumentCaptor<UpgradeDetails> details = ArgumentCaptor.forClass(UpgradeDetails.class);
+        verify(service).create(eq(userId), details.capture());
+        assertThat(details.getValue().type())
+                .as("the kind the use case is asked to create")
+                .isEqualTo(kind);
     }
 
     @Test
