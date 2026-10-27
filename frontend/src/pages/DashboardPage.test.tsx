@@ -288,3 +288,105 @@ describe('DashboardPage', () => {
     expect((inActiveSection.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true);
   });
 });
+
+/** The card headed by `heading`, once the dashboard has loaded. */
+async function findCard(heading: string | RegExp): Promise<HTMLElement> {
+  const header = await screen.findByText(heading);
+  if (!header.parentElement) throw new Error(`No card around the heading "${String(heading)}"`);
+  return header.parentElement;
+}
+
+/**
+ * FR-27 — the rest of what the dashboard shows: the overdue warning, today's upgrades, the recently
+ * completed ones and the weekly completion rate.
+ */
+describe('DashboardPage sections', () => {
+  beforeEach(() => {
+    getDashboard.mockReset();
+    performUpgradeAction.mockReset();
+  });
+
+  it('GivenTwoOverdueUpgrades_WhenTheDashboardRenders_ThenTheWarningCountsThem', async () => {
+    getDashboard.mockResolvedValue({
+      ...aDashboard([]),
+      overdueUpgrades: [anActiveUpgrade('u-1', 'Cold showers'), anActiveUpgrade('u-2', 'Evening walk')],
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('2 overdue upgrades')).toBeDefined();
+    expect(screen.getByText('Some upgrades are past their target date.')).toBeDefined();
+  });
+
+  it('GivenOneOverdueUpgrade_WhenTheDashboardRenders_ThenTheWarningIsSingular', async () => {
+    getDashboard.mockResolvedValue({ ...aDashboard([]), overdueUpgrades: [anActiveUpgrade('u-1', 'Cold showers')] });
+
+    renderPage();
+
+    expect(await screen.findByText('1 overdue upgrade')).toBeDefined();
+  });
+
+  it('GivenNothingOverdue_WhenTheDashboardRenders_ThenNoWarningIsShown', async () => {
+    getDashboard.mockResolvedValue(aDashboard([]));
+
+    renderPage();
+
+    await screen.findByText('Weekly Completion Rate');
+    expect(screen.queryByText('Some upgrades are past their target date.')).toBeNull();
+  });
+
+  it('GivenAnUpgradeDueToday_WhenTheDashboardRenders_ThenTodaysHealthMovesListsItWithTheCheckIn', async () => {
+    getDashboard.mockResolvedValue({ ...aDashboard([]), todayUpgrades: [anActiveUpgrade('u-1', 'Drink water')] });
+
+    renderPage();
+
+    const today = await findCard("Today's Health Moves");
+    expect(within(today).getByText('Drink water')).toBeDefined();
+    expect(within(today).getByRole('button', { name: 'Go to Daily Check-in' })).toBeDefined();
+    expect(within(today).queryByText('All done for today!')).toBeNull();
+  });
+
+  it('GivenNothingDueToday_WhenTheDashboardRenders_ThenTodaysHealthMovesSaysAllDone', async () => {
+    getDashboard.mockResolvedValue(aDashboard([]));
+
+    renderPage();
+
+    const today = await findCard("Today's Health Moves");
+    expect(within(today).getByText('All done for today!')).toBeDefined();
+  });
+
+  it('GivenARecentlyCompletedUpgrade_WhenTheDashboardRenders_ThenRecentlyCompletedListsIt', async () => {
+    getDashboard.mockResolvedValue({
+      ...aDashboard([]),
+      recentlyCompleted: [upgradeAsSent({ id: 'u-9', title: 'Read before bed', status: 'COMPLETED' })],
+    });
+
+    renderPage();
+
+    const completed = await findCard(/^Recently Completed/);
+    expect(within(completed).getByText('Read before bed')).toBeDefined();
+  });
+
+  it('GivenNothingRecentlyCompleted_WhenTheDashboardRenders_ThenNoRecentlyCompletedSectionIsShown', async () => {
+    getDashboard.mockResolvedValue(aDashboard([]));
+
+    renderPage();
+
+    await screen.findByText('Weekly Completion Rate');
+    expect(screen.queryByText(/^Recently Completed/)).toBeNull();
+  });
+
+  // The API sends the rate as a percentage with a fraction (DashboardDto.weeklyCompletionRate), so the page
+  // rounds it to the nearest whole number rather than scaling or truncating it.
+  it.each([
+    [66.67, '67%'],
+    [12.4, '12%'],
+    [100, '100%'],
+  ])('GivenAWeeklyRateOf %s_WhenTheDashboardRenders_ThenItReads %s', async (rate, shown) => {
+    getDashboard.mockResolvedValue({ ...aDashboard([]), weeklyCompletionRate: rate });
+
+    renderPage();
+
+    expect(await tileFigure('Weekly Rate')).toBe(shown);
+  });
+});

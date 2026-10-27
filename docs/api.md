@@ -31,6 +31,13 @@ An email is one identity however it is typed: the API trims and lowercases it be
 storing it. `POST /api/auth/register` refuses an address already held with `422` and the message
 `That email is already registered`, which does not repeat the address.
 
+A date-time in a body is an ISO-8601 local date-time with no offset, such as `2026-01-14T09:13:02`,
+with a fraction of a second when it has one. A notification's `createdAt` is stamped from the server's
+clock, which keeps UTC ([ADR-020](ADRs/ADR-020-the-server-keeps-time-in-utc.md)), and the SPA reads it
+as UTC; so is the error body's `timestamp`. Every other `createdAt` and `updatedAt` is stamped by its
+entity's persistence hook in the JVM's default zone, which is UTC in the container image but not on
+every host ([#51](https://github.com/NaimElijah/UpHealther/issues/51)).
+
 ## A created upgrade, in full
 
 `POST /api/upgrades` returns `201`. Nulls are serialised rather than omitted, so the body always
