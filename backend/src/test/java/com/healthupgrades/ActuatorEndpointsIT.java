@@ -9,6 +9,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -182,6 +183,23 @@ class ActuatorEndpointsIT extends PostgresIT {
         assertThat(get(endpoint).statusCode())
                 .as("%s is readable by anyone the moment it is exposed", endpoint)
                 .isEqualTo(404);
+    }
+
+    /**
+     * The same control, stated as the whole surface rather than a list of things that must be absent.
+     * The list above names seven endpoints, and Boot has more — {@code flyway}, {@code conditions},
+     * {@code sbom} — any of which would pass it once exposed. The discovery page lists every exposed
+     * endpoint, so pinning its links pins the exposure.
+     */
+    @Test
+    void GivenARunningApplication_WhenTheActuatorIsDiscovered_ThenItListsOnlyHealthInfoAndTheScrape() throws Exception {
+        HttpResponse<String> response = get("/actuator");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(response.body()).path("_links").properties().stream()
+                        .map(Map.Entry::getKey))
+                .as("the endpoints anyone can read, since /actuator/** is permitAll")
+                .containsExactlyInAnyOrder("self", "health", "health-path", "info", "prometheus");
     }
 
     private HttpResponse<String> get(String path) throws Exception {
