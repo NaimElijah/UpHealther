@@ -73,10 +73,12 @@ import org.springframework.web.method.annotation.ExceptionHandlerMethodResolver;
  * there" from "you asked for something the rules forbid", and it was asserted nowhere: throwing the
  * wrong domain exception, or adding a handler with the wrong status, changed the API silently.
  *
- * <p>A domain exception is raised by a controller, so calling the advice directly tests it honestly.
- * A framework exception is not: it is raised before any handler method runs, and which handler claims
- * it is decided by Spring's resolver rather than by the call site — those go through {@link MockMvc}
- * in {@link ThroughTheDispatcher}.
+ * <p>The tests at the top call the advice's methods directly, so they pin what each handler writes
+ * into the response — the body's message, status and path — and nothing about which handler Spring
+ * picks: an exception whose mapping was deleted would still pass them. Routing is asserted where the
+ * dispatcher does the choosing: in {@link RoutedFromAHandlerMethod} for an exception a handler method
+ * raises, and in {@link ThroughTheDispatcher} for a framework exception, which is raised before any
+ * handler method runs.
  */
 class GlobalExceptionHandlerTest {
 
