@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -152,6 +153,34 @@ class UpgradeOverdueSchedulerTest {
         scheduler.detectOverdueUpgrades();
 
         verify(eventPublisher, never()).publish(any());
+    }
+
+    @Test
+    void GivenOverdueUpgradesEitherSideOfOneOnTime_WhenTheOverdueSweepRuns_ThenEachOverdueOneIsAnnounced() {
+        // A sweep that stopped at its first find, or skipped the rest after an on-time one, would still
+        // pass every single-upgrade case above.
+        HealthUpgrade first = activeUpgrade(UUID.randomUUID(), today.minusDays(1));
+        HealthUpgrade ahead = activeUpgrade(UUID.randomUUID(), today.plusDays(1));
+        HealthUpgrade last = activeUpgrade(UUID.randomUUID(), today.minusDays(9));
+        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(first, ahead, last));
+
+        scheduler.detectOverdueUpgrades();
+
+        ArgumentCaptor<UpgradeOverdueDetected> published = ArgumentCaptor.forClass(UpgradeOverdueDetected.class);
+        verify(eventPublisher, times(2)).publish(published.capture());
+        assertThat(published.getAllValues())
+                .extracting(UpgradeOverdueDetected::upgradeId)
+                .containsExactly(first.getId(), last.getId());
+    }
+
+    private HealthUpgrade activeUpgrade(UUID id, LocalDate targetEndDate) {
+        return HealthUpgrade.builder()
+                .id(id)
+                .userId(userId)
+                .title("Sleep early")
+                .status(UpgradeStatus.ACTIVE)
+                .targetEndDate(targetEndDate)
+                .build();
     }
 
     // ---- NFR-25: what a run records about itself ----
