@@ -5,7 +5,10 @@ import static org.assertj.core.api.Assertions.*;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import java.time.LocalDate;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 /**
  * Covers the aggregate's state machine and construction invariants: which transitions are legal from
@@ -257,6 +260,115 @@ class HealthUpgradeTest {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.PAUSED);
         upgrade.reschedule(REFERENCE_DAY.plusDays(10));
         assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.PAUSED);
+    }
+
+    // ---- BR-2's transition table, every move from every state ----
+
+    /** The outcome column's value for a move BR-2 refuses from the row's state. */
+    private static final String REFUSED = "REFUSED";
+
+    /**
+     * Applies a move to an upgrade in {@code from} and checks the outcome BR-2 gives for it: the state it
+     * ends in, or a refusal that leaves the state where it was.
+     */
+    private void assertTransition(UpgradeStatus from, String outcome, Consumer<HealthUpgrade> move) {
+        HealthUpgrade upgrade = upgradeIn(from);
+
+        if (REFUSED.equals(outcome)) {
+            assertThat(catchThrowable(() -> move.accept(upgrade)))
+                    .as("BR-2 refuses this move from %s", from)
+                    .isInstanceOf(BusinessRuleException.class);
+            assertThat(upgrade.getStatus())
+                    .as("a refused move leaves the state alone")
+                    .isEqualTo(from);
+        } else {
+            move.accept(upgrade);
+            assertThat(upgrade.getStatus())
+                    .as("BR-2's outcome from %s", from)
+                    .isEqualTo(UpgradeStatus.valueOf(outcome));
+        }
+    }
+
+    @ParameterizedTest(name = "{0} -> {1}")
+    @CsvSource({
+        "IDEA, PLANNED",
+        "PLANNED, REFUSED",
+        "ACTIVE, REFUSED",
+        "PAUSED, REFUSED",
+        "COMPLETED, REFUSED",
+        "ABANDONED, REFUSED"
+    })
+    void GivenAnUpgradeInEachState_WhenItIsPlanned_ThenOnlyAnIdeaBecomesPlanned(UpgradeStatus from, String outcome) {
+        assertTransition(from, outcome, upgrade -> upgrade.plan(REFERENCE_DAY));
+    }
+
+    @ParameterizedTest(name = "{0} -> {1}")
+    @CsvSource({
+        "IDEA, REFUSED",
+        "PLANNED, ACTIVE",
+        "ACTIVE, REFUSED",
+        "PAUSED, ACTIVE",
+        "COMPLETED, REFUSED",
+        "ABANDONED, REFUSED"
+    })
+    void GivenAnUpgradeInEachState_WhenItIsActivated_ThenOnlyAPlannedOrPausedOneBecomesActive(
+            UpgradeStatus from, String outcome) {
+        assertTransition(from, outcome, upgrade -> upgrade.activate(REFERENCE_DAY));
+    }
+
+    @ParameterizedTest(name = "{0} -> {1}")
+    @CsvSource({
+        "IDEA, REFUSED",
+        "PLANNED, REFUSED",
+        "ACTIVE, PAUSED",
+        "PAUSED, REFUSED",
+        "COMPLETED, REFUSED",
+        "ABANDONED, REFUSED"
+    })
+    void GivenAnUpgradeInEachState_WhenItIsPaused_ThenOnlyAnActiveOneBecomesPaused(UpgradeStatus from, String outcome) {
+        assertTransition(from, outcome, HealthUpgrade::pause);
+    }
+
+    @ParameterizedTest(name = "{0} -> {1}")
+    @CsvSource({
+        "IDEA, REFUSED",
+        "PLANNED, REFUSED",
+        "ACTIVE, COMPLETED",
+        "PAUSED, REFUSED",
+        "COMPLETED, REFUSED",
+        "ABANDONED, REFUSED"
+    })
+    void GivenAnUpgradeInEachState_WhenItIsCompleted_ThenOnlyAnActiveOneBecomesCompleted(
+            UpgradeStatus from, String outcome) {
+        assertTransition(from, outcome, HealthUpgrade::complete);
+    }
+
+    @ParameterizedTest(name = "{0} -> {1}")
+    @CsvSource({
+        "IDEA, ABANDONED",
+        "PLANNED, ABANDONED",
+        "ACTIVE, ABANDONED",
+        "PAUSED, ABANDONED",
+        "COMPLETED, REFUSED",
+        "ABANDONED, REFUSED"
+    })
+    void GivenAnUpgradeInEachState_WhenItIsAbandoned_ThenOnlyANonFinalOneBecomesAbandoned(
+            UpgradeStatus from, String outcome) {
+        assertTransition(from, outcome, HealthUpgrade::abandon);
+    }
+
+    @ParameterizedTest(name = "{0} -> {1}")
+    @CsvSource({
+        "IDEA, IDEA",
+        "PLANNED, PLANNED",
+        "ACTIVE, ACTIVE",
+        "PAUSED, PAUSED",
+        "COMPLETED, REFUSED",
+        "ABANDONED, PLANNED"
+    })
+    void GivenAnUpgradeInEachState_WhenItIsRescheduled_ThenOnlyAnAbandonedOneChangesStateAndACompletedOneIsRefused(
+            UpgradeStatus from, String outcome) {
+        assertTransition(from, outcome, upgrade -> upgrade.reschedule(REFERENCE_DAY));
     }
 
     // ---- derived date questions ----
