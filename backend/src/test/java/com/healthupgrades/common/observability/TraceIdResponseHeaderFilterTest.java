@@ -55,6 +55,7 @@ class TraceIdResponseHeaderFilterTest {
         // the chain runs is still there afterwards.
         SimpleTracer tracer = new SimpleTracer();
         Span span = tracedSpan(tracer);
+        MockHttpServletResponse committing = new HeadersFrozenOnCommitResponse();
         MockFilterChain sendsError = new MockFilterChain() {
             @Override
             public void doFilter(ServletRequest req, ServletResponse res) throws IOException {
@@ -63,11 +64,12 @@ class TraceIdResponseHeaderFilterTest {
         };
 
         try (Tracer.SpanInScope ignored = tracer.withSpan(span)) {
-            new TraceIdResponseHeaderFilter(tracer).doFilter(request, response, sendsError);
+            new TraceIdResponseHeaderFilter(tracer).doFilter(request, committing, sendsError);
         }
 
-        assertThat(response.getStatus()).isEqualTo(401);
-        assertThat(response.getHeader(TraceIdResponseHeaderFilter.TRACE_ID_HEADER))
+        assertThat(committing.getStatus()).isEqualTo(401);
+        assertThat(committing.getHeader(TraceIdResponseHeaderFilter.TRACE_ID_HEADER))
+                .as("only a header written before the chain committed the response survives it")
                 .isEqualTo(TRACE_ID);
     }
 
@@ -80,5 +82,23 @@ class TraceIdResponseHeaderFilterTest {
         Span span = tracer.nextSpan().start();
         ((SimpleTraceContext) span.context()).setTraceId(TRACE_ID);
         return span;
+    }
+
+    /** Ignores header writes once committed, as Tomcat does; the plain mock would accept them. */
+    private static final class HeadersFrozenOnCommitResponse extends MockHttpServletResponse {
+
+        @Override
+        public void setHeader(String name, String value) {
+            if (!isCommitted()) {
+                super.setHeader(name, value);
+            }
+        }
+
+        @Override
+        public void addHeader(String name, String value) {
+            if (!isCommitted()) {
+                super.addHeader(name, value);
+            }
+        }
     }
 }

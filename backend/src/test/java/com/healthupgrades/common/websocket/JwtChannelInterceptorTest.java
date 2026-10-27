@@ -48,6 +48,9 @@ class JwtChannelInterceptorTest {
     private static final String TOKEN = "a.signed.token";
     private static final UUID SESSION_ID = UUID.randomUUID();
 
+    /** The user a STOMP frame's token stands for. */
+    private static final UUID STOMP_USER = UUID.fromString("9b7e2d4c-1f6a-4c8e-b3d5-0a2e7f9c6b18");
+
     @Mock
     BearerTokenAuthenticator authenticator;
 
@@ -108,6 +111,33 @@ class JwtChannelInterceptorTest {
     void GivenAConnectWithANonBearerCredential_WhenItArrives_ThenTheConnectionIsRefused() {
         assertThatThrownBy(() -> interceptor.preSend(frame(StompCommand.CONNECT, "Basic abc"), channel))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // STOMP is the 1.2 spec's alias for CONNECT, so a client that sends it must meet the same door.
+
+    @Test
+    void GivenAStompFrameWithAUsableToken_WhenItArrives_ThenItIsAuthenticatedAndAuditedLikeAConnect() {
+        when(authenticator.authenticateWithSession(TOKEN)).thenReturn(Optional.of(signedIn(STOMP_USER)));
+
+        Message<?> passed = interceptor.preSend(frame(StompCommand.STOMP, "Bearer " + TOKEN), channel);
+
+        assertThat(StompHeaderAccessor.wrap(passed).getUser())
+                .isNotNull()
+                .extracting(Principal::getName)
+                .isEqualTo(STOMP_USER.toString());
+        assertThat(auditTrail.only(AuditAction.AUTH_CONNECT))
+                .hasValue(AuditEvent.allowed(AuditAction.AUTH_CONNECT, STOMP_USER, STOMP_USER));
+    }
+
+    @Test
+    void GivenAStompFrameWithAnUnusableToken_WhenItArrives_ThenItIsRefusedAndAuditedLikeAConnect() {
+        when(authenticator.authenticateWithSession(TOKEN)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> interceptor.preSend(frame(StompCommand.STOMP, "Bearer " + TOKEN), channel))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(auditTrail.only(AuditAction.AUTH_CONNECT))
+                .hasValue(new AuditEvent(AuditAction.AUTH_CONNECT, null, null, AuditOutcome.REFUSED));
     }
 
     // ---- NFR-23: opening a connection is an authentication outcome, allowed or refused ----

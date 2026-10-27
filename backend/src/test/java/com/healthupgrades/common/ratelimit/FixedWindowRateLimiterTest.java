@@ -2,11 +2,9 @@ package com.healthupgrades.common.ratelimit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.time.Clock;
+import com.healthupgrades.support.MovableClock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -134,18 +132,44 @@ class FixedWindowRateLimiterTest {
     @Test
     void GivenTheCapIsReached_WhenExpiredWindowsExist_ThenThoseAreDroppedRatherThanLiveOnes() {
         // Expired windows are dead weight and there are usually plenty, so sweeping them first means a
-        // busy client keeps its count while a client that stopped an hour ago loses one it is not using.
+        // busy client keeps its count while a client that stopped a while ago loses one it is not using.
         FixedWindowRateLimiter limiter = limiterAllowing(LIMIT, 3);
         limiter.check("198.51.100.1");
         limiter.check("198.51.100.2");
+        clock.moveTo(START.plusSeconds(40));
         IntStream.rangeClosed(1, LIMIT).forEach(attempt -> limiter.check(CLIENT));
 
+        // Both idle windows have expired; CLIENT's, opened forty seconds later, has not.
         clock.moveTo(START.plus(WINDOW).plusSeconds(1));
         limiter.check("198.51.100.9");
 
+        assertThat(limiter.trackedClients())
+                .as("both expired windows swept, leaving CLIENT and the newcomer")
+                .isEqualTo(2);
         assertThat(limiter.check(CLIENT).allowed())
-                .as("the window that held the count has itself expired, so a fresh one starts")
-                .isTrue();
+                .as("a live window keeps its count when the cap is met")
+                .isFalse();
+    }
+
+    @Test
+    void GivenTheCapWasSweptWithinTheWindow_WhenAnotherNewClientArrives_ThenTheMapIsNotSweptAgain() {
+        // The sweep walks the whole map, so a full map must not pay for it on every new key: an
+        // attacker spraying fresh addresses would otherwise buy an O(n) scan per request.
+        FixedWindowRateLimiter limiter = limiterAllowing(LIMIT, 3);
+        limiter.check("198.51.100.1");
+        clock.moveTo(START.plusSeconds(30));
+        limiter.check("198.51.100.2");
+        limiter.check("198.51.100.3");
+        clock.moveTo(START.plus(WINDOW).plusSeconds(1));
+        limiter.check("198.51.100.4");
+
+        // Thirty seconds after that sweep, the two windows opened at START+30s have expired too.
+        clock.moveTo(START.plus(WINDOW).plusSeconds(31));
+        limiter.check("198.51.100.5");
+
+        assertThat(limiter.trackedClients())
+                .as("no second sweep within a window, so only one entry made way for the newcomer")
+                .isEqualTo(3);
     }
 
     @Test
@@ -223,34 +247,5 @@ class FixedWindowRateLimiterTest {
         assertThat(wrongRounds)
                 .as("allowed counts in the rounds that were not exactly %d", LIMIT)
                 .isEmpty();
-    }
-
-    /** A clock that can be moved, so a window can pass without anything sleeping. */
-    private static final class MovableClock extends Clock {
-
-        private volatile Instant now;
-
-        private MovableClock(Instant now) {
-            this.now = now;
-        }
-
-        void moveTo(Instant instant) {
-            this.now = instant;
-        }
-
-        @Override
-        public ZoneId getZone() {
-            return ZoneOffset.UTC;
-        }
-
-        @Override
-        public Clock withZone(ZoneId zone) {
-            return this;
-        }
-
-        @Override
-        public Instant instant() {
-            return now;
-        }
     }
 }

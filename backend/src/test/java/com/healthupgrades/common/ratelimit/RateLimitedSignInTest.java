@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -18,7 +19,9 @@ import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.common.security.JwtAuthenticationFilter;
 import com.healthupgrades.common.security.SecurityConfig;
 import com.healthupgrades.common.security.UserDetailsServiceImpl;
+import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.WebSliceSupport;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -60,10 +63,16 @@ class RateLimitedSignInTest {
     /** How many attempts the property above permits. */
     private static final int LIMIT = 3;
 
+    /** The account the authenticated-endpoint case signs in as. */
+    private static final UUID SIGNED_IN_USER = UUID.fromString("a1d4e8f2-6b3c-4e5a-9d70-2f8b1c6e4a39");
+
     private static final String CREDENTIALS = "{\"email\":\"someone@example.com\",\"password\":\"s3cret!42\"}";
 
     @Autowired
     MockMvc mockMvc;
+
+    @Autowired
+    RateLimitProperties properties;
 
     @MockitoBean
     AuthService authService;
@@ -148,9 +157,11 @@ class RateLimitedSignInTest {
     }
 
     @Test
-    void GivenTheRetryAfterHeader_WhenARefusalIsRead_ThenItIsAWholeNumberOfSecondsAndNotZero() throws Exception {
-        // Retry-After: 0 invites an immediate retry that is refused again, so a client honouring it
-        // would spin. The value is rounded up for that reason.
+    void GivenTheAllowanceIsSpentAtTheStartOfAWindow_WhenARefusalIsRead_ThenRetryAfterIsTheWholeWindowInSeconds()
+            throws Exception {
+        // The limiter's clock stands still (WebSliceSupport.LIMITER_NOW), so every attempt lands at the
+        // instant the window opened and the wait is exactly the configured window: a client told less
+        // retries early into a refusal, and one told more waits longer than the limit requires.
         String client = "203.0.113.14";
         for (int attempt = 0; attempt < LIMIT; attempt++) {
             mockMvc.perform(signInFrom(client));
@@ -162,8 +173,7 @@ class RateLimitedSignInTest {
                 .getResponse()
                 .getHeader(HttpHeaders.RETRY_AFTER);
 
-        assertThat(retryAfter).isNotNull();
-        assertThat(Long.parseLong(retryAfter)).isPositive();
+        assertThat(retryAfter).isEqualTo(String.valueOf(properties.window().toSeconds()));
     }
 
     @Test
@@ -171,15 +181,15 @@ class RateLimitedSignInTest {
         // The limit is registered against the two anonymous paths only. Everything else needs a token,
         // which is its own limit on how fast anybody can try — and rate-limiting the whole API would
         // throttle an ordinary session.
+        // Sent as a signed-in client sends it, so security lets it through and only a limit could stop it.
+        WebSliceSupport.authenticateAs(authenticator, SIGNED_IN_USER);
+        when(authService.getMe(SIGNED_IN_USER)).thenReturn(AUser.withId(SIGNED_IN_USER));
         String client = "203.0.113.15";
-        for (int attempt = 0; attempt < LIMIT + 3; attempt++) {
-            mockMvc.perform(post("/api/auth/me").with(from(client))).andExpect(status().is(not(429)));
-        }
-    }
 
-    /** Asserts a status is anything but the given one, without caring which. */
-    private static org.hamcrest.Matcher<Integer> not(int status) {
-        return org.hamcrest.Matchers.not(org.hamcrest.Matchers.is(status));
+        for (int attempt = 0; attempt < LIMIT + 3; attempt++) {
+            mockMvc.perform(WebSliceSupport.bearer(get("/api/auth/me")).with(from(client)))
+                    .andExpect(status().isOk());
+        }
     }
 
     private static MockHttpServletRequestBuilder registerFrom(String clientAddress) {

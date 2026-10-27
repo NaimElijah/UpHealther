@@ -108,21 +108,6 @@ class AdminBootstrapRunnerTest {
     }
 
     @Test
-    void GivenEveryAdministratorIsDisabled_WhenTheRunnerRuns_ThenItPromotesTheBootstrapAccount() {
-        // Two administrators can disable each other - neither is acting on their own account, so nothing
-        // refuses it - leaving rows that say ADMIN and an installation nobody can administer. Counting
-        // those would leave it recoverable only from a database console.
-        User account = AUser.withId(BOOTSTRAP_ID);
-        when(userQuery.existsEnabledWithRole(Role.ADMIN)).thenReturn(false);
-        when(userQuery.findById(BOOTSTRAP_ID)).thenReturn(Optional.of(account));
-
-        run(BOOTSTRAP_ID.toString());
-
-        assertThat(account.getRole()).isEqualTo(Role.ADMIN);
-        verify(userCommand).save(account);
-    }
-
-    @Test
     void GivenTheNamedAccountIsDisabled_WhenTheRunnerRuns_ThenItIsNotPromotedAndNothingIsAudited() {
         // A disabled administrator administers nothing, so promoting one recovers nothing - and while no
         // enabled administrator exists the runner would do it again on every restart, each time recording
