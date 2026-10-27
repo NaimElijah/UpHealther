@@ -236,6 +236,32 @@ describe('HealthAreasPage', () => {
     expect(createHealthArea).not.toHaveBeenCalled();
   });
 
+  // FR-41 — an icon the card cannot draw is shown as the default, and editing the area must not write it
+  // back: a key like `water_drop` in a field labelled "Icon (emoji)" invites the user to save it unchanged.
+
+  it('GivenAnAreaWhoseIconCannotBeDrawn_WhenItIsEditedAndSaved_ThenTheUndrawableIconIsNotWrittenBack', async () => {
+    getHealthAreas.mockResolvedValue([anArea({ icon: 'water_drop' })]);
+    renderPage();
+    const dialog = await openEdit();
+
+    expect((dialog.getByLabelText('Icon (emoji)') as HTMLInputElement).value).toBe('');
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => expect(updateHealthArea).toHaveBeenCalledTimes(1));
+    expect(updateHealthArea.mock.calls[0][1].icon ?? '').toBe('');
+  });
+
+  it('GivenAnAreaWithADrawableIcon_WhenItIsEditedAndSaved_ThenTheIconIsKept', async () => {
+    renderPage();
+    const dialog = await openEdit();
+
+    expect((dialog.getByLabelText('Icon (emoji)') as HTMLInputElement).value).toBe('😴');
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => expect(updateHealthArea).toHaveBeenCalledTimes(1));
+    expect(updateHealthArea.mock.calls[0][1].icon).toBe('😴');
+  });
+
   // Each dialog says why a submit was refused, and only its own refusal. The two dialogs share one form
   // and one pair of messages, so a message left over from the last submit would otherwise open with the
   // next dialog.

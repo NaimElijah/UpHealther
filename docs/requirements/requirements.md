@@ -141,7 +141,7 @@ only the streaks that are running — a zero is no streak — and names each by 
 | FR-38 | A page's content grows with the browser window, up to one of two caps chosen for readability: `wide` for lists, grids and dashboards, `narrow` for reading and form pages | `PageContainer`, `PageContainer.test.tsx` ([ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md)) |
 | FR-39 | A dialog fits the window at any size: its heading stays put and only its body scrolls | `Modal` — checked by hand, see §6 |
 | FR-40 | A dialog announces itself as a dialog named by its title, takes focus on open, confines Tab to its own controls, restores focus on close, and marks the page behind it inert. A toast is not part of the page behind: it stays above an open dialog and can still be dismissed | `Modal`, `Modal.test.tsx`, `ToastContainer.test.tsx`, `UpgradeDetailsPage.test.tsx` (focus lands on Reschedule once an abandon removes the button that opened its dialog), [ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md), [ADR-019](../ADRs/ADR-019-a-toast-stays-live-above-an-open-dialog.md) |
-| FR-41 | A health area whose stored icon cannot be drawn is shown with the default icon, and editing it does not write the undrawable value back | `areaIconGlyph`, `isIconGlyph`, `areaIcon.test.ts` |
+| FR-41 | A health area whose stored icon cannot be drawn is shown with the default icon, and editing it does not write the undrawable value back | `areaIconGlyph`, `isIconGlyph`, `areaIcon.test.ts`, `HealthAreasPage.test.tsx` (an undrawable icon is not written back on edit) |
 
 ### 2.8 Account administration
 
