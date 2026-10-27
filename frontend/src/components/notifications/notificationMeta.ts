@@ -16,14 +16,20 @@ export const categoryMeta: Record<NotificationCategory, { icon: string; bg: stri
 };
 
 /**
- * Formats an ISO timestamp as "just now", "5m ago", "3h ago" or "2d ago", falling back to a locale date
- * beyond a week.
+ * Formats a notification's `createdAt` as "just now", "5m ago", "3h ago" or "2d ago", falling back to
+ * the user's locale date beyond a week.
+ *
+ * `iso` must be the API's offset-less ISO date-time, such as `2026-01-14T09:13:02`, which the server
+ * writes in UTC (ADR-020). It is read as UTC because `new Date` takes a date-time without an offset as
+ * the browser's local time, which shifted every age by the user's own offset. A string that already
+ * carries an offset is not the wire's shape and formats as "Invalid Date".
  *
  * Coarse on purpose: a notification list is scanned, not read closely, and a rounded figure is quicker
  * to take in than an exact one.
  */
 export const relativeTime = (iso: string): string => {
-  const diffMs = Date.now() - new Date(iso).getTime();
+  const instant = new Date(`${iso}Z`);
+  const diffMs = Date.now() - instant.getTime();
   const sec = Math.round(diffMs / 1000);
   if (sec < 60) return 'just now';
   const min = Math.round(sec / 60);
@@ -32,5 +38,5 @@ export const relativeTime = (iso: string): string => {
   if (hr < 24) return `${hr}h ago`;
   const days = Math.round(hr / 24);
   if (days < 7) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString();
+  return instant.toLocaleDateString();
 };
