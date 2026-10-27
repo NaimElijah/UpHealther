@@ -281,6 +281,23 @@ describe('HealthAreasPage', () => {
     expect(await dialog.findByText('Size must be between 1 and 255')).toBeDefined();
   });
 
+  it('GivenTheApiRefusesACreate_WhenItIsSubmitted_ThenTheDialogStaysOpenAndSaysWhy', async () => {
+    createHealthArea.mockRejectedValue(
+      apiFailure(400, {
+        message: 'Validation failed',
+        fieldErrors: { name: 'size must be between 0 and 255' },
+      }),
+    );
+    renderPage();
+    const dialog = await openCreate();
+
+    fireEvent.change(dialog.getByLabelText('Name'), { target: { value: 'Nutrition' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Create' }));
+
+    expect(await dialog.findByText('Size must be between 0 and 255')).toBeDefined();
+    expect(screen.getByRole('dialog', { name: 'New Health Area' })).toBeDefined();
+  });
+
   it('GivenACreateWasRefused_WhenTheCreateDialogIsOpenedAgain_ThenItStartsWithoutTheOldMessage', async () => {
     renderPage();
     let dialog = await openCreate();
@@ -350,5 +367,22 @@ describe('HealthAreasPage', () => {
     dialog = await openDelete();
 
     expect(dialog.queryByRole('alert')).toBeNull();
+  });
+
+  it('GivenTwoAreas_WhenTheSecondIsDeletedAndConfirmed_ThenThatAreaIsDeletedAndTheListRefreshes', async () => {
+    const nutrition = anArea({ id: 'area-2', name: 'Nutrition' });
+    getHealthAreas.mockResolvedValueOnce([anArea(), nutrition]).mockResolvedValue([anArea()]);
+    deleteHealthArea.mockResolvedValue(undefined);
+    renderPage();
+    await screen.findByText('Nutrition');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Delete' })[1]);
+    const dialog = within(screen.getByRole('dialog', { name: 'Delete Health Area' }));
+    fireEvent.click(dialog.getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete Health Area' })).toBeNull());
+    expect(deleteHealthArea.mock.calls.map((call) => call[0])).toEqual(['area-2']);
+    await waitFor(() => expect(screen.queryByText('Nutrition')).toBeNull());
+    expect(screen.getByText('Sleep')).toBeDefined();
   });
 });
