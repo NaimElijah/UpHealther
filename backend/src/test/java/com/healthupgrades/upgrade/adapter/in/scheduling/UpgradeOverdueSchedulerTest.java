@@ -37,6 +37,9 @@ import org.slf4j.LoggerFactory;
  * Covers the overdue sweep: which active upgrades it announces, and that it announces nothing for those
  * still within their target date.
  *
+ * <p>It also pins NFR-25, what a run records about itself: the timer and the ok and failed counters under
+ * the job's name, and the one INFO line counting what was scanned and what was announced.
+ *
  * <p>Driven by a fixed {@link java.time.Clock}, so "past its target date" means the same thing on every
  * run.
  */
