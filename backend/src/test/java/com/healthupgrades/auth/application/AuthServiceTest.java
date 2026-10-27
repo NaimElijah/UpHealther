@@ -34,6 +34,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -249,6 +250,18 @@ class AuthServiceTest {
         // would confirm the account exists, which is what handleBadCredentials refuses to do on the
         // wire. What is left is a rate signal and a trace id — the honest limit of auditing an
         // anonymous endpoint, and the reason this is asserted rather than left to a reader's goodwill.
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGIN))
+                .hasValue(new AuditEvent(AuditAction.AUTH_LOGIN, null, null, AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenADisabledAccount_WhenItsOwnerSignsIn_ThenTheRefusalIsAuditedWithNoSubject() {
+        // NFR-34: a disabled account is refused like a wrong password, and audited like one too. A FAILED
+        // entry would count a switched-off account as an outage, and naming it would confirm it exists.
+        when(authenticationManager.authenticate(any())).thenThrow(new DisabledException("User is disabled"));
+
+        assertThatThrownBy(() -> service.login(AUser.EMAIL, RAW_PASSWORD)).isInstanceOf(DisabledException.class);
+
         assertThat(auditTrail.only(AuditAction.AUTH_LOGIN))
                 .hasValue(new AuditEvent(AuditAction.AUTH_LOGIN, null, null, AuditOutcome.REFUSED));
     }
