@@ -92,6 +92,25 @@ class AuthSessionPersistenceIT extends PostgresIT {
     }
 
     @Test
+    void GivenLiveSessionsForTwoAccounts_WhenOneAccountsSessionsAreRevoked_ThenTheOtherAccountStaysSignedIn() {
+        // Switching one account off (FR-43) must not sign everybody out. The count above cannot show it:
+        // it holds only while no other live session is in the shared table.
+        User switchedOff = persistedUser();
+        User bystander = persistedUser();
+        AuthSession ended = repository.save(openedFor(switchedOff, "one"));
+        AuthSession untouched = repository.save(openedFor(bystander, "two"));
+        flushAndClear();
+
+        repository.revokeAllForUser(switchedOff.getId());
+
+        assertThat(repository.findById(ended.getId()).orElseThrow().isActive(NOW))
+                .isFalse();
+        assertThat(repository.findById(untouched.getId()).orElseThrow().isActive(NOW))
+                .as("another account's session")
+                .isTrue();
+    }
+
+    @Test
     void GivenAnAlreadyRevokedSession_WhenEverySessionIsRevokedAgain_ThenItIsNotCountedTwice() {
         // The statement is bounded to the live ones, so a caller can use the count as "how many devices
         // were signed out" rather than "how many rows exist".
