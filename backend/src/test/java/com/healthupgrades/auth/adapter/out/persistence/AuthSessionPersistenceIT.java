@@ -139,12 +139,26 @@ class AuthSessionPersistenceIT extends PostgresIT {
         AuthSession signedOut = openedFor(owner, "signed-out");
         signedOut.revoke();
         repository.save(signedOut);
+        // Each expiry on its own: unused past its idle window but inside its cap, and past its cap with
+        // an idle window that has not run out, so each row is unusable for exactly one reason.
+        AuthSession idledOut =
+                repository.save(openedFor(owner, "idled-out", NOW.minus(IDLE).minusSeconds(1), IDLE));
+        AuthSession capped =
+                repository.save(openedFor(owner, "capped", NOW.minus(ABSOLUTE).minusSeconds(1), ABSOLUTE.plus(IDLE)));
         flushAndClear();
 
-        assertThat(repository.deleteUnusableAsOf(NOW)).isEqualTo(1);
+        assertThat(repository.deleteUnusableAsOf(NOW)).isEqualTo(3);
 
         assertThat(repository.findById(live.getId())).isPresent();
-        assertThat(repository.findById(signedOut.getId())).isEmpty();
+        assertThat(repository.findById(signedOut.getId()))
+                .as("the revoked session")
+                .isEmpty();
+        assertThat(repository.findById(idledOut.getId()))
+                .as("the idled-out session")
+                .isEmpty();
+        assertThat(repository.findById(capped.getId()))
+                .as("the session past its cap")
+                .isEmpty();
     }
 
     @Test
@@ -171,9 +185,14 @@ class AuthSessionPersistenceIT extends PostgresIT {
     }
 
     private AuthSession openedFor(User owner, String secret) {
+        return openedFor(owner, secret, NOW, IDLE);
+    }
+
+    /** A session opened at {@code openedAt} with the given idle window, under the usual absolute cap. */
+    private AuthSession openedFor(User owner, String secret, Instant openedAt, Duration idle) {
         UUID sessionId = UUID.randomUUID();
         return AuthSession.opened(
-                sessionId, owner.getId(), new RefreshToken(sessionId, secret).hash(), NOW, IDLE, ABSOLUTE);
+                sessionId, owner.getId(), new RefreshToken(sessionId, secret).hash(), openedAt, idle, ABSOLUTE);
     }
 
     /**

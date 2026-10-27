@@ -509,7 +509,9 @@ class AuthSessionServiceTest {
     }
 
     @Test
-    void GivenRevokedAndExpiredSessions_WhenTheCleanupRuns_ThenOnlyTheUsableOnesRemain() {
+    void GivenARevokedSession_WhenTheCleanupRuns_ThenOnlyTheUsableOnesRemain() {
+        // Which rows count as unusable is the query's to decide, and the fake only imitates it, so the
+        // expired cases are asserted against the database in AuthSessionPersistenceIT.
         SessionGrant live = service.open(USER_ID);
         SessionGrant signedOut = service.open(USER_ID);
         service.revoke(signedOut.refreshToken());
