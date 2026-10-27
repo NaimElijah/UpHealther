@@ -25,8 +25,10 @@ import com.healthupgrades.upgrade.domain.event.HealthUpgradePaused;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradePlanned;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import com.healthupgrades.user.application.port.in.UserCommand;
+import java.lang.reflect.Method;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -41,7 +43,10 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -141,7 +146,7 @@ class NotificationCommitIT extends PostgresIT {
                         .getClass())
                 .collect(Collectors.toSet());
 
-        assertThat(NotificationEventListenerTest.afterCommitListeners())
+        assertThat(afterCommitListeners())
                 .isNotEmpty()
                 .allSatisfy(listener -> assertThat(proved)
                         .as("%s waits for the commit, so its event belongs in lifecycleEvents()", listener)
@@ -201,6 +206,17 @@ class NotificationCommitIT extends PostgresIT {
 
     private static Raised raises(String event, NotificationType expected, BiFunction<UUID, UUID, DomainEvent> raised) {
         return new Raised(event, expected, raised);
+    }
+
+    /** Every method of {@link NotificationEventListener} that runs once its event's transaction commits. */
+    private static List<Method> afterCommitListeners() {
+        return Arrays.stream(NotificationEventListener.class.getDeclaredMethods())
+                .filter(method -> {
+                    TransactionalEventListener listener =
+                            AnnotatedElementUtils.findMergedAnnotation(method, TransactionalEventListener.class);
+                    return listener != null && listener.phase() == TransactionPhase.AFTER_COMMIT;
+                })
+                .toList();
     }
 
     private List<Notification> storedForUser() {

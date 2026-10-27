@@ -23,11 +23,8 @@ import com.healthupgrades.upgrade.domain.event.HealthUpgradePaused;
 import com.healthupgrades.upgrade.domain.event.HealthUpgradePlanned;
 import com.healthupgrades.upgrade.domain.event.UpgradeOverdueDetected;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
-import java.lang.reflect.Method;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -37,11 +34,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.core.annotation.AnnotatedElementUtils;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
  * Covers the translation from domain event to notification: the category each event produces, and where
@@ -248,32 +240,6 @@ class NotificationEventListenerTest {
                         .title("Sleep early")
                         .build()));
         assertThat(message.getValue().get()).contains("Sleep early");
-    }
-
-    @Test
-    void GivenEveryListenerThatWaitsForTheCommit_WhenItsTransactionIsRead_ThenItRunsInATransactionOfItsOwn() {
-        // #169, ADR-028: one that joins the transaction that has just committed stores nothing, while its
-        // push still goes out. NotificationCommitIT proves it for the listeners it lists; this covers any
-        // listener added since.
-        assertThat(afterCommitListeners())
-                .isNotEmpty()
-                .allSatisfy(method -> assertThat(
-                                AnnotatedElementUtils.findMergedAnnotation(method, Transactional.class))
-                        .as("%s waits for the commit, so it needs @Transactional(propagation = REQUIRES_NEW)", method)
-                        .isNotNull()
-                        .extracting(Transactional::propagation)
-                        .isEqualTo(Propagation.REQUIRES_NEW));
-    }
-
-    /** Every method of {@link NotificationEventListener} that runs once its event's transaction commits. */
-    static List<Method> afterCommitListeners() {
-        return Arrays.stream(NotificationEventListener.class.getDeclaredMethods())
-                .filter(method -> {
-                    TransactionalEventListener listener =
-                            AnnotatedElementUtils.findMergedAnnotation(method, TransactionalEventListener.class);
-                    return listener != null && listener.phase() == TransactionPhase.AFTER_COMMIT;
-                })
-                .toList();
     }
 
     private void givenTheUpgradeIsTitled(String title) {
