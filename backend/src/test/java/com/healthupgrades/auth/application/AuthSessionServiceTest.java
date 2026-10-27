@@ -12,13 +12,11 @@ import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.event.DomainEvent;
+import com.healthupgrades.support.MovableClock;
 import com.healthupgrades.support.RecordingAuditTrail;
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -52,6 +50,7 @@ class AuthSessionServiceTest {
     private final InMemorySessions sessions = new InMemorySessions();
     private final QueuedSecrets secrets = new QueuedSecrets();
     private final RecordingAuditTrail auditTrail = new RecordingAuditTrail();
+    /** Movable, because the grace window cannot be crossed with a fixed clock. */
     private final MovableClock clock = new MovableClock(START);
     /** Our own port, recorded rather than mocked, like the rest of this class's collaborators. */
     private final List<DomainEvent> published = new ArrayList<>();
@@ -624,34 +623,5 @@ class AuthSessionServiceTest {
     /** The moment the clock reads, as an event this service publishes stamps it. */
     private LocalDateTime now() {
         return LocalDateTime.now(clock);
-    }
-
-    /** A clock that can be moved, because the grace window cannot be crossed with a fixed one. */
-    private static final class MovableClock extends Clock {
-
-        private Instant now;
-
-        private MovableClock(Instant now) {
-            this.now = now;
-        }
-
-        void moveTo(Instant instant) {
-            this.now = instant;
-        }
-
-        @Override
-        public ZoneId getZone() {
-            return ZoneOffset.UTC;
-        }
-
-        @Override
-        public Clock withZone(ZoneId zone) {
-            return this;
-        }
-
-        @Override
-        public Instant instant() {
-            return now;
-        }
     }
 }

@@ -2,11 +2,9 @@ package com.healthupgrades.common.ratelimit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.time.Clock;
+import com.healthupgrades.support.MovableClock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -249,34 +247,5 @@ class FixedWindowRateLimiterTest {
         assertThat(wrongRounds)
                 .as("allowed counts in the rounds that were not exactly %d", LIMIT)
                 .isEmpty();
-    }
-
-    /** A clock that can be moved, so a window can pass without anything sleeping. */
-    private static final class MovableClock extends Clock {
-
-        private volatile Instant now;
-
-        private MovableClock(Instant now) {
-            this.now = now;
-        }
-
-        void moveTo(Instant instant) {
-            this.now = instant;
-        }
-
-        @Override
-        public ZoneId getZone() {
-            return ZoneOffset.UTC;
-        }
-
-        @Override
-        public Clock withZone(ZoneId zone) {
-            return this;
-        }
-
-        @Override
-        public Instant instant() {
-            return now;
-        }
     }
 }
