@@ -88,3 +88,29 @@ describe('ProgressHistoryPage', () => {
     expect(await screen.findByText('Thu, Mar 12')).toBeDefined();
   });
 });
+
+/** FR-21 — the week reads newest first, whatever order the API sends the entries in. */
+describe('ProgressHistoryPage order', () => {
+  beforeEach(() => {
+    getWeekProgress.mockReset();
+    getUpgrades.mockReset();
+    getUpgrades.mockResolvedValue([anUpgrade()]);
+  });
+
+  it('GivenEntriesInNoParticularOrder_WhenTheWeekIsListed_ThenTheNewestIsFirst', async () => {
+    getWeekProgress.mockResolvedValue([
+      anEntry({ id: 'p-1', date: '2026-03-10', note: 'on the tenth' }),
+      anEntry({ id: 'p-2', date: '2026-03-12', note: 'on the twelfth' }),
+      anEntry({ id: 'p-3', date: '2026-03-11', note: 'on the eleventh' }),
+    ]);
+
+    renderPage();
+
+    await screen.findByText('on the tenth');
+    expect(screen.getAllByText(/^on the /).map((note) => note.textContent)).toEqual([
+      'on the twelfth',
+      'on the eleventh',
+      'on the tenth',
+    ]);
+  });
+});
