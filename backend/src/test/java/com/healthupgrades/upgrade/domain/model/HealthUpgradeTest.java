@@ -172,12 +172,6 @@ class HealthUpgradeTest {
     }
 
     @Test
-    void GivenAnActiveUpgrade_WhenItIsPlanned_ThenItIsRejected() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
-        assertThatThrownBy(() -> upgrade.plan(REFERENCE_DAY)).isInstanceOf(BusinessRuleException.class);
-    }
-
-    @Test
     void GivenAPlannedUpgrade_WhenItIsActivated_ThenItBecomesActive() {
         HealthUpgrade upgrade = upgradeIn(UpgradeStatus.PLANNED);
 
@@ -185,70 +179,6 @@ class HealthUpgradeTest {
 
         assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.ACTIVE);
         assertThat(upgrade.getActualStartDate()).isEqualTo(REFERENCE_DAY);
-    }
-
-    @Test
-    void GivenAPausedUpgrade_WhenItIsActivated_ThenItBecomesActive() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.PAUSED);
-        upgrade.activate(REFERENCE_DAY);
-        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.ACTIVE);
-    }
-
-    @Test
-    void GivenAnIdea_WhenItIsActivated_ThenItIsRejected() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.IDEA);
-        assertThatThrownBy(() -> upgrade.activate(REFERENCE_DAY)).isInstanceOf(BusinessRuleException.class);
-    }
-
-    @Test
-    void GivenAnActiveUpgrade_WhenItIsPaused_ThenItBecomesPaused() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
-        upgrade.pause();
-        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.PAUSED);
-    }
-
-    @Test
-    void GivenAnIdea_WhenItIsPaused_ThenItIsRejected() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.IDEA);
-        assertThatThrownBy(upgrade::pause).isInstanceOf(BusinessRuleException.class);
-    }
-
-    @Test
-    void GivenAnActiveUpgrade_WhenItIsCompleted_ThenItBecomesCompleted() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
-        upgrade.complete();
-        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.COMPLETED);
-    }
-
-    @Test
-    void GivenAPausedUpgrade_WhenItIsCompleted_ThenItIsRejected() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.PAUSED);
-        assertThatThrownBy(upgrade::complete).isInstanceOf(BusinessRuleException.class);
-    }
-
-    @Test
-    void GivenAnActiveUpgrade_WhenItIsAbandoned_ThenItBecomesAbandoned() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
-        upgrade.abandon();
-        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.ABANDONED);
-    }
-
-    @Test
-    void GivenACompletedUpgrade_WhenItIsAbandoned_ThenItIsRejected() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.COMPLETED);
-        assertThatThrownBy(upgrade::abandon).isInstanceOf(BusinessRuleException.class);
-    }
-
-    @Test
-    void GivenAnAbandonedUpgrade_WhenItIsAbandonedAgain_ThenItIsRejected() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ABANDONED);
-        assertThatThrownBy(upgrade::abandon).isInstanceOf(BusinessRuleException.class);
-    }
-
-    @Test
-    void GivenACompletedUpgrade_WhenItIsRescheduled_ThenItIsRejected() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.COMPLETED);
-        assertThatThrownBy(() -> upgrade.reschedule(REFERENCE_DAY)).isInstanceOf(BusinessRuleException.class);
     }
 
     @Test
@@ -271,27 +201,6 @@ class HealthUpgradeTest {
 
         assertThat(upgrade.getPlannedStartDate()).isEqualTo(newDate);
         assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.IDEA);
-    }
-
-    @Test
-    void GivenAPlannedUpgrade_WhenItIsRescheduled_ThenItStaysPlanned() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.PLANNED);
-        upgrade.reschedule(REFERENCE_DAY.plusDays(10));
-        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.PLANNED);
-    }
-
-    @Test
-    void GivenAnActiveUpgrade_WhenItIsRescheduled_ThenItStaysActive() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
-        upgrade.reschedule(REFERENCE_DAY.plusDays(10));
-        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.ACTIVE);
-    }
-
-    @Test
-    void GivenAPausedUpgrade_WhenItIsRescheduled_ThenItStaysPaused() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.PAUSED);
-        upgrade.reschedule(REFERENCE_DAY.plusDays(10));
-        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.PAUSED);
     }
 
     // ---- BR-2's transition table, every move from every state ----
