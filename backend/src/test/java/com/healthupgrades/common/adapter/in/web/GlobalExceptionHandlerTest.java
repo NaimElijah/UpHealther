@@ -18,6 +18,8 @@ import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.exception.DuplicateProgressException;
 import com.healthupgrades.common.domain.exception.OptimisticLockException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.common.domain.exception.RetryableConflictException;
+import com.healthupgrades.common.domain.exception.TooManyRequestsException;
 import com.healthupgrades.upgrade.adapter.in.web.UpgradeController;
 import com.healthupgrades.upgrade.adapter.in.web.UpgradeWebMapper;
 import com.healthupgrades.upgrade.application.UpgradeService;
@@ -27,20 +29,26 @@ import io.micrometer.tracing.test.simple.SimpleTraceContext;
 import io.micrometer.tracing.test.simple.SimpleTracer;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AccountStatusException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -49,7 +57,12 @@ import org.springframework.security.authentication.InternalAuthenticationService
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.ServletWebRequest;
+import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 import org.springframework.web.method.annotation.ExceptionHandlerMethodResolver;
 
 /**
@@ -281,6 +294,22 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void GivenTheResponseIsAlreadyCommitted_WhenAFrameworkExceptionIsHandled_ThenNoBodyIsWrittenAndItIsLoggedAtWarn()
+            throws Exception {
+        // Writing a body onto a committed response throws, and that second failure would hide the first.
+        MockHttpServletResponse committed = new MockHttpServletResponse();
+        committed.setCommitted(true);
+        ServletWebRequest webRequest = new ServletWebRequest((MockHttpServletRequest) request, committed);
+        Object[] answer = new Object[1];
+
+        List<ILoggingEvent> logged = logsFromHandler(() ->
+                answer[0] = handler.handleException(new HttpRequestMethodNotSupportedException("PATCH"), webRequest));
+
+        assertThat(answer[0]).as("no response entity, so nothing is written").isNull();
+        assertThat(logged).singleElement().extracting(ILoggingEvent::getLevel).isEqualTo(Level.WARN);
+    }
+
+    @Test
     void GivenTheAdviceAsSpringSeesIt_WhenItsHandlerMappingsAreBuilt_ThenNoTypeIsMappedTwice() {
         // What Spring does at startup. Adding an @ExceptionHandler for a type ResponseEntityExceptionHandler
         // already maps is an ambiguous mapping: it fails the boot, and the only other test that would
@@ -394,6 +423,96 @@ class GlobalExceptionHandlerTest {
                     () -> mockMvc.perform(get("/api/upgrades/not-a-uuid")).andExpect(status().isBadRequest()));
 
             assertThat(logged).noneMatch(event -> event.getLevel() == Level.ERROR);
+        }
+    }
+
+    /**
+     * The advice behind the dispatcher, for exceptions a handler method raises.
+     *
+     * <p>The methods above are called directly, so they show what each handler returns but not which
+     * handler Spring picks: an exception whose mapping was deleted would still pass them, answered by the
+     * catch-all in production. Here the dispatcher chooses, exactly as it does for a real controller.
+     */
+    @Nested
+    class RoutedFromAHandlerMethod {
+
+        private final FailingController controller = new FailingController();
+
+        private final MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new GlobalExceptionHandler(Tracer.NOOP, CLOCK))
+                .build();
+
+        @ParameterizedTest(name = "{0} -> {1}")
+        @MethodSource("com.healthupgrades.common.adapter.in.web.GlobalExceptionHandlerTest#documentedStatuses")
+        void GivenAHandlerMethodThrows_WhenTheDispatcherResolvesIt_ThenTheAnswerIsTheDocumentedStatus(
+                RuntimeException thrown, HttpStatus expected) throws Exception {
+            controller.failure = thrown;
+
+            mockMvc.perform(get(FailingController.PATH))
+                    .andExpect(status().is(expected.value()))
+                    .andExpect(jsonPath("$.status").value(expected.value()))
+                    .andExpect(jsonPath("$.path").value(FailingController.PATH));
+        }
+
+        @Test
+        void GivenAFrameworkExceptionSpringMapsToA5xx_WhenItIsResolved_ThenTheBodySaysNothingButInternalServerError()
+                throws Exception {
+            // A 5xx is ours, whoever chose its status, so its body is the fixed message and never the reason
+            // phrase or the exception's own text.
+            controller.failure = new AsyncRequestTimeoutException();
+
+            mockMvc.perform(get(FailingController.PATH))
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.message").value("Internal server error"));
+        }
+
+        @Test
+        void GivenAFrameworkExceptionSpringMapsToA5xx_WhenItIsResolved_ThenItIsLoggedAtErrorWithItsStackTrace()
+                throws Exception {
+            controller.failure = new AsyncRequestTimeoutException();
+
+            List<ILoggingEvent> logged = logsFromHandler(() -> mockMvc.perform(get(FailingController.PATH)));
+
+            assertThat(logged).singleElement().satisfies(event -> {
+                assertThat(event.getLevel()).isEqualTo(Level.ERROR);
+                assertThat(event.getThrowableProxy()).isNotNull();
+            });
+        }
+    }
+
+    /** Every exception a handler method may raise, with the status the class Javadoc documents for it. */
+    static Stream<Arguments> documentedStatuses() {
+        return Stream.of(
+                Arguments.of(new ResourceNotFoundException("Upgrade not found: 42"), HttpStatus.NOT_FOUND),
+                Arguments.of(
+                        new BusinessRuleException("Only ACTIVE upgrades can be paused"),
+                        HttpStatus.UNPROCESSABLE_CONTENT),
+                Arguments.of(new DuplicateProgressException("Already recorded"), HttpStatus.CONFLICT),
+                Arguments.of(new OptimisticLockException("stale version"), HttpStatus.CONFLICT),
+                Arguments.of(new jakarta.persistence.OptimisticLockException("stale version"), HttpStatus.CONFLICT),
+                Arguments.of(new RetryableConflictException("overtaken"), HttpStatus.CONFLICT),
+                Arguments.of(new TooManyRequestsException(Duration.ofSeconds(30)), HttpStatus.TOO_MANY_REQUESTS),
+                Arguments.of(new BadCredentialsException("Bad credentials"), HttpStatus.UNAUTHORIZED),
+                Arguments.of(new DisabledException("User is disabled"), HttpStatus.UNAUTHORIZED),
+                Arguments.of(AuthenticationRequiredException.noCredential(), HttpStatus.UNAUTHORIZED),
+                Arguments.of(new AccessDeniedException("nope"), HttpStatus.FORBIDDEN),
+                Arguments.of(
+                        new InternalAuthenticationServiceException("could not connect"),
+                        HttpStatus.INTERNAL_SERVER_ERROR),
+                Arguments.of(new IllegalStateException("unexpected"), HttpStatus.INTERNAL_SERVER_ERROR));
+    }
+
+    /** A handler method that throws whatever the test hands it, so routing is all that is under test. */
+    @RestController
+    static class FailingController {
+
+        static final String PATH = "/api/failing";
+
+        private RuntimeException failure;
+
+        @GetMapping(PATH)
+        void fail() {
+            throw failure;
         }
     }
 
