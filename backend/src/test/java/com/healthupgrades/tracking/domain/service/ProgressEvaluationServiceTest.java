@@ -159,6 +159,15 @@ class ProgressEvaluationServiceTest {
         assertThat(service.isSuccessful(e, c)).isTrue();
     }
 
+    @Test
+    void GivenANumericConfigWithNoTarget_WhenAnEntryIsEvaluated_ThenItDoesNotCount() {
+        // BR-21: with no target there is nothing for the value to reach, so no value counts, however large.
+        ProgressEntry e = buildEntry();
+        e.setNumericValue(1_000_000.0);
+        TrackingConfig c = buildConfig(TrackingType.NUMERIC);
+        assertThat(service.isSuccessful(e, c)).isFalse();
+    }
+
     // RATING tests
     @Test
     void GivenARatingAboveThree_WhenItIsEvaluated_ThenItCounts() {
