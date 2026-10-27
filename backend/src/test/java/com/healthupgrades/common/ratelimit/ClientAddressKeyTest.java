@@ -10,6 +10,9 @@ import org.junit.jupiter.api.Test;
  * <p>Every input is a literal or a string no resolver could answer, so nothing here touches the
  * network. That the hostname guard keeps a name from ever reaching {@code InetAddress.getByName} is not
  * observable from the key: a lookup that fails returns the input unchanged, exactly as the guard does.
+ * Pinning the guard would take a test-scope {@code java.net.spi.InetAddressResolverProvider} that
+ * records every lookup. The JDK installs such a provider for the whole JVM, so it would stand under
+ * every test in the fork, not only this class; it is not adopted here (#359).
  */
 class ClientAddressKeyTest {
 
@@ -44,9 +47,12 @@ class ClientAddressKeyTest {
     }
 
     @Test
-    void GivenAnIpv4MappedIpv6Address_WhenTheKeyIsTaken_ThenItIsCountedAsTheAddressItWasGiven() {
-        // The parser hands an IPv4-mapped literal back as an IPv4 address, which has no /64 to take.
-        assertThat(ClientAddressKey.of("::ffff:203.0.113.7")).isEqualTo("::ffff:203.0.113.7");
+    void GivenTwoIpv4MappedAddresses_WhenTheKeysAreTaken_ThenTheyAreNotFoldedIntoOneSharedSlash64() {
+        // Behind a dual-stack proxy every IPv4 client arrives in this form, and the first 64 bits of each
+        // are zero: keyed by the /64, they would all share one bucket, and one client's attempts would
+        // lock out every other. Whether a mapped address shares a key with its plain IPv4 spelling is a
+        // separate question, which this test leaves open.
+        assertThat(ClientAddressKey.of("::ffff:203.0.113.7")).isNotEqualTo(ClientAddressKey.of("::ffff:198.51.100.9"));
     }
 
     @Test
