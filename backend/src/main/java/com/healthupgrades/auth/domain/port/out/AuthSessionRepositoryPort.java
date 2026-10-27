@@ -23,8 +23,8 @@ public interface AuthSessionRepositoryPort {
      * both read the pre-rotation state: both would see the current credential match, both would rotate,
      * and the second would overwrite the first's — handing one client a credential the row no longer
      * accepts. Serialising the pair is what makes rotation atomic, and it is why the aggregate carries
-     * no {@code @Version}: an optimistic clash would surface as an unmapped 500 at commit, outside any
-     * handler, where this waits instead.
+     * no {@code @Version}: an optimistic clash would refuse the second refresh with a 409 at commit,
+     * where this makes it wait for the first instead.
      *
      * <p>Must be called inside a transaction.
      */
