@@ -45,12 +45,6 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 @Import(UpgradeRepositoryAdapter.class)
 class UpgradePersistenceIT extends PostgresIT {
 
-    /**
-     * For the NOT NULL timestamp columns of rows built here. The entity's {@code @PrePersist} stamps its own
-     * value over it, so any fixed value serves, and a fixed one keeps the wall clock out of the test.
-     */
-    private static final java.time.LocalDateTime STAMP = java.time.LocalDateTime.of(2026, 3, 15, 9, 0);
-
     @Autowired
     UpgradeRepositoryPort repository;
 
@@ -119,8 +113,6 @@ class UpgradePersistenceIT extends PostgresIT {
         entityManager.persistAndFlush(AnUpgrade.ownedBy(strangerId)
                 .id(null)
                 .status(UpgradeStatus.ACTIVE)
-                .createdAt(STAMP)
-                .updatedAt(STAMP)
                 .build());
         entityManager.clear();
 
@@ -228,8 +220,6 @@ class UpgradePersistenceIT extends PostgresIT {
                 .id(null)
                 .status(status)
                 .plannedStartDate(LocalDate.of(2026, 3, 1))
-                .createdAt(STAMP)
-                .updatedAt(STAMP)
                 .build();
     }
 
@@ -238,8 +228,6 @@ class UpgradePersistenceIT extends PostgresIT {
                 .id(null)
                 .status(UpgradeStatus.ACTIVE)
                 .difficulty(Difficulty.HARD)
-                .createdAt(STAMP)
-                .updatedAt(STAMP)
                 .build();
     }
 }

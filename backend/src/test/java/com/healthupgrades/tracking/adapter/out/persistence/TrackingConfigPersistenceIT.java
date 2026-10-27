@@ -10,7 +10,6 @@ import com.healthupgrades.support.PostgresIT;
 import com.healthupgrades.tracking.domain.model.TrackingConfig;
 import com.healthupgrades.tracking.domain.port.out.TrackingConfigRepositoryPort;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import org.hibernate.exception.ConstraintViolationException;
@@ -37,12 +36,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(TrackingConfigRepositoryAdapter.class)
 class TrackingConfigPersistenceIT extends PostgresIT {
-
-    /**
-     * For the NOT NULL timestamp columns of rows built here. The entity's {@code @PrePersist} stamps its own
-     * value over it, so any fixed value serves, and a fixed one keeps the wall clock out of the test.
-     */
-    private static final LocalDateTime STAMP = LocalDateTime.of(2026, 3, 15, 9, 0);
 
     @Autowired
     TrackingConfigRepositoryPort repository;
@@ -116,8 +109,6 @@ class TrackingConfigPersistenceIT extends PostgresIT {
                 .persistAndFlush(AnUpgrade.ownedBy(userId)
                         .id(null)
                         .status(UpgradeStatus.ACTIVE)
-                        .createdAt(STAMP)
-                        .updatedAt(STAMP)
                         .build())
                 .getId();
     }
