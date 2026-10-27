@@ -3,7 +3,7 @@
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
 rather than trusted. A hundred and nineteen of the hundred and twenty-eight entries below name a test —
-a hundred and twenty-five distinct test classes and files between them. Six of the remaining nine name the
+a hundred and twenty-six distinct test classes and files between them. Six of the remaining nine name the
 command, workflow, script or setting that *is* the check (NFR-11, NFR-13, NFR-18, NFR-48, NFR-52,
 NFR-53). The last three — FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is
 about a rendered width, a colour or an overflow, and jsdom has no layout engine to observe any of them;
@@ -90,7 +90,7 @@ no way at all — to read another person's health records
 
 | ID | Requirement | Enforced by |
 |---|---|---|
-| FR-16 | A user can configure how an upgrade is measured: boolean, numeric, rating or free text. An upgrade has at most one configuration, and saving another replaces it | `TrackingServiceTest`, `TrackingConfigControllerTest` |
+| FR-16 | A user can configure how an upgrade is measured: boolean, numeric, rating or free text. An upgrade has at most one configuration, and saving another replaces it | `TrackingServiceTest`, `TrackingConfigControllerTest`, `TrackingConfigPersistenceIT` (the unique `upgrade_id`) |
 | FR-17 | A numeric configuration can carry a target value and a unit | `TrackingServiceTest`, `TrackingConfigControllerTest` |
 | FR-18 | A user can log progress for an upgrade on a given day | `TrackingServiceTest`, `ProgressControllerTest`, `UpgradeDetailsPage.test.tsx`, `localDate.test.ts` |
 | FR-19 | A user can log progress for every active upgrade in one pass | `DailyCheckinPage.test.tsx` — but see §6 — **Known deviation:** [#55](https://github.com/NaimElijah/UpHealther/issues/55), untouched upgrades are logged too |
@@ -245,7 +245,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 |---|---|---|
 | NFR-7 | Every failure maps to a defined HTTP status: 404 not found, 422 rule violation, 409 conflict (including a refresh that lost a rotation race, which the client simply retries), 401 rejected credentials or no accepted token, 400 invalid input (a failed constraint, an unbindable body, a parameter that will not convert), 403 authenticated but not allowed, 429 over a rate limit with `Retry-After`, and the status Spring defines for every other framework exception (405, 415, 406, …). Only a genuine server fault is a 500, and it carries no detail beyond the status and the trace id that finds its log line | `GlobalExceptionHandlerTest`, every `*ControllerTest`, `RateLimitedSignInTest` (429), `AuthControllerTest` (the retryable 409), `CorrelationIT` (a request the firewall refuses keeps its 400 through the container's error page, [ADR-024](../ADRs/ADR-024-the-container-error-page-keeps-its-status-and-carries-the-trace-id.md)), [ADR-006](../ADRs/ADR-006-framework-exceptions-through-responseentityexceptionhandler.md) |
 | NFR-8 | The database schema is owned by migrations; the application refuses to start against a schema that does not match its entities | `ApplicationContextIT`, Flyway + `ddl-auto: validate` |
-| NFR-14 | List endpoints resolve related data in batch rather than per row | `TrackingServiceTest`, `DashboardAggregationServiceTest`, `ProgressEntryPersistenceIT`, `NotificationSchedulerTest`, `NotificationPersistenceIT` |
+| NFR-14 | List endpoints resolve related data in batch rather than per row | `TrackingServiceTest`, `DashboardAggregationServiceTest`, `ProgressEntryPersistenceIT`, `TrackingConfigPersistenceIT`, `NotificationSchedulerTest`, `NotificationPersistenceIT` |
 | NFR-15 | Time-dependent behaviour reads an injected clock, so it is testable and timezone-explicit | `UpgradeOverdueSchedulerTest`, `NotificationSchedulerTest`, `UpgradeServiceTest`, `TrackingServiceTest`, `ReflectionServiceTest`, `GlobalExceptionHandlerTest`, `NotificationServiceTest`, `TraceIdErrorAttributesTest` (the container's error page), `HealthUpgradesApplicationTest` and `ServerTimeArchitectureTest` (the clock and every cron keep UTC, and nothing outside an entity reads the time around the clock, [ADR-020](../ADRs/ADR-020-the-server-keeps-time-in-utc.md)) — **Known deviation:** [#51](https://github.com/NaimElijah/UpHealther/issues/51), entity timestamps bypass the clock |
 | NFR-26 | A real-time push that cannot be delivered degrades to the stored notification and is reported, rather than failing the work that raised it | `StompNotificationPushAdapterTest` |
 | NFR-50 | A notification sweep that fails to save one notification still attempts the rest, and gives up only when the database cannot be reached; the run then still ends as failed, and its log line says how many were sent, failed and skipped | `NotificationSchedulerTest` ([ADR-023](../ADRs/ADR-023-a-notification-sweep-carries-on-past-a-failed-save-and-fails-the-run.md)) |
