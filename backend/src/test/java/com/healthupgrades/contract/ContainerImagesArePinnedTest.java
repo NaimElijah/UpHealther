@@ -3,11 +3,11 @@ package com.healthupgrades.contract;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.healthupgrades.support.PostgresImage;
+import com.healthupgrades.support.RepositoryVersion;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -31,8 +31,8 @@ import org.junit.jupiter.api.Test;
  * PostgreSQL-specific and Hibernate boots with {@code validate}, so tests against a different image
  * validate against something nobody deploys.
  *
- * <p>Like {@code FrontendWireTypesContractTest}, it reads files outside {@code backend/} and searches upward
- * for the repository root, so it runs the same from Maven and from an IDE.
+ * <p>Like {@code FrontendWireTypesContractTest}, it reads files outside {@code backend/}, from the root
+ * {@link RepositoryVersion#repositoryRoot()} finds, so it runs the same from Maven and from an IDE.
  */
 class ContainerImagesArePinnedTest {
 
@@ -143,7 +143,7 @@ class ContainerImagesArePinnedTest {
 
     /** Every image named by a Dockerfile or compose file at the root or in a module. */
     private static List<String> imagesNamedByBuildFiles() {
-        Path root = repositoryRoot();
+        Path root = RepositoryVersion.repositoryRoot();
         List<Path> buildFiles;
         try (Stream<Path> found = Files.find(
                 root,
@@ -205,22 +205,7 @@ class ContainerImagesArePinnedTest {
     }
 
     private static Path repositoryFile(String name) {
-        return repositoryRoot().resolve(name);
-    }
-
-    /** The repository root, found by searching upward for the compose file. */
-    private static Path repositoryRoot() {
-        Path root = Paths.get("").toAbsolutePath();
-        while (root != null && !Files.exists(root.resolve("docker-compose.yml"))) {
-            root = root.getParent();
-        }
-        assertThat(root)
-                .describedAs(
-                        "could not locate docker-compose.yml from %s; it is part of this check, and its "
-                                + "absence is a broken checkout, not a reason to skip it",
-                        Paths.get("").toAbsolutePath())
-                .isNotNull();
-        return root;
+        return RepositoryVersion.repositoryRoot().resolve(name);
     }
 
     private static String read(Path file) {

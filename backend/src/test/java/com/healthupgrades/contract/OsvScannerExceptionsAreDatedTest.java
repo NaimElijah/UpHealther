@@ -2,6 +2,7 @@ package com.healthupgrades.contract;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.healthupgrades.support.RepositoryVersion;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -24,13 +25,10 @@ import org.junit.jupiter.api.Test;
  * {@code [[PackageOverrides]]} entry silences a whole package the same way. So the rule that each
  * exception says why, and until when, is kept here rather than by the tool.
  *
- * <p>No file means nothing is accepted, and that passes. Like {@code ContainerImagesArePinnedTest}, it
- * searches upward for the repository root, so it runs the same from Maven and from an IDE.
+ * <p>No file means nothing is accepted, and that passes. It reads the file from
+ * the root {@link RepositoryVersion#repositoryRoot()} finds, so it runs the same from Maven and from an IDE.
  */
 class OsvScannerExceptionsAreDatedTest {
-
-    /** The backend's build file, relative to the repository root: how the root is recognised. */
-    private static final Path BACKEND_POM = Paths.get("backend", "pom.xml");
 
     /** Where OSV-Scanner looks for its configuration: beside the pom it scans. */
     private static final Path SCANNER_CONFIG = Paths.get("backend", "osv-scanner.toml");
@@ -62,7 +60,7 @@ class OsvScannerExceptionsAreDatedTest {
 
     @Test
     void GivenTheBackendsOsvScannerConfig_WhenReadingWhatItAccepts_ThenEveryExceptionHasAReasonAndAnExpiry() {
-        Path config = repositoryRoot().resolve(SCANNER_CONFIG);
+        Path config = RepositoryVersion.repositoryRoot().resolve(SCANNER_CONFIG);
         if (!Files.exists(config)) {
             return;
         }
@@ -224,20 +222,6 @@ class OsvScannerExceptionsAreDatedTest {
             }
         }
         return tables;
-    }
-
-    /** The repository root, found by searching upward for the backend's pom. */
-    private static Path repositoryRoot() {
-        Path root = Paths.get("").toAbsolutePath();
-        while (root != null && !Files.exists(root.resolve(BACKEND_POM))) {
-            root = root.getParent();
-        }
-        assertThat(root)
-                .describedAs(
-                        "could not locate %s from %s",
-                        BACKEND_POM, Paths.get("").toAbsolutePath())
-                .isNotNull();
-        return root;
     }
 
     private static String read(Path file) {
