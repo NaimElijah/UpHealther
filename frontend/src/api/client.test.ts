@@ -58,11 +58,13 @@ describe('the shared API client', () => {
   const pathsSent = () => sentConfigs.map((c) => c.url);
 
   /**
-   * Lets pending promise callbacks run without touching the clock: enough rounds for the interceptor chain
-   * to have sent a refresh, had it not been waiting for something.
+   * Lets every pending promise callback run, however many hops the interceptor chain takes: a timer fires
+   * only once the microtask queue is empty. A fixed number of rounds would depend on axios's promise depth,
+   * so a lock bypass a few hops longer would still pass. Needs real timers, as a faked one never fires.
    */
   const settle = async () => {
-    for (let round = 0; round < 10; round += 1) await Promise.resolve();
+    if (vi.isFakeTimers()) throw new Error('settle() waits on a real timer; call it before vi.useFakeTimers()');
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
   };
 
   const realLocks = Object.getOwnPropertyDescriptor(navigator, 'locks');
