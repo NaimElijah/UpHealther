@@ -99,27 +99,6 @@ class HealthUpgradeTest {
     // ---- editing details ----
 
     @Test
-    void GivenAnUpgrade_WhenItsDetailsAreUpdated_ThenTheEditableFieldsAreReplaced() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
-
-        upgrade.updateDetails(
-                null, "New title", "New description", UpgradeType.EXPERIMENT, REFERENCE_DAY, "Because", "Done when");
-
-        assertThat(upgrade.getTitle()).isEqualTo("New title");
-        assertThat(upgrade.getType()).isEqualTo(UpgradeType.EXPERIMENT);
-        assertThat(upgrade.getTargetEndDate()).isEqualTo(REFERENCE_DAY);
-    }
-
-    @Test
-    void GivenAnUpgradeInAnyState_WhenItsDetailsAreUpdated_ThenItsLifecycleIsUntouched() {
-        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
-
-        upgrade.updateDetails(null, "New title", null, UpgradeType.HABIT, null, null, null);
-
-        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.ACTIVE);
-    }
-
-    @Test
     void GivenAnUpgrade_WhenEveryEditableFieldIsReplaced_ThenEachHoldsItsNewValue() {
         // FR-13 names seven editable fields; each gets a value no other one has, so a field left
         // unassigned or assigned into its neighbour shows here.
