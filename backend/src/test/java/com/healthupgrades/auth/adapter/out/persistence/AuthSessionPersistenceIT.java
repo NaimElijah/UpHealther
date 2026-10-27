@@ -22,13 +22,13 @@ import org.springframework.context.annotation.Import;
 /**
  * What the session table actually does, which no in-memory fake can tell us.
  *
- * <p>Three things are being checked and only one of them is a query. The first is that the mapping and
- * the migration agree at all — Hibernate boots with {@code ddl-auto: validate}, so an {@code Instant}
- * against a naive {@code TIMESTAMP} or a {@code byte[]} against the wrong type fails the context rather
- * than this method. The second is that the digests survive a round trip through {@code BYTEA} byte for
- * byte, because a comparison against a mangled digest would refuse every refresh. The third is that
- * deleting an account takes its sessions with it, which is a property of the foreign key and of nothing
- * in Java.
+ * <p>Three kinds of thing are checked. The mapping: it has to agree with the migration at all —
+ * Hibernate boots with {@code ddl-auto: validate}, so an {@code Instant} against a naive
+ * {@code TIMESTAMP} or a {@code byte[]} against the wrong type fails the context rather than a method
+ * here — and the digests and instants have to survive a round trip unchanged, because a comparison
+ * against a mangled digest would refuse every refresh. The queries: revoking every session of one
+ * account, and no other account's, and the sweep's choice of which rows nothing can use again. And the
+ * foreign key: deleting an account takes its sessions with it, which nothing in Java does.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
