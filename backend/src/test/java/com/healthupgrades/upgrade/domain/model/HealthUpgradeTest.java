@@ -190,8 +190,10 @@ class HealthUpgradeTest {
     /**
      * Applies a move to an upgrade in {@code from} and checks the outcome BR-2 gives for it: the state it
      * ends in, or a refusal that leaves the state where it was.
+     *
+     * @return the upgrade after the move, for a row that has more than the state to check
      */
-    private void assertTransition(UpgradeStatus from, String outcome, Consumer<HealthUpgrade> move) {
+    private HealthUpgrade assertTransition(UpgradeStatus from, String outcome, Consumer<HealthUpgrade> move) {
         HealthUpgrade upgrade = upgradeIn(from);
 
         if (REFUSED.equals(outcome)) {
@@ -207,6 +209,7 @@ class HealthUpgradeTest {
                     .as("BR-2's outcome from %s", from)
                     .isEqualTo(UpgradeStatus.valueOf(outcome));
         }
+        return upgrade;
     }
 
     @ParameterizedTest(name = "{0} -> {1}")
@@ -288,7 +291,16 @@ class HealthUpgradeTest {
     })
     void GivenAnUpgradeInEachState_WhenItIsRescheduled_ThenOnlyAnAbandonedOneChangesStateAndACompletedOneIsRefused(
             UpgradeStatus from, String outcome) {
-        assertTransition(from, outcome, upgrade -> upgrade.reschedule(REFERENCE_DAY));
+        LocalDate newDate = REFERENCE_DAY.plusDays(7);
+
+        HealthUpgrade upgrade = assertTransition(from, outcome, it -> it.reschedule(newDate));
+
+        // BR-2: whatever the state does, every reschedule it allows moves the planned start.
+        if (!REFUSED.equals(outcome)) {
+            assertThat(upgrade.getPlannedStartDate())
+                    .as("BR-2's planned start after rescheduling from %s", from)
+                    .isEqualTo(newDate);
+        }
     }
 
     // ---- derived date questions ----
