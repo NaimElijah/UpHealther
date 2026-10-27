@@ -43,7 +43,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-@ExtendWith(MockitoExtension.class)
 /**
  * Covers the translation from domain event to notification: the category each event produces, and where
  * the upgrade title in the message comes from.
@@ -52,6 +51,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * look it up, while the other events do not and must; and the overdue sweep must notify only once per
  * target date however many times it rediscovers the same overdue upgrade.
  */
+@ExtendWith(MockitoExtension.class)
 class NotificationEventListenerTest {
 
     @Mock
