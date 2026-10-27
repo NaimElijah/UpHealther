@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.PostgresIT;
 import com.healthupgrades.user.domain.model.EmailAlreadyRegisteredException;
+import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User;
 import com.healthupgrades.user.domain.port.out.UserRepositoryPort;
 import jakarta.persistence.PersistenceException;
@@ -28,6 +29,9 @@ import org.springframework.context.annotation.Import;
  * adapter, so only a real database can show it. The rows are inserted natively because
  * {@code @PrePersist} stamps the current time, and they are dated 2020 so they sort ahead of the
  * seeded demo account.
+ *
+ * <p>And FR-45's "only while no <em>enabled</em> administrator exists", which is a derived query no
+ * mocked port can run.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -117,6 +121,40 @@ class UserPersistenceIT extends PostgresIT {
 
         assertThat(repository.findAll(0, 2)).extracting(User::getId).containsExactly(A, B);
         assertThat(repository.findAll(1, 2)).extracting(User::getId).containsExactly(C, D);
+    }
+
+    @Test
+    void GivenOnlyDisabledAdministrators_WhenAnEnabledOneIsAskedFor_ThenThereIsNone() {
+        // FR-45. Two administrators can disable each other, leaving rows that say ADMIN and an
+        // installation nobody can administer. Counting them would stop the bootstrap from ever
+        // recovering it, short of a database console.
+        withNoAdministrators();
+        entityManager.persistAndFlush(anAdministrator().enabled(false).build());
+
+        assertThat(repository.existsEnabledWithRole(Role.ADMIN)).isFalse();
+    }
+
+    @Test
+    void GivenAnEnabledAdministrator_WhenAnEnabledOneIsAskedFor_ThenThereIsOne() {
+        withNoAdministrators();
+        entityManager.persistAndFlush(anAdministrator().build());
+
+        assertThat(repository.existsEnabledWithRole(Role.ADMIN)).isTrue();
+    }
+
+    /**
+     * Demotes every administrator the shared database already holds, so the answer is about this
+     * test's rows alone. The test's transaction rolls back, which restores them.
+     */
+    private void withNoAdministrators() {
+        entityManager
+                .getEntityManager()
+                .createNativeQuery("UPDATE users SET role = 'USER' WHERE role = 'ADMIN'")
+                .executeUpdate();
+    }
+
+    private static User.UserBuilder anAdministrator() {
+        return AUser.aUser().id(null).email(UUID.randomUUID() + "@example.com").role(Role.ADMIN);
     }
 
     private void insertUser(UUID id, String createdAt) {
