@@ -108,6 +108,20 @@ class AuthServiceTest {
     }
 
     @Test
+    void GivenAnUnregisteredEmail_WhenTheVisitorRegisters_ThenTheRegistrationIsAuditedAgainstTheNewAccount() {
+        // NFR-23. The new account is both who acted and what was acted on: there was nobody before it.
+        when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
+        when(userCommand.register(any(User.class))).thenAnswer(AuthServiceTest::persisted);
+        when(tokenProvider.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
+
+        UUID registered =
+                service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD).user().getId();
+
+        assertThat(auditTrail.only(AuditAction.AUTH_REGISTER))
+                .hasValue(AuditEvent.allowed(AuditAction.AUTH_REGISTER, registered, registered));
+    }
+
+    @Test
     void GivenAnEmailAlreadyRegistered_WhenTheVisitorRegisters_ThenItIsRefusedAndNothingIsSaved() {
         when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(true);
 
