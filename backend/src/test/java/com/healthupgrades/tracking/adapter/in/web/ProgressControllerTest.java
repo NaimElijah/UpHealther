@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -123,6 +125,44 @@ class ProgressControllerTest {
                 .andExpect(jsonPath("$.fieldErrors.rating").exists());
 
         verify(trackingService, never()).recordProgress(any(), any(), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 6})
+    void GivenARatingJustOutsideOneToFive_WhenProgressIsLogged_ThenItAnswers400AndNothingIsRecorded(int rating)
+            throws Exception {
+        // BR-19's bounds, one step past each end.
+        mockMvc.perform(bearer(post(progressPath))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"rating\":" + rating + "}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.rating").exists());
+
+        verify(trackingService, never()).recordProgress(any(), any(), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 5})
+    void GivenARatingAtEitherEndOfOneToFive_WhenProgressIsLogged_ThenItIsAccepted(int rating) throws Exception {
+        when(trackingService.recordProgress(eq(userId), eq(upgradeId), any()))
+                .thenReturn(AProgressEntry.completedOn(upgradeId, userId, DAY, true));
+
+        mockMvc.perform(bearer(post(progressPath))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"rating\":" + rating + "}"))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void GivenANumericValueOfZero_WhenProgressIsLogged_ThenItIsAccepted() throws Exception {
+        // BR-20 refuses a negative value, not an empty day: zero is a value somebody can honestly log.
+        when(trackingService.recordProgress(eq(userId), eq(upgradeId), any()))
+                .thenReturn(AProgressEntry.completedOn(upgradeId, userId, DAY, false));
+
+        mockMvc.perform(bearer(post(progressPath))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"numericValue\":0}"))
+                .andExpect(status().isCreated());
     }
 
     @Test
