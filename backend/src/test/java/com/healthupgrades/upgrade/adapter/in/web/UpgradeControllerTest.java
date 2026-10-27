@@ -363,6 +363,29 @@ class UpgradeControllerTest {
     }
 
     @Test
+    void GivenATitleLongerThanItsColumn_WhenAnUpgradeIsUpdated_ThenItAnswers400NamingTheField() throws Exception {
+        // BR-16 on the PUT as well as the POST: the same column, reached by a different route.
+        mockMvc.perform(bearer(put(BASE + "/" + upgradeId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"" + "a".repeat(UpgradeRequest.TITLE_MAX + 1) + "\",\"type\":\"HABIT\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.title").exists());
+
+        verify(service, never()).update(any(), any(), any());
+    }
+
+    @Test
+    void GivenARescheduleWithNoDate_WhenItIsSent_ThenItAnswers400AndNothingIsRescheduled() throws Exception {
+        mockMvc.perform(bearer(post(BASE + "/" + upgradeId + "/reschedule"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.newDate").exists());
+
+        verify(service, never()).reschedule(any(), any(), any());
+    }
+
+    @Test
     void GivenAnOwnedUpgrade_WhenItIsDeleted_ThenItAnswers204WithNoBody() throws Exception {
         mockMvc.perform(bearer(delete(BASE + "/" + upgradeId)))
                 .andExpect(status().isNoContent())

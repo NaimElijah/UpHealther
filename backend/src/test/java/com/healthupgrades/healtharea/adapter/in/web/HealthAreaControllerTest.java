@@ -196,6 +196,18 @@ class HealthAreaControllerTest {
     }
 
     @Test
+    void GivenANameLongerThanItsColumn_WhenAnAreaIsUpdated_ThenItAnswers400NamingTheField() throws Exception {
+        // BR-16 on the PUT as well as the POST: the same column, reached by a different route.
+        mockMvc.perform(bearer(put(BASE + "/" + areaId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"" + "a".repeat(HealthAreaRequest.NAME_MAX + 1) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.name").exists());
+
+        verify(service, never()).update(any(), any(), any());
+    }
+
+    @Test
     void GivenAnOwnedArea_WhenItIsDeleted_ThenItAnswers204WithNoBody() throws Exception {
         mockMvc.perform(bearer(delete(BASE + "/" + areaId)))
                 .andExpect(status().isNoContent())
