@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.healthupgrades.auth.application.port.in.SessionCommand;
 import com.healthupgrades.common.domain.audit.AuditAction;
+import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
@@ -38,6 +39,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
  * <p>The other property worth pinning is that disabling ends the account's sessions. Without it,
  * "disabled" would mean "cannot sign in again", and an account already signed in on three devices would
  * stay signed in on all three until its tokens expired.
+ *
+ * <p>Each audit entry is asserted whole, because NFR-23 asks for who acted and on which account, and an
+ * entry with the two swapped would blame the account that was switched off.
  */
 @ExtendWith(MockitoExtension.class)
 class AdminUserServiceTest {
@@ -75,8 +79,8 @@ class AdminUserServiceTest {
         assertThat(target.isEnabled()).isFalse();
         verify(userCommand).save(target);
         verify(sessions).revokeAllForUser(TARGET_ID);
-        assertThat(auditTrail.recorded(AuditAction.ADMIN_DISABLE, AuditOutcome.ALLOWED))
-                .isTrue();
+        assertThat(auditTrail.only(AuditAction.ADMIN_DISABLE))
+                .hasValue(AuditEvent.allowed(AuditAction.ADMIN_DISABLE, ADMIN_ID, TARGET_ID));
     }
 
     @Test
@@ -87,8 +91,8 @@ class AdminUserServiceTest {
         service.enable(ADMIN_ID, TARGET_ID);
 
         assertThat(target.isEnabled()).isTrue();
-        assertThat(auditTrail.recorded(AuditAction.ADMIN_ENABLE, AuditOutcome.ALLOWED))
-                .isTrue();
+        assertThat(auditTrail.only(AuditAction.ADMIN_ENABLE))
+                .hasValue(AuditEvent.allowed(AuditAction.ADMIN_ENABLE, ADMIN_ID, TARGET_ID));
     }
 
     @Test
@@ -98,8 +102,8 @@ class AdminUserServiceTest {
         service.changeRole(ADMIN_ID, TARGET_ID, Role.ADMIN);
 
         assertThat(target.getRole()).isEqualTo(Role.ADMIN);
-        assertThat(auditTrail.recorded(AuditAction.ADMIN_ROLE, AuditOutcome.ALLOWED))
-                .isTrue();
+        assertThat(auditTrail.only(AuditAction.ADMIN_ROLE))
+                .hasValue(AuditEvent.allowed(AuditAction.ADMIN_ROLE, ADMIN_ID, TARGET_ID));
     }
 
     @Test
@@ -121,8 +125,8 @@ class AdminUserServiceTest {
 
         verify(userCommand, never()).save(any());
         verify(sessions, never()).revokeAllForUser(any());
-        assertThat(auditTrail.recorded(AuditAction.ADMIN_DISABLE, AuditOutcome.REFUSED))
-                .isTrue();
+        assertThat(auditTrail.only(AuditAction.ADMIN_DISABLE))
+                .hasValue(new AuditEvent(AuditAction.ADMIN_DISABLE, ADMIN_ID, ADMIN_ID, AuditOutcome.REFUSED));
     }
 
     @Test
