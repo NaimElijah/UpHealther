@@ -5,9 +5,10 @@ import AppRouter from './index';
 import { AuthContext, type AuthContextType } from '../contexts/authContextValue';
 import type { User } from '../types';
 
-// The pages, the frame and the notification socket are replaced: what is under test is which gate stands
-// in front of which path, and each of those has its own tests. Each page renders its own name, so the
-// test reads which one a URL reached.
+// The pages a test can reach, the frame and the notification socket are replaced: what is under test is
+// which gate stands in front of which path, and each of those has its own tests. Each stub renders its
+// page's name, so the test reads which one a URL reached. The other pages are left real: behind a working
+// gate, an anonymous visitor never renders them.
 vi.mock('../components/layout/Layout', () => ({ default: ({ children }: { children: ReactNode }) => children }));
 vi.mock('../contexts/NotificationProvider', () => ({
   NotificationProvider: ({ children }: { children: ReactNode }) => children,
@@ -25,6 +26,21 @@ const ADMIN: User = {
 };
 
 const ORDINARY: User = { ...ADMIN, id: 'user-1', email: 'someone@example.com', role: 'USER' };
+
+/** Every path the real table puts behind `ProtectedRoute`; `/upgrades/:id` is opened with a made-up id. */
+const PROTECTED_PATHS = [
+  '/',
+  '/dashboard',
+  '/health-areas',
+  '/upgrades/backlog',
+  '/upgrades/active',
+  '/upgrades/planned',
+  '/upgrades/upgrade-1',
+  '/daily-checkin',
+  '/progress-history',
+  '/notifications',
+  '/admin/users',
+];
 
 /** An auth context in a chosen state, so the routes can be tested without driving a real session. */
 function contextWith(overrides: Partial<AuthContextType>): AuthContextType {
@@ -88,6 +104,13 @@ describe('AppRouter', () => {
 
     expect(await screen.findByText('the login page')).toBeDefined();
     expect(screen.queryByText('the dashboard page')).toBeNull();
+    expect(window.location.pathname).toBe('/login');
+  });
+
+  it.each(PROTECTED_PATHS)('GivenAnAnonymousVisitor_WhenTheyOpen %s_ThenTheyAreSentToSignIn', async (path) => {
+    visit(path, contextWith({}));
+
+    expect(await screen.findByText('the login page')).toBeDefined();
     expect(window.location.pathname).toBe('/login');
   });
 
