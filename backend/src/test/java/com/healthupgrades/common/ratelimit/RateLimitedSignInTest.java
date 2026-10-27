@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -18,7 +19,9 @@ import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.common.security.JwtAuthenticationFilter;
 import com.healthupgrades.common.security.SecurityConfig;
 import com.healthupgrades.common.security.UserDetailsServiceImpl;
+import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.WebSliceSupport;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -171,15 +174,16 @@ class RateLimitedSignInTest {
         // The limit is registered against the two anonymous paths only. Everything else needs a token,
         // which is its own limit on how fast anybody can try — and rate-limiting the whole API would
         // throttle an ordinary session.
+        // Sent as a signed-in client sends it, so security lets it through and only a limit could stop it.
+        UUID userId = UUID.randomUUID();
+        WebSliceSupport.authenticateAs(authenticator, userId);
+        when(authService.getMe(userId)).thenReturn(AUser.withId(userId));
         String client = "203.0.113.15";
-        for (int attempt = 0; attempt < LIMIT + 3; attempt++) {
-            mockMvc.perform(post("/api/auth/me").with(from(client))).andExpect(status().is(not(429)));
-        }
-    }
 
-    /** Asserts a status is anything but the given one, without caring which. */
-    private static org.hamcrest.Matcher<Integer> not(int status) {
-        return org.hamcrest.Matchers.not(org.hamcrest.Matchers.is(status));
+        for (int attempt = 0; attempt < LIMIT + 3; attempt++) {
+            mockMvc.perform(WebSliceSupport.bearer(get("/api/auth/me")).with(from(client)))
+                    .andExpect(status().isOk());
+        }
     }
 
     private static MockHttpServletRequestBuilder registerFrom(String clientAddress) {
