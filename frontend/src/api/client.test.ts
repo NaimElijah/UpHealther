@@ -57,6 +57,39 @@ describe('the shared API client', () => {
   const lastSent = () => sentConfigs[sentConfigs.length - 1];
   const pathsSent = () => sentConfigs.map((c) => c.url);
 
+  /**
+   * Lets every pending promise callback run, however many hops the interceptor chain takes: a timer fires
+   * only once the microtask queue is empty. A fixed number of rounds would depend on axios's promise depth,
+   * so a lock bypass a few hops longer would still pass. Needs real timers, as a faked one never fires.
+   */
+  const settle = async () => {
+    if (vi.isFakeTimers()) throw new Error('settle() waits on a real timer; call it before vi.useFakeTimers()');
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  };
+
+  const realLocks = Object.getOwnPropertyDescriptor(navigator, 'locks');
+
+  /**
+   * Installs a `navigator.locks` whose one lock another tab is holding, so a request for it waits until the
+   * test calls `release`. jsdom has no Web Locks API, so without this the cross-tab half of the single
+   * flight is never exercised.
+   */
+  function installLockHeldByAnotherTab() {
+    let release!: () => void;
+    const heldElsewhere = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const requested: string[] = [];
+    const locks = {
+      request: (name: string, work: () => Promise<unknown>) => {
+        requested.push(name);
+        return heldElsewhere.then(work);
+      },
+    } as unknown as LockManager;
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: locks });
+    return { requested, release };
+  }
+
   beforeEach(() => {
     sentConfigs = [];
     clearAccessToken();
@@ -68,6 +101,9 @@ describe('the shared API client', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
+    if (realLocks) Object.defineProperty(navigator, 'locks', realLocks);
+    else Reflect.deleteProperty(navigator, 'locks');
     client.defaults.adapter = realAdapter;
     Object.defineProperty(window, 'location', { configurable: true, writable: true, value: realLocation });
   });
@@ -123,6 +159,22 @@ describe('the shared API client', () => {
       expect(window.location.href).toBe('');
     });
 
+    it('GivenAnExpiredToken_WhenItIsRenewed_ThenTheRefreshCarriesTheHeaderACrossSiteFormCannotSet', async () => {
+      // NFR-37: the server refuses a refresh without it, before reading any session, so leaving it off
+      // would sign every user out at their first expired token.
+      setAccessToken('expired.jwt.token', '2099-01-01T00:00:00Z');
+      withAdapter((config) => {
+        if (config.url === '/api/auth/refresh') return ok(config, RENEWED);
+        return config.headers.Authorization === 'Bearer renewed.jwt.token' ? ok(config) : rejection(config, 401);
+      });
+
+      await client.get('/api/upgrades');
+
+      const refresh = sentConfigs.find((config) => config.url === '/api/auth/refresh');
+      expect(refresh?.method).toBe('post');
+      expect(refresh?.headers['X-Requested-With']).toBe('XMLHttpRequest');
+    });
+
     it('GivenNoLiveSession_WhenTheRenewalIsAlsoRefused_ThenTheSessionEndsAndTheUserIsSentToLogin', async () => {
       setAccessToken('expired.jwt.token', '2099-01-01T00:00:00Z');
       withAdapter(failWith(401));
@@ -136,6 +188,7 @@ describe('the shared API client', () => {
     it('GivenAnotherTabRotatedFirst_WhenTheRenewalIs409_ThenItIsTriedOnceMoreAndSucceeds', async () => {
       // Two tabs woke together. The 409 says the cookie has just been replaced, so the same request
       // again carries the new one.
+      vi.useFakeTimers();
       setAccessToken('expired.jwt.token', '2099-01-01T00:00:00Z');
       let refreshAttempts = 0;
       withAdapter((config) => {
@@ -148,10 +201,60 @@ describe('the shared API client', () => {
           : rejection(config, 401);
       });
 
-      await client.get('/api/upgrades');
+      const response = client.get('/api/upgrades');
+      await vi.runAllTimersAsync();
 
+      expect((await response).data).toEqual({ ok: true });
       expect(refreshAttempts).toBe(2);
       expect(window.location.href).toBe('');
+    });
+
+    it('GivenTheRenewalIs409Twice_WhenARequestIs401_ThenItIsNotTriedAThirdTimeAndTheSessionEnds', async () => {
+      // NFR-39 allows one more try, not a loop: a cookie still superseded after the other tab's rotation
+      // has landed is not going to be accepted, and retrying it forever hangs every request behind it.
+      vi.useFakeTimers();
+      setAccessToken('expired.jwt.token', '2099-01-01T00:00:00Z');
+      let refreshAttempts = 0;
+      withAdapter((config) => {
+        if (config.url === '/api/auth/refresh') {
+          refreshAttempts += 1;
+          return rejection(config, 409);
+        }
+        return rejection(config, 401);
+      });
+
+      const outcome = client.get('/api/upgrades').catch((error: unknown) => error);
+      // Far more time than one back-off, so a loop would have retried several times over by now.
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      expect(refreshAttempts).toBe(2);
+      await expect(outcome).resolves.toMatchObject({ response: { status: 401 } });
+      expect(window.location.href).toBe('/login');
+      expect(getAccessToken()).toBeNull();
+    });
+
+    it('GivenAnotherTabHoldsTheRefreshLock_WhenARequestIs401_ThenTheRenewalWaitsForTheLockBeforeRotating', async () => {
+      // Rotation makes a credential good for one use, so a tab that renewed while another tab was
+      // renewing would spend the cookie that tab is about to replace. The lock is what stops it.
+      const lock = installLockHeldByAnotherTab();
+      setAccessToken('expired.jwt.token', '2099-01-01T00:00:00Z');
+      withAdapter((config) => {
+        if (config.url === '/api/auth/refresh') return ok(config, RENEWED);
+        return config.headers.Authorization === 'Bearer renewed.jwt.token'
+          ? ok(config, { ok: true })
+          : rejection(config, 401);
+      });
+
+      const response = client.get('/api/upgrades');
+      await settle();
+
+      expect(lock.requested).toHaveLength(1);
+      expect(pathsSent()).toEqual(['/api/upgrades']);
+
+      lock.release();
+
+      expect((await response).data).toEqual({ ok: true });
+      expect(pathsSent()).toEqual(['/api/upgrades', '/api/auth/refresh', '/api/upgrades']);
     });
 
     it('GivenSeveralRequestsFailTogether_WhenTheyAreRenewed_ThenTheCredentialIsRotatedOnlyOnce', async () => {

@@ -140,6 +140,9 @@ describe('AuthProvider', () => {
 
       await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
       expect(screen.getByTestId('authenticated').textContent).toBe('false');
+      // The renewal installed a token; left in memory, every later request would carry a session the
+      // page has just declared over.
+      expect(getAccessToken()).toBeNull();
     });
 
     it('GivenLegacyCredentialsInStorage_WhenTheProviderMounts_ThenTheyAreRemoved', async () => {

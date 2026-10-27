@@ -9,6 +9,7 @@ import PlannedUpgradesPage from '../pages/PlannedUpgradesPage';
 import UpgradeDetailsPage from '../pages/UpgradeDetailsPage';
 import UpgradeBacklogPage from '../pages/UpgradeBacklogPage';
 import DailyCheckinPage from '../pages/DailyCheckinPage';
+import ProgressHistoryPage from '../pages/ProgressHistoryPage';
 import { createQueryClient } from './queryClient';
 import type {
   ActionTarget,
@@ -16,6 +17,7 @@ import type {
   DashboardDto,
   HealthArea,
   HealthUpgrade,
+  ProgressEntry,
   SaveTrackingConfigRequest,
   TrackingConfig,
   UpgradeStatus,
@@ -50,6 +52,7 @@ vi.mock('../api/progress', () => ({
   getProgressByUpgrade: () => Promise.resolve([]),
   createProgress: vi.fn(),
   getStreak: () => Promise.resolve({ current: 0, longest: 0 }),
+  getWeekProgress: () => Promise.resolve([WEEK_ENTRY]),
 }));
 vi.mock('../api/reflections', () => ({
   getReflectionsByUpgrade: () => Promise.resolve([]),
@@ -65,6 +68,20 @@ vi.mock('../api/trackingConfig', () => ({ saveTrackingConfig: (...a: unknown[]) 
 const UPGRADE_ID = 'upgrade-1';
 const TITLE = 'Evening walk';
 const AREA: HealthArea = healthAreaAsSent({ id: 'area-1', name: 'Movement' });
+
+/** The week's one entry, which the progress history labels with its upgrade's title. */
+const WEEK_ENTRY: ProgressEntry = {
+  id: 'entry-1',
+  upgradeId: UPGRADE_ID,
+  userId: 'user-1',
+  date: '2026-03-12',
+  completed: true,
+  numericValue: null,
+  unit: null,
+  rating: null,
+  note: null,
+  createdAt: '2026-03-12T20:00:00',
+};
 
 function anUpgrade(status: UpgradeStatus): HealthUpgrade {
   return upgradeAsSent({
@@ -94,7 +111,8 @@ function serve(...initial: HealthUpgrade[]) {
     return upgrades.find((u) => u.id === id)!;
   };
 
-  getUpgrades.mockImplementation((status: UpgradeStatus) => Promise.resolve(withStatus(status)));
+  // No status is every upgrade, which is what the progress history asks for.
+  getUpgrades.mockImplementation((status?: UpgradeStatus) => Promise.resolve(status ? withStatus(status) : upgrades));
   getUpgradeById.mockImplementation((id: string) => Promise.resolve(upgrades.find((u) => u.id === id)));
   getDashboard.mockImplementation((): Promise<DashboardDto> => {
     const filed = upgrades.filter((u) => u.areaId === AREA.id);
@@ -180,6 +198,7 @@ function renderApp(path: string) {
           <Route path="/upgrades/planned" element={<PlannedUpgradesPage />} />
           <Route path="/upgrades/backlog" element={<UpgradeBacklogPage />} />
           <Route path="/daily-checkin" element={<DailyCheckinPage />} />
+          <Route path="/progress-history" element={<ProgressHistoryPage />} />
           <Route path="/upgrades/:id" element={<UpgradeDetailsPage />} />
         </Routes>
       </MemoryRouter>
@@ -375,6 +394,25 @@ describe('a change to an upgrade', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit Upgrade' })).toBeNull());
 
     goTo('/upgrades/active');
+
+    expect(await screen.findByText('Morning walk')).toBeDefined();
+    expect(screen.queryByText(TITLE)).toBeNull();
+  });
+
+  it('GivenAnUpgradeEditedOnItsPage_WhenTheProgressHistoryOpensAgain_ThenItsEntryShowsTheNewTitle', async () => {
+    // The history labels each entry from every upgrade, read under a key of its own.
+    serve(anUpgrade('ACTIVE'));
+    renderApp('/progress-history');
+    await screen.findByText(TITLE);
+
+    goTo(`/upgrades/${UPGRADE_ID}`);
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Upgrade' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'Edit Upgrade' }));
+    fireEvent.change(dialog.getByLabelText('Title'), { target: { value: 'Morning walk' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit Upgrade' })).toBeNull());
+
+    goTo('/progress-history');
 
     expect(await screen.findByText('Morning walk')).toBeDefined();
     expect(screen.queryByText(TITLE)).toBeNull();

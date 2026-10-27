@@ -139,7 +139,8 @@ describe('NavMenu', () => {
   it('GivenTheMenuIsOpen_WhenTheWindowWidensToShowTheSidebar_ThenTheMenuCloses', () => {
     // A tablet rotated to landscape: the sidebar appears and the button that opened the menu is gone,
     // so a menu left open would sit beside the sidebar with the page still inert.
-    const widthQuery = installMatchMedia(false);
+    // Tailwind's `md`, which is where Sidebar appears (`hidden md:block`).
+    const widthQuery = installMatchMedia(false, '(min-width: 768px)');
     renderMenu(ORDINARY);
     openMenu();
 
