@@ -85,6 +85,9 @@ class GlobalExceptionHandlerTest {
     private static final String TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736";
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-03-15T09:00:00Z"), ZoneOffset.UTC);
 
+    /** The upgrade a version clash names. Any id would do: the answer never mentions it. */
+    private static final UUID CLASHING_UPGRADE_ID = UUID.fromString("7c9e6679-7425-40de-944b-e07fc1f90ae7");
+
     private GlobalExceptionHandler handler;
     private HttpServletRequest request;
 
@@ -462,7 +465,7 @@ class GlobalExceptionHandlerTest {
                 throws Exception {
             // BR-14 as it really arrives: Hibernate's clash surfaces at commit, translated by Spring into
             // ObjectOptimisticLockingFailureException (UpgradePersistenceIT), not the domain exception.
-            controller.failure = new ObjectOptimisticLockingFailureException("HealthUpgrade", UUID.randomUUID());
+            controller.failure = new ObjectOptimisticLockingFailureException("HealthUpgrade", CLASHING_UPGRADE_ID);
 
             mockMvc.perform(get(FailingController.PATH))
                     .andExpect(status().isConflict())

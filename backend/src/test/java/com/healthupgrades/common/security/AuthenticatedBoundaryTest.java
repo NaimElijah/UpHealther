@@ -72,6 +72,9 @@ class AuthenticatedBoundaryTest {
     private static final Set<String> PUBLIC_ROUTES =
             Set.of("/api/auth/register", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout");
 
+    /** The user a valid token stands for, where which user does not matter. */
+    private static final UUID SIGNED_IN_USER = UUID.fromString("3f2b8c1e-5a47-4d9b-8e21-6c0d4f7a9b13");
+
     /** The administration path used where one stands for the prefix. */
     private static final String ADMIN_PATH = "/api/admin/users";
 
@@ -240,7 +243,7 @@ class AuthenticatedBoundaryTest {
     @Test
     void GivenAValidToken_WhenAProtectedEndpointIsCalled_ThenNoHttpSessionIsCreated() throws Exception {
         // The token is the whole credential, request by request; any instance can serve the next one.
-        WebSliceSupport.authenticateAs(authenticator, UUID.randomUUID());
+        WebSliceSupport.authenticateAs(authenticator, SIGNED_IN_USER);
 
         HttpSession session = mockMvc.perform(
                         WebSliceSupport.bearer(json(request(HttpMethod.GET, "/api/notifications"))))

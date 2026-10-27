@@ -48,6 +48,9 @@ class JwtChannelInterceptorTest {
     private static final String TOKEN = "a.signed.token";
     private static final UUID SESSION_ID = UUID.randomUUID();
 
+    /** The user a STOMP frame's token stands for. */
+    private static final UUID STOMP_USER = UUID.fromString("9b7e2d4c-1f6a-4c8e-b3d5-0a2e7f9c6b18");
+
     @Mock
     BearerTokenAuthenticator authenticator;
 
@@ -114,17 +117,16 @@ class JwtChannelInterceptorTest {
 
     @Test
     void GivenAStompFrameWithAUsableToken_WhenItArrives_ThenItIsAuthenticatedAndAuditedLikeAConnect() {
-        UUID userId = UUID.randomUUID();
-        when(authenticator.authenticateWithSession(TOKEN)).thenReturn(Optional.of(signedIn(userId)));
+        when(authenticator.authenticateWithSession(TOKEN)).thenReturn(Optional.of(signedIn(STOMP_USER)));
 
         Message<?> passed = interceptor.preSend(frame(StompCommand.STOMP, "Bearer " + TOKEN), channel);
 
         assertThat(StompHeaderAccessor.wrap(passed).getUser())
                 .isNotNull()
                 .extracting(Principal::getName)
-                .isEqualTo(userId.toString());
+                .isEqualTo(STOMP_USER.toString());
         assertThat(auditTrail.only(AuditAction.AUTH_CONNECT))
-                .hasValue(AuditEvent.allowed(AuditAction.AUTH_CONNECT, userId, userId));
+                .hasValue(AuditEvent.allowed(AuditAction.AUTH_CONNECT, STOMP_USER, STOMP_USER));
     }
 
     @Test

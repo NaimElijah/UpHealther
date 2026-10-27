@@ -63,6 +63,9 @@ class RateLimitedSignInTest {
     /** How many attempts the property above permits. */
     private static final int LIMIT = 3;
 
+    /** The account the authenticated-endpoint case signs in as. */
+    private static final UUID SIGNED_IN_USER = UUID.fromString("a1d4e8f2-6b3c-4e5a-9d70-2f8b1c6e4a39");
+
     private static final String CREDENTIALS = "{\"email\":\"someone@example.com\",\"password\":\"s3cret!42\"}";
 
     @Autowired
@@ -179,9 +182,8 @@ class RateLimitedSignInTest {
         // which is its own limit on how fast anybody can try — and rate-limiting the whole API would
         // throttle an ordinary session.
         // Sent as a signed-in client sends it, so security lets it through and only a limit could stop it.
-        UUID userId = UUID.randomUUID();
-        WebSliceSupport.authenticateAs(authenticator, userId);
-        when(authService.getMe(userId)).thenReturn(AUser.withId(userId));
+        WebSliceSupport.authenticateAs(authenticator, SIGNED_IN_USER);
+        when(authService.getMe(SIGNED_IN_USER)).thenReturn(AUser.withId(SIGNED_IN_USER));
         String client = "203.0.113.15";
 
         for (int attempt = 0; attempt < LIMIT + 3; attempt++) {
