@@ -9,6 +9,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.healthupgrades.common.domain.audit.AuditAction;
+import com.healthupgrades.common.domain.audit.AuditEvent;
+import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.exception.DuplicateProgressException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
@@ -475,6 +478,70 @@ class TrackingServiceTest {
         assertThatThrownBy(() -> service.getConfig(userId, upgradeId))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining(upgradeId.toString());
+    }
+
+    // ---- NFR-23: every change is audited against the upgrade, allowed or refused ----
+
+    @Test
+    void GivenAnOwnedUpgrade_WhenProgressIsRecorded_ThenTheRecordingAloneIsAuditedAsAllowed() {
+        recordWithMilestone(today, OptionalInt.empty());
+
+        assertThat(auditTrail.recorded())
+                .containsExactly(AuditEvent.allowed(AuditAction.PROGRESS_RECORD, userId, upgradeId));
+    }
+
+    @Test
+    void GivenAnUpgradeOwnedBySomebodyElse_WhenProgressIsRecorded_ThenTheAttemptIsAuditedAsRefused() {
+        when(upgradeQuery.getOwnedUpgrade(userId, upgradeId))
+                .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
+
+        assertThatThrownBy(() -> service.recordProgress(
+                        userId, upgradeId, new ProgressEntryDetails(today, true, null, null, null, null)))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        assertThat(auditTrail.recorded())
+                .containsExactly(new AuditEvent(AuditAction.PROGRESS_RECORD, userId, upgradeId, AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenTheDayIsAlreadyLogged_WhenProgressIsRecordedAgain_ThenTheAttemptIsAuditedAsRefused() {
+        // BR-6's refusal is one of the entries worth having, which is why the recording brackets the check.
+        when(progressRepository.existsByUpgradeIdAndDate(upgradeId, today)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.recordProgress(
+                        userId, upgradeId, new ProgressEntryDetails(today, true, null, null, null, null)))
+                .isInstanceOf(DuplicateProgressException.class);
+
+        assertThat(auditTrail.recorded())
+                .containsExactly(new AuditEvent(AuditAction.PROGRESS_RECORD, userId, upgradeId, AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenAnOwnedUpgrade_WhenItsConfigurationIsSaved_ThenTheSaveAloneIsAuditedAsAllowed() {
+        when(configRepository.findByUpgradeId(upgradeId)).thenReturn(Optional.empty());
+        when(configRepository.save(any(TrackingConfig.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.saveConfig(
+                userId, upgradeId, new TrackingConfigDetails(TrackingType.BOOLEAN, Frequency.DAILY, null, null, null));
+
+        assertThat(auditTrail.recorded())
+                .containsExactly(AuditEvent.allowed(AuditAction.TRACKING_CONFIGURE, userId, upgradeId));
+    }
+
+    @Test
+    void GivenAnUpgradeOwnedBySomebodyElse_WhenItsConfigurationIsSaved_ThenTheAttemptIsAuditedAsRefused() {
+        when(upgradeQuery.getOwnedUpgrade(userId, upgradeId))
+                .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
+
+        assertThatThrownBy(() -> service.saveConfig(
+                        userId,
+                        upgradeId,
+                        new TrackingConfigDetails(TrackingType.BOOLEAN, Frequency.DAILY, null, null, null)))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        assertThat(auditTrail.recorded())
+                .containsExactly(
+                        new AuditEvent(AuditAction.TRACKING_CONFIGURE, userId, upgradeId, AuditOutcome.REFUSED));
     }
 
     // ---- Inbound ports used by other contexts ----

@@ -3,6 +3,7 @@ package com.healthupgrades.upgrade.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -548,6 +549,82 @@ class UpgradeServiceTest {
 
         assertThat(auditTrail.recorded(AuditAction.UPGRADE_DELETE, AuditOutcome.REFUSED))
                 .isTrue();
+    }
+
+    // NFR-23 for every use case that changes an upgrade: one entry, under its own action, allowed when
+    // the move went through and refused when the upgrade was somebody else's.
+
+    /** A state-changing use case, run against this class's upgrade and owner. */
+    @FunctionalInterface
+    private interface AuditedUseCase {
+        void run(UpgradeService service, UUID userId, UUID upgradeId);
+    }
+
+    /** Every use case on an existing upgrade, its audit action, and a status it is allowed from. */
+    static Stream<Arguments> everyAuditedUseCaseOnAnUpgrade() {
+        LocalDate date = LocalDate.of(2026, 4, 1);
+        UpgradeDetails edit =
+                new UpgradeDetails(null, "Cold showers", null, UpgradeType.HABIT, null, null, null, null, null);
+        return Stream.of(
+                Arguments.of(AuditAction.UPGRADE_UPDATE, UpgradeStatus.ACTIVE, (AuditedUseCase)
+                        (s, user, id) -> s.update(user, id, edit)),
+                Arguments.of(AuditAction.UPGRADE_DELETE, UpgradeStatus.ACTIVE, (AuditedUseCase) UpgradeService::delete),
+                Arguments.of(AuditAction.UPGRADE_PLAN, UpgradeStatus.IDEA, (AuditedUseCase)
+                        (s, user, id) -> s.plan(user, id, date)),
+                Arguments.of(AuditAction.UPGRADE_ACTIVATE, UpgradeStatus.PLANNED, (AuditedUseCase)
+                        (s, user, id) -> s.activate(user, id, date)),
+                Arguments.of(AuditAction.UPGRADE_PAUSE, UpgradeStatus.ACTIVE, (AuditedUseCase) UpgradeService::pause),
+                Arguments.of(
+                        AuditAction.UPGRADE_COMPLETE, UpgradeStatus.ACTIVE, (AuditedUseCase) UpgradeService::complete),
+                Arguments.of(
+                        AuditAction.UPGRADE_ABANDON, UpgradeStatus.ACTIVE, (AuditedUseCase) UpgradeService::abandon),
+                Arguments.of(AuditAction.UPGRADE_RESCHEDULE, UpgradeStatus.ABANDONED, (AuditedUseCase)
+                        (s, user, id) -> s.reschedule(user, id, date)));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("everyAuditedUseCaseOnAnUpgrade")
+    void GivenAnOwnedUpgradeTheMoveIsAllowedFrom_WhenTheUseCaseRuns_ThenItAloneIsAuditedAsAllowed(
+            AuditAction action, UpgradeStatus allowedFrom, AuditedUseCase useCase) {
+        when(repository.findByIdAndUserId(upgradeId, userId))
+                .thenReturn(Optional.of(upgradeWith(allowedFrom, Difficulty.MEDIUM)));
+        // Delete never saves, so this stub is not used on every row.
+        lenient().when(repository.save(any(HealthUpgrade.class))).thenAnswer(call -> call.getArgument(0));
+
+        useCase.run(service, userId, upgradeId);
+
+        assertThat(auditTrail.recorded()).containsExactly(AuditEvent.allowed(action, userId, upgradeId));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("everyAuditedUseCaseOnAnUpgrade")
+    void GivenAnUpgradeOwnedBySomebodyElse_WhenTheUseCaseRuns_ThenItAloneIsAuditedAsRefused(
+            AuditAction action, UpgradeStatus allowedFrom, AuditedUseCase useCase) {
+        when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> useCase.run(service, userId, upgradeId)).isInstanceOf(ResourceNotFoundException.class);
+
+        assertThat(auditTrail.recorded())
+                .containsExactly(new AuditEvent(action, userId, upgradeId, AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenValidDetails_WhenAnUpgradeIsCreated_ThenTheCreationIsAuditedAgainstTheNewId() {
+        UUID createdId = UUID.randomUUID();
+        when(repository.save(any(HealthUpgrade.class))).thenAnswer(call -> {
+            HealthUpgrade toSave = call.getArgument(0);
+            return HealthUpgrade.builder()
+                    .id(createdId)
+                    .userId(toSave.getUserId())
+                    .title(toSave.getTitle())
+                    .type(toSave.getType())
+                    .build();
+        });
+
+        service.create(userId, detailsWithDifficulty(null));
+
+        assertThat(auditTrail.recorded())
+                .containsExactly(AuditEvent.allowed(AuditAction.UPGRADE_CREATE, userId, createdId));
     }
 
     // ---- NFR-15: an announcement is timed by the injected clock ----
