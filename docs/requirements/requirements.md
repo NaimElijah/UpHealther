@@ -3,7 +3,7 @@
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
 rather than trusted. A hundred and nineteen of the hundred and twenty-eight entries below name a test —
-a hundred and twenty-four distinct test classes and files between them. Six of the remaining nine name the
+a hundred and twenty-five distinct test classes and files between them. Six of the remaining nine name the
 command, workflow, script or setting that *is* the check (NFR-11, NFR-13, NFR-18, NFR-48, NFR-52,
 NFR-53). The last three — FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is
 about a rendered width, a colour or an overflow, and jsdom has no layout engine to observe any of them;
@@ -115,7 +115,7 @@ no way at all — to read another person's health records
 | FR-28 | A user is notified when an upgrade is created, planned, activated, paused, completed or abandoned, when a reflection is added, and when a streak milestone is reached | `NotificationEventListenerTest`, `NotificationCommitIT` (each of them stored once the write commits) |
 | FR-29 | A user is notified when an active upgrade passes its target date | `UpgradeOverdueSchedulerTest`, `UpgradeBacklogPage.test.tsx` (a target end can be set) |
 | FR-30 | A user with active upgrades and nothing logged is nudged once a day | `NotificationSchedulerTest` |
-| FR-31 | A user's reminders fire at the configured time and day | `NotificationSchedulerTest`, `ReminderTest` |
+| FR-31 | A user's reminders fire at the configured time and day | `NotificationSchedulerTest`, `ReminderTest`, `ReminderPersistenceIT` (which rows count as enabled, and the day filter's round trip) |
 | FR-32 | Notifications arrive in real time on a connected client, and are readable afterwards regardless | `StompNotificationPushAdapterTest`, `NotificationServiceTest`, `NotificationCommitIT` (each lifecycle notification is stored, not only pushed), `NotificationProvider.test.tsx` |
 | FR-33 | A user can read their fifty most recent notifications, see an unread count that covers every notification rather than only the fifty listed, and mark one or all as read | `NotificationServiceTest`, `NotificationControllerTest`, `NotificationPersistenceIT` (the fifty newest, the count beyond them, and mark-all against the real table), `NotificationProvider.test.tsx` |
 | FR-49 | A user can opt in to desktop notifications, which are raised only while the tab is in the background — with the tab in view, the in-page notice already says it | `NotificationProvider.test.tsx` |
