@@ -25,6 +25,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    # No process may gain privileges through a setuid binary or file capabilities. The entrypoint
+    # hands the server to the `postgres` user, which then holds no effective capability, so the
+    # capability set is not narrowed here: the entrypoint needs root's to initialise the data
+    # directory, and that list is the image's to keep, not this file's.
+    security_opt:
+      - no-new-privileges:true
     networks:
       - healthupgrades
 
@@ -33,6 +39,12 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: healthupgrades-backend
+    # The JVM binds 8080, above the privileged ports, and needs no capability at all. Until the image
+    # stops running as root (#213), this is what keeps code execution in it from using root's.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "127.0.0.1:8080:8080"
     environment:
@@ -77,6 +89,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: healthupgrades-frontend
+    # nginx's master runs as root to bind port 80 and switch its workers to `nginx`, so it keeps
+    # Docker's default capabilities until #213 makes it unprivileged; then it can drop them all too.
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "127.0.0.1:3000:80"
     # As above: frontend/Dockerfile declares the probe.
