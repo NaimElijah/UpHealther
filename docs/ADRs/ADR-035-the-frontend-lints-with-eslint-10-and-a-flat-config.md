@@ -1,6 +1,8 @@
 # ADR-035: The frontend lints with ESLint 10 and a flat config
 
-- **Status:** Accepted
+- **Status:** Accepted — extended by
+  [ADR-056](ADR-056-the-javascript-files-are-linted-too.md), which takes up its deferred "Lint the
+  `.js` and `.mjs` files too" once #161 had closed, the repository root's `scripts/` included
 - **Date:** 2026-10-14
 - **Scope:** `frontend/eslint.config.js`, which replaces `frontend/.eslintrc.cjs`; the lint packages in
   `frontend/package.json`; and the `lint` script. CI runs `npm run lint` as before, so

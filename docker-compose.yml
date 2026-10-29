@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15.19-alpine3.24
@@ -8,15 +6,29 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-healthupgrades}
       POSTGRES_USER: ${POSTGRES_USER:-healthupgrades}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-healthupgrades}
+    # Every port here is published on the loopback address only. The defaults are a published
+    # superuser password and a published signing key, so a port open on every interface hands the
+    # database, and a token for any account, to whoever shares the network. On Linux, Docker's own
+    # iptables rules bypass a host firewall such as ufw, so nothing else would close it.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    # Over TCP, the way the backend connects. On an empty volume the image's entrypoint first runs a
+    # temporary server that listens on the Unix socket only, then stops it and starts the real one; a
+    # probe of the socket answers "accepting connections" from the temporary server, so the backend
+    # could start against a database not yet listening on 5432.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-healthupgrades}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-healthupgrades}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    # No process may gain privileges through a setuid binary or file capabilities. The capability set
+    # stays Docker's default: the entrypoint runs as root only to initialise the data directory, then
+    # hands the server to the `postgres` user, which holds no effective capability, so narrowing the
+    # set would constrain that short-lived root step and nothing that serves a connection.
+    security_opt:
+      - no-new-privileges:true
     networks:
       - healthupgrades
 
@@ -25,8 +37,14 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: healthupgrades-backend
+    # The JVM binds 8080, above the privileged ports, and needs no capability at all. Until the image
+    # stops running as root (#213), this is what keeps code execution in it from using root's.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-healthupgrades}
       DB_USERNAME: ${POSTGRES_USER:-healthupgrades}
@@ -69,8 +87,13 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: healthupgrades-frontend
+    # nginx's master runs as root to bind port 80 and switch its workers to `nginx`. That needs only a
+    # few capabilities, but it keeps Docker's default set until #213 makes it unprivileged and it can
+    # drop them all, rather than carry a list here that has to track the image's entrypoint.
+    security_opt:
+      - no-new-privileges:true
     ports:
-      - "3000:80"
+      - "127.0.0.1:3000:80"
     # As above: frontend/Dockerfile declares the probe.
     depends_on:
       # Waits for the API to be ready, not merely started. A plain depends_on let nginx come up while

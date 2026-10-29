@@ -9,15 +9,18 @@ on:
 # Checkout is the only step that touches the repository, and it only reads. The repository's default
 # token is read-only already, but that is a setting outside the tree; this keeps the restriction with
 # the workflow and narrows it to the one scope. Artifact uploads and the dependency caches use the
-# runner's own token, not this one.
+# runner's own token, not this one. Every checkout sets `persist-credentials: false`, so the token is
+# not left in git's config once the code is fetched. No later step pushes, and the later steps run
+# code from outside the repository: npm's install scripts, Maven's plugins, the image builds.
 permissions:
   contents: read
 
 # Each job's `name:` below is a required check of ruleset 25310599, "CI must pass", which binds every
-# merge into main and dev, the admin's included (ADR-043). A required check that never reports leaves a
-# PR waiting, so renaming, adding or removing a job means editing that ruleset just before merging the
-# PR that does it, then pushing to or closing and reopening the other open PRs so they report the new
-# names; a re-run reuses the old merge ref.
+# merge into main and dev, the admin's included (ADR-043), and of ruleset 26158509, which also requires
+# it to have run on the latest dev before a PR merges into dev (ADR-058). A required check that never
+# reports leaves a PR waiting, so renaming, adding or removing a job means editing both rulesets just
+# before merging the PR that does it, then pushing to or closing and reopening the other open PRs so
+# they report the new names; a re-run reuses the old merge ref.
 jobs:
   backend:
     name: Backend - Build & Test
@@ -29,6 +32,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up JDK 21
         uses: actions/setup-java@v6
@@ -116,6 +121,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -134,6 +141,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -172,6 +181,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v4

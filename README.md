@@ -147,7 +147,8 @@ Seven diagrams, outside in: [arch-diagrams](docs/architecture/arch-diagrams/READ
 
 ## 🚀 Quick start
 
-**Prerequisites:** Docker 24+ with Compose v2. Nothing else — the toolchain runs in containers.
+**Prerequisites:** Docker 24+ with Compose v2, and on Linux Docker Engine 28.3.3 or later, for the reason
+below. Nothing else — the toolchain runs in containers.
 
 ```bash
 git clone https://github.com/NaimElijah/UpHealther.git && cd UpHealther
@@ -156,7 +157,11 @@ docker compose up --build   # with Node installed, `npm start` runs the same com
 
 Frontend at **http://localhost:3000**, API at **http://localhost:8080**. Compose waits for the
 backend to report *ready* before starting the frontend, so the first page load is never proxied to
-an API still migrating its schema — expect roughly a minute on a cold build.
+an API still migrating its schema — expect roughly a minute on a cold build. All three ports are
+published on `127.0.0.1` only, because their defaults are published credentials: another device on
+your network cannot reach the stack. On Linux that holds from Docker Engine 28.3.3: before 28.0.0 a
+neighbouring host could reach a port published on loopback, and before 28.3.3 a firewalld reload
+exposed it again (CVE-2025-54388).
 
 Sign in with the seeded demo account **`demo@healthupgrades.com` / `demo1234`**. Every variable has
 a working default, so no `.env` is needed to start — copy `.env.example` to `.env` only to override.
@@ -357,11 +362,13 @@ that both modules name one version and `CHANGELOG.md` has its section; OSV-Scann
 on the backend's whole dependency tree, failing on any known vulnerability
 ([ADR-047](docs/ADRs/ADR-047-the-backend-audits-its-dependencies-with-osv-scanner.md)); the
 generated diagrams still matching their source; the frontend format check; frontend lint at
-`--max-warnings 0`; the colour-token check; `vitest run --coverage`; `npm audit --omit=dev
+`--max-warnings 0`, the root's `scripts/*.mjs` included; the colour-token check;
+`vitest run --coverage`; `npm audit --omit=dev
 --audit-level=high`; the production build; and both images built, with the stack started from them
-until every service reports healthy and then driven by the browser suite. A PR into `main` or `dev` cannot merge while any of the four
-jobs is red or still running, whoever merges it
-([ADR-043](docs/ADRs/ADR-043-ci-is-a-merge-gate.md)).
+until every service reports healthy and then driven by the browser suite. A PR into `main` or `dev`
+cannot merge while any of the four jobs is red or still running, whoever merges it
+([ADR-043](docs/ADRs/ADR-043-ci-is-a-merge-gate.md)), and a PR into `dev` only once they ran on the
+latest `dev` ([ADR-058](docs/ADRs/ADR-058-a-pr-into-dev-merges-only-once-its-checks-ran-on-the-latest-dev.md)).
 
 **Dependencies move by Dependabot** ([`dependabot.yml`](.github/dependabot.yml),
 [ADR-046](docs/ADRs/ADR-046-dependabot-proposes-weekly-updates-into-dev.md)): once a week, one PR per
