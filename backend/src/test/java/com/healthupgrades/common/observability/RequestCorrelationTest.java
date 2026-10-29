@@ -51,6 +51,12 @@ class RequestCorrelationTest {
     private static final String TRACE_ID = "traceId";
     private static final String INBOUND_TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736";
     private static final String INBOUND_TRACEPARENT = "00-" + INBOUND_TRACE_ID + "-00f067aa0ba902b7-01";
+    private static final String VALID_TRACESTATE = "vendor1=value1,vendor2=value2";
+    // The shape GHSA-ccrj-gw8r-854m describes (#364): a long run of spaces and tabs that no comma follows,
+    // which OpenTelemetry before 1.67.0 split with a backtracking regex. The trailing member has no '=', so
+    // the header is malformed, and the W3C Trace Context spec lets a vendor discard it — never the
+    // traceparent it came with.
+    private static final String MALFORMED_TRACESTATE = " \t".repeat(2048) + "x";
 
     private final ApplicationContextRunner tracing = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(
@@ -93,6 +99,40 @@ class RequestCorrelationTest {
         tracing.run(context -> {
             MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/upgrades");
             request.addHeader("traceparent", INBOUND_TRACEPARENT);
+
+            List<ILoggingEvent> logged =
+                    whileServing(context.getBean(io.micrometer.observation.ObservationRegistry.class), request, 1);
+
+            assertThat(logged)
+                    .singleElement()
+                    .satisfies(event ->
+                            assertThat(event.getMDCPropertyMap().get(TRACE_ID)).isEqualTo(INBOUND_TRACE_ID));
+        });
+    }
+
+    @Test
+    void GivenAnInboundTraceparentWithATracestate_WhenTheRequestIsServed_ThenThatTraceIdIsStillUsed() {
+        tracing.run(context -> {
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/upgrades");
+            request.addHeader("traceparent", INBOUND_TRACEPARENT);
+            request.addHeader("tracestate", VALID_TRACESTATE);
+
+            List<ILoggingEvent> logged =
+                    whileServing(context.getBean(io.micrometer.observation.ObservationRegistry.class), request, 1);
+
+            assertThat(logged)
+                    .singleElement()
+                    .satisfies(event ->
+                            assertThat(event.getMDCPropertyMap().get(TRACE_ID)).isEqualTo(INBOUND_TRACE_ID));
+        });
+    }
+
+    @Test
+    void GivenAnInboundTraceparentWithAMalformedTracestate_WhenTheRequestIsServed_ThenThatTraceIdIsStillUsed() {
+        tracing.run(context -> {
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/upgrades");
+            request.addHeader("traceparent", INBOUND_TRACEPARENT);
+            request.addHeader("tracestate", MALFORMED_TRACESTATE);
 
             List<ILoggingEvent> logged =
                     whileServing(context.getBean(io.micrometer.observation.ObservationRegistry.class), request, 1);
