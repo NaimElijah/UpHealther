@@ -1,6 +1,7 @@
 {
   "name": "uphealther",
   "private": true,
+  "license": "UNLICENSED",
   "description": "One command to set up, one to start and one to test the repository, which CI runs too (ADR-044); and one to write a release's changelog (ADR-051).",
   "scripts": {
     "setup": "npm run setup:frontend && npm run setup:e2e",
