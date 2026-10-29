@@ -69,6 +69,14 @@ updates:
         update-types: [ version-update:semver-major ]
       - dependency-name: "@types/react-dom"
         update-types: [ version-update:semver-major ]
+      # Tailwind 4 is a framework migration of the build and the theme: its PostCSS plugin is a
+      # separate package. It is moved by hand under #369 (ADR-060).
+      - dependency-name: tailwindcss
+        update-types: [ version-update:semver-major ]
+      # A TypeScript major is a toolchain move, made by hand under #370 (ADR-060): 6 first, which
+      # typescript-eslint's peer range already admits, then 7, which waits until that range accepts it.
+      - dependency-name: typescript
+        update-types: [ version-update:semver-major ]
 
   # The browser suite's own entry rather than a second directory on the one above: a Playwright release
   # also moves the Chromium the suite drives, so it arrives in a PR of its own, under its own limit, and

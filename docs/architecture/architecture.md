@@ -41,6 +41,11 @@ an ArchUnit suite, which is the authority on what the layering permits.
 In development the nginx container is not involved: the Vite dev server serves the SPA on 3000 and
 performs the same `/api` and `/ws` proxying itself, so the app behaves identically on both sides.
 
+The production build also writes `THIRD-PARTY-NOTICES.txt` into `dist/`: Vite's `build.license` lists
+every package in the JS bundle, and a small plugin in `frontend/vite.config.ts` adds Tailwind CSS. The
+image copies `dist/` whole, so nginx serves the file at `/THIRD-PARTY-NOTICES.txt`
+([ADR-059](../ADRs/ADR-059-the-bundle-ships-its-third-party-notices.md)).
+
 ### Backend bounded contexts
 
 Ten contexts, each owning its own vocabulary, plus a cross-cutting `common`.
@@ -498,7 +503,8 @@ Integration points a maintainer will need:
   every service reports healthy, as its own compose project
   ([ADR-045](../ADRs/ADR-045-ci-builds-and-starts-both-images.md)), and then Playwright drives it in
   Chromium: a new account registers, plans and activates an upgrade, logs a day and reads the
-  dashboard, through the frontend's one port, published on `127.0.0.1:3000` only
+  dashboard, and a second test fetches the third-party notices nginx serves, through the frontend's one
+  port, published on `127.0.0.1:3000` only
   ([ADR-052](../ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md)).
   That suite lives in `e2e/`, a package of its own beside the two modules. The four jobs are required checks:
   a repository ruleset with no bypass refuses a merge into `main` or `dev` while any of them is red or
@@ -509,9 +515,11 @@ Integration points a maintainer will need:
   updates into one PR: the backend's Maven dependencies, the frontend's npm dependencies, CI's actions,
   the Dockerfiles' base images and compose's images. The browser suite's Playwright, which moves the
   Chromium it drives, comes in a PR of its own. Each major gets a PR of its own. Updates that are a
-  decision, which ADR-046 and ADR-048 list, are ignored and moved by hand: runtime, toolchain and
-  database majors, React's and React Router's majors, and every Prettier release. GitHub also scans
-  pushes for secrets and refuses one carrying a credential it recognises. It raises Dependabot alerts for every npm package, but for a Maven
+  decision, which ADR-046, ADR-048 and ADR-060 list, are ignored and moved by hand: runtime, toolchain
+  and database majors, React's, React Router's, Tailwind's and TypeScript's majors, and every Prettier
+  release. `palantir-java-format`'s releases are moved by hand too, but need no ignore, because its pin
+  sits where Dependabot reads no version ([ADR-037](../ADRs/ADR-037-the-backend-is-formatted-by-palantir-java-format-through-spotless.md)).
+  GitHub also scans pushes for secrets and refuses one carrying a credential it recognises. It raises Dependabot alerts for every npm package, but for a Maven
   artifact only when `backend/pom.xml` states its version: its dependency graph does not resolve the
   pom, so nothing the Spring Boot parent manages and no transitive dependency is seen (#301). Those are
   repository settings, not files,
@@ -763,6 +771,8 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the diagram check runs on any Python 3 rather than a pinned one; why it stays on the standard library | [ADR-055](../ADRs/ADR-055-python-is-left-floating-at-any-python-3.md) |
 | Why the compose stack publishes on `127.0.0.1` only and probes PostgreSQL over TCP; why only the backend drops its capabilities | [ADR-057](../ADRs/ADR-057-the-developer-stack-is-reachable-from-this-machine-only.md) |
 | Why a PR into `dev` must have its checks run on the latest `dev`, and a promotion into `main` need not; why a second ruleset rather than strict in the first | [ADR-058](../ADRs/ADR-058-a-pr-into-dev-merges-only-once-its-checks-ran-on-the-latest-dev.md) |
+| Why the bundle ships a notices file for its third-party packages; why the jar and the images need none yet, and when that changes | [ADR-059](../ADRs/ADR-059-the-bundle-ships-its-third-party-notices.md) |
+| Why Dependabot ignores the Tailwind CSS and TypeScript majors, and what moves each by hand | [ADR-060](../ADRs/ADR-060-dependabot-holds-the-tailwind-and-typescript-majors-back.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

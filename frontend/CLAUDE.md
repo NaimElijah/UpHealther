@@ -140,6 +140,13 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   boot script at all, whitespace included, changes its hash. Adding a third-party script, font or
   image source means editing the policy; that friction is deliberate
   ([ADR-018](../docs/ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)).
+- **Third-party notices ship with the build.** A runtime dependency's licence reaches
+  `THIRD-PARTY-NOTICES.txt` by itself, through Vite's `build.license`, and the smoke test fails when a
+  package in `dependencies` has no section. CSS, a font or an image taken from a package is invisible
+  to that plugin, because it reads only JS chunks: add its licence the way `vite.config.ts` adds
+  Tailwind's. The same test fails for a package in `dependencies` that never reaches a JS chunk, a
+  CSS-only one say, because Vite writes no section for it, and its notice is then added the same way
+  ([ADR-059](../docs/ADRs/ADR-059-the-bundle-ships-its-third-party-notices.md)).
 - **Colours are semantic tokens, never palette shades.** Write `bg-surface`, not `bg-white`;
   `text-fg-subtle`, not `text-gray-500`. The tokens are declared in `tailwind.config.js` and given
   their light and dark values in `src/index.css`. `npm run check:colours` fails on any direct palette

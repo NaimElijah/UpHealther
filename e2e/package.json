@@ -1,6 +1,7 @@
 {
   "name": "uphealther-e2e",
   "private": true,
+  "license": "UNLICENSED",
   "description": "A browser-driven smoke suite against the composed stack, run by the root's npm run test:images (ADR-052).",
   "type": "module",
   "engines": {

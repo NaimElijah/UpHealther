@@ -1,6 +1,8 @@
 # ADR-052: A Playwright smoke suite drives the stack the image check starts
 
-- **Status:** Accepted
+- **Status:** Accepted — extended by
+  [ADR-059](ADR-059-the-bundle-ships-its-third-party-notices.md), which adds a second test that reads
+  the third-party notices nginx serves
 - **Date:** 2026-10-22
 - **Scope:**
   - `e2e/`: its `package.json`, lockfile, `.npmrc`, `playwright.config.ts` and `tests/smoke.test.ts`;
