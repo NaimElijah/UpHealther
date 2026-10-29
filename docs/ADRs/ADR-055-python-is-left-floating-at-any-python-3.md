@@ -4,8 +4,9 @@
 - **Date:** 2026-10-29
 - **Extends:** [ADR-030](ADR-030-the-toolchain-is-pinned-in-the-repository.md), whose "Deliberately
   left floating" list it adds to
-- **Scope:** `scripts/python.mjs`, the root `package.json`'s `test:diagrams`, the diagrams job in
-  `.github/workflows/ci.yml`, and `docs/architecture/arch-diagrams/generate.py`.
+- **Scope:** `scripts/python.mjs`, the root `package.json`'s `test:diagrams`, the diagrams job and the
+  backend job's "Summarise backend coverage" step in `.github/workflows/ci.yml`, and
+  `docs/architecture/arch-diagrams/generate.py`.
 - **Issue:** [#336](https://github.com/NaimElijah/UpHealther/issues/336), scan 02 of
   [#334](https://github.com/NaimElijah/UpHealther/issues/334), finding I2.14.
 
@@ -25,11 +26,17 @@ Ubuntu 26 beginning October 19, 2026".
 `from __future__ import annotations`, which Python 3.7 introduced. It reads the source tree and writes
 Markdown; it builds and ships nothing.
 
+CI runs Python in one more place, outside any npm script. The backend job's "Summarise backend
+coverage" step pipes an inline script to the runner's `python3`, with `if: always()`, to print
+JaCoCo's CSV into the job summary. It imports only `csv`, `sys`, `collections` and `pathlib`, and runs
+nowhere but CI.
+
 ## Decision
 
 **Python is left floating at any Python 3, and `generate.py` stays on the standard library.**
 
-- CI keeps the runner's own `python3`. No `actions/setup-python` step, and no `.python-version` file.
+- CI keeps the runner's own `python3`, in the diagrams job and in the backend job's coverage summary.
+  No `actions/setup-python` step, and no `.python-version` file.
 - `scripts/python.mjs` keeps accepting any interpreter that answers `Python 3.`.
 - The README keeps asking for "Python 3".
 
@@ -45,7 +52,8 @@ shipped artifact.
 - **A runner image can change the interpreter under the gate.** The script uses only the standard
   library and old syntax, so a newer Python 3 is very unlikely to change its output. If it ever does,
   the drift check fails loudly rather than passing wrongly: the check compares the generated files
-  with the committed ones.
+  with the committed ones. The coverage summary runs inside the required `Backend - Build & Test`
+  job, so a runner without a working `python3` would fail that job too, at a step that names it.
 - **A Python feature newer than the oldest machine's would break that machine's run.** The README does
   not name a minimum.
 
@@ -63,6 +71,6 @@ shipped artifact.
 ## When to revisit
 
 - **`generate.py` needs a package outside the standard library,** or a language feature newer than
-  the oldest Python 3 a supported machine has. Pin a version then, in CI and in `python.mjs` together.
+  the oldest Python 3 a supported machine has. Pin a version then, in both CI steps and in `python.mjs` together.
 - **A runner image change alters the generator's output,** or breaks it.
 - **Python starts producing something that ships.**
