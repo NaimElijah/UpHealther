@@ -1,6 +1,8 @@
 # ADR-041: The refresh cookie is always Secure — there is no setting to forget
 
-- **Status:** Accepted
+- **Status:** Accepted — its "a phone on the LAN" revisit trigger now also meets
+  [ADR-057](ADR-057-the-developer-stack-is-reachable-from-this-machine-only.md), which publishes the
+  compose stack on `127.0.0.1` only
 - **Date:** 2026-10-17
 - **Scope:** `RefreshCookies`, `RefreshCookieProperties`, `application.yml`, `docker-compose.yml`,
   `.env.example`.
