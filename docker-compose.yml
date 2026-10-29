@@ -23,10 +23,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    # No process may gain privileges through a setuid binary or file capabilities. The entrypoint
-    # hands the server to the `postgres` user, which then holds no effective capability, so the
-    # capability set is not narrowed here: the entrypoint needs root's to initialise the data
-    # directory, and that list is the image's to keep, not this file's.
+    # No process may gain privileges through a setuid binary or file capabilities. The capability set
+    # stays Docker's default: the entrypoint runs as root only to initialise the data directory, then
+    # hands the server to the `postgres` user, which holds no effective capability, so narrowing the
+    # set would constrain that short-lived root step and nothing that serves a connection.
     security_opt:
       - no-new-privileges:true
     networks:
@@ -87,8 +87,9 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: healthupgrades-frontend
-    # nginx's master runs as root to bind port 80 and switch its workers to `nginx`, so it keeps
-    # Docker's default capabilities until #213 makes it unprivileged; then it can drop them all too.
+    # nginx's master runs as root to bind port 80 and switch its workers to `nginx`. That needs only a
+    # few capabilities, but it keeps Docker's default set until #213 makes it unprivileged and it can
+    # drop them all, rather than carry a list here that has to track the image's entrypoint.
     security_opt:
       - no-new-privileges:true
     ports:
