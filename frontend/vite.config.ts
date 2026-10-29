@@ -12,12 +12,16 @@ const THIRD_PARTY_NOTICES_FILE = 'THIRD-PARTY-NOTICES.txt';
 const require = createRequire(import.meta.url);
 
 /**
- * Appends Tailwind CSS's licence to the notices Vite writes, in the same `## name - version (licence)`
+ * Appends a Tailwind CSS section to the notices Vite writes, in the same `## name - version (licence)`
  * shape. Tailwind's preflight is copied into the stylesheet, but Vite lists only the packages whose
  * modules end up in a JS chunk, and minification strips the banner Tailwind puts in the CSS.
  *
- * Fails the build when the notices file is missing or Tailwind's licence cannot be read, so the
- * bundle never ships without them.
+ * The section carries two texts: the package's licence, and then `lib/css/LICENSE`, the preflight's
+ * own. The preflight is normalize.css and modern-normalize, whose holders the package licence does not
+ * name, and it is the Tailwind code that actually ships.
+ *
+ * Fails the build when the notices file is missing or either licence cannot be read, so the bundle
+ * never ships without them.
  */
 function tailwindNotice(): Plugin {
   return {
@@ -39,10 +43,12 @@ function tailwindNotice(): Plugin {
             version: string;
             license: string;
           };
-          const text = readFileSync(join(dirname(manifestPath), 'LICENSE'), 'utf-8').trim();
-          entry = `\n## tailwindcss - ${version} (${license})\n\n${text}\n`;
+          const packageDir = dirname(manifestPath);
+          const packageLicence = readFileSync(join(packageDir, 'LICENSE'), 'utf-8').trim();
+          const preflightLicence = readFileSync(join(packageDir, 'lib', 'css', 'LICENSE'), 'utf-8').trim();
+          entry = `\n## tailwindcss - ${version} (${license})\n\n${packageLicence}\n\n${preflightLicence}\n`;
         } catch (cause) {
-          this.error(`Cannot read Tailwind CSS's licence for ${THIRD_PARTY_NOTICES_FILE}: ${String(cause)}`);
+          this.error(`Cannot read Tailwind CSS's licences for ${THIRD_PARTY_NOTICES_FILE}: ${String(cause)}`);
         }
         notices.source += entry;
       },

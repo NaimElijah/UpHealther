@@ -23,9 +23,10 @@ packages. Nine are MIT: `react`, `react-dom`, `scheduler`, `react-router`, `reac
 `@remix-run/router`, `@tanstack/react-query`, `@tanstack/query-core` and `axios`. One,
 `@stomp/stompjs`, is Apache-2.0. The stylesheet carries Tailwind CSS 3's preflight (MIT), which
 Tailwind marks with a `/*! … MIT License */` banner. The minifier removes comments, and Lightning CSS
-strips that banner too. The shipped `dist/` held no notice of any kind. Once the planned AWS
-deployment ([#198](https://github.com/NaimElijah/UpHealther/issues/198)) serves the SPA, each
-visitor receives those copies without the notices their licences require.
+strips that banner too. The preflight itself derives from normalize.css and modern-normalize, whose
+holders Tailwind's `lib/css/LICENSE` names. The shipped `dist/` held no notice of any kind. Once the
+planned AWS deployment ([#198](https://github.com/NaimElijah/UpHealther/issues/198)) serves the SPA,
+each visitor receives those copies without the notices their licences require.
 
 **The jar.** `./mvnw package` builds a boot jar that nests 120 dependency jars, each kept whole, with
 its own `META-INF/LICENSE` and `NOTICE`. This was checked on `tomcat-embed-core-11.0.27.jar` and
@@ -49,16 +50,21 @@ stylesheet. Its plugin also skips virtual (`\0`) modules.
 - **Vite writes it.** `frontend/vite.config.ts` sets `build.license` with
   `fileName: 'THIRD-PARTY-NOTICES.txt'`. Every package that enters a JS chunk is listed with its
   licence text, so a new runtime dependency's notice ships without anyone remembering to add it.
-- **A small plugin adds Tailwind.** It appends Tailwind CSS's licence to the same file, in the same
-  `## name - version (licence)` shape. Its `generateBundle` hook runs with `order: 'post'`, so it
-  sees the file Vite emitted. It fails the build when the file or Tailwind's licence is missing, so
-  the bundle cannot ship without them.
+- **A small plugin adds Tailwind.** It appends two texts to the same file, in the same
+  `## name - version (licence)` shape: the package's `LICENSE`, which is Tailwind Labs', and
+  `lib/css/LICENSE`, the licence of the preflight. The second is the one that matters, because the
+  preflight is the code that ships in the stylesheet, and it names the five holders of the work it
+  derives from. Its `generateBundle` hook runs with `order: 'post'`, so it sees the file Vite emitted.
+  It fails the build when the file or either text is missing, so the bundle cannot ship without
+  them.
 - **nginx serves it as it serves any file in `dist/`.** `frontend/Dockerfile` already copies the
   whole directory, so the file answers as `text/plain`. No change to the image or `nginx.conf`.
 - **The smoke suite checks the served file.** `e2e/tests/smoke.test.ts`, which `npm run test:images`
   and CI's images job run, fetches it from the composed stack and asserts a `text/plain` response, a
   section for every package in `frontend/package.json`'s `dependencies`, and a section for
   `tailwindcss`.
+- **A Vitest test checks the build's side.** `frontend/src/test/thirdPartyNotices.test.ts` checks that
+  the notices the build writes carry both of Tailwind's licence texts.
 - **The listing leaves out two things, and that is a judgment.** Vite's modulepreload polyfill and
   Rolldown's runtime helpers are a few lines of tool-generated glue, which Vite's plugin skips as
   virtual modules. Their licences are not listed. We judge those lines too small and too generic to
@@ -85,9 +91,9 @@ stylesheet. Its plugin also skips virtual (`\0`) modules.
 - **Anything taken from a package outside a JS chunk is invisible to Vite's plugin.** Tailwind's
   preflight is the one case today, and it needs the hand-written plugin. A stylesheet, font or image
   copied from another package must be added the same way, and nothing detects the omission.
-- **The Tailwind plugin reads `tailwindcss/package.json` and the `LICENSE` beside it.** A Tailwind
-  release that moves either fails the build, which is the intended loudness, and the fix is in the
-  plugin.
+- **The Tailwind plugin reads `tailwindcss/package.json`, the `LICENSE` beside it and
+  `lib/css/LICENSE`.** A Tailwind release that moves any of them fails the build, which is the
+  intended loudness, and the fix is in the plugin.
 - **The tool-generated glue is unlisted** (see the Decision). It is a risk accepted, not a finding
   closed.
 
