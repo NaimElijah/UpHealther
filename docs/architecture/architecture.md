@@ -503,7 +503,8 @@ Integration points a maintainer will need:
   every service reports healthy, as its own compose project
   ([ADR-045](../ADRs/ADR-045-ci-builds-and-starts-both-images.md)), and then Playwright drives it in
   Chromium: a new account registers, plans and activates an upgrade, logs a day and reads the
-  dashboard, through the frontend's one port, published on `127.0.0.1:3000` only
+  dashboard, and a second test fetches the third-party notices nginx serves, through the frontend's one
+  port, published on `127.0.0.1:3000` only
   ([ADR-052](../ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md)).
   That suite lives in `e2e/`, a package of its own beside the two modules. The four jobs are required checks:
   a repository ruleset with no bypass refuses a merge into `main` or `dev` while any of them is red or

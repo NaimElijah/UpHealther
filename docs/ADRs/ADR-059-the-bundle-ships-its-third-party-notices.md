@@ -4,7 +4,8 @@
 - **Date:** 2026-10-29
 - **Scope:** `frontend/vite.config.ts` and the bundle it builds, which `frontend/Dockerfile` copies
   into the nginx image. Also records, for the jar and both images, why they need no build change
-  today. NFR-57 in `docs/requirements/requirements.md`.
+  today. NFR-57 in `docs/requirements/requirements.md`. The test that reads the served file joins the
+  smoke suite of [ADR-052](ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md).
 - **Issue:** [#337](https://github.com/NaimElijah/UpHealther/issues/337), scan 03 of
   [#334](https://github.com/NaimElijah/UpHealther/issues/334), findings D3.F1 and D3.B5. Builds on
   [ADR-003](ADR-003-proprietary-source-available-licensing.md).
