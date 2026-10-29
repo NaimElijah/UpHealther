@@ -516,8 +516,9 @@ Integration points a maintainer will need:
   Chromium it drives, comes in a PR of its own. Each major gets a PR of its own. Updates that are a
   decision, which ADR-046, ADR-048 and ADR-060 list, are ignored and moved by hand: runtime, toolchain
   and database majors, React's, React Router's, Tailwind's and TypeScript's majors, and every Prettier
-  release. GitHub also scans
-  pushes for secrets and refuses one carrying a credential it recognises. It raises Dependabot alerts for every npm package, but for a Maven
+  release. `palantir-java-format`'s releases are moved by hand too, but need no ignore, because its pin
+  sits where Dependabot reads no version ([ADR-037](../ADRs/ADR-037-the-backend-is-formatted-by-palantir-java-format-through-spotless.md)).
+  GitHub also scans pushes for secrets and refuses one carrying a credential it recognises. It raises Dependabot alerts for every npm package, but for a Maven
   artifact only when `backend/pom.xml` states its version: its dependency graph does not resolve the
   pom, so nothing the Spring Boot parent manages and no transitive dependency is seen (#301). Those are
   repository settings, not files,
