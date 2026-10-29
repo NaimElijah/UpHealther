@@ -113,7 +113,8 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
 - What CI runs is the root's `npm run test:frontend`: `npm run format:check`, `npm run lint`,
   `npm run check:colours`, `npm run test:coverage`, `npm audit --omit=dev --audit-level=high`,
   `npm run build`, in that order. `format` and `format:check` also cover the root `package.json`,
-  `scripts/`, and `e2e/`'s `package.json`, `playwright.config.ts` and `tests/`.
+  `scripts/`, and `e2e/`'s `package.json`, `playwright.config.ts` and `tests/`. `lint` also covers
+  the root `scripts/*.mjs`, through `lint:scripts` (ADR-056), so a change there is linted too.
 
 ### Full stack
 - `docker compose up --build` — Postgres + backend + frontend. Frontend :3000, backend :8080,
