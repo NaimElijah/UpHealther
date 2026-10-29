@@ -6,8 +6,12 @@
  * posted no start date and every plan was refused (#88), and the dashboard showed the weekly rate a
  * hundred times too large (#20). Failure paths stay at the cheapest level that can observe them
  * (ADR-009). See docs/ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md.
+ *
+ * A second test reads the third-party notices that must travel with the bundle (#337): only the built
+ * image shows whether nginx serves the file Vite wrote.
  */
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 /** Eight characters or more, the API's minimum (BR-17). The account lives only in this run's database. */
@@ -53,6 +57,23 @@ function watchForSubscription(page: Page): () => boolean {
     });
   });
   return () => subscribed;
+}
+
+/**
+ * The packages the bundle ships, read from the frontend's manifest rather than listed here, so a runtime
+ * dependency added later must appear in the notices too. Names only: the notices name the installed
+ * version, which the manifest's range does not.
+ */
+function runtimeDependencies(): string[] {
+  const manifest = JSON.parse(readFileSync(new URL('../../frontend/package.json', import.meta.url), 'utf8')) as {
+    dependencies: Record<string, string>;
+  };
+  return Object.keys(manifest.dependencies);
+}
+
+/** The package names of the notices' `## <name> - <version> (<licence>)` section headings. */
+function noticeSections(notices: string): string[] {
+  return [...notices.matchAll(/^## (\S+) - /gm)].map(([, name]) => name);
 }
 
 test('GivenANewVisitor_WhenTheyActivateAnUpgradeAndLogToday_ThenTheDashboardCountsIt', async ({ page }) => {
@@ -139,4 +160,19 @@ test('GivenANewVisitor_WhenTheyActivateAnUpgradeAndLogToday_ThenTheDashboardCoun
   });
 
   expect(problems).toEqual([]);
+});
+
+test('GivenTheBuiltImage_WhenTheThirdPartyNoticesAreRequested_ThenEveryShippedPackageHasASection', async ({ page }) => {
+  // Loaded by the browser, not by the request fixture, which resolves `localhost` through Node and
+  // misses the IPv4 mapping in playwright.config.ts.
+  const response = await page.goto('/THIRD-PARTY-NOTICES.txt');
+  expect(response?.ok(), `the notices answer ${response?.status()}`).toBe(true);
+  // nginx answers a missing file with the SPA's index.html and a 200, so the status alone cannot fail.
+  expect(response?.headers()['content-type'], 'the notices are served as plain text').toMatch(/^text\/plain\b/);
+
+  const sections = noticeSections((await response?.text()) ?? '');
+  // The stylesheet carries Tailwind's preflight, although Tailwind is a devDependency.
+  expect(sections, 'every runtime dependency, and Tailwind, has a section in the notices').toEqual(
+    expect.arrayContaining([...runtimeDependencies(), 'tailwindcss']),
+  );
 });

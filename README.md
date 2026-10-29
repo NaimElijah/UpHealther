@@ -563,7 +563,9 @@ Corrections and questions are welcome as [issues](https://github.com/NaimElijah/
 **Copyright © 2026 Naim Elijah. All rights reserved.** Anything beyond reading — using, copying,
 modifying, running, deploying, redistributing, or training a model on it — needs written permission,
 via [github.com/NaimElijah](https://github.com/NaimElijah); an unanswered request is a refused one.
-[`LICENSE`](LICENSE) carries the terms that govern. Third-party dependencies remain under their own.
+[`LICENSE`](LICENSE) carries the terms that govern. Third-party dependencies remain under their own;
+the SPA's notices are written by the build and served at `/THIRD-PARTY-NOTICES.txt`
+([ADR-059](docs/ADRs/ADR-059-the-bundle-ships-its-third-party-notices.md)).
 
 ## 🙏 Acknowledgements
 

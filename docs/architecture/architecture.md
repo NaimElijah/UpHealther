@@ -41,6 +41,11 @@ an ArchUnit suite, which is the authority on what the layering permits.
 In development the nginx container is not involved: the Vite dev server serves the SPA on 3000 and
 performs the same `/api` and `/ws` proxying itself, so the app behaves identically on both sides.
 
+The production build also writes `THIRD-PARTY-NOTICES.txt` into `dist/`: Vite's `build.license` lists
+every package in the JS bundle, and a small plugin in `frontend/vite.config.ts` adds Tailwind CSS. The
+image copies `dist/` whole, so nginx serves the file at `/THIRD-PARTY-NOTICES.txt`
+([ADR-059](../ADRs/ADR-059-the-bundle-ships-its-third-party-notices.md)).
+
 ### Backend bounded contexts
 
 Ten contexts, each owning its own vocabulary, plus a cross-cutting `common`.
@@ -763,6 +768,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the diagram check runs on any Python 3 rather than a pinned one; why it stays on the standard library | [ADR-055](../ADRs/ADR-055-python-is-left-floating-at-any-python-3.md) |
 | Why the compose stack publishes on `127.0.0.1` only and probes PostgreSQL over TCP; why only the backend drops its capabilities | [ADR-057](../ADRs/ADR-057-the-developer-stack-is-reachable-from-this-machine-only.md) |
 | Why a PR into `dev` must have its checks run on the latest `dev`, and a promotion into `main` need not; why a second ruleset rather than strict in the first | [ADR-058](../ADRs/ADR-058-a-pr-into-dev-merges-only-once-its-checks-ran-on-the-latest-dev.md) |
+| Why the bundle ships a notices file for its third-party packages; why the jar and the images need none yet, and when that changes | [ADR-059](../ADRs/ADR-059-the-bundle-ships-its-third-party-notices.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |
