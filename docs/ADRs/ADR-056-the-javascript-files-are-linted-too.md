@@ -49,8 +49,9 @@ Node's globals, and the root's `scripts/*.mjs` are linted by the same configurat
 - `npm run lint:scripts` runs `cd .. && eslint --config frontend/eslint.config.js
   --report-unused-disable-directives --max-warnings 0 scripts`. It keeps the `cd dir && tool args`
   form that runs under `cmd.exe` and `sh` alike (ADR-044).
-- `npm run lint` runs the frontend's lint and then `lint:scripts`. So CI, the root `npm test` and a
-  developer's `npm run lint` all cover both.
+- `npm run lint` runs `lint:scripts` and then the frontend's lint. That order matters: npm appends
+  any arguments after `--` to the script's last command, so `npm run lint -- --fix` still reaches the
+  frontend's ESLint. CI, the root `npm test` and a developer's `npm run lint` all cover both.
 
 Every file in scope passed the widened lint the day it was turned on, so it needed no fixes.
 
