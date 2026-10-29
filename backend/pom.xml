@@ -28,15 +28,20 @@
         -->
         <logstash.encoder.version>9.0</logstash.encoder.version>
         <!--
-          Overrides of versions spring-boot-dependencies 4.1.1 manages, each to the newest patch of the line
-          it already uses: OSV-Scanner reports known vulnerabilities in the managed 11.0.24, 3.1.5 and 2.21.5
-          (Jackson 2 is the one jjwt-jackson brings), and no Boot release carries the fixes yet. Delete each
-          one once spring-boot-starter-parent manages that version or newer, or it holds the tree back:
-          Dependabot never sees these properties, so nothing proposes their update (#304). See ADR-047.
+          Overrides of versions spring-boot-dependencies 4.1.1 manages, because OSV-Scanner reported known
+          vulnerabilities in the managed ones. Tomcat and the two Jacksons go to the newest patch of the
+          line they already use, from 11.0.24, 3.1.5 and 2.21.5 (Jackson 2 is the one jjwt-jackson brings).
+          OpenTelemetry goes from 1.62.0 to 1.67.0, the first release with the fix for GHSA-ccrj-gw8r-854m,
+          in its W3C tracestate parsing (#364); Boot 4.1.2 still manages 1.62.0. The property moves every
+          artifact of opentelemetry-bom, the one OpenTelemetry BOM Boot imports, API and SDK together.
+          Delete each override on its own, once spring-boot-starter-parent manages that version or newer,
+          or it holds the tree back: Dependabot never sees these properties, so nothing proposes their
+          update (#304). See ADR-047.
         -->
         <tomcat.version>11.0.27</tomcat.version>
         <jackson-bom.version>3.1.8</jackson-bom.version>
         <jackson-2-bom.version>2.21.8</jackson-2-bom.version>
+        <opentelemetry.version>1.67.0</opentelemetry.version>
         <!--
           Build-time only. The formatter is pinned separately from the plugin because a formatter release
           can move lines, and that is a formatting commit of its own, not a side effect of a plugin bump.
