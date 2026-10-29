@@ -73,8 +73,8 @@ updates:
       # separate package. It is moved by hand under #369 (ADR-060).
       - dependency-name: tailwindcss
         update-types: [ version-update:semver-major ]
-      # A TypeScript major is a toolchain move that typescript-eslint's peer range must accept first.
-      # It is moved by hand under #370 (ADR-060).
+      # A TypeScript major is a toolchain move, made by hand under #370 (ADR-060): 6 first, which
+      # typescript-eslint's peer range already admits, then 7, which waits until that range accepts it.
       - dependency-name: typescript
         update-types: [ version-update:semver-major ]
 
