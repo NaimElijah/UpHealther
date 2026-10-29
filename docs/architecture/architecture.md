@@ -759,6 +759,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why a release is a tag on its promotion merge, cut by hand; why git-cliff runs from an image rather than release-please, a script or an npm dependency; why the changelog is only ever prepended to | [ADR-051](../ADRs/ADR-051-a-release-is-a-tag-on-its-promotion-and-git-cliff-writes-its-changelog.md) |
 | Why a browser drives the composed stack inside the image check, in Playwright's Chromium, rather than in a job of its own or only before a release; why `e2e/` is its own package; why the frontend publishes `127.0.0.1:3000` and the browser runs in UTC | [ADR-052](../ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md) |
 | Why a session that ends closes its open sockets with an ERROR frame, after the commit; why not a check on every push or on the client's heartbeats; why a session's natural expiry is not covered | [ADR-054](../ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md) |
+| Why the diagram check runs on any Python 3 rather than a pinned one; why it stays on the standard library | [ADR-055](../ADRs/ADR-055-python-is-left-floating-at-any-python-3.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

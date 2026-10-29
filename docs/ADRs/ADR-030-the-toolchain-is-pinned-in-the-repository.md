@@ -2,9 +2,11 @@
 
 - **Status:** Accepted — extended by
   [ADR-046](ADR-046-dependabot-proposes-weekly-updates-into-dev.md), which turns on the Dependabot
-  updates its "Lost: security patches arriving on their own" waited for; and by
+  updates its "Lost: security patches arriving on their own" waited for; by
   [ADR-052](ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md), whose `e2e/`
-  package takes the frontend's `engines` range with an `.npmrc` of its own setting `engine-strict`
+  package takes the frontend's `engines` range with an `.npmrc` of its own setting `engine-strict`; and
+  by [ADR-055](ADR-055-python-is-left-floating-at-any-python-3.md), which adds Python, run only by the
+  diagram check, to the "Deliberately left floating" list below
 - **Date:** 2026-10-13
 - **Scope:** `backend/mvnw`, `backend/.mvn/`, `backend/pom.xml` (maven-enforcer-plugin), `frontend/.nvmrc`,
   `frontend/.npmrc`, the `engines` field of `frontend/package.json`, both Dockerfiles,
