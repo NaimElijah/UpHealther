@@ -10,9 +10,10 @@ import tseslint from 'typescript-eslint';
  *
  * `.ts` and `.tsx` files get the presets below. The `.js` and `.mjs` files are Node's: this one, the
  * PostCSS, Prettier and Tailwind configs, `scripts/check-colours.mjs`, and the repository's own
- * `scripts/*.mjs`, which the gate runs. They get ESLint's `recommended` with Node's globals. ESLint
- * lints nothing above this file's directory, so `npm run lint:scripts` runs this configuration from
- * the repository root to reach the latter. See
+ * `scripts/*.mjs`, which the gate runs. They get ESLint's `recommended` with Node's built-in globals,
+ * not `globals.node`: every one is an ES module, which has no `require` or `__dirname`, so a use of
+ * either is reported rather than declared. ESLint lints nothing above this file's directory, so
+ * `npm run lint:scripts` runs this configuration from the repository root to reach the latter. See
  * `docs/ADRs/ADR-056-the-javascript-files-are-linted-too.md`.
  *
  * Each preset is taken whole, and a finding is fixed rather than switched off. react-hooks'
@@ -40,7 +41,7 @@ export default defineConfig([
     files: ['**/*.{js,mjs}'],
     extends: [js.configs.recommended],
     languageOptions: {
-      globals: globals.node,
+      globals: globals.nodeBuiltin,
     },
   },
 ]);

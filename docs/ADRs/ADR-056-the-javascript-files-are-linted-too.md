@@ -42,10 +42,12 @@ still resolve from `frontend/node_modules`, beside the file.
 ## Decision
 
 **Every `.js` and `.mjs` file the frontend's ESLint can reach gets `js.configs.recommended`, with
-Node's globals, and the root's `scripts/*.mjs` are linted by the same configuration.**
+Node's built-in globals, and the root's `scripts/*.mjs` are linted by the same configuration.**
 
 - `eslint.config.js` gains one block: `files: ['**/*.{js,mjs}']`, `js.configs.recommended`, and
-  `globals.node`. The `.ts` and `.tsx` block is unchanged.
+  `globals.nodeBuiltin`. Not `globals.node`, which also declares the CommonJS wrapper's `require`,
+  `module`, `exports`, `__dirname` and `__filename`: every file in scope is an ES module, where those
+  throw at run time, so `no-undef` should report them. The `.ts` and `.tsx` block is unchanged.
 - `npm run lint:scripts` runs `cd .. && eslint --config frontend/eslint.config.js
   --report-unused-disable-directives --max-warnings 0 scripts`. It keeps the `cd dir && tool args`
   form that runs under `cmd.exe` and `sh` alike (ADR-044).
