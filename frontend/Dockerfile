@@ -1,5 +1,5 @@
 # The same Node release as frontend/.nvmrc, which CI reads (ADR-030, ADR-031).
-FROM node:24.22.0-alpine3.24 AS build
+FROM node:24.22.1-alpine3.24 AS build
 WORKDIR /app
 # .npmrc before npm ci, so engine-strict applies in the image too.
 COPY package*.json .npmrc ./

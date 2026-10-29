@@ -1,6 +1,6 @@
 # One Temurin release for both stages, so the JDK that compiles the jar and the JRE that runs it are the
 # same release (ADR-030).
-FROM eclipse-temurin:21.0.12.1_1-jdk-alpine-3.24 AS build
+FROM eclipse-temurin:21-jdk-alpine-3.20 AS build
 WORKDIR /app
 # The Maven wrapper downloads the version the repository pins and checks its checksum (ADR-030), with
 # the wget, unzip and sha256sum this image already has - no package to install. chmod so the build does
@@ -12,7 +12,7 @@ COPY pom.xml .
 COPY src ./src
 RUN chmod +x mvnw && ./mvnw -B --no-transfer-progress package -DskipTests
 
-FROM eclipse-temurin:21.0.12.1_1-jre-alpine-3.24
+FROM eclipse-temurin:21-jre-alpine-3.20
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 EXPOSE 8080
