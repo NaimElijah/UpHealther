@@ -514,8 +514,9 @@ Integration points a maintainer will need:
   updates into one PR: the backend's Maven dependencies, the frontend's npm dependencies, CI's actions,
   the Dockerfiles' base images and compose's images. The browser suite's Playwright, which moves the
   Chromium it drives, comes in a PR of its own. Each major gets a PR of its own. Updates that are a
-  decision, which ADR-046 and ADR-048 list, are ignored and moved by hand: runtime, toolchain and
-  database majors, React's and React Router's majors, and every Prettier release. GitHub also scans
+  decision, which ADR-046, ADR-048 and ADR-060 list, are ignored and moved by hand: runtime, toolchain
+  and database majors, React's, React Router's, Tailwind's and TypeScript's majors, and every Prettier
+  release. GitHub also scans
   pushes for secrets and refuses one carrying a credential it recognises. It raises Dependabot alerts for every npm package, but for a Maven
   artifact only when `backend/pom.xml` states its version: its dependency graph does not resolve the
   pom, so nothing the Spring Boot parent manages and no transitive dependency is seen (#301). Those are
@@ -769,6 +770,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the compose stack publishes on `127.0.0.1` only and probes PostgreSQL over TCP; why only the backend drops its capabilities | [ADR-057](../ADRs/ADR-057-the-developer-stack-is-reachable-from-this-machine-only.md) |
 | Why a PR into `dev` must have its checks run on the latest `dev`, and a promotion into `main` need not; why a second ruleset rather than strict in the first | [ADR-058](../ADRs/ADR-058-a-pr-into-dev-merges-only-once-its-checks-ran-on-the-latest-dev.md) |
 | Why the bundle ships a notices file for its third-party packages; why the jar and the images need none yet, and when that changes | [ADR-059](../ADRs/ADR-059-the-bundle-ships-its-third-party-notices.md) |
+| Why Dependabot ignores the Tailwind CSS and TypeScript majors, and what moves each by hand | [ADR-060](../ADRs/ADR-060-dependabot-holds-the-tailwind-and-typescript-majors-back.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

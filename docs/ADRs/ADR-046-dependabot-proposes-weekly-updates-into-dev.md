@@ -6,7 +6,9 @@
   [ADR-048](ADR-048-dependabot-holds-react-majors-back.md), which adds React majors to the `npm`
   entry's ignored updates; and by
   [ADR-052](ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md), which adds an
-  `npm` entry for `/e2e`, so a Playwright release arrives in a PR of its own
+  `npm` entry for `/e2e`, so a Playwright release arrives in a PR of its own; and by
+  [ADR-060](ADR-060-dependabot-holds-the-tailwind-and-typescript-majors-back.md), which adds the
+  Tailwind and TypeScript majors to the `npm` entry's ignored updates
 - **Date:** 2026-10-19
 - **Scope:** `.github/dependabot.yml`, and the repository's code-security settings, which live outside
   the tree. NFR-53 in `docs/requirements/requirements.md`.
