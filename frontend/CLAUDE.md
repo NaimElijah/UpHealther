@@ -42,8 +42,12 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
 
 - **Lint** is ESLint 10 with a flat config, `eslint.config.js`, and `npm run lint` fails on any
   warning ([ADR-035](../docs/ADRs/ADR-035-the-frontend-lints-with-eslint-10-and-a-flat-config.md)).
-  It applies react-hooks' whole `recommended` set, which includes the React Compiler's rules,
-  although the compiler is not used. Most often met:
+  The `.js` and `.mjs` files get ESLint's `recommended` with Node's globals, and `npm run lint` ends
+  with `lint:scripts`, which runs the same configuration from the repository root over its
+  `scripts/*.mjs`: ESLint lints nothing above this directory otherwise
+  ([ADR-056](../docs/ADRs/ADR-056-the-javascript-files-are-linted-too.md)).
+  On `.ts` and `.tsx` it applies react-hooks' whole `recommended` set, which includes the React
+  Compiler's rules, although the compiler is not used. Most often met:
   - no `setState` called synchronously inside an effect: subscribe with `useSyncExternalStore`, or
     move the update into the event handler that causes it. A ref is not a drop-in replacement for
     state an effect depends on, because changing a ref runs nothing;

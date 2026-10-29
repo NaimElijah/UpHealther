@@ -359,7 +359,8 @@ that both modules name one version and `CHANGELOG.md` has its section; OSV-Scann
 on the backend's whole dependency tree, failing on any known vulnerability
 ([ADR-047](docs/ADRs/ADR-047-the-backend-audits-its-dependencies-with-osv-scanner.md)); the
 generated diagrams still matching their source; the frontend format check; frontend lint at
-`--max-warnings 0`; the colour-token check; `vitest run --coverage`; `npm audit --omit=dev
+`--max-warnings 0`, the root's `scripts/*.mjs` included; the colour-token check;
+`vitest run --coverage`; `npm audit --omit=dev
 --audit-level=high`; the production build; and both images built, with the stack started from them
 until every service reports healthy and then driven by the browser suite. A PR into `main` or `dev` cannot merge while any of the four
 jobs is red or still running, whoever merges it

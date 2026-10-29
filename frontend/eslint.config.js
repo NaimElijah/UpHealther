@@ -8,9 +8,12 @@ import tseslint from 'typescript-eslint';
 /**
  * The frontend's lint configuration, run by `npm run lint` with `--max-warnings 0` in CI.
  *
- * Only `.ts` and `.tsx` files get rules, as under the `--ext ts,tsx` this replaces. The few `.js` and
- * `.mjs` files (this one, the PostCSS and Tailwind configs, `scripts/`) are matched by nothing here,
- * so ESLint reports nothing for them.
+ * `.ts` and `.tsx` files get the presets below. The `.js` and `.mjs` files are Node's: this one, the
+ * PostCSS, Prettier and Tailwind configs, `scripts/check-colours.mjs`, and the repository's own
+ * `scripts/*.mjs`, which the gate runs. They get ESLint's `recommended` with Node's globals. ESLint
+ * lints nothing above this file's directory, so `npm run lint:scripts` runs this configuration from
+ * the repository root to reach the latter. See
+ * `docs/ADRs/ADR-056-the-javascript-files-are-linted-too.md`.
  *
  * Each preset is taken whole, and a finding is fixed rather than switched off. react-hooks'
  * `recommended` includes the React Compiler's rules although the compiler is not used. See
@@ -31,6 +34,13 @@ export default defineConfig([
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
+    },
+  },
+  {
+    files: ['**/*.{js,mjs}'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      globals: globals.node,
     },
   },
 ]);
