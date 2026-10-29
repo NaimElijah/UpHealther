@@ -94,7 +94,12 @@ stylesheet. Its plugin also skips virtual (`\0`) modules.
   Vitest test pins both texts.
 - **Anything taken from a package outside a JS chunk is invisible to Vite's plugin.** Tailwind's
   preflight is the one case today, and it needs the hand-written plugin. A stylesheet, font or image
-  copied from another package must be added the same way, and nothing detects the omission.
+  copied from another package must be added the same way. A package in `dependencies` that never
+  reaches a JS chunk, a CSS-only one say, fails the smoke test, because Vite writes no section for it.
+  An asset taken from a package that is not in `dependencies` is not detected.
+- **Vite's plugin collects `LICENSE`, `LICENCE` and `COPYING` files, and never a `NOTICE`.**
+  Apache-2.0 §4(d) requires a work's `NOTICE` text to travel with it. `@stomp/stompjs` 7.5.0, the one
+  Apache-2.0 package bundled, ships none today.
 - **The Tailwind plugin reads `tailwindcss/package.json`, the `LICENSE` beside it and
   `lib/css/LICENSE`.** A Tailwind release that moves any of them fails the build, which is the
   intended loudness, and the fix is in the plugin.
@@ -135,4 +140,6 @@ stylesheet. Its plugin also skips virtual (`\0`) modules.
   still comes from `tailwindcss`, and that the plugin still names the package it does.
 - **A stylesheet or asset from another package enters the bundle,** because Vite's plugin cannot see
   it.
+- **An Apache-2.0 runtime dependency that ships a `NOTICE` file enters the bundle.** Vite's plugin
+  does not collect it, so its text must be added the way Tailwind's licences are.
 - **Vite changes or drops the `license` option.**
