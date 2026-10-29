@@ -16,10 +16,11 @@ permissions:
   contents: read
 
 # Each job's `name:` below is a required check of ruleset 25310599, "CI must pass", which binds every
-# merge into main and dev, the admin's included (ADR-043). A required check that never reports leaves a
-# PR waiting, so renaming, adding or removing a job means editing that ruleset just before merging the
-# PR that does it, then pushing to or closing and reopening the other open PRs so they report the new
-# names; a re-run reuses the old merge ref.
+# merge into main and dev, the admin's included (ADR-043), and of ruleset 26158509, which also requires
+# it to have run on the latest dev before a PR merges into dev (ADR-058). A required check that never
+# reports leaves a PR waiting, so renaming, adding or removing a job means editing both rulesets just
+# before merging the PR that does it, then pushing to or closing and reopening the other open PRs so
+# they report the new names; a re-run reuses the old merge ref.
 jobs:
   backend:
     name: Backend - Build & Test

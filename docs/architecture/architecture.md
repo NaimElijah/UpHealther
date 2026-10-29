@@ -502,7 +502,8 @@ Integration points a maintainer will need:
   ([ADR-052](../ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md)).
   That suite lives in `e2e/`, a package of its own beside the two modules. The four jobs are required checks:
   a repository ruleset with no bypass refuses a merge into `main` or `dev` while any of them is red or
-  pending ([ADR-043](../ADRs/ADR-043-ci-is-a-merge-gate.md)).
+  pending ([ADR-043](../ADRs/ADR-043-ci-is-a-merge-gate.md)), and a second one refuses a merge into
+  `dev` until they ran on the latest `dev` ([ADR-058](../ADRs/ADR-058-a-pr-into-dev-merges-only-once-its-checks-ran-on-the-latest-dev.md)).
 - **Dependabot** — reads `.github/dependabot.yml` from `main` and opens its PRs against `dev`, where
   they pass the same four checks as any other. Once a week it groups each ecosystem's minor and patch
   updates into one PR: the backend's Maven dependencies, the frontend's npm dependencies, CI's actions,
@@ -761,6 +762,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why a session that ends closes its open sockets with an ERROR frame, after the commit; why not a check on every push or on the client's heartbeats; why a session's natural expiry is not covered | [ADR-054](../ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md) |
 | Why the diagram check runs on any Python 3 rather than a pinned one; why it stays on the standard library | [ADR-055](../ADRs/ADR-055-python-is-left-floating-at-any-python-3.md) |
 | Why the compose stack publishes on `127.0.0.1` only and probes PostgreSQL over TCP; why only the backend drops its capabilities | [ADR-057](../ADRs/ADR-057-the-developer-stack-is-reachable-from-this-machine-only.md) |
+| Why a PR into `dev` must have its checks run on the latest `dev`, and a promotion into `main` need not; why a second ruleset rather than strict in the first | [ADR-058](../ADRs/ADR-058-a-pr-into-dev-merges-only-once-its-checks-ran-on-the-latest-dev.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

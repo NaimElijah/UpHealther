@@ -365,9 +365,10 @@ generated diagrams still matching their source; the frontend format check; front
 `--max-warnings 0`, the root's `scripts/*.mjs` included; the colour-token check;
 `vitest run --coverage`; `npm audit --omit=dev
 --audit-level=high`; the production build; and both images built, with the stack started from them
-until every service reports healthy and then driven by the browser suite. A PR into `main` or `dev` cannot merge while any of the four
-jobs is red or still running, whoever merges it
-([ADR-043](docs/ADRs/ADR-043-ci-is-a-merge-gate.md)).
+until every service reports healthy and then driven by the browser suite. A PR into `main` or `dev`
+cannot merge while any of the four jobs is red or still running, whoever merges it
+([ADR-043](docs/ADRs/ADR-043-ci-is-a-merge-gate.md)), and a PR into `dev` only once they ran on the
+latest `dev` ([ADR-058](docs/ADRs/ADR-058-a-pr-into-dev-merges-only-once-its-checks-ran-on-the-latest-dev.md)).
 
 **Dependencies move by Dependabot** ([`dependabot.yml`](.github/dependabot.yml),
 [ADR-046](docs/ADRs/ADR-046-dependabot-proposes-weekly-updates-into-dev.md)): once a week, one PR per
