@@ -38,9 +38,9 @@ Three things follow:
   `react-router-dom` majors because "a declined 7.x PR would otherwise hold an open-PR slot".
 
 Tailwind 3 has a further cost. Its latest release, 3.4.19, is dated 2025-12-10, ten months before
-this record, so a fix on the 3.x line cannot be counted on. Dependabot alert #8 on `postcss-selector-parser`, tracked in
-[#302](https://github.com/NaimElijah/UpHealther/issues/302), is fixed in 7.1.6, which is outside
-Tailwind 3's range of `^6.1.2`.
+this record, so a fix on the 3.x line cannot be counted on. The `postcss-selector-parser` advisories
+do not show it: they are fixable inside Tailwind 3's range, by a lockfile-only update that
+[#302](https://github.com/NaimElijah/UpHealther/issues/302) tracks.
 
 ## Decision
 
@@ -69,9 +69,9 @@ Tailwind 3's range of `^6.1.2`.
 - **Nothing proposes Tailwind 4 or TypeScript 6 or 7 any more.** #369 and #370 are the only things
   that keep them in view.
 - **The frontend stays on Tailwind 3 for as long as #369 waits.** The 3.x line has had no release
-  since 3.4.19, so an advisory in Tailwind 3 may get no fix on that line. The `postcss-selector-parser` alert #8 is in this
-  position today, and it is fixed only by leaving Tailwind 3. Its severity is medium, and #302 holds
-  the decision.
+  since 3.4.19, so an advisory in Tailwind 3 may get no fix on that line. None is in that position
+  today: the `postcss-selector-parser` advisories are fixed by 6.1.5, which Tailwind 3's range
+  admits.
 - **The hold works only once it reaches `main`.** Until a release promotes this change, a weekly run
   can reopen a major PR for either package. Such a PR is closed with a pointer here.
 - **A future major of either is held the same way.** This rule names packages, not versions.
