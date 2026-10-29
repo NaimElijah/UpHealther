@@ -16,8 +16,12 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    # Over TCP, the way the backend connects. On an empty volume the image's entrypoint first runs a
+    # temporary server that listens on the Unix socket only, then stops it and starts the real one; a
+    # probe of the socket answers "accepting connections" from the temporary server, so the backend
+    # could start against a database not yet listening on 5432.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-healthupgrades}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-healthupgrades}"]
       interval: 10s
       timeout: 5s
       retries: 5
