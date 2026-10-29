@@ -58,11 +58,13 @@ stylesheet. Its plugin also skips virtual (`\0`) modules.
   It fails the build when the file or either text is missing, so the bundle cannot ship without
   them.
 - **nginx serves it as it serves any file in `dist/`.** `frontend/Dockerfile` already copies the
-  whole directory, so the file answers as `text/plain`. No change to the image or `nginx.conf`.
-- **The smoke suite checks the served file.** `e2e/tests/smoke.test.ts`, which `npm run test:images`
-  and CI's images job run, fetches it from the composed stack and asserts a `text/plain` response, a
-  section for every package in `frontend/package.json`'s `dependencies`, and a section for
-  `tailwindcss`.
+  whole directory, so the file answers as `text/plain`. The image is unchanged. `nginx.conf` gains
+  only `charset utf-8;` in `location /`, so the verbatim licence texts are read as UTF-8.
+- **The smoke suite checks the served file.** A second test in `e2e/tests/smoke.test.ts`
+  ([ADR-052](ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md)), which
+  `npm run test:images` and CI's images job run, fetches it from the composed stack and asserts a
+  `text/plain; charset=utf-8` response, a section for every package in `frontend/package.json`'s
+  `dependencies` and for `tailwindcss`, and a non-empty body in each section.
 - **A Vitest test checks the build's side.** `frontend/src/test/thirdPartyNotices.test.ts` checks that
   the notices the build writes carry both of Tailwind's licence texts.
 - **The listing leaves out two things, and that is a judgment.** Vite's modulepreload polyfill and
@@ -86,8 +88,9 @@ stylesheet. Its plugin also skips virtual (`\0`) modules.
 
 **What this makes hard**
 
-- **The test checks that a section exists for each package, not what its text says.** A section
-  with the wrong text passes.
+- **The smoke test checks that each package has a section with some text, not that the text is the
+  right licence.** An empty section fails. A section with the wrong text passes. For Tailwind, the
+  Vitest test pins both texts.
 - **Anything taken from a package outside a JS chunk is invisible to Vite's plugin.** Tailwind's
   preflight is the one case today, and it needs the hand-written plugin. A stylesheet, font or image
   copied from another package must be added the same way, and nothing detects the omission.
@@ -99,6 +102,8 @@ stylesheet. Its plugin also skips virtual (`\0`) modules.
 
 **Neutral**
 
+- nginx serves the file as UTF-8, because licence texts are copied verbatim and may hold
+  characters outside ASCII. The smoke test asserts the charset.
 - Nothing links to the file from the interface. A visitor has to know the URL, or read the README.
 - No backend code, dependency or runtime behaviour changes.
 

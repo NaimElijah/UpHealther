@@ -60,9 +60,9 @@ function watchForSubscription(page: Page): () => boolean {
 }
 
 /**
- * The packages the bundle ships, read from the frontend's manifest rather than listed here, so a runtime
- * dependency added later must appear in the notices too. Names only: the notices name the installed
- * version, which the manifest's range does not.
+ * The frontend's direct runtime dependencies, read from its manifest rather than listed here, so one added
+ * later must appear in the notices too. Names only: the notices name the installed version, which the
+ * manifest's range does not.
  */
 function runtimeDependencies(): string[] {
   const manifest = JSON.parse(readFileSync(new URL('../../frontend/package.json', import.meta.url), 'utf8')) as {
@@ -71,9 +71,21 @@ function runtimeDependencies(): string[] {
   return Object.keys(manifest.dependencies);
 }
 
-/** The package names of the notices' `## <name> - <version> (<licence>)` section headings. */
-function noticeSections(notices: string): string[] {
-  return [...notices.matchAll(/^## (\S+) - /gm)].map(([, name]) => name);
+/**
+ * The notices' sections, by the package name in each `## <name> - <version> (<licence>)` heading, with the
+ * text up to the next heading. The body is kept because Vite writes a heading alone for a package it
+ * finds no licence file in, and a heading is not a notice.
+ */
+function noticeSections(notices: string): Map<string, string> {
+  return new Map(
+    notices
+      .split(/^## /m)
+      .slice(1)
+      .map((section): [string, string] => {
+        const [heading, ...body] = section.split('\n');
+        return [heading.split(' - ')[0], body.join('\n')];
+      }),
+  );
 }
 
 test('GivenANewVisitor_WhenTheyActivateAnUpgradeAndLogToday_ThenTheDashboardCountsIt', async ({ page }) => {
@@ -162,17 +174,27 @@ test('GivenANewVisitor_WhenTheyActivateAnUpgradeAndLogToday_ThenTheDashboardCoun
   expect(problems).toEqual([]);
 });
 
-test('GivenTheBuiltImage_WhenTheThirdPartyNoticesAreRequested_ThenEveryShippedPackageHasASection', async ({ page }) => {
+test('GivenTheBuiltImage_WhenTheThirdPartyNoticesAreRequested_ThenEveryRuntimeDependencyAndTailwindHasANotice', async ({
+  page,
+}) => {
   // Loaded by the browser, not by the request fixture, which resolves `localhost` through Node and
   // misses the IPv4 mapping in playwright.config.ts.
   const response = await page.goto('/THIRD-PARTY-NOTICES.txt');
   expect(response?.ok(), `the notices answer ${response?.status()}`).toBe(true);
   // nginx answers a missing file with the SPA's index.html and a 200, so the status alone cannot fail.
-  expect(response?.headers()['content-type'], 'the notices are served as plain text').toMatch(/^text\/plain\b/);
+  // The charset matters too: licence texts are copied verbatim, and a `©` sent without one is mojibake.
+  expect(response?.headers()['content-type'], 'the notices are served as UTF-8 plain text').toMatch(
+    /^text\/plain;\s*charset=utf-8$/i,
+  );
 
   const sections = noticeSections((await response?.text()) ?? '');
   // The stylesheet carries Tailwind's preflight, although Tailwind is a devDependency.
-  expect(sections, 'every runtime dependency, and Tailwind, has a section in the notices').toEqual(
-    expect.arrayContaining([...runtimeDependencies(), 'tailwindcss']),
-  );
+  const unnoticed = [...runtimeDependencies(), 'tailwindcss'].flatMap((name) => {
+    const body = sections.get(name);
+    if (body === undefined) {
+      return [`${name}: no section`];
+    }
+    return body.trim() === '' ? [`${name}: a heading with no licence text`] : [];
+  });
+  expect(unnoticed, 'every runtime dependency, and Tailwind, has a notice').toEqual([]);
 });
