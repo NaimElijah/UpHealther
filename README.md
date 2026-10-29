@@ -156,7 +156,9 @@ docker compose up --build   # with Node installed, `npm start` runs the same com
 
 Frontend at **http://localhost:3000**, API at **http://localhost:8080**. Compose waits for the
 backend to report *ready* before starting the frontend, so the first page load is never proxied to
-an API still migrating its schema — expect roughly a minute on a cold build.
+an API still migrating its schema — expect roughly a minute on a cold build. All three ports are
+published on `127.0.0.1` only, because their defaults are published credentials: another device on
+your network cannot reach the stack.
 
 Sign in with the seeded demo account **`demo@healthupgrades.com` / `demo1234`**. Every variable has
 a working default, so no `.env` is needed to start — copy `.env.example` to `.env` only to override.

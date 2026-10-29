@@ -34,9 +34,9 @@ an ArchUnit suite, which is the authority on what the layering permits.
 
 | Component | What it is | Responsible for |
 |---|---|---|
-| **Frontend** | nginx serving a Vite production build (container port 80, published on 3000) | Serving the SPA, and proxying `/api` and `/ws` to the backend so the browser stays same-origin |
-| **Backend** | Spring Boot 4.1 on Java 21, executable jar (port 8080) | The whole domain: authentication, the upgrade lifecycle, tracking, reflections, reminders, the dashboard read model, notifications, and the scheduled jobs |
-| **Database** | PostgreSQL 15 (port 5432, volume `postgres_data`) | Every piece of persistent state. Schema owned by Flyway |
+| **Frontend** | nginx serving a Vite production build (container port 80, published on `127.0.0.1:3000`) | Serving the SPA, and proxying `/api` and `/ws` to the backend so the browser stays same-origin |
+| **Backend** | Spring Boot 4.1 on Java 21, executable jar (port 8080, published on `127.0.0.1` by compose) | The whole domain: authentication, the upgrade lifecycle, tracking, reflections, reminders, the dashboard read model, notifications, and the scheduled jobs |
+| **Database** | PostgreSQL 15 (port 5432, published on `127.0.0.1` by compose; volume `postgres_data`) | Every piece of persistent state. Schema owned by Flyway |
 
 In development the nginx container is not involved: the Vite dev server serves the SPA on 3000 and
 performs the same `/api` and `/ws` proxying itself, so the app behaves identically on both sides.

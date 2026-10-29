@@ -8,8 +8,12 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-healthupgrades}
       POSTGRES_USER: ${POSTGRES_USER:-healthupgrades}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-healthupgrades}
+    # Every port here is published on the loopback address only. The defaults are a published
+    # superuser password and a published signing key, so a port open on every interface hands the
+    # database, and a token for any account, to whoever shares the network. On Linux, Docker's own
+    # iptables rules bypass a host firewall such as ufw, so nothing else would close it.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -26,7 +30,7 @@ services:
       dockerfile: Dockerfile
     container_name: healthupgrades-backend
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-healthupgrades}
       DB_USERNAME: ${POSTGRES_USER:-healthupgrades}
@@ -70,7 +74,7 @@ services:
       dockerfile: Dockerfile
     container_name: healthupgrades-frontend
     ports:
-      - "3000:80"
+      - "127.0.0.1:3000:80"
     # As above: frontend/Dockerfile declares the probe.
     depends_on:
       # Waits for the API to be ready, not merely started. A plain depends_on let nginx come up while

@@ -8,8 +8,9 @@
 #
 # The frontend keeps 3000, because http://localhost:3000 is the only origin the stack accepts and the
 # only host where a browser keeps the Secure refresh cookie over HTTP (ADR-041). It is bound to the
-# loopback address only, so the stack is never reachable from the network. `!override` replaces the
-# base file's `3000:80` rather than adding a second binding beside it, and needs Compose 2.24.4 or
+# loopback address only, so the stack is never reachable from the network. The base file binds the
+# same address today; `!override` restates it so the check stays on loopback whatever the base file
+# says, replacing its binding rather than adding a second one beside it. It needs Compose 2.24.4 or
 # later. See docs/ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md.
 services:
   postgres:
