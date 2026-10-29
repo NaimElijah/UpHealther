@@ -147,7 +147,8 @@ Seven diagrams, outside in: [arch-diagrams](docs/architecture/arch-diagrams/READ
 
 ## 🚀 Quick start
 
-**Prerequisites:** Docker 24+ with Compose v2. Nothing else — the toolchain runs in containers.
+**Prerequisites:** Docker 24+ with Compose v2, and on Linux Docker Engine 28.3.3 or later, for the reason
+below. Nothing else — the toolchain runs in containers.
 
 ```bash
 git clone https://github.com/NaimElijah/UpHealther.git && cd UpHealther
@@ -158,7 +159,9 @@ Frontend at **http://localhost:3000**, API at **http://localhost:8080**. Compose
 backend to report *ready* before starting the frontend, so the first page load is never proxied to
 an API still migrating its schema — expect roughly a minute on a cold build. All three ports are
 published on `127.0.0.1` only, because their defaults are published credentials: another device on
-your network cannot reach the stack.
+your network cannot reach the stack. On Linux that holds from Docker Engine 28.3.3: before 28.0.0 a
+neighbouring host could reach a port published on loopback, and before 28.3.3 a firewalld reload
+exposed it again (CVE-2025-54388).
 
 Sign in with the seeded demo account **`demo@healthupgrades.com` / `demo1234`**. Every variable has
 a working default, so no `.env` is needed to start — copy `.env.example` to `.env` only to override.
