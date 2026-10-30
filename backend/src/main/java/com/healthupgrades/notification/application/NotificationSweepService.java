@@ -5,10 +5,10 @@ import static net.logstash.logback.argument.StructuredArguments.keyValue;
 import com.healthupgrades.notification.domain.model.NotificationCategory;
 import com.healthupgrades.notification.domain.model.NotificationType;
 import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort;
-import com.healthupgrades.reminder.application.port.in.ReminderQuery;
+import com.healthupgrades.reminder.application.port.in.ReminderSweepQuery;
 import com.healthupgrades.reminder.domain.model.Reminder;
-import com.healthupgrades.tracking.application.port.in.ProgressQuery;
-import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
+import com.healthupgrades.tracking.application.port.in.ProgressSweepQuery;
+import com.healthupgrades.upgrade.application.port.in.UpgradeSweepQuery;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import java.time.DayOfWeek;
@@ -46,9 +46,10 @@ import org.springframework.transaction.CannotCreateTransactionException;
  * detects it and publishes {@code UpgradeOverdueDetected}, which {@code NotificationEventListener} turns
  * into a notification.
  *
- * <p>Reads from other bounded contexts go through their inbound query ports ({@link UpgradeQuery},
- * {@link ProgressQuery}, {@link ReminderQuery}); only the notification store is read through this
- * context's own outbound port.
+ * <p>Reads from other bounded contexts go through their sweep ports ({@link UpgradeSweepQuery},
+ * {@link ProgressSweepQuery}, {@link ReminderSweepQuery}), which return every user's rows and exist
+ * for scheduled work like this; only the notification store is read through this context's own
+ * outbound port.
  */
 @Service
 @RequiredArgsConstructor
@@ -66,9 +67,9 @@ public class NotificationSweepService {
 
     private static final String CREATE_FAILED = "notification.create-failed";
 
-    private final UpgradeQuery upgradeQuery; // inbound port: upgrades
-    private final ProgressQuery progressQuery; // inbound port: progress entries
-    private final ReminderQuery reminderQuery; // inbound port: enabled reminders
+    private final UpgradeSweepQuery upgradeQuery; // sweep port: every user's upgrades
+    private final ProgressSweepQuery progressQuery; // sweep port: who logged on a day
+    private final ReminderSweepQuery reminderQuery; // sweep port: every enabled reminder
     private final NotificationRepositoryPort notificationRepository; // own outbound port (dedup guards)
     private final NotificationService notificationService; // own application service (create + push)
 

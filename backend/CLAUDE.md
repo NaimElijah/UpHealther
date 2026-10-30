@@ -20,6 +20,10 @@ read/composition model with no domain or outbound side. All three are deliberate
   is the security adapter's principal, not the `user` domain entity. Repositories scope by user
   (`findByIdAndUserId`, `findByUserIdAndStatus`, …). There is no implicit "current user" — always
   thread `userId` through service calls. A missing/foreign row surfaces as `ResourceNotFoundException`.
+  The scheduled sweeps are the one reader of every user's rows, and they read through a port of their
+  own — `UpgradeSweepQuery`, `ProgressSweepQuery`, `ReminderSweepQuery` — never through the
+  user-facing query port; `HexagonalArchitectureTest` lets only the jobs' application services depend
+  on a `*SweepQuery`. A new read a request can reach takes the owner's id instead.
 
 - **A role opens paths, never rows.** `USER` and `ADMIN` live on the `users` row and are read on every
   request, never carried in the token, so a revoked role takes effect on the next call. `ADMIN` unlocks

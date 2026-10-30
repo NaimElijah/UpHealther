@@ -246,6 +246,9 @@ classDiagram
     class UpgradeQuery {
         <<inbound port>>
     }
+    class UpgradeSweepQuery {
+        <<inbound port>>
+    }
 
     %% ---- use-case record ----
     class UpgradeDetails {
@@ -304,7 +307,7 @@ classDiagram
     UpgradeDto --> UpgradeTrackingConfigDto
     UpgradeDto --> UpgradeType
     UpgradeOverdueScheduler --> UpgradeOverdueService
-    UpgradeOverdueService --> UpgradeQuery
+    UpgradeOverdueService --> UpgradeSweepQuery
     UpgradeRepositoryAdapter --> UpgradeJpaRepository
     UpgradeRepositoryAdapter ..|> UpgradeRepositoryPort : implements
     UpgradeRequest --> Difficulty
@@ -312,6 +315,7 @@ classDiagram
     UpgradeService --> UpgradeRepositoryPort
     UpgradeService --> UpgradeSchedulingService
     UpgradeService ..|> UpgradeQuery : implements
+    UpgradeService ..|> UpgradeSweepQuery : implements
     UpgradeWebMapper --> UpgradeTrackingSummaryPort
 ```
 <!-- /generated:class-diagram -->

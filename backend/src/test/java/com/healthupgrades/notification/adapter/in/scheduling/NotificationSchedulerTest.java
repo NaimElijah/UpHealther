@@ -20,10 +20,10 @@ import com.healthupgrades.notification.application.NotificationSweepService;
 import com.healthupgrades.notification.domain.model.NotificationCategory;
 import com.healthupgrades.notification.domain.model.NotificationType;
 import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort;
-import com.healthupgrades.reminder.application.port.in.ReminderQuery;
+import com.healthupgrades.reminder.application.port.in.ReminderSweepQuery;
 import com.healthupgrades.reminder.domain.model.Reminder;
-import com.healthupgrades.tracking.application.port.in.ProgressQuery;
-import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
+import com.healthupgrades.tracking.application.port.in.ProgressSweepQuery;
+import com.healthupgrades.upgrade.application.port.in.UpgradeSweepQuery;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -66,13 +66,13 @@ import org.springframework.transaction.CannotCreateTransactionException;
 class NotificationSchedulerTest {
 
     @Mock
-    UpgradeQuery upgradeQuery;
+    UpgradeSweepQuery upgradeQuery;
 
     @Mock
-    ProgressQuery progressQuery;
+    ProgressSweepQuery progressQuery;
 
     @Mock
-    ReminderQuery reminderQuery;
+    ReminderSweepQuery reminderQuery;
 
     @Mock
     NotificationRepositoryPort notificationRepository;

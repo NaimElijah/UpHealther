@@ -3,7 +3,7 @@ package com.healthupgrades.upgrade.application;
 import static net.logstash.logback.argument.StructuredArguments.keyValue;
 
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
-import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
+import com.healthupgrades.upgrade.application.port.in.UpgradeSweepQuery;
 import com.healthupgrades.upgrade.domain.event.UpgradeOverdueDetected;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
@@ -33,7 +33,7 @@ public class UpgradeOverdueService {
     /** The sweep's name. Stable across releases: it is a metric tag and a log field, so it is a contract. */
     public static final String JOB = "upgrade.overdue-scan";
 
-    private final UpgradeQuery upgradeQuery; // own context's read view
+    private final UpgradeSweepQuery upgradeQuery; // own context's read view across every user
     private final DomainEventPublisher eventPublisher; // outbound port
 
     /**

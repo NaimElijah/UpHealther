@@ -3,6 +3,7 @@ package com.healthupgrades.architecture;
 import static com.tngtech.archunit.base.DescribedPredicate.alwaysTrue; // matches any origin class
 import static com.tngtech.archunit.base.DescribedPredicate.not; // inverts an allow-list into a ban
 import static com.tngtech.archunit.core.domain.Dependency.Predicates.dependency; // an origin and target pair
+import static com.tngtech.archunit.core.domain.Dependency.Predicates.dependencyOrigin; // an origin predicate
 import static com.tngtech.archunit.core.domain.Dependency.Predicates.dependencyTarget; // a target predicate
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage; // single-package predicate
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage; // package predicate for ignores
@@ -10,6 +11,9 @@ import static com.tngtech.archunit.core.domain.JavaClass.Predicates.simpleNameEn
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes; // entry point for positive rules
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses; // entry point for forbidding rules
 
+import com.tngtech.archunit.base.DescribedPredicate; // a named predicate, for a rule's exceptions
+import com.tngtech.archunit.core.domain.Dependency; // one class's dependency on another
+import com.tngtech.archunit.core.domain.JavaClass; // an imported class
 import com.tngtech.archunit.core.importer.ImportOption; // controls which classes are analysed
 import com.tngtech.archunit.junit.AnalyzeClasses; // declares the packages ArchUnit imports for this test
 import com.tngtech.archunit.junit.ArchTest; // marks a field as an executable architecture rule
@@ -298,6 +302,44 @@ class HexagonalArchitectureTest {
             .resideInAnyPackage(
                     "java..", "..application.port..", "..domain.model..", "com.healthupgrades.common.domain..")
             .as("ports must take and return only published types (ADR-002)");
+
+    /**
+     * The application services that run scheduled work, and the only classes allowed a sweep port. Named
+     * by class, so a new one is a deliberate entry here rather than something a new caller slips into.
+     */
+    private static final DescribedPredicate<JavaClass> SCHEDULED_WORK = JavaClass.Predicates.belongToAnyOf(
+                    com.healthupgrades.notification.application.NotificationSweepService.class,
+                    com.healthupgrades.upgrade.application.UpgradeOverdueService.class)
+            .as("the jobs' application services");
+
+    /**
+     * A sweep port reads every user's rows, so only the scheduled jobs may hold one.
+     *
+     * <p>User scoping is enforced at the query layer (BR-15): a read a request can reach takes the
+     * owner's id, so another user's record comes back as absent. The sweeps need the opposite — every
+     * active upgrade, every enabled reminder, everybody who logged today — and those reads live on a
+     * {@code *SweepQuery} port of their own rather than beside the user-scoped ones, where a feature taking
+     * an id from a request could pick one up and return somebody else's row with nothing failing.
+     *
+     * <p>A dependent is allowed only if it is one of {@link #SCHEDULED_WORK}, or if it implements the port.
+     * Anything else that wants every user's rows is a decision to add here, not an import.
+     */
+    @ArchTest
+    static final ArchRule sweep_ports_serve_only_scheduled_work = classes()
+            .that()
+            .resideInAPackage("..application.port.in..")
+            .and()
+            .haveSimpleNameEndingWith("SweepQuery")
+            .should(ArchConditions.onlyHaveDependentsWhere(dependencyOrigin(SCHEDULED_WORK)
+                    .or(new DescribedPredicate<Dependency>("its origin implements the port") {
+                        @Override
+                        public boolean test(Dependency dependency) {
+                            return dependency
+                                    .getOriginClass()
+                                    .isAssignableTo(dependency.getTargetClass().getName());
+                        }
+                    })))
+            .as("sweep ports must be used only by the scheduled jobs' application services (BR-15)");
 
     /** Controllers are a web concern and belong only in the web adapter. */
     @ArchTest

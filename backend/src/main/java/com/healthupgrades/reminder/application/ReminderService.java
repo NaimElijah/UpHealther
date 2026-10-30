@@ -3,8 +3,8 @@ package com.healthupgrades.reminder.application;
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
-import com.healthupgrades.reminder.application.port.in.ReminderQuery;
 import com.healthupgrades.reminder.application.port.in.ReminderSchedule;
+import com.healthupgrades.reminder.application.port.in.ReminderSweepQuery;
 import com.healthupgrades.reminder.domain.model.Reminder;
 import com.healthupgrades.reminder.domain.model.ReminderDays;
 import com.healthupgrades.reminder.domain.port.out.ReminderRepositoryPort;
@@ -17,14 +17,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Use cases for reminders: attach one to an upgrade, reschedule it, remove it, and expose the enabled
- * ones for dispatch.
+ * ones, every user's, to the dispatch sweep through {@link ReminderSweepQuery}.
  *
  * <p>A reminder has no owner of its own — ownership is established through the upgrade it belongs to,
  * which is why every method here starts by resolving that upgrade through {@link UpgradeQuery}.
  */
 @Service
 @RequiredArgsConstructor
-public class ReminderService implements ReminderQuery {
+public class ReminderService implements ReminderSweepQuery {
 
     private final ReminderRepositoryPort repository;
     private final UpgradeQuery upgradeQuery;
@@ -113,7 +113,7 @@ public class ReminderService implements ReminderQuery {
         return reminder;
     }
 
-    /** {@inheritDoc} Exposes enabled reminders as domain objects for the notification scheduler. */
+    /** {@inheritDoc} Exposes enabled reminders as domain objects for the notification sweep. */
     @Override
     public List<Reminder> findEnabled() {
         return repository.findByEnabledTrue();

@@ -15,7 +15,7 @@ import ch.qos.logback.core.read.ListAppender;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.common.observability.JobMetrics;
 import com.healthupgrades.upgrade.application.UpgradeOverdueService;
-import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
+import com.healthupgrades.upgrade.application.port.in.UpgradeSweepQuery;
 import com.healthupgrades.upgrade.domain.event.UpgradeOverdueDetected;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
@@ -52,7 +52,7 @@ class UpgradeOverdueSchedulerTest {
     private static final String JOB = "upgrade.overdue-scan";
 
     @Mock
-    UpgradeQuery upgradeQuery;
+    UpgradeSweepQuery upgradeQuery;
 
     @Mock
     DomainEventPublisher eventPublisher;

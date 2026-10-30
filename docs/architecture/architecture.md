@@ -185,8 +185,10 @@ overdue sweep, the daily check-in nudge, the per-minute reminder dispatch, and t
 sessions nothing can use again. Each scheduler is only the trigger: it reads the clock, times the run
 through `JobMetrics`, and calls the application method that holds the sweep —
 `UpgradeOverdueService.announceOverdue`, `NotificationSweepService.nudgeDailyCheckin` and
-`dispatchDueReminders`, and `AuthSessionService.deleteUnusableSessions`. The administrator bootstrap
-is the same shape: `AdminBootstrapRunner` parses its setting and calls `AdminUserService.bootstrap`,
+`dispatchDueReminders`, and `AuthSessionService.deleteUnusableSessions`. The sweeps read every user's
+rows through sweep ports of their own — `UpgradeSweepQuery`, `ProgressSweepQuery` and
+`ReminderSweepQuery` — which ArchUnit lets only the jobs' application services hold. The
+administrator bootstrap is the same shape: `AdminBootstrapRunner` parses its setting and calls `AdminUserService.bootstrap`,
 which applies the rules and records the promotion. No driving adapter reaches an outbound port, and
 ArchUnit names the two that may
 ([ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)).
