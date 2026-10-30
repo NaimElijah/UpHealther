@@ -1811,3 +1811,81 @@ describe('UpgradeDetailsPage section reads', () => {
     expect(screen.getByText('Longest streak: 7 days. Keep it up!')).toBeDefined();
   });
 });
+
+/**
+ * A read of the upgrade that fails once the page is showing it: a refetch when the tab comes back into
+ * view, say, while the backend restarts. The page and everything open on it stay, and the failure is
+ * shown beside them; only a first load that fails has nothing to show but the error.
+ */
+describe('UpgradeDetailsPage when the upgrade cannot be read again', () => {
+  const UPGRADE_UNREACHABLE = apiFailure(503, {
+    status: 503,
+    message: 'Service unavailable',
+    traceId: 'trace-refetch',
+  });
+
+  /** Brings the tab back into view, which has the cache read every stale query again. */
+  const refocus = () =>
+    act(() => {
+      window.dispatchEvent(new Event('visibilitychange'));
+    });
+
+  /** Lets every promise already started run to its end. */
+  const settle = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+
+  beforeEach(() => {
+    getUpgradeById.mockReset();
+    getProgressByUpgrade.mockReset();
+    getReflectionsByUpgrade.mockReset();
+    getReminders.mockReset();
+    getUpgradeById.mockResolvedValue(anUpgrade());
+    getProgressByUpgrade.mockResolvedValue([]);
+    getReflectionsByUpgrade.mockResolvedValue([]);
+    getReminders.mockResolvedValue([]);
+  });
+
+  it('GivenADraftInAnOpenDialog_WhenARefetchOfTheUpgradeFailsAndTheNextSucceeds_ThenTheDialogAndTheDraftSurvive', async () => {
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'my draft' } });
+
+    getUpgradeById.mockRejectedValueOnce(UPGRADE_UNREACHABLE);
+    await refocus();
+    await waitFor(() => expect(getUpgradeById).toHaveBeenCalledTimes(2));
+    await settle();
+    await refocus();
+    await waitFor(() => expect(getUpgradeById).toHaveBeenCalledTimes(3));
+    await settle();
+
+    const dialog = screen.getByRole('dialog', { name: 'Log Progress' });
+    expect((within(dialog).getByLabelText('Note') as HTMLInputElement).value).toBe('my draft');
+  });
+
+  it('GivenTheUpgradeIsShown_WhenARefetchOfItFails_ThenThePageStaysAndTheFailureIsShownInlineWithItsReference', async () => {
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    getUpgradeById.mockRejectedValueOnce(UPGRADE_UNREACHABLE);
+    await refocus();
+
+    const alert = await screen.findByRole('alert');
+    expect(
+      within(alert).getByText('This upgrade could not be refreshed. What is shown may be out of date.'),
+    ).toBeDefined();
+    expect(within(alert).getByText('trace-refetch')).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Cold showers' })).toBeDefined();
+    expect(screen.getByText('Progress History (0)')).toBeDefined();
+  });
+
+  it('GivenTheFirstLoadFails_WhenThePageMounts_ThenOnlyTheErrorIsShownWithItsReference', async () => {
+    getUpgradeById.mockRejectedValue(UPGRADE_UNREACHABLE);
+
+    renderPage();
+
+    const alert = await screen.findByRole('alert');
+    expect(within(alert).getByText('Could not load this upgrade.')).toBeDefined();
+    expect(within(alert).getByText('trace-refetch')).toBeDefined();
+    expect(screen.queryByText('Progress History (0)')).toBeNull();
+  });
+});

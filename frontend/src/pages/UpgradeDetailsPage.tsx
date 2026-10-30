@@ -56,7 +56,10 @@ const UpgradeDetails: React.FC = () => {
         <LoadingSpinner size="lg" />
       </div>
     );
-  if (error || !upgrade)
+  // Only a first load that failed has nothing to show. A later read that fails leaves the last upgrade
+  // read in the cache, so the page and its sections stay mounted, with any open dialog and its draft,
+  // and the failure is shown above them.
+  if (!upgrade)
     return <ErrorState title="Could not load this upgrade." error={error ? toApiError(error) : undefined} />;
 
   return (
@@ -64,6 +67,14 @@ const UpgradeDetails: React.FC = () => {
       <button onClick={() => navigate(-1)} className="text-sm text-brand-fg hover:underline">
         ← Back
       </button>
+
+      {error && (
+        <ErrorState
+          inline
+          title="This upgrade could not be refreshed. What is shown may be out of date."
+          error={toApiError(error)}
+        />
+      )}
 
       <Card>
         <div className="flex flex-wrap gap-2 mb-3">
