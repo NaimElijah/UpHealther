@@ -96,6 +96,8 @@ public class UpgradeController {
      *         upgrade is owned by the caller (404)
      * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if the change would exceed the
      *         concurrent-HARD limit (422)
+     * @throws com.healthupgrades.common.domain.exception.RetryableConflictException if the limit had to be
+     *         checked while another of the caller's requests was checking it (409; resend unchanged)
      */
     @PutMapping("/{id}")
     public ResponseEntity<UpgradeDto> update(
@@ -149,6 +151,8 @@ public class UpgradeController {
      *         upgrade is owned by the caller (404)
      * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if the upgrade is not PLANNED or PAUSED,
      *         or activating it would exceed the concurrent-HARD limit (422)
+     * @throws com.healthupgrades.common.domain.exception.RetryableConflictException if the limit had to be
+     *         checked while another of the caller's requests was checking it (409; resend unchanged)
      */
     @PostMapping("/{id}/activate")
     public ResponseEntity<UpgradeDto> activate(

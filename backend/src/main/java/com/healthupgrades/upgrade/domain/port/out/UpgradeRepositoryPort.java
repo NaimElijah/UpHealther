@@ -1,5 +1,6 @@
 package com.healthupgrades.upgrade.domain.port.out;
 
+import com.healthupgrades.common.domain.exception.RetryableConflictException;
 import com.healthupgrades.upgrade.domain.model.Difficulty; // difficulty enum used as a query filter
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // the aggregate this port persists
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus; // lifecycle status used as a query filter
@@ -46,22 +47,22 @@ public interface UpgradeRepositoryPort {
     /** Batch lookup of upgrades by id (used to resolve reminders in bulk). */
     List<HealthUpgrade> findAllById(Iterable<UUID> ids);
 
-    /** Counts a user's upgrades in a status at a difficulty (enforces the max-concurrent-HARD rule). */
-    long countByUserIdAndStatusAndDifficulty(UUID userId, UpgradeStatus status, Difficulty difficulty);
-
     /**
-     * Serialises the user's checks of the concurrent-HARD limit (BR-5): waits until no other transaction
-     * is between counting this user's ACTIVE HARD upgrades and committing what it decided, then holds
-     * that position until the caller's transaction ends.
+     * Claims the user's concurrent-HARD limit check (BR-5) for the caller's transaction, then counts the
+     * user's ACTIVE HARD upgrades. The claim lasts until that transaction ends, so no other transaction can
+     * count for the same user until this one has committed or rolled back what it decided.
      *
-     * <p>The count reads rows other than the one the caller then writes, so no version check sees two
-     * requests that both counted below the limit. Calling this before the count makes the second request
-     * count after the first has committed (ADR-074).
+     * <p>The count reads rows other than the one the caller then writes, so no version check would see two
+     * requests that both counted below the limit. The claim and the count are one method so that no caller
+     * can count without claiming (ADR-074).
      *
-     * <p><strong>Precondition:</strong> a transaction is active. Outside one, the hold would end with the
-     * statement and serialise nothing, so the call fails instead.
+     * <p><strong>Precondition:</strong> a transaction is active. Outside one, the claim would end with the
+     * statement and protect nothing, so the call fails instead.
      *
-     * @param userId the user whose HARD-limit checks are serialised
+     * @param userId the user whose limit is checked
+     * @return how many of the user's upgrades are ACTIVE at HARD
+     * @throws RetryableConflictException if another transaction holds the user's claim; the claim is never
+     *                                    waited for, so the caller is refused at once and may resend
      */
-    void serialiseHardLimitChecks(UUID userId);
+    long countActiveHardUpgradesForLimitCheck(UUID userId);
 }

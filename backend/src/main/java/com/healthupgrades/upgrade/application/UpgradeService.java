@@ -3,6 +3,7 @@ package com.healthupgrades.upgrade.application;
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.common.domain.exception.RetryableConflictException;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.healtharea.application.port.in.HealthAreaQuery;
@@ -113,6 +114,8 @@ public class UpgradeService implements UpgradeQuery {
      * @throws ResourceNotFoundException if the upgrade does not exist or belongs to somebody else
      * @throws BusinessRuleException if the title or type is missing, the change would exceed the
      *         concurrent-HARD limit, or the upgrade is moved to an area that is not the caller's (BR-18)
+     * @throws RetryableConflictException if the promotion to HARD needs the limit checked while another
+     *         of the user's requests is checking it; nothing is changed, and the same request may be resent
      */
     @Transactional
     public HealthUpgrade update(UUID userId, UUID id, UpgradeDetails details) {
@@ -148,22 +151,15 @@ public class UpgradeService implements UpgradeQuery {
      * <p>An upgrade occupies a HARD slot only while ACTIVE, so {@code willRunActive} says whether this
      * upgrade would hold one once the operation completes — true when activating, and true when
      * promoting an already-ACTIVE upgrade. Otherwise, and for uncapped difficulties, the count query is
-     * skipped entirely, and so is the lock.
+     * skipped entirely, and so is the claim on the user's check.
      */
     private void validateHardLimit(UUID userId, Difficulty difficulty, boolean willRunActive) {
-        long activeHardCount = difficulty == Difficulty.HARD && willRunActive ? lockedActiveHardCount(userId) : 0L;
+        // The count claims the user's check for this transaction, so a concurrent check for the same user is
+        // refused rather than counting the same rows and letting both through (BR-5, ADR-074).
+        long activeHardCount = difficulty == Difficulty.HARD && willRunActive
+                ? repository.countActiveHardUpgradesForLimitCheck(userId)
+                : 0L;
         schedulingService.validateWithinHardLimit(difficulty, activeHardCount);
-    }
-
-    /**
-     * Counts the user's ACTIVE HARD upgrades once no other request is between its own count and its
-     * commit. The count reads rows this request does not write, so no version check would see two
-     * requests that both counted below the limit; with the lock, the second counts the first's
-     * activation (BR-5, ADR-074).
-     */
-    private long lockedActiveHardCount(UUID userId) {
-        repository.serialiseHardLimitChecks(userId);
-        return repository.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD);
     }
 
     /**
@@ -218,6 +214,8 @@ public class UpgradeService implements UpgradeQuery {
      * @throws ResourceNotFoundException if the upgrade does not exist or belongs to somebody else
      * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if it is not PLANNED or
      *         PAUSED, or activating it would exceed the concurrent-HARD limit
+     * @throws RetryableConflictException if it is HARD and another of the user's requests is checking the
+     *         limit; nothing is changed, and the same request may be resent
      */
     @Transactional
     public HealthUpgrade activate(UUID userId, UUID id, LocalDate startDate) {

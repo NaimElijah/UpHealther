@@ -3,6 +3,7 @@ package com.healthupgrades.upgrade.adapter.out.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.healthupgrades.common.domain.exception.RetryableConflictException;
 import com.healthupgrades.support.PostgresIT;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import java.sql.Connection;
@@ -31,15 +32,15 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * BR-5 under concurrency, at the one place it can be observed: while one transaction is checking a
- * user's concurrent-HARD limit, no other transaction can start checking the same user's, and that lasts
- * exactly as long as the transaction (ADR-074).
+ * BR-5 under concurrency, at the one place it can be observed: while one transaction holds the claim on a
+ * user's concurrent-HARD limit check, another transaction's check for the same user is refused at once as
+ * a retryable conflict, another user's is not, and the claim lasts exactly as long as the transaction
+ * (ADR-074).
  *
- * <p>The mocked port in {@code UpgradeServiceTest} locks nothing, so this is the only place the lock is
- * asserted. As in {@code AuthSessionRowLockIT}, nothing is raced: the holder takes the lock on its own
- * thread and waits on a latch, and the prober asks for the same advisory key with a {@code pg_try_*}
- * function, which answers at once instead of blocking. So the outcome is decided by the lock alone,
- * never by timing.
+ * <p>The mocked port in {@code UpgradeServiceTest} claims nothing, so this is the only place the claim is
+ * asserted. As in {@code AuthSessionRowLockIT}, nothing is raced: the holder claims on its own thread and
+ * waits on a latch, and every other request is a {@code pg_try_*} that answers at once instead of
+ * blocking. So the outcome is decided by the lock alone, never by timing.
  *
  * <p><strong>The probe never runs on the holder's session.</strong> PostgreSQL grants a session any
  * advisory lock it already holds, at session or transaction level alike, and Hikari hands a thread back
@@ -47,9 +48,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * the committed session and be granted a lock that a session-level holder still keeps. So the probe's
  * connection is checked out before any holder starts, and kept until the test ends.
  *
- * <p>The refusal is probed with a <em>shared</em> request, which only an exclusive holder refuses: an
+ * <p>The raw refusal is probed with a <em>shared</em> request, which only an exclusive holder refuses: an
  * exclusive probe is refused by a shared holder too, and a shared lock would let two checks run
- * together. The grants are probed with an exclusive request, which any holder of the key would refuse.
+ * together. The grant after the commit is probed with an exclusive request, which any holder of the key
+ * would refuse.
  *
  * <p>The probe derives the key the way the adapter's query does, so it also pins that derivation: a key
  * that changed would let the probe through and fail the first test.
@@ -63,7 +65,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class HardLimitLockIT extends PostgresIT {
 
-    /** The adapter's key for a user's HARD-limit lock, with the user id as the one parameter. */
+    /** The adapter's key for a user's HARD-limit claim, with the user id as the one parameter. */
     private static final String THE_USERS_KEY = "hashtextextended('hard-limit ' || CAST(? AS text), 0)";
 
     /** Refused by any holder of the key, shared or exclusive. */
@@ -108,12 +110,12 @@ class HardLimitLockIT extends PostgresIT {
 
     @Test
     void GivenATransactionCheckingAUsersHardLimit_WhenAnotherAsksForThatUsersLock_ThenItIsRefused() throws Exception {
-        CountDownLatch locked = new CountDownLatch(1);
+        CountDownLatch claimed = new CountDownLatch(1);
         CountDownLatch probed = new CountDownLatch(1);
-        Future<?> holder = holdTheLockUntil(locked, probed);
+        Future<?> holder = holdTheClaimUntil(claimed, probed);
 
         try {
-            awaitTheLock(locked, holder);
+            awaitTheClaim(claimed, holder);
 
             assertThat(ask(TRY_SHARED, holderUser))
                     .as("even a shared request for the same user's lock, from another session")
@@ -125,17 +127,41 @@ class HardLimitLockIT extends PostgresIT {
     }
 
     @Test
-    void GivenATransactionCheckingAUsersHardLimit_WhenAnotherUsersLockIsAskedFor_ThenItIsGranted() throws Exception {
-        CountDownLatch locked = new CountDownLatch(1);
+    void GivenATransactionCheckingAUsersHardLimit_WhenAnotherTransactionChecksTheSameUser_ThenItIsRefusedAsRetryable()
+            throws Exception {
+        // The claim is tried, never waited for: a waiter would hold a pooled connection for as long as the
+        // holder ran, and could join a deadlock with whatever its own transaction had written.
+        CountDownLatch claimed = new CountDownLatch(1);
         CountDownLatch probed = new CountDownLatch(1);
-        Future<?> holder = holdTheLockUntil(locked, probed);
+        Future<?> holder = holdTheClaimUntil(claimed, probed);
 
         try {
-            awaitTheLock(locked, holder);
+            awaitTheClaim(claimed, holder);
 
-            assertThat(ask(TRY_EXCLUSIVE, otherUser))
+            assertThatThrownBy(() ->
+                            transaction.execute(status -> repository.countActiveHardUpgradesForLimitCheck(holderUser)))
+                    .isInstanceOf(RetryableConflictException.class)
+                    .hasMessage(UpgradeRepositoryAdapter.HARD_LIMIT_CHECK_IN_PROGRESS);
+        } finally {
+            probed.countDown();
+        }
+        holder.get(WAIT_SECONDS, TimeUnit.SECONDS);
+    }
+
+    @Test
+    void GivenATransactionCheckingAUsersHardLimit_WhenAnotherUsersIsChecked_ThenItIsCounted() throws Exception {
+        CountDownLatch claimed = new CountDownLatch(1);
+        CountDownLatch probed = new CountDownLatch(1);
+        Future<?> holder = holdTheClaimUntil(claimed, probed);
+
+        try {
+            awaitTheClaim(claimed, holder);
+
+            Long counted = transaction.execute(status -> repository.countActiveHardUpgradesForLimitCheck(otherUser));
+
+            assertThat(counted)
                     .as("one user's check must not hold up another's")
-                    .isTrue();
+                    .isZero();
         } finally {
             probed.countDown();
         }
@@ -145,23 +171,23 @@ class HardLimitLockIT extends PostgresIT {
     @Test
     void GivenTheCheckingTransactionHasCommitted_WhenThatUsersLockIsAskedFor_ThenItIsGranted() throws Exception {
         // A session-level lock would stay with the pooled connection after the commit and refuse this,
-        // and every later activation by the user would wait on it. The probe is not that connection.
-        transaction.executeWithoutResult(status -> repository.serialiseHardLimitChecks(holderUser));
+        // and every later activation by the user would be refused with it. The probe is not that connection.
+        transaction.executeWithoutResult(status -> repository.countActiveHardUpgradesForLimitCheck(holderUser));
 
         assertThat(ask(TRY_EXCLUSIVE, holderUser)).isTrue();
     }
 
     @Test
-    void GivenNoTransaction_WhenTheLockIsTaken_ThenTheCallFails() {
-        // Outside a transaction the lock would be released with the statement and serialise nothing.
-        assertThatThrownBy(() -> repository.serialiseHardLimitChecks(holderUser))
+    void GivenNoTransaction_WhenTheLimitIsChecked_ThenTheCallFails() {
+        // Outside a transaction the claim would be released with the statement and protect nothing.
+        assertThatThrownBy(() -> repository.countActiveHardUpgradesForLimitCheck(holderUser))
                 .isInstanceOf(IllegalTransactionStateException.class);
     }
 
-    private Future<?> holdTheLockUntil(CountDownLatch locked, CountDownLatch probed) {
+    private Future<?> holdTheClaimUntil(CountDownLatch claimed, CountDownLatch probed) {
         return holderThread.submit(() -> transaction.executeWithoutResult(status -> {
-            repository.serialiseHardLimitChecks(holderUser);
-            locked.countDown();
+            repository.countActiveHardUpgradesForLimitCheck(holderUser);
+            claimed.countDown();
             awaitOrFail(probed, "the prober to finish");
         }));
     }
@@ -184,12 +210,12 @@ class HardLimitLockIT extends PostgresIT {
     }
 
     /**
-     * Waits for the holder to take its lock. A holder that fails first never counts the latch down, and
-     * its failure stays inside its {@code Future}; reporting only the timeout would hide the cause.
+     * Waits for the holder to claim. A holder that fails first never counts the latch down, and its
+     * failure stays inside its {@code Future}; reporting only the timeout would hide the cause.
      */
-    private static void awaitTheLock(CountDownLatch locked, Future<?> holder) {
+    private static void awaitTheClaim(CountDownLatch claimed, Future<?> holder) {
         try {
-            if (locked.await(WAIT_SECONDS, TimeUnit.SECONDS)) {
+            if (claimed.await(WAIT_SECONDS, TimeUnit.SECONDS)) {
                 return;
             }
             if (holder.isDone()) {
@@ -197,12 +223,12 @@ class HardLimitLockIT extends PostgresIT {
             }
         } catch (ExecutionException failed) {
             throw new AssertionError(
-                    "the holder failed before it took the lock: " + failed.getCause(), failed.getCause());
+                    "the holder failed before it claimed the check: " + failed.getCause(), failed.getCause());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new AssertionError("interrupted waiting for the holder to take the lock", e);
+            throw new AssertionError("interrupted waiting for the holder to claim the check", e);
         }
-        throw new AssertionError("timed out waiting for the holder to take the lock");
+        throw new AssertionError("timed out waiting for the holder to claim the check");
     }
 
     private static void awaitOrFail(CountDownLatch latch, String what) {
