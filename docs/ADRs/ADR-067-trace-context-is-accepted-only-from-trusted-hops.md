@@ -5,7 +5,7 @@
 - **Scope:**
   - `backend/` — `StompTracingChannelInterceptor`, and `management.tracing.propagation.consume` in
     `application.yml`.
-  - `frontend/nginx.conf` — the proxy clears the trace headers a client sends, on the branch of
+  - `frontend/nginx.conf` — the proxy clears the trace headers a client sends, since
     [#381](https://github.com/NaimElijah/UpHealther/pull/381).
   - NFR-21 in `docs/requirements/requirements.md`.
 - **Issue:** [#339](https://github.com/NaimElijah/UpHealther/issues/339), scan 05 of
@@ -36,8 +36,8 @@ Three paths carried a client's choice in:
 
 **Trace context is continued only from a hop the service trusts, and nginx is the only one.**
 
-- **nginx clears what a client sends.** `traceparent`, `tracestate`, `b3` and the five `X-B3-*` headers
-  are cleared on every proxied request. That change lands through #381.
+- **nginx clears what a client sends.** `traceparent`, `tracestate`, `baggage`, `b3` and the five
+  `X-B3-*` headers are cleared on every proxied request, since #381.
 - **The backend consumes W3C only.** `management.tracing.propagation.consume: W3C`, so B3 in either form
   is ignored even if it reaches the backend. What the backend produces is unchanged, W3C as before.
 - **A STOMP frame from a client never continues a trace.** The interceptor no longer reads native

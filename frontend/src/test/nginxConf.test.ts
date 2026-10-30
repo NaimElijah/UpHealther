@@ -54,8 +54,8 @@ describe('the nginx configuration', () => {
   });
 
   /**
-   * Every header a caller could continue a trace with. Boot's `management.tracing.propagation.consume`
-   * defaults to W3C, B3 and B3 multi-header, so each format's headers are listed.
+   * Every header Boot reads a trace from by default: W3C, B3 and B3 multi-header. The backend consumes
+   * W3C only (ADR-067) and the proxy clears B3 as well, so neither has to hold alone.
    */
   const TRACE_HEADERS = [
     'traceparent',

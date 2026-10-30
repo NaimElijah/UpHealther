@@ -518,10 +518,12 @@ somebody reports to the log lines that produced it. There are three entry points
 from a different place:
 
 - **HTTP** — `ServerHttpObservationFilter`, from the framework. An inbound W3C `traceparent` continues
-  the caller's trace; otherwise a new one starts. Behind nginx none arrives from a browser: nginx clears
-  the caller's context in both formats the API consumes, W3C (`traceparent`, `tracestate`, `baggage`)
-  and B3 (`b3` and the `X-B3-*` headers), on `/api` and `/ws`, so the id is the API's own. The
-  backend's own configuration narrows what it consumes as well.
+  the caller's trace; otherwise a new one starts. B3 is never read: `application.yml` sets
+  `management.tracing.propagation.consume` to W3C, which Boot would otherwise extend to B3 and B3
+  multi-header. Behind nginx no context arrives from a browser either: nginx clears the caller's, W3C
+  (`traceparent`, `tracestate`, `baggage`) and B3 (`b3` and the `X-B3-*` headers) alike, on `/api` and
+  `/ws`, so the id is the API's own
+  ([ADR-067](../ADRs/ADR-067-trace-context-is-accepted-only-from-trusted-hops.md)).
   `TraceIdResponseHeaderFilter` returns the id as
   `X-Trace-Id`, and `GlobalExceptionHandler` stamps it on the error body. The container's error page
   runs after the scope has closed, so `TraceIdErrorAttributes` puts the id the header carried on its
@@ -532,6 +534,8 @@ from a different place:
 - **STOMP** — `StompTracingChannelInterceptor` on the inbound, broker and client-outbound channels. It
   spans two threads per frame, because a channel dispatches on the sending thread and handles on an
   executor thread; the sending span's context travels between them on a non-native message header.
+  A frame's own trace headers are never read: a frame from the client starts a trace of its own, and
+  one the server sends while serving a request joins that request's (ADR-067).
 
 Nothing writes the MDC by hand. Correlation is a property of the runtime, so a new log statement,
 controller or job is correlated without its author doing anything.
@@ -1013,7 +1017,9 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the shared kernel depends on no context; why the security adapter loads accounts through a port it declares rather than through `UserQuery`; why `User` and `Role` stay in `user` | [ADR-062](../ADRs/ADR-062-the-shared-kernel-depends-on-no-bounded-context.md) |
 | Why every context's tables share one schema; why a delete crosses contexts on `ON DELETE` rather than an event; what moving a context out or adding a soft delete would cost | [ADR-063](../ADRs/ADR-063-one-schema-with-cross-context-foreign-keys.md) |
 | Which layering rules the backend enforces beyond ADR-002, and the exceptions each names; why `TrackingConfigQuery` stays unscoped and a web mapper reads a port; when to revisit either | [ADR-064](../ADRs/ADR-064-the-backends-layering-rules-beyond-adr-002.md) |
+| Why a session remembers every refresh credential it spent, and why sign-out with a spent one is reuse; why a refresh re-reads the account; why the cookie is `__Secure-` and two of them are refused; why refresh and sign-out have a limit of their own; the bounds on the lifetimes; why the audit stream names a session by a digest; how the unscoped reads are closed one hop further | [ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md) |
 | Why a page the back/forward cache restores reloads, every time and not only after a sign-out; why a session's end also empties the query cache, through a registration `lib/` makes with `api/`; why the server's session-ended frame ends the session in the tab, superseding part of ADR-054 | [ADR-066](../ADRs/ADR-066-a-tab-keeps-nothing-of-a-session-that-ended.md) |
+| Why trace context is continued only from a trusted hop: why nginx clears the caller's, why the API reads W3C and never B3, and why a STOMP frame never continues a trace; what an upstream tracer would need | [ADR-067](../ADRs/ADR-067-trace-context-is-accepted-only-from-trusted-hops.md) |
 | Why a desktop notification carries the notification's own title and message, though the operating system keeps them after sign-out; when to revisit that | [ADR-068](../ADRs/ADR-068-desktop-notifications-keep-their-detail.md) |
 | Why the compose backend connects as a role that owns its database rather than as the superuser; why its variables are not `DB_USERNAME` and `DB_PASSWORD`; why one role and not a migrating and a serving one | [ADR-069](../ADRs/ADR-069-the-compose-backend-connects-as-a-role-that-owns-its-database.md) |
 | Why nginx throttles the `/ws` handshake although ADR-017 kept sign-in's limit in the application; why there is no cap on open sockets; what a load balancer would need first | [ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md) |
