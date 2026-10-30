@@ -4,13 +4,14 @@
 - **Date:** 2026-10-30
 - **Scope:**
   - `backend/src/main/resources/db/migration/V12__value_domains.sql`,
-    `V13__child_rows_share_their_parents_owner.sql` and `V14__area_detach_bumps_upgrade_version.sql`.
-  - `Reminder`, whose two columns become `@Column(nullable = false)`.
+    `V13__child_rows_share_their_parents_owner.sql`, `V14__area_detach_bumps_upgrade_version.sql` and
+    `V16__user_version.sql`.
+  - `Reminder`, whose two columns become `@Column(nullable = false)`, and `User`, which gains `@Version`.
   - `EnumColumnCheckContractTest`, `ValueDomainConstraintIT`, `OwnerConsistencyIT` and
-    `UpgradePersistenceIT`, which enforce it.
-  - BR-14, BR-15, BR-18, BR-19 and BR-20 in `docs/requirements/requirements.md`.
+    `UpgradePersistenceIT` and `UserConcurrentWritesIT`, which enforce it.
+  - BR-14, BR-15, BR-18, BR-19, BR-20 and NFR-34 in `docs/requirements/requirements.md`.
 - **Issue:** [#340](https://github.com/NaimElijah/UpHealther/issues/340), scan 06 of
-  [#334](https://github.com/NaimElijah/UpHealther/issues/334), findings D6.10, D6.11 and D6.2. Generalises the
+  [#334](https://github.com/NaimElijah/UpHealther/issues/334), findings D6.10, D6.11, D6.2 and D6.5. Generalises the
   policy `V8__user_role_and_enabled.sql` stated for one column, extends
   [ADR-063](ADR-063-one-schema-with-cross-context-foreign-keys.md), whose foreign keys the owner keys
   replace, and follows [ADR-072](ADR-072-every-migration-bounds-its-lock-wait.md) for how its constraints
@@ -94,6 +95,13 @@ requirements do not state is added.
    on the rollback path. The rule is the database's here because the write it corrects is the database's:
    no declaration says "a referential action moves a version", and no Java runs when it happens.
 
+9. **An account carries a version too.** `User` has `@Version`, on a `users.version` column V16 adds. Every
+   write to an account writes the whole row, so an administrator's disable overtaken by a role change loaded
+   before it was undone by that change, while the audit trail said "disabled" (NFR-34). The overtaken write
+   is now refused at its commit, answered 409 by the handler BR-14 already uses. It is the same rule as
+   decision 8, that a lost race is refused rather than silently won, applied to the second aggregate two
+   writers can reach at once.
+
 ## Consequences
 
 **What this makes easy**
@@ -145,6 +153,9 @@ requirements do not state is added.
   write, a version clash included, from the commit into the body `AuditTrail.recording` wraps, where
   `AuditOutcome.of` does not count Spring's exception as a refusal, so every lost race on an upgrade would be
   audited FAILED, the signal that something broke.
+- **`@DynamicUpdate` on `User`**, so each write sets only the columns it changed and a disable and a role
+  change both stand. Rejected for the same reason as on `HealthUpgrade`, below: `HexagonalArchitectureTest`
+  fails on it, because ADR-002 and ADR-064 keep Hibernate out of the domain.
 - **`@DynamicUpdate` on `HealthUpgrade`**, so an update writes only the columns that changed and a status
   change leaves `area_id` alone. Rejected: it is a Hibernate annotation, which ADR-002 and ADR-064 keep out
   of the domain, and an edit that does change the area would still write the deleted id back.

@@ -137,9 +137,10 @@ read/composition model with no domain or outbound side. All three are deliberate
   could hold free text. The same bound applies to metric tags: an action and an outcome are closed sets,
   a user id is not. See `../docs/ADRs/ADR-011-audit-as-a-log-stream.md`.
 
-- **Optimistic locking** via `@Version`, on `HealthUpgrade` only (`AuthSession` deliberately has none;
-  `AuthSessionRepositoryPort` says why) → two saves that overlap inside the server return 409. No
-  request carries the version back yet, so an edit from a stale page is not refused (#194).
+- **Optimistic locking** via `@Version`, on `HealthUpgrade` and `User` (`AuthSession` deliberately has
+  none; `AuthSessionRepositoryPort` says why) → two saves that overlap inside the server return 409. On
+  `User` it stops two administrators' writes undoing each other, a disable included (ADR-073). No
+  request carries an upgrade's version back yet, so an edit from a stale page is not refused (#194).
 
 - **The application layer never imports an adapter.** A service takes a command record from
   `application/port/in` and returns a domain object (or a result record where there is no aggregate,

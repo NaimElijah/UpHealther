@@ -864,11 +864,14 @@ both directions. A wire-format change therefore cannot reach a use-case signatur
 duplicating `TrackingConfigDto` field for field is the visible cost, and is intentional. One mapper
 also reads: see "Which contexts depend on which".
 
-**Optimistic locking is on one aggregate.** Only `HealthUpgrade` carries `@Version`. Two saves that
-overlap inside the server clash, and the later one is answered 409. No request carries the version back,
-though, so an edit sent from a page opened before another edit replaces that edit instead of being
-refused ([#194](https://github.com/NaimElijah/UpHealther/issues/194)). Nothing else is version-checked,
-because nothing else is edited from two places at once. One writer of an upgrade is not Hibernate:
+**Optimistic locking is on two aggregates.** `HealthUpgrade` and `User` carry `@Version`. Two saves that
+overlap inside the server clash, and the later one is answered 409. No request carries an upgrade's
+version back, though, so an edit sent from a page opened before another edit replaces that edit instead of
+being refused ([#194](https://github.com/NaimElijah/UpHealther/issues/194)). An account is written whole
+by each of an administrator's disable, enable and role change, so without its version two of them
+overlapping would undo one another, a disable included; the one that was overtaken is refused instead
+([ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md)). Nothing else is version-checked, because nothing else is edited from two places at
+once. One writer of an upgrade is not Hibernate:
 deleting an area detaches its upgrades through `ON DELETE SET NULL (area_id)`, and a trigger,
 `health_upgrades_area_detach_bumps_version`, moves the version of each, so a request that loaded one
 before the delete is refused at its commit like any other lost race, rather than writing the deleted area

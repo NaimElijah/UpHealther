@@ -467,6 +467,7 @@ erDiagram
         timestamp updated_at
         varchar role
         boolean enabled
+        bigint version
     }
     health_areas {
         uuid id PK
