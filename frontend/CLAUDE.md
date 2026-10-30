@@ -165,6 +165,9 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   boot script at all, whitespace included, changes its hash. Adding a third-party script, font or
   image source means editing the policy; that friction is deliberate
   ([ADR-018](../docs/ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)).
+  The policy and its companion headers are declared on the `server` block, not in a location, and no
+  location may declare an `add_header` of its own: nginx would then drop every inherited one from it.
+  `src/test/nginxConf.test.ts` fails on either.
 - **Third-party notices ship with the build.** A runtime dependency's licence reaches
   `THIRD-PARTY-NOTICES.txt` by itself, through Vite's `build.license`, and the smoke test fails when a
   package in `dependencies` has no section. CSS, a font or an image taken from a package is invisible

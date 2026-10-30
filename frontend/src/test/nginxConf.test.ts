@@ -71,4 +71,30 @@ describe('the nginx configuration', () => {
       expect(perMinute).toBeGreaterThanOrEqual(HANDSHAKES_A_MINUTE_FOR_ONE_TAB);
     });
   });
+
+  describe("NFR-45's headers", () => {
+    /** The five headers NFR-45 names. */
+    const HARDENING = [
+      'Content-Security-Policy',
+      'X-Content-Type-Options',
+      'X-Frame-Options',
+      'Referrer-Policy',
+      'Permissions-Policy',
+    ];
+
+    it('GivenTheServerBlock_WhenItsOwnHeadersAreRead_ThenItDeclaresEveryHardeningHeader', () => {
+      // S5.C12: declared on `location /` alone, they were missing from nginx's own error pages under /api
+      // and /ws, a 502 while the backend restarts or a 413 for an oversized body.
+      const outsideLocations = nginxConf.replace(/location\s+\S+\s*\{[^}]*\}/g, '');
+      const declared = [...outsideLocations.matchAll(/add_header\s+(\S+)\s/g)].map(([, name]) => name);
+
+      expect(declared).toEqual(expect.arrayContaining(HARDENING));
+    });
+
+    it.each(['/', ...PROXIED])('GivenTheLocation%s_WhenItsHeadersAreRead_ThenItDeclaresNoneOfItsOwn', (path) => {
+      // nginx inherits the server's add_header only into a location that declares none: one add_header
+      // in a location would silently drop all five from it.
+      expect(locationBody(path)).not.toMatch(/add_header/);
+    });
+  });
 });
