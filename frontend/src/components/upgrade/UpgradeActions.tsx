@@ -69,9 +69,8 @@ interface Props {
  * though the upgrade had vanished; a deleted one cannot be brought back at all, and its page has nothing
  * left to show, so the dashboard opens in its place.
  *
- * Separate from the page because each action brings a dialog and a mutation of its own, and the page
- * already holds several of each. A write here refreshes every view of upgrades (ADR-029), the page's own
- * included.
+ * Separate from the page, like the sections below it, because each action brings a dialog and a mutation
+ * of its own. A write here refreshes every view of upgrades (ADR-029), the page's own included.
  */
 const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
   const qc = useQueryClient();
@@ -82,8 +81,9 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
   const [editForm, setEditForm] = useState<CreateUpgradeRequest>(() => editableFields(upgrade));
   const [editCheck, setEditCheck] = useState<FormCheck>({});
 
-  // Closing the dialog is passed to each `mutate` call rather than set here, for the reason the page
-  // gives for its own dialogs: only a call's own callbacks stop when the opener resets the mutation.
+  // Closing the dialog is passed to each `mutate` call rather than set here, for the reason
+  // `UpgradeProgress` gives for its dialog: only a call's own callbacks stop when the opener resets the
+  // mutation.
   const editMutation = useMutation({
     mutationFn: (req: CreateUpgradeRequest) => updateUpgrade(upgrade.id, req),
     onSuccess: () => refreshUpgradeViews(qc),

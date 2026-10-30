@@ -14,6 +14,7 @@ import type {
   ProgressEntry,
   Reflection,
   Reminder,
+  StreakSummary,
   UpgradeStatus,
 } from '../types';
 import { healthAreaAsSent, reflectionAsSent, upgradeAsSent } from '../test/wireFixtures';
@@ -26,6 +27,10 @@ const rescheduleUpgrade = vi.fn();
 const deleteUpgrade = vi.fn();
 const getProgressByUpgrade = vi.fn();
 const createProgress = vi.fn();
+// Answers no streak unless a test says otherwise, as the stub this replaced always did.
+const getStreak = vi.fn<(upgradeId: string) => Promise<StreakSummary>>(() =>
+  Promise.resolve({ current: 0, longest: 0 }),
+);
 const getReflectionsByUpgrade = vi.fn();
 const createReflection = vi.fn();
 const getReminders = vi.fn();
@@ -45,7 +50,7 @@ vi.mock('../api/healthAreas', () => ({ getHealthAreas: () => getHealthAreas() })
 vi.mock('../api/progress', () => ({
   getProgressByUpgrade: (...a: unknown[]) => getProgressByUpgrade(...a),
   createProgress: (...a: unknown[]) => createProgress(...a),
-  getStreak: () => Promise.resolve({ current: 0, longest: 0 }),
+  getStreak: (upgradeId: string) => getStreak(upgradeId),
 }));
 vi.mock('../api/reflections', () => ({
   getReflectionsByUpgrade: (...a: unknown[]) => getReflectionsByUpgrade(...a),
@@ -1713,5 +1718,174 @@ describe('UpgradeDetailsPage changing a reminder', () => {
 
     expect(await screen.findByText('Must not be null')).toBeDefined();
     expect(screen.getByRole('button', { name: 'Save reminder' })).toBeDefined();
+  });
+});
+
+/**
+ * The page's reads of its sections: started with the upgrade's, fetched once, read again after the write
+ * that changes them, and rendered.
+ *
+ * The sections render only once the upgrade has loaded, so the page reads for them as it mounts and hands
+ * each its result. A read started in a section would wait for the upgrade's, and a second observer would
+ * fetch again; every other test here waits with `findBy`, which neither would fail.
+ */
+describe('UpgradeDetailsPage section reads', () => {
+  const SECTION_READS = [
+    ['progress', getProgressByUpgrade],
+    ['reflections', getReflectionsByUpgrade],
+    ['streak', getStreak],
+    ['reminders', getReminders],
+  ] as const;
+
+  /** Lets every promise already started run to its end, so a fetch that would follow has been made. */
+  const settle = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+
+  beforeEach(() => {
+    getUpgradeById.mockReset();
+    getProgressByUpgrade.mockReset();
+    getReflectionsByUpgrade.mockReset();
+    getReminders.mockReset();
+    createProgress.mockReset();
+    createReflection.mockReset();
+    getUpgradeById.mockResolvedValue(anUpgrade());
+    getProgressByUpgrade.mockResolvedValue([]);
+    getReflectionsByUpgrade.mockResolvedValue([]);
+    getReminders.mockResolvedValue([]);
+  });
+
+  it.each(SECTION_READS)(
+    'GivenTheUpgradesReadIsPending_WhenThePageMounts_ThenThe %s ReadHasStartedOnceWithTheId',
+    async (_name, read) => {
+      getUpgradeById.mockReturnValue(new Promise(() => {}));
+
+      renderPage();
+      await settle();
+
+      expect(read).toHaveBeenCalledTimes(1);
+      expect(read).toHaveBeenCalledWith(UPGRADE_ID);
+    },
+  );
+
+  it.each(SECTION_READS)(
+    'GivenThePageHasLoaded_WhenItsReadsHaveSettled_ThenThe %s ReadWasFetchedOnce',
+    async (_name, read) => {
+      renderPage();
+      await screen.findByText('Progress History (0)');
+      await settle();
+
+      expect(read).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('GivenAProgressEntryIsSaved_WhenTheSaveSucceeds_ThenTheHistoryAndTheStreakAreReadAgain', async () => {
+    createProgress.mockResolvedValue(anEntry('p-1', '2026-03-12', 'logged'));
+    renderPage();
+    await screen.findByText('Progress History (0)');
+    await settle();
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(getProgressByUpgrade).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(getStreak).toHaveBeenCalledTimes(2));
+  });
+
+  it('GivenAReflectionIsSaved_WhenTheSaveSucceeds_ThenTheReflectionsAreReadAgain', async () => {
+    createReflection.mockResolvedValue(aReflection('r-1', '2026-03-14', 'Went in before breakfast'));
+    renderPage();
+    await screen.findByText('Reflections (0)');
+    await settle();
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Reflection' }));
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(getReflectionsByUpgrade).toHaveBeenCalledTimes(2));
+  });
+
+  it('GivenARunningStreak_WhenThePageLoads_ThenItsCurrentAndLongestAreShown', async () => {
+    getStreak.mockResolvedValue({ current: 3, longest: 7 });
+
+    renderPage();
+
+    expect(await screen.findByText('3-day streak!')).toBeDefined();
+    expect(screen.getByText('Longest streak: 7 days. Keep it up!')).toBeDefined();
+  });
+});
+
+/**
+ * A read of the upgrade that fails once the page is showing it: a refetch when the tab comes back into
+ * view, say, while the backend restarts. The page and everything open on it stay, and the failure is
+ * shown beside them; only a first load that fails has nothing to show but the error.
+ */
+describe('UpgradeDetailsPage when the upgrade cannot be read again', () => {
+  const UPGRADE_UNREACHABLE = apiFailure(503, {
+    status: 503,
+    message: 'Service unavailable',
+    traceId: 'trace-refetch',
+  });
+
+  /** Brings the tab back into view, which has the cache read every stale query again. */
+  const refocus = () =>
+    act(() => {
+      window.dispatchEvent(new Event('visibilitychange'));
+    });
+
+  /** Lets every promise already started run to its end. */
+  const settle = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+
+  beforeEach(() => {
+    getUpgradeById.mockReset();
+    getProgressByUpgrade.mockReset();
+    getReflectionsByUpgrade.mockReset();
+    getReminders.mockReset();
+    getUpgradeById.mockResolvedValue(anUpgrade());
+    getProgressByUpgrade.mockResolvedValue([]);
+    getReflectionsByUpgrade.mockResolvedValue([]);
+    getReminders.mockResolvedValue([]);
+  });
+
+  it('GivenADraftInAnOpenDialog_WhenARefetchOfTheUpgradeFailsAndTheNextSucceeds_ThenTheDialogAndTheDraftSurvive', async () => {
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+    fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'my draft' } });
+
+    getUpgradeById.mockRejectedValueOnce(UPGRADE_UNREACHABLE);
+    await refocus();
+    await waitFor(() => expect(getUpgradeById).toHaveBeenCalledTimes(2));
+    await settle();
+    await refocus();
+    await waitFor(() => expect(getUpgradeById).toHaveBeenCalledTimes(3));
+    await settle();
+
+    const dialog = screen.getByRole('dialog', { name: 'Log Progress' });
+    expect((within(dialog).getByLabelText('Note') as HTMLInputElement).value).toBe('my draft');
+  });
+
+  it('GivenTheUpgradeIsShown_WhenARefetchOfItFails_ThenThePageStaysAndTheFailureIsShownInlineWithItsReference', async () => {
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    getUpgradeById.mockRejectedValueOnce(UPGRADE_UNREACHABLE);
+    await refocus();
+
+    const alert = await screen.findByRole('alert');
+    expect(
+      within(alert).getByText('This upgrade could not be refreshed. What is shown may be out of date.'),
+    ).toBeDefined();
+    expect(within(alert).getByText('trace-refetch')).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Cold showers' })).toBeDefined();
+    expect(screen.getByText('Progress History (0)')).toBeDefined();
+  });
+
+  it('GivenTheFirstLoadFails_WhenThePageMounts_ThenOnlyTheErrorIsShownWithItsReference', async () => {
+    getUpgradeById.mockRejectedValue(UPGRADE_UNREACHABLE);
+
+    renderPage();
+
+    const alert = await screen.findByRole('alert');
+    expect(within(alert).getByText('Could not load this upgrade.')).toBeDefined();
+    expect(within(alert).getByText('trace-refetch')).toBeDefined();
+    expect(screen.queryByText('Progress History (0)')).toBeNull();
   });
 });

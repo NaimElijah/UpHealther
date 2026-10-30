@@ -468,7 +468,8 @@ backend/           Spring Boot API — ten bounded contexts, hexagonal, ArchUnit
   src/main/resources/  application.yml, logback-spring.xml, db/migration/V{n}__*.sql
   src/test/java/     domain · application · web slice · architecture · *IT
 frontend/          React + TypeScript SPA, served by nginx in production
-  src/api/           Typed client per resource, the axios instance, error mapping
+  src/api/           Typed client per resource, the axios instance, error mapping, the notification
+                     socket, and session.ts, the one way a session ends
   src/pages/         One page per route; components/, contexts/, hooks/ alongside
 e2e/               Playwright smoke suite: a browser through the composed stack, run by the image check
 docs/              The documentation the repository baseline requires

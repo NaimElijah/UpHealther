@@ -17,7 +17,10 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
   corrected and extended by
   `docs/ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md`; the layering
   is enforced by `HexagonalArchitectureTest` (ArchUnit).
-- `frontend/` — the SPA: React 18, Vite 8, TanStack Query, Tailwind.
+- `frontend/` — the SPA: React 18, Vite 8, TanStack Query, Tailwind. Its stack, and the order its
+  folders import in, are recorded in `docs/ADRs/ADR-061-the-frontends-stack-and-layering.md`; the
+  layering and the single-owner imports are enforced by `npm run lint` (`eslint.config.js`), and
+  `src/test/importRules.test.ts` checks that configuration.
 - `e2e/` — the Playwright smoke suite: one browser run through the composed stack, which
   `npm run test:images` starts and CI's images job runs (ADR-052). A package of its own, formatted by
   the frontend's Prettier and neither linted nor type-checked.

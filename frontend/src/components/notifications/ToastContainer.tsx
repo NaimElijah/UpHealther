@@ -1,28 +1,9 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import type { AppNotification } from '../../types';
+import { useNotifications } from '../../hooks/useNotifications';
 import { aboveModalProps } from '../ui/aboveModal';
 import { categoryMeta } from './notificationMeta';
-
-/**
- * The subset of a notification a toast needs.
- *
- * Derived from `AppNotification` with `Pick`, so a field renamed there fails to compile here instead of
- * silently rendering nothing.
- */
-export interface ToastData extends Pick<AppNotification, 'category' | 'title' | 'message' | 'relatedUpgradeId'> {
-  id: string;
-}
-
-/**
- * @param toasts    the toasts to show, newest first; capped by the provider that owns them
- * @param onDismiss called on the close button, on selection, and by the auto-dismiss timer
- */
-interface Props {
-  toasts: ToastData[];
-  onDismiss: (id: string) => void;
-}
 
 /**
  * Keeps a pressed toast button from taking focus. The click still acts. Without this, pressing one over
@@ -34,8 +15,9 @@ const keepFocusWhereItIs = (e: React.MouseEvent) => e.preventDefault();
 /**
  * Transient real-time toasts, stacked top-right above everything, an open dialog included.
  *
- * Rendered by the notification provider rather than by any page, so a toast survives navigation. Each
- * is a polite live region: announced when it appears, without interrupting whatever is being read.
+ * Reads the toasts and their dismissal from the notification context, and is mounted once beside the
+ * routes rather than by any page, so a toast survives navigation. Each is a polite live region:
+ * announced when it appears, without interrupting whatever is being read.
  *
  * Portalled to `<body>` and marked to stay live above a dialog. An open `Modal` makes every other child
  * of `<body>` inert, and a toast is a report about what just happened, not part of the page behind. If
@@ -44,7 +26,8 @@ const keepFocusWhereItIs = (e: React.MouseEvent) => e.preventDefault();
  * itself after a few seconds, and what it says is also in the notification list. Pressing a toast's
  * buttons acts without taking focus, so the dialog keeps it.
  */
-const ToastContainer: React.FC<Props> = ({ toasts, onDismiss }) => {
+const ToastContainer: React.FC = () => {
+  const { toasts, dismissToast } = useNotifications();
   const navigate = useNavigate();
   if (toasts.length === 0) return null;
 
@@ -66,7 +49,7 @@ const ToastContainer: React.FC<Props> = ({ toasts, onDismiss }) => {
               onMouseDown={keepFocusWhereItIs}
               onClick={() => {
                 if (t.relatedUpgradeId) navigate(`/upgrades/${t.relatedUpgradeId}`);
-                onDismiss(t.id);
+                dismissToast(t.id);
               }}
               className="flex items-start gap-3 flex-1 min-w-0 text-left"
             >
@@ -79,7 +62,7 @@ const ToastContainer: React.FC<Props> = ({ toasts, onDismiss }) => {
             <button
               type="button"
               onMouseDown={keepFocusWhereItIs}
-              onClick={() => onDismiss(t.id)}
+              onClick={() => dismissToast(t.id)}
               className="text-fg-faint hover:text-fg-subtle text-lg leading-none shrink-0"
               aria-label="Dismiss notification"
             >

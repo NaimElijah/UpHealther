@@ -12,8 +12,9 @@ const queryClient = createQueryClient();
 /**
  * Application root: installs the theme, the query cache and the auth provider around the router.
  *
- * The order matters. Auth reads through the query client, and everything the router renders needs
- * both. The theme sits outside them all because it depends on neither a session nor server state, and
+ * The order matters. The router mounts the notification provider, which reads both the session and
+ * the query cache, so both sit outside the router. Auth itself does not use the query client. The
+ * theme sits outside them all because it depends on neither a session nor server state, and
  * because the login and register pages render outside `Layout` but still inside `App` — which is what
  * puts the theme toggle within reach before anyone has signed in.
  *

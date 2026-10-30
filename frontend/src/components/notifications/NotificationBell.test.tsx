@@ -12,6 +12,8 @@ function renderBell(unreadCount: number) {
     markRead: () => {},
     markAllRead: () => {},
     requestDesktopPermission: () => {},
+    toasts: [],
+    dismissToast: () => {},
   };
   return render(
     <NotificationContext.Provider value={notifications}>
