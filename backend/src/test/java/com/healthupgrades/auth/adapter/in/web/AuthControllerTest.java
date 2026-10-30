@@ -1,6 +1,7 @@
 package com.healthupgrades.auth.adapter.in.web;
 
 import static com.healthupgrades.support.WebSliceSupport.bearer;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -35,6 +36,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -75,6 +78,13 @@ class AuthControllerTest {
 
     /** The cookie the browser would be holding when it calls refresh or logout. */
     private static final Cookie PRESENTED = new Cookie("refresh_token", GRANT.refreshToken());
+
+    /** Exactly the minimum length, and not on the common-password list. */
+    private static final String UNLISTED_AT_THE_MINIMUM = "s3cret!4";
+
+    /** The field message a password on the common-password list is refused with. */
+    private static final String COMMON_PASSWORD_MESSAGE =
+            "is one of the most common passwords; choose one that is harder to guess";
 
     @Autowired
     MockMvc mockMvc;
@@ -159,15 +169,70 @@ class AuthControllerTest {
     }
 
     @Test
-    void GivenAPasswordAtTheMinimum_WhenAVisitorRegisters_ThenItIsAccepted() throws Exception {
-        // The bound is inclusive, so the shortest allowed password must not be refused.
+    void GivenAPasswordAtTheMinimumThatIsNotCommon_WhenAVisitorRegisters_ThenItIsAccepted() throws Exception {
+        // The bound is inclusive, so the shortest allowed password must not be refused. Not eight "x":
+        // that is on the common-password list.
+        assertThat(UNLISTED_AT_THE_MINIMUM).hasSize(AuthController.PASSWORD_MIN);
         when(authService.register(anyString(), anyString(), anyString()))
                 .thenReturn(new AuthResult("issued.jwt.token", EXPIRES_AT, aUser(), GRANT));
 
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\""
-                                + "x".repeat(AuthController.PASSWORD_MIN) + "\"}"))
+                        .content(registrationWithPassword(UNLISTED_AT_THE_MINIMUM)))
+                .andExpect(status().isCreated());
+    }
+
+    /**
+     * The JSON-escaped forms of {@code password1}, which is on the list: as listed, in three casings,
+     * and in three compatibility forms that NFKC folds onto it - fullwidth throughout, a fullwidth
+     * digit, and a fullwidth capital.
+     */
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(
+            strings = {
+                "password1",
+                "PASSWORD1",
+                "Password1",
+                "pAsSwOrD1",
+                "\\uff50\\uff41\\uff53\\uff53\\uff57\\uff4f\\uff52\\uff44\\uff11",
+                "password\\uff11",
+                "\\uff30assword1"
+            })
+    void GivenAPasswordOnTheCommonList_WhenAVisitorRegisters_ThenItAnswers400NamingThePassword(String password)
+            throws Exception {
+        // Refused as the minimum is, by validation, so the body is the same shape and the register page
+        // shows the reason under the same field. BR-17, ADR-071.
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(registrationWithPassword(password)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Validation failed"))
+                .andExpect(jsonPath("$.fieldErrors.password").value(COMMON_PASSWORD_MESSAGE));
+
+        verify(authService, never()).register(any(), any(), any());
+    }
+
+    @Test
+    void GivenAPasswordThatOnlyContainsACommonOne_WhenAVisitorRegisters_ThenItIsAccepted() throws Exception {
+        // The list is matched whole, never as a substring: "password1" is on it and "password1!" is not.
+        when(authService.register(anyString(), anyString(), anyString()))
+                .thenReturn(new AuthResult("issued.jwt.token", EXPIRES_AT, aUser(), GRANT));
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(registrationWithPassword("password1!")))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void GivenAPasswordThatIsTheEmailAddress_WhenAVisitorRegisters_ThenItIsAccepted() throws Exception {
+        // Only the list is checked, by the owner's decision on S5.A6: not the email, not the name.
+        when(authService.register(anyString(), anyString(), anyString()))
+                .thenReturn(new AuthResult("issued.jwt.token", EXPIRES_AT, aUser(), GRANT));
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(registrationWithPassword("someone@example.com")))
                 .andExpect(status().isCreated());
     }
 
@@ -493,6 +558,11 @@ class AuthControllerTest {
                         .header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest"))
                 .andExpect(status().is5xxServerError())
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, nullValue()));
+    }
+
+    /** A registration body that differs from a valid one only in its password, which is JSON-escaped. */
+    private static String registrationWithPassword(String password) {
+        return "{\"name\":\"Someone\",\"email\":\"someone@example.com\",\"password\":\"" + password + "\"}";
     }
 
     private static DataAccessResourceFailureException storeDown() {

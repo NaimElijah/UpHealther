@@ -31,6 +31,12 @@ An email is one identity however it is typed: the API trims and lowercases it be
 storing it. `POST /api/auth/register` refuses an address already held with `422` and the message
 `That email is already registered`, which does not repeat the address.
 
+`POST /api/auth/register` refuses a password outside BR-17 with `400` and the reason under
+`fieldErrors.password`: shorter than 8 characters, longer than 72 characters or 72 bytes of UTF-8, or
+one of the 10,000 common passwords on the list the API bundles, compared in lower case after NFKC
+normalisation. A common one is answered `is one of the most common passwords; choose one that is
+harder to guess` ([ADR-071](ADRs/ADR-071-registration-refuses-the-most-common-passwords.md)).
+
 A date-time in a body is an ISO-8601 local date-time with no offset, such as `2026-01-14T09:13:02`,
 with a fraction of a second when it has one. A notification's `createdAt` is stamped from the server's
 clock, which keeps UTC ([ADR-020](ADRs/ADR-020-the-server-keeps-time-in-utc.md)), and the SPA reads it
