@@ -74,13 +74,14 @@ no aggregate at all, orchestrating over `user` and `auth`.
 
 | Module | Responsible for |
 |---|---|
-| `src/api/` | One axios instance and a thin function per endpoint. The instance attaches the in-memory access token, and renews it from the refresh cookie and retries once on a 401 rather than signing the user out; `tokenStore.ts` holds the token, and every HTTP call goes through the instance. The instance and `tokenStore.ts` own the credential and the end of a session: `session.ts`'s `endSession` is the one way a session ends, on sign-out and when a renewal is refused, by dropping the token and replacing the document with `/login`, never a router push, so no state of the previous user survives. `notificationSocket.ts` is the STOMP client that delivers notifications live: it presents and renews the same token, and takes the API's origin from `apiBaseUrl.ts`, as the instance does |
+| `src/api/` | One axios instance, `client.ts`, and one module per backend area with a thin function per endpoint. The instance attaches the in-memory access token, and renews it from the refresh cookie and retries once on a 401 rather than signing the user out; `tokenStore.ts` holds the token, and every HTTP call goes through the instance. The instance and `tokenStore.ts` own the credential and the end of a session: `session.ts`'s `endSession` is the one way a session ends, on sign-out and when a renewal is refused, by dropping the token and replacing the document with `/login`, never a router push, so no state of the previous user survives. `apiError.ts`'s `toApiError` is the one place a failure is decoded, into a status, a message, any field errors and the trace id. `notificationSocket.ts` is the STOMP client that delivers notifications live: it presents and renews the same token, and takes the API's origin from `apiBaseUrl.ts`, as the instance does |
 | `src/contexts/` | `AuthProvider` owns the current user and the sign-in, registration and sign-out actions: it stores the token a sign-in or registration returns, and a sign-out the server accepted ends through `endSession`; `NotificationProvider` owns the notification list, the unread count (the server's, since the list holds only the fifty most recent; the unread listed stands in until it can be read), when the STOMP connection is open, and the toasts; `ThemeProvider` owns the light/dark/system choice and the `dark` class on `<html>` |
 | `src/hooks/` | `useAuth`, `useNotifications` and `useTheme` — typed context readers that fail loudly outside their provider |
-| `src/router/` | The route table, and `ProtectedRoute`, which gates every authenticated page |
-| `src/pages/` | One component per route |
-| `src/components/` | `ui/` primitives — including `PageContainer`, which decides how wide a page may grow — `upgrade/` cards, badges, the fields that describe an upgrade, the actions an upgrade's page offers on it, and the sections of that page (its streak, tracking configuration, reminders, progress and reflections), each owning its own reads, writes and dialog, `notifications/` bell, dropdown, items and toasts, `layout/` navbar, sidebar and the phone menu, the last two rendering one shared list of links |
-| `src/types/` | `api.generated.ts`, the request and response shapes and enums rendered from the backend's records, and `index.ts`, which gives them the frontend's names (see "The frontend's wire types are generated from the backend's records") |
+| `src/App.tsx`, `src/main.tsx` | The outer half of the composition root. `main.tsx` mounts `App` under `StrictMode`; `App` installs, outermost first, `ThemeProvider`, `ErrorBoundary`, the one `QueryClientProvider` and `AuthProvider` around the router |
+| `src/router/` | `index.tsx`, the route table and the inner half of the composition root: inside `BrowserRouter` it mounts `NotificationProvider` around the routes and `ToastContainer` beside them, so a toast can navigate. `ProtectedRoute` gates every page but sign-in and registration; `RequireRole` adds the administrator check in front of `/admin/users`, a courtesy, since the API decides. `/` and any unknown path redirect |
+| `src/pages/` | One component per route that renders a page |
+| `src/components/` | `ui/` primitives — including `PageContainer`, which decides how wide a page may grow, `Modal`, which every dialog is, and `ErrorState`, which shows a failure with its trace id — `upgrade/` cards, badges, the fields that describe an upgrade, the actions an upgrade's page offers on it, and the sections of that page (its streak, tracking configuration, reminders, progress and reflections), each owning its own reads, writes and dialog where it has them, `notifications/` bell, dropdown, items and toasts, `layout/` navbar, sidebar and the phone menu, the last two rendering one shared list of links (`navItems.ts`), `theme/` the light, dark and system switch, and `ErrorBoundary.tsx`, which replaces a tree that threw while rendering with a page offering a reload |
+| `src/types/` | `api.generated.ts`, the request and response shapes and enums rendered from the backend's records, and `index.ts`, which gives them the frontend's names and adds, as intersections, what no record declares: a health area's client-side `upgradeCount`, and the `upgradeId` that `createProgress` moves from a new entry into the URL (see "The frontend's wire types are generated from the backend's records") |
 | `src/lib/` | Helpers shared by several pages. `localDate.ts` turns the API's zone-less `YYYY-MM-DD` dates into the user's own day and back, because JavaScript's shortcuts for both go through UTC; `queryClient.ts` builds the one server-state cache and its thirty-second staleness window; `upgradeViews.ts` marks every cached view of upgrades out of date after a write that changed one ([ADR-029](../ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)) |
 
 **The folders are layered, and lint enforces it.** Each imports only from those below it: `types` ←
@@ -241,6 +242,44 @@ come from one call, which reads all their histories in a single query. The web m
 response, reusing the upgrade context's own mapper so the embedded upgrades are identical to what
 `/api/upgrades` returns, and mapping each distinct upgrade once so a single batched query resolves
 every tracking configuration rather than one per upgrade.
+
+### A page's read, end to end
+
+The browser's half of a read, and of the write that makes it stale:
+
+1. **A page or a section asks the cache.** It calls `useQuery` with a key and a function from `api/`,
+   such as `['reminders', id]` and `getReminders`. There is one cache, built by `lib/queryClient.ts`
+   and provided once in `App.tsx`. An answer stays fresh for thirty seconds, so a page opened again
+   inside that window renders from it without a request; a failed read is retried once.
+2. **The call goes through the one axios instance.** `api/client.ts` adds the in-memory access token
+   as a bearer header. A 401 is taken for a lapsed token: the instance renews it from the refresh
+   cookie and sends the request once more. A renewal is single-flight, within the tab through one
+   shared promise and across tabs through `navigator.locks`, because a rotated credential is good for
+   one use. Only a refused renewal ends the session, through `endSession`
+   ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)).
+3. **The request is same-origin.** Its base URL is relative unless `VITE_API_URL` is set, which is
+   meant for an API on another origin (`api/apiBaseUrl.ts`). So `/api/...` reaches the backend through
+   the Vite dev server's proxy, or through nginx in the image.
+4. **The answer lands in the cache** under its key, typed by the generated wire types
+   ([ADR-053](../ADRs/ADR-053-the-frontends-wire-types-are-generated-from-the-apis-records.md)), and
+   every component reading that key renders it. A failure is decoded by `toApiError`, and a page that
+   shows one renders it with `ErrorState`, trace id included. A few reads still show as empty when
+   they fail ([#148](https://github.com/NaimElijah/UpHealther/issues/148)).
+5. **A write marks views stale.** A mutation that changes an upgrade calls `refreshUpgradeViews`,
+   which invalidates every key that shows upgrades, because one upgrade shows on several pages
+   ([ADR-029](../ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)).
+   Other writes invalidate the keys they name, such as a reminder's `['reminders', id]`. A progress
+   entry names too few, and leaves the dashboard and the progress history stale for up to thirty
+   seconds ([#192](https://github.com/NaimElijah/UpHealther/issues/192)). Invalidation refetches what
+   a mounted page reads; the rest refetch when their page next opens.
+
+**Notifications arrive by two routes into one cache.** While somebody is signed in,
+`NotificationProvider` reads `['notifications']` over REST, and `api/notificationSocket.ts` hands it
+each notification the server pushes over STOMP. A pushed one is written into the same list unless
+its id is already there, so one that arrives both ways is listed once, and the unread count,
+`['notifications', 'unread-count']`, is read again from the server. Marking read writes the cache
+first and calls the API after; a refusal invalidates the list, so the server's answer replaces the
+guess.
 
 ### A session, end to end
 
