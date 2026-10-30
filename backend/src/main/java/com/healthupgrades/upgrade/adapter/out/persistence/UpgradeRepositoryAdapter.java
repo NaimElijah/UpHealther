@@ -1,5 +1,6 @@
 package com.healthupgrades.upgrade.adapter.out.persistence;
 
+import com.healthupgrades.common.domain.exception.RetryableConflictException;
 import com.healthupgrades.upgrade.domain.model.Difficulty; // query filter
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // domain aggregate
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus; // query filter
@@ -18,6 +19,10 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 class UpgradeRepositoryAdapter implements UpgradeRepositoryPort {
+
+    /** What a request is told when another of the user's requests holds the HARD-limit check. */
+    static final String HARD_LIMIT_CHECK_IN_PROGRESS =
+            "Another change to your HARD upgrades is in progress. Please retry.";
 
     private final UpgradeJpaRepository jpa; // Spring Data proxy injected by constructor
 
@@ -81,9 +86,19 @@ class UpgradeRepositoryAdapter implements UpgradeRepositoryPort {
         return jpa.findAllById(ids);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The claim is a transaction-scoped PostgreSQL advisory lock keyed on the user, tried rather than
+     * waited for: a waiter would hold its pooled connection for as long as the holder ran, and could join a
+     * deadlock with whatever its own transaction had already written. The commit or rollback releases it
+     * (ADR-074).
+     */
     @Override
-    public long countByUserIdAndStatusAndDifficulty(UUID userId, UpgradeStatus status, Difficulty difficulty) {
-        return jpa.countByUserIdAndStatusAndDifficulty(userId, status, difficulty);
+    public long countActiveHardUpgradesForLimitCheck(UUID userId) {
+        if (!jpa.tryClaimHardLimitCheck(userId)) {
+            throw new RetryableConflictException(HARD_LIMIT_CHECK_IN_PROGRESS);
+        }
+        return jpa.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD);
     }
 }

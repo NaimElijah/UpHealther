@@ -35,6 +35,8 @@ public class TrackingConfigController {
      * @return 200 with the stored configuration
      * @throws com.healthupgrades.common.domain.exception.ResourceNotFoundException if no such
      *         upgrade is owned by the caller (404)
+     * @throws com.healthupgrades.common.domain.exception.RetryableConflictException if a concurrent
+     *         request configured the upgrade first (409, which the caller can resend unchanged)
      */
     @PutMapping
     public ResponseEntity<TrackingConfigDto> saveConfig(

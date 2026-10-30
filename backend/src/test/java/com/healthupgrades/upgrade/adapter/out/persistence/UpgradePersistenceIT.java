@@ -277,8 +277,7 @@ class UpgradePersistenceIT extends PostgresIT {
         entityManager.persistAndFlush(hardActiveFor(strangerId));
         entityManager.clear();
 
-        assertThat(repository.countByUserIdAndStatusAndDifficulty(ownerId, UpgradeStatus.ACTIVE, Difficulty.HARD))
-                .isZero();
+        assertThat(repository.countActiveHardUpgradesForLimitCheck(ownerId)).isZero();
     }
 
     @Test

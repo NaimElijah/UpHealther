@@ -14,6 +14,7 @@ import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.event.DomainEvent;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.common.domain.exception.RetryableConflictException;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.healtharea.application.port.in.HealthAreaQuery;
 import com.healthupgrades.support.RecordingAuditTrail;
@@ -110,8 +111,7 @@ class UpgradeServiceTest {
     void GivenTheHardLimitIsAlreadyReached_WhenAnActiveUpgradeIsPromotedToHard_ThenItIsRejected() {
         when(repository.findByIdAndUserId(upgradeId, userId))
                 .thenReturn(Optional.of(upgradeWith(UpgradeStatus.ACTIVE, Difficulty.MEDIUM)));
-        when(repository.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD))
-                .thenReturn(3L);
+        when(repository.countActiveHardUpgradesForLimitCheck(userId)).thenReturn(3L);
 
         assertThatThrownBy(() -> service.update(userId, upgradeId, detailsWithDifficulty(Difficulty.HARD)))
                 .isInstanceOf(BusinessRuleException.class);
@@ -123,13 +123,29 @@ class UpgradeServiceTest {
     void GivenTheHardLimitIsNotReached_WhenAnActiveUpgradeIsPromotedToHard_ThenItSucceeds() {
         when(repository.findByIdAndUserId(upgradeId, userId))
                 .thenReturn(Optional.of(upgradeWith(UpgradeStatus.ACTIVE, Difficulty.MEDIUM)));
-        when(repository.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD))
-                .thenReturn(2L);
+        when(repository.countActiveHardUpgradesForLimitCheck(userId)).thenReturn(2L);
         when(repository.save(any(HealthUpgrade.class))).thenAnswer(inv -> inv.getArgument(0));
 
         HealthUpgrade saved = service.update(userId, upgradeId, detailsWithDifficulty(Difficulty.HARD));
 
         assertThat(saved.getDifficulty()).isEqualTo(Difficulty.HARD);
+    }
+
+    @Test
+    void
+            GivenAnotherHardLimitCheckInProgress_WhenAnActiveUpgradeIsPromotedToHard_ThenItIsRefusedAsRetryableAndNothingChanges() {
+        // BR-5 under concurrency (ADR-074). The claim is the count's, so a refused claim is a refused
+        // promotion: nothing is saved, and the aggregate keeps its difficulty for the resend.
+        HealthUpgrade upgrade = upgradeWith(UpgradeStatus.ACTIVE, Difficulty.MEDIUM);
+        when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.of(upgrade));
+        when(repository.countActiveHardUpgradesForLimitCheck(userId))
+                .thenThrow(new RetryableConflictException("check in progress"));
+
+        assertThatThrownBy(() -> service.update(userId, upgradeId, detailsWithDifficulty(Difficulty.HARD)))
+                .isInstanceOf(RetryableConflictException.class);
+
+        assertThat(upgrade.getDifficulty()).isEqualTo(Difficulty.MEDIUM);
+        verify(repository, never()).save(any());
     }
 
     @Test
@@ -140,8 +156,9 @@ class UpgradeServiceTest {
 
         service.update(userId, upgradeId, detailsWithDifficulty(Difficulty.HARD));
 
-        // Only ACTIVE upgrades occupy a HARD slot, so a planned promotion must not pay for the count query.
-        verify(repository, never()).countByUserIdAndStatusAndDifficulty(any(), any(), any());
+        // Only ACTIVE upgrades occupy a HARD slot, so a planned promotion must not pay for the count query,
+        // nor be refused because another request is checking.
+        verify(repository, never()).countActiveHardUpgradesForLimitCheck(any());
     }
 
     @Test
@@ -180,7 +197,7 @@ class UpgradeServiceTest {
 
         service.update(userId, upgradeId, detailsWithDifficulty(Difficulty.HARD));
 
-        verify(repository, never()).countByUserIdAndStatusAndDifficulty(any(), any(), any());
+        verify(repository, never()).countActiveHardUpgradesForLimitCheck(any());
     }
 
     // ---- FR-10: creating ----
@@ -460,14 +477,44 @@ class UpgradeServiceTest {
         // that stops a fourth one starting.
         HealthUpgrade upgrade = upgradeWith(UpgradeStatus.PLANNED, Difficulty.HARD);
         when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.of(upgrade));
-        when(repository.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD))
-                .thenReturn(3L);
+        when(repository.countActiveHardUpgradesForLimitCheck(userId)).thenReturn(3L);
 
         assertThatThrownBy(() -> service.activate(userId, upgradeId, null)).isInstanceOf(BusinessRuleException.class);
 
         assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.PLANNED);
         verify(repository, never()).save(any());
         verify(eventPublisher, never()).publish(any());
+    }
+
+    @Test
+    void
+            GivenAnotherHardLimitCheckInProgress_WhenAHardUpgradeIsActivated_ThenItIsRefusedAsRetryableAndNothingChanges() {
+        // BR-5 under concurrency (ADR-074): two tabs activating two HARD upgrades must not both count two.
+        // The second is refused before the transition, so the resend finds the upgrade as it was.
+        HealthUpgrade upgrade = upgradeWith(UpgradeStatus.PLANNED, Difficulty.HARD);
+        when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.of(upgrade));
+        when(repository.countActiveHardUpgradesForLimitCheck(userId))
+                .thenThrow(new RetryableConflictException("check in progress"));
+
+        assertThatThrownBy(() -> service.activate(userId, upgradeId, null))
+                .isInstanceOf(RetryableConflictException.class);
+
+        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.PLANNED);
+        verify(repository, never()).save(any());
+        verify(eventPublisher, never()).publish(any());
+    }
+
+    @Test
+    void GivenAnUpgradeThatIsNotHard_WhenItIsActivated_ThenTheHardLimitIsNotChecked() {
+        // An EASY or MEDIUM upgrade claims no HARD slot, so it neither counts nor can be refused because
+        // another request is checking.
+        HealthUpgrade upgrade = upgradeWith(UpgradeStatus.PLANNED, Difficulty.MEDIUM);
+        when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.of(upgrade));
+        when(repository.save(upgrade)).thenReturn(upgrade);
+
+        service.activate(userId, upgradeId, null);
+
+        verify(repository, never()).countActiveHardUpgradesForLimitCheck(any());
     }
 
     @Test
