@@ -3,7 +3,7 @@
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
 rather than trusted. A hundred and twenty-two of the hundred and thirty-one entries below name a test —
-a hundred and sixty-six distinct test classes and files between them. Six of the remaining nine name the
+a hundred and sixty-nine distinct test classes and files between them. Six of the remaining nine name the
 command, workflow, script or setting that *is* the check (NFR-11, NFR-13, NFR-18, NFR-48, NFR-52,
 NFR-53). The last three — FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is
 about a rendered width, a colour or an overflow, and jsdom has no layout engine to observe any of them;
@@ -90,7 +90,7 @@ no way at all — to read another person's health records
 
 | ID | Requirement | Enforced by |
 |---|---|---|
-| FR-16 | A user can configure how an upgrade is measured: boolean, numeric, rating or free text. An upgrade has at most one configuration, and saving another replaces it | `TrackingServiceTest`, `TrackingConfigControllerTest`, `TrackingConfigPersistenceIT` (the unique `upgrade_id`) |
+| FR-16 | A user can configure how an upgrade is measured: boolean, numeric, rating or free text. An upgrade has at most one configuration, and saving another replaces it | `TrackingServiceTest`, `TrackingConfigControllerTest`, `TrackingConfigPersistenceIT` (the unique `upgrade_id`), `TrackingConfigRaceIT` (a first configuration that lost a race replaces the winner's when resent) |
 | FR-17 | A numeric configuration can carry a target value and a unit | `TrackingServiceTest`, `TrackingConfigControllerTest` |
 | FR-18 | A user can log progress for an upgrade on a given day | `TrackingServiceTest`, `ProgressControllerTest`, `UpgradeDetailsPage.test.tsx`, `localDate.test.ts` |
 | FR-19 | A user can log progress for every active upgrade in one pass | `DailyCheckinPage.test.tsx` — but see §6 — **Known deviation:** [#55](https://github.com/NaimElijah/UpHealther/issues/55), untouched upgrades are logged too |
@@ -166,7 +166,7 @@ The role model behind every entry here is [ADR-016](../ADRs/ADR-016-roles-read-f
 | BR-2 | Legal transitions are: `IDEA → PLANNED → ACTIVE ⇄ PAUSED`; `ACTIVE → COMPLETED`; any non-final state `→ ABANDONED`; `ABANDONED --reschedule--> PLANNED`. Rescheduling moves the dates of an upgrade in any state but `COMPLETED`, and only from `ABANDONED` does it change the status too | `HealthUpgrade`, `HealthUpgradeTest` |
 | BR-3 | `COMPLETED` is terminal — it cannot be reactivated, paused or rescheduled | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeControllerTest` |
 | BR-4 | An upgrade must always have an owner, a title and a type | `HealthUpgradeTest`, `UpgradeServiceTest` |
-| BR-5 | A user may have at most **three** `HARD` upgrades active at once, checked on every route into a running HARD upgrade | `UpgradeSchedulingServiceTest`, `UpgradeServiceTest`, `UpgradeControllerTest` |
+| BR-5 | A user may have at most **three** `HARD` upgrades active at once, checked on every route into a running HARD upgrade. A user's HARD-limit checks run one at a time; one that finds another in progress is refused as a retryable 409, so two at once cannot both pass the check and exceed the limit together | `UpgradeSchedulingServiceTest`, `UpgradeServiceTest` (a check refused as in progress changes nothing), `UpgradeControllerTest`, `HardLimitLockIT` (while one transaction checks a user's limit, another's check for the same user is refused, and another user's is not), `HardLimitRaceIT` (two activations at once through the service leave three HARD upgrades active, not four) |
 | BR-6 | At most one progress entry exists per upgrade per date; a second is refused as a conflict | `ProgressEntryPersistenceIT` (the constraint by name), `TrackingServiceTest`, `ProgressControllerTest` (409) — **Known deviation:** [#146](https://github.com/NaimElijah/UpHealther/issues/146), a second entry that races past the existence check reaches the constraint untranslated and is answered 500 |
 | BR-7 | When an upgrade has a tracking configuration, whether an entry counts as successful is decided by the server from that configuration, not by the client. Without one there is no target to judge against, and the entry keeps the `completed` value its caller sent | `ProgressEvaluationService`, `ProgressEvaluationServiceTest`, `TrackingServiceTest` |
 | BR-8 | A numeric entry counts only when its unit agrees with the target's; an unstated unit is read as the configured one | `ProgressEvaluationServiceTest` |
@@ -251,7 +251,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 
 | ID | Requirement | Enforced by |
 |---|---|---|
-| NFR-7 | Every failure maps to a defined HTTP status: 404 not found, 422 rule violation, 409 conflict (including a refresh that lost a rotation race, which the client simply retries), 401 rejected credentials or no accepted token, 400 invalid input (a failed constraint, an unbindable body, a string in a body that holds U+0000, which the database cannot store, a parameter that will not convert), 403 authenticated but not allowed, 429 over a rate limit with `Retry-After`, and the status Spring defines for every other framework exception (405, 415, 406, …). Only a genuine server fault is a 500, and it carries no detail beyond the status and the trace id that finds its log line | `GlobalExceptionHandlerTest`, every `*ControllerTest`, `RateLimitedSignInTest` (429), `AuthControllerTest` (the retryable 409), `CorrelationIT` (a request the firewall refuses keeps its 400 through the container's error page, [ADR-024](../ADRs/ADR-024-the-container-error-page-keeps-its-status-and-carries-the-trace-id.md)), [ADR-006](../ADRs/ADR-006-framework-exceptions-through-responseentityexceptionhandler.md) |
+| NFR-7 | Every failure maps to a defined HTTP status: 404 not found, 422 rule violation, 409 conflict (including a refresh that lost a rotation race, which the client simply retries, and an upgrade's first tracking configuration that lost a race to be stored, or a HARD-limit check that found another of the user's in progress, BR-5, either of which the caller can resend unchanged), 401 rejected credentials or no accepted token, 400 invalid input (a failed constraint, an unbindable body, a string in a body that holds U+0000, which the database cannot store, a parameter that will not convert), 403 authenticated but not allowed, 429 over a rate limit with `Retry-After`, and the status Spring defines for every other framework exception (405, 415, 406, …). Only a genuine server fault is a 500, and it carries no detail beyond the status and the trace id that finds its log line | `GlobalExceptionHandlerTest`, every `*ControllerTest`, `RateLimitedSignInTest` (429), `AuthControllerTest` (the retryable 409), `TrackingConfigRaceIT` and `TrackingConfigPersistenceIT` (a first tracking configuration that lost its race is a retryable 409, not a 500; one whose upgrade was deleted after the ownership check is a 404; and no other integrity failure is translated), `HardLimitLockIT` (a HARD-limit check that finds another in progress is refused as retryable, never waited for), `CorrelationIT` (a request the firewall refuses keeps its 400 through the container's error page, [ADR-024](../ADRs/ADR-024-the-container-error-page-keeps-its-status-and-carries-the-trace-id.md)), [ADR-006](../ADRs/ADR-006-framework-exceptions-through-responseentityexceptionhandler.md) |
 | NFR-8 | The database schema is owned by migrations; the application refuses to start against a schema that does not match its entities | `ApplicationContextIT`, Flyway + `ddl-auto: validate` |
 | NFR-14 | List endpoints resolve related data in batch rather than per row | `TrackingServiceTest`, `TrackingConfigReadsTest`, `DashboardAggregationServiceTest`, `ProgressEntryPersistenceIT`, `TrackingConfigPersistenceIT`, `NotificationSchedulerTest`, `NotificationPersistenceIT` |
 | NFR-15 | Time-dependent behaviour reads an injected clock, so it is testable and timezone-explicit | `UpgradeOverdueSchedulerTest`, `NotificationSchedulerTest`, `UpgradeServiceTest`, `TrackingServiceTest`, `ReflectionServiceTest`, `GlobalExceptionHandlerTest`, `NotificationServiceTest`, `TraceIdErrorAttributesTest` (the container's error page), `HealthUpgradesApplicationTest` and `ServerTimeArchitectureTest` (the clock and every cron keep UTC, nothing outside an entity's `@PrePersist` or `@PreUpdate` method reads the time without the clock, by a call or a method reference, and only the clock bean's own method builds one from the system's, [ADR-020](../ADRs/ADR-020-the-server-keeps-time-in-utc.md)) — **Known deviation:** [#51](https://github.com/NaimElijah/UpHealther/issues/51), entity timestamps bypass the clock |
@@ -391,9 +391,14 @@ Undecided, and owned by the repository owner.
   to it, but it stays unmapped, so any constraint a DTO annotation cannot express still surfaces as a
   500. Mapping it centrally is not one decision but several — a unique violation, a foreign-key
   violation and a not-null violation do not deserve the same status, and `DuplicateProgressException`
-  already shadows the first of them. The one other unique violation with a known route, a registration
-  losing a race for an address, is translated where it happens (the user persistence adapter) and
-  answered like any duplicate; the central question stands for everything else.
+  already shadows the first of them. Two adapters translate the violations they know a route to, where
+  they happen: the user persistence adapter turns a registration losing a race for an address into the
+  duplicate it is, and the tracking-configuration adapter turns a first configuration losing its race
+  into a retryable 409, and one whose upgrade was deleted after the ownership check into a 404
+  ([ADR-074](../ADRs/ADR-074-concurrent-writes-beyond-the-version-check.md)). A progress entry that
+  races past the duplicate check is still untranslated, and still a 500
+  ([#146](https://github.com/NaimElijah/UpHealther/issues/146)). The central question stands for
+  everything else.
 - **`UpgradeType.PROTOCOL` is deprecated but retained** for rows that may already carry it. Removing it
   needs confirmation that no stored row uses it.
 - **No governing jurisdiction is named in the licence** — ADR-003 flags this as the first thing to add

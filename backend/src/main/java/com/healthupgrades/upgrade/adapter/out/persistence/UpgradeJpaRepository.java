@@ -8,6 +8,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Spring Data JPA repository backing {@link UpgradeRepositoryAdapter}.
@@ -31,4 +35,20 @@ interface UpgradeJpaRepository extends JpaRepository<HealthUpgrade, UUID> {
     List<HealthUpgrade> findByUserIdAndDifficulty(UUID userId, Difficulty difficulty); // derived query
 
     long countByUserIdAndStatusAndDifficulty(UUID userId, UpgradeStatus status, Difficulty difficulty); // derived count
+
+    /**
+     * Tries to claim the user's HARD-limit check: takes the user's advisory lock if no other transaction
+     * holds it, without waiting, and holds it until this transaction ends.
+     *
+     * <p>The key is a 64-bit hash of the user id, prefixed so another per-user lock gets a key of its own.
+     * {@code MANDATORY} because outside a transaction the lock would end with the statement (ADR-074).
+     *
+     * @param userId the user whose HARD-limit check is claimed
+     * @return whether the claim was granted; false when another transaction holds it
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    @Query(
+            value = "SELECT pg_try_advisory_xact_lock(hashtextextended('hard-limit ' || CAST(:userId AS text), 0))",
+            nativeQuery = true)
+    boolean tryClaimHardLimitCheck(@Param("userId") UUID userId);
 }

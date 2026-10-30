@@ -37,10 +37,10 @@ public enum AuditOutcome {
      * conflict is a {@link ConflictException}, so the kernel classifies it without naming it.
      *
      * <p>Note what does <em>not</em> arrive here: a {@code @Version} clash decided at commit. The only
-     * repository write that flushes is registration's, which translates its own duplicate-address
-     * violation; everywhere else that exception is thrown by the transaction proxy after the service
-     * method has returned — outside any call this classifier sees. The audit adapter handles it on the
-     * rollback path instead.
+     * repository writes that flush are registration's and the tracking configuration's, each of which
+     * translates its own unique-key violation (ADR-074); everywhere else that exception is thrown by the
+     * transaction proxy after the service method has returned — outside any call this classifier sees.
+     * The audit adapter handles it on the rollback path instead.
      *
      * @param thrown what the operation threw
      * @return {@link #REFUSED} for a decision, {@link #FAILED} for a fault
