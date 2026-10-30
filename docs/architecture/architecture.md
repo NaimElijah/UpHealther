@@ -805,14 +805,21 @@ orchestrates — load, call the domain method, save, publish — and does not de
 
 The one invariant that cannot live there is the max-concurrent-HARD rule, because it needs a count
 across the user's *other* upgrades, which one aggregate cannot see. It is a pure domain service that
-receives the count as a parameter, and the application layer performs the counting query.
+receives the count as a parameter, and the application layer performs the counting query. Because the
+count reads rows the request does not write, no version check sees two requests that both counted
+below the limit. So before counting, `UpgradeService` calls `UpgradeRepositoryPort.serialiseHardLimitChecks`,
+which `UpgradeRepositoryAdapter` implements as a transaction-scoped PostgreSQL advisory lock keyed on
+the user (`pg_advisory_xact_lock`). A second request for the same user waits until the first commits
+and then counts what it wrote. Other users are not held up, and an activation that claims no HARD
+slot takes no lock ([ADR-074](../ADRs/ADR-074-concurrent-writes-beyond-the-version-check.md)).
 
 **Spring Data is confined to the persistence adapters, and its interfaces are package-private.**
 Everything else depends on a repository port. That keeps the queries in one package per context, and
 it does not make the store swappable by rewriting those packages alone. The entities in `domain/model`
 carry the JPA mapping, `GlobalExceptionHandler` maps `jakarta.persistence.OptimisticLockException` to a
 409, and the schema is PostgreSQL's, written in Flyway migrations whose foreign keys carry the
-cross-context deletes (see the next paragraph).
+cross-context deletes (see the next paragraph). BR-5's advisory lock is PostgreSQL's too, though only
+the upgrade adapter's query names it.
 
 **Deleting an upgrade reaches other contexts' tables through foreign keys, not through code.**
 Every context's tables are in one PostgreSQL schema, and `tracking_configs`, `progress_entries`,
@@ -1072,7 +1079,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the compose backend connects as a role that owns its database rather than as the superuser; why its variables are not `DB_USERNAME` and `DB_PASSWORD`; why one role and not a migrating and a serving one | [ADR-069](../ADRs/ADR-069-the-compose-backend-connects-as-a-role-that-owns-its-database.md) |
 | Why nginx throttles the `/ws` handshake although ADR-017 kept sign-in's limit in the application; why there is no cap on open sockets; what a load balancer would need first | [ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md) |
 | Why registration refuses the 10,000 most common passwords from a pinned SecLists file, rather than asking Have I Been Pwned; how the list is derived and filtered; why the refusal is a constraint beside BR-17's minimum | [ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md) |
-| How a concurrent write that `@Version` does not cover is handled: a lost check-then-insert race translated in the adapter into a 409 | [ADR-074](../ADRs/ADR-074-concurrent-writes-beyond-the-version-check.md) |
+| How a concurrent write that `@Version` does not cover is handled: a per-user invariant over several rows serialised by an advisory lock, and a lost check-then-insert race translated in the adapter into a 409; what would make the lock the wrong tool | [ADR-074](../ADRs/ADR-074-concurrent-writes-beyond-the-version-check.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

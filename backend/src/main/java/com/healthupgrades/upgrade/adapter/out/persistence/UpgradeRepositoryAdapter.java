@@ -86,4 +86,15 @@ class UpgradeRepositoryAdapter implements UpgradeRepositoryPort {
     public long countByUserIdAndStatusAndDifficulty(UUID userId, UpgradeStatus status, Difficulty difficulty) {
         return jpa.countByUserIdAndStatusAndDifficulty(userId, status, difficulty);
     }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>A transaction-scoped PostgreSQL advisory lock keyed on the user, so the commit or rollback
+     * releases it and nothing has to remember to (ADR-074).
+     */
+    @Override
+    public void serialiseHardLimitChecks(UUID userId) {
+        jpa.lockHardLimitChecks(userId);
+    }
 }

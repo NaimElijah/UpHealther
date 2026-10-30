@@ -8,6 +8,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Spring Data JPA repository backing {@link UpgradeRepositoryAdapter}.
@@ -31,4 +35,21 @@ interface UpgradeJpaRepository extends JpaRepository<HealthUpgrade, UUID> {
     List<HealthUpgrade> findByUserIdAndDifficulty(UUID userId, Difficulty difficulty); // derived query
 
     long countByUserIdAndStatusAndDifficulty(UUID userId, UpgradeStatus status, Difficulty difficulty); // derived count
+
+    /**
+     * Takes the user's HARD-limit advisory lock, waiting for it, and holds it until the transaction ends.
+     *
+     * <p>The key is a 64-bit hash of the user id, prefixed so another per-user lock gets a key of its own.
+     * The function is called in {@code FROM} because it returns {@code void}, which JPA cannot read back;
+     * the statement returns a constant instead. {@code MANDATORY} because outside a transaction the lock
+     * would end with the statement (ADR-074).
+     *
+     * @param userId the user whose HARD-limit checks are serialised
+     * @return always 1
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    @Query(
+            value = "SELECT 1 FROM pg_advisory_xact_lock(hashtextextended('hard-limit ' || CAST(:userId AS text), 0))",
+            nativeQuery = true)
+    int lockHardLimitChecks(@Param("userId") UUID userId);
 }

@@ -3,6 +3,7 @@ package com.healthupgrades.upgrade.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -46,6 +47,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -133,6 +135,24 @@ class UpgradeServiceTest {
     }
 
     @Test
+    void GivenAnActiveUpgrade_WhenItIsPromotedToHard_ThenTheUsersHardLimitChecksAreSerialisedBeforeTheCount() {
+        // BR-5 under concurrency (ADR-074). Two promotions that both counted two would both commit, so
+        // the count must come after the lock, or the lock serialises nothing.
+        when(repository.findByIdAndUserId(upgradeId, userId))
+                .thenReturn(Optional.of(upgradeWith(UpgradeStatus.ACTIVE, Difficulty.MEDIUM)));
+        when(repository.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD))
+                .thenReturn(2L);
+        when(repository.save(any(HealthUpgrade.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.update(userId, upgradeId, detailsWithDifficulty(Difficulty.HARD));
+
+        InOrder order = inOrder(repository);
+        order.verify(repository).serialiseHardLimitChecks(userId);
+        order.verify(repository).countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD);
+        order.verify(repository).save(any(HealthUpgrade.class));
+    }
+
+    @Test
     void GivenAnUpgradeThatIsNotActive_WhenItIsPromotedToHard_ThenTheHardLimitIsNotConsulted() {
         when(repository.findByIdAndUserId(upgradeId, userId))
                 .thenReturn(Optional.of(upgradeWith(UpgradeStatus.PLANNED, Difficulty.MEDIUM)));
@@ -140,8 +160,10 @@ class UpgradeServiceTest {
 
         service.update(userId, upgradeId, detailsWithDifficulty(Difficulty.HARD));
 
-        // Only ACTIVE upgrades occupy a HARD slot, so a planned promotion must not pay for the count query.
+        // Only ACTIVE upgrades occupy a HARD slot, so a planned promotion must not pay for the count query,
+        // nor wait behind another request's check.
         verify(repository, never()).countByUserIdAndStatusAndDifficulty(any(), any(), any());
+        verify(repository, never()).serialiseHardLimitChecks(any());
     }
 
     @Test
@@ -468,6 +490,36 @@ class UpgradeServiceTest {
         assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.PLANNED);
         verify(repository, never()).save(any());
         verify(eventPublisher, never()).publish(any());
+    }
+
+    @Test
+    void GivenAHardUpgrade_WhenItIsActivated_ThenTheUsersHardLimitChecksAreSerialisedBeforeTheCount() {
+        // BR-5 under concurrency (ADR-074): two tabs activating two HARD upgrades must not both count two.
+        HealthUpgrade upgrade = upgradeWith(UpgradeStatus.PLANNED, Difficulty.HARD);
+        when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.of(upgrade));
+        when(repository.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD))
+                .thenReturn(2L);
+        when(repository.save(upgrade)).thenReturn(upgrade);
+
+        service.activate(userId, upgradeId, null);
+
+        InOrder order = inOrder(repository);
+        order.verify(repository).serialiseHardLimitChecks(userId);
+        order.verify(repository).countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD);
+        order.verify(repository).save(upgrade);
+    }
+
+    @Test
+    void GivenAnUpgradeThatIsNotHard_WhenItIsActivated_ThenNoHardLimitCheckIsSerialised() {
+        // An EASY or MEDIUM upgrade claims no HARD slot, so it neither counts nor waits on one.
+        HealthUpgrade upgrade = upgradeWith(UpgradeStatus.PLANNED, Difficulty.MEDIUM);
+        when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.of(upgrade));
+        when(repository.save(upgrade)).thenReturn(upgrade);
+
+        service.activate(userId, upgradeId, null);
+
+        verify(repository, never()).serialiseHardLimitChecks(any());
+        verify(repository, never()).countByUserIdAndStatusAndDifficulty(any(), any(), any());
     }
 
     @Test

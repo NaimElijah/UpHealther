@@ -148,13 +148,22 @@ public class UpgradeService implements UpgradeQuery {
      * <p>An upgrade occupies a HARD slot only while ACTIVE, so {@code willRunActive} says whether this
      * upgrade would hold one once the operation completes — true when activating, and true when
      * promoting an already-ACTIVE upgrade. Otherwise, and for uncapped difficulties, the count query is
-     * skipped entirely.
+     * skipped entirely, and so is the lock.
      */
     private void validateHardLimit(UUID userId, Difficulty difficulty, boolean willRunActive) {
-        long activeHardCount = difficulty == Difficulty.HARD && willRunActive
-                ? repository.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD)
-                : 0L;
+        long activeHardCount = difficulty == Difficulty.HARD && willRunActive ? lockedActiveHardCount(userId) : 0L;
         schedulingService.validateWithinHardLimit(difficulty, activeHardCount);
+    }
+
+    /**
+     * Counts the user's ACTIVE HARD upgrades once no other request is between its own count and its
+     * commit. The count reads rows this request does not write, so no version check would see two
+     * requests that both counted below the limit; with the lock, the second counts the first's
+     * activation (BR-5, ADR-074).
+     */
+    private long lockedActiveHardCount(UUID userId) {
+        repository.serialiseHardLimitChecks(userId);
+        return repository.countByUserIdAndStatusAndDifficulty(userId, UpgradeStatus.ACTIVE, Difficulty.HARD);
     }
 
     /**

@@ -54,6 +54,9 @@ read/composition model with no domain or outbound side. All three are deliberate
   is enforced separately in `UpgradeSchedulingService.validateWithinHardLimit`, which the service
   applies on **every** route to a running HARD upgrade — before `entity.activate`, and before promoting
   an already-ACTIVE upgrade to HARD in `update`. An upgrade occupies a HARD slot only while ACTIVE.
+  The count is taken only after `UpgradeRepositoryPort.serialiseHardLimitChecks(userId)`, a
+  transaction-scoped advisory lock on the user, or two requests can both count two and both commit; a
+  new route into a running HARD upgrade takes it the same way (ADR-074).
 
 - **Domain events are in-process.** Publish via the injected `DomainEventPublisher` (a thin wrapper
   over Spring's `ApplicationEventPublisher`) after a successful state change. The port itself is

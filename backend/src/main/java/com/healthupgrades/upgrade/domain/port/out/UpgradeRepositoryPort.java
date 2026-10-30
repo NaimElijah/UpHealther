@@ -48,4 +48,20 @@ public interface UpgradeRepositoryPort {
 
     /** Counts a user's upgrades in a status at a difficulty (enforces the max-concurrent-HARD rule). */
     long countByUserIdAndStatusAndDifficulty(UUID userId, UpgradeStatus status, Difficulty difficulty);
+
+    /**
+     * Serialises the user's checks of the concurrent-HARD limit (BR-5): waits until no other transaction
+     * is between counting this user's ACTIVE HARD upgrades and committing what it decided, then holds
+     * that position until the caller's transaction ends.
+     *
+     * <p>The count reads rows other than the one the caller then writes, so no version check sees two
+     * requests that both counted below the limit. Calling this before the count makes the second request
+     * count after the first has committed (ADR-074).
+     *
+     * <p><strong>Precondition:</strong> a transaction is active. Outside one, the hold would end with the
+     * statement and serialise nothing, so the call fails instead.
+     *
+     * @param userId the user whose HARD-limit checks are serialised
+     */
+    void serialiseHardLimitChecks(UUID userId);
 }
