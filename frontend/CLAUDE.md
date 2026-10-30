@@ -93,9 +93,11 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   socket does end the session, because the server sends it only once it has ended the
   session itself. That path, that frame and an accepted sign-out all end it through `endSession()` in
   `src/api/session.ts`, a full document navigation so the query cache goes with the page; do not end
-  one any other way. The back/forward cache can keep that page, so `endSession` also empties the query
-  cache first, which `createQueryClient` registers through `onSessionEnd`, and a page the cache
-  restores reloads ([ADR-066](../docs/ADRs/ADR-066-a-tab-keeps-nothing-of-a-session-that-ended.md)).
+  one any other way. The back/forward cache can keep that page, so `endSession` first empties the
+  query cache and unmounts the application, which `createQueryClient` and `main.tsx` register through
+  `onSessionEnd`, and a page the cache restores reloads. The unmount is synchronous, so never call
+  `endSession` during React's render or commit, where React cannot finish it
+  ([ADR-066](../docs/ADRs/ADR-066-a-tab-keeps-nothing-of-a-session-that-ended.md)).
   State of a new kind that must not outlive a session registers with `onSessionEnd` too. A 401 from
   `/api/auth/login` or `/api/auth/register` is the form's answer and is left to the page, and a 403
   ("known, not allowed") never ends a session. See [ADR-015](../docs/ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md).

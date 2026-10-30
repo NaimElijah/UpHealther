@@ -4,8 +4,8 @@
 - **Date:** 2026-10-30
 - **Scope:**
   - `frontend/` — `api/session.ts` (a `pageshow` listener, and `onSessionEnd`), `lib/queryClient.ts`
-    (the cache it builds registers itself), and `api/notificationSocket.ts` (the session-ended ERROR
-    frame ends the session).
+    (the cache it builds registers itself), `main.tsx` (the root it mounts registers its unmount), and
+    `api/notificationSocket.ts` (the session-ended ERROR frame ends the session).
   - NFR-35 in `docs/requirements/requirements.md`.
   - No backend change, no new dependency.
 - **Issue:** [#339](https://github.com/NaimElijah/UpHealther/issues/339), findings S5.D1 and S5.D2; the
@@ -46,11 +46,19 @@ reach it directly.
 - **Every restore reloads.** `api/session.ts` registers a `pageshow` listener when it loads. When the
   event's `persisted` is true, the page was restored from the back/forward cache, and it reloads. A
   fresh load starts again from the refresh cookie, as any load does.
-- **A session's end empties the cache first.** `api/session.ts` exports `onSessionEnd(listener)`, and
-  `endSession` calls every registered listener after dropping the token and before navigating.
-  `createQueryClient()` registers `clear()` for the client it builds. So a restored page holds no
-  server state even before its reload, and a restore that some browser fails to report is still
-  empty.
+- **A session's end empties the cache and unmounts the application first.** `api/session.ts` exports
+  `onSessionEnd(listener)`, and `endSession` calls every registered listener after dropping the token
+  and before navigating. `createQueryClient()` registers `clear()` for the client it builds, and
+  `main.tsx` registers `root.unmount()` for the root it renders into.
+  - The cache alone is not enough. Emptying it leaves the rendered page in place, so a page the
+    back/forward cache kept would still show the previous user's data until its reload commits. And a
+    query still mounted would fetch again on its next render, with no token: a 401, then a refused,
+    audited refresh, then `endSession` a second time.
+  - Unmounting synchronously is safe because every caller of `endSession` runs outside React's render
+    and commit: `AuthContext`'s sign-out after an await, the response interceptor, and the STOMP
+    client's ERROR callback.
+  - So a restored page shows nothing and holds no server state even before its reload, and a restore
+    that some browser fails to report is still empty.
 - **The session-ended frame ends the session in the window at once.** `api/notificationSocket.ts`
   calls `endSession()` on it, instead of only dropping the token. Any other ERROR frame still leaves the
   session alone: Spring sends one generic frame for every refusal, an outage included. A renewal that
@@ -59,16 +67,19 @@ reach it directly.
 
 ## Consequences
 
-**Easy.** Nothing a restored page shows has outlived the session it belonged to, whichever way that
-session ended. A window learns its session is over from the server as soon as the server knows, with
-no request of its own. The layering is untouched: `lib/` registers with `api/`, the direction it
-already imports in.
+**Easy.** A restored page shows nothing and holds no server state even before its reload, whichever
+way its session ended. A window learns its session is over from the server as soon as the server
+knows, with no request of its own. The layering is untouched: `lib/` and `main.tsx` register with
+`api/`, the direction they already import in.
 
 **Hard.**
 - Back to the SPA from another site, or from the login page a sign-out left on, is a reload, not the
   instant restore the cache would have given. The session survives it, through the refresh cookie.
 - Every client `createQueryClient` builds stays registered for the life of the page: the app builds
   one, and a test file that builds several clears them all at an `endSession`.
+- Between a session's end and the sign-in page loading, the tab is blank. And `endSession` must never
+  be called from React's render or commit: React cannot finish a synchronous unmount there, and says so
+  only in a console error.
 - A window is now sent to the sign-in page while the user may be typing in it. A draft in an open
   dialog is lost, where before it was lost at the next save instead, which the server refused.
 - A window whose socket was down when the session ended never receives the frame, and still learns at
