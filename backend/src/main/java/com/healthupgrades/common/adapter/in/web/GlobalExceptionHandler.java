@@ -160,8 +160,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     /**
      * Maps a collision with a concurrent request to 409, so a client knows to send it again.
      *
-     * <p>Distinct from the clash above: nothing was modified concurrently and there is no version to
-     * reconcile. The request was simply overtaken, and the same request a moment later will work.
+     * <p>Distinct from the clash above: there is no version to reconcile; the request was overtaken, and
+     * the same request a moment later will work.
      */
     @ExceptionHandler(RetryableConflictException.class)
     public ResponseEntity<ErrorResponse> handleRetryableConflict(

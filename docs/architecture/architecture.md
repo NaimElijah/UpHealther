@@ -860,10 +860,11 @@ because nothing else is edited from two places at once.
 **A race the version check cannot see is settled in the adapter.** A check-then-insert against a
 unique constraint is the one shape this takes today: two requests can both find no row and both
 insert. The adapter's save flushes, so the constraint refuses the loser inside the call, and the
-adapter translates that one constraint, by name, into the refusal the API already answers.
-`UserRepositoryAdapter` does it for a duplicate email (FR-4, a 422), and
-`TrackingConfigRepositoryAdapter` for an upgrade's first tracking configuration, as a
-`RetryableConflictException`, since the same `PUT` resent replaces the winner's. The same adapter
+adapter translates that one constraint, by name. `UserRepositoryAdapter` translates a duplicate email
+into the `user` context's `EmailAlreadyRegisteredException`, which registration answers as a 422
+(FR-4). `TrackingConfigRepositoryAdapter` throws the API-facing exception itself: a lost race for an
+upgrade's first tracking configuration becomes the kernel's `RetryableConflictException`, a 409, since
+the same `PUT` resent replaces the winner's. The same adapter
 translates the upgrade foreign key, refused when another request deletes the upgrade between the
 ownership check and the insert, into the 404 the ownership check would now give. Any other integrity
 failure is rethrown unchanged and stays a 500. The progress entry's race is not handled this way yet
