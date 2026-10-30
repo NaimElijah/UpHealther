@@ -53,12 +53,8 @@ class AuthSessionPersistenceIT extends PostgresIT {
         // truncated or re-encoded them would refuse every refresh, with nothing to show for it.
         RefreshToken issued = new RefreshToken(UUID.randomUUID(), "a-secret");
         RefreshToken rotated = new RefreshToken(issued.sessionId(), "a-newer-secret");
-        AuthSession session = opened(issued);
-        SpentCredential retired = session.rotate(rotated.hash(), NOW.plusSeconds(60), IDLE);
-        repository.save(session);
-        flushAndClear();
-        repository.recordSpent(session.getId(), retired);
-        flushAndClear();
+        AuthSession session = stored(opened(issued));
+        rotate(session, rotated, NOW.plusSeconds(60));
 
         AuthSession read = repository.findById(session.getId()).orElseThrow();
 
@@ -73,15 +69,10 @@ class AuthSessionPersistenceIT extends PostgresIT {
         // never detected.
         RefreshToken first = new RefreshToken(UUID.randomUUID(), "first");
         RefreshToken second = new RefreshToken(first.sessionId(), "second");
-        AuthSession session = opened(first);
-        SpentCredential firstSpent = session.rotate(second.hash(), NOW.plusSeconds(60), IDLE);
+        AuthSession session = stored(opened(first));
+        SpentCredential firstSpent = rotate(session, second, NOW.plusSeconds(60));
         SpentCredential secondSpent =
-                session.rotate(new RefreshToken(first.sessionId(), "third").hash(), NOW.plusSeconds(120), IDLE);
-        repository.save(session);
-        flushAndClear();
-        repository.recordSpent(session.getId(), firstSpent);
-        repository.recordSpent(session.getId(), secondSpent);
-        flushAndClear();
+                rotate(session, new RefreshToken(first.sessionId(), "third"), NOW.plusSeconds(120));
 
         assertThat(repository.findSpent(session.getId(), first.hash())).contains(firstSpent);
         assertThat(repository.findSpent(session.getId(), second.hash())).contains(secondSpent);
@@ -92,15 +83,9 @@ class AuthSessionPersistenceIT extends PostgresIT {
         // The lookup is scoped by session as well as by digest: one session's history says nothing about
         // a credential presented to another.
         RefreshToken spentElsewhere = new RefreshToken(UUID.randomUUID(), "spent-elsewhere");
-        AuthSession elsewhere = opened(spentElsewhere);
-        SpentCredential retired = elsewhere.rotate(
-                new RefreshToken(spentElsewhere.sessionId(), "newer").hash(), NOW.plusSeconds(60), IDLE);
-        AuthSession here = opened(new RefreshToken(UUID.randomUUID(), "here"));
-        repository.save(elsewhere);
-        repository.save(here);
-        flushAndClear();
-        repository.recordSpent(elsewhere.getId(), retired);
-        flushAndClear();
+        AuthSession elsewhere = stored(opened(spentElsewhere));
+        AuthSession here = stored(opened(new RefreshToken(UUID.randomUUID(), "here")));
+        rotate(elsewhere, new RefreshToken(spentElsewhere.sessionId(), "newer"), NOW.plusSeconds(60));
 
         assertThat(repository.findSpent(here.getId(), spentElsewhere.hash())).isEmpty();
     }
@@ -110,13 +95,11 @@ class AuthSessionPersistenceIT extends PostgresIT {
         // The sweep deletes sessions in one statement, so only the foreign key's cascade can take the
         // history with them; without it a deleted session would leave its digests behind.
         RefreshToken issued = new RefreshToken(UUID.randomUUID(), "a-secret");
-        AuthSession session = opened(issued);
-        SpentCredential retired = session.rotate(
-                new RefreshToken(issued.sessionId(), "a-newer-secret").hash(), NOW.plusSeconds(60), IDLE);
-        session.revoke();
-        repository.save(session);
-        flushAndClear();
-        repository.recordSpent(session.getId(), retired);
+        AuthSession session = stored(opened(issued));
+        rotate(session, new RefreshToken(issued.sessionId(), "a-newer-secret"), NOW.plusSeconds(60));
+        AuthSession ended = repository.findForUpdate(session.getId()).orElseThrow();
+        ended.revoke();
+        repository.save(ended);
         flushAndClear();
 
         repository.deleteUnusableAsOf(NOW);
@@ -273,6 +256,26 @@ class AuthSessionPersistenceIT extends PostgresIT {
      */
     private AuthSession opened(RefreshToken token) {
         return AuthSession.opened(token.sessionId(), persistedUser().getId(), token.hash(), NOW, IDLE, ABSOLUTE);
+    }
+
+    /** Stores a newly opened session and detaches it, as a sign-in commits one before any refresh. */
+    private AuthSession stored(AuthSession opened) {
+        repository.save(opened);
+        flushAndClear();
+        return opened;
+    }
+
+    /**
+     * Rotates a stored session as a refresh does: read under the row lock, rotated, and stored through the
+     * one port method that writes the session and its spent credential together. Nothing is flushed
+     * between the two writes, so the order the port issues them in is the one under test.
+     */
+    private SpentCredential rotate(AuthSession stored, RefreshToken next, Instant at) {
+        AuthSession locked = repository.findForUpdate(stored.getId()).orElseThrow();
+        SpentCredential retired = locked.rotate(next.hash(), at, IDLE);
+        repository.saveRotation(locked, retired);
+        flushAndClear();
+        return retired;
     }
 
     /** Forces the writes out and empties the persistence context, so a read is a read and not a cache hit. */

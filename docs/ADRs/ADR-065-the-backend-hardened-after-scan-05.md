@@ -58,7 +58,9 @@ most once, and that using it is detected, and the settings and limits around it.
 
 **A session remembers every credential it has spent.** Each rotation retires the current digest as a
 `SpentCredential`, its digest and the instant it was retired, and the service stores it in
-`auth_session_spent_tokens` within the rotation's transaction, under the session's row lock. The rows
+`auth_session_spent_tokens` within the rotation's transaction, under the session's row lock. One port
+method, `saveRotation`, writes the session and its spent credential together, so no rotation path can
+store one and drop the other. The rows
 cascade with their session, so the nightly sweep and an account's deletion take them too, and a
 session's history never outlives it.
 

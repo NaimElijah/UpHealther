@@ -724,8 +724,10 @@ class AuthSessionServiceTest {
         }
 
         @Override
-        public void recordSpent(UUID sessionId, SpentCredential credential) {
-            spent.computeIfAbsent(sessionId, id -> new ArrayList<>()).add(credential);
+        public AuthSession saveRotation(AuthSession session, SpentCredential credential) {
+            rows.put(session.getId(), session);
+            spent.computeIfAbsent(session.getId(), id -> new ArrayList<>()).add(credential);
+            return session;
         }
 
         @Override
@@ -792,7 +794,7 @@ class AuthSessionServiceTest {
         }
 
         @Override
-        public void recordSpent(UUID sessionId, SpentCredential credential) {
+        public AuthSession saveRotation(AuthSession session, SpentCredential credential) {
             throw down();
         }
 

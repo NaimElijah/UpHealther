@@ -142,8 +142,7 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
             }
             RefreshToken rotated = new RefreshToken(session.getId(), secrets.generate());
             SpentCredential retired = session.rotate(rotated.hash(), now, properties.idle());
-            sessions.save(session);
-            sessions.recordSpent(session.getId(), retired);
+            sessions.saveRotation(session, retired);
             auditTrail.record(AuditEvent.allowed(AuditAction.AUTH_REFRESH, session.getUserId(), session.getId()));
             return new RefreshOutcome.Rotated(
                     session.getUserId(),

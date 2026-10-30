@@ -32,15 +32,19 @@ public interface AuthSessionRepositoryPort {
     Optional<AuthSession> findForUpdate(UUID id);
 
     /**
-     * Remembers a credential a rotation retired, for as long as its session lives.
+     * Stores a rotation: the session under its new credential, and the credential the rotation retired,
+     * which is remembered for as long as the session lives.
      *
-     * <p>Must be called inside the transaction that rotated the session, so the session and its history
-     * never disagree.
+     * <p>One method rather than a save and a second call, so the two writes cannot be split: a rotation
+     * that stored the session and dropped its spent credential would leave a later replay of that
+     * credential looking like a guess, which is S5.A1 again. Must be called inside the transaction that
+     * read the session for update and rotated it, so the session and its history never disagree.
      *
-     * @param sessionId the session that spent it, which must already be stored
-     * @param spent     the retired digest and when it was retired
+     * @param session the rotated session, which must already be stored
+     * @param spent   the credential {@link AuthSession#rotate} retired: its digest and when
+     * @return the managed session
      */
-    void recordSpent(UUID sessionId, SpentCredential spent);
+    AuthSession saveRotation(AuthSession session, SpentCredential spent);
 
     /**
      * Looks up a credential a session has already spent.

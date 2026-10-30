@@ -48,14 +48,16 @@ class AuthSessionRepositoryAdapter implements AuthSessionRepositoryPort {
 
     /** {@inheritDoc} */
     @Override
-    public void recordSpent(UUID sessionId, SpentCredential spent) {
+    public AuthSession saveRotation(AuthSession session, SpentCredential spent) {
+        AuthSession saved = jpa.save(session);
         entityManager
                 .createNativeQuery("INSERT INTO auth_session_spent_tokens (session_id, token_hash, spent_at) "
                         + "VALUES (:sessionId, :tokenHash, :spentAt)")
-                .setParameter("sessionId", sessionId)
+                .setParameter("sessionId", saved.getId())
                 .setParameter("tokenHash", spent.tokenHash())
                 .setParameter("spentAt", spent.spentAt())
                 .executeUpdate();
+        return saved;
     }
 
     /** {@inheritDoc} */
