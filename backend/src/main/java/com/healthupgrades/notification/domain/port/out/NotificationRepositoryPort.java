@@ -48,7 +48,8 @@ public interface NotificationRepositoryPort {
 
     /**
      * Deletes up to {@code limit} notifications, of every user, created strictly before {@code cutoff}, oldest
-     * first, in a transaction of its own (NFR-60).
+     * first, in a transaction of its own (NFR-60). The deletion commits when this call returns, whatever
+     * transaction the caller is in, so it stands if the caller's own work rolls back.
      *
      * @param cutoff the creation time from which a notification is kept
      * @param limit  the most this one call deletes

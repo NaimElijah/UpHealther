@@ -12,6 +12,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -59,11 +60,32 @@ class NotificationRetentionServiceTest {
     void
             GivenMoreThanABatchOfOldNotifications_WhenExpiredNotificationsAreDeleted_ThenBatchesRunUntilOneComesBackShort() {
         int full = NotificationRetentionService.BATCH_SIZE;
-        when(repository.deleteCreatedBefore(any(), anyInt())).thenReturn(full, full, 7);
+        // The trailing 0 is for a loop that ran on past a short batch: it fails times(3) rather than
+        // looping on the repeated last value until the build times out.
+        when(repository.deleteCreatedBefore(any(), anyInt())).thenReturn(full, full, 7, 0);
 
         assertThat(retention.deleteExpired()).isEqualTo(2 * full + 7);
 
         verify(repository, times(3)).deleteCreatedBefore(any(), anyInt());
+    }
+
+    @Test
+    void
+            GivenABacklogLargerThanOneRunTakes_WhenExpiredNotificationsAreDeleted_ThenTheRunStopsAtTheCapAndTheNextContinues() {
+        // The job shares the scheduler's one thread with the minute-by-minute reminder sweep, so a run gives
+        // it back after a bounded number of batches, however much is left, and the next night goes on.
+        int full = NotificationRetentionService.BATCH_SIZE;
+        int cap = NotificationRetentionService.MAX_BATCHES_PER_RUN;
+        Integer[] restOfTheFirstRunThenTheSecond = new Integer[cap];
+        Arrays.fill(restOfTheFirstRunThenTheSecond, full);
+        restOfTheFirstRunThenTheSecond[cap - 1] = 7;
+        when(repository.deleteCreatedBefore(any(), anyInt())).thenReturn(full, restOfTheFirstRunThenTheSecond);
+
+        assertThat(retention.deleteExpired()).as("the first run").isEqualTo(cap * full);
+        verify(repository, times(cap)).deleteCreatedBefore(any(), anyInt());
+
+        assertThat(retention.deleteExpired()).as("the next run").isEqualTo(7);
+        verify(repository, times(cap + 1)).deleteCreatedBefore(any(), anyInt());
     }
 
     @Test

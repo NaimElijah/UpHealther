@@ -38,14 +38,22 @@ deletes what nothing can use.
 3. **It deletes in bounded batches.** One statement removes at most a thousand rows, oldest first, each in a
    transaction of its own, and the job repeats until a batch comes back short. A first run against a large
    backlog, or a night after the job was down, holds its locks briefly and often rather than for the whole
-   table. A batch that committed stays deleted if a later one fails.
-4. **An index on `notifications (created_at)` serves it** (V17). Without one, each batch would scan the table
+   table. A batch that committed stays deleted if a later one fails. The repository method is
+   `REQUIRES_NEW`, so each batch commits on its own even when a caller runs the job inside a transaction
+   of its own.
+4. **A run takes at most twenty batches**, `MAX_BATCHES_PER_RUN`, twenty thousand rows. The job shares
+   Boot's one scheduler thread (`spring.task.scheduling.pool.size` is unset) with the reminder sweep, which
+   runs every minute and sends a minute's reminders only in that minute (FR-31), so a run that held the
+   thread past the next minute would cost those reminders. A night's normal volume, one day's notifications
+   ninety days on, is far below the cap, so a normal night deletes everything due; a larger backlog, after
+   the job was down or on a first run against a populated table, drains over the following nights.
+5. **An index on `notifications (created_at)` serves it** (V17). Without one, each batch would scan the table
    for its oldest rows. The check-in sweep's dedup read, `findUserIdsNotifiedAfter`, filters on the same column
    for one day's rows, and the index serves that too.
-5. **The period and the batch size are constants** in `NotificationRetentionService`. The period is a product
-   decision, recorded here, not an operator's setting; only the schedule is configuration, as the session
-   cleanup's is.
-6. **The retention service is not `NotificationService`.** A controller holds that one, and this deletes every
+6. **The period, the batch size and the cap are constants** in `NotificationRetentionService`. The period
+   is a product decision, recorded here, not an operator's setting; only the schedule is configuration, as
+   the session cleanup's is.
+7. **The retention service is not `NotificationService`.** A controller holds that one, and this deletes every
    account's rows; only the job holds the retention service.
 
 ## Consequences
@@ -62,6 +70,8 @@ deletes what nothing can use.
 - **Correctness depends on the job running.** If it stops, old notifications stay until it runs again; the
   run counter shows it stopped (NFR-25).
 - **The period is in code.** Changing it is a release, which is the point of recording it here.
+- **A backlog beyond the cap outlives the period by a few nights.** Twenty thousand rows go each night until
+  it is gone, so a notification can stay a little past ninety days after the job was down.
 
 ## Alternatives considered
 
@@ -72,10 +82,16 @@ deletes what nothing can use.
   that leaves user-written text kept for ever until then.
 - **One `DELETE` for everything past the cutoff.** Simpler, and fine for one night's rows. Rejected: the first
   run, or one after the job was down, would delete an unbounded number of rows in one transaction.
+- **No cap, with a second scheduler thread** (`spring.task.scheduling.pool.size: 2`), so a long run cannot
+  delay the reminder sweep. Rejected: it changes how every job runs to protect one minute's reminders from
+  one job, and the jobs were written for one thread, with nothing checking that any two can overlap. The
+  cap costs only a few nights' delay, after an outage.
 
 ## When to revisit
 
 - **The privacy notice (#222) states a retention period** for this data. The constant then follows it, and
   this record is superseded.
+- **The nightly log line reports the cap's twenty thousand night after night**, so normal volume has grown
+  to reach it. Then the cap, or the scheduler's one thread, is a decision again.
 - **A user asks for a longer history**, or a feature needs notifications older than ninety days. Then the
   period, or what is kept of a notification, is a product decision again.

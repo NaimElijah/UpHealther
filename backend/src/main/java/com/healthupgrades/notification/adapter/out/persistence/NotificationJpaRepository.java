@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -40,11 +41,12 @@ interface NotificationJpaRepository extends JpaRepository<Notification, UUID> {
     /**
      * Deletes a batch of the oldest notifications created before the cutoff, of every user.
      *
-     * <p>Native, because JPQL's bulk delete takes no limit. Transactional here, so each batch commits on its
-     * own when the caller runs outside a transaction, as the retention job does: a long backlog is then
-     * deleted in short transactions rather than one that holds its locks for the whole table.
+     * <p>Native, because JPQL's bulk delete takes no limit. {@code REQUIRES_NEW}, so each batch commits on
+     * its own whatever transaction the caller runs in: a long backlog is then deleted in short transactions
+     * rather than one that holds its locks for the whole table, and a caller that wrapped the run in a
+     * transaction of its own cannot turn it back into one (ADR-075).
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(
             value = "DELETE FROM notifications WHERE id IN"

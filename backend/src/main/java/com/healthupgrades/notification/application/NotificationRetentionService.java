@@ -30,12 +30,20 @@ public class NotificationRetentionService {
      */
     static final int BATCH_SIZE = 1_000;
 
+    /**
+     * The most batches one run deletes, twenty thousand rows. The job shares Boot's one scheduler thread with
+     * the reminder sweep, which sends a minute's reminders only in that minute (FR-31), so a run must give
+     * the thread back within seconds. A night's normal volume, one day's notifications ninety days on, is far
+     * below it; a larger backlog drains over the following nights (ADR-075).
+     */
+    static final int MAX_BATCHES_PER_RUN = 20;
+
     private final NotificationRepositoryPort repository; // outbound persistence port
     private final Clock clock; // the server's clock, in UTC (ADR-020)
 
     /**
      * Deletes the notifications created before the retention period began, a batch at a time, until a batch
-     * comes back short.
+     * comes back short or {@link #MAX_BATCHES_PER_RUN} have run. What is left then waits for the next run.
      *
      * <p>A notification created exactly {@link #RETENTION} ago is kept; one created any time before is
      * deleted. Not one transaction: a batch that committed stays deleted if a later one fails.
@@ -45,11 +53,13 @@ public class NotificationRetentionService {
     public int deleteExpired() {
         LocalDateTime cutoff = LocalDateTime.now(clock).minus(RETENTION);
         int total = 0;
-        int deleted;
-        do {
-            deleted = repository.deleteCreatedBefore(cutoff, BATCH_SIZE);
+        for (int batch = 0; batch < MAX_BATCHES_PER_RUN; batch++) {
+            int deleted = repository.deleteCreatedBefore(cutoff, BATCH_SIZE);
             total += deleted;
-        } while (deleted == BATCH_SIZE);
+            if (deleted < BATCH_SIZE) {
+                break;
+            }
+        }
         return total;
     }
 }
