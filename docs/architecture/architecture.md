@@ -163,7 +163,9 @@ as it is open; a refusal names nobody, as a refused login does. A CONNECT with n
 — what a tab whose session could not be renewed sends every five seconds — presented nothing and is not
 an entry, as a refresh with no cookie is not. A refusal reaches the browser as a STOMP ERROR frame
 whose message is Spring's generic one, the same whatever the cause, an outage included, so the client
-keeps its token through one and retries.
+keeps its token through one and retries. Spring logs some refusals at ERROR, so nginx throttles `/ws`
+per client address: sixty handshakes a minute with a burst of twenty, and twenty sockets open at once,
+each over the limit answered 429.
 
 The same interceptor authorises the frames that follow, because a session that is merely connected
 can still name any destination it likes. A SUBSCRIBE must come from an authenticated session and

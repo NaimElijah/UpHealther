@@ -40,4 +40,35 @@ describe('the nginx configuration', () => {
       Port: proxiedHeader(body, 'X-Forwarded-Port'),
     }).toEqual({ For: '$remote_addr', Proto: '$scheme', Host: '$host', Port: '$server_port' });
   });
+
+  describe('the socket endpoint', () => {
+    /** One tab's socket, reconnecting every five seconds while it is down (`api/notificationSocket.ts`). */
+    const HANDSHAKES_A_MINUTE_FOR_ONE_TAB = 60_000 / 5_000;
+
+    /** The zone a top-level `limit_req_zone` or `limit_conn_zone` declares, with its key and its parameters. */
+    function zone(directive: 'limit_req_zone' | 'limit_conn_zone', name: string) {
+      const match = nginxConf.match(new RegExp(`^\\s*${directive}\\s+(\\S+)\\s+zone=${name}:\\S+([^;]*);`, 'm'));
+      return match ? { key: match[1], parameters: match[2] } : undefined;
+    }
+
+    it('GivenTheSocketLocation_WhenItsLimitsAreRead_ThenHandshakesAndOpenSocketsAreCappedPerAddress', () => {
+      // S5.C4: an anonymous client could open sockets, and have each refused frame logged at ERROR, as
+      // fast as it liked.
+      const body = locationBody('/ws');
+      const requestZone = body.match(/limit_req\s+zone=(\S+)/)?.[1];
+      const connectionZone = body.match(/limit_conn\s+(\S+)\s+\d+\s*;/)?.[1];
+
+      expect(requestZone && zone('limit_req_zone', requestZone)?.key).toBe('$binary_remote_addr');
+      expect(connectionZone && zone('limit_conn_zone', connectionZone)?.key).toBe('$binary_remote_addr');
+    });
+
+    it('GivenTheSocketLocation_WhenItsHandshakeRateIsRead_ThenATabReconnectingEveryFiveSecondsIsUnderIt', () => {
+      const requestZone = locationBody('/ws').match(/limit_req\s+zone=(\S+)/)?.[1] ?? '';
+      const rate = zone('limit_req_zone', requestZone)?.parameters.match(/rate=(\d+)r\/(s|m)/);
+      if (!rate) throw new Error('The socket location applies no limit_req zone with a rate.');
+      const perMinute = Number(rate[1]) * (rate[2] === 's' ? 60 : 1);
+
+      expect(perMinute).toBeGreaterThanOrEqual(HANDSHAKES_A_MINUTE_FOR_ONE_TAB);
+    });
+  });
 });
