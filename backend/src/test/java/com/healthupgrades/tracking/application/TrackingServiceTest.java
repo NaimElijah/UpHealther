@@ -524,19 +524,6 @@ class TrackingServiceTest {
     // ---- Inbound ports used by other contexts ----
 
     @Test
-    void GivenSeveralUpgrades_WhenTheirConfigurationsAreResolved_ThenTheyAreFetchedInOneBatch() {
-        // NFR-14. The upgrade list endpoint calls this once for every row it is about to render; a
-        // per-id lookup here is the N+1 that made the list slow.
-        List<UUID> ids = List.of(upgradeId, UUID.randomUUID(), UUID.randomUUID());
-        when(configRepository.findByUpgradeIdIn(ids)).thenReturn(List.of());
-
-        service.findByUpgradeIds(ids);
-
-        verify(configRepository).findByUpgradeIdIn(ids);
-        verify(configRepository, never()).findByUpgradeId(any());
-    }
-
-    @Test
     void GivenSeveralUpgrades_WhenTheDashboardAsksForTheirStreaks_ThenTheirHistoriesAreFetchedInOneBatch() {
         // NFR-14 (#99). The dashboard asks for every running upgrade's streak on each load; reading each
         // history separately made that one query per running upgrade.

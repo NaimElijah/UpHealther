@@ -256,9 +256,16 @@ reach returns another user's row as absent (BR-15), with one exception:
 `TrackingConfigQuery.findByUpgradeIds`, which the upgrade responses use to show each upgrade's
 tracking setup, returns configurations whoever owns them, because `tracking_configs` has no owner
 column to filter on. Its one caller maps upgrades already loaded through user-scoped reads, so no
-request-supplied id reaches it. ArchUnit pins both hops: every dependent of `TrackingConfigQuery` stays
-inside `tracking`, and `UpgradeTrackingSummaryPort`, through which the read reaches `upgrade`, serves
-only `UpgradeWebMapper` and the adapter that implements it.
+request-supplied id reaches it. ArchUnit pins every hop: every dependent of `TrackingConfigQuery` stays
+inside `tracking`; `UpgradeTrackingSummaryPort`, through which the read reaches `upgrade`, serves only
+`UpgradeWebMapper` and the adapter that implements it; and the mapper serves only `UpgradeController`
+and `DashboardWebMapper`, the two classes that hand it upgrades. The read of every account is the other
+unscoped read a request could reach, and it is on a port of its own, `AccountListQuery`, which only
+`admin` may hold, not on the `UserQuery` every context reaches. Each unscoped read, the sweeps included,
+is implemented by a package-private class of its own — `UpgradeSweeps`, `ProgressSweeps`,
+`ReminderSweeps`, `TrackingConfigReads`, `AccountListing` — so no controller can inject the
+implementation and go round the rule on its port
+([ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md)).
 The administrator bootstrap is the same shape: `AdminBootstrapRunner` parses its setting and calls
 `AdminBootstrapService.bootstrap`, which applies the rules and records the promotion.
 `inbound_adapters_do_not_drive_outbound_ports` keeps every class under `adapter/in` off the outbound
@@ -303,8 +310,9 @@ The indirection is accepted, and not moved into the use cases. Moving it would c
 with its setup: about a dozen signatures, to remove an indirection that is named here instead. The
 cost is that a web mapper does I/O, which a reader of the layering rules would not expect.
 `TrackingConfigQuery`, the port that answers, is not scoped by owner. ArchUnit keeps every dependent of
-it inside `tracking`, and every dependent of `UpgradeTrackingSummaryPort` but this mapper and its
-implementer out; mechanism 5, above, says why that holds.
+it inside `tracking`, every dependent of `UpgradeTrackingSummaryPort` but this mapper and its
+implementer out, and every dependent of this mapper but its two callers out; mechanism 5, above, says
+why that holds.
 
 ---
 
@@ -444,7 +452,7 @@ Sign-out treats a spent credential the same way: inside its grace window it sign
 session is revoked as reuse, through the one method refresh uses. A credential that is neither current
 nor spent revokes nothing, because the session id travels in a token claim and is therefore not a
 secret
-([ADR-065](../ADRs/ADR-065-sessions-and-tokens-hardened-after-scan-05.md)).
+([ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md)).
 And the `sid` claim is checked on every authenticated request, together with the `sub` the row must
 name as its owner, which is what turns a revoked row into a refused request rather than a wait for the
 token to expire.
@@ -458,7 +466,7 @@ no cookie at all has presented nothing; the controller answers it without asking
 refresh every signed-out page load makes is not an entry. Nor is a request with two of the cookie, which
 a sibling host can cause by setting one on the parent domain: `RefreshCookies` reads exactly one or
 none, so the request is answered as if it carried none and ours is cleared
-([ADR-065](../ADRs/ADR-065-sessions-and-tokens-hardened-after-scan-05.md)).
+([ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md)).
 
 ---
 

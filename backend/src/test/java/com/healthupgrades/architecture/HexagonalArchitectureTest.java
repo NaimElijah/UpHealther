@@ -504,6 +504,70 @@ class HexagonalArchitectureTest {
             .resideInAPackage("com.healthupgrades.tracking..")
             .as("TrackingConfigQuery, which is not scoped by owner, must be used only inside tracking (BR-15)");
 
+    /** The unscoped read ports that are not sweeps, by name, for {@link #UNSCOPED_READ_PORT}. */
+    private static final java.util.Set<String> UNSCOPED_READ_PORTS_BY_NAME = java.util.Set.of(
+            "com.healthupgrades.tracking.application.port.in.TrackingConfigQuery",
+            "com.healthupgrades.user.application.port.in.AccountListQuery");
+
+    /** The ports whose reads are not scoped by owner, named once for the rules below. */
+    private static final DescribedPredicate<JavaClass> UNSCOPED_READ_PORT = DescribedPredicate.describe(
+            "a port whose reads are not scoped by owner",
+            port -> (port.getPackageName().endsWith(".application.port.in")
+                            && port.getSimpleName().endsWith("SweepQuery"))
+                    || UNSCOPED_READ_PORTS_BY_NAME.contains(port.getName()));
+
+    /**
+     * An unscoped read is implemented by a class nothing outside its package can name.
+     *
+     * <p>The rules on each port see only dependencies on the port. A public class implementing it is a
+     * second way in: a controller could inject the class and call the read with an id from a request, and
+     * no port rule would notice (S5.B6). So each one is implemented by a package-private class of its own,
+     * never by a public service, and Spring wires the port to it. This extends ADR-064's sweep rule to every
+     * unscoped read (ADR-065).
+     */
+    @ArchTest
+    static final ArchRule unscoped_reads_are_implemented_by_package_private_classes = classes()
+            .that(JavaClass.Predicates.implement(UNSCOPED_READ_PORT))
+            .should()
+            .notBePublic()
+            .as("a class implementing an unscoped read must be package-private (BR-15)");
+
+    /**
+     * The upgrade mapper, which reads tracking configurations for whatever upgrades it is handed, serves
+     * the two web classes that hand it upgrades loaded through user-scoped reads, and nothing else.
+     *
+     * <p>{@code UpgradeWebMapper.toDtos} calls {@code UpgradeTrackingSummaryPort}, so the pin on that port
+     * holds only while every caller of the mapper is one that cannot pass it somebody else's upgrade. The
+     * slice rule publishes the upgrade context's web DTOs, and the mapper beside them, to every context;
+     * this closes that hop (S5.B6). A new caller is a decision to add here, after checking where its
+     * upgrades come from.
+     */
+    @ArchTest
+    static final ArchRule upgrade_web_mapper_serves_only_its_two_callers = classes()
+            .that()
+            .haveFullyQualifiedName("com.healthupgrades.upgrade.adapter.in.web.UpgradeWebMapper")
+            .should()
+            .onlyHaveDependentClassesThat(JavaClass.Predicates.belongToAnyOf(
+                    com.healthupgrades.upgrade.adapter.in.web.UpgradeController.class,
+                    com.healthupgrades.dashboard.adapter.in.web.DashboardWebMapper.class))
+            .as("UpgradeWebMapper must be used only by UpgradeController and DashboardWebMapper (BR-15)");
+
+    /**
+     * The read of every account serves the administration context alone.
+     *
+     * <p>{@code AccountListQuery} pages through every account on the installation, names and addresses
+     * included. On {@code UserQuery}, which every context reaches, a feature anywhere could have listed
+     * them (S5.B6). It is a port of its own, and only {@code admin} and its implementer may depend on it.
+     */
+    @ArchTest
+    static final ArchRule account_listing_serves_only_administration = classes()
+            .that()
+            .haveFullyQualifiedName("com.healthupgrades.user.application.port.in.AccountListQuery")
+            .should(ArchConditions.onlyHaveDependentsWhere(
+                    dependencyOrigin(resideInAPackage("com.healthupgrades.admin.."))
+                            .or(ORIGIN_IMPLEMENTS_TARGET)))
+            .as("AccountListQuery, which reads every account, must be used only by the admin context (BR-15)");
+
     /**
      * Only the startup runner may promote the first administrator.
      *

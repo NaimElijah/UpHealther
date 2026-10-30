@@ -23,9 +23,12 @@ read/composition model with no domain or outbound side. All three are deliberate
   The scheduled sweeps are the one reader of every user's rows, and they read through a port of their
   own — `UpgradeSweepQuery`, `ProgressSweepQuery`, `ReminderSweepQuery` — never through the
   user-facing query port; `HexagonalArchitectureTest` lets only the jobs' application services depend
-  on a `*SweepQuery`. Each is implemented by a class of its own (`UpgradeSweeps`, `ProgressSweeps`,
-  `ReminderSweeps`), never by the service a controller holds, or the controller could call the sweep
-  through it (ADR-064). A new read a request can reach takes the owner's id instead.
+  on a `*SweepQuery`. Each is implemented by a package-private class of its own (`UpgradeSweeps`,
+  `ProgressSweeps`, `ReminderSweeps`), never by the service a controller holds, or the controller could
+  call the sweep through it (ADR-064). The two other unscoped reads follow the same pattern:
+  `TrackingConfigQuery` (`TrackingConfigReads`) and `AccountListQuery` (`AccountListing`, every account,
+  which only `admin` may hold). `HexagonalArchitectureTest` keeps every such implementer package-private
+  (ADR-065). A new read a request can reach takes the owner's id instead.
 
 - **A role opens paths, never rows.** `USER` and `ADMIN` live on the `users` row and are read on every
   request, never carried in the token, so a revoked role takes effect on the next call. `ADMIN` unlocks

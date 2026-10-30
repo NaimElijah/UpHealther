@@ -17,6 +17,7 @@ import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.RecordingAuditTrail;
+import com.healthupgrades.user.application.port.in.AccountListQuery;
 import com.healthupgrades.user.application.port.in.UserCommand;
 import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.Role;
@@ -54,6 +55,9 @@ class AdminUserServiceTest {
     UserQuery userQuery;
 
     @Mock
+    AccountListQuery accounts;
+
+    @Mock
     UserCommand userCommand;
 
     @Mock
@@ -65,7 +69,7 @@ class AdminUserServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AdminUserService(userQuery, userCommand, sessions, auditTrail);
+        service = new AdminUserService(userQuery, accounts, userCommand, sessions, auditTrail);
         // Saving answers with what it was handed, as the repository does. Lenient because the refusal
         // tests never reach it - which is the point of them.
         lenient().when(userCommand.save(any(User.class))).thenAnswer(call -> call.getArgument(0));
@@ -170,8 +174,8 @@ class AdminUserServiceTest {
         // Without the total a caller cannot tell twenty-five of twenty-six from twenty-five of a
         // thousand, and has to page until a short one comes back to find out.
         List<User> firstPage = List.of(AUser.withId(UUID.randomUUID()), AUser.withId(UUID.randomUUID()));
-        when(userQuery.findAll(0, 25)).thenReturn(firstPage);
-        when(userQuery.count()).thenReturn(137L);
+        when(accounts.findAll(0, 25)).thenReturn(firstPage);
+        when(accounts.count()).thenReturn(137L);
 
         AccountPage page = service.list(ADMIN_ID, 0, 25);
 
@@ -185,8 +189,8 @@ class AdminUserServiceTest {
     void GivenAnAdministrator_WhenTheyListTheAccounts_ThenTheReadIsAuditedNamingThem() {
         // S5.A12: the one read that returns other people's names and addresses, so who read it is
         // recorded. A page is no one record, so the entry names the administrator and no resource.
-        when(userQuery.findAll(0, 25)).thenReturn(List.of());
-        when(userQuery.count()).thenReturn(0L);
+        when(accounts.findAll(0, 25)).thenReturn(List.of());
+        when(accounts.count()).thenReturn(0L);
 
         service.list(ADMIN_ID, 0, 25);
 

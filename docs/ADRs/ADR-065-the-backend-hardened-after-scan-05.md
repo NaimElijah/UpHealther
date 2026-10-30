@@ -1,18 +1,20 @@
-# ADR-065: Sessions and tokens hardened after scan 05
+# ADR-065: The backend hardened after scan 05: sessions, tokens, limits and the unscoped reads
 
 - **Status:** Accepted
 - **Date:** 2026-10-30
 - **Scope:** `backend/` — the `auth` context's sessions, refresh cookie and their configuration, the
-  rate limit in front of the cookie endpoints, how the audit stream names a session, and migration `V10__auth_session_spent_tokens.sql`;
-  NFR-4, NFR-24, NFR-34, NFR-36, NFR-47 and NFR-58 in `docs/requirements/requirements.md`.
+  rate limit in front of the cookie endpoints, how the audit stream names a session, the ArchUnit
+  pins on the reads that are not scoped by owner, and migration `V10__auth_session_spent_tokens.sql`;
+  NFR-4, NFR-9, NFR-24, NFR-34, NFR-36, NFR-47 and NFR-58 in `docs/requirements/requirements.md`.
 - **Issue:** [#339](https://github.com/NaimElijah/UpHealther/issues/339), scan 05 of
   [#334](https://github.com/NaimElijah/UpHealther/issues/334): findings S5.A1, S5.A4, S5.A8, S5.A9,
-  S5.A11, S5.A13, S5.A14 and S5.C3.
+  S5.A11, S5.A13, S5.A14, S5.B6 and S5.C3.
   It extends [ADR-015](ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md), whose reuse
   detection it makes hold for any number of rotations and on both cookie endpoints, and
   [ADR-041](ADR-041-the-refresh-cookie-is-always-secure.md), whose cookie it names, and
   [ADR-017](ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md), whose limiter it uses a
-  second time.
+  second time. Section 9 extends
+  [ADR-064](ADR-064-the-backends-layering-rules-beyond-adr-002.md), and changes nothing it decided.
 
 ## Context
 
@@ -41,6 +43,11 @@ most once, and that using it is detected, and the settings and limits around it.
   replay, which turns reuse detection off, and nothing would report it.
 - **S5.A14, a token without `exp` was accepted.** JJWT checks the expiry only when a token carries one,
   so a token signed with the key and no `exp` would never lapse.
+- **S5.B6, ADR-064's pins on the unscoped reads left paths one hop away.** The sweep classes were
+  public beans a controller could inject; `TrackingService`, which both tracking controllers hold,
+  implemented the unscoped configuration read; `UpgradeWebMapper`, which calls that read, was open to
+  every context; and the read of every account sat on `UserQuery`, which every context reaches. No route
+  reached any of them.
 - **S5.C3, the audit stream listed live sessions beside their owners.** Every refresh writes the
   account's id and the session's, and that pair is what ADR-049 says a signing key alone lacks to forge
   a token for an existing account.
@@ -133,6 +140,15 @@ The bounds admit every value the repository sets anywhere, `AuthSessionFlowIT`'s
 SHA-256 of the id's text. One session always gives the same value, so its entries still join up, and
 anyone who holds a session id, from the database or a support case, finds its entries by computing the
 digest. Every other resource's id is written as it is.
+
+### 9. ADR-064's pins close one hop further (S5.B6)
+
+This only extends what ADR-064 decided, that a read not scoped by owner is pinned by ArchUnit rather than
+scoped. Three rules are added: every class implementing such a read is package-private, which made
+`UpgradeSweeps`, `ProgressSweeps` and `ReminderSweeps` package-private and moved the configuration read
+off `TrackingService` into `TrackingConfigReads`; `UpgradeWebMapper` serves only `UpgradeController` and
+`DashboardWebMapper`; and the account listing is `AccountListQuery`, a port of its own that only `admin`
+may hold, implemented by `AccountListing`. Each rule was shown to fail on a mutated copy.
 
 ## Consequences
 

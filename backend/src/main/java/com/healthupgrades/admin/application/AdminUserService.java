@@ -8,6 +8,7 @@ import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
+import com.healthupgrades.user.application.port.in.AccountListQuery;
 import com.healthupgrades.user.application.port.in.UserCommand;
 import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.Role;
@@ -42,6 +43,7 @@ public class AdminUserService implements AdminUserQuery, AdminUserCommand {
     static final String NOT_YOUR_OWN_ACCOUNT = "An administrator cannot change their own account";
 
     private final UserQuery userQuery; // inbound read port of the user context
+    private final AccountListQuery accounts; // the user context's listing of every account, admin's alone
     private final UserCommand userCommand; // inbound write port of the user context
     private final SessionCommand sessions; // inbound write port of the auth context
     private final AuditTrail auditTrail; // records who changed whose account
@@ -59,7 +61,7 @@ public class AdminUserService implements AdminUserQuery, AdminUserCommand {
                 AuditAction.ADMIN_LIST,
                 actingAdminId,
                 null,
-                () -> new AccountPage(userQuery.findAll(page, size), page, size, userQuery.count()));
+                () -> new AccountPage(accounts.findAll(page, size), page, size, accounts.count()));
     }
 
     /**

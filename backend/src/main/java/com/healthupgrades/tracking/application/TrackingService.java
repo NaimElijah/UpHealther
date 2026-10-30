@@ -9,7 +9,6 @@ import com.healthupgrades.tracking.application.port.in.ProgressQuery;
 import com.healthupgrades.tracking.application.port.in.StreakQuery;
 import com.healthupgrades.tracking.application.port.in.StreakSummary;
 import com.healthupgrades.tracking.application.port.in.TrackingConfigDetails;
-import com.healthupgrades.tracking.application.port.in.TrackingConfigQuery;
 import com.healthupgrades.tracking.domain.event.StreakAchieved;
 import com.healthupgrades.tracking.domain.model.DuplicateProgressException;
 import com.healthupgrades.tracking.domain.model.ProgressEntry;
@@ -36,14 +35,14 @@ import org.springframework.transaction.annotation.Transactional;
  * Application service for tracking configuration and progress logging.
  *
  * <p>Confirms upgrade ownership through the upgrade context's inbound {@link UpgradeQuery} port, and
- * itself implements the tracking inbound ports ({@link TrackingConfigQuery}, {@link ProgressQuery},
- * {@link StreakQuery}) so other contexts can read tracking data as domain objects. The check-in sweep's
- * read of every user's entries is {@link ProgressSweeps}', not this service's, because controllers hold
- * this one.
+ * itself implements the tracking inbound ports {@link ProgressQuery} and {@link StreakQuery} so other
+ * contexts can read tracking data as domain objects. The two reads that are not scoped by owner are not
+ * this service's, because controllers hold this one: the check-in sweep's is {@link ProgressSweeps}', and
+ * the configurations by upgrade id are {@code TrackingConfigReads}'.
  */
 @Service
 @RequiredArgsConstructor
-public class TrackingService implements TrackingConfigQuery, ProgressQuery, StreakQuery {
+public class TrackingService implements ProgressQuery, StreakQuery {
 
     private final TrackingConfigRepositoryPort configRepository; // outbound: tracking configs
     private final ProgressEntryRepositoryPort progressRepository; // outbound: progress entries
@@ -225,14 +224,6 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Stre
         LocalDate today = LocalDate.now(clock);
         LocalDate weekAgo = today.minusDays(6);
         return progressRepository.findByUserIdAndDateBetween(userId, weekAgo, today);
-    }
-
-    // ---- TrackingConfigQuery (inbound port) ----
-
-    /** {@inheritDoc} */
-    @Override
-    public List<TrackingConfig> findByUpgradeIds(Collection<UUID> upgradeIds) {
-        return configRepository.findByUpgradeIdIn(upgradeIds);
     }
 
     // ---- ProgressQuery (inbound port) ----
