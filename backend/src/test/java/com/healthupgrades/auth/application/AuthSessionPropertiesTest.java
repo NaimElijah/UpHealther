@@ -2,7 +2,10 @@ package com.healthupgrades.auth.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.context.properties.bind.validation.BindValidationException;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -70,6 +73,47 @@ class AuthSessionPropertiesTest {
         // nothing it says: almost certainly a mistake, and better named at boot.
         binding.withPropertyValues("app.auth.session.idle=40d", "app.auth.session.absolute=30d")
                 .run(context -> assertRefusedFor(context.getStartupFailure(), "idleWithinAbsolute"));
+    }
+
+    /**
+     * Every bound at its edge, on both sides, so moving a limit by a step or turning an inclusive bound
+     * exclusive fails here rather than only a setting far outside it. A blank field means the settings
+     * start; otherwise it is the property the refusal must name, among any others it names.
+     */
+    @ParameterizedTest(name = "idle {0}, absolute {1}, grace {2}: refused for [{3}]")
+    @CsvSource({
+        "1h, 1h, 0s, ''",
+        "30d, 30d, 1m, ''",
+        "7d, 90d, 10s, ''",
+        "59m, 30d, 10s, idle",
+        "1h, 59m, 10s, absolute",
+        "7d, 91d, 10s, absolute",
+        "7d, 30d, 61s, rotationGrace",
+        "2592001s, 30d, 10s, idleWithinAbsolute"
+    })
+    void GivenSettingsOnEitherSideOfABound_WhenTheyAreBound_ThenOnlyThoseInsideItStart(
+            String idle, String absolute, String grace, String refusedField) {
+        binding.withPropertyValues(
+                        "app.auth.session.idle=" + idle,
+                        "app.auth.session.absolute=" + absolute,
+                        "app.auth.session.rotation-grace=" + grace)
+                .run(context -> {
+                    if (refusedField.isEmpty()) {
+                        assertThat(context).hasNotFailed();
+                    } else {
+                        assertThat(refusedFields(context.getStartupFailure())).contains(refusedField);
+                    }
+                });
+    }
+
+    private static List<String> refusedFields(Throwable startupFailure) {
+        assertThat(startupFailure).isNotNull();
+        Throwable cause = NestedExceptionUtils.getMostSpecificCause(startupFailure);
+        assertThat(cause).isInstanceOf(BindValidationException.class);
+        return ((BindValidationException) cause)
+                .getValidationErrors().getAllErrors().stream()
+                        .map(error -> ((FieldError) error).getField())
+                        .toList();
     }
 
     private static void assertRefusedFor(Throwable startupFailure, String field) {

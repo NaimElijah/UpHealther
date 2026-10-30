@@ -44,6 +44,20 @@ class JwtPropertiesTest {
                 .run(context -> assertRefusedFor(context.getStartupFailure(), "accessTokenTtl"));
     }
 
+    /** Each end of the lifetime's bounds, on both sides, so a limit moved by a step fails here. */
+    @ParameterizedTest(name = "an access-token lifetime of {0} starts: {1}")
+    @CsvSource({"59s, false", "1m, true", "1h, true", "3601s, false"})
+    void GivenAnAccessTokenLifetimeAtAnEdgeOfItsBounds_WhenItIsBound_ThenOnlyOneInsideThemStarts(
+            String ttl, boolean starts) {
+        binding.withPropertyValues("app.jwt.access-token-ttl=" + ttl).run(context -> {
+            if (starts) {
+                assertThat(context).hasNotFailed();
+            } else {
+                assertRefusedFor(context.getStartupFailure(), "accessTokenTtl");
+            }
+        });
+    }
+
     /**
      * S5.A13 on the one duration it left unbounded: the skew is added straight onto every token's expiry,
      * so thirty days of it accepted every token thirty days late, whatever its lifetime said. Zero is
