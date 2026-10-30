@@ -236,7 +236,7 @@ describe('the shared API client', () => {
     it('GivenARenewalThatNeverAnswers_WhenARequestIs401_ThenTheRenewalGivesUpAtTheTimeout', async () => {
       // S5.D5: the renewal runs holding the cross-tab lock, so one that hangs would stall every tab's
       // renewal, and every request behind a 401, for as long as the connection stayed open. What a
-      // renewal that gave up then does is #377's question; this pins only that it gives up, and when.
+      // renewal given up then does is #377's question; this pins only that the wait ends, and when.
       vi.useFakeTimers();
       setAccessToken('expired.jwt.token', '2099-01-01T00:00:00Z');
       withAdapter((config) =>
@@ -255,6 +255,29 @@ describe('the shared API client', () => {
 
       await vi.advanceTimersByTimeAsync(1);
       expect(settled).toBe(true);
+    });
+
+    it('GivenTheRenewalDeadline_WhenItIsRead_ThenItIsTenSeconds', () => {
+      // NFR-39 names the number, so a change to it is a change to the requirement.
+      expect(REFRESH_TIMEOUT_MS).toBe(10_000);
+    });
+
+    it('GivenARenewalStillRunningAtTheDeadline_WhenTheDeadlinePasses_ThenTheRequestIsNotCancelled', async () => {
+      // A refresh rotates the credential. One the server has already committed carries the only cookie
+      // still good, so the deadline stops the wait and leaves the request to run (S5.D5).
+      vi.useFakeTimers();
+      setAccessToken('expired.jwt.token', '2099-01-01T00:00:00Z');
+      let refreshSignal: InternalAxiosRequestConfig['signal'];
+      withAdapter((config) => {
+        if (config.url !== '/api/auth/refresh') return rejection(config, 401);
+        refreshSignal = config.signal;
+        return new Promise<AxiosResponse>(() => {});
+      });
+      void client.get('/api/upgrades').catch(() => undefined);
+
+      await vi.advanceTimersByTimeAsync(REFRESH_TIMEOUT_MS);
+
+      expect(refreshSignal?.aborted ?? false).toBe(false);
     });
 
     it('GivenAnotherTabHoldsTheRefreshLock_WhenARequestIs401_ThenTheRenewalWaitsForTheLockBeforeRotating', async () => {

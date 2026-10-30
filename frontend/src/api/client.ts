@@ -43,12 +43,17 @@ const REFRESH_LOCK = 'healthupgrades.refresh';
 const CONFLICT_BACKOFF_MS = 150;
 
 /**
- * How long one renewal waits for its answer before it counts as unanswered (S5.D5).
+ * How long one renewal is waited for before it counts as unanswered (S5.D5).
  *
  * The renewal runs while holding the cross-tab lock, so a renewal that hung would hold up every tab's
  * renewal, and every request waiting behind a 401, for as long as the connection stayed open. The
  * server answers it with a few indexed reads and writes, well under a second when it is healthy, so
  * ten seconds leaves a slow mobile connection room while keeping a stall bounded.
+ *
+ * The deadline gives up waiting, not the request. A refresh rotates the credential, so a request the
+ * server has already committed carries the only cookie that is still good, and cancelling it would throw
+ * that away. Today a renewal given up ends the session, and that navigation cancels the request anyway;
+ * what a failed renewal should do instead is #377's.
  */
 export const REFRESH_TIMEOUT_MS = 10_000;
 
@@ -114,10 +119,10 @@ async function withTabLock<T>(work: () => Promise<T>): Promise<T> {
  */
 async function refreshOnce(retryOnConflict = true): Promise<boolean> {
   try {
-    const { data } = await withDeadline(REFRESH_TIMEOUT_MS, (signal) =>
+    const { data } = await withDeadline(
+      REFRESH_TIMEOUT_MS,
       client.post<AuthResponse>(REFRESH_PATH, null, {
         headers: { [REQUESTED_WITH]: 'XMLHttpRequest' },
-        signal,
       }),
     );
     setAccessToken(data.accessToken, data.expiresAt);
@@ -135,21 +140,18 @@ async function refreshOnce(retryOnConflict = true): Promise<boolean> {
 }
 
 /**
- * Runs `call`, and rejects once `ms` pass without its answer, aborting the request through `signal`.
+ * Settles as `pending` does, or rejects once `ms` pass without its answer, whichever comes first.
  *
- * The deadline is kept here rather than left to axios's `timeout`, which only its network adapters
- * enforce: whatever answers the request, the caller is released on time.
+ * It stops the wait, not the work: `pending` runs on, and its answer is simply no longer awaited. Kept
+ * here rather than left to axios's `timeout`, which only its network adapters enforce and which would
+ * also cancel the request: whatever answers it, the caller and the lock are released on time.
  */
-function withDeadline<T>(ms: number, call: (signal: AbortSignal) => Promise<T>): Promise<T> {
-  const controller = new AbortController();
+function withDeadline<T>(ms: number, pending: Promise<T>): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      controller.abort();
-      reject(new Error(`No answer within ${ms} ms`));
-    }, ms);
+    timer = setTimeout(() => reject(new Error(`No answer within ${ms} ms`)), ms);
   });
-  return Promise.race([call(controller.signal), deadline]).finally(() => clearTimeout(timer));
+  return Promise.race([pending, deadline]).finally(() => clearTimeout(timer));
 }
 
 function delay(ms: number): Promise<void> {

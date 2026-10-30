@@ -352,8 +352,8 @@ The browser's half of a read, and of the write that makes it stale:
    cookie and sends the request once more. A renewal is single-flight, within the tab through one
    shared promise and across tabs through `navigator.locks`, because a rotated credential is good for
    one use. Only a renewal that fails ends the session, through `endSession`, whether the server
-   refused it or did not answer within `REFRESH_TIMEOUT_MS`, ten seconds, after which it gives up so
-   that the cross-tab lock is not held by a stalled one
+   refused it or did not answer within `REFRESH_TIMEOUT_MS`, ten seconds, after which it stops waiting,
+   though the request itself runs on, so that the cross-tab lock is not held by a stalled one
    ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)). The
    socket's own failed renewal does not: it reconnects without a token, and the tab's next request
    ends the session ([ADR-054](../ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md)).

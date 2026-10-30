@@ -87,8 +87,10 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   makes a credential good for one use — and retries the request once. Only a renewal that fails,
   refused or unanswered, ends the session and redirects to `/login`; the notification socket's own
   failed renewal does not (ADR-054). Unanswered means no answer within `REFRESH_TIMEOUT_MS`, ten
-  seconds, so a stalled renewal does not keep the cross-tab lock. The server's session-ended ERROR
-  frame on the socket does end the session, because the server sends it only once it has ended the
+  seconds, so a stalled renewal does not keep the cross-tab lock. It stops the wait, never the
+  request: a refresh rotates the credential, so cancelling one the server has already committed
+  would throw away the only cookie still good. The server's session-ended ERROR frame on the
+  socket does end the session, because the server sends it only once it has ended the
   session itself. That path, that frame and an accepted sign-out all end it through `endSession()` in
   `src/api/session.ts`, a full document navigation so the query cache goes with the page; do not end
   one any other way. The back/forward cache can keep that page, so `endSession` also empties the query
