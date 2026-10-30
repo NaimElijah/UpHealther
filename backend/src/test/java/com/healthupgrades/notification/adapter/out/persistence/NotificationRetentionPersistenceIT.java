@@ -82,13 +82,17 @@ class NotificationRetentionPersistenceIT extends PostgresIT {
     }
 
     @Test
-    void GivenMoreOldNotificationsThanTheLimit_WhenTheOldOnesAreDeleted_ThenOneStatementDeletesNoMoreThanTheLimit() {
-        // The batch bound is what keeps one night's statement short, whatever backlog it finds.
+    void
+            GivenMoreOldNotificationsThanTheLimit_WhenTheOldOnesAreDeleted_ThenOneStatementDeletesNoMoreThanTheLimitOldestFirst() {
+        // The batch bound is what keeps one night's statement short, whatever backlog it finds, and the
+        // oldest go first, so a run cut short leaves the newest. The newest is written first, so a delete
+        // that took rows in the order they were stored, rather than by age, would take it.
+        UUID newest = committed(LONG_AGO.minusDays(1));
         committed(LONG_AGO.minusDays(3));
         committed(LONG_AGO.minusDays(2));
-        committed(LONG_AGO.minusDays(1));
 
         assertThat(repository.deleteCreatedBefore(LONG_AGO, 2)).isEqualTo(2);
+        assertThat(remaining()).as("the newest of the three").containsExactly(newest);
         assertThat(repository.deleteCreatedBefore(LONG_AGO, 2)).isEqualTo(1);
         assertThat(repository.deleteCreatedBefore(LONG_AGO, 2)).isZero();
     }

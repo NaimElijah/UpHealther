@@ -200,8 +200,9 @@ class UpgradePersistenceIT extends PostgresIT {
 
     @Test
     void GivenAnUpgradeFiledUnderAnArea_WhenItsOwnerClearsTheArea_ThenItsVersionMovesOnceNotTwice() {
-        // The trigger moves the version only for a write that left it where it was. Hibernate's own update
-        // already moves it, so the trigger must stay out of the way, or every edit would count twice.
+        // An owner's own clear of the area moves the version once. Hibernate's update moves it, and the
+        // trigger's WHEN keeps it out of that write; the function would set the same OLD.version + 1 even
+        // without the WHEN, so what this pins is the outcome, one move, not the guard.
         UUID areaId = UUID.randomUUID();
         persistArea(areaId, ownerId);
         UUID id = entityManager

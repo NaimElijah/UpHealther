@@ -73,6 +73,8 @@ class ValueDomainConstraintIT extends PostgresIT {
                 "progress_entries, rating,            6,           progress_entries_rating_check",
                 "progress_entries, numeric_value,     -0.5,        progress_entries_numeric_value_check",
                 "reflections,      difficulty_rating, 0,           reflections_difficulty_rating_check",
+                "reflections,      difficulty_rating, 6,           reflections_difficulty_rating_check",
+                "reflections,      benefit_rating,    0,           reflections_benefit_rating_check",
                 "reflections,      benefit_rating,    6,           reflections_benefit_rating_check"
             })
     void GivenAValueOutsideItsDomain_WhenItIsWrittenPastTheApplication_ThenTheNamedConstraintRefusesIt(
@@ -102,6 +104,7 @@ class ValueDomainConstraintIT extends PostgresIT {
         jdbc.update("UPDATE progress_entries SET rating = 5, numeric_value = 0 WHERE upgrade_id = ?", upgradeId);
         jdbc.update("UPDATE progress_entries SET rating = 1, numeric_value = NULL WHERE upgrade_id = ?", upgradeId);
         jdbc.update("UPDATE reflections SET difficulty_rating = 1, benefit_rating = 5 WHERE upgrade_id = ?", upgradeId);
+        jdbc.update("UPDATE reflections SET difficulty_rating = 5, benefit_rating = 1 WHERE upgrade_id = ?", upgradeId);
         jdbc.update("UPDATE health_upgrades SET difficulty = NULL, status = 'ABANDONED' WHERE id = ?", upgradeId);
         jdbc.update("UPDATE tracking_configs SET frequency = NULL WHERE upgrade_id = ?", upgradeId);
 

@@ -49,8 +49,8 @@ class EnumColumnCheckContractTest {
             Pattern.compile("ALTER\\s+TABLE\\s+(?:IF\\s+EXISTS\\s+)?(?:ONLY\\s+)?([a-z_]+)", Pattern.CASE_INSENSITIVE);
 
     /**
-     * A value-list check, {@code CHECK (column IN ('A', 'B'))}, optionally named by the
-     * {@code [ADD] CONSTRAINT name} before it.
+     * A value-list check, {@code CHECK (column IN ('A', 'B'))}, with the {@code [ADD] CONSTRAINT name} before
+     * it if it has one; the parser refuses one that has none.
      */
     private static final Pattern VALUE_LIST_CHECK = Pattern.compile(
             "(?:CONSTRAINT\\s+(?<name>[a-z_]+)\\s+)?CHECK\\s*\\(\\s*(?<column>[a-z_]+)\\s+IN\\s*\\((?<values>[^)]*)\\)\\s*\\)",
@@ -121,11 +121,29 @@ class EnumColumnCheckContractTest {
         Map<String, List<String>> checks = valueListChecks(Map.of("V1__x.sql", """
                 CREATE TABLE users (
                     id UUID PRIMARY KEY,
-                    role VARCHAR(16) NOT NULL CHECK (role IN ('USER', 'ADMIN'))
+                    role VARCHAR(16) NOT NULL CONSTRAINT users_role_check CHECK (role IN ('USER', 'ADMIN'))
                 );
                 """));
 
         assertThat(checks).containsEntry("users.role", List.of("USER", "ADMIN"));
+    }
+
+    @Test
+    void GivenAValueListCheckWithNoConstraintName_WhenTheMigrationsAreParsed_ThenItIsRefusedRatherThanTracked() {
+        // A later migration drops a check by its name, and an unnamed one has only the name PostgreSQL made
+        // up, which no DROP CONSTRAINT here can be matched against. Its values would then outlive the drop,
+        // and the comparison could pass against a list the database no longer holds.
+        Map<String, String> migrations = Map.of("V1__x.sql", """
+                CREATE TABLE users (
+                    id UUID PRIMARY KEY,
+                    role VARCHAR(16) NOT NULL CHECK (role IN ('USER', 'ADMIN'))
+                );
+                """);
+
+        assertThatThrownBy(() -> valueListChecks(migrations))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("V1__x.sql")
+                .hasMessageContaining("CONSTRAINT");
     }
 
     @Test
@@ -184,7 +202,8 @@ class EnumColumnCheckContractTest {
      * written, once every migration has run in Flyway's order.
      *
      * @throws IllegalArgumentException if a statement holds a {@code CHECK} but does not start with
-     *     {@code CREATE TABLE} or {@code ALTER TABLE}, as one inside a {@code DO} block does not
+     *     {@code CREATE TABLE} or {@code ALTER TABLE}, as one inside a {@code DO} block does not, or holds a
+     *     value-list {@code CHECK} with no {@code CONSTRAINT} name
      */
     private static Map<String, List<String>> valueListChecks(List<FlywayMigrations.Migration> migrations) {
         Map<String, String> columnByConstraint = new LinkedHashMap<>();
@@ -215,9 +234,14 @@ class EnumColumnCheckContractTest {
                 Matcher check = VALUE_LIST_CHECK.matcher(statement);
                 while (check.find()) {
                     String column = tableName + "." + check.group("column").toLowerCase();
-                    if (check.group("name") != null) {
-                        columnByConstraint.put(check.group("name").toLowerCase(), column);
+                    if (check.group("name") == null) {
+                        // A drop names a check, and an unnamed one has only the name PostgreSQL made up,
+                        // so its values would outlive any DROP CONSTRAINT this parser reads.
+                        throw new IllegalArgumentException(migration.fileName()
+                                + " has a value-list CHECK with no CONSTRAINT name, whose drop this parser"
+                                + " could not follow: " + statement);
                     }
+                    columnByConstraint.put(check.group("name").toLowerCase(), column);
                     valuesByColumn.put(
                             column,
                             QUOTED.matcher(check.group("values"))

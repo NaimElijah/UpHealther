@@ -97,6 +97,27 @@ class SchemaIndexIT extends PostgresIT {
                 .isEmpty();
     }
 
+    @Test
+    void
+            GivenTheMigratedSchema_WhenTheHotQueriesIndexesAreLookedUp_ThenEachIsThereWithItsColumnsAndTheDroppedOneIsNot() {
+        // The two rules above see an index that serves nothing, never one that is missing, so deleting the
+        // migration that built one of these would leave them green while its query went back to a scan.
+        List<Index> indexes = indexes();
+
+        assertThat(indexes)
+                .as("the reminder sweep's partial index (V15), the retention job's (V17) and the account list's "
+                        + "(V11)")
+                .contains(
+                        new Index(
+                                "reminders", "idx_reminders_enabled_time", false, "enabled", List.of("reminder_time")),
+                        new Index("notifications", "idx_notifications_created_at", false, null, List.of("created_at")),
+                        new Index("users", "idx_users_created_at_id", false, null, List.of("created_at", "id")));
+        assertThat(indexes)
+                .extracting(Index::name)
+                .as("V11 dropped it: nothing reads reflections by date alone, so it cost every write for no query")
+                .doesNotContain("idx_reflections_date");
+    }
+
     private List<Index> indexes() {
         List<Index> indexes = jdbc.query(INDEXES, SchemaIndexIT::index);
         assertThat(indexes).as("the catalogue query found no indexes").isNotEmpty();
