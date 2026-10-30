@@ -83,6 +83,15 @@ public enum AuditAction {
      */
     ADMIN_BOOTSTRAP("admin.bootstrap", AuditedResource.USER),
 
+    /**
+     * An administrator read a page of every account on the installation (S5.A12).
+     *
+     * <p>The one read in this enum. It is the only read that crosses accounts, and the only one whose
+     * result is other people's names and addresses, so who looked is worth a line. It names the
+     * administrator and no resource: a page is no one record.
+     */
+    ADMIN_LIST("admin.list", AuditedResource.USER),
+
     UPGRADE_CREATE("upgrade.create", AuditedResource.HEALTH_UPGRADE),
     UPGRADE_UPDATE("upgrade.update", AuditedResource.HEALTH_UPGRADE),
     UPGRADE_DELETE("upgrade.delete", AuditedResource.HEALTH_UPGRADE),

@@ -74,7 +74,8 @@ class AdminUserControllerTest {
     @Test
     void GivenAnAdministrator_WhenAccountsAreListed_ThenItAnswers200WithThePageAndItsTotal() throws Exception {
         asAdmin();
-        when(adminUserQuery.list(0, 25)).thenReturn(new AccountPage(List.of(AUser.withId(TARGET_ID)), 0, 25, 137L));
+        when(adminUserQuery.list(ADMIN_ID, 0, 25))
+                .thenReturn(new AccountPage(List.of(AUser.withId(TARGET_ID)), 0, 25, 137L));
 
         mockMvc.perform(bearer(get("/api/admin/users")))
                 .andExpect(status().isOk())
@@ -95,7 +96,7 @@ class AdminUserControllerTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.status").value(403));
 
-        verify(adminUserQuery, never()).list(anyPage(), anyPage());
+        verify(adminUserQuery, never()).list(any(), anyPage(), anyPage());
     }
 
     @Test
@@ -180,7 +181,7 @@ class AdminUserControllerTest {
 
         mockMvc.perform(bearer(get("/api/admin/users").param("size", "1000"))).andExpect(status().isBadRequest());
 
-        verify(adminUserQuery, never()).list(anyPage(), anyPage());
+        verify(adminUserQuery, never()).list(any(), anyPage(), anyPage());
     }
 
     @ParameterizedTest(name = "page={0}, size={1}")
@@ -193,13 +194,13 @@ class AdminUserControllerTest {
         mockMvc.perform(bearer(get("/api/admin/users").param("page", page).param("size", size)))
                 .andExpect(status().isBadRequest());
 
-        verify(adminUserQuery, never()).list(anyPage(), anyPage());
+        verify(adminUserQuery, never()).list(any(), anyPage(), anyPage());
     }
 
     @Test
     void GivenAPageOfExactlyTheMaximum_WhenAccountsAreListed_ThenItIsAnswered() throws Exception {
         asAdmin();
-        when(adminUserQuery.list(0, 100)).thenReturn(new AccountPage(List.of(), 0, 100, 0L));
+        when(adminUserQuery.list(ADMIN_ID, 0, 100)).thenReturn(new AccountPage(List.of(), 0, 100, 0L));
 
         mockMvc.perform(bearer(get("/api/admin/users").param("size", "100")))
                 .andExpect(status().isOk())

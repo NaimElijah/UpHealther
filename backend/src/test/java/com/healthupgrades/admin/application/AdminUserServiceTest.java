@@ -173,12 +173,25 @@ class AdminUserServiceTest {
         when(userQuery.findAll(0, 25)).thenReturn(firstPage);
         when(userQuery.count()).thenReturn(137L);
 
-        AccountPage page = service.list(0, 25);
+        AccountPage page = service.list(ADMIN_ID, 0, 25);
 
         assertThat(page.accounts()).isEqualTo(firstPage);
         assertThat(page.page()).isZero();
         assertThat(page.size()).isEqualTo(25);
         assertThat(page.total()).isEqualTo(137L);
+    }
+
+    @Test
+    void GivenAnAdministrator_WhenTheyListTheAccounts_ThenTheReadIsAuditedNamingThem() {
+        // S5.A12: the one read that returns other people's names and addresses, so who read it is
+        // recorded. A page is no one record, so the entry names the administrator and no resource.
+        when(userQuery.findAll(0, 25)).thenReturn(List.of());
+        when(userQuery.count()).thenReturn(0L);
+
+        service.list(ADMIN_ID, 0, 25);
+
+        assertThat(auditTrail.only(AuditAction.ADMIN_LIST))
+                .hasValue(new AuditEvent(AuditAction.ADMIN_LIST, ADMIN_ID, null, AuditOutcome.ALLOWED));
     }
 
     /** An account for the administrator to act on, found by the id the tests use. */

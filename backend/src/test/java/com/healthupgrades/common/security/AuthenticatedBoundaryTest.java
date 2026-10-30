@@ -1,6 +1,7 @@
 package com.healthupgrades.common.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
@@ -353,7 +354,7 @@ class AuthenticatedBoundaryTest {
         // The other half of the matrix: the 403s above are about the role, not about the path being
         // unreachable. The service behind this one is mocked, so reaching it at all is the assertion.
         WebSliceSupport.authenticateAs(authenticator, UUID.randomUUID(), Role.ADMIN);
-        when(adminUserQuery.list(anyInt(), anyInt()))
+        when(adminUserQuery.list(any(), anyInt(), anyInt()))
                 .thenReturn(new com.healthupgrades.admin.application.port.in.AccountPage(List.of(), 0, 25, 0));
 
         mockMvc.perform(WebSliceSupport.bearer(json(request(HttpMethod.GET, ADMIN_PATH))))

@@ -46,11 +46,20 @@ public class AdminUserService implements AdminUserQuery, AdminUserCommand {
     private final SessionCommand sessions; // inbound write port of the auth context
     private final AuditTrail auditTrail; // records who changed whose account
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Audited although it changes nothing: it is the one read across accounts, and its result is other
+     * people's names and addresses (S5.A12).
+     */
     @Override
     @Transactional(readOnly = true)
-    public AccountPage list(int page, int size) {
-        return new AccountPage(userQuery.findAll(page, size), page, size, userQuery.count());
+    public AccountPage list(UUID actingAdminId, int page, int size) {
+        return auditTrail.recording(
+                AuditAction.ADMIN_LIST,
+                actingAdminId,
+                null,
+                () -> new AccountPage(userQuery.findAll(page, size), page, size, userQuery.count()));
     }
 
     /**
