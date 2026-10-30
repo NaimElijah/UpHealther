@@ -41,6 +41,18 @@ describe('the nginx configuration', () => {
     }).toEqual({ For: '$remote_addr', Proto: '$scheme', Host: '$host', Port: '$server_port' });
   });
 
+  it.each(PROXIED)('GivenTheProxiedLocation%s_WhenItsTraceHeadersAreRead_ThenTheCallersAreCleared', (path) => {
+    // S5.C5: the backend continues an inbound W3C trace, so a caller who sent `traceparent` chose the
+    // trace id the logs and the audit trail join on. An empty value makes nginx send none.
+    const body = locationBody(path);
+
+    expect({
+      traceparent: proxiedHeader(body, 'traceparent'),
+      tracestate: proxiedHeader(body, 'tracestate'),
+      baggage: proxiedHeader(body, 'baggage'),
+    }).toEqual({ traceparent: '""', tracestate: '""', baggage: '""' });
+  });
+
   describe('the socket endpoint', () => {
     /** One tab's socket, reconnecting every five seconds while it is down (`api/notificationSocket.ts`). */
     const HANDSHAKES_A_MINUTE_FOR_ONE_TAB = 60_000 / 5_000;

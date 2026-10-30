@@ -486,7 +486,9 @@ somebody reports to the log lines that produced it. There are three entry points
 from a different place:
 
 - **HTTP** — `ServerHttpObservationFilter`, from the framework. An inbound W3C `traceparent` continues
-  the caller's trace; otherwise a new one starts. `TraceIdResponseHeaderFilter` returns the id as
+  the caller's trace; otherwise a new one starts. Behind nginx none arrives from a browser: nginx clears
+  `traceparent`, `tracestate` and `baggage` on `/api` and `/ws`, so the id is the API's own.
+  `TraceIdResponseHeaderFilter` returns the id as
   `X-Trace-Id`, and `GlobalExceptionHandler` stamps it on the error body. The container's error page
   runs after the scope has closed, so `TraceIdErrorAttributes` puts the id the header carried on its
   body instead ([ADR-024](../ADRs/ADR-024-the-container-error-page-keeps-its-status-and-carries-the-trace-id.md)).
