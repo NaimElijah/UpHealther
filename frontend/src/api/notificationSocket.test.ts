@@ -149,6 +149,22 @@ describe('openNotificationSocket', () => {
       expect(client.connectHeaders).not.toHaveProperty('Authorization');
     });
 
+    it('GivenARenewalRejectedAfterAnEarlierConnect_WhenTheClientPreparesToReconnect_ThenTheOldTokenIsNotPresentedAgain', async () => {
+      // A rate-limited renewal (429) rejects and leaves the lapsed token in memory, because it ends no
+      // session. The reconnect must then go without a header, as the comment in the hook promises,
+      // rather than with whatever the previous connect sent.
+      setAccessToken('live.jwt.token', '2099-01-01T00:00:00Z');
+      const { client } = open();
+      await client.config.beforeConnect?.();
+      expect(client.connectHeaders).toEqual({ Authorization: 'Bearer live.jwt.token' });
+      setAccessToken('lapsed.jwt.token', '2000-01-01T00:00:00Z');
+      renewSession.mockRejectedValue(Object.assign(new Error('Too many requests'), { response: { status: 429 } }));
+
+      await expect(client.config.beforeConnect?.()).resolves.toBeUndefined();
+
+      expect(client.connectHeaders).not.toHaveProperty('Authorization');
+    });
+
     it('GivenTheSocketIsOpened_WhenItsClientIsConfigured_ThenItReconnectsAfterADelay', () => {
       // stompjs reconnects only when the delay is above zero.
       expect(open().client.config.reconnectDelay).toBeGreaterThan(0);

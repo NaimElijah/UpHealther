@@ -52,13 +52,15 @@ app:
     secret: ${JWT_SECRET:}
     # How long an access token is accepted. Short on purpose: it is held in the tab's memory and
     # renewed from the refresh cookie without the user noticing, so this is the window in which a
-    # leaked token is worth anything - not the length of a session.
+    # leaked token is worth anything - not the length of a session. Between 1m and 1h, or the
+    # application refuses to start (JwtProperties).
     access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:15m}
     # Written into every token and required back. A token minted by another service that happens to share
     # the secret is refused because its issuer or audience differs.
     issuer: healthupgrades
     audience: healthupgrades-web
     # How far past its expiry a token is still accepted, for hosts whose clocks disagree slightly.
+    # Bounded at startup to between 0s and 5m (JwtProperties): it adds straight onto every token's life.
     clock-skew: 30s
   auth:
     session:
@@ -71,11 +73,18 @@ app:
       # How long after a rotation the superseded credential counts as merely stale (409, retry)
       # rather than replayed (session revoked). Two tabs waking together legitimately present the
       # same credential within a moment; nothing legitimate does so ten seconds later.
+      # Bounded at startup, as idle and absolute are (AuthSessionProperties): idle at least 1h and at
+      # most absolute, absolute between 1h and 90d, the grace between 0s and 1m.
       rotation-grace: ${AUTH_SESSION_ROTATION_GRACE:10s}
     cookie:
-      name: refresh_token
-      # Narrow on purpose: the credential is then not attached to ordinary API calls at all.
-      path: /api/auth
+      # The __Host- prefix makes a browser refuse the cookie unless it is set with Secure, from a secure
+      # origin, with Path=/ and without Domain, so no other host, sibling or parent, can plant one
+      # (S5.A8, ADR-065). The price is the path: the credential goes with every request to the origin,
+      # where HttpOnly and SameSite=Strict still keep it from script and from other sites.
+      name: __Host-refresh_token
+      # The only path the prefix allows: a browser refuses a __Host- cookie set on any other, silently,
+      # so the application refuses to start with one (RefreshCookieProperties).
+      path: /
       # No security attribute is configurable: the cookie is always HttpOnly, Secure and
       # SameSite=Strict (RefreshCookies, ADR-041).
     schedules:
@@ -91,6 +100,14 @@ app:
     # The map is keyed by the caller's address, so it is capped: without one, addresses seen once
     # accumulate until the heap runs out, turning a defence into a different denial of service.
     max-tracked-clients: ${AUTH_RATE_LIMIT_MAX_CLIENTS:10000}
+  session-rate-limit:
+    # Attempts per client address per window on refresh and sign-out, together, in a bucket of their
+    # own (S5.A11). Neither takes a password, but each one is audited. Sixty a minute leaves a household
+    # behind one address room for every tab's renewal and every page load's, and holds an anonymous
+    # caller to one audit entry a second.
+    limit: ${AUTH_SESSION_RATE_LIMIT:60}
+    window: ${AUTH_SESSION_RATE_LIMIT_WINDOW:1m}
+    max-tracked-clients: ${AUTH_SESSION_RATE_LIMIT_MAX_CLIENTS:10000}
   admin:
     # The account promoted to ADMIN at startup, so a fresh installation has a way in. An account id,
     # never an email: registration is open, so naming an address would hand the installation to
@@ -150,14 +167,24 @@ management:
       # silently dropped, and with no exporter configured a lower rate saves nothing. Revisit when a
       # collector is added: this is the volume that would start leaving the process. See ADR-007.
       probability: 1.0
+    propagation:
+      # W3C only. Boot also consumes B3 and B3_MULTI by default, and the proxy clears the client's
+      # traceparent, so a b3 header would be how a client chose the trace id the logs and the audit trail
+      # join on (S5.C5, ADR-067). What is produced stays W3C, Boot's default.
+      consume: W3C
 
 logging:
   level:
     # INFO is what a deployment should run at: DEBUG is written for a developer reading along, and
     # this application's DEBUG lines fire per domain event - every minute, from dispatchReminders.
     # LOG_LEVEL_APP turns it up for one run without a code change. Everything outside this package
-    # stays at Spring's default INFO, except the one logger below.
+    # stays at Spring's default INFO, except the three loggers below.
     com.healthupgrades: ${LOG_LEVEL_APP:INFO}
+    # The audit stream (ADR-011) is not under com.healthupgrades, so it follows the root level unless it
+    # is pinned. Pinned, a root turned down to WARN cannot erase the trail while audit.events goes on
+    # counting entries nobody wrote (S5.C9). Not configurable on purpose: an audit trail an operator can
+    # switch off is not one.
+    AUDIT: INFO
     # Hibernate writes the driver's message on every SQL failure, handled or not, and that message
     # quotes the row: a refused registration logged the email address (NFR-6, #142). A real fault still
     # reaches the log through the exception's own stack trace. Hibernate 7 writes it at WARN to this
@@ -165,3 +192,8 @@ logging:
     # (ADR-032). Quoted so that it stays a level name: YAML reads a bare OFF as false, which Boot maps
     # back only by alias. See ADR-027.
     org.hibernate.orm.jdbc.error: "OFF"
+    # Spring's resolver writes "Resolved [<exception>]" at DEBUG, untruncated, and a refused request
+    # body's exception quotes every rejected value, a registration's password included (NFR-6). Pinned,
+    # org.springframework.web turned up to DEBUG to diagnose a request cannot write one; the application's
+    # own line names the exception by its type (GlobalExceptionHandler). Not configurable, as AUDIT is not.
+    org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver: INFO

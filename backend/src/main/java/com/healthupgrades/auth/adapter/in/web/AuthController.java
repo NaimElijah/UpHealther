@@ -211,6 +211,16 @@ public class AuthController {
         public RegisterRequest {
             email = EmailAddress.normalise(email);
         }
+
+        /**
+         * Prints none of the values. Spring MVC writes a request body's {@code toString} at DEBUG, cut
+         * at a hundred characters, and at TRACE in full; the generated one would print the password and
+         * the person's name and address (NFR-6).
+         */
+        @Override
+        public String toString() {
+            return "RegisterRequest[redacted]";
+        }
     }
 
     /** Login request body; the email is normalised before validation, as in {@link RegisterRequest}. */
@@ -218,6 +228,12 @@ public class AuthController {
             @NotBlank @Email String email, @NotBlank String password) {
         public LoginRequest {
             email = EmailAddress.normalise(email);
+        }
+
+        /** Prints none of the values, for the reason {@link RegisterRequest#toString} gives. */
+        @Override
+        public String toString() {
+            return "LoginRequest[redacted]";
         }
     }
 }

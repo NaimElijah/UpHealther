@@ -337,7 +337,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         if (statusCode.is5xxServerError()) {
             log.error("Unhandled exception for {}", pathOf(request), ex);
         } else {
-            log.debug("Rejected {} with {}", pathOf(request), statusCode, ex);
+            // The type and not the exception: a validation failure's message quotes every rejected
+            // value, a password included, and a client mistake needs no stack trace (NFR-6).
+            log.debug(
+                    "Rejected {} with {}: {}",
+                    pathOf(request),
+                    statusCode,
+                    ex.getClass().getName());
         }
         return ResponseEntity.status(statusCode).headers(headers).body(body);
     }

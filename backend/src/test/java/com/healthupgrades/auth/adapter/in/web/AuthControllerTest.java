@@ -74,7 +74,13 @@ class AuthControllerTest {
     private static final Instant EXPIRES_AT = WebSliceSupport.COOKIE_NOW.plus(Duration.ofMinutes(15));
 
     /** The cookie the browser would be holding when it calls refresh or logout. */
-    private static final Cookie PRESENTED = new Cookie("refresh_token", GRANT.refreshToken());
+    private static final Cookie PRESENTED = new Cookie(WebSliceSupport.COOKIE_NAME, GRANT.refreshToken());
+
+    /**
+     * A second cookie of the same name, as a same-site sibling host can set one with {@code Domain} on
+     * the parent: the browser then sends both, and nothing in the request says which is which.
+     */
+    private static final Cookie TOSSED = new Cookie(WebSliceSupport.COOKIE_NAME, "attacker-session.its-secret");
 
     @Autowired
     MockMvc mockMvc;
@@ -90,6 +96,21 @@ class AuthControllerTest {
 
     @MockitoBean
     UserDetailsServiceImpl userDetailsService;
+
+    @Test
+    void GivenANameCarryingANulCharacter_WhenAVisitorRegisters_ThenItAnswers400BeforeTheUseCase() throws Exception {
+        // S5.B5, on the one anonymous route that stores text: U+0000 used to reach PostgreSQL, which
+        // refuses it, and come back 500 with an ERROR line.
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Some\\u0000one\",\"email\":\"someone@example.com\","
+                                + "\"password\":\"s3cret!42\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Malformed request body"));
+
+        verify(authService, never()).register(anyString(), anyString(), anyString());
+    }
 
     @Test
     void GivenValidRegistrationDetails_WhenAVisitorRegisters_ThenItAnswers201WithATokenAndTheirProfile()
@@ -357,13 +378,14 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"someone@example.com\",\"password\":\"s3cret!42\"}"))
                 .andExpect(status().isOk())
-                .andExpect(cookie().value("refresh_token", GRANT.refreshToken()))
-                .andExpect(cookie().httpOnly("refresh_token", true))
-                .andExpect(cookie().secure("refresh_token", true))
-                .andExpect(cookie().path("refresh_token", "/api/auth"))
-                .andExpect(cookie().maxAge(
-                                "refresh_token", (int) Duration.ofDays(30).toSeconds()))
+                .andExpect(cookie().value(WebSliceSupport.COOKIE_NAME, GRANT.refreshToken()))
+                .andExpect(cookie().httpOnly(WebSliceSupport.COOKIE_NAME, true))
+                .andExpect(cookie().secure(WebSliceSupport.COOKIE_NAME, true))
+                .andExpect(cookie().path(WebSliceSupport.COOKIE_NAME, WebSliceSupport.COOKIE_PATH))
+                .andExpect(cookie().maxAge(WebSliceSupport.COOKIE_NAME, (int)
+                        Duration.ofDays(30).toSeconds()))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("SameSite=Strict")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, not(containsString("Domain"))))
                 .andExpect(jsonPath("$.accessToken").value("issued.jwt.token"));
     }
 
@@ -380,7 +402,7 @@ class AuthControllerTest {
                         .header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").value("a.newer.token"))
-                .andExpect(cookie().value("refresh_token", rotated.refreshToken()));
+                .andExpect(cookie().value(WebSliceSupport.COOKIE_NAME, rotated.refreshToken()));
     }
 
     @Test
@@ -404,6 +426,32 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.status").value(401));
 
         verify(sessions, never()).refresh(any());
+    }
+
+    @Test
+    void GivenTwoRefreshCookies_WhenARefreshIsAttempted_ThenItAnswers401ClearsTheCookieAndConsultsNoSession()
+            throws Exception {
+        // S5.A8: whichever of the two were read, one may be a session somebody else planted to move this
+        // tab into their account. Neither is trusted.
+        mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(PRESENTED, TOSSED)
+                        .header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(cookie().maxAge(WebSliceSupport.COOKIE_NAME, 0));
+
+        verify(sessions, never()).refresh(any());
+    }
+
+    @Test
+    void GivenTwoRefreshCookies_WhenASignOutIsAttempted_ThenItAnswers204ClearsTheCookieAndEndsNoSession()
+            throws Exception {
+        mockMvc.perform(post("/api/auth/logout")
+                        .cookie(PRESENTED, TOSSED)
+                        .header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest"))
+                .andExpect(status().isNoContent())
+                .andExpect(cookie().maxAge(WebSliceSupport.COOKIE_NAME, 0));
+
+        verify(sessions, never()).revoke(any());
     }
 
     @Test
@@ -439,7 +487,7 @@ class AuthControllerTest {
                         .header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401))
-                .andExpect(cookie().maxAge("refresh_token", 0))
+                .andExpect(cookie().maxAge(WebSliceSupport.COOKIE_NAME, 0))
                 .andExpect(header().string(
                                 HttpHeaders.SET_COOKIE,
                                 allOf(containsString("HttpOnly"), not(containsString("a-secret")))));
@@ -451,10 +499,10 @@ class AuthControllerTest {
                         .cookie(PRESENTED)
                         .header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest"))
                 .andExpect(status().isNoContent())
-                .andExpect(cookie().maxAge("refresh_token", 0))
+                .andExpect(cookie().maxAge(WebSliceSupport.COOKIE_NAME, 0))
                 // Over plain HTTP a browser ignores a cookie without Secure that would overwrite a Secure
                 // one, so a clearing cookie that lost the flag would leave the credential in place.
-                .andExpect(cookie().secure("refresh_token", true));
+                .andExpect(cookie().secure(WebSliceSupport.COOKIE_NAME, true));
 
         verify(sessions).revoke(GRANT.refreshToken());
     }

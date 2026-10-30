@@ -18,4 +18,14 @@ import java.time.Instant;
  * @param expiresAt   when it stops being accepted
  * @param user        the authenticated account
  */
-public record TokenPair(String accessToken, Instant expiresAt, UserDto user) {}
+public record TokenPair(String accessToken, Instant expiresAt, UserDto user) {
+
+    /**
+     * Prints only when the token lapses. Spring MVC writes a response body's {@code toString} at DEBUG,
+     * and the generated one would print the bearer token and the account's name and address (NFR-6).
+     */
+    @Override
+    public String toString() {
+        return "TokenPair[expiresAt=" + expiresAt + "]";
+    }
+}

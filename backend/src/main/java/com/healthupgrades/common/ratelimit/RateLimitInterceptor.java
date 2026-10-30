@@ -4,6 +4,7 @@ import com.healthupgrades.common.domain.exception.TooManyRequestsException;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.servlet.HandlerInterceptor;
 
@@ -14,7 +15,8 @@ import org.springframework.web.servlet.HandlerInterceptor;
  * filter bean is registered automatically by Boot <em>and</em> by any chain that names it, so it runs
  * twice and counts every attempt as two; it is also pulled into every {@code @WebMvcTest} slice in the
  * codebase, which would put a rate limit in front of ten controller tests that have nothing to do with
- * authentication. An interceptor is registered once, explicitly, against the two paths it is for.
+ * authentication. An interceptor is registered once, explicitly, against the paths it is for: one
+ * instance per limiter, each with the paths its limiter counts.
  *
  * <p>The address comes from {@code getRemoteAddr()} <em>after</em> Tomcat's RemoteIp valve has run, so
  * it is the address the trusted proxy reported and not whatever the client put in
@@ -23,7 +25,8 @@ import org.springframework.web.servlet.HandlerInterceptor;
  * every time. See {@code server.tomcat.remoteip.internal-proxies} in {@code application.yml}.
  *
  * <p>Nothing here logs the address or tags a metric with it — it is personal data (NFR-6) and an
- * unbounded tag (ADR-012). The counter is tagged by endpoint, which is a closed set of two.
+ * unbounded tag (ADR-012). The counter is tagged by endpoint, which is a closed set: the paths this
+ * instance was registered for.
  */
 @RequiredArgsConstructor
 public class RateLimitInterceptor implements HandlerInterceptor {
@@ -36,6 +39,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     private final FixedWindowRateLimiter limiter;
     private final MeterRegistry meterRegistry;
+    private final List<String> limitedPaths; // the closed set the endpoint tag is drawn from
 
     /**
      * The metric tag for a target, resolved against the closed set of limited paths.
@@ -45,16 +49,11 @@ public class RateLimitInterceptor implements HandlerInterceptor {
      * here, so {@code /api/auth/login;x=1} is rate-limited as {@code /api/auth/login} and tagged as
      * itself. A refused caller could then mint a new Micrometer meter per attempt and grow the
      * registry — and the public {@code /actuator/prometheus} payload — without bound. ADR-012 forbids
-     * an unbounded tag for exactly this reason; matching against the two known paths makes the tag
+     * an unbounded tag for exactly this reason; matching against the known paths makes the tag
      * bounded by construction rather than by the caller's restraint.
      */
-    private static String endpointTag(String requestUri) {
-        for (String limited : RateLimitConfig.LIMITED_PATHS) {
-            if (limited.equals(requestUri)) {
-                return limited;
-            }
-        }
-        return OTHER;
+    private String endpointTag(String requestUri) {
+        return limitedPaths.contains(requestUri) ? requestUri : OTHER;
     }
 
     /**

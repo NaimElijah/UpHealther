@@ -14,10 +14,11 @@ import java.util.UUID;
  * configuration of every id it is given, whoever owns the upgrade. {@code tracking_configs} has no owner
  * column to filter on. It is safe only because its one caller maps upgrades that were already loaded
  * through user-scoped reads, so no id a request supplies reaches it. {@code HexagonalArchitectureTest} pins
- * both hops: every dependent of this port stays inside {@code tracking}, and the
- * {@code UpgradeTrackingSummaryPort} the adapter answers serves only {@code UpgradeWebMapper}. A caller
- * outside {@code tracking}, another dependent of that port, or a request-supplied id reaching either, would
- * make it unsafe; scope it first.
+ * each hop with a rule of its own: this port serves only {@code UpgradeTrackingSummaryAdapter} and its
+ * implementer; the {@code UpgradeTrackingSummaryPort} the adapter answers serves only
+ * {@code UpgradeWebMapper}; and that mapper serves only {@code UpgradeController} and
+ * {@code DashboardWebMapper}, which in turn serves only {@code DashboardController}. Another caller of any
+ * of them, or a request-supplied id reaching one, would make it unsafe; scope it first.
  */
 public interface TrackingConfigQuery {
 

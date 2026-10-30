@@ -2,24 +2,31 @@ package com.healthupgrades.auth.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.healthupgrades.auth.application.port.in.RefreshOutcome;
 import com.healthupgrades.auth.application.port.in.SessionGrant;
 import com.healthupgrades.auth.domain.event.AuthSessionEnded;
 import com.healthupgrades.auth.domain.event.UserSessionsEnded;
 import com.healthupgrades.auth.domain.model.AuthSession;
+import com.healthupgrades.auth.domain.model.SpentCredential;
 import com.healthupgrades.auth.domain.port.out.AuthSessionRepositoryPort;
 import com.healthupgrades.auth.domain.port.out.SecretGeneratorPort;
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.event.DomainEvent;
+import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.MovableClock;
 import com.healthupgrades.support.RecordingAuditTrail;
+import com.healthupgrades.user.application.port.in.UserQuery;
+import com.healthupgrades.user.domain.model.User;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,13 +63,24 @@ class AuthSessionServiceTest {
     private final MovableClock clock = new MovableClock(START);
     /** Our own port, recorded rather than mocked, like the rest of this class's collaborators. */
     private final List<DomainEvent> published = new ArrayList<>();
+    /** The account every session here belongs to, enabled until a test switches it off. */
+    private final User account = AUser.withId(USER_ID);
+    /** Our own port, mocked: only the lookup by id is reached, and it answers the one account above. */
+    private final UserQuery users = mock(UserQuery.class);
 
     private AuthSessionService service;
 
     @BeforeEach
     void setUp() {
+        when(users.findById(USER_ID)).thenReturn(Optional.of(account));
         service = new AuthSessionService(
-                sessions, secrets, new AuthSessionProperties(IDLE, ABSOLUTE, GRACE), auditTrail, published::add, clock);
+                sessions,
+                secrets,
+                new AuthSessionProperties(IDLE, ABSOLUTE, GRACE),
+                auditTrail,
+                published::add,
+                users,
+                clock);
     }
 
     @Test
@@ -149,6 +167,95 @@ class AuthSessionServiceTest {
         assertThat(sessions.byId(opened.sessionId()).isActive(clock.instant())).isFalse();
         assertThat(auditTrail.recorded(AuditAction.AUTH_TOKEN_REUSE, AuditOutcome.REFUSED))
                 .isTrue();
+    }
+
+    @Test
+    void GivenACredentialTwoRotationsOld_WhenItIsPresentedAfterTheGraceWindow_ThenTheSessionIsRevokedAsReuse() {
+        // A thief holding C1 refreshes C1 -> C2 -> C3. When the victim then presents C1, reuse has to be
+        // detected however many generations old it is, or the thief's session lives on to its cap.
+        SessionGrant opened = service.open(USER_ID);
+        SessionGrant second = ((RefreshOutcome.Rotated) service.refresh(opened.refreshToken())).grant();
+        service.refresh(second.refreshToken());
+        clock.moveTo(START.plus(GRACE).plusSeconds(1));
+
+        RefreshOutcome outcome = service.refresh(opened.refreshToken());
+
+        assertThat(outcome).isInstanceOf(RefreshOutcome.Rejected.class);
+        assertThat(sessions.byId(opened.sessionId()).isActive(clock.instant())).isFalse();
+        assertThat(auditTrail.recorded())
+                .contains(new AuditEvent(
+                        AuditAction.AUTH_TOKEN_REUSE, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+        assertThat(published).containsExactly(new AuthSessionEnded(opened.sessionId(), USER_ID, now()));
+    }
+
+    @Test
+    void GivenACredentialTwoRotationsOld_WhenItIsPresentedInsideItsOwnGraceWindow_ThenItIsStaleAndNothingIsRevoked() {
+        // The grace window runs from the moment each credential was spent. Two quick rotations do not
+        // make a request that was already in flight with the first credential a theft.
+        SessionGrant opened = service.open(USER_ID);
+        SessionGrant second = ((RefreshOutcome.Rotated) service.refresh(opened.refreshToken())).grant();
+        service.refresh(second.refreshToken());
+        clock.moveTo(START.plus(GRACE));
+
+        RefreshOutcome outcome = service.refresh(opened.refreshToken());
+
+        assertThat(outcome).isInstanceOf(RefreshOutcome.Stale.class);
+        assertThat(sessions.byId(opened.sessionId()).isActive(clock.instant())).isTrue();
+    }
+
+    @Test
+    void GivenACredentialSpentBeforeALaterRotation_WhenItIsPresentedPastItsOwnGrace_ThenTheSessionIsRevokedAsReuse() {
+        // The grace runs from each credential's own spend, not from the session's latest rotation. A thief
+        // who keeps rotating would otherwise keep the victim's old credential answered Stale for ever.
+        SessionGrant opened = service.open(USER_ID);
+        SessionGrant second = ((RefreshOutcome.Rotated) service.refresh(opened.refreshToken())).grant();
+        clock.moveTo(START.plus(GRACE));
+        service.refresh(second.refreshToken());
+        clock.moveTo(START.plus(GRACE).plusSeconds(1));
+
+        RefreshOutcome outcome = service.refresh(opened.refreshToken());
+
+        assertThat(outcome).isInstanceOf(RefreshOutcome.Rejected.class);
+        assertThat(auditTrail.recorded())
+                .endsWith(new AuditEvent(
+                        AuditAction.AUTH_TOKEN_REUSE, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenAnAccountDeletedAfterItsSessionOpened_WhenTheSessionIsRefreshed_ThenEverySessionOfTheAccountEnds() {
+        // A deleted account may not sign in either: the read finding no account is a refusal, as a
+        // disabled one is, not a pass.
+        SessionGrant refreshed = service.open(USER_ID);
+        SessionGrant elsewhere = service.open(USER_ID);
+        when(users.findById(USER_ID)).thenReturn(Optional.empty());
+
+        RefreshOutcome outcome = service.refresh(refreshed.refreshToken());
+
+        assertThat(outcome).isInstanceOf(RefreshOutcome.Rejected.class);
+        assertThat(service.isActive(elsewhere.sessionId(), USER_ID)).isFalse();
+        assertThat(published).containsExactly(new UserSessionsEnded(USER_ID, now()));
+    }
+
+    @Test
+    void GivenAnAccountSwitchedOffAfterItsSessionOpened_WhenTheSessionIsRefreshed_ThenEverySessionOfTheAccountEnds() {
+        // S5.A9: an administrator can disable an account between a sign-in's password check and its
+        // session opening, and revokeAllForUser then finds nothing to end. Refresh is where such a
+        // session is next seen, so that is where the account is read again.
+        SessionGrant refreshed = service.open(USER_ID);
+        SessionGrant elsewhere = service.open(USER_ID);
+        account.disable();
+
+        RefreshOutcome outcome = service.refresh(refreshed.refreshToken());
+
+        assertThat(outcome).as("Rejected is what clears the cookie").isInstanceOf(RefreshOutcome.Rejected.class);
+        assertThat(service.isActive(refreshed.sessionId(), USER_ID)).isFalse();
+        assertThat(service.isActive(elsewhere.sessionId(), USER_ID))
+                .as("the account's other sessions end too")
+                .isFalse();
+        assertThat(published).containsExactly(new UserSessionsEnded(USER_ID, now()));
+        assertThat(auditTrail.only(AuditAction.AUTH_REFRESH))
+                .hasValue(
+                        new AuditEvent(AuditAction.AUTH_REFRESH, USER_ID, refreshed.sessionId(), AuditOutcome.REFUSED));
     }
 
     @Test
@@ -266,6 +373,20 @@ class AuthSessionServiceTest {
     }
 
     @Test
+    void GivenAnExpiredSession_WhenACredentialItSpentIsPresented_ThenTheRefusalNamesTheSessionAndItsOwner() {
+        // Expiry is checked first, and the proof that the credential is the session's own has to count
+        // every credential it issued, the spent ones included (NFR-23).
+        SessionGrant opened = service.open(USER_ID);
+        service.refresh(opened.refreshToken());
+        clock.moveTo(START.plus(IDLE).plusSeconds(1));
+
+        service.refresh(opened.refreshToken());
+
+        assertThat(auditTrail.recorded())
+                .endsWith(new AuditEvent(AuditAction.AUTH_REFRESH, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+    }
+
+    @Test
     void GivenACredentialRotatedOutMomentsAgo_WhenItIsPresented_ThenTheStaleRefusalNamesTheSessionAndItsOwner() {
         // A second tab losing a race is asked to retry, not refused for good - but this request was not
         // honoured, and the superseded credential proves whose tab it was.
@@ -306,6 +427,7 @@ class AuthSessionServiceTest {
                 new AuthSessionProperties(IDLE, ABSOLUTE, GRACE),
                 auditTrail,
                 published::add,
+                users,
                 clock);
 
         assertThatThrownBy(() -> broken.refresh(UUID.randomUUID() + ".a-secret"))
@@ -358,20 +480,69 @@ class AuthSessionServiceTest {
         assertThat(published).isEmpty();
     }
 
+    /**
+     * A spent credential presented to sign-out after its grace window is reuse, exactly as it is when
+     * presented to refresh: the session is revoked, logged at WARN, audited {@code AUTH_TOKEN_REUSE} and
+     * its end published.
+     *
+     * <p>This test used to pin the opposite - the session left alive and nothing recorded - and that was
+     * S5.A4: a thief who refreshed once kept the session while the victim, signing out with the old
+     * credential, was answered 204 and believed it ended. Refusing the sign-out did close the earlier
+     * hole, an ordinary sign-out that hid the reuse, but left the session to the thief. Treating it as
+     * reuse closes both.
+     */
     @Test
-    void GivenACredentialRotatedOutLongAgo_WhenItIsUsedToSignOut_ThenTheSessionIsLeftAlone() {
-        // Otherwise sign-out is a way around reuse detection: the same credential presented to refresh
-        // is theft - revoked, logged, audited AUTH_TOKEN_REUSE - and presented here would have ended the
-        // victim's session as an ordinary sign-out, with the counter that should stay at zero unmoved.
+    void GivenACredentialRotatedOutLongAgo_WhenItIsUsedToSignOut_ThenTheSessionIsRevokedAsReuse() {
         SessionGrant opened = service.open(USER_ID);
         service.refresh(opened.refreshToken());
         clock.moveTo(START.plus(GRACE).plusSeconds(1));
 
-        assertThat(service.revoke(opened.refreshToken())).isFalse();
+        assertThat(service.revoke(opened.refreshToken()))
+                .as("the credential is not accepted as a sign-out")
+                .isFalse();
 
-        assertThat(service.isActive(opened.sessionId(), USER_ID)).isTrue();
+        assertThat(service.isActive(opened.sessionId(), USER_ID)).isFalse();
         assertThat(auditTrail.recorded(AuditAction.AUTH_LOGOUT, AuditOutcome.ALLOWED))
                 .isFalse();
+        assertThat(published).containsExactly(new AuthSessionEnded(opened.sessionId(), USER_ID, now()));
+    }
+
+    /**
+     * An ended session is refused at sign-out before either credential check, as it is at refresh, so a
+     * spent credential presented to it is not reuse a second time (NFR-36).
+     *
+     * <p>Without this, whoever held a spent credential of a revoked or lapsed session could post it to
+     * sign-out again and again, and each call would write the WARN, an {@code AUTH_TOKEN_REUSE} entry
+     * and the session's end once more: one theft would read as many.
+     */
+    @Test
+    void GivenASessionAlreadyEnded_WhenASpentCredentialIsUsedToSignOut_ThenItIsRefusedAndNotTreatedAsReuseAgain() {
+        SessionGrant opened = service.open(USER_ID);
+        SessionGrant live = ((RefreshOutcome.Rotated) service.refresh(opened.refreshToken())).grant();
+        service.revoke(live.refreshToken());
+        clock.moveTo(START.plus(GRACE).plusSeconds(1));
+        List<DomainEvent> publishedBefore = List.copyOf(published);
+
+        assertThat(service.revoke(opened.refreshToken())).isFalse();
+
+        assertThat(auditTrail.recorded(AuditAction.AUTH_TOKEN_REUSE, AuditOutcome.REFUSED))
+                .isFalse();
+        assertThat(auditTrail.recorded())
+                .as("refused as a sign-out of an ended session, naming its owner: the credential is one it issued")
+                .endsWith(new AuditEvent(AuditAction.AUTH_LOGOUT, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+        assertThat(published).as("the session's end was announced once already").isEqualTo(publishedBefore);
+    }
+
+    @Test
+    void GivenASessionAlreadyEnded_WhenItsCurrentCredentialIsUsedToSignOut_ThenItIsRefusedAndNothingIsPublished() {
+        SessionGrant opened = service.open(USER_ID);
+        clock.moveTo(START.plus(IDLE).plusSeconds(1));
+
+        assertThat(service.revoke(opened.refreshToken())).isFalse();
+
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT))
+                .hasValue(new AuditEvent(AuditAction.AUTH_LOGOUT, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+        assertThat(published).isEmpty();
     }
 
     @Test
@@ -416,18 +587,25 @@ class AuthSessionServiceTest {
                 .hasValue(new AuditEvent(AuditAction.AUTH_LOGOUT, null, opened.sessionId(), AuditOutcome.REFUSED));
     }
 
+    /**
+     * One attempt, one entry, as for a replayed refresh: the reuse entry, naming the session and its
+     * owner, and no refused sign-out beside it.
+     *
+     * <p>This test used to expect a refused {@code AUTH_LOGOUT} naming the owner. Since S5.A4 the same
+     * attempt is reuse, and a second entry for it would count every theft among the refused sign-outs.
+     */
     @Test
-    void GivenACredentialRotatedOutLongAgo_WhenItIsUsedToSignOut_ThenTheRefusalNamesTheSessionAndItsOwner() {
-        // Refused, because accepting it would be a way around reuse detection - but the superseded
-        // credential is still proof the session issued it, so its owner is named.
+    void GivenACredentialRotatedOutLongAgo_WhenItIsUsedToSignOut_ThenItIsAuditedAsReuseAndNotAlsoAsARefusedSignOut() {
         SessionGrant opened = service.open(USER_ID);
         service.refresh(opened.refreshToken());
         clock.moveTo(START.plus(GRACE).plusSeconds(1));
 
         service.revoke(opened.refreshToken());
 
-        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT))
-                .hasValue(new AuditEvent(AuditAction.AUTH_LOGOUT, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+        assertThat(auditTrail.recorded())
+                .endsWith(new AuditEvent(
+                        AuditAction.AUTH_TOKEN_REUSE, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT)).isEmpty();
     }
 
     @Test
@@ -438,6 +616,7 @@ class AuthSessionServiceTest {
                 new AuthSessionProperties(IDLE, ABSOLUTE, GRACE),
                 auditTrail,
                 published::add,
+                users,
                 clock);
 
         assertThatThrownBy(() -> broken.revoke(UUID.randomUUID() + ".a-secret"))
@@ -570,6 +749,7 @@ class AuthSessionServiceTest {
     private static final class InMemorySessions implements AuthSessionRepositoryPort {
 
         private final Map<UUID, AuthSession> rows = new HashMap<>();
+        private final Map<UUID, List<SpentCredential>> spent = new HashMap<>();
         private final List<Read> reads = new ArrayList<>();
 
         @Override
@@ -591,6 +771,20 @@ class AuthSessionServiceTest {
         }
 
         @Override
+        public AuthSession saveRotation(AuthSession session, SpentCredential credential) {
+            rows.put(session.getId(), session);
+            spent.computeIfAbsent(session.getId(), id -> new ArrayList<>()).add(credential);
+            return session;
+        }
+
+        @Override
+        public Optional<SpentCredential> findSpent(UUID sessionId, byte[] tokenHash) {
+            return spent.getOrDefault(sessionId, List.of()).stream()
+                    .filter(credential -> Arrays.equals(credential.tokenHash(), tokenHash))
+                    .findFirst();
+        }
+
+        @Override
         public int revokeAllForUser(UUID userId) {
             List<AuthSession> live = rows.values().stream()
                     .filter(session -> session.getUserId().equals(userId))
@@ -607,6 +801,7 @@ class AuthSessionServiceTest {
                     .map(AuthSession::getId)
                     .toList();
             doomed.forEach(rows::remove);
+            doomed.forEach(spent::remove);
             return doomed.size();
         }
 
@@ -642,6 +837,16 @@ class AuthSessionServiceTest {
 
         @Override
         public Optional<AuthSession> findForUpdate(UUID id) {
+            throw down();
+        }
+
+        @Override
+        public AuthSession saveRotation(AuthSession session, SpentCredential credential) {
+            throw down();
+        }
+
+        @Override
+        public Optional<SpentCredential> findSpent(UUID sessionId, byte[] tokenHash) {
             throw down();
         }
 

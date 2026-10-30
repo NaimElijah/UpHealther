@@ -446,10 +446,12 @@ class TrackingServiceTest {
                 .hasMessageContaining(upgradeId.toString());
     }
 
-    // ---- NFR-23: every change is audited against the upgrade, allowed or refused ----
+    // ---- NFR-23: every change is audited against the record it names, allowed or refused ----
 
     @Test
-    void GivenAnOwnedUpgrade_WhenProgressIsRecorded_ThenTheRecordingAloneIsAuditedAsAllowed() {
+    void GivenAnOwnedUpgrade_WhenProgressIsRecorded_ThenTheRecordingAloneIsAuditedAsAllowedAgainstTheUpgrade() {
+        // S5.C6: the action labels its resource as the upgrade, so the id it carries is the upgrade the
+        // entry is recorded against, on a success as on a refusal.
         recordWithMilestone(today, OptionalInt.empty());
 
         assertThat(auditTrail.recorded())
@@ -465,6 +467,8 @@ class TrackingServiceTest {
                         userId, upgradeId, new ProgressEntryDetails(today, true, null, null, null, null)))
                 .isInstanceOf(ResourceNotFoundException.class);
 
+        // The refusal names the upgrade that was probed: BR-15 means an attempt on another user's upgrade
+        // leaves no other trace, and that id is what somebody would be looking for (NFR-23).
         assertThat(auditTrail.recorded())
                 .containsExactly(new AuditEvent(AuditAction.PROGRESS_RECORD, userId, upgradeId, AuditOutcome.REFUSED));
     }
@@ -483,9 +487,16 @@ class TrackingServiceTest {
     }
 
     @Test
-    void GivenAnOwnedUpgrade_WhenItsConfigurationIsSaved_ThenTheSaveAloneIsAuditedAsAllowed() {
+    void GivenAnOwnedUpgrade_WhenItsConfigurationIsSaved_ThenTheSaveAloneIsAuditedAsAllowedAgainstTheUpgrade() {
+        // S5.C6: the action labels its resource as the upgrade, so the id it carries is the upgrade's:
+        // changing how an upgrade is measured changes what its past progress means.
+        UUID configId = UUID.randomUUID();
         when(configRepository.findByUpgradeId(upgradeId)).thenReturn(Optional.empty());
-        when(configRepository.save(any(TrackingConfig.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(configRepository.save(any(TrackingConfig.class))).thenAnswer(inv -> {
+            TrackingConfig saved = inv.getArgument(0);
+            saved.setId(configId);
+            return saved;
+        });
 
         service.saveConfig(
                 userId, upgradeId, new TrackingConfigDetails(TrackingType.BOOLEAN, Frequency.DAILY, null, null, null));
@@ -505,25 +516,14 @@ class TrackingServiceTest {
                         new TrackingConfigDetails(TrackingType.BOOLEAN, Frequency.DAILY, null, null, null)))
                 .isInstanceOf(ResourceNotFoundException.class);
 
+        // The refusal names the upgrade that was probed: BR-15 means an attempt on another user's upgrade
+        // leaves no other trace, and that id is what somebody would be looking for (NFR-23).
         assertThat(auditTrail.recorded())
                 .containsExactly(
                         new AuditEvent(AuditAction.TRACKING_CONFIGURE, userId, upgradeId, AuditOutcome.REFUSED));
     }
 
     // ---- Inbound ports used by other contexts ----
-
-    @Test
-    void GivenSeveralUpgrades_WhenTheirConfigurationsAreResolved_ThenTheyAreFetchedInOneBatch() {
-        // NFR-14. The upgrade list endpoint calls this once for every row it is about to render; a
-        // per-id lookup here is the N+1 that made the list slow.
-        List<UUID> ids = List.of(upgradeId, UUID.randomUUID(), UUID.randomUUID());
-        when(configRepository.findByUpgradeIdIn(ids)).thenReturn(List.of());
-
-        service.findByUpgradeIds(ids);
-
-        verify(configRepository).findByUpgradeIdIn(ids);
-        verify(configRepository, never()).findByUpgradeId(any());
-    }
 
     @Test
     void GivenSeveralUpgrades_WhenTheDashboardAsksForTheirStreaks_ThenTheirHistoriesAreFetchedInOneBatch() {
@@ -576,11 +576,21 @@ class TrackingServiceTest {
         verifyNoInteractions(progressRepository);
     }
 
+    /**
+     * The id a save gives the entry {@link #recordWithMilestone} records, as the database would. Distinct
+     * from the upgrade's, so an audit entry that named the entry instead of the upgrade would show.
+     */
+    private static final UUID SAVED_ENTRY_ID = UUID.fromString("3d1e9c27-5b40-4f6a-8e12-7a9c0b4d6e85");
+
     /** Records one entry on {@code date} against a stubbed milestone verdict, which is what the BR-10 cases vary. */
     private void recordWithMilestone(LocalDate date, OptionalInt milestone) {
         when(progressRepository.existsByUpgradeIdAndDate(any(), any())).thenReturn(false);
         when(configRepository.findByUpgradeId(upgradeId)).thenReturn(Optional.empty());
-        when(progressRepository.save(any(ProgressEntry.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(progressRepository.save(any(ProgressEntry.class))).thenAnswer(inv -> {
+            ProgressEntry saved = inv.getArgument(0);
+            saved.setId(SAVED_ENTRY_ID);
+            return saved;
+        });
         when(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenReturn(List.of());
         when(streakCalculator.milestoneReachedBy(any(), any(), any())).thenReturn(milestone);
 

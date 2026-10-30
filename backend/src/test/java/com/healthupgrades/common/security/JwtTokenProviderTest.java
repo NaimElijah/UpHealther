@@ -196,6 +196,25 @@ class JwtTokenProviderTest {
     }
 
     @Test
+    void GivenACorrectlySignedTokenWithNoExpiry_WhenItIsVerified_ThenItIsRejected() {
+        // S5.A14: JJWT checks exp only when it is present, so a token without one would be accepted for
+        // ever. This application never issues one, so a token that lacks it was not minted here.
+        String everlasting = Jwts.builder()
+                .subject(USER_ID.toString())
+                .claim(JwtTokenProvider.SESSION_CLAIM, SESSION_ID.toString())
+                .issuer(ISSUER)
+                .audience()
+                .add(AUDIENCE)
+                .and()
+                .issuedAt(Date.from(ISSUED_AT))
+                .signWith(Keys.hmacShaKeyFor(STRONG_SECRET.getBytes(StandardCharsets.UTF_8)), Jwts.SIG.HS256)
+                .compact();
+
+        assertThat(providerAt(ISSUED_AT.plus(Duration.ofDays(365))).verify(everlasting))
+                .isEmpty();
+    }
+
+    @Test
     void GivenAnUnsignedToken_WhenItIsVerified_ThenItIsRejected() {
         String unsigned = Jwts.builder()
                 .subject(USER_ID.toString())

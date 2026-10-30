@@ -1,7 +1,7 @@
 # ADR-007: Correlation ids come from Micrometer Tracing, not from a hand-rolled request id
 
 - **Status:** Accepted — superseded in part by [ADR-010](ADR-010-structured-logging-and-a-level-policy.md); extended by [ADR-024](ADR-024-the-container-error-page-keeps-its-status-and-carries-the-trace-id.md)
-  and [ADR-014](ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md) (the anonymous request's 403 and missing body)
+  and [ADR-014](ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md) (the anonymous request's 403 and missing body); extended by [ADR-067](ADR-067-trace-context-is-accepted-only-from-trusted-hops.md) (trace context only from trusted hops)
 - **Date:** 2026-08-24
 - **Scope:** `backend/` — logging, the error wire contract, the STOMP channels and the scheduled jobs.
   One new compile dependency. No change to any domain type.

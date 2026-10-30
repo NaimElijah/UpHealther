@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.lang.reflect.RecordComponent;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 /** Pins the shape of an audit entry, including the one property that keeps NFR-6 true by construction. */
 class AuditEventTest {
@@ -58,6 +60,21 @@ class AuditEventTest {
     void GivenAnAction_WhenItsKeyIsRead_ThenItIsTheStableDottedName() {
         assertThat(AuditAction.UPGRADE_ACTIVATE.key()).isEqualTo("upgrade.activate");
         assertThat(AuditAction.UPGRADE_ACTIVATE.resource()).isEqualTo(AuditedResource.HEALTH_UPGRADE);
+    }
+
+    /**
+     * A child record's creation names the upgrade it belongs to, so its label has to say so (S5.C6).
+     *
+     * <p>The id is the upgrade's on both outcomes: a refusal has no child to name, and the upgrade is the
+     * record that was probed, which BR-15 leaves no other trace of. A label naming the child would
+     * misread every one of those entries.
+     */
+    @ParameterizedTest
+    @EnumSource(
+            value = AuditAction.class,
+            names = {"REFLECTION_CREATE", "REMINDER_CREATE", "TRACKING_CONFIGURE", "PROGRESS_RECORD"})
+    void GivenAChildRecordsCreation_WhenItsResourceIsRead_ThenItIsTheUpgradeItBelongsTo(AuditAction action) {
+        assertThat(action.resource()).isEqualTo(AuditedResource.HEALTH_UPGRADE);
     }
 
     @Test

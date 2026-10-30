@@ -170,7 +170,7 @@ class StompSessionEndIT extends PostgresIT {
 
     private void logout(String credential) throws Exception {
         HttpResponse<String> response = send(request("/api/auth/logout")
-                .header("Cookie", "refresh_token=" + credential)
+                .header("Cookie", "__Host-refresh_token=" + credential)
                 .header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest")
                 .POST(HttpRequest.BodyPublishers.noBody()));
         assertThat(response.statusCode()).isEqualTo(204);

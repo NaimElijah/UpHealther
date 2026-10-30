@@ -178,7 +178,7 @@ class RateLimitedSignInTest {
 
     @Test
     void GivenAnAuthenticatedEndpoint_WhenItIsCalledRepeatedly_ThenNoRateLimitApplies() throws Exception {
-        // The limit is registered against the two anonymous paths only. Everything else needs a token,
+        // The limits are registered against the four anonymous paths only. Everything else needs a token,
         // which is its own limit on how fast anybody can try — and rate-limiting the whole API would
         // throttle an ordinary session.
         // Sent as a signed-in client sends it, so security lets it through and only a limit could stop it.

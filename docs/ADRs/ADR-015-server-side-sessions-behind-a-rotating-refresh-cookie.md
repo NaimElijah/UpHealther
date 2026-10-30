@@ -9,7 +9,10 @@
   of a session that ended, after Back or when the server ended it. Its `@Version` alternative below
   gave "an unmapped 500" as one reason, which no longer holds: since #356 `GlobalExceptionHandler` maps
   Spring's `OptimisticLockingFailureException` to 409. The decision stands on the other reason, that
-  concurrent refreshes should wait rather than fail
+  concurrent refreshes should wait rather than fail. Superseded in part by
+  [ADR-065](ADR-065-the-backend-hardened-after-scan-05.md) for the cookie's name and path, which are
+  now `__Host-refresh_token` and `/`, and extended by it: reuse is detected however many rotations
+  old the credential is, and at sign-out as at refresh
 - **Date:** 2026-09-20
 - **Scope:** `backend/` — a new aggregate in `auth`, a new table, two new endpoints, and a session check
   on the path of every authenticated request. Extends [ADR-014](ADR-014-unauthenticated-requests-are-401-with-the-api-error-body.md),

@@ -21,15 +21,6 @@ public enum AuditedResource {
     /** A health area an upgrade can be filed under. */
     HEALTH_AREA,
 
-    /** How an upgrade is measured. */
-    TRACKING_CONFIG,
-
-    /** One day's progress against one upgrade. */
-    PROGRESS_ENTRY,
-
-    /** A written reflection about an upgrade. */
-    REFLECTION,
-
-    /** A reminder attached to an upgrade. */
+    /** A reminder attached to an upgrade, once it exists: rescheduled or removed. */
     REMINDER
 }
