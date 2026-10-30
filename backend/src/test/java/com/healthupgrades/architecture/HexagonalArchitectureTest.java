@@ -79,6 +79,32 @@ class HexagonalArchitectureTest {
             .as("the application layer must not depend on adapters");
 
     /**
+     * The core must not reach the kernel's adapters either, whatever their packages are called.
+     *
+     * <p>ADR-002 promises that no application class imports an adapter, and the rule above keys on
+     * {@code ..adapter..}. Most of {@code common} is an adapter by what it holds rather than by its name:
+     * {@code common.security} signs and verifies tokens with JJWT and implements Spring Security's types,
+     * {@code common.websocket} configures STOMP, {@code common.observability} wires Micrometer, and
+     * {@code common.ratelimit} is a handler interceptor. A use case that names one of them is tied to a
+     * framework and a key the rule above cannot see. Where the core needs what one of them does, it
+     * declares an outbound port and an adapter delegates, as {@code AccessTokenIssuerPort} does for
+     * signing. The kernel's own core, {@code common.domain}, stays open to every context.
+     */
+    @ArchTest
+    static final ArchRule core_does_not_depend_on_the_kernels_adapters = noClasses()
+            .that()
+            .resideInAnyPackage("..application..", "..domain..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAnyPackage(
+                    "com.healthupgrades.common.security..",
+                    "com.healthupgrades.common.websocket..",
+                    "com.healthupgrades.common.observability..",
+                    "com.healthupgrades.common.ratelimit..",
+                    "com.healthupgrades.common.adapter..")
+            .as("the application and domain layers must not depend on the kernel's adapters (ADR-002)");
+
+    /**
      * Spring Data JPA may only be referenced from the persistence adapters, guaranteeing repositories are
      * hidden behind outbound ports everywhere else.
      */

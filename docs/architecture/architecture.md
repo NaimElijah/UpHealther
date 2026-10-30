@@ -249,7 +249,7 @@ sequenceDiagram
     participant B as Browser
     participant C as AuthController
     participant S as AuthSessionService
-    participant J as JwtTokenProvider
+    participant J as AccessTokenIssuerPort
     participant DB as auth_sessions
 
     Note over B,DB: Signing in
@@ -543,8 +543,13 @@ Integration points a maintainer will need:
 ## Structural decisions not visible from the file layout
 
 **The dependency arrow always points inward.** `adapter → application → domain`, never the reverse.
-No class in `application` imports anything from `adapter`, in either direction. This is what allows the
-whole core to be unit-tested without Spring, and it is checked rather than trusted.
+No class in `application` imports anything from `adapter`, in either direction. Nor does any class in
+`application` or `domain` import the kernel's adapters that live outside an `adapter` package:
+`common.security`, `common.websocket`, `common.observability` and `common.ratelimit`. So `AuthService`
+issues tokens through `auth`'s `AccessTokenIssuerPort`, which `JwtAccessTokenIssuer` implements over
+`JwtTokenProvider`
+([ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)). This is
+what allows the whole core to be unit-tested without Spring, and it is checked rather than trusted.
 
 **The domain is framework-free, with one deliberate exception.** Domain classes import no Spring, no
 Jackson, no servlet, no bean validation. They do carry JPA mapping annotations, because the entities
