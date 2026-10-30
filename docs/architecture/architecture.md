@@ -84,7 +84,7 @@ out to). The kinds that occur:
 | `adapter/in/scheduling` | A cron trigger: reads the clock, times the run, calls the application method that holds the sweep | `upgrade`, `notification`, `auth` |
 | `adapter/in/event` | A listener that turns a domain event into a call on the application layer | `notification`, `auth` |
 | `adapter/in/composition` | The adapter that answers another context's or the kernel's outbound port: `UpgradeTrackingSummaryAdapter` for `UpgradeTrackingSummaryPort`, `SessionStatusAdapter` for `SessionStatusPort`, `AccountCredentialsAdapter` for `AccountCredentialsPort`. It sits under `adapter/in` because it calls its own context's inbound port, and implements a port rather than starting work | `tracking`, `auth`, `user` |
-| `adapter/in/bootstrap` | `AdminBootstrapRunner`, an `ApplicationRunner`: at startup it parses `app.admin.bootstrap-user-id` and calls `AdminUserService.bootstrap` | `admin` |
+| `adapter/in/bootstrap` | `AdminBootstrapRunner`, an `ApplicationRunner`: at startup it parses `app.admin.bootstrap-user-id` and calls `AdminBootstrapService.bootstrap`, which nothing else may hold | `admin` |
 | `adapter/out/persistence` | A package-private Spring Data repository and the `*RepositoryAdapter` that implements the context's repository port over it | every context but `admin` and `dashboard` |
 | `adapter/out/messaging` | The STOMP push of a notification | `notification` |
 | `adapter/out/security` | Access-token issuing over `JwtTokenProvider`, and the refresh secret generator | `auth` |
@@ -245,7 +245,7 @@ tracking setup, returns configurations whoever owns them, because `tracking_conf
 column to filter on. Its one caller maps upgrades already loaded through user-scoped reads, so no
 request-supplied id reaches it, and an ArchUnit rule keeps every dependent of it inside `tracking`.
 The administrator bootstrap is the same shape: `AdminBootstrapRunner` parses its setting and calls
-`AdminUserService.bootstrap`, which applies the rules and records the promotion. No driving adapter reaches an outbound port, and
+`AdminBootstrapService.bootstrap`, which applies the rules and records the promotion. No driving adapter reaches an outbound port, and
 ArchUnit names the two that may
 ([ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)).
 

@@ -1,6 +1,6 @@
 package com.healthupgrades.admin.adapter.in.bootstrap;
 
-import com.healthupgrades.admin.application.AdminUserService;
+import com.healthupgrades.admin.application.AdminBootstrapService;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
  * Promotes one account to ADMIN at startup, so a fresh installation has a way in.
  *
  * <p>A trigger: it reads {@code app.admin.bootstrap-user-id}, and hands a valid account id to
- * {@link AdminUserService#bootstrap}, which decides whether the account is promoted and records it. The
+ * {@link AdminBootstrapService#bootstrap}, which decides whether the account is promoted and records it. The
  * rules live there, so a second trigger would apply the same ones.
  *
  * <p><strong>By account id, never by email.</strong> Registration is open, so naming an address here
@@ -25,15 +25,15 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class AdminBootstrapRunner implements ApplicationRunner {
 
-    private final AdminUserService adminUsers; // own application service: the bootstrap use case
+    private final AdminBootstrapService bootstrap; // own application service: the bootstrap use case
     private final String bootstrapUserId;
 
     /**
      * @param bootstrapUserId the account to promote, or blank — the normal case — to do nothing
      */
     public AdminBootstrapRunner(
-            AdminUserService adminUsers, @Value("${app.admin.bootstrap-user-id:}") String bootstrapUserId) {
-        this.adminUsers = adminUsers;
+            AdminBootstrapService bootstrap, @Value("${app.admin.bootstrap-user-id:}") String bootstrapUserId) {
+        this.bootstrap = bootstrap;
         this.bootstrapUserId = bootstrapUserId;
     }
 
@@ -56,7 +56,7 @@ public class AdminBootstrapRunner implements ApplicationRunner {
             return;
         }
 
-        adminUsers.bootstrap(id.get());
+        bootstrap.bootstrap(id.get());
     }
 
     private static Optional<UUID> parse(String value) {

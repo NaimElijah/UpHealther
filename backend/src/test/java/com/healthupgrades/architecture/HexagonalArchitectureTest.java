@@ -401,6 +401,24 @@ class HexagonalArchitectureTest {
             .resideInAPackage("com.healthupgrades.tracking..")
             .as("TrackingConfigQuery, which is not scoped by owner, must be used only inside tracking (BR-15)");
 
+    /**
+     * Only the startup runner may promote the first administrator.
+     *
+     * <p>{@code AdminBootstrapService.bootstrap} grants ADMIN with no administrator asking, and its one guard
+     * is that no enabled administrator exists yet. Behind an endpoint, on a fresh installation, that guard
+     * would let any signed-in user make themselves the installation's administrator. So the use case has a
+     * service of its own, and nothing but {@code AdminBootstrapRunner}, which reads the deployment's
+     * setting at startup, may hold it (ADR-016).
+     */
+    @ArchTest
+    static final ArchRule only_the_runner_bootstraps_an_administrator = classes()
+            .that()
+            .haveFullyQualifiedName("com.healthupgrades.admin.application.AdminBootstrapService")
+            .should()
+            .onlyHaveDependentClassesThat()
+            .haveFullyQualifiedName("com.healthupgrades.admin.adapter.in.bootstrap.AdminBootstrapRunner")
+            .as("only AdminBootstrapRunner may depend on AdminBootstrapService");
+
     /** Controllers are a web concern and belong only in the web adapter. */
     @ArchTest
     static final ArchRule controllers_live_only_in_the_web_adapter = classes()

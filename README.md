@@ -116,7 +116,7 @@ pushed by listeners that run only after the commit, so a rolled-back write annou
 `ABANDONED` is not — rescheduling revives it. At most three `HARD` upgrades may be `ACTIVE` at once,
 checked both when activating one and when promoting a running one to `HARD`.
 
-The layering is **enforced, not documented**: `HexagonalArchitectureTest` runs nineteen ArchUnit rules
+The layering is **enforced, not documented**: `HexagonalArchitectureTest` runs twenty ArchUnit rules
 on every `./mvnw test` — the domain stays framework-free, the application depends on no adapter, and
 Spring Data is confined to the persistence adapters.
 
@@ -318,7 +318,7 @@ the wrong way, and `FrontendWireTypesContractTest` on a record the frontend's co
 | Domain | The `HealthUpgrade` state machine and construction invariants, streaks, reminder scheduling, entry scoring | `./mvnw test` |
 | Application | Every use case in every context, including what a *rejected* operation must not leave behind | `./mvnw test` |
 | Web slice | Each controller against the real security chain: status codes, validation, another user's row as a 404 | `./mvnw test` |
-| Structural | Twenty-two ArchUnit rules, plus the frontend wire-type, column-bound, pinned-image and version contracts | `./mvnw test` |
+| Structural | Twenty-three ArchUnit rules, plus the frontend wire-type, column-bound, pinned-image and version contracts | `./mvnw test` |
 | Integration | The app booted against a real PostgreSQL that Testcontainers starts — bean graph, migrations, database-enforced invariants | `./mvnw verify` |
 | Frontend | Session restore and silent token renewal, the notification socket, the route and role gates, the administration page, the content security policy, theme, error boundary | `npm test` in `frontend/` |
 | Smoke | A browser drives both modules together: a new account registers, plans and activates an upgrade, hears of it over the socket, logs a day and reads the dashboard, under nginx's CSP; a second test fetches the third-party notices nginx serves | `npm run test:images` |
