@@ -10,6 +10,17 @@
 --
 -- ON DELETE CASCADE: the rows mean nothing without their session, and the nightly sweep and an
 -- account's deletion both delete sessions in bulk, where nothing in Java visits the children.
+
+-- The strongest lock this migration needs, taken first. The foreign key below takes SHARE ROW EXCLUSIVE
+-- on auth_sessions and the DROP COLUMNs at the end need ACCESS EXCLUSIVE, so taking them in that order
+-- lets a refresh holding a row lock deadlock with the migration: its UPDATE waits for the foreign key's
+-- lock, and the DROP waits for the refresh. Taken up front, a refresh either finishes first or waits for
+-- the whole migration. The timeout bounds that wait if a long transaction holds the table, failing the
+-- start instead of stalling every refresh behind the queued lock. SET LOCAL ends with Flyway's
+-- transaction, which wraps each PostgreSQL migration.
+SET LOCAL lock_timeout = '5s';
+LOCK TABLE auth_sessions IN ACCESS EXCLUSIVE MODE;
+
 CREATE TABLE auth_session_spent_tokens (
     session_id UUID NOT NULL REFERENCES auth_sessions(id) ON DELETE CASCADE,
     token_hash BYTEA NOT NULL,
