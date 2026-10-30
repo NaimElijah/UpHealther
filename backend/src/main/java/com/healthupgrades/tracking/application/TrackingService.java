@@ -6,7 +6,6 @@ import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.tracking.application.port.in.ProgressEntryDetails;
 import com.healthupgrades.tracking.application.port.in.ProgressQuery;
-import com.healthupgrades.tracking.application.port.in.ProgressSweepQuery;
 import com.healthupgrades.tracking.application.port.in.StreakQuery;
 import com.healthupgrades.tracking.application.port.in.StreakSummary;
 import com.healthupgrades.tracking.application.port.in.TrackingConfigDetails;
@@ -27,7 +26,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -39,12 +37,13 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Confirms upgrade ownership through the upgrade context's inbound {@link UpgradeQuery} port, and
  * itself implements the tracking inbound ports ({@link TrackingConfigQuery}, {@link ProgressQuery},
- * {@link StreakQuery}) so other contexts can read tracking data as domain objects, and
- * {@link ProgressSweepQuery} for the check-in sweep, which reads every user's.
+ * {@link StreakQuery}) so other contexts can read tracking data as domain objects. The check-in sweep's
+ * read of every user's entries is {@link ProgressSweeps}', not this service's, because controllers hold
+ * this one.
  */
 @Service
 @RequiredArgsConstructor
-public class TrackingService implements TrackingConfigQuery, ProgressQuery, ProgressSweepQuery, StreakQuery {
+public class TrackingService implements TrackingConfigQuery, ProgressQuery, StreakQuery {
 
     private final TrackingConfigRepositoryPort configRepository; // outbound: tracking configs
     private final ProgressEntryRepositoryPort progressRepository; // outbound: progress entries
@@ -222,14 +221,6 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Prog
     @Override
     public List<TrackingConfig> findByUpgradeIds(Collection<UUID> upgradeIds) {
         return configRepository.findByUpgradeIdIn(upgradeIds);
-    }
-
-    // ---- ProgressSweepQuery (inbound port, scheduled work only) ----
-
-    /** {@inheritDoc} */
-    @Override
-    public Set<UUID> findUserIdsWithEntriesOn(LocalDate date) {
-        return progressRepository.findUserIdsWithEntriesOn(date);
     }
 
     // ---- ProgressQuery (inbound port) ----

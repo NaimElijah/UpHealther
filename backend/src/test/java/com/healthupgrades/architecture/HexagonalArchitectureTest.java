@@ -355,6 +355,11 @@ class HexagonalArchitectureTest {
      *
      * <p>A dependent is allowed only if it is one of {@link #SCHEDULED_WORK}, or if it implements the port.
      * Anything else that wants every user's rows is a decision to add here, not an import.
+     *
+     * <p>The rule sees only dependencies on the port itself, so each port is implemented by a class of its
+     * own — {@code UpgradeSweeps}, {@code ProgressSweeps}, {@code ReminderSweeps} — and never by the
+     * service a controller holds. Implemented there, the methods would be one call away from a request
+     * handler through the concrete service, past this rule.
      */
     @ArchTest
     static final ArchRule sweep_ports_serve_only_scheduled_work = classes()

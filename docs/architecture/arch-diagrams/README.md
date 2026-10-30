@@ -260,6 +260,9 @@ classDiagram
     class UpgradeService {
         <<application>>
     }
+    class UpgradeSweeps {
+        <<application>>
+    }
 
     %% ---- bean wiring ----
     class UpgradeBeansConfig {
@@ -339,7 +342,8 @@ classDiagram
     UpgradeService --> UpgradeRepositoryPort
     UpgradeService --> UpgradeSchedulingService
     UpgradeService ..|> UpgradeQuery : implements
-    UpgradeService ..|> UpgradeSweepQuery : implements
+    UpgradeSweeps --> UpgradeRepositoryPort
+    UpgradeSweeps ..|> UpgradeSweepQuery : implements
     UpgradeWebMapper --> UpgradeTrackingSummaryPort
 ```
 <!-- /generated:class-diagram -->

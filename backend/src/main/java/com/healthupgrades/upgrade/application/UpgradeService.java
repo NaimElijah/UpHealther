@@ -8,7 +8,6 @@ import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.healtharea.application.port.in.HealthAreaQuery;
 import com.healthupgrades.upgrade.application.port.in.UpgradeDetails;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
-import com.healthupgrades.upgrade.application.port.in.UpgradeSweepQuery;
 import com.healthupgrades.upgrade.domain.event.*;
 import com.healthupgrades.upgrade.domain.model.*;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
@@ -30,12 +29,12 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Each state change follows the pattern: load the aggregate, invoke the domain method (which guards the
  * transition), save via the repository port, publish a domain event, and return the domain aggregate.
  * Command methods return {@link HealthUpgrade}; the web adapter maps it to a DTO. Implements the
- * {@link UpgradeQuery} inbound port so other contexts read upgrades as domain objects, and
- * {@link UpgradeSweepQuery} for the scheduled sweeps that read every user's.
+ * {@link UpgradeQuery} inbound port so other contexts read upgrades as domain objects. The sweeps' reads of
+ * every user's upgrades are {@link UpgradeSweeps}', not this service's, because controllers hold this one.
  */
 @Service
 @RequiredArgsConstructor
-public class UpgradeService implements UpgradeQuery, UpgradeSweepQuery {
+public class UpgradeService implements UpgradeQuery {
 
     private final UpgradeRepositoryPort repository; // outbound persistence port
     private final UpgradeSchedulingService schedulingService; // pure domain invariant
@@ -344,19 +343,5 @@ public class UpgradeService implements UpgradeQuery, UpgradeSweepQuery {
     @Override
     public List<HealthUpgrade> findByUser(UUID userId) {
         return repository.findByUserId(userId);
-    }
-
-    // ---- UpgradeSweepQuery (inbound port, scheduled work only) ----
-
-    /** {@inheritDoc} */
-    @Override
-    public List<HealthUpgrade> findByStatus(UpgradeStatus status) {
-        return repository.findByStatus(status);
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public List<HealthUpgrade> findAllById(Iterable<UUID> ids) {
-        return repository.findAllById(ids);
     }
 }
