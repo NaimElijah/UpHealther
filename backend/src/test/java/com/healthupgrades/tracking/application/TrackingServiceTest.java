@@ -258,7 +258,8 @@ class TrackingServiceTest {
     void GivenTheEntryReachesNoMilestone_WhenProgressIsRecorded_ThenNothingIsAnnounced() {
         recordWithMilestone(today, OptionalInt.empty());
 
-        verify(eventPublisher, never()).publish(any(StreakAchieved.class));
+        // Any event, not only StreakAchieved: a milestone is the one thing recording progress announces.
+        verify(eventPublisher, never()).publish(any());
     }
 
     @Test

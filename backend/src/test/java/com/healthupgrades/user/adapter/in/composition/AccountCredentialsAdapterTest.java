@@ -96,4 +96,13 @@ class AccountCredentialsAdapterTest {
 
         assertThat(adapter.findByEmail("nobody@example.com")).isEmpty();
     }
+
+    @Test
+    void GivenNoEmail_WhenItsCredentialsAreLoaded_ThenNothingIsFound() {
+        // The port documents its address as possibly null: normalising keeps it null, rather than throwing,
+        // and no account holds a null address.
+        when(userQuery.findByEmail(null)).thenReturn(Optional.empty());
+
+        assertThat(adapter.findByEmail(null)).isEmpty();
+    }
 }
