@@ -93,6 +93,7 @@ describe('openNotificationSocket', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
     Object.defineProperty(window, 'location', { configurable: true, writable: true, value: realLocation });
   });
 
@@ -164,6 +165,41 @@ describe('openNotificationSocket', () => {
   });
 
   describe('the frames it reads', () => {
+    /** Holds what the socket queues as a microtask, so a test can run it and see what it throws. */
+    function captureMicrotasks(): (() => void)[] {
+      const queued: (() => void)[] = [];
+      vi.stubGlobal('queueMicrotask', (task: () => void) => queued.push(task));
+      return queued;
+    }
+
+    it('GivenAHandlerThatThrows_WhenANotificationArrives_ThenItsErrorIsReportedAndNotThrownIntoTheClient', () => {
+      const queued = captureMicrotasks();
+      const { client, onNotification } = openConnected();
+      onNotification.mockImplementation(() => {
+        throw new Error('the handler failed');
+      });
+
+      expect(() => client.deliver(JSON.stringify(notificationAsSent()))).not.toThrow();
+
+      expect(queued).toHaveLength(1);
+      expect(queued[0]).toThrow('the handler failed');
+    });
+
+    it('GivenAHandlerThatThrewOnce_WhenTheNextNotificationArrives_ThenItIsStillDelivered', () => {
+      captureMicrotasks();
+      const { client, onNotification } = openConnected();
+      onNotification.mockImplementationOnce(() => {
+        throw new Error('the handler failed');
+      });
+      const next = notificationAsSent({ id: 'n-2', title: 'Upgrade activated' });
+
+      client.deliver(JSON.stringify(notificationAsSent({ id: 'n-1' })));
+      client.deliver(JSON.stringify(next));
+
+      expect(onNotification).toHaveBeenCalledTimes(2);
+      expect(onNotification).toHaveBeenLastCalledWith(next);
+    });
+
     it('GivenAConnectedSocket_WhenANotificationFrameArrives_ThenItReachesOnNotificationParsed', () => {
       const { client, onNotification } = openConnected();
       const pushed: AppNotification = notificationAsSent({ id: 'n-1', title: 'Upgrade activated' });

@@ -47,7 +47,8 @@ export interface NotificationSocketHandlers {
  * Opens the socket and subscribes to the signed-in user's notifications.
  *
  * It reconnects every five seconds while the socket is down, until it is closed. A frame that will not
- * parse is dropped. On the server's session-ended ERROR frame the access token is dropped, so the next
+ * parse is dropped. An error `onNotification` throws is rethrown on a microtask, so the browser reports
+ * it as any uncaught error, and it never reaches the STOMP client: the next frame is delivered as usual. On the server's session-ended ERROR frame the access token is dropped, so the next
  * attempt renews from the refresh cookie first; any other ERROR leaves it alone.
  *
  * @param handlers told of each notification, and of each change in whether the socket is connected
@@ -83,12 +84,24 @@ export function openNotificationSocket({ onNotification, onConnectionChange }: N
     onConnect: () => {
       onConnectionChange(true);
       client.subscribe('/user/queue/notifications', (message) => {
+        let notification: AppNotification;
         try {
-          onNotification(JSON.parse(message.body) as AppNotification);
+          notification = JSON.parse(message.body) as AppNotification;
         } catch {
           // A frame that will not parse is dropped rather than thrown: an exception here would
           // propagate into the STOMP client and tear down the subscription, costing every later
           // notification as well as this one.
+          return;
+        }
+        try {
+          onNotification(notification);
+        } catch (error) {
+          // The handler's own failure is a bug to see, not a frame to drop. Rethrown on a microtask,
+          // it is reported as uncaught, and the STOMP client, which it would cost the subscription,
+          // never sees it. `reportError` would do the same; jsdom 30 does not implement it.
+          queueMicrotask(() => {
+            throw error;
+          });
         }
       });
     },
