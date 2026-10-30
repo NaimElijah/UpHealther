@@ -204,6 +204,39 @@ class AuthSessionServiceTest {
     }
 
     @Test
+    void GivenACredentialSpentBeforeALaterRotation_WhenItIsPresentedPastItsOwnGrace_ThenTheSessionIsRevokedAsReuse() {
+        // The grace runs from each credential's own spend, not from the session's latest rotation. A thief
+        // who keeps rotating would otherwise keep the victim's old credential answered Stale for ever.
+        SessionGrant opened = service.open(USER_ID);
+        SessionGrant second = ((RefreshOutcome.Rotated) service.refresh(opened.refreshToken())).grant();
+        clock.moveTo(START.plus(GRACE));
+        service.refresh(second.refreshToken());
+        clock.moveTo(START.plus(GRACE).plusSeconds(1));
+
+        RefreshOutcome outcome = service.refresh(opened.refreshToken());
+
+        assertThat(outcome).isInstanceOf(RefreshOutcome.Rejected.class);
+        assertThat(auditTrail.recorded())
+                .endsWith(new AuditEvent(
+                        AuditAction.AUTH_TOKEN_REUSE, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenAnAccountDeletedAfterItsSessionOpened_WhenTheSessionIsRefreshed_ThenEverySessionOfTheAccountEnds() {
+        // A deleted account may not sign in either: the read finding no account is a refusal, as a
+        // disabled one is, not a pass.
+        SessionGrant refreshed = service.open(USER_ID);
+        SessionGrant elsewhere = service.open(USER_ID);
+        when(users.findById(USER_ID)).thenReturn(Optional.empty());
+
+        RefreshOutcome outcome = service.refresh(refreshed.refreshToken());
+
+        assertThat(outcome).isInstanceOf(RefreshOutcome.Rejected.class);
+        assertThat(service.isActive(elsewhere.sessionId(), USER_ID)).isFalse();
+        assertThat(published).containsExactly(new UserSessionsEnded(USER_ID, now()));
+    }
+
+    @Test
     void GivenAnAccountSwitchedOffAfterItsSessionOpened_WhenTheSessionIsRefreshed_ThenEverySessionOfTheAccountEnds() {
         // S5.A9: an administrator can disable an account between a sign-in's password check and its
         // session opening, and revokeAllForUser then finds nothing to end. Refresh is where such a
@@ -337,6 +370,20 @@ class AuthSessionServiceTest {
 
         assertThat(auditTrail.only(AuditAction.AUTH_REFRESH))
                 .hasValue(new AuditEvent(AuditAction.AUTH_REFRESH, null, opened.sessionId(), AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenAnExpiredSession_WhenACredentialItSpentIsPresented_ThenTheRefusalNamesTheSessionAndItsOwner() {
+        // Expiry is checked first, and the proof that the credential is the session's own has to count
+        // every credential it issued, the spent ones included (NFR-23).
+        SessionGrant opened = service.open(USER_ID);
+        service.refresh(opened.refreshToken());
+        clock.moveTo(START.plus(IDLE).plusSeconds(1));
+
+        service.refresh(opened.refreshToken());
+
+        assertThat(auditTrail.recorded())
+                .endsWith(new AuditEvent(AuditAction.AUTH_REFRESH, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
     }
 
     @Test

@@ -105,12 +105,11 @@ class AuthSessionTest {
     }
 
     @Test
-    void GivenACredentialItNeverIssued_WhenItIsPresented_ThenItIsNeitherCurrentNorTheOneRetired() {
+    void GivenACredentialItNeverIssued_WhenItIsPresented_ThenItIsNotTheCurrentOne() {
         AuthSession session = opened();
-        SpentCredential retired = session.rotate(SECOND, OPENED_AT, IDLE);
+        session.rotate(SECOND, OPENED_AT, IDLE);
 
         assertThat(session.matchesCurrent(THIRD)).isFalse();
-        assertThat(retired.tokenHash()).isNotEqualTo(THIRD);
     }
 
     @Test
