@@ -6,6 +6,7 @@ import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.common.security.BearerAuthentication;
 import com.healthupgrades.common.security.BearerTokenAuthenticator;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,10 @@ import org.springframework.stereotype.Component;
  *   <li>a SUBSCRIBE must come from an authenticated session and name {@link #ALLOWED_SUBSCRIPTION}
  *       exactly — naming the resolved {@code /queue/notifications-user…} of another session, or any
  *       {@code /topic}, is refused;</li>
+ *   <li>a socket holds one subscription at a time: a second SUBSCRIBE is refused until an UNSUBSCRIBE
+ *       of the one it holds releases it. Each subscription is registered with the broker, so a socket
+ *       streaming SUBSCRIBE frames with fresh ids would otherwise grow the heap without limit
+ *       (S5.A5);</li>
  *   <li>a SEND is refused outright: the application declares no {@code @MessageMapping}, so there is
  *       nothing server-side for one to reach and anything sending one is probing;</li>
  *   <li>heartbeats, UNSUBSCRIBE and DISCONNECT pass — they carry no destination to abuse, and refusing
@@ -68,6 +73,13 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
      */
     public static final String ALLOWED_SUBSCRIPTION = "/user/queue/notifications";
 
+    /**
+     * The session attribute that holds the id of the subscription a socket has taken. Spring hands every
+     * frame of one WebSocket session the same attributes map, so it is per socket, and it is discarded
+     * with the socket.
+     */
+    private static final String HELD_SUBSCRIPTION = JwtChannelInterceptor.class.getName() + ".heldSubscription";
+
     private final BearerTokenAuthenticator authenticator;
     private final AuditTrail auditTrail; // records every CONNECT, allowed or refused
 
@@ -97,9 +109,10 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
             // want of a principal, but failing at the door is the honest place to fail.
             case CONNECT, STOMP -> accessor.setUser(authenticate(accessor));
             case SUBSCRIBE -> authoriseSubscription(accessor);
+            case UNSUBSCRIBE -> releaseSubscription(accessor);
             case SEND -> refuse("a SEND, which no server-side mapping receives");
             default -> {
-                /* UNSUBSCRIBE, DISCONNECT, ACK, NACK and the transaction frames name nothing */
+                /* DISCONNECT, ACK, NACK and the transaction frames name nothing */
             }
         }
         return message;
@@ -111,7 +124,10 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
             // DEBUG for both refusals: /ws is a public endpoint and a reconnecting client with a stale
             // token is routine. The reason is recorded because the two are diagnosed differently: a
             // missing header is a client with no session left to offer, an unusable token is a session
-            // that ended. Spring turns the exception into a refused connection and does not log one itself.
+            // that ended. Spring turns the exception into a refused connection, and for a CONNECT, as for
+            // a SUBSCRIBE, logs nothing above DEBUG itself. That is not true of every frame: a refused
+            // SEND, and a frame it cannot decode, spring-websocket 7.0.9's StompSubProtocolHandler logs
+            // at ERROR, which no interceptor can prevent (S5.C4).
             log.debug("Refused a STOMP CONNECT: no bearer token");
             // Audited only when something was presented. A tab whose session could not be renewed
             // reconnects with no header at all every five seconds, and that is no more an attempt than a
@@ -153,6 +169,25 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
         }
         if (!ALLOWED_SUBSCRIPTION.equals(accessor.getDestination())) {
             refuse("a SUBSCRIBE to a destination this application does not publish to");
+        }
+        Map<String, Object> socket = accessor.getSessionAttributes();
+        String id = accessor.getSubscriptionId();
+        if (socket == null || id == null) {
+            // Without the socket's attributes there is nowhere to count what it holds, and STOMP requires
+            // the id. Neither happens over a real WebSocket; refusing keeps the limit closed if it did.
+            refuse("a SUBSCRIBE with no socket or no subscription id");
+        }
+        if (socket.putIfAbsent(HELD_SUBSCRIPTION, id) != null) {
+            refuse("a second SUBSCRIBE on a socket that already holds one");
+        }
+    }
+
+    /** Releases the socket's subscription when the UNSUBSCRIBE names it, and only then. */
+    private void releaseSubscription(StompHeaderAccessor accessor) {
+        Map<String, Object> socket = accessor.getSessionAttributes();
+        String id = accessor.getSubscriptionId();
+        if (socket != null && id != null) {
+            socket.remove(HELD_SUBSCRIPTION, id);
         }
     }
 
