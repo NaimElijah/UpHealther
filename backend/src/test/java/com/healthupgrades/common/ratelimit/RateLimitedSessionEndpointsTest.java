@@ -1,5 +1,6 @@
 package com.healthupgrades.common.ratelimit;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -19,6 +20,8 @@ import com.healthupgrades.common.security.JwtAuthenticationFilter;
 import com.healthupgrades.common.security.SecurityConfig;
 import com.healthupgrades.common.security.UserDetailsServiceImpl;
 import com.healthupgrades.support.WebSliceSupport;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,6 +65,9 @@ class RateLimitedSessionEndpointsTest {
     @Autowired
     MockMvc mockMvc;
 
+    @Autowired
+    MeterRegistry meterRegistry;
+
     @MockitoBean
     AuthService authService;
 
@@ -93,6 +99,22 @@ class RateLimitedSessionEndpointsTest {
                 .andExpect(jsonPath("$.path").value("/api/auth/refresh"));
 
         verify(sessions, times(SESSION_LIMIT)).refresh(anyString());
+    }
+
+    @Test
+    void GivenARefreshOverTheAllowance_WhenItIsRefused_ThenTheRefusalIsCountedUnderTheRefreshPath() throws Exception {
+        // The session interceptor draws its tag from the session paths. Built from any other list, every
+        // refused refresh would be counted as "other", and the refusals would vanish from the endpoint's
+        // own series.
+        String client = "203.0.113.35";
+        double before = refusalsCountedFor("/api/auth/refresh");
+        for (int attempt = 0; attempt < SESSION_LIMIT; attempt++) {
+            mockMvc.perform(refreshFrom(client));
+        }
+
+        mockMvc.perform(refreshFrom(client)).andExpect(status().isTooManyRequests());
+
+        assertThat(refusalsCountedFor("/api/auth/refresh")).isEqualTo(before + 1);
     }
 
     @Test
@@ -141,6 +163,14 @@ class RateLimitedSessionEndpointsTest {
         }
 
         mockMvc.perform(signInFrom(client)).andExpect(status().isUnauthorized());
+    }
+
+    private double refusalsCountedFor(String endpoint) {
+        Counter counter = meterRegistry
+                .find(RateLimitInterceptor.REFUSALS)
+                .tag("endpoint", endpoint)
+                .counter();
+        return counter == null ? 0 : counter.count();
     }
 
     private static MockHttpServletRequestBuilder refreshFrom(String clientAddress) {
