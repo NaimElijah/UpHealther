@@ -821,9 +821,11 @@ FR-14 is carried out: `UpgradeService.delete` removes one row and publishes no e
 graph shows no edge from `upgrade` to those contexts. `notifications.related_upgrade_id` and
 `health_upgrades.area_id` use `ON DELETE SET NULL`, which is how a notification outlives its upgrade
 (FR-14) and an upgrade survives its area (FR-8); `users(id)` cascades to every table that
-carries a `user_id`. The entities map these columns as plain ids, so no JPA cascade exists to find. A
-table that references `health_upgrades` or `users` states its `ON DELETE` outright, and moving a
-context's tables out of the database, or giving one a soft delete, would replace the cascade
+carries a `user_id`. The entities map these columns as plain ids, so no JPA cascade exists to find.
+Every referencing column leads an index, so a parent's delete finds its children without scanning the
+table, and no index repeats the leading columns of another; `SchemaIndexIT` checks both in the migrated
+catalogue. A table that references `health_upgrades` or `users` states its `ON DELETE` outright, and
+moving a context's tables out of the database, or giving one a soft delete, would replace the cascade
 ([ADR-063](../ADRs/ADR-063-one-schema-with-cross-context-foreign-keys.md)).
 
 **Every migration from `V10` on bounds how long it waits for a lock.** Flyway runs each PostgreSQL
