@@ -868,7 +868,11 @@ also reads: see "Which contexts depend on which".
 overlap inside the server clash, and the later one is answered 409. No request carries the version back,
 though, so an edit sent from a page opened before another edit replaces that edit instead of being
 refused ([#194](https://github.com/NaimElijah/UpHealther/issues/194)). Nothing else is version-checked,
-because nothing else is edited from two places at once.
+because nothing else is edited from two places at once. One writer of an upgrade is not Hibernate:
+deleting an area detaches its upgrades through `ON DELETE SET NULL (area_id)`, and a trigger,
+`health_upgrades_area_detach_bumps_version`, moves the version of each, so a request that loaded one
+before the delete is refused at its commit like any other lost race, rather than writing the deleted area
+back ([ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md)).
 
 **Exception to HTTP status is decided in exactly one class.** Controllers and services throw domain
 exceptions and never build a status by hand. The mapping is pinned by a test.

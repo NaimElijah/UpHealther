@@ -31,7 +31,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p><strong>BR-14</strong> — concurrent edits are refused rather than silently merged. That is the
  * {@code @Version} column doing its job, and no unit test can see it: a mocked repository accepts both
- * writes and the second one silently wins, which is exactly the outcome the rule exists to prevent.
+ * writes and the second one silently wins, which is exactly the outcome the rule exists to prevent. A
+ * save that races the deletion of its area is the same lost race, and is refused the same way, because
+ * the database moves the version when the delete detaches the upgrade.
  *
  * <p><strong>BR-15</strong> — a user-scoped query returns nothing for another user's row. The services
  * are only as safe as these queries; a {@code findById} slipping in where {@code findByIdAndUserId}
@@ -128,6 +130,96 @@ class UpgradePersistenceIT extends PostgresIT {
             committing.executeWithoutResult(
                     status -> execute("DELETE FROM users WHERE id = CAST(?1 AS uuid)", editorId));
         }
+    }
+
+    @Test
+    void GivenAnUpgradeLoadedBeforeItsAreaWasDeleted_WhenItIsSavedAfterwards_ThenItsCommitIsRefusedAsAConflict() {
+        // #340, D6.2. Deleting an area detaches its upgrades through ON DELETE SET NULL (area_id), a write
+        // Hibernate never sees. Unless that write moves the version, the request that loaded the upgrade
+        // first passes the version check at its commit and writes the deleted area's id back, which the
+        // area key refuses as a DataIntegrityViolationException: a 500. With the version moved, its update
+        // matches no row, and the commit fails as the optimistic-lock conflict GlobalExceptionHandler
+        // answers 409. One thread: the delete is a transaction that commits inside the save's, which is the
+        // order two requests can take. Every transaction here commits, on an account of its own, which is
+        // deleted afterwards with everything it owns.
+        TransactionTemplate committing = new TransactionTemplate(transactionManager);
+        committing.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        UUID editorId = committing.execute(
+                status -> persistedUser(UUID.randomUUID() + "@example.com").getId());
+        try {
+            UUID areaId = UUID.randomUUID();
+            UUID id = committing.execute(status -> {
+                persistArea(areaId, editorId);
+                return entityManager
+                        .persistAndFlush(AnUpgrade.ownedBy(editorId)
+                                .id(null)
+                                .areaId(areaId)
+                                .status(UpgradeStatus.ACTIVE)
+                                .build())
+                        .getId();
+            });
+
+            assertThatThrownBy(() -> committing.executeWithoutResult(request -> {
+                        HealthUpgrade loaded =
+                                repository.findByIdAndUserId(id, editorId).orElseThrow();
+
+                        committing.executeWithoutResult(
+                                areaDelete -> execute("DELETE FROM health_areas WHERE id = CAST(?1 AS uuid)", areaId));
+
+                        loaded.pause();
+                        repository.save(loaded);
+                    }))
+                    .isInstanceOf(OptimisticLockingFailureException.class);
+        } finally {
+            committing.executeWithoutResult(
+                    status -> execute("DELETE FROM users WHERE id = CAST(?1 AS uuid)", editorId));
+        }
+    }
+
+    @Test
+    void GivenAnUpgradeFiledUnderAnArea_WhenTheAreaIsDeleted_ThenTheUpgradeIsDetachedAndItsVersionMovesOnce() {
+        // FR-8: the upgrade survives its area, detached. The version moving is what D6.2 rests on, and it is
+        // the referential action's own UPDATE that has to fire the trigger, which only a real delete shows.
+        UUID areaId = UUID.randomUUID();
+        persistArea(areaId, ownerId);
+        UUID id = entityManager
+                .persistAndFlush(AnUpgrade.ownedBy(ownerId)
+                        .id(null)
+                        .areaId(areaId)
+                        .status(UpgradeStatus.ACTIVE)
+                        .build())
+                .getId();
+        long before = versionOf(id);
+
+        execute("DELETE FROM health_areas WHERE id = CAST(?1 AS uuid)", areaId);
+
+        assertThat(count("SELECT count(*) FROM health_upgrades WHERE id = CAST(?1 AS uuid) AND area_id IS NULL", id))
+                .isEqualTo(1);
+        assertThat(versionOf(id)).isEqualTo(before + 1);
+    }
+
+    @Test
+    void GivenAnUpgradeFiledUnderAnArea_WhenItsOwnerClearsTheArea_ThenItsVersionMovesOnceNotTwice() {
+        // The trigger moves the version only for a write that left it where it was. Hibernate's own update
+        // already moves it, so the trigger must stay out of the way, or every edit would count twice.
+        UUID areaId = UUID.randomUUID();
+        persistArea(areaId, ownerId);
+        UUID id = entityManager
+                .persistAndFlush(AnUpgrade.ownedBy(ownerId)
+                        .id(null)
+                        .areaId(areaId)
+                        .status(UpgradeStatus.ACTIVE)
+                        .build())
+                .getId();
+        entityManager.clear();
+        long before = versionOf(id);
+
+        HealthUpgrade upgrade = repository.findByIdAndUserId(id, ownerId).orElseThrow();
+        upgrade.updateDetails(null, upgrade.getTitle(), null, upgrade.getType(), null, null, null);
+        repository.save(upgrade);
+        entityManager.flush();
+
+        assertThat(versionOf(id)).isEqualTo(before + 1);
     }
 
     @Test
@@ -253,6 +345,17 @@ class UpgradePersistenceIT extends PostgresIT {
                         .setParameter(1, id.toString())
                         .getSingleResult())
                 .longValue();
+    }
+
+    private long versionOf(UUID id) {
+        return count("SELECT version FROM health_upgrades WHERE id = CAST(?1 AS uuid)", id);
+    }
+
+    private void persistArea(UUID areaId, UUID userId) {
+        execute(
+                "INSERT INTO health_areas (id, user_id, name) VALUES (CAST(?1 AS uuid), CAST(?2 AS uuid), 'Sleep')",
+                areaId,
+                userId);
     }
 
     private User persistedUser(String email) {

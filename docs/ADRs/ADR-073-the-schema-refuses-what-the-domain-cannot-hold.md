@@ -3,13 +3,14 @@
 - **Status:** Accepted
 - **Date:** 2026-10-30
 - **Scope:**
-  - `backend/src/main/resources/db/migration/V12__value_domains.sql` and
-    `V13__child_rows_share_their_parents_owner.sql`.
+  - `backend/src/main/resources/db/migration/V12__value_domains.sql`,
+    `V13__child_rows_share_their_parents_owner.sql` and `V14__area_detach_bumps_upgrade_version.sql`.
   - `Reminder`, whose two columns become `@Column(nullable = false)`.
-  - `EnumColumnCheckContractTest`, `ValueDomainConstraintIT` and `OwnerConsistencyIT`, which enforce it.
-  - BR-15, BR-18, BR-19 and BR-20 in `docs/requirements/requirements.md`.
+  - `EnumColumnCheckContractTest`, `ValueDomainConstraintIT`, `OwnerConsistencyIT` and
+    `UpgradePersistenceIT`, which enforce it.
+  - BR-14, BR-15, BR-18, BR-19 and BR-20 in `docs/requirements/requirements.md`.
 - **Issue:** [#340](https://github.com/NaimElijah/UpHealther/issues/340), scan 06 of
-  [#334](https://github.com/NaimElijah/UpHealther/issues/334), findings D6.10 and D6.11. Generalises the
+  [#334](https://github.com/NaimElijah/UpHealther/issues/334), findings D6.10, D6.11 and D6.2. Generalises the
   policy `V8__user_role_and_enabled.sql` stated for one column, extends
   [ADR-063](ADR-063-one-schema-with-cross-context-foreign-keys.md), whose foreign keys the owner keys
   replace, and follows [ADR-072](ADR-072-every-migration-bounds-its-lock-wait.md) for how its constraints
@@ -35,6 +36,11 @@ lacks, `@Min(1) @Max(5)` refuses a rating of 7 (BR-19), `@PositiveOrZero` a nega
   dashboard's streak read filters by `user_id`, while `getStreakSummary` counts by `upgrade_id` alone, and
   the two agree only while the copy is right. `health_upgrades.area_id` must name an area of the same owner
   (BR-18). Each held because the one writer stamps it after an ownership check, and for no other reason.
+- **Deleting an area changed its upgrades behind the version's back.** Its `ON DELETE SET NULL` is an
+  `UPDATE` PostgreSQL runs itself, so `HealthUpgrade`'s `@Version` did not move. A request that loaded an
+  upgrade before the delete and saved it after passed the version check and wrote the deleted area's id
+  back; the area key refused it at the commit, and a lost race (BR-14) was answered 500. ADR-063 names
+  this cost.
 
 "Past the API" is not hypothetical: a manual fix in production, a later migration's backfill, a second
 writer, or a bug in a path that skips the request record. Each of those meets the schema and nothing else.
@@ -79,6 +85,15 @@ requirements do not state is added.
    named constraint to refuse it, and `OwnerConsistencyIT` does the same with a child row naming another
    owner.
 
+8. **Detaching an upgrade from a deleted area moves its version, in the database.** A `BEFORE UPDATE OF
+   area_id` trigger on `health_upgrades`, `health_upgrades_area_detach_bumps_version`, adds one to
+   `version` when `area_id` goes from a value to `NULL` and the version was left as it was. Only the
+   referential action's update meets that condition: Hibernate moves the version on every update it
+   writes, so an edit that clears the area counts once. The stale save then matches no row and is refused
+   at its commit as the optimistic-lock conflict every lost race is, answered 409 and audited as a refusal
+   on the rollback path. The rule is the database's here because the write it corrects is the database's:
+   no declaration says "a referential action moves a version", and no Java runs when it happens.
+
 ## Consequences
 
 **What this makes easy**
@@ -101,6 +116,9 @@ requirements do not state is added.
   one, which the integration tests show by migrating a fresh database from V1.
 - **Each owned parent carries a second unique index**, on `(id, user_id)`, maintained on every insert,
   which the foreign keys need and no query uses.
+- **A trigger is code in the schema.** `UpgradePersistenceIT` exercises it through a real area delete, and
+  through an owner's edit that must not count twice; a change to the version column or to the area key
+  needs it read again.
 - **The area key is weaker than it looks.** A legacy row with a foreign area stays, and no constraint
   says it is there. The day such rows are gone, a `VALIDATE` makes the key whole.
 
@@ -122,6 +140,14 @@ requirements do not state is added.
 - **Drop the copied `user_id` from the child tables** and read the owner through the upgrade. Rejected for
   now: every owner-scoped read of progress and reflections would need a join, and `findUserIdsWithEntriesOn`,
   the check-in sweep's read, with it.
+- **Flush each upgrade save and translate the area key's violation into the optimistic-lock failure**, in
+  `UpgradeRepositoryAdapter`. It would answer the race 409 too. Rejected: flushing moves every upgrade
+  write, a version clash included, from the commit into the body `AuditTrail.recording` wraps, where
+  `AuditOutcome.of` does not count Spring's exception as a refusal, so every lost race on an upgrade would be
+  audited FAILED, the signal that something broke.
+- **`@DynamicUpdate` on `HealthUpgrade`**, so an update writes only the columns that changed and a status
+  change leaves `area_id` alone. Rejected: it is a Hibernate annotation, which ADR-002 and ADR-064 keep out
+  of the domain, and an edit that does change the area would still write the deleted id back.
 - **Bound every numeric column a value would plausibly fit**, a priority from 1 to 10, say. Rejected: a
   bound no requirement states is a product rule invented in a migration, and it would refuse input the API
   accepts.
