@@ -5,7 +5,7 @@
 - **Scope:** `backend/` — the `auth` context's sessions, refresh cookie and their configuration, the
   rate limit in front of the cookie endpoints, how the audit stream names a session, the ArchUnit
   pins on the reads that are not scoped by owner, and migration `V10__auth_session_spent_tokens.sql`;
-  NFR-4, NFR-9, NFR-24, NFR-34, NFR-36, NFR-47 and NFR-58 in `docs/requirements/requirements.md`.
+  NFR-4, NFR-9, NFR-24, NFR-34, NFR-36, NFR-47 and NFR-59 in `docs/requirements/requirements.md`.
 - **Issue:** [#339](https://github.com/NaimElijah/UpHealther/issues/339), scan 05 of
   [#334](https://github.com/NaimElijah/UpHealther/issues/334): findings S5.A1, S5.A4, S5.A8, S5.A9,
   S5.A11, S5.A13, S5.A14, S5.B6 and S5.C3.
@@ -127,7 +127,7 @@ with the property named, as a missing one already did. Each bound is a named con
 
 | Setting | Shipped | Bounds | Why |
 |---|---|---|---|
-| `app.jwt.access-token-ttl` | 15m | 1m to 1h | Shorter renews every tab too often for NFR-58's limit; longer makes a leaked token worth hours |
+| `app.jwt.access-token-ttl` | 15m | 1m to 1h | Shorter renews every tab too often for NFR-59's limit; longer makes a leaked token worth hours |
 | `app.auth.session.idle` | 7d | at least 1h, and at most `absolute` | Shorter than the longest token lets an active session lapse between renewals; longer than the cap does nothing it says |
 | `app.auth.session.absolute` | 30d | 1h to 90d | NFR-47: no session lives indefinitely |
 | `app.auth.session.rotation-grace` | 10s | at most 1m | Longer forgives replays; zero is allowed, and forgives nothing |

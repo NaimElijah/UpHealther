@@ -42,6 +42,21 @@ const REFRESH_LOCK = 'healthupgrades.refresh';
 /** How long to wait before the one retry after a 409, which means another tab rotated first. */
 const CONFLICT_BACKOFF_MS = 150;
 
+/**
+ * How long one renewal is waited for before it counts as unanswered (S5.D5).
+ *
+ * The renewal runs while holding the cross-tab lock, so a renewal that hung would hold up every tab's
+ * renewal, and every request waiting behind a 401, for as long as the connection stayed open. The
+ * server answers it with a few indexed reads and writes, well under a second when it is healthy, so
+ * ten seconds leaves a slow mobile connection room while keeping a stall bounded.
+ *
+ * The deadline gives up waiting, not the request. A refresh rotates the credential, so a request the
+ * server has already committed carries the only cookie that is still good, and cancelling it would throw
+ * that away. Today a renewal given up ends the session, and that navigation cancels the request anyway;
+ * what a failed renewal should do instead is #377's.
+ */
+export const REFRESH_TIMEOUT_MS = 10_000;
+
 /** Set on a request that has already been retried once, so a second 401 is believed. */
 type RetriableConfig = InternalAxiosRequestConfig & { retriedAfterRefresh?: boolean };
 
@@ -98,14 +113,18 @@ async function withTabLock<T>(work: () => Promise<T>): Promise<T> {
  *
  * A 409 means the credential was rotated moments ago and this request arrived holding the superseded
  * one — the cookie has since been replaced, so the same request again succeeds. Anything else means the
- * session is over. The call goes through this client on purpose: the response interceptor below leaves
- * the refresh path alone, so it cannot recurse into itself.
+ * session is over, an answer that does not come within `REFRESH_TIMEOUT_MS` included. The call goes
+ * through this client on purpose: the response interceptor below leaves the refresh path alone, so it
+ * cannot recurse into itself.
  */
 async function refreshOnce(retryOnConflict = true): Promise<boolean> {
   try {
-    const { data } = await client.post<AuthResponse>(REFRESH_PATH, null, {
-      headers: { [REQUESTED_WITH]: 'XMLHttpRequest' },
-    });
+    const { data } = await withDeadline(
+      REFRESH_TIMEOUT_MS,
+      client.post<AuthResponse>(REFRESH_PATH, null, {
+        headers: { [REQUESTED_WITH]: 'XMLHttpRequest' },
+      }),
+    );
     setAccessToken(data.accessToken, data.expiresAt);
     return true;
   } catch (error) {
@@ -118,6 +137,21 @@ async function refreshOnce(retryOnConflict = true): Promise<boolean> {
     clearAccessToken();
     return false;
   }
+}
+
+/**
+ * Settles as `pending` does, or rejects once `ms` pass without its answer, whichever comes first.
+ *
+ * It stops the wait, not the work: `pending` runs on, and its answer is simply no longer awaited. Kept
+ * here rather than left to axios's `timeout`, which only its network adapters enforce and which would
+ * also cancel the request: whatever answers it, the caller and the lock are released on time.
+ */
+function withDeadline<T>(ms: number, pending: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`No answer within ${ms} ms`)), ms);
+  });
+  return Promise.race([pending, deadline]).finally(() => clearTimeout(timer));
 }
 
 function delay(ms: number): Promise<void> {

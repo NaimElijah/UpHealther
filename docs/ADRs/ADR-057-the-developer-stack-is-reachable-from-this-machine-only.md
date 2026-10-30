@@ -1,6 +1,6 @@
 # ADR-057: The developer stack is reachable from this machine only, and gains no privilege
 
-- **Status:** Accepted
+- **Status:** Accepted — extended by [ADR-069](ADR-069-the-compose-backend-connects-as-a-role-that-owns-its-database.md)
 - **Date:** 2026-10-29
 - **Scope:** `docker-compose.yml`'s `ports`, `security_opt`, `cap_drop` and PostgreSQL's health-check;
   `ComposeStackHardeningTest`; the README's start instructions. It leaves `scripts/compose.images-check.yml`

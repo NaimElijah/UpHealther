@@ -6,6 +6,12 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-healthupgrades}
       POSTGRES_USER: ${POSTGRES_USER:-healthupgrades}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-healthupgrades}
+      # The role the backend connects as, which scripts/postgres-init/ creates on an empty volume. It
+      # owns the database and nothing else, so the API never holds the superuser above (ADR-069).
+      # Named apart from DB_USERNAME and DB_PASSWORD, which a native run reads: compose reads a root
+      # .env, and would otherwise hand the backend whatever those name.
+      POSTGRES_APP_USER: ${POSTGRES_APP_USER:-healthupgrades_app}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:-healthupgrades_app}
     # Every port here is published on the loopback address only. The defaults are a published
     # superuser password and a published signing key, so a port open on every interface hands the
     # database, and a token for any account, to whoever shares the network. On Linux, Docker's own
@@ -14,6 +20,8 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Run once, on an empty data directory only: an existing volume keeps whatever roles it has.
+      - ./scripts/postgres-init:/docker-entrypoint-initdb.d:ro
     # Over TCP, the way the backend connects. On an empty volume the image's entrypoint first runs a
     # temporary server that listens on the Unix socket only, then stops it and starts the real one; a
     # probe of the socket answers "accepting connections" from the temporary server, so the backend
@@ -47,8 +55,8 @@ services:
       - "127.0.0.1:8080:8080"
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-healthupgrades}
-      DB_USERNAME: ${POSTGRES_USER:-healthupgrades}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-healthupgrades}
+      DB_USERNAME: ${POSTGRES_APP_USER:-healthupgrades_app}
+      DB_PASSWORD: ${POSTGRES_APP_PASSWORD:-healthupgrades_app}
       # The image carries no signing key (ADR-042), so this stack supplies the published development
       # one, the same value as backend/config/application.yml. This file is the local stack only: a
       # deployment through it would inherit this key unless JWT_SECRET is set.

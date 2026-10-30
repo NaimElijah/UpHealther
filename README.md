@@ -172,7 +172,14 @@ a working default, so no `.env` is needed to start — copy `.env.example` to `.
 
 - **`port is already allocated` on 5432** — a host PostgreSQL owns the port. Stop it, or drop the
   `ports:` mapping on the `postgres` service; the backend reaches it over the compose network anyway.
-- **Backend restarts, logs mention Flyway** — a stale `postgres_data` volume. `docker compose down -v`.
+- **Backend exits, logs mention Flyway** — a stale `postgres_data` volume. `docker compose down -v`.
+- **Backend exits, logs say `password authentication failed for user "healthupgrades_app"`** — the
+  `postgres_data` volume predates the role the backend connects as, and PostgreSQL creates that role
+  only when it initialises an empty volume. `docker compose down -v`, then start again; this deletes
+  the local data, the demo account included, which the migrations seed again.
+- **Backend exits, logs say `permission denied for table …`** — a native `./mvnw spring-boot:run`
+  migrated this volume as the superuser before the compose backend did, so the tables belong to a role
+  the compose backend is not. `docker compose down -v`, then start again; this deletes the local data.
 - **Frontend loads, every call fails** — `curl http://localhost:8080/actuator/health/readiness`.
 
 </details>
@@ -188,13 +195,13 @@ localhost only.
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `POSTGRES_PASSWORD` | Database password; compose hands it to the backend, a native run reads `DB_PASSWORD` | `healthupgrades` |
+| `POSTGRES_PASSWORD` | The compose PostgreSQL's superuser password, which the backend never uses; a native run reads `DB_PASSWORD` | `healthupgrades` |
 | `JWT_SECRET` | Token signing key; the application refuses to start without one, or on one under 256 bits | none — compose and `backend/config/` supply a published dev key |
 | `ADMIN_BOOTSTRAP_USER_ID` | An existing account promoted to `ADMIN` at startup while no administrator exists — an id, not an email, because registration is open | empty |
-| `TRUSTED_PROXIES` | Java regex for the hop allowed to set `X-Forwarded-For`; widen it and a caller picks the address the rate limit counts | nginx on the compose network |
+| `TRUSTED_PROXIES` | Java regex for the hop allowed to set `X-Forwarded-For`, `X-Forwarded-Host` and `X-Forwarded-Port`; widen it and a caller picks the address the rate limit counts, and the host and port the API believes it was reached on | nginx on the compose network |
 
 <details>
-<summary>The other fourteen variables, and nine that live only in <code>application.yml</code></summary>
+<summary>The other sixteen variables, and nine that live only in <code>application.yml</code></summary>
 
 In `.env.example` order. `docker-compose.yml` does not pass four of them through, so they take
 effect on a native run only — marked *native*.
@@ -202,14 +209,15 @@ effect on a native run only — marked *native*.
 | Variable | Purpose | Default |
 |---|---|---|
 | `POSTGRES_DB` | Database name created by the compose Postgres | `healthupgrades` |
-| `POSTGRES_USER` | Database user created by the compose Postgres | `healthupgrades` |
+| `POSTGRES_USER` | The superuser created by the compose Postgres | `healthupgrades` |
+| `POSTGRES_APP_USER`, `POSTGRES_APP_PASSWORD` | The role the compose backend connects as, created on an empty volume and owning the database only ([ADR-069](docs/ADRs/ADR-069-the-compose-backend-connects-as-a-role-that-owns-its-database.md)) | `healthupgrades_app` |
 | `JWT_ACCESS_TOKEN_TTL` | How long an access token is accepted; the SPA renews it, so this is not the session's length. Between `1m` and `1h`, or the backend refuses to start | `15m` |
 | `AUTH_SESSION_IDLE` | A session lapses after this long unused; each refresh slides it forward. At least `1h` and at most `AUTH_SESSION_ABSOLUTE` | `7d` |
 | `AUTH_SESSION_ABSOLUTE` | No session outlives this, however often it is refreshed. Between `1h` and `90d` | `30d` |
 | `AUTH_RATE_LIMIT` | Sign-in and registration attempts per client address per window — *native* | `10` |
 | `AUTH_RATE_LIMIT_WINDOW` | The window that limit counts over — *native* | `1m` |
 | `DB_URL` | JDBC URL; compose points it at its own Postgres | `jdbc:postgresql://localhost:5432/healthupgrades` |
-| `DB_USERNAME`, `DB_PASSWORD` | Credentials the backend connects with | `healthupgrades` |
+| `DB_USERNAME`, `DB_PASSWORD` | Credentials the backend connects with; compose sets them from `POSTGRES_APP_USER` and `POSTGRES_APP_PASSWORD`, and a native run's default is the compose PostgreSQL's superuser | `healthupgrades` |
 | `CORS_ALLOWED_ORIGINS` | Cross-origin callers and `/ws` handshake origins; unused behind the proxy — *native* | `http://localhost:3000` |
 | `SPRING_PROFILES_ACTIVE` | `json-logs` writes one JSON object per line; compose sets it | empty locally |
 | `LOG_LEVEL_APP` | Level for `com.healthupgrades` only | `INFO` |
@@ -479,7 +487,7 @@ docs/              The documentation the repository baseline requires
   requirements/      What the system must do, each naming its enforcing test
   architecture/      What the system is, plus seven diagrams (three generated)
   ADRs/              Why — one file per decision, append-only
-scripts/           The image check, the backend audit, the changelog's git-cliff, and the Maven and Python launchers
+scripts/           The image check, the backend audit, the changelog's git-cliff, the Maven and Python launchers, and postgres-init/, the compose database's application role
 package.json       npm run setup, npm start, npm test, npm run changelog, npm run generate:wire-types — no dependencies; CI runs its test:* scripts
 CHANGELOG.md       Every release, newest first, written by git-cliff as cliff.toml says
 .github/workflows/ CI: backend verify/audit, diagram drift, frontend format/lint/test/audit/build, images and the smoke test

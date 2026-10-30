@@ -1,3 +1,4 @@
+import { apiPath } from './apiPath';
 import client from './client';
 import type { AppNotification, UnreadCount } from '../types';
 
@@ -19,7 +20,7 @@ export const getUnreadCount = async (): Promise<number> => {
 
 /** Marks one notification as read and returns it. */
 export const markNotificationRead = async (id: string): Promise<AppNotification> => {
-  const { data } = await client.post<AppNotification>(`/api/notifications/${id}/read`);
+  const { data } = await client.post<AppNotification>(apiPath`/api/notifications/${id}/read`);
   return data;
 };
 

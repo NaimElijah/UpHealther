@@ -53,8 +53,8 @@ public class StompSessionRegistry implements LiveSocketPort {
 
     /**
      * The {@code message} header of the ERROR frame that closes a socket whose session ended. The browser
-     * drops its access token on a frame with exactly these words and on no other ERROR, so they are a
-     * contract with the frontend, which {@code SessionEndedFrameContractTest} checks.
+     * ends the session in the tab (ADR-066) on a frame with exactly these words and on no other ERROR, so
+     * they are a contract with the frontend, which {@code SessionEndedFrameContractTest} checks.
      */
     public static final String SESSION_ENDED = "Session ended";
 
