@@ -5,6 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.healthupgrades.support.PostgresIT;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -20,7 +24,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
@@ -34,9 +37,19 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p>The mocked port in {@code UpgradeServiceTest} locks nothing, so this is the only place the lock is
  * asserted. As in {@code AuthSessionRowLockIT}, nothing is raced: the holder takes the lock on its own
- * thread and waits on a latch, and the prober asks for the same advisory key with
- * {@code pg_try_advisory_xact_lock}, which answers at once instead of blocking. So the outcome is decided
- * by the lock alone, never by timing.
+ * thread and waits on a latch, and the prober asks for the same advisory key with a {@code pg_try_*}
+ * function, which answers at once instead of blocking. So the outcome is decided by the lock alone,
+ * never by timing.
+ *
+ * <p><strong>The probe never runs on the holder's session.</strong> PostgreSQL grants a session any
+ * advisory lock it already holds, at session or transaction level alike, and Hikari hands a thread back
+ * the connection it returned last. A probe borrowed from the pool after a commit would therefore run on
+ * the committed session and be granted a lock that a session-level holder still keeps. So the probe's
+ * connection is checked out before any holder starts, and kept until the test ends.
+ *
+ * <p>The refusal is probed with a <em>shared</em> request, which only an exclusive holder refuses: an
+ * exclusive probe is refused by a shared holder too, and a shared lock would let two checks run
+ * together. The grants are probed with an exclusive request, which any holder of the key would refuse.
  *
  * <p>The probe derives the key the way the adapter's query does, so it also pins that derivation: a key
  * that changed would let the probe through and fail the first test.
@@ -51,8 +64,13 @@ import org.springframework.transaction.support.TransactionTemplate;
 class HardLimitLockIT extends PostgresIT {
 
     /** The adapter's key for a user's HARD-limit lock, with the user id as the one parameter. */
-    private static final String TRY_THE_USERS_LOCK =
-            "SELECT pg_try_advisory_xact_lock(hashtextextended('hard-limit ' || CAST(? AS text), 0))";
+    private static final String THE_USERS_KEY = "hashtextextended('hard-limit ' || CAST(? AS text), 0)";
+
+    /** Refused by any holder of the key, shared or exclusive. */
+    private static final String TRY_EXCLUSIVE = "SELECT pg_try_advisory_xact_lock(" + THE_USERS_KEY + ")";
+
+    /** Refused only by an exclusive holder of the key. */
+    private static final String TRY_SHARED = "SELECT pg_try_advisory_xact_lock_shared(" + THE_USERS_KEY + ")";
 
     /** Long enough for a slow CI machine, short enough that a lost latch fails the run instead of hanging it. */
     private static final long WAIT_SECONDS = 30;
@@ -71,18 +89,21 @@ class HardLimitLockIT extends PostgresIT {
 
     private TransactionTemplate transaction;
     private ExecutorService holderThread;
-    private JdbcTemplate prober;
+
+    /** Checked out before any holder starts, so it can never be the holder's session. */
+    private Connection probe;
 
     @BeforeEach
-    void aHolderOfItsOwn() {
+    void aProbeAndAHolderOfTheirOwn() throws SQLException {
+        probe = dataSource.getConnection();
         transaction = new TransactionTemplate(transactionManager);
         holderThread = Executors.newSingleThreadExecutor();
-        prober = new JdbcTemplate(dataSource);
     }
 
     @AfterEach
-    void stopTheHolder() {
+    void stopTheHolderAndReturnTheProbe() throws SQLException {
         holderThread.shutdownNow();
+        probe.close();
     }
 
     @Test
@@ -94,8 +115,8 @@ class HardLimitLockIT extends PostgresIT {
         try {
             awaitTheLock(locked, holder);
 
-            assertThat(tryTheLockOf(holderUser))
-                    .as("the same user's check, from another connection")
+            assertThat(ask(TRY_SHARED, holderUser))
+                    .as("even a shared request for the same user's lock, from another session")
                     .isFalse();
         } finally {
             probed.countDown();
@@ -112,7 +133,7 @@ class HardLimitLockIT extends PostgresIT {
         try {
             awaitTheLock(locked, holder);
 
-            assertThat(tryTheLockOf(otherUser))
+            assertThat(ask(TRY_EXCLUSIVE, otherUser))
                     .as("one user's check must not hold up another's")
                     .isTrue();
         } finally {
@@ -124,10 +145,10 @@ class HardLimitLockIT extends PostgresIT {
     @Test
     void GivenTheCheckingTransactionHasCommitted_WhenThatUsersLockIsAskedFor_ThenItIsGranted() throws Exception {
         // A session-level lock would stay with the pooled connection after the commit and refuse this,
-        // and every later activation by the user would wait on it.
+        // and every later activation by the user would wait on it. The probe is not that connection.
         transaction.executeWithoutResult(status -> repository.serialiseHardLimitChecks(holderUser));
 
-        assertThat(tryTheLockOf(holderUser)).isTrue();
+        assertThat(ask(TRY_EXCLUSIVE, holderUser)).isTrue();
     }
 
     @Test
@@ -145,9 +166,21 @@ class HardLimitLockIT extends PostgresIT {
         }));
     }
 
-    /** Asks for the user's lock on a connection of its own, outside any transaction, without waiting. */
-    private boolean tryTheLockOf(UUID userId) {
-        return Boolean.TRUE.equals(prober.queryForObject(TRY_THE_USERS_LOCK, Boolean.class, userId));
+    /**
+     * Asks for the user's lock on the probe's session, which is never the holder's, without waiting.
+     * The probe runs in autocommit, so a lock it is granted ends with the statement.
+     *
+     * @param tryStatement {@link #TRY_EXCLUSIVE} or {@link #TRY_SHARED}
+     * @return whether PostgreSQL granted it
+     */
+    private boolean ask(String tryStatement, UUID userId) throws SQLException {
+        try (PreparedStatement statement = probe.prepareStatement(tryStatement)) {
+            statement.setObject(1, userId);
+            try (ResultSet granted = statement.executeQuery()) {
+                granted.next();
+                return granted.getBoolean(1);
+            }
+        }
     }
 
     /**
