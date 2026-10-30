@@ -68,8 +68,17 @@ with the same WARN, `AUTH_TOKEN_REUSE` entry and published end as before. Two qu
 do not turn a request that was already in flight into a theft.
 
 **The aggregate no longer holds a previous digest.** `previous_token_hash` and `rotated_at` are dropped in
-`V10`, after their one digest is copied into the new table. Kept, they would be a second record of a
-fact the table holds, free to disagree with it.
+`V10`. Kept, they would be a second record of a fact the table holds, free to disagree with it.
+
+**`V10` revokes every session still live, and copies no digest.** It ships with the cookie's rename to
+`__Host-refresh_token` (§4), after which no browser presents the credential it holds. A session left
+live would then be out of reach of reuse detection: a thief who had copied a `refresh_token` value
+would present it under the new name and keep the session, while its owner, signing in afresh, would
+never present the old credential that would have exposed the theft, and their sign-out would name only
+the new session. The rename signs every browser out anyway, so revoking costs nobody anything more, and
+a copy of V9's previous digests would then protect nothing. The old cookie lingers in the browser,
+harmlessly, until its own `Max-Age`: nothing reads that name any more. `AuthSessionMigrationIT` runs
+V10 over a session stored under V9.
 
 **The history is read with one keyed lookup, not loaded with the aggregate.** The primary key
 `(session_id, token_hash)` is the query a refresh makes, so a busy session's history, up to one row per
@@ -206,8 +215,8 @@ issued. An account switched off at any moment is signed out at its next refresh 
   one; what it compares is the SHA-256 of the attacker's own input, so its timing reveals nothing about
   any credential's secret.
 - Every refresh also reads the account, one indexed read beside the session's.
-- Renaming the cookie signs every browser out once: the old `refresh_token` is no longer read, and
-  lapses on its own `Max-Age`.
+- Renaming the cookie signs every browser out once: the old `refresh_token` is no longer read, its
+  session is revoked by `V10`, and the cookie lapses on its own `Max-Age`.
 - A deployment that sets a lifetime outside its bounds no longer starts. That is the intent, and
   the error names the property.
 - A household with more than sixty renewals and sign-outs a minute behind one address is refused 429

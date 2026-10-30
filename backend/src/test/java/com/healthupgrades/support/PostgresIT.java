@@ -1,5 +1,10 @@
 package com.healthupgrades.support;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.regex.Pattern;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -53,7 +58,58 @@ public abstract class PostgresIT {
     @ServiceConnection
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(IMAGE);
 
+    /** What a database of its own may be called: {@code CREATE DATABASE} takes no bind parameter. */
+    private static final Pattern DATABASE_NAME = Pattern.compile("[a-z][a-z0-9_]*");
+
     static {
         POSTGRES.start();
+    }
+
+    /**
+     * Creates an empty database of its own in the shared container, for a test that migrates a schema one
+     * version at a time.
+     *
+     * <p>Every other {@code *IT} shares the container's default database, which Flyway has already taken to
+     * the latest version, so a test of what one migration does to the rows written before it needs a
+     * database nobody else migrates. An earlier one of the same name is dropped first, so a test can run
+     * twice in one JVM.
+     *
+     * @param name the database's name, lowercase letters, digits and underscores
+     * @return where it is, and how to sign in to it
+     * @throws IllegalArgumentException if the name is not one {@code CREATE DATABASE} can take as it is
+     * @throws SQLException if the container refuses either statement
+     */
+    protected static IsolatedDatabase createIsolatedDatabase(String name) throws SQLException {
+        if (!DATABASE_NAME.matcher(name).matches()) {
+            throw new IllegalArgumentException("not a plain database name: " + name);
+        }
+        try (Connection admin = DriverManager.getConnection(
+                        POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+                Statement statement = admin.createStatement()) {
+            statement.execute("DROP DATABASE IF EXISTS " + name);
+            statement.execute("CREATE DATABASE " + name);
+        }
+        String url = "jdbc:postgresql://" + POSTGRES.getHost() + ":"
+                + POSTGRES.getMappedPort(PostgreSQLContainer.POSTGRESQL_PORT) + "/" + name;
+        return new IsolatedDatabase(url, POSTGRES.getUsername(), POSTGRES.getPassword());
+    }
+
+    /**
+     * A database created by {@link #createIsolatedDatabase}.
+     *
+     * @param jdbcUrl  its JDBC URL
+     * @param username the role that owns it
+     * @param password that role's password
+     */
+    protected record IsolatedDatabase(String jdbcUrl, String username, String password) {
+
+        /**
+         * Opens a connection to it, which the caller closes.
+         *
+         * @throws SQLException if the container refuses the connection
+         */
+        public Connection connect() throws SQLException {
+            return DriverManager.getConnection(jdbcUrl, username, password);
+        }
     }
 }

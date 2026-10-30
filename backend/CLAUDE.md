@@ -225,7 +225,10 @@ that.
 - **Every `*IT` shares one database.** `PostgresIT` starts a single container for the whole run;
   `@DataJpaTest` ITs roll back, unless one opts out as `AuthSessionRowLockIT` does to hold a lock across
   two transactions (it deletes what it commits), but `@SpringBootTest` ITs commit rows that every later
-  class sees, and failsafe's order is the filesystem's. Assert only on rows the test itself created. When an IT fails
+  class sees, and failsafe's order is the filesystem's. Assert only on rows the test itself created. A
+  test of what one migration does to rows written before it cannot use that database, which Flyway has
+  already taken to the latest version: it takes one of its own from `PostgresIT.createIsolatedDatabase`
+  and migrates it with Flyway's `target`, as `AuthSessionMigrationIT` does. When an IT fails
   on a tree that passed elsewhere, reproduce with `-Dfailsafe.runOrder=alphabetical` and
   `reversealphabetical` before re-running anything.
 - **After changing a signature, a constructor's arity or a record's shape, build with `clean`.** An

@@ -17,11 +17,13 @@ CREATE TABLE auth_session_spent_tokens (
     PRIMARY KEY (session_id, token_hash)
 );
 
--- The one digest V9 remembered is carried over, so a live session keeps the history it already had.
-INSERT INTO auth_session_spent_tokens (session_id, token_hash, spent_at)
-SELECT id, previous_token_hash, rotated_at
-FROM auth_sessions
-WHERE previous_token_hash IS NOT NULL AND rotated_at IS NOT NULL;
+-- Every session still live is revoked, and no V9 digest is carried over. This release renames the
+-- refresh cookie to __Host-refresh_token, so after it no browser presents the credential it holds. A
+-- session left live would be out of reach of reuse detection: a thief who had copied a credential could
+-- present it under the new name, while its owner, signing in afresh, would never present the old one
+-- that exposes the theft. The rename signs every browser out anyway, so revoking costs nothing more,
+-- and a copied digest would then protect nothing. The old cookie lapses on its own Max-Age (ADR-065).
+UPDATE auth_sessions SET revoked = TRUE WHERE revoked = FALSE;
 
 -- Superseded by the table above: a second record of the same fact could only disagree with it.
 ALTER TABLE auth_sessions DROP COLUMN previous_token_hash;
