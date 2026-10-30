@@ -93,6 +93,11 @@ Inside its grace window a spent credential signs out, as before. After it, `end(
 `AUTH_TOKEN_REUSE`, and not also as a refused sign-out. The answer on the wire is unchanged: 204, cookie
 cleared.
 
+A session that has already ended, revoked or lapsed, is refused before either credential check, as
+`exchange()` refuses it: a refused `AUTH_LOGOUT`, naming the owner when the credential is one the session
+issued, and nothing else. Checked after them, a spent credential posted to sign-out again and again would
+revoke, log and audit the same reuse each time, and one theft would read as many.
+
 ### 3. A refresh re-reads the account (S5.A9)
 
 A refresh whose credential is current reads the account through `UserQuery` before it rotates. If the

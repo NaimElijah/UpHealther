@@ -464,9 +464,10 @@ kept in `auth_session_spent_tokens`, with when it was retired, for as long as th
 longer — its rows cascade with the session. That is the only reason a replay is distinguishable from a
 guess, however many rotations old it is, and the grace window runs from the moment each one was spent.
 Sign-out treats a spent credential the same way: inside its grace window it signs out, and after it the
-session is revoked as reuse, through the one method refresh uses. A credential that is neither current
-nor spent revokes nothing, because the session id travels in a token claim and is therefore not a
-secret
+session is revoked as reuse, through the one method refresh uses. Both refuse a session that has already
+ended before looking at the credential at all, so a spent one presented again is not a second theft. A
+credential that is neither current nor spent revokes nothing, because the session id travels in a token
+claim and is therefore not a secret
 ([ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md)).
 And the `sid` claim is checked on every authenticated request, together with the `sub` the row must
 name as its owner, which is what turns a revoked row into a refused request rather than a wait for the

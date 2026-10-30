@@ -211,6 +211,14 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
 
         AuthSession session = found.get();
         byte[] presentedHash = presented.hash();
+        Instant now = clock.instant();
+        // An ended session is refused before either credential check, as at /refresh: it has nothing left
+        // to end, and a spent credential presented to it again is not a second theft. Checked after them,
+        // every post of that credential would revoke, log and audit the same reuse once more.
+        if (!session.isActive(now)) {
+            recordRefusal(AuditAction.AUTH_LOGOUT, session, issuedHere(session, presentedHash));
+            return false;
+        }
         // The credential has to match, not merely name the session. Knowing a session id is not
         // authority to end it, and the id is the half of the credential that travels in a token claim.
         //
@@ -225,7 +233,7 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
                 recordRefusal(AuditAction.AUTH_LOGOUT, session, false);
                 return false;
             }
-            if (!spent.get().isWithinGrace(clock.instant(), properties.rotationGrace())) {
+            if (!spent.get().isWithinGrace(now, properties.rotationGrace())) {
                 revokeForReuse(session);
                 return false;
             }

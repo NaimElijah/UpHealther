@@ -460,6 +460,44 @@ class AuthSessionServiceTest {
         assertThat(published).containsExactly(new AuthSessionEnded(opened.sessionId(), USER_ID, now()));
     }
 
+    /**
+     * An ended session is refused at sign-out before either credential check, as it is at refresh, so a
+     * spent credential presented to it is not reuse a second time (NFR-36).
+     *
+     * <p>Without this, whoever held a spent credential of a revoked or lapsed session could post it to
+     * sign-out again and again, and each call would write the WARN, an {@code AUTH_TOKEN_REUSE} entry
+     * and the session's end once more: one theft would read as many.
+     */
+    @Test
+    void GivenASessionAlreadyEnded_WhenASpentCredentialIsUsedToSignOut_ThenItIsRefusedAndNotTreatedAsReuseAgain() {
+        SessionGrant opened = service.open(USER_ID);
+        SessionGrant live = ((RefreshOutcome.Rotated) service.refresh(opened.refreshToken())).grant();
+        service.revoke(live.refreshToken());
+        clock.moveTo(START.plus(GRACE).plusSeconds(1));
+        List<DomainEvent> publishedBefore = List.copyOf(published);
+
+        assertThat(service.revoke(opened.refreshToken())).isFalse();
+
+        assertThat(auditTrail.recorded(AuditAction.AUTH_TOKEN_REUSE, AuditOutcome.REFUSED))
+                .isFalse();
+        assertThat(auditTrail.recorded())
+                .as("refused as a sign-out of an ended session, naming its owner: the credential is one it issued")
+                .endsWith(new AuditEvent(AuditAction.AUTH_LOGOUT, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+        assertThat(published).as("the session's end was announced once already").isEqualTo(publishedBefore);
+    }
+
+    @Test
+    void GivenASessionAlreadyEnded_WhenItsCurrentCredentialIsUsedToSignOut_ThenItIsRefusedAndNothingIsPublished() {
+        SessionGrant opened = service.open(USER_ID);
+        clock.moveTo(START.plus(IDLE).plusSeconds(1));
+
+        assertThat(service.revoke(opened.refreshToken())).isFalse();
+
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT))
+                .hasValue(new AuditEvent(AuditAction.AUTH_LOGOUT, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+        assertThat(published).isEmpty();
+    }
+
     @Test
     void GivenACredentialRotatedOutMomentsAgo_WhenItIsUsedToSignOut_ThenItStillWorks() {
         // The forgiving half: a request already in flight when another tab rotated must still sign out.
