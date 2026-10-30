@@ -582,7 +582,9 @@ table may have several unique keys and two `UK` marks would read as two of them.
 `reflections` reference `health_upgrades` by `(upgrade_id, user_id)`, and `health_upgrades` references
 `health_areas` by `(area_id, user_id)`, so a row cannot name another owner than its parent's
 ([ADR-073](../../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md)). The diagram draws each
-of those as the relation its id column already had, without the owner column beside it.
+of those as the relation its id column already had, without the owner column beside it. `area_id` also
+keeps its single-column key, whose `ON DELETE SET NULL` detaches every upgrade under a deleted area: the
+owner key's own action matches both columns, so it would reach only the area owner's upgrades.
 
 The foreign keys carry the deletes too, which the diagram does not draw. `ON DELETE CASCADE` on
 `tracking_configs`, `progress_entries`, `reminders` and `reflections` is how deleting an upgrade deletes

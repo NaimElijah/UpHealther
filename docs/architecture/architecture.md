@@ -832,7 +832,10 @@ Every context's tables are in one PostgreSQL schema, and `tracking_configs`, `pr
 FR-14 is carried out: `UpgradeService.delete` removes one row and publishes no event, and the import
 graph shows no edge from `upgrade` to those contexts. `notifications.related_upgrade_id` and
 `health_upgrades.area_id` use `ON DELETE SET NULL`, which is how a notification outlives its upgrade
-(FR-14) and an upgrade survives its area (FR-8); `users(id)` cascades to every table that
+(FR-14) and an upgrade survives its area (FR-8). `area_id` has two keys: V1's single-column one, whose
+`SET NULL` detaches every upgrade under a deleted area, and the owner key on `(area_id, user_id)`, which
+refuses a foreign area and whose own action would reach only the area owner's rows
+([ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md)); `users(id)` cascades to every table that
 carries a `user_id`. The entities map these columns as plain ids, so no JPA cascade exists to find.
 Every referencing column leads an index, so a parent's delete finds its children without scanning the
 table, and no index repeats the leading columns of another; `SchemaIndexIT` checks both in the migrated
@@ -886,7 +889,7 @@ account save flushes, so the refusal is raised by the save, as the `user` contex
 `AccountModifiedConcurrentlyException`, which the API answers 409 and the audit trail records as a refusal
 ([ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md)). Nothing else is version-checked, because nothing else is edited from two places at
 once. One writer of an upgrade is not Hibernate:
-deleting an area detaches its upgrades through `ON DELETE SET NULL (area_id)`, and a trigger,
+deleting an area detaches its upgrades through `ON DELETE SET NULL`, and a trigger,
 `health_upgrades_area_detach_bumps_version`, moves the version of each, so a request that loaded one
 before the delete is refused at its commit like any other lost race, rather than writing the deleted area
 back ([ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md)).
@@ -1119,7 +1122,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why nginx throttles the `/ws` handshake although ADR-017 kept sign-in's limit in the application; why there is no cap on open sockets; what a load balancer would need first | [ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md) |
 | Why registration refuses the 10,000 most common passwords from a pinned SecLists file, rather than asking Have I Been Pwned; how the list is derived and filtered; why the refusal is a constraint beside BR-17's minimum | [ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md) |
 | Why every migration from `V10` opens with `SET LOCAL lock_timeout`, and not `spring.flyway.init-sqls`; when an index change must be `CONCURRENTLY`, in a file of its own | [ADR-072](../ADRs/ADR-072-every-migration-bounds-its-lock-wait.md) |
-| Why every enum column carries a `CHECK` of its constants rather than a PostgreSQL enum type or a lookup table, and which numeric bounds the schema holds; why a child row references its parent by id and owner together, and why the area key is left unvalidated | [ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md) |
+| Why every enum column carries a `CHECK` of its constants rather than a PostgreSQL enum type or a lookup table, and which numeric bounds the schema holds; why a child row references its parent by id and owner together, why the area key is left unvalidated, and why the single-column area key stands beside it | [ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md) |
 | How a concurrent write that `@Version` does not cover is handled: a per-user invariant over several rows claimed with an advisory try-lock, refused as a retryable 409 rather than waited for, and a lost check-then-insert race translated in the adapter into a 409; what would make the claim the wrong tool | [ADR-074](../ADRs/ADR-074-concurrent-writes-beyond-the-version-check.md) |
 | Why a notification is deleted ninety days after it was created, by a nightly job in batches of a thousand; why not thirty days, the newest fifty, or waiting for the privacy notice | [ADR-075](../ADRs/ADR-075-notifications-are-kept-for-ninety-days.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |

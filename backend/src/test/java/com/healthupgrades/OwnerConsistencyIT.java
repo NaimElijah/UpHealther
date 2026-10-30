@@ -118,6 +118,48 @@ class OwnerConsistencyIT extends PostgresIT {
     }
 
     @Test
+    void GivenAnUpgradeFiledUnderAnArea_WhenTheAreaIsDeleted_ThenItsVersionMovesExactlyOnce() {
+        // V14's trigger moves the version for the detach. V18 put a second key with its own SET NULL beside
+        // V13's, and both match this row; the second to run finds area_id already NULL, so the version
+        // moves once, not twice.
+        long before = versionOf(upgradeId);
+
+        jdbc.update("DELETE FROM health_areas WHERE id = ?", ownersAreaId);
+
+        assertThat(versionOf(upgradeId)).isEqualTo(before + 1);
+    }
+
+    @Test
+    void
+            GivenAnotherUsersRowFiledUnderTheAreaBeforeBr18_WhenTheAreaIsDeleted_ThenItIsDetachedTooAndItsVersionMovesOnce() {
+        // FR-8 for every upgrade under the area, not only its owner's. V13's composite key matches
+        // (area_id, user_id), so its SET NULL never reaches a row of another user, and that row was left
+        // naming an area with no row behind it. V18's single-column key matches area_id alone. The legacy
+        // row is written with the foreign-key triggers off, which needs the container's superuser and lasts
+        // only for this transaction, and they are back on before the delete.
+        UUID legacyId = UUID.randomUUID();
+        jdbc.execute("SET LOCAL session_replication_role = replica");
+        jdbc.update(
+                "INSERT INTO health_upgrades (id, user_id, area_id, title, type) VALUES (?, ?, ?, 'Old', 'HABIT')",
+                legacyId,
+                strangerId,
+                ownersAreaId);
+        jdbc.execute("SET LOCAL session_replication_role = DEFAULT");
+        long before = versionOf(legacyId);
+
+        jdbc.update("DELETE FROM health_areas WHERE id = ?", ownersAreaId);
+
+        assertThat(jdbc.queryForObject(
+                        "SELECT area_id IS NULL AND user_id = ? FROM health_upgrades WHERE id = ?",
+                        Boolean.class,
+                        strangerId,
+                        legacyId))
+                .as("the other user's row is detached, and keeps its owner")
+                .isTrue();
+        assertThat(versionOf(legacyId)).isEqualTo(before + 1);
+    }
+
+    @Test
     void GivenARowFiledUnderAForeignAreaBeforeBr18_WhenAnotherFieldIsEdited_ThenTheEditIsAccepted() {
         // UpgradeService.update checks only a changed area, so such a row stays editable, and the key is
         // left NOT VALID for the same reason. PostgreSQL skips the check on an update that leaves the key
@@ -162,6 +204,12 @@ class OwnerConsistencyIT extends PostgresIT {
             committing.executeWithoutResult(
                     status -> jdbc.update("DELETE FROM users WHERE id IN (?, ?)", legacyOwnerId, areaOwnerId));
         }
+    }
+
+    private long versionOf(UUID id) {
+        Long version = jdbc.queryForObject("SELECT version FROM health_upgrades WHERE id = ?", Long.class, id);
+        assertThat(version).as("the upgrade %s exists", id).isNotNull();
+        return version;
     }
 
     private void insertUser(UUID userId) {

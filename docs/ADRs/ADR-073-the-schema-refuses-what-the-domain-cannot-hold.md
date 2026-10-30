@@ -4,8 +4,8 @@
 - **Date:** 2026-10-30
 - **Scope:**
   - `backend/src/main/resources/db/migration/V12__value_domains.sql`,
-    `V13__child_rows_share_their_parents_owner.sql`, `V14__area_detach_bumps_upgrade_version.sql` and
-    `V16__user_version.sql`.
+    `V13__child_rows_share_their_parents_owner.sql`, `V14__area_detach_bumps_upgrade_version.sql`,
+    `V16__user_version.sql` and `V18__area_delete_detaches_every_upgrade.sql`.
   - `Reminder`, whose two columns become `@Column(nullable = false)`, and `User`, which gains `@Version`.
   - `EnumColumnCheckContractTest`, `ValueDomainConstraintIT`, `OwnerConsistencyIT`,
     `UpgradePersistenceIT`, `UserConcurrentWritesIT` and `AdminDisableRaceIT`, which enforce it.
@@ -72,13 +72,21 @@ requirements do not state is added.
    `(upgrade_id, user_id)`, `ON DELETE CASCADE` as before, and `health_upgrades` references
    `health_areas (id, user_id)` through `(area_id, user_id)`, `ON DELETE SET NULL (area_id)`, PostgreSQL 15's
    form that clears the area and keeps the owner. Each is named, so code can tell its violation from
-   another's.
+   another's. The area's single-column key comes back beside its owner key (decision 6).
 6. **The area key is left `NOT VALID`.** A row filed before BR-18 may name another user's area, and
    `UpgradeService.update` keeps such a row editable by checking only a changed area. Validating would
    refuse to start on a database holding one. Unvalidated, PostgreSQL still checks every insert and every
    update that changes `area_id` or `user_id`, and skips an update that leaves both as they were on a row
-   an earlier transaction wrote, which is the same tolerance the service has. The two child keys are validated: no rule ever let their owners
-   differ.
+   an earlier transaction wrote, which is the same tolerance the service has. The two child keys are
+   validated: no rule ever let their owners differ.
+
+   **V1's single-column area key stands beside it**, restored by V18 as `health_upgrades_area_id_fkey`,
+   `ON DELETE SET NULL`, and validated. A composite key's referential action matches every key column, so
+   the owner key's `SET NULL (area_id)` clears only the upgrades of the area's owner. Alone, it left a
+   legacy row of another user under a deleted area naming an area with no row behind it (FR-8). The
+   single-column key detaches every row under the area, and the owner key goes on refusing a foreign area
+   on every write that sets one. On a row both keys match, the second action finds `area_id` already
+   `NULL`, so decision 8's trigger moves the version once.
 7. **The two copies of each value list are held together by a test.** `EnumColumnCheckContractTest`
    finds every `@Enumerated` field of every entity, reads the `CHECK` its column ends up with once every
    migration has run, and fails the build when the two differ or the `CHECK` is missing.
@@ -178,6 +186,10 @@ requirements do not state is added.
 - **An enum's values start changing often**, so that the migration each change costs is a burden. A lookup
   table then becomes worth its join.
 - **A requirement bounds another numeric value**, a target or a priority. Its `CHECK` goes in with the rule.
-- **No row with a foreign area is left**, which a query can show. Then the area key is validated.
+- **No row with a foreign area is left**, which
+  `SELECT count(*) FROM health_upgrades u JOIN health_areas a ON a.id = u.area_id WHERE a.user_id <> u.user_id`
+  shows by returning 0; the single-column key keeps every `area_id` naming an area that exists. Then the
+  owner key is validated, and the single-column key can be dropped in the same change: once every row
+  under an area shares its owner, the owner key's action reaches every one of them.
 - **A second writer reaches the database**, such as a reporting job or another service. The constraints
   already cover it; the contract test then also needs to know the other writer's enums.
