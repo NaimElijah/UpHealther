@@ -8,12 +8,6 @@ import com.healthupgrades.healtharea.adapter.in.web.HealthAreaRequest;
 import com.healthupgrades.tracking.adapter.in.web.ProgressRequest;
 import com.healthupgrades.tracking.adapter.in.web.TrackingConfigRequest;
 import com.healthupgrades.upgrade.adapter.in.web.UpgradeRequest;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,17 +43,8 @@ import org.junit.jupiter.params.provider.MethodSource;
  */
 class ColumnBoundContractTest {
 
-    /** Flyway's migration directory, relative to the repository root. */
-    private static final Path MIGRATIONS = Paths.get("src", "main", "resources", "db", "migration");
-
     /** A bounded character type, capturing its width; {@code TEXT} has none, and BR-16 leaves it alone. */
     private static final String BOUNDED_TYPE = "(?:VARCHAR|CHARACTER\\s+VARYING)\\s*\\((\\d+)\\)";
-
-    /** A Flyway versioned migration's file name, capturing its version: {@code V10__x.sql} is 10. */
-    private static final Pattern VERSIONED = Pattern.compile("^V(\\d+(?:[._]\\d+)*)__.*\\.sql$");
-
-    /** A line comment or a block comment, removed before the statements are split. */
-    private static final Pattern COMMENT = Pattern.compile("--[^\\n]*|/\\*.*?\\*/", Pattern.DOTALL);
 
     /** The {@code CREATE TABLE users (} that opens a table body. */
     private static final Pattern CREATE_TABLE =
@@ -291,20 +276,12 @@ class ColumnBoundContractTest {
      * {@code n}.
      */
     private static Map<String, Integer> boundedColumns() {
-        Map<String, String> sqlByFileName = new LinkedHashMap<>();
-        try (Stream<Path> files = Files.list(MIGRATIONS)) {
-            for (Path file : files.filter(p -> p.toString().endsWith(".sql")).toList()) {
-                sqlByFileName.put(file.getFileName().toString(), Files.readString(file));
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException("could not read the migrations at " + MIGRATIONS.toAbsolutePath(), e);
-        }
-        Map<String, Integer> columns = boundedColumns(sqlByFileName);
+        Map<String, Integer> columns = boundedColumns(FlywayMigrations.read());
         assertThat(columns)
                 .as(
                         "no bounded columns were parsed out of %s — the migrations moved, or their shape "
                                 + "changed and this test is now reading nothing",
-                        MIGRATIONS.toAbsolutePath())
+                        FlywayMigrations.DIRECTORY.toAbsolutePath())
                 .isNotEmpty();
         return columns;
     }
@@ -326,17 +303,18 @@ class ColumnBoundContractTest {
      *     this parser cannot follow
      */
     private static Map<String, Integer> boundedColumns(Map<String, String> sqlByFileName) {
+        return boundedColumns(FlywayMigrations.inVersionOrder(sqlByFileName));
+    }
+
+    private static Map<String, Integer> boundedColumns(List<FlywayMigrations.Migration> migrations) {
         Map<String, Integer> columns = new LinkedHashMap<>();
-        sqlByFileName.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey(ColumnBoundContractTest::compareVersions))
-                .forEach(migration -> apply(migration.getKey(), migration.getValue(), columns));
+        migrations.forEach(migration -> apply(migration, columns));
         return columns;
     }
 
     /** Applies one migration's statements, in order, to the widths read so far. */
-    private static void apply(String fileName, String sql, Map<String, Integer> columns) {
-        for (String statement : COMMENT.matcher(sql).replaceAll("").split(";")) {
-            String trimmed = statement.strip();
+    private static void apply(FlywayMigrations.Migration migration, Map<String, Integer> columns) {
+        for (String trimmed : migration.statements()) {
             Matcher create = CREATE_TABLE.matcher(trimmed);
             if (create.lookingAt()) {
                 String table = create.group(1).toLowerCase();
@@ -352,7 +330,7 @@ class ColumnBoundContractTest {
                 continue;
             }
             if (TABLE_DDL.matcher(trimmed).find()) {
-                throw new IllegalArgumentException(fileName
+                throw new IllegalArgumentException(migration.fileName()
                         + " has a CREATE TABLE or ALTER TABLE that does not start its statement, so the widths"
                         + " it sets cannot be read: " + trimmed);
             }
@@ -379,28 +357,5 @@ class ColumnBoundContractTest {
 
     private static String qualified(String table, String column) {
         return table + "." + column.toLowerCase();
-    }
-
-    /** Orders two migration file names by Flyway version, numerically and part by part. */
-    private static int compareVersions(String left, String right) {
-        int[] l = version(left);
-        int[] r = version(right);
-        for (int i = 0; i < Math.min(l.length, r.length); i++) {
-            if (l[i] != r[i]) {
-                return Integer.compare(l[i], r[i]);
-            }
-        }
-        return Integer.compare(l.length, r.length);
-    }
-
-    private static int[] version(String fileName) {
-        Matcher versioned = VERSIONED.matcher(fileName);
-        if (!versioned.matches()) {
-            throw new IllegalArgumentException(fileName
-                    + " is not a versioned migration (V<version>__<name>.sql), so its place in the order is unknown");
-        }
-        return Arrays.stream(versioned.group(1).split("[._]"))
-                .mapToInt(Integer::parseInt)
-                .toArray();
     }
 }
