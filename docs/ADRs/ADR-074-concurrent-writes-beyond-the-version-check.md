@@ -76,7 +76,12 @@ another holding it is refused with a retryable 409.**
 
 The refused request changes nothing, so the resend finds the upgrade as it was. Each statement under
 READ COMMITTED reads what had committed when it started, so the resend's count includes the first
-request's activation.
+request's activation. `HardLimitRaceIT` proves that composition end to end, through `UpgradeService`
+against PostgreSQL. With two HARD upgrades ACTIVE, an activation sent while another is uncommitted is
+refused as retryable, its resend after the commit is refused by BR-5, and three remain ACTIVE. One
+interleaving it does not build: a request that loads its upgrade before the holder commits, and claims
+after. Under READ COMMITTED its count still sees the commit. Under REPEATABLE READ its snapshot, taken at
+the load, would not, so a move to that isolation level would reopen D6.4 without failing this test.
 
 ### 2. A check-then-insert race against a unique constraint is translated in the adapter
 
@@ -182,6 +187,9 @@ tracks it.
   tells the client to resolve something, when resending is all it takes.
 
 ## When to revisit
+
+- **The datasource or a use case moves off READ COMMITTED.** Decision 1 relies on the count reading what
+  committed before the claim was granted, and no test fails if that stops being true.
 
 - **A second database engine, or a move to a sharded or distributed store.** Advisory locks are
   PostgreSQL's and are local to one server, so (1) has to be redesigned, as a lock row or a
