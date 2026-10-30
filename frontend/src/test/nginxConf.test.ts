@@ -1,7 +1,19 @@
 // Runs in the suite's default jsdom environment for the reason bootScriptCsp.test.ts gives: the shared
 // setup touches localStorage and <html> before every test.
 import { describe, expect, it } from 'vitest';
-import nginxConf from '../../nginx.conf?raw';
+import nginxConfWithComments from '../../nginx.conf?raw';
+
+/**
+ * The file without its `#` comments, so a directive that appears only in a comment counts for nothing.
+ * Nothing in it quotes a `#`.
+ */
+const nginxConf = nginxConfWithComments.replace(/#[^\n]*/g, '');
+
+/**
+ * Every `location` block, its modifier (`=`, `~`, `~*`, `^~`) included. The file nests no braces inside a
+ * location, so the first `}` after the opening one closes it.
+ */
+const LOCATION = /location\s+(?:[=~^*]+\s*)?[^\s{]+\s*\{([^}]*)\}/g;
 
 /** The two locations nginx proxies to the backend. */
 const PROXIED = ['/api', '/ws'] as const;
@@ -125,16 +137,20 @@ describe('the nginx configuration', () => {
     it('GivenTheServerBlock_WhenItsOwnHeadersAreRead_ThenItDeclaresEveryHardeningHeader', () => {
       // S5.C12: declared on `location /` alone, they were missing from nginx's own error pages under /api
       // and /ws, a 502 while the backend restarts or a 413 for an oversized body.
-      const outsideLocations = nginxConf.replace(/location\s+\S+\s*\{[^}]*\}/g, '');
+      const outsideLocations = nginxConf.replace(LOCATION, '');
       const declared = [...outsideLocations.matchAll(/add_header\s+(\S+)\s/g)].map(([, name]) => name);
 
       expect(declared).toEqual(expect.arrayContaining(HARDENING));
     });
 
-    it.each(['/', ...PROXIED])('GivenTheLocation%s_WhenItsHeadersAreRead_ThenItDeclaresNoneOfItsOwn', (path) => {
+    it('GivenEveryLocation_WhenItsHeadersAreRead_ThenNoneDeclaresOneOfItsOwn', () => {
       // nginx inherits the server's add_header only into a location that declares none: one add_header
-      // in a location would silently drop all five from it.
-      expect(locationBody(path)).not.toMatch(/add_header/);
+      // in a location would silently drop all five from it. Every block, not only today's three, so a
+      // `location = /index.html` added later is held to the rule too.
+      const blocks = [...nginxConf.matchAll(LOCATION)].map(([block]) => block);
+
+      expect(blocks.length).toBeGreaterThanOrEqual(3);
+      expect(blocks.filter((block) => /add_header/.test(block))).toEqual([]);
     });
   });
 });
