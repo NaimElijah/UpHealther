@@ -22,9 +22,10 @@ const SESSION_ENDED = 'Session ended';
 /**
  * Builds the WebSocket URL.
  *
- * Same-origin `/ws` through the Vite or nginx proxy by default, so the socket needs no CORS setup;
- * derived from `VITE_API_URL` only when the API is on another origin. The scheme is upgraded in step
- * with the page's, since a `ws://` socket on an `https://` page is blocked by the browser.
+ * Same-origin `/ws` through the Vite or nginx proxy by default, so the socket needs no CORS setup. On
+ * the page's own origin the scheme follows the page's, since a `ws://` socket on an `https://` page is
+ * blocked by the browser. Derived from `VITE_API_URL` only when the API is on another origin, whose
+ * own scheme it keeps: `http` becomes `ws`, and `https` becomes `wss`.
  */
 function buildWsUrl(): string {
   const apiUrl = apiBaseUrl();

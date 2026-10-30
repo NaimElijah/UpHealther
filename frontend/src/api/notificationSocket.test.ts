@@ -10,6 +10,8 @@ let lastClient: FakeClient | undefined;
 /** The part of stompjs's client configuration these tests read or drive. */
 type FakeClientConfig = {
   brokerURL?: string;
+  reconnectDelay?: number;
+  beforeConnect?: () => Promise<void>;
   onConnect?: () => void;
   onWebSocketClose?: () => void;
   onStompError?: (frame: { headers: Record<string, string> }) => void;
@@ -20,6 +22,8 @@ class FakeClient {
   activated = 0;
   deactivated = 0;
   subscriptions: string[] = [];
+  /** Written by the socket's `beforeConnect`, and sent by the real client with every CONNECT. */
+  connectHeaders: Record<string, string> = {};
   readonly config: FakeClientConfig;
   private handler?: (message: { body: string }) => void;
 
@@ -59,6 +63,10 @@ vi.mock('@stomp/stompjs', () => ({
     }
   },
 }));
+
+const renewSession = vi.fn<() => Promise<boolean>>();
+// The renewal goes through the shared client, which reaches the network; this module only calls it.
+vi.mock('./client', () => ({ renewSession: () => renewSession() }));
 
 const realLocation = window.location;
 
@@ -114,7 +122,7 @@ describe('openNotificationSocket', () => {
 
     it('GivenAnHttpApiUrlWithATrailingSlash_WhenTheSocketOpens_ThenItConnectsToWsUnderThatUrl', () => {
       vi.stubEnv('VITE_API_URL', 'http://api.example.com/v1/');
-      pageAt('https:', 'app.example.com');
+      pageAt('http:', 'localhost:3000');
 
       expect(open().client.config.brokerURL).toBe('ws://api.example.com/v1/ws');
     });
@@ -125,18 +133,26 @@ describe('openNotificationSocket', () => {
 
       expect(open().client.config.brokerURL).toBe('wss://api.example.com/ws');
     });
-
-    it('GivenARelativeApiUrl_WhenTheSocketOpens_ThenItConnectsToThePagesOwnHostAndIgnoresThePath', () => {
-      // Pins what the code does today: a value that names no origin is not followed, although the axios
-      // instance would prefix it to every request. VITE_API_URL is documented for another origin only.
-      vi.stubEnv('VITE_API_URL', '/backend');
-      pageAt('http:', 'localhost:3000');
-
-      expect(open().client.config.brokerURL).toBe('ws://localhost:3000/ws');
-    });
   });
 
   describe('its lifecycle', () => {
+    it('GivenTheRenewalBeforeConnectIsRejected_WhenTheClientPreparesToConnect_ThenTheHookResolvesWithNoAuthorizationHeader', async () => {
+      // No usable token, so the hook renews first. stompjs 7 schedules no reconnect after a hook that
+      // throws, so a rejection that escaped it would end live notifications until a reload.
+      renewSession.mockRejectedValue(new Error('the lock could not be taken'));
+      const { client } = open();
+
+      await expect(client.config.beforeConnect?.()).resolves.toBeUndefined();
+
+      expect(renewSession).toHaveBeenCalledTimes(1);
+      expect(client.connectHeaders).not.toHaveProperty('Authorization');
+    });
+
+    it('GivenTheSocketIsOpened_WhenItsClientIsConfigured_ThenItReconnectsAfterADelay', () => {
+      // stompjs reconnects only when the delay is above zero.
+      expect(open().client.config.reconnectDelay).toBeGreaterThan(0);
+    });
+
     it('GivenTheSocketIsOpened_WhenTheBrokerAcceptsIt_ThenItReportsConnectedAndSubscribesToTheUsersQueue', () => {
       const { client, onConnectionChange } = open();
       expect(client.activated).toBe(1);

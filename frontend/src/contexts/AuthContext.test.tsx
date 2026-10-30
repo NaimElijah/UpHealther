@@ -216,6 +216,8 @@ describe('AuthProvider', () => {
       await act(async () => {
         screen.getByText('sign in').click();
       });
+      // Signed in first, so the signed-out state below is the sign-out's, not a sign-in that failed.
+      expect(screen.getByTestId('authenticated').textContent).toBe('true');
 
       await act(async () => {
         screen.getByText('sign out').click();
