@@ -88,6 +88,12 @@ class AuthControllerTest {
     /** Exactly the minimum length, and not on the common-password list. */
     private static final String UNLISTED_AT_THE_MINIMUM = "s3cret!4";
 
+    /** A name long enough to be a password, and not on the common-password list. */
+    private static final String UNLISTED_NAME = "Bartholomew";
+
+    /** On the common-password list, and the minimum's length or more. */
+    private static final String LISTED = "password1";
+
     /** The field message a password on the common-password list is refused with. */
     private static final String COMMON_PASSWORD_MESSAGE =
             "is one of the most common passwords; choose one that is harder to guess";
@@ -272,6 +278,21 @@ class AuthControllerTest {
     }
 
     @Test
+    void GivenAPasswordThatIsTheName_WhenAVisitorRegisters_ThenItIsAccepted() throws Exception {
+        // The name's half of the owner's decision on S5.A6: a name long enough to be a password, and
+        // not on the list, is not refused for being the name.
+        assertThat(UNLISTED_NAME).hasSizeGreaterThanOrEqualTo(AuthController.PASSWORD_MIN);
+        when(authService.register(anyString(), anyString(), anyString()))
+                .thenReturn(new AuthResult("issued.jwt.token", EXPIRES_AT, aUser(), GRANT));
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"" + UNLISTED_NAME + "\",\"email\":\"someone@example.com\","
+                                + "\"password\":\"" + UNLISTED_NAME + "\"}"))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
     void GivenAPasswordLongerThanBcryptHashes_WhenAVisitorRegisters_ThenItIsRefusedRatherThanTruncated()
             throws Exception {
         // Up to Spring Security 6.4.3, BCryptPasswordEncoder silently dropped anything past 72 bytes, so a
@@ -407,6 +428,21 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").value("issued.jwt.token"))
                 .andExpect(jsonPath("$.user.name").value(AUser.NAME));
+    }
+
+    @Test
+    void GivenAPasswordOnTheCommonList_WhenAUserLogsIn_ThenItReachesTheServiceAndSignsIn() throws Exception {
+        // Sign-in never consults the list (BR-17): an account registered before it, or seeded, holds a
+        // listed password and must still sign in. A constraint on LoginRequest would lock it out.
+        when(authService.login(anyString(), anyString()))
+                .thenReturn(new AuthResult("issued.jwt.token", EXPIRES_AT, aUser(), GRANT));
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"someone@example.com\",\"password\":\"" + LISTED + "\"}"))
+                .andExpect(status().isOk());
+
+        verify(authService).login(AUser.EMAIL, LISTED);
     }
 
     @Test

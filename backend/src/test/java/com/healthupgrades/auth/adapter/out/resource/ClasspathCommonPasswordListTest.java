@@ -5,6 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.healthupgrades.auth.application.CommonPasswordPolicy;
 import com.healthupgrades.auth.domain.port.out.CommonPasswordListPort;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Objects;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -26,10 +32,20 @@ class ClasspathCommonPasswordListTest {
     private static final String BLANK = "auth/blank-common-passwords.txt";
 
     @Test
-    void GivenTheShippedResource_WhenItIsRead_ThenEveryEntryComesBackInOrder() {
+    void GivenTheShippedResource_WhenItIsRead_ThenEveryEntryComesBackInOrder() throws IOException {
+        // Read here through the class loader, not Spring's resource abstraction, so a reader that skipped,
+        // reordered or altered a line would differ from it.
+        List<String> lines;
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                Objects.requireNonNull(
+                        getClass().getClassLoader().getResourceAsStream(ClasspathCommonPasswordList.LOCATION)),
+                StandardCharsets.UTF_8))) {
+            lines = reader.lines().toList();
+        }
+
         assertThat(new ClasspathCommonPasswordList().entries())
                 .hasSize(CommonPasswordListTest.ENTRIES)
-                .startsWith("123456789", "password", "12345678");
+                .containsExactlyElementsOf(lines);
     }
 
     @Test
