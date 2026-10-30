@@ -182,7 +182,14 @@ account a token or a sign-in names, through `AccountCredentialsAdapter`
 
 **5. Scheduled invocation.** Four cron-driven jobs drive the core with no request behind them: the
 overdue sweep, the daily check-in nudge, the per-minute reminder dispatch, and the nightly sweep of
-sessions nothing can use again.
+sessions nothing can use again. Each scheduler is only the trigger: it reads the clock, times the run
+through `JobMetrics`, and calls the application method that holds the sweep —
+`UpgradeOverdueService.announceOverdue`, `NotificationSweepService.nudgeDailyCheckin` and
+`dispatchDueReminders`, and `AuthSessionService.deleteUnusableSessions`. The administrator bootstrap
+is the same shape: `AdminBootstrapRunner` parses its setting and calls `AdminUserService.bootstrap`,
+which applies the rules and records the promotion. No driving adapter reaches an outbound port, and
+ArchUnit names the two that may
+([ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)).
 
 ### Which contexts depend on which
 

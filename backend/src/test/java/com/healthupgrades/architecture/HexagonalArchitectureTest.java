@@ -2,6 +2,8 @@ package com.healthupgrades.architecture;
 
 import static com.tngtech.archunit.base.DescribedPredicate.alwaysTrue; // matches any origin class
 import static com.tngtech.archunit.base.DescribedPredicate.not; // inverts an allow-list into a ban
+import static com.tngtech.archunit.core.domain.Dependency.Predicates.dependency; // an origin and target pair
+import static com.tngtech.archunit.core.domain.Dependency.Predicates.dependencyTarget; // a target predicate
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage; // single-package predicate
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage; // package predicate for ignores
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.simpleNameEndingWith; // class-name predicate
@@ -12,6 +14,7 @@ import com.tngtech.archunit.core.importer.ImportOption; // controls which classe
 import com.tngtech.archunit.junit.AnalyzeClasses; // declares the packages ArchUnit imports for this test
 import com.tngtech.archunit.junit.ArchTest; // marks a field as an executable architecture rule
 import com.tngtech.archunit.lang.ArchRule; // the type of a single architecture rule
+import com.tngtech.archunit.lang.conditions.ArchConditions; // conditions over a class's dependencies
 import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition; // builds bounded-context slice rules
 
 /**
@@ -208,6 +211,45 @@ class HexagonalArchitectureTest {
             .dependOnClassesThat()
             .resideInAPackage("..adapter.out..")
             .as("inbound adapters must not depend on outbound adapters");
+
+    /**
+     * A driving adapter triggers a use case; it does not perform one.
+     *
+     * <p>An adapter that reads a repository, publishes an event or writes an audit entry itself is
+     * holding a use case, and a second trigger for the same work — an endpoint beside a cron, say — has
+     * nothing to call and copies the rules instead. Services orchestrate: load, call the domain method,
+     * save, publish (ADR-002). So a class in {@code ..adapter.in..} reaches no outbound port, and the
+     * scheduled sweeps and the administrator bootstrap call application services that do.
+     *
+     * <p>Two exceptions, each a pair of an origin and a target rather than a package let off:
+     * <ul>
+     *   <li><strong>A composition adapter supplying a port the kernel declares.</strong>
+     *       {@code SessionStatusAdapter} and {@code AccountCredentialsAdapter} implement
+     *       {@code SessionStatusPort} and {@code AccountCredentialsPort}, the supplying half of an
+     *       inverted dependency (ADR-015, ADR-062). Implementing a port is not driving one, and the
+     *       kernel's records they return are part of the contract. The exception covers only targets in
+     *       {@code common.domain.port.out}, so a composition adapter still may not read a context's
+     *       repository.</li>
+     *   <li><strong>{@code SessionEndSocketListener} closing sockets through {@code LiveSocketPort}.</strong>
+     *       It translates an event whose decision is already made — {@code AuthSessionService} ended the
+     *       session and published it — into the one call that carries it out, with no rule of its own to
+     *       duplicate (ADR-054). A use case in front of it would be a pass-through. Any other
+     *       {@code ..adapter.in.event..} class gets no such leave.</li>
+     * </ul>
+     */
+    @ArchTest
+    static final ArchRule inbound_adapters_do_not_drive_outbound_ports = classes()
+            .that()
+            .resideInAPackage("..adapter.in..")
+            .should(ArchConditions.onlyHaveDependenciesWhere(
+                    not(dependencyTarget(resideInAPackage("..domain.port.out..")))
+                            .or(dependency(
+                                    resideInAPackage("..adapter.in.composition.."),
+                                    resideInAPackage("com.healthupgrades.common.domain.port.out..")))
+                            .or(dependency(
+                                    "com.healthupgrades.auth.adapter.in.event.SessionEndSocketListener",
+                                    "com.healthupgrades.common.domain.port.out.LiveSocketPort"))))
+            .as("inbound adapters must reach the core through use cases, not through outbound ports (ADR-002)");
 
     /**
      * Use-case and query ports are contracts, so they must be interfaces. Command and result records

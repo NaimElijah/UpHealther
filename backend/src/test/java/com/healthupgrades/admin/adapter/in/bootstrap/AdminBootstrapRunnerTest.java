@@ -8,6 +8,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.healthupgrades.admin.application.AdminUserService;
+import com.healthupgrades.auth.application.port.in.SessionCommand;
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
@@ -41,6 +43,10 @@ import org.springframework.dao.DataAccessResourceFailureException;
  *   <li>it <strong>never fails the boot</strong>, so a typo in a deployment variable is a warning
  *       rather than an outage.</li>
  * </ul>
+ *
+ * <p>Driven through the runner, over the real {@link AdminUserService} whose {@code bootstrap} holds these
+ * rules since #338, so the parsing the runner keeps and the rules behind it are covered together; only the
+ * ports are mocked.
  */
 @ExtendWith(MockitoExtension.class)
 class AdminBootstrapRunnerTest {
@@ -52,6 +58,10 @@ class AdminBootstrapRunnerTest {
 
     @Mock
     UserCommand userCommand;
+
+    /** Never reached: the bootstrap ends no session. Present because the service needs one. */
+    @Mock
+    SessionCommand sessions;
 
     /** A real one, not a mock: AuditTrail.recording is a default method, and a mock would skip the work. */
     private final RecordingAuditTrail auditTrail = new RecordingAuditTrail();
@@ -156,6 +166,7 @@ class AdminBootstrapRunnerTest {
     }
 
     private void run(String bootstrapUserId) {
-        new AdminBootstrapRunner(userQuery, userCommand, auditTrail, bootstrapUserId).run(null);
+        AdminUserService adminUsers = new AdminUserService(userQuery, userCommand, sessions, auditTrail);
+        new AdminBootstrapRunner(adminUsers, bootstrapUserId).run(null);
     }
 }

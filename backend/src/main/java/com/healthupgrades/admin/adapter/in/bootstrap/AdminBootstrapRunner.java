@@ -1,13 +1,6 @@
 package com.healthupgrades.admin.adapter.in.bootstrap;
 
-import static net.logstash.logback.argument.StructuredArguments.keyValue;
-
-import com.healthupgrades.common.domain.audit.AuditAction;
-import com.healthupgrades.common.domain.port.out.AuditTrail;
-import com.healthupgrades.user.application.port.in.UserCommand;
-import com.healthupgrades.user.application.port.in.UserQuery;
-import com.healthupgrades.user.domain.model.Role;
-import com.healthupgrades.user.domain.model.User;
+import com.healthupgrades.admin.application.AdminUserService;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
@@ -15,47 +8,32 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Promotes one account to ADMIN at startup, so a fresh installation has a way in.
  *
- * <p>Without this there is no route to the first administrator: only an administrator can grant the
- * role, and a new database has none. The alternative is editing a row by hand, which is a support
- * procedure nobody writes down.
+ * <p>A trigger: it reads {@code app.admin.bootstrap-user-id}, and hands a valid account id to
+ * {@link AdminUserService#bootstrap}, which decides whether the account is promoted and records it. The
+ * rules live there, so a second trigger would apply the same ones.
  *
  * <p><strong>By account id, never by email.</strong> Registration is open, so naming an address here
  * would mean anybody who registered it first became the installation's administrator — a race decided
- * by whoever read the deployment configuration. An id names an account that already exists.
- *
- * <p><strong>Only while there is no administrator at all.</strong> Left unbounded, an environment
- * variable set once would silently re-promote an account every restart, quietly undoing a deliberate
- * demotion. It is a bootstrap, not a policy: once an administrator exists, this does nothing, and the
- * variable can be left in place or removed without effect.
- *
- * <p><strong>Only an enabled account.</strong> A disabled one would hold the role and still administer
- * nothing, and while no enabled administrator existed every start would promote it again.
+ * by whoever read the deployment configuration. An id names an account that already exists, and a value
+ * that is not one is ignored here, before the use case is asked.
  */
 @Component
 @Slf4j
 public class AdminBootstrapRunner implements ApplicationRunner {
 
-    private final UserQuery userQuery;
-    private final UserCommand userCommand;
-    private final AuditTrail auditTrail; // records the promotion, the one thing this runner changes
+    private final AdminUserService adminUsers; // own application service: the bootstrap use case
     private final String bootstrapUserId;
 
     /**
      * @param bootstrapUserId the account to promote, or blank — the normal case — to do nothing
      */
     public AdminBootstrapRunner(
-            UserQuery userQuery,
-            UserCommand userCommand,
-            AuditTrail auditTrail,
-            @Value("${app.admin.bootstrap-user-id:}") String bootstrapUserId) {
-        this.userQuery = userQuery;
-        this.userCommand = userCommand;
-        this.auditTrail = auditTrail;
+            AdminUserService adminUsers, @Value("${app.admin.bootstrap-user-id:}") String bootstrapUserId) {
+        this.adminUsers = adminUsers;
         this.bootstrapUserId = bootstrapUserId;
     }
 
@@ -67,7 +45,6 @@ public class AdminBootstrapRunner implements ApplicationRunner {
      * because an optional bootstrap could not find its account would turn a typo into an outage.
      */
     @Override
-    @Transactional
     public void run(ApplicationArguments args) {
         if (bootstrapUserId == null || bootstrapUserId.isBlank()) {
             return;
@@ -79,38 +56,7 @@ public class AdminBootstrapRunner implements ApplicationRunner {
             return;
         }
 
-        // Enabled administrators, not merely accounts holding the role. Two administrators can disable
-        // each other - neither is acting on their own account, so nothing refuses it - and the rows
-        // then still say ADMIN while nobody can actually administer anything. Counting the disabled
-        // ones would leave that installation recoverable only from a database console.
-        if (userQuery.existsEnabledWithRole(Role.ADMIN)) {
-            log.debug("An enabled administrator already exists; the bootstrap id was ignored");
-            return;
-        }
-
-        Optional<User> account = userQuery.findById(id.get());
-        if (account.isEmpty()) {
-            log.warn(
-                    "app.admin.bootstrap-user-id names no account; no administrator was created {}",
-                    keyValue("userId", id.get()));
-            return;
-        }
-        // A disabled administrator administers nothing, so promoting this account would recover nothing
-        // - and with still no enabled administrator, the next start would promote it all over again.
-        if (!account.get().isEnabled()) {
-            log.warn(
-                    "app.admin.bootstrap-user-id names a disabled account; no administrator was created {}",
-                    keyValue("userId", id.get()));
-            return;
-        }
-
-        User promoted = account.get();
-        // Audited rather than logged (NFR-23): somebody gained the ability to disable every other account
-        // on this installation. No person granted it - the deployment did - so the entry names no actor.
-        auditTrail.recording(AuditAction.ADMIN_BOOTSTRAP, null, promoted.getId(), () -> {
-            promoted.changeRole(Role.ADMIN);
-            userCommand.save(promoted);
-        });
+        adminUsers.bootstrap(id.get());
     }
 
     private static Optional<UUID> parse(String value) {

@@ -132,15 +132,20 @@ flowchart LR
         messaging["adapter/out/messaging<br/>STOMP push"]
     end
 
-    web --> portIn
-    sched --> portIn
-    evt --> portIn
+    driving --> portIn
+    driving --> app
     portIn --> app
     app --> domain
     app --> portOut
     persistence -. implements .-> portOut
     messaging -. implements .-> portOut
 ```
+
+A driving adapter starts work and does nothing else: it calls a use case, through an inbound port or
+the context's own application service, and never an outbound port. A cron job reads the clock and
+times its run; the sweep itself, with its rules and its writes, is an application method. The two
+adapters allowed an outbound port are named, with their reasons, in `HexagonalArchitectureTest`
+([ADR-002](../../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)).
 
 This is not a convention anyone has to remember — `HexagonalArchitectureTest` fails the build on
 every arrow that runs the wrong way. Two contexts are deliberately smaller than this: `auth`
@@ -225,6 +230,9 @@ classDiagram
     }
 
     %% ---- application ----
+    class UpgradeOverdueService {
+        <<application>>
+    }
     class UpgradeService {
         <<application>>
     }
@@ -295,7 +303,8 @@ classDiagram
     UpgradeDto --> UpgradeStatus
     UpgradeDto --> UpgradeTrackingConfigDto
     UpgradeDto --> UpgradeType
-    UpgradeOverdueScheduler --> UpgradeQuery
+    UpgradeOverdueScheduler --> UpgradeOverdueService
+    UpgradeOverdueService --> UpgradeQuery
     UpgradeRepositoryAdapter --> UpgradeJpaRepository
     UpgradeRepositoryAdapter ..|> UpgradeRepositoryPort : implements
     UpgradeRequest --> Difficulty

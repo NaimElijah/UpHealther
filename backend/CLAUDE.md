@@ -187,7 +187,7 @@ that.
   through `support/RecordingAuditTrail`, never a Mockito mock of `AuditTrail`: `recording` is a
   `default` method, which a mock stubs to return `null` without running the operation.
 - **Strict stubs and carry-on loops.** `PotentialStubbingProblem` is a `RuntimeException`, so a loop
-  that catches one per item and carries on (`NotificationScheduler`'s sweeps) counts a stub mismatch
+  that catches one per item and carries on (`NotificationSweepService`'s sweeps) counts a stub mismatch
   as a real failure, and the test flakes with `HashMap` order. Stub every argument the loop will see,
   as `nudgeFailsFor` in `NotificationSchedulerTest` does, and re-run before trusting a green.
 - `./mvnw test` needs **no database**; keep it that way. The `*IT`s that `./mvnw verify` adds boot the

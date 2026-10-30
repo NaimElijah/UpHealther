@@ -14,6 +14,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.common.observability.JobMetrics;
+import com.healthupgrades.upgrade.application.UpgradeOverdueService;
 import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
 import com.healthupgrades.upgrade.domain.event.UpgradeOverdueDetected;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
@@ -41,7 +42,8 @@ import org.slf4j.LoggerFactory;
  * the job's name, and the one INFO line counting what was scanned and what was announced.
  *
  * <p>Driven by a fixed {@link java.time.Clock}, so "past its target date" means the same thing on every
- * run.
+ * run. Driven through the scheduler, over the real {@link UpgradeOverdueService} that holds the sweep since
+ * #338, so the trigger, its metrics and the use case are covered together; only the ports are mocked.
  */
 @ExtendWith(MockitoExtension.class)
 class UpgradeOverdueSchedulerTest {
@@ -76,7 +78,8 @@ class UpgradeOverdueSchedulerTest {
 
     @BeforeEach
     void setUp() {
-        scheduler = new UpgradeOverdueScheduler(upgradeQuery, eventPublisher, jobMetrics, fixedClock);
+        scheduler = new UpgradeOverdueScheduler(
+                new UpgradeOverdueService(upgradeQuery, eventPublisher), jobMetrics, fixedClock);
     }
 
     private HealthUpgrade activeUpgradeEnding(LocalDate targetEndDate) {
@@ -235,8 +238,9 @@ class UpgradeOverdueSchedulerTest {
                 .sum();
     }
 
+    /** Collects what the sweep logs while {@code job} runs: {@link UpgradeOverdueService} writes its line. */
     private static List<ILoggingEvent> logsFromScheduler(Runnable job) {
-        Logger logger = (Logger) LoggerFactory.getLogger(UpgradeOverdueScheduler.class);
+        Logger logger = (Logger) LoggerFactory.getLogger(UpgradeOverdueService.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
         logger.addAppender(appender);
