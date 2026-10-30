@@ -2,6 +2,7 @@ package com.healthupgrades.common.observability;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.test.simple.SimpleTracer;
 import java.util.concurrent.ExecutorService;
@@ -109,6 +110,30 @@ class StompTracingChannelInterceptorTest {
             traced.afterSendCompletion(forwarded, channel, true, null);
 
             assertThat(frameTraceId).isNotBlank().isNotEqualTo(clientTraceId);
+        });
+    }
+
+    @Test
+    void GivenARequestSpanIsCurrent_WhenTheServerSendsAPush_ThenThePushContinuesThatRequestsTrace() {
+        // The other half of not reading a frame's own headers: a frame the server sends while serving a
+        // request is a child of that request's span, so the push joins the trace that caused it. A span
+        // started with no parent would leave every push in a trace of its own. Real tracer, because
+        // SimpleTracer mints no ids to compare.
+        realTracing.run(context -> {
+            Tracer realTracer = context.getBean(Tracer.class);
+            StompTracingChannelInterceptor traced = new StompTracingChannelInterceptor(realTracer);
+            Span request = realTracer.nextSpan().name("http post").start();
+            String pushTraceId;
+            try (Tracer.SpanInScope serving = realTracer.withSpan(request)) {
+                Message<?> forwarded =
+                        traced.preSend(frame(StompCommand.MESSAGE, "/user/queue/notifications"), channel);
+                pushTraceId = realTracer.currentSpan().context().traceId();
+                traced.afterSendCompletion(forwarded, channel, true, null);
+            } finally {
+                request.end();
+            }
+
+            assertThat(pushTraceId).isNotBlank().isEqualTo(request.context().traceId());
         });
     }
 
