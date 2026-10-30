@@ -105,8 +105,9 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   axios. A value interpolated into a path goes through the `apiPath` template tag
   (`` apiPath`/api/upgrades/${id}/plan` ``), never a bare template: React Router decodes `:id`, so a
   link to `/upgrades/..%2Fhealth-areas%3F` would otherwise send the page's calls to another endpoint
-  (NFR-58). The one other transport, the STOMP socket, is `src/api/notificationSocket.ts`, and it takes
-  its origin from the same `apiBaseUrl()`.
+  (NFR-58). `npm run lint` refuses a `client.get/post/put/patch/delete` in `src/api/` whose path is a
+  template with anything interpolated. The one other transport, the STOMP socket, is
+  `src/api/notificationSocket.ts`, and it takes its origin from the same `apiBaseUrl()`.
 - **Signing out can fail, and the failure has to be shown.** `logout()` rejects when the server could
   not be reached; the refresh cookie is then still in the browser, so the next page load signs the
   user back in. Clearing local state anyway would tell somebody on a shared machine they had signed
