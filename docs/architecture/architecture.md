@@ -848,6 +848,17 @@ though, so an edit sent from a page opened before another edit replaces that edi
 refused ([#194](https://github.com/NaimElijah/UpHealther/issues/194)). Nothing else is version-checked,
 because nothing else is edited from two places at once.
 
+**A race the version check cannot see is settled in the adapter.** A check-then-insert against a
+unique constraint is the one shape this takes today: two requests can both find no row and both
+insert. The adapter's save flushes, so the constraint refuses the loser inside the call, and the
+adapter translates that one constraint, by name, into the refusal the API already answers.
+`UserRepositoryAdapter` does it for a duplicate email (FR-4, a 422), and
+`TrackingConfigRepositoryAdapter` for an upgrade's first tracking configuration, as a
+`RetryableConflictException`, since the same `PUT` resent replaces the winner's. Any other integrity
+failure is rethrown unchanged and stays a 500. The progress entry's race is not handled this way yet
+([#146](https://github.com/NaimElijah/UpHealther/issues/146))
+([ADR-074](../ADRs/ADR-074-concurrent-writes-beyond-the-version-check.md)).
+
 **Exception to HTTP status is decided in exactly one class.** Controllers and services throw domain
 exceptions and never build a status by hand. The mapping is pinned by a test.
 
@@ -1061,6 +1072,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the compose backend connects as a role that owns its database rather than as the superuser; why its variables are not `DB_USERNAME` and `DB_PASSWORD`; why one role and not a migrating and a serving one | [ADR-069](../ADRs/ADR-069-the-compose-backend-connects-as-a-role-that-owns-its-database.md) |
 | Why nginx throttles the `/ws` handshake although ADR-017 kept sign-in's limit in the application; why there is no cap on open sockets; what a load balancer would need first | [ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md) |
 | Why registration refuses the 10,000 most common passwords from a pinned SecLists file, rather than asking Have I Been Pwned; how the list is derived and filtered; why the refusal is a constraint beside BR-17's minimum | [ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md) |
+| How a concurrent write that `@Version` does not cover is handled: a lost check-then-insert race translated in the adapter into a 409 | [ADR-074](../ADRs/ADR-074-concurrent-writes-beyond-the-version-check.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

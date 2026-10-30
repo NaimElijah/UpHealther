@@ -2,6 +2,7 @@ package com.healthupgrades.tracking.application;
 
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
+import com.healthupgrades.common.domain.exception.RetryableConflictException;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.tracking.application.port.in.ProgressEntryDetails;
@@ -63,7 +64,9 @@ public class TrackingService implements ProgressQuery, StreakQuery {
      * @param upgradeId the upgrade to configure
      * @param details   the configuration to store
      * @return the saved configuration
-     * @throws ResourceNotFoundException if the upgrade does not exist or belongs to somebody else
+     * @throws ResourceNotFoundException   if the upgrade does not exist or belongs to somebody else
+     * @throws RetryableConflictException if a concurrent request stored the upgrade's first configuration
+     *                                     after this one looked for it; resending this request replaces it
      */
     @Transactional
     public TrackingConfig saveConfig(UUID userId, UUID upgradeId, TrackingConfigDetails details) {

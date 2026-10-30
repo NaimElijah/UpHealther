@@ -1,5 +1,6 @@
 package com.healthupgrades.tracking.domain.port.out;
 
+import com.healthupgrades.common.domain.exception.RetryableConflictException;
 import com.healthupgrades.tracking.domain.model.TrackingConfig; // the aggregate this port persists
 import java.util.Collection;
 import java.util.List;
@@ -11,7 +12,13 @@ import java.util.UUID;
  */
 public interface TrackingConfigRepositoryPort {
 
-    /** Persists a new or updated tracking config and returns the managed instance. */
+    /**
+     * Persists a new or updated tracking config and returns the managed instance, writing it before
+     * returning so a refusal is raised here rather than at commit.
+     *
+     * @throws RetryableConflictException if the config is new and another config for the same upgrade was
+     *                                    stored since the caller looked for one
+     */
     TrackingConfig save(TrackingConfig config);
 
     /** The tracking config for a single upgrade, if configured. */

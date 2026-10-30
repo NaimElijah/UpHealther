@@ -7,11 +7,13 @@ package com.healthupgrades.common.domain.exception;
  * will not help. This one says the request was right and simply arrived at an awkward moment, so a
  * client that retries will succeed. It maps to <strong>409 Conflict</strong>.
  *
- * <p>Its one use today is a refresh credential that was rotated out moments ago: two browser tabs
- * waking together, or a request retried after a dropped connection, can both present a credential that
- * was current when it was sent. The second to arrive is answered 409 rather than 401, because the
- * difference between "try again" and "sign in again" is the difference between a hiccup and being
- * logged out for having two tabs open.
+ * <p>It has two uses today. The first is a refresh credential that was rotated out moments ago: two
+ * browser tabs waking together, or a request retried after a dropped connection, can both present a
+ * credential that was current when it was sent. The second to arrive is answered 409 rather than 401,
+ * because the difference between "try again" and "sign in again" is the difference between a hiccup and
+ * being logged out for having two tabs open. The second is an upgrade's first tracking configuration
+ * saved twice at once: the loser's insert is refused by the unique key, and the same request resent
+ * finds the winner's configuration and replaces it (ADR-074).
  */
 public class RetryableConflictException extends RuntimeException {
 

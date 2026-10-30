@@ -3,6 +3,7 @@ package com.healthupgrades.tracking.adapter.out.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.healthupgrades.common.domain.exception.RetryableConflictException;
 import com.healthupgrades.support.ATrackingConfig;
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.AnUpgrade;
@@ -64,17 +65,35 @@ class TrackingConfigPersistenceIT extends PostgresIT {
 
     @Test
     void GivenAnUpgradeAlreadyConfigured_WhenASecondConfigurationIsInserted_ThenTheDatabaseRefusesIt() {
-        repository.save(configFor(upgradeId));
-        entityManager.flush();
+        // Inserted around the adapter, which translates this refusal: the claim here is the schema's.
+        entityManager.persistAndFlush(configFor(upgradeId));
 
-        assertThatThrownBy(() -> {
-                    repository.save(configFor(upgradeId));
-                    entityManager.flush();
-                })
+        assertThatThrownBy(() -> entityManager.persistAndFlush(configFor(upgradeId)))
                 .isInstanceOfAny(DataIntegrityViolationException.class, ConstraintViolationException.class)
                 // Named rather than typed, as in ProgressEntryPersistenceIT: the claim is that this
                 // constraint fires, not that some constraint did.
                 .hasMessageContaining("tracking_configs_upgrade_id_key");
+    }
+
+    @Test
+    void
+            GivenAnUpgradeConfiguredConcurrently_WhenASecondFirstConfigurationIsSaved_ThenItIsReportedAsRetryableInsideTheCall() {
+        // The flush is the point: without it the violation is raised at commit, after the service has
+        // returned, where nothing can translate it and the caller receives a 500 (NFR-7, ADR-074).
+        repository.save(configFor(upgradeId));
+
+        assertThatThrownBy(() -> repository.save(configFor(upgradeId)))
+                .isInstanceOf(RetryableConflictException.class)
+                .hasMessage(TrackingConfigRepositoryAdapter.CONFIGURED_CONCURRENTLY);
+    }
+
+    @Test
+    void GivenAnIntegrityFailureThatIsNotTheUpgradeKey_WhenAConfigurationIsSaved_ThenItIsRethrownUnchanged() {
+        // Only the unique upgrade_id means "configured concurrently". Translating anything else would
+        // answer a defect with a 409 telling the client to retry a request that can never succeed.
+        assertThatThrownBy(() -> repository.save(configFor(UUID.randomUUID())))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("tracking_configs_upgrade_id_fkey");
     }
 
     @Test

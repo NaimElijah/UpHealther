@@ -29,10 +29,11 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p>Every audited use case is an {@code @Transactional} service method, and the recording happens
  * inside the method body — so it runs while the transaction is still open, and the commit happens
- * afterwards in the proxy. Only registration's save flushes, so everywhere else a {@code @Version}
- * clash or a unique constraint losing a race is decided <em>at commit</em>, after the body has returned. Writing the
- * entry there would have the trail and the {@code audit.events} counter both report an edit that was
- * then rolled back and answered to the caller as a 409.
+ * afterwards in the proxy. Only registration's save and the tracking configuration's save flush
+ * (ADR-074), so everywhere else a {@code @Version} clash or a unique constraint losing a race is
+ * decided <em>at commit</em>, after the body has returned. Writing the entry there would have the
+ * trail and the {@code audit.events} counter both report an edit that was then rolled back and
+ * answered to the caller as a 409.
  *
  * <p>That is not a failure any unit test can see: mocked repositories commit nothing, so the bug is
  * invisible everywhere except against a real transaction manager. This class supplies one and forces
