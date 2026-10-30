@@ -586,7 +586,8 @@ it becomes a themed, reloadable message instead of a blank page.
 `AuditTrail` is an outbound port in `common/domain/port/out/`, beside `DomainEventPublisher` and
 cross-cutting for the same reason. Every state-changing use case records through it, as does every
 authentication outcome — a sign-in, a refresh, a sign-out and a STOMP CONNECT, allowed or refused — and
-the bootstrap promotion of the first administrator; `LoggingAuditTrail` writes them to a logger named `AUDIT` at INFO, and derives the
+the bootstrap promotion of the first administrator; `LoggingAuditTrail` writes them to a logger named `AUDIT` at INFO, a level
+`application.yml` pins so that turning the root level down cannot silence the trail, and derives the
 `audit.events{action,outcome}` counter from the same call so the two cannot disagree.
 
 An entry is `(action, actorUserId, resourceId, outcome)` — two enums and two identifiers, with **nowhere

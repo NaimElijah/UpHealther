@@ -170,8 +170,13 @@ logging:
     # INFO is what a deployment should run at: DEBUG is written for a developer reading along, and
     # this application's DEBUG lines fire per domain event - every minute, from dispatchReminders.
     # LOG_LEVEL_APP turns it up for one run without a code change. Everything outside this package
-    # stays at Spring's default INFO, except the one logger below.
+    # stays at Spring's default INFO, except the two loggers below.
     com.healthupgrades: ${LOG_LEVEL_APP:INFO}
+    # The audit stream (ADR-011) is not under com.healthupgrades, so it follows the root level unless it
+    # is pinned. Pinned, a root turned down to WARN cannot erase the trail while audit.events goes on
+    # counting entries nobody wrote (S5.C9). Not configurable on purpose: an audit trail an operator can
+    # switch off is not one.
+    AUDIT: INFO
     # Hibernate writes the driver's message on every SQL failure, handled or not, and that message
     # quotes the row: a refused registration logged the email address (NFR-6, #142). A real fault still
     # reaches the log through the exception's own stack trace. Hibernate 7 writes it at WARN to this
