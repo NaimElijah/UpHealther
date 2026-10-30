@@ -71,6 +71,38 @@ class HexagonalArchitectureTest {
             .as("the domain must not depend on frameworks, adapters, or the application layer");
 
     /**
+     * The domain depends only on what it depends on today, so a library it has never needed cannot arrive
+     * unnoticed.
+     *
+     * <p>The rule above is a deny-list. It names the usual suspects and gives the clearest message when
+     * one of them appears, but it says nothing about a library it does not name: an entity that picked up
+     * logstash's {@code StructuredArguments}, a JWT type or a JDBC driver class would leave it green. This
+     * one is the allow-list behind it. Each entry is here because the domain uses it today:
+     *
+     * <ul>
+     *   <li>{@code java..}: the standard library — identifiers, times, collections, and the secure random
+     *       and digest a refresh credential is built from;</li>
+     *   <li>{@code jakarta.persistence..}: the mapping annotations the entities carry, the one pragmatic
+     *       exception ADR-001 accepts and {@code architecture.md} names, because the entities are the
+     *       persistence model;</li>
+     *   <li>{@code lombok..}: the builders and accessors Lombok generates. Its annotations are compiled
+     *       away, but each generated member keeps {@code @lombok.Generated} in the bytecode;</li>
+     *   <li>{@code com.healthupgrades..}: the domain's own types, the kernel's and other contexts' models,
+     *       which the layering rules constrain on their own.</li>
+     * </ul>
+     *
+     * <p>Anything else is a decision to record here, with its reason, before a domain class may use it.
+     */
+    @ArchTest
+    static final ArchRule domain_depends_only_on_what_it_needs = classes()
+            .that()
+            .resideInAPackage("..domain..")
+            .should()
+            .onlyDependOnClassesThat()
+            .resideInAnyPackage("java..", "jakarta.persistence..", "lombok..", "com.healthupgrades..")
+            .as("the domain may depend only on the standard library, JPA mapping, Lombok and this codebase");
+
+    /**
      * The application layer must not depend on adapters in either direction. It drives the outbound side
      * through ports (persistence, messaging, events), and states its own input and output shapes —
      * command and result records under {@code application.port.in} — rather than accepting or returning
