@@ -148,7 +148,9 @@ exists only for deployments that split the origins.
 
 The two endpoints reachable without a credential — sign-in and registration — are rate-limited per
 client address by a handler interceptor, which runs before any controller so a refused attempt costs
-no password comparison. The address it counts is the one nginx reported, and only nginx's own address
+no password comparison. Refresh and sign-out, which act on the cookie alone, have an interceptor and a
+limiter of their own, with a looser limit and a separate count, so a refused attempt reads no session
+and writes no audit entry, and neither allowance spends the other. The address it counts is the one nginx reported, and only nginx's own address
 is trusted to report one
 ([ADR-017](../ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)).
 

@@ -2,19 +2,23 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-30
-- **Scope:** `backend/` — the `auth` context's sessions, refresh cookie and their configuration, and
-  migration `V10__auth_session_spent_tokens.sql`; NFR-34 and NFR-36 in
-  `docs/requirements/requirements.md`.
+- **Scope:** `backend/` — the `auth` context's sessions, refresh cookie and their configuration, the
+  rate limit in front of the cookie endpoints, and migration `V10__auth_session_spent_tokens.sql`;
+  NFR-34, NFR-36 and NFR-58 in `docs/requirements/requirements.md`.
 - **Issue:** [#339](https://github.com/NaimElijah/UpHealther/issues/339), scan 05 of
-  [#334](https://github.com/NaimElijah/UpHealther/issues/334): findings S5.A1, S5.A4, S5.A8 and S5.A9.
+  [#334](https://github.com/NaimElijah/UpHealther/issues/334): findings S5.A1, S5.A4, S5.A8, S5.A9 and
+  S5.A11.
   It extends [ADR-015](ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md), whose reuse
   detection it makes hold for any number of rotations and on both cookie endpoints, and
-  [ADR-041](ADR-041-the-refresh-cookie-is-always-secure.md), whose cookie it names.
+  [ADR-041](ADR-041-the-refresh-cookie-is-always-secure.md), whose cookie it names, and
+  [ADR-017](ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md), whose limiter it uses a
+  second time.
 
 ## Context
 
 Scan 05 read the session code against ADR-015's promise that a stolen refresh credential is usable at
-most once, and that using it is detected. It found the promise broken in four places:
+most once, and that using it is detected. It found the promise broken in four places, and one more
+way to abuse the endpoints that keep it:
 
 - **S5.A1, reuse after two rotations went undetected.** The session row kept the digest of the current
   credential and of the one before it, and nothing older. A thief holding C1 who refreshed C1 → C2 → C3
@@ -31,6 +35,9 @@ most once, and that using it is detected. It found the promise broken in four pl
 - **S5.A8, the cookie could be planted.** It was named `refresh_token`, with no prefix, and a request
   carrying two was answered from the first. A same-site sibling host could set a second, more specific
   one and move the victim's tab into the attacker's account.
+- **S5.A11, refresh and sign-out were unthrottled.** Both are anonymous, and each attempt reads a
+  session under a lock and writes an audit entry, so a caller could write the audit stream at will.
+  ADR-021 names this trigger itself.
 
 ## Decision
 
@@ -84,6 +91,17 @@ refused 401 and a sign-out with two is answered 204, both clearing ours, and nei
 As with no cookie at all, nothing is audited, because no credential the server could attribute was
 presented.
 
+### 5. Refresh and sign-out have a rate limit of their own (S5.A11)
+
+A second `FixedWindowRateLimiter`, with its own map, counts refresh and sign-out together per client
+address: sixty a minute by default (`app.session-rate-limit`). It is the same in-process fixed window
+ADR-017 chose, registered by `RateLimitConfig` as a second interceptor in front of those two paths, so a
+refused attempt reads no session and writes no audit entry. The limit is looser than sign-in's ten,
+because a signed-in browser calls these endpoints on its own: every tab renews every fifteen minutes and
+on each page load, and a household shares one address. It is a separate count so that neither allowance
+spends the other: a mistyped password must not cost anybody a renewal, and a busy tab must not cost
+anybody a sign-in.
+
 ## Consequences
 
 **Easy.** Reuse is detected however many times the thief has refreshed, and whichever cookie endpoint the
@@ -101,6 +119,8 @@ issued. An account switched off at any moment is signed out at its next refresh 
 - Every refresh also reads the account, one indexed read beside the session's.
 - Renaming the cookie signs every browser out once: the old `refresh_token` is no longer read, and
   lapses on its own `Max-Age`.
+- A household with more than sixty renewals and sign-outs a minute behind one address is refused 429
+  until the window turns.
 - A sibling host that keeps planting a duplicate keeps the victim signed out, because the clearing
   cookie removes only ours. That is a denial of service on one browser, which is the lesser harm than
   a session moved into the attacker's account.
@@ -125,6 +145,13 @@ outcome reuse detection exists to prevent.
 **Check the account in `AuthService.continueSession`, after the rotation.** Rejected: the rotation would
 already be committed, so the refusal would have to undo it, and the session would have issued one more
 credential to an account that may no longer sign in.
+
+**Count refresh and sign-out in the sign-in bucket.** Rejected: ten a minute is far below what a
+signed-in household's own tabs ask for, so the honest renewals would spend the allowance a mistyped
+password needs, and an attacker could lock an address out of signing in by refreshing.
+
+**Leave the limit to nginx.** Rejected: nginx is the only edge in the compose deployment, not in every
+one, and ADR-017 put the sign-in limit in the application for the same reason.
 
 **The `__Host-` prefix.** Rejected: it would also forbid `Domain`, which closes the sibling-host case
 outright, but it requires `Path=/`, which sends the long-lived credential with every API call. ADR-015

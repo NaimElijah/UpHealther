@@ -6,6 +6,8 @@ import com.healthupgrades.auth.adapter.in.web.RefreshCookieProperties;
 import com.healthupgrades.auth.adapter.in.web.RefreshCookies;
 import com.healthupgrades.common.ratelimit.FixedWindowRateLimiter;
 import com.healthupgrades.common.ratelimit.RateLimitProperties;
+import com.healthupgrades.common.ratelimit.RateLimiters;
+import com.healthupgrades.common.ratelimit.SessionRateLimitProperties;
 import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.common.security.SecurityUser;
 import com.healthupgrades.user.domain.model.Role;
@@ -98,9 +100,15 @@ public class WebSliceSupport {
      * a minute boundary would get a fresh allowance partway through, and a {@code Retry-After} would
      * depend on when the test ran.
      */
-    @Bean
-    FixedWindowRateLimiter rateLimiter(RateLimitProperties properties) {
+    @Bean(RateLimiters.SIGN_IN)
+    FixedWindowRateLimiter signInRateLimiter(RateLimitProperties properties) {
         return new FixedWindowRateLimiter(properties, Clock.fixed(LIMITER_NOW, ZoneOffset.UTC));
+    }
+
+    /** The limiter for refresh and sign-out, built as {@link #signInRateLimiter} is, from its own limits. */
+    @Bean(RateLimiters.SESSION)
+    FixedWindowRateLimiter sessionRateLimiter(SessionRateLimitProperties properties) {
+        return new FixedWindowRateLimiter(properties.limits(), Clock.fixed(LIMITER_NOW, ZoneOffset.UTC));
     }
 
     /**

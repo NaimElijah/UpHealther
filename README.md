@@ -194,7 +194,7 @@ localhost only.
 | `TRUSTED_PROXIES` | Java regex for the hop allowed to set `X-Forwarded-For`; widen it and a caller picks the address the rate limit counts | nginx on the compose network |
 
 <details>
-<summary>The other fourteen variables, and six that live only in <code>application.yml</code></summary>
+<summary>The other fourteen variables, and nine that live only in <code>application.yml</code></summary>
 
 In `.env.example` order. `docker-compose.yml` does not pass four of them through, so they take
 effect on a native run only — marked *native*.
@@ -215,11 +215,13 @@ effect on a native run only — marked *native*.
 | `LOG_LEVEL_APP` | Level for `com.healthupgrades` only | `INFO` |
 | `VITE_API_URL` | API origin for the SPA; empty uses the same-origin `/api` proxy — *native*, the image takes no build argument | empty |
 
-Compose passes none of the next six either. Every cron is read in UTC, whatever the host's zone
+Compose passes none of the next nine either. Every cron is read in UTC, whatever the host's zone
 ([ADR-020](docs/ADRs/ADR-020-the-server-keeps-time-in-utc.md)): `UPGRADE_OVERDUE_CRON`
 (`0 0 8 * * *`), `NOTIFY_CHECKIN_CRON` (`0 0 18 * * *`), `NOTIFY_REMINDERS_CRON` (`0 * * * * *`)
-and `AUTH_SESSION_CLEANUP_CRON` (`0 30 3 * * *`); then `AUTH_SESSION_ROTATION_GRACE` (`10s`) and
-`AUTH_RATE_LIMIT_MAX_CLIENTS` (`10000`).
+and `AUTH_SESSION_CLEANUP_CRON` (`0 30 3 * * *`); then `AUTH_SESSION_ROTATION_GRACE` (`10s`),
+`AUTH_RATE_LIMIT_MAX_CLIENTS` (`10000`), and the refresh and sign-out limit, counted apart from
+sign-in's: `AUTH_SESSION_RATE_LIMIT` (`60`), `AUTH_SESSION_RATE_LIMIT_WINDOW` (`1m`) and
+`AUTH_SESSION_RATE_LIMIT_MAX_CLIENTS` (`10000`).
 
 </details>
 
