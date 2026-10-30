@@ -5,8 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { clearAccessToken, getAccessToken, hasUsableAccessToken } from '../api/tokenStore';
 import { renewSession } from '../api/client';
 import { getNotifications, getUnreadCount, markNotificationRead, markAllNotificationsRead } from '../api/notifications';
-import { NotificationContext } from './notificationContextValue';
-import ToastContainer, { type ToastData } from '../components/notifications/ToastContainer';
+import { NotificationContext, type ToastData } from './notificationContextValue';
 import type { AppNotification } from '../types';
 import { toApiError, type ApiError } from '../api/apiError';
 
@@ -52,9 +51,10 @@ function buildWsUrl(): string {
  * The unread count is the server's, not one counted from the list: the list holds only the fifty most
  * recent, and the count covers every notification (FR-33, #94).
  *
- * Mounted inside the router because a toast can navigate, and inside the auth provider because the
- * socket authenticates with an access token. The connection follows the session: it opens when signed
- * in and closes on logout or unmount.
+ * It holds the toasts and does not draw them: `ToastContainer` reads them from this context, mounted
+ * beside the routes inside this provider and inside the router, because a toast can navigate. Mounted
+ * inside the auth provider because the socket authenticates with an access token. The connection
+ * follows the session: it opens when signed in and closes on logout or unmount.
  */
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useAuth();
@@ -292,10 +292,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         markRead,
         markAllRead,
         requestDesktopPermission,
+        toasts,
+        dismissToast,
       }}
     >
       {children}
-      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </NotificationContext.Provider>
   );
 };

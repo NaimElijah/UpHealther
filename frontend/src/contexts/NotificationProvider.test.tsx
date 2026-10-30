@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useParams } from 'react-router-dom';
 import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { NotificationProvider } from './NotificationProvider';
+import ToastContainer from '../components/notifications/ToastContainer';
 import { AuthContext, type AuthContextType } from './authContextValue';
 import { useNotifications } from '../hooks/useNotifications';
 import { clearAccessToken, setAccessToken } from '../api/tokenStore';
@@ -759,7 +760,9 @@ const TOAST_LIFETIME_MS = 6000;
  * six seconds, and one that names an upgrade opens it.
  *
  * The cap is what keeps a burst of notifications from covering the page, and the timer is what clears
- * them without a click; neither is visible to `ToastContainer.test.tsx`, which is handed its toasts.
+ * them without a click; neither is visible to `ToastContainer.test.tsx`, which is handed its toasts. The
+ * provider holds them and `ToastContainer` draws them, so it is mounted here beside the routes, as
+ * `router/index.tsx` mounts it.
  */
 describe('NotificationProvider toasts', () => {
   beforeEach(() => {
@@ -771,7 +774,7 @@ describe('NotificationProvider toasts', () => {
     vi.useRealTimers();
   });
 
-  /** Mounts the provider beside a page for each upgrade, and connects its socket. */
+  /** Mounts the provider and its toasts beside a page for each upgrade, and connects its socket. */
   async function renderConnected() {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
@@ -783,6 +786,7 @@ describe('NotificationProvider toasts', () => {
                 <Route path="/dashboard" element={<p>the dashboard</p>} />
                 <Route path="/upgrades/:id" element={<UpgradePage />} />
               </Routes>
+              <ToastContainer />
             </NotificationProvider>
           </MemoryRouter>
         </QueryClientProvider>

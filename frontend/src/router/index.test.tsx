@@ -5,14 +5,15 @@ import AppRouter from './index';
 import { AuthContext, type AuthContextType } from '../contexts/authContextValue';
 import type { User } from '../types';
 
-// The pages a test can reach, the frame and the notification socket are replaced: what is under test is
-// which gate stands in front of which path, and each of those has its own tests. Each stub renders its
-// page's name, so the test reads which one a URL reached. The other pages are left real: behind a working
-// gate, an anonymous visitor never renders them.
+// The pages a test can reach, the frame, the notification socket and the toasts it feeds are replaced:
+// what is under test is which gate stands in front of which path, and each of those has its own tests.
+// Each stub renders its page's name, so the test reads which one a URL reached. The other pages are left
+// real: behind a working gate, an anonymous visitor never renders them.
 vi.mock('../components/layout/Layout', () => ({ default: ({ children }: { children: ReactNode }) => children }));
 vi.mock('../contexts/NotificationProvider', () => ({
   NotificationProvider: ({ children }: { children: ReactNode }) => children,
 }));
+vi.mock('../components/notifications/ToastContainer', () => ({ default: () => <aside>the toasts</aside> }));
 vi.mock('../pages/LoginPage', () => ({ default: () => 'the login page' }));
 vi.mock('../pages/DashboardPage', () => ({ default: () => 'the dashboard page' }));
 vi.mock('../pages/AdminUsersPage', () => ({ default: () => 'the accounts page' }));
@@ -119,5 +120,30 @@ describe('AppRouter', () => {
 
     expect(await screen.findByText('the dashboard page')).toBeDefined();
     expect(window.location.pathname).toBe('/dashboard');
+  });
+});
+
+/**
+ * Where the toasts are mounted: once, beside the routes, so neither a page nor the shared frame owns them
+ * and they are there whether or not anybody is signed in. `NotificationProvider` holds them and
+ * `ToastContainer` draws them, so nothing else fails if the route table stops mounting it.
+ */
+describe('AppRouter toast layer', () => {
+  afterEach(() => {
+    window.history.pushState({}, '', '/');
+  });
+
+  it('GivenAnAnonymousVisitor_WhenTheyOpenSignIn_ThenTheToastLayerIsMounted', async () => {
+    visit('/login', contextWith({}));
+
+    expect(await screen.findByText('the login page')).toBeDefined();
+    expect(screen.getAllByText('the toasts')).toHaveLength(1);
+  });
+
+  it('GivenASignedInUser_WhenTheyOpenTheirDashboard_ThenTheToastLayerIsMounted', async () => {
+    visit('/dashboard', contextWith({ isAuthenticated: true, user: ORDINARY }));
+
+    expect(await screen.findByText('the dashboard page')).toBeDefined();
+    expect(screen.getAllByText('the toasts')).toHaveLength(1);
   });
 });
