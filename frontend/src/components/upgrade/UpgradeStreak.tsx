@@ -1,10 +1,10 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { READ_STARTED_BY_PAGE, streakQuery } from './upgradeDetailsQueries';
+import type { SectionRead } from './upgradeDetailsQueries';
+import type { StreakSummary } from '../../types';
 
-/** @param upgradeId the upgrade whose streak to show */
+/** @param read the page's read of the upgrade's streak */
 interface Props {
-  upgradeId: string;
+  read: SectionRead<StreakSummary>;
 }
 
 /**
@@ -13,11 +13,8 @@ interface Props {
  *
  * Logging progress on the page refreshes it (`UpgradeProgress`).
  */
-const UpgradeStreak: React.FC<Props> = ({ upgradeId }) => {
-  const { data: streak = { current: 0, longest: 0 } } = useQuery({
-    ...streakQuery(upgradeId),
-    ...READ_STARTED_BY_PAGE,
-  });
+const UpgradeStreak: React.FC<Props> = ({ read }) => {
+  const { data: streak = { current: 0, longest: 0 } } = read;
 
   return streak.current > 0 ? (
     <div className="bg-streak-soft border border-streak-line rounded-xl p-4 flex items-center gap-3">

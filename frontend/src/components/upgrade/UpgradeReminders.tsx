@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createReminder, deleteReminder, updateReminder } from '../../api/reminders';
 import { toApiError } from '../../api/apiError';
 import Card from '../ui/Card';
@@ -8,7 +8,7 @@ import Input from '../ui/Input';
 import Badge from '../ui/Badge';
 import ErrorState from '../ui/ErrorState';
 import { refusalMessage } from './formInput';
-import { READ_STARTED_BY_PAGE, remindersQuery } from './upgradeDetailsQueries';
+import { remindersQuery, type SectionRead } from './upgradeDetailsQueries';
 import type { CreateReminderRequest, Reminder } from '../../types';
 
 /**
@@ -31,9 +31,13 @@ interface ReminderChange {
   req: CreateReminderRequest;
 }
 
-/** @param upgradeId the upgrade whose reminders these are */
+/**
+ * @param upgradeId the upgrade whose reminders these are
+ * @param read      the page's read of its reminders
+ */
 interface Props {
   upgradeId: string;
+  read: SectionRead<Reminder[]>;
 }
 
 /**
@@ -43,9 +47,10 @@ interface Props {
  * Every write refreshes the reminders alone, since nothing else shows them. Only one write runs at a
  * time, for the reason given beside `reminderWriteInFlight`.
  */
-const UpgradeReminders: React.FC<Props> = ({ upgradeId }) => {
+const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
   const qc = useQueryClient();
-  const { data: reminders = [] } = useQuery({ ...remindersQuery(upgradeId), ...READ_STARTED_BY_PAGE });
+  const { data: reminders = [] } = read;
+  const remindersKey = remindersQuery(upgradeId).queryKey;
 
   const [reminderTime, setReminderTime] = useState(DEFAULT_REMINDER_TIME);
   const [reminderDays, setReminderDays] = useState<string[]>([]);
@@ -56,21 +61,21 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId }) => {
 
   const createReminderMut = useMutation({
     mutationFn: () => createReminder(upgradeId, { reminderTime, daysOfWeek: reminderDays, enabled: true }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['reminders', upgradeId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: remindersKey }),
   });
   const deleteReminderMut = useMutation({
     mutationFn: (reminderId: string) => deleteReminder(reminderId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['reminders', upgradeId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: remindersKey }),
   });
   // Two mutations over one endpoint, because their refusals belong in different places: a reschedule's
   // beside the form that sent it, a switch's beside the list it was pressed in (FR-26, NFR-30).
   const rescheduleReminderMut = useMutation({
     mutationFn: ({ reminderId, req }: ReminderChange) => updateReminder(reminderId, req),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['reminders', upgradeId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: remindersKey }),
   });
   const switchReminderMut = useMutation({
     mutationFn: ({ reminderId, req }: ReminderChange) => updateReminder(reminderId, req),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['reminders', upgradeId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: remindersKey }),
   });
 
   // One write to the reminders at a time. A switch resends the schedule its row shows, and the form

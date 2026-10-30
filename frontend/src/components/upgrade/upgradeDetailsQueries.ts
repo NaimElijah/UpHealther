@@ -1,16 +1,15 @@
-import { queryOptions, useQuery } from '@tanstack/react-query';
+import { queryOptions, type UseQueryResult } from '@tanstack/react-query';
 import { getProgressByUpgrade, getStreak } from '../../api/progress';
 import { getReflectionsByUpgrade } from '../../api/reflections';
 import { getReminders } from '../../api/reminders';
 
 /**
- * The reads of an upgrade page's sections, each defined once: its key, how it is fetched, and when.
+ * The reads of an upgrade page's sections, each defined once: its key and how it is fetched.
  *
- * Each section reads its own, and so does the page, through {@link useStartSectionReads}. The page
- * renders the sections only once the upgrade has loaded, so a read that started in a section would
- * wait for the upgrade's. The page's observer starts all of them with it instead, at mount, in
- * parallel. A section adds {@link READ_STARTED_BY_PAGE} to its own observer, so it never starts a fetch
- * the page's would not have.
+ * The page reads all four, beside the upgrade's read, as it mounts, and hands each section its result
+ * as a {@link SectionRead}. A section renders only once the upgrade has loaded, so a read started
+ * there would wait for the upgrade's. A section takes its key from here when a write invalidates it,
+ * so the key is spelled once.
  *
  * Every factory takes the id the route gave, which may be missing, and is enabled only when it is not.
  */
@@ -48,21 +47,8 @@ export const remindersQuery = (upgradeId: string | undefined) =>
   });
 
 /**
- * Observes every section's read from the moment the page mounts, so each starts beside the upgrade's
- * read rather than after it. The page reads none of the results; the sections do.
- *
- * @param upgradeId the id from the route
+ * What a section is handed of its read: the page holds the read's one observer and passes its result
+ * down, so a section renders the same answer, the same loading state and the same failure as the
+ * page sees.
  */
-export function useStartSectionReads(upgradeId: string | undefined): void {
-  useQuery(progressQuery(upgradeId));
-  useQuery(reflectionsQuery(upgradeId));
-  useQuery(streakQuery(upgradeId));
-  useQuery(remindersQuery(upgradeId));
-}
-
-/**
- * Spread into a section's own read. The page's observer already decided, as it mounted, whether to
- * fetch, and retries and refetches the way it always has. A second observer that fetched again on
- * mount would add a request whenever the answer was stale or had failed.
- */
-export const READ_STARTED_BY_PAGE = { refetchOnMount: false, retryOnMount: false } as const;
+export type SectionRead<T> = Pick<UseQueryResult<T, Error>, 'data' | 'isLoading' | 'error'>;

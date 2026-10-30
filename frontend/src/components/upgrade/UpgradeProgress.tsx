@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createProgress } from '../../api/progress';
 import { parseLocalDate, todayLocal } from '../../lib/localDate';
 import Card from '../ui/Card';
@@ -8,8 +8,8 @@ import Input from '../ui/Input';
 import Modal from '../ui/Modal';
 import Badge from '../ui/Badge';
 import { numOrUndef, refusalMessage } from './formInput';
-import { READ_STARTED_BY_PAGE, progressQuery } from './upgradeDetailsQueries';
-import type { CreateProgressRequest, HealthUpgrade } from '../../types';
+import { progressQuery, streakQuery, type SectionRead } from './upgradeDetailsQueries';
+import type { CreateProgressRequest, HealthUpgrade, ProgressEntry } from '../../types';
 
 /** What the Log Progress form holds: the request without its URL-only id, for a date it always has. */
 type ProgressForm = Omit<CreateProgressRequest, 'upgradeId'> & { date: string };
@@ -28,10 +28,12 @@ const newProgressForm = (): ProgressForm => ({
 
 /**
  * @param upgradeId      the upgrade the entries are logged against
+ * @param read           the page's read of the upgrade's progress history
  * @param trackingConfig how the upgrade is tracked, which decides the form's input; none means yes or no
  */
 interface Props {
   upgradeId: string;
+  read: SectionRead<ProgressEntry[]>;
   trackingConfig: HealthUpgrade['trackingConfig'];
 }
 
@@ -43,9 +45,9 @@ interface Props {
  * dashboard and the progress history page stay as they were for up to the cache's thirty seconds. That
  * is #192, a known bug, left as it is here.
  */
-const UpgradeProgress: React.FC<Props> = ({ upgradeId, trackingConfig }) => {
+const UpgradeProgress: React.FC<Props> = ({ upgradeId, read, trackingConfig }) => {
   const qc = useQueryClient();
-  const { data: progress = [] } = useQuery({ ...progressQuery(upgradeId), ...READ_STARTED_BY_PAGE });
+  const { data: progress = [] } = read;
 
   const [progressOpen, setProgressOpen] = useState(false);
   const [progressForm, setProgressForm] = useState(newProgressForm);
@@ -55,8 +57,8 @@ const UpgradeProgress: React.FC<Props> = ({ upgradeId, trackingConfig }) => {
   const progressMutation = useMutation({
     mutationFn: (body: Omit<CreateProgressRequest, 'upgradeId'>) => createProgress({ ...body, upgradeId }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['progress', upgradeId] });
-      qc.invalidateQueries({ queryKey: ['streak', upgradeId] });
+      qc.invalidateQueries({ queryKey: progressQuery(upgradeId).queryKey });
+      qc.invalidateQueries({ queryKey: streakQuery(upgradeId).queryKey });
     },
   });
 

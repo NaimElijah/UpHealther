@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createReflection } from '../../api/reflections';
 import { parseLocalDate, todayLocal } from '../../lib/localDate';
 import Card from '../ui/Card';
@@ -7,8 +7,8 @@ import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Modal from '../ui/Modal';
 import { intOrUndef, refusalMessage } from './formInput';
-import { READ_STARTED_BY_PAGE, reflectionsQuery } from './upgradeDetailsQueries';
-import type { CreateReflectionRequest } from '../../types';
+import { reflectionsQuery, type SectionRead } from './upgradeDetailsQueries';
+import type { CreateReflectionRequest, Reflection } from '../../types';
 
 /** What the Add Reflection form holds: the request, for a date it always has. */
 type ReflectionForm = CreateReflectionRequest & { date: string };
@@ -26,18 +26,22 @@ const newReflectionForm = (): ReflectionForm => ({
   benefitRating: DEFAULT_REFLECTION_RATING,
 });
 
-/** @param upgradeId the upgrade the reflections are about */
+/**
+ * @param upgradeId the upgrade the reflections are about
+ * @param read      the page's read of its reflections
+ */
 interface Props {
   upgradeId: string;
+  read: SectionRead<Reflection[]>;
 }
 
 /**
  * An upgrade's reflections (FR-24), newest first as the API returns them, and the **Add Reflection**
  * dialog. A saved reflection refreshes this list alone.
  */
-const UpgradeReflections: React.FC<Props> = ({ upgradeId }) => {
+const UpgradeReflections: React.FC<Props> = ({ upgradeId, read }) => {
   const qc = useQueryClient();
-  const { data: reflections = [] } = useQuery({ ...reflectionsQuery(upgradeId), ...READ_STARTED_BY_PAGE });
+  const { data: reflections = [] } = read;
 
   const [reflectionOpen, setReflectionOpen] = useState(false);
   const [reflectionForm, setReflectionForm] = useState(newReflectionForm);
@@ -45,7 +49,7 @@ const UpgradeReflections: React.FC<Props> = ({ upgradeId }) => {
   // Closing the dialog is passed to each `mutate` call, for the reason `UpgradeProgress` gives.
   const reflectionMutation = useMutation({
     mutationFn: (body: Omit<CreateReflectionRequest, 'upgradeId'>) => createReflection(upgradeId, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['reflections', upgradeId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: reflectionsQuery(upgradeId).queryKey }),
   });
 
   /** Starts a new reflection, on the same terms as a new progress entry (`UpgradeProgress`). */

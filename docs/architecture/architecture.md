@@ -80,7 +80,7 @@ no aggregate at all, orchestrating over `user` and `auth`.
 | `src/App.tsx`, `src/main.tsx` | The outer half of the composition root. `main.tsx` mounts `App` under `StrictMode`; `App` installs, outermost first, `ThemeProvider`, `ErrorBoundary`, the one `QueryClientProvider` and `AuthProvider` around the router |
 | `src/router/` | `index.tsx`, the route table and the inner half of the composition root: inside `BrowserRouter` it mounts `NotificationProvider` around the routes and `ToastContainer` beside them, so a toast can navigate. `ProtectedRoute` gates every page but sign-in and registration; `RequireRole` adds the administrator check in front of `/admin/users`, a courtesy, since the API decides. `/` and any unknown path redirect |
 | `src/pages/` | One component per route that renders a page |
-| `src/components/` | `ui/` primitives — including `PageContainer`, which decides how wide a page may grow, `Modal`, which every dialog is, and `ErrorState`, which shows a failure with its trace id — `upgrade/` cards, badges, the fields that describe an upgrade, the actions an upgrade's page offers on it, and the sections of that page (its streak, tracking configuration, reminders, progress and reflections), each owning its own reads, writes and dialog where it has them, `notifications/` bell, dropdown, items and toasts, `layout/` navbar, sidebar and the phone menu, the last two rendering one shared list of links (`navItems.ts`), `theme/` the light, dark and system switch, and `ErrorBoundary.tsx`, which replaces a tree that threw while rendering with a page offering a reload |
+| `src/components/` | `ui/` primitives — including `PageContainer`, which decides how wide a page may grow, `Modal`, which every dialog is, and `ErrorState`, which shows a failure with its trace id — `upgrade/` cards, badges, the fields that describe an upgrade, the actions an upgrade's page offers on it, and the sections of that page (its streak, tracking configuration, reminders, progress and reflections), each rendering the read the page hands it and owning its writes and dialog where it has them, `notifications/` bell, dropdown, items and toasts, `layout/` navbar, sidebar and the phone menu, the last two rendering one shared list of links (`navItems.ts`), `theme/` the light, dark and system switch, and `ErrorBoundary.tsx`, which replaces a tree that threw while rendering with a page offering a reload |
 | `src/types/` | `api.generated.ts`, the request and response shapes and enums rendered from the backend's records, and `index.ts`, which gives them the frontend's names and adds, as intersections, what no record declares: a health area's client-side `upgradeCount`, and the `upgradeId` that `createProgress` moves from a new entry into the URL (see "The frontend's wire types are generated from the backend's records") |
 | `src/lib/` | Helpers shared by several pages. `localDate.ts` turns the API's zone-less `YYYY-MM-DD` dates into the user's own day and back, because JavaScript's shortcuts for both go through UTC; `queryClient.ts` builds the one server-state cache and its thirty-second staleness window; `upgradeViews.ts` marks every cached view of upgrades out of date after a write that changed one ([ADR-029](../ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)) |
 
@@ -247,10 +247,12 @@ every tracking configuration rather than one per upgrade.
 
 The browser's half of a read, and of the write that makes it stale:
 
-1. **A page or a section asks the cache.** It calls `useQuery` with a key and a function from `api/`,
-   such as `['reminders', id]` and `getReminders`. There is one cache, built by `lib/queryClient.ts`
-   and provided once in `App.tsx`. An answer stays fresh for thirty seconds, so a page opened again
-   inside that window renders from it without a request; a failed read is retried once.
+1. **A page asks the cache.** It calls `useQuery` with a key and a function from `api/`, such as
+   `['reminders', id]` and `getReminders`. The upgrade page starts its sections' reads as it mounts,
+   beside the upgrade's own, and hands each section its result, since a section renders only once the
+   upgrade has loaded. There is one cache, built by `lib/queryClient.ts` and provided once in
+   `App.tsx`. An answer stays fresh for thirty seconds, so a page opened again inside that window
+   renders from it without a request; a failed read is retried once.
 2. **The call goes through the one axios instance.** `api/client.ts` adds the in-memory access token
    as a bearer header. A 401 is taken for a lapsed token: the instance renews it from the refresh
    cookie and sends the request once more. A renewal is single-flight, within the tab through one

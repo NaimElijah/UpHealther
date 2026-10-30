@@ -12,7 +12,12 @@ import UpgradeTrackingConfig from '../components/upgrade/UpgradeTrackingConfig';
 import UpgradeReminders from '../components/upgrade/UpgradeReminders';
 import UpgradeProgress from '../components/upgrade/UpgradeProgress';
 import UpgradeReflections from '../components/upgrade/UpgradeReflections';
-import { useStartSectionReads } from '../components/upgrade/upgradeDetailsQueries';
+import {
+  progressQuery,
+  reflectionsQuery,
+  remindersQuery,
+  streakQuery,
+} from '../components/upgrade/upgradeDetailsQueries';
 import Badge from '../components/ui/Badge';
 import { difficultyBadgeVariant } from '../components/upgrade/upgradeMeta';
 import PageContainer from '../components/ui/PageContainer';
@@ -24,11 +29,10 @@ import { parseLocalDate } from '../lib/localDate';
  * Everything about one upgrade: its details, and below them its streak, tracking configuration,
  * reminders, progress history and reflections.
  *
- * The page holds the upgrade's read, its header and the layout. Each section below the header is a
- * component of `components/upgrade/` that owns its own reads, writes and dialog, where it has them, so
- * saving a reflection does not refetch the progress history; what they share is the upgrade id from
- * the route. The page starts every section's read as it mounts (`useStartSectionReads`), so they run
- * beside the upgrade's rather than after it.
+ * The page holds every read, the header and the layout. It reads the sections' data beside the
+ * upgrade, as it mounts, and hands each section below the header its result. Each section is a
+ * component of `components/upgrade/` that owns its writes and its dialog, where it has them, so saving
+ * a reflection does not refetch the progress history; what they share is the upgrade id from the route.
  */
 const UpgradeDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -39,7 +43,12 @@ const UpgradeDetails: React.FC = () => {
     isLoading,
     error,
   } = useQuery({ queryKey: ['upgrade', id], queryFn: () => getUpgradeById(id!), enabled: !!id });
-  useStartSectionReads(id);
+  // Read here rather than in the sections, which render only once the upgrade has loaded: a read
+  // started there would wait for the upgrade's. Each section is handed its read's result.
+  const progressRead = useQuery(progressQuery(id));
+  const reflectionsRead = useQuery(reflectionsQuery(id));
+  const streakRead = useQuery(streakQuery(id));
+  const remindersRead = useQuery(remindersQuery(id));
 
   if (isLoading)
     return (
@@ -101,11 +110,11 @@ const UpgradeDetails: React.FC = () => {
         <UpgradeActions upgrade={upgrade} />
       </Card>
 
-      <UpgradeStreak upgradeId={id!} />
+      <UpgradeStreak read={streakRead} />
       <UpgradeTrackingConfig upgradeId={id!} trackingConfig={upgrade.trackingConfig} />
-      <UpgradeReminders upgradeId={id!} />
-      <UpgradeProgress upgradeId={id!} trackingConfig={upgrade.trackingConfig} />
-      <UpgradeReflections upgradeId={id!} />
+      <UpgradeReminders upgradeId={id!} read={remindersRead} />
+      <UpgradeProgress upgradeId={id!} read={progressRead} trackingConfig={upgrade.trackingConfig} />
+      <UpgradeReflections upgradeId={id!} read={reflectionsRead} />
     </PageContainer>
   );
 };
