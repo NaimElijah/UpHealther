@@ -33,7 +33,7 @@ public record AuthSessionProperties(
         @NotNull @DurationMin(hours = MIN_ABSOLUTE_HOURS) @DurationMax(days = MAX_ABSOLUTE_DAYS)
         Duration absolute,
 
-        @NotNull @DurationMax(minutes = MAX_ROTATION_GRACE_MINUTES)
+        @NotNull @DurationMin(seconds = 0) @DurationMax(minutes = MAX_ROTATION_GRACE_MINUTES)
         Duration rotationGrace) {
 
     /**
@@ -54,7 +54,8 @@ public record AuthSessionProperties(
     /**
      * The longest rotation grace: a minute, six times the shipped ten seconds. Two tabs racing collide
      * within a moment; a window as long as a session would forgive every replay, which is reuse detection
-     * turned off. No lower bound: zero forgives nothing, a strict setting an operator may choose.
+     * turned off. The lower bound is zero, which forgives nothing, a strict setting an operator may
+     * choose; below it means nothing, since no credential is presented before it was spent.
      */
     public static final long MAX_ROTATION_GRACE_MINUTES = 1;
 

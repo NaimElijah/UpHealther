@@ -147,7 +147,7 @@ anybody a sign-in.
 `JwtTokenProvider.verify` refuses a token whose claims carry no `exp`, as it refuses one that names no
 session. Every token this application issues has one, so nothing it minted is affected.
 
-### 7. The lifetimes are bounded at startup (S5.A13)
+### 7. The lifetimes, and the clock skew, are bounded at startup (S5.A13)
 
 Each is a bean-validation constraint on its properties record, so a value outside it refuses the boot
 with the property named, as a missing one already did. Each bound is a named constant beside its reason:
@@ -157,7 +157,8 @@ with the property named, as a missing one already did. Each bound is a named con
 | `app.jwt.access-token-ttl` | 15m | 1m to 1h | Shorter renews every tab too often for NFR-59's limit; longer makes a leaked token worth hours |
 | `app.auth.session.idle` | 7d | at least 1h, and at most `absolute` | Shorter than the longest token lets an active session lapse between renewals; longer than the cap does nothing it says |
 | `app.auth.session.absolute` | 30d | 1h to 90d | NFR-47: no session lives indefinitely |
-| `app.auth.session.rotation-grace` | 10s | at most 1m | Longer forgives replays; zero is allowed, and forgives nothing |
+| `app.auth.session.rotation-grace` | 10s | 0s to 1m | Longer forgives replays; zero is allowed, and forgives nothing; below zero means nothing |
+| `app.jwt.clock-skew` | 30s | 0s to 5m | It is added straight onto every token's expiry, so a day of it accepts every token a day late, whatever its lifetime says; five minutes is the tolerance Kerberos defaults to, and NTP keeps hosts well within a second |
 
 The bounds admit every value the repository sets anywhere, `AuthSessionFlowIT`'s zero grace included.
 

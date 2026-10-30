@@ -38,6 +38,13 @@ class AuthSessionPropertiesTest {
     }
 
     @Test
+    void GivenANegativeRotationGrace_WhenItIsBound_ThenTheApplicationRefusesToStartNamingIt() {
+        // Below zero means nothing: no credential is ever spent before the instant it was spent.
+        binding.withPropertyValues("app.auth.session.rotation-grace=-1s")
+                .run(context -> assertRefusedFor(context.getStartupFailure(), "rotationGrace"));
+    }
+
+    @Test
     void GivenARotationGraceOfThirtyDays_WhenItIsBound_ThenTheApplicationRefusesToStartNamingIt() {
         // The finding's own scenario: a grace window as long as a session forgives every replay, which
         // turns reuse detection off.

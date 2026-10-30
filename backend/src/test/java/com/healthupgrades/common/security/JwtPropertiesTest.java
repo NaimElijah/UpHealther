@@ -3,6 +3,8 @@ package com.healthupgrades.common.security;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.context.properties.bind.validation.BindValidationException;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -40,6 +42,23 @@ class JwtPropertiesTest {
     void GivenAnAccessTokenLifetimeOfSeconds_WhenItIsBound_ThenTheApplicationRefusesToStartNamingIt() {
         binding.withPropertyValues("app.jwt.access-token-ttl=10s")
                 .run(context -> assertRefusedFor(context.getStartupFailure(), "accessTokenTtl"));
+    }
+
+    /**
+     * S5.A13 on the one duration it left unbounded: the skew is added straight onto every token's expiry,
+     * so thirty days of it accepted every token thirty days late, whatever its lifetime said. Zero is
+     * allowed, a negative skew is not.
+     */
+    @ParameterizedTest(name = "a clock skew of {0} starts: {1}")
+    @CsvSource({"0s, true", "5m, true", "301s, false", "30d, false", "-1s, false"})
+    void GivenAClockSkew_WhenItIsBound_ThenTheApplicationStartsOnlyWithinItsBounds(String skew, boolean starts) {
+        binding.withPropertyValues("app.jwt.clock-skew=" + skew).run(context -> {
+            if (starts) {
+                assertThat(context).hasNotFailed();
+            } else {
+                assertRefusedFor(context.getStartupFailure(), "clockSkew");
+            }
+        });
     }
 
     private static void assertRefusedFor(Throwable startupFailure, String field) {

@@ -60,6 +60,7 @@ app:
     issuer: healthupgrades
     audience: healthupgrades-web
     # How far past its expiry a token is still accepted, for hosts whose clocks disagree slightly.
+    # Bounded at startup to between 0s and 5m (JwtProperties): it adds straight onto every token's life.
     clock-skew: 30s
   auth:
     session:
@@ -73,7 +74,7 @@ app:
       # rather than replayed (session revoked). Two tabs waking together legitimately present the
       # same credential within a moment; nothing legitimate does so ten seconds later.
       # Bounded at startup, as idle and absolute are (AuthSessionProperties): idle at least 1h and at
-      # most absolute, absolute between 1h and 90d, the grace at most 1m.
+      # most absolute, absolute between 1h and 90d, the grace between 0s and 1m.
       rotation-grace: ${AUTH_SESSION_ROTATION_GRACE:10s}
     cookie:
       # The __Host- prefix makes a browser refuse the cookie unless it is set with Secure, from a secure

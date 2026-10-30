@@ -22,7 +22,7 @@ import org.springframework.validation.annotation.Validated;
  * @param audience       the {@code aud} claim this application writes and requires, so a token minted
  *                       for another client under a shared secret is not accepted here
  * @param clockSkew      how far past {@code exp} a token is still accepted, for hosts whose clocks
- *                       disagree slightly
+ *                       disagree slightly; between zero and five minutes
  */
 @Validated
 @ConfigurationProperties("app.jwt")
@@ -34,7 +34,9 @@ public record JwtProperties(
 
         @NotBlank String issuer,
         @NotBlank String audience,
-        @NotNull Duration clockSkew) {
+
+        @NotNull @DurationMin(seconds = 0) @DurationMax(minutes = MAX_CLOCK_SKEW_MINUTES)
+        Duration clockSkew) {
 
     /**
      * The shortest access-token lifetime: a minute. Every open tab renews once per lifetime, so a shorter
@@ -47,4 +49,12 @@ public record JwtProperties(
      * lapses except through its session, so its lifetime is how long a leaked one is worth having (NFR-4).
      */
     public static final long MAX_ACCESS_TOKEN_TTL_HOURS = 1;
+
+    /**
+     * The longest clock skew: five minutes, ten times the shipped thirty seconds, and the tolerance
+     * Kerberos defaults to. Hosts kept by NTP agree to well within a second. The skew is added straight
+     * onto every token's expiry, so past a few minutes it stops being a tolerance and becomes a longer
+     * lifetime than {@link #MAX_ACCESS_TOKEN_TTL_HOURS} allows (S5.A13).
+     */
+    public static final long MAX_CLOCK_SKEW_MINUTES = 5;
 }
