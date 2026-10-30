@@ -202,7 +202,10 @@ class UpgradePersistenceIT extends PostgresIT {
                         + "VALUES (CAST(?1 AS uuid), CAST(?2 AS uuid), DATE '2026-03-02')",
                 id,
                 ownerId);
-        execute("INSERT INTO reminders (upgrade_id) VALUES (CAST(?1 AS uuid))", id);
+        execute(
+                "INSERT INTO reminders (upgrade_id, reminder_time, enabled) "
+                        + "VALUES (CAST(?1 AS uuid), TIME '09:00', TRUE)",
+                id);
         execute(
                 "INSERT INTO reflections (upgrade_id, user_id, date) "
                         + "VALUES (CAST(?1 AS uuid), CAST(?2 AS uuid), DATE '2026-03-02')",

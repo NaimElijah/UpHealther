@@ -26,8 +26,8 @@ import org.springframework.context.annotation.Import;
  *
  * <p>{@code NotificationSchedulerTest} hands the scheduler a list it built itself, and
  * {@code ReminderServiceTest} mocks the port, so neither can see which rows the enabled query returns or
- * whether a day filter survives the trip through its column. The {@code enabled} column is nullable, and
- * a reminder whose flag was never set must not fire.
+ * whether a day filter survives the trip through its column. A reminder whose flag was never set cannot
+ * be stored: the column is {@code NOT NULL} since V12, which {@code ValueDomainConstraintIT} checks.
  *
  * <p>The enabled query reads every user's reminders, and other integration tests commit rows to this
  * same database, so the assertions look only at the upgrade this test created.
@@ -64,14 +64,11 @@ class ReminderPersistenceIT extends PostgresIT {
     }
 
     @Test
-    void GivenEnabledDisabledAndUnsetReminders_WhenTheEnabledOnesAreRead_ThenOnlyTheEnabledOneComesBack() {
+    void GivenAnEnabledAndADisabledReminder_WhenTheEnabledOnesAreRead_ThenOnlyTheEnabledOneComesBack() {
         UUID enabled = repository
                 .save(Reminder.create(upgradeId, NINE_AM, ReminderDays.of(null), true))
                 .getId();
         repository.save(Reminder.create(upgradeId, NINE_AM, ReminderDays.of(null), false));
-        // A row whose flag was never written, as the nullable column allows.
-        repository.save(
-                Reminder.builder().upgradeId(upgradeId).reminderTime(NINE_AM).build());
         entityManager.flush();
         entityManager.clear();
 

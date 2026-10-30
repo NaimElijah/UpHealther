@@ -828,6 +828,13 @@ catalogue. A table that references `health_upgrades` or `users` states its `ON D
 moving a context's tables out of the database, or giving one a soft delete, would replace the cascade
 ([ADR-063](../ADRs/ADR-063-one-schema-with-cross-context-foreign-keys.md)).
 
+**The schema refuses a value the domain has no name for.** The request records refuse a bad value at
+the boundary, and the schema refuses it again for a write that skips them. Every enum column carries a
+`CHECK` listing its enum's constants, BR-19's ratings and BR-20's numeric value carry their bounds, and
+a reminder's time and flag are `NOT NULL`. Each enum's values are therefore written twice, and
+`EnumColumnCheckContractTest` fails the build when a `CHECK` and its enum differ, so a new constant
+arrives with its migration ([ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md)).
+
 **Every migration from `V10` on bounds how long it waits for a lock.** Flyway runs each PostgreSQL
 migration in a transaction of its own, on a connection it borrows from the application's pool, and each
 opens with `SET LOCAL lock_timeout`, which ends with that transaction. A migration that cannot get its
@@ -1073,6 +1080,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why nginx throttles the `/ws` handshake although ADR-017 kept sign-in's limit in the application; why there is no cap on open sockets; what a load balancer would need first | [ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md) |
 | Why registration refuses the 10,000 most common passwords from a pinned SecLists file, rather than asking Have I Been Pwned; how the list is derived and filtered; why the refusal is a constraint beside BR-17's minimum | [ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md) |
 | Why every migration from `V10` opens with `SET LOCAL lock_timeout`, and not `spring.flyway.init-sqls`; when an index change must be `CONCURRENTLY`, in a file of its own | [ADR-072](../ADRs/ADR-072-every-migration-bounds-its-lock-wait.md) |
+| Why every enum column carries a `CHECK` of its constants rather than a PostgreSQL enum type or a lookup table, and which numeric bounds the schema holds | [ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

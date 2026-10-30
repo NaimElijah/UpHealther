@@ -29,11 +29,13 @@ public class Reminder {
     @Column(nullable = false)
     private UUID upgradeId;
 
+    @Column(nullable = false)
     private LocalTime reminderTime;
 
     /** Storage form of the day filter; behaviour goes through {@link ReminderDays}, never this string. */
     private String daysOfWeek;
 
+    @Column(nullable = false)
     private Boolean enabled;
 
     @Column(nullable = false, updatable = false)
