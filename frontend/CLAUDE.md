@@ -86,7 +86,8 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   the cookie — single-flight within the tab and across tabs via `navigator.locks`, since rotation
   makes a credential good for one use — and retries the request once. Only a renewal that fails,
   refused or unanswered, ends the session and redirects to `/login`; the notification socket's own
-  failed renewal does not (ADR-054). That path and an accepted sign-out both end it through
+  failed renewal does not (ADR-054). Unanswered means no answer within `REFRESH_TIMEOUT_MS`, ten
+  seconds, so a stalled renewal does not keep the cross-tab lock. That path and an accepted sign-out both end it through
   `endSession()` in `src/api/session.ts`, a full document navigation so the query cache goes with the
   page; do not add a third way. The back/forward cache can keep that page, so `endSession` also empties
   the query cache first, which `createQueryClient` registers through `onSessionEnd`, and a page the

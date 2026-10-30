@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { AxiosAdapter, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import client from './client';
+import client, { REFRESH_TIMEOUT_MS } from './client';
 import { clearAccessToken, getAccessToken, setAccessToken } from './tokenStore';
 
 /**
@@ -231,6 +231,30 @@ describe('the shared API client', () => {
       await expect(outcome).resolves.toMatchObject({ response: { status: 401 } });
       expect(window.location.href).toBe('/login');
       expect(getAccessToken()).toBeNull();
+    });
+
+    it('GivenARenewalThatNeverAnswers_WhenARequestIs401_ThenTheRenewalGivesUpAtTheTimeout', async () => {
+      // S5.D5: the renewal runs holding the cross-tab lock, so one that hangs would stall every tab's
+      // renewal, and every request behind a 401, for as long as the connection stayed open. What a
+      // renewal that gave up then does is #377's question; this pins only that it gives up, and when.
+      vi.useFakeTimers();
+      setAccessToken('expired.jwt.token', '2099-01-01T00:00:00Z');
+      withAdapter((config) =>
+        config.url === '/api/auth/refresh' ? new Promise<AxiosResponse>(() => {}) : rejection(config, 401),
+      );
+      let settled = false;
+      void client
+        .get('/api/upgrades')
+        .catch(() => undefined)
+        .finally(() => {
+          settled = true;
+        });
+
+      await vi.advanceTimersByTimeAsync(REFRESH_TIMEOUT_MS - 1);
+      expect(settled).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(settled).toBe(true);
     });
 
     it('GivenAnotherTabHoldsTheRefreshLock_WhenARequestIs401_ThenTheRenewalWaitsForTheLockBeforeRotating', async () => {
