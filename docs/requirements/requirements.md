@@ -2,8 +2,8 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. A hundred and twenty of the hundred and twenty-nine entries below name a test —
-a hundred and thirty-nine distinct test classes and files between them. Six of the remaining nine name the
+rather than trusted. A hundred and twenty-one of the hundred and thirty entries below name a test —
+a hundred and forty-one distinct test classes and files between them. Six of the remaining nine name the
 command, workflow, script or setting that *is* the check (NFR-11, NFR-13, NFR-18, NFR-48, NFR-52,
 NFR-53). The last three — FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is
 about a rendered width, a colour or an overflow, and jsdom has no layout engine to observe any of them;
@@ -238,6 +238,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-44 | The rate limiter's memory is bounded, so the defence cannot itself be turned into a denial of service by a caller rotating addresses | `FixedWindowRateLimiterTest` ([ADR-017](../ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)) |
 | NFR-45 | The page is served under a content security policy that permits one inline script by hash and no inline script by category, so an injected script does not execute. The policy also forbids framing, plugin content and a rewritten base URL. It is sent alongside `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` and `Permissions-Policy`, and every one of these headers is sent on error responses as well as successful ones | `bootScriptCsp.test.ts` ([ADR-018](../ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)) |
 | NFR-46 | The hash permitting the inline theme script is recomputed from the shipped file by a test, so editing that script without updating the policy fails the build rather than producing a flash of the wrong theme in production only | `bootScriptCsp.test.ts` |
+| NFR-58 | An id the SPA puts into an API path, taken from a route or a response, stays one path segment whatever it contains: it is percent-encoded, and an empty, `.` or `..` id is refused before any request is sent, so a crafted link cannot turn a page's reads and writes on another endpoint | `apiPath.test.ts`, `UpgradeDetailsPage.encodedId.test.tsx` |
 
 ### 4.3 Data, errors and resilience
 

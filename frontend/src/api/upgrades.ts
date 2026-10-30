@@ -1,3 +1,4 @@
+import { apiPath } from './apiPath';
 import client from './client';
 import type {
   ActionTarget,
@@ -17,7 +18,7 @@ export const getUpgrades = async (status?: UpgradeStatus): Promise<HealthUpgrade
 
 /** Fetches one upgrade, including its tracking configuration. */
 export const getUpgradeById = async (id: string): Promise<HealthUpgrade> => {
-  const { data } = await client.get<HealthUpgrade>(`/api/upgrades/${id}`);
+  const { data } = await client.get<HealthUpgrade>(apiPath`/api/upgrades/${id}`);
   return data;
 };
 
@@ -34,7 +35,7 @@ export const createUpgrade = async (req: CreateUpgradeRequest): Promise<HealthUp
  * the request is the whole set. The planned start is ignored here; plan and reschedule own it.
  */
 export const updateUpgrade = async (id: string, req: CreateUpgradeRequest): Promise<HealthUpgrade> => {
-  const { data } = await client.put<HealthUpgrade>(`/api/upgrades/${id}`, req);
+  const { data } = await client.put<HealthUpgrade>(apiPath`/api/upgrades/${id}`, req);
   return data;
 };
 
@@ -51,7 +52,7 @@ export const performUpgradeAction = async (id: string, status: ActionTarget): Pr
     COMPLETED: 'complete',
     ABANDONED: 'abandon',
   };
-  const { data } = await client.post<HealthUpgrade>(`/api/upgrades/${id}/${actionMap[status]}`);
+  const { data } = await client.post<HealthUpgrade>(apiPath`/api/upgrades/${id}/${actionMap[status]}`);
   return data;
 };
 
@@ -63,7 +64,7 @@ export const performUpgradeAction = async (id: string, status: ActionTarget): Pr
  * @throws the API's 422 when the upgrade is no longer an idea, and 404 when it is not the caller's
  */
 export const planUpgrade = async (id: string, plannedStartDate: string): Promise<HealthUpgrade> => {
-  const { data } = await client.post<HealthUpgrade>(`/api/upgrades/${id}/plan`, {
+  const { data } = await client.post<HealthUpgrade>(apiPath`/api/upgrades/${id}/plan`, {
     plannedStartDate,
   } satisfies PlanRequest);
   return data;
@@ -74,7 +75,7 @@ export const planUpgrade = async (id: string, plannedStartDate: string): Promise
  * to `PLANNED`.
  */
 export const rescheduleUpgrade = async (id: string, newDate: string): Promise<HealthUpgrade> => {
-  const { data } = await client.post<HealthUpgrade>(`/api/upgrades/${id}/reschedule`, {
+  const { data } = await client.post<HealthUpgrade>(apiPath`/api/upgrades/${id}/reschedule`, {
     newDate,
   } satisfies RescheduleRequest);
   return data;
@@ -85,5 +86,5 @@ export const rescheduleUpgrade = async (id: string, newDate: string): Promise<He
  * reflections (FR-14). Notifications about it stay, no longer linked to it.
  */
 export const deleteUpgrade = async (id: string): Promise<void> => {
-  await client.delete(`/api/upgrades/${id}`);
+  await client.delete(apiPath`/api/upgrades/${id}`);
 };

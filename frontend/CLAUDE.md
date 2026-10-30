@@ -95,7 +95,10 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   `/api/auth/register` is the form's answer and is left to the page, and a 403 ("known, not allowed")
   never ends a session. See [ADR-015](../docs/ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md).
   Every HTTP call in `src/api/*.ts` goes through this client — add new endpoints there, not with raw
-  axios. The one other transport, the STOMP socket, is `src/api/notificationSocket.ts`, and it takes
+  axios. A value interpolated into a path goes through the `apiPath` template tag
+  (`` apiPath`/api/upgrades/${id}/plan` ``), never a bare template: React Router decodes `:id`, so a
+  link to `/upgrades/..%2Fhealth-areas%3F` would otherwise send the page's calls to another endpoint
+  (NFR-58). The one other transport, the STOMP socket, is `src/api/notificationSocket.ts`, and it takes
   its origin from the same `apiBaseUrl()`.
 - **Signing out can fail, and the failure has to be shown.** `logout()` rejects when the server could
   not be reached; the refresh cookie is then still in the browser, so the next page load signs the
