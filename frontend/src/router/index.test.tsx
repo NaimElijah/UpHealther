@@ -3,12 +3,13 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import AppRouter from './index';
 import { AuthContext, type AuthContextType } from '../contexts/authContextValue';
+import { navItemsFor } from '../components/layout/navItems';
 import type { User } from '../types';
 
 // The pages a test can reach, the frame, the notification socket and the toasts it feeds are replaced:
-// what is under test is which gate stands in front of which path, and each of those has its own tests.
-// Each stub renders its page's name, so the test reads which one a URL reached. The other pages are left
-// real: behind a working gate, an anonymous visitor never renders them.
+// what is under test is which path reaches which page through which gate, and each of those has its own
+// tests. Each stub renders its page's name, so the test reads which one a URL reached. The other pages
+// are left real: no test here opens a path that renders them.
 vi.mock('../components/layout/Layout', () => ({ default: ({ children }: { children: ReactNode }) => children }));
 vi.mock('../contexts/NotificationProvider', () => ({
   NotificationProvider: ({ children }: { children: ReactNode }) => children,
@@ -16,6 +17,13 @@ vi.mock('../contexts/NotificationProvider', () => ({
 vi.mock('../components/notifications/ToastContainer', () => ({ default: () => <aside>the toasts</aside> }));
 vi.mock('../pages/LoginPage', () => ({ default: () => 'the login page' }));
 vi.mock('../pages/DashboardPage', () => ({ default: () => 'the dashboard page' }));
+vi.mock('../pages/HealthAreasPage', () => ({ default: () => 'the health areas page' }));
+vi.mock('../pages/UpgradeBacklogPage', () => ({ default: () => 'the idea backlog page' }));
+vi.mock('../pages/PlannedUpgradesPage', () => ({ default: () => 'the planned upgrades page' }));
+vi.mock('../pages/ActiveUpgradesPage', () => ({ default: () => 'the active upgrades page' }));
+vi.mock('../pages/DailyCheckinPage', () => ({ default: () => 'the daily check-in page' }));
+vi.mock('../pages/ProgressHistoryPage', () => ({ default: () => 'the progress history page' }));
+vi.mock('../pages/NotificationsPage', () => ({ default: () => 'the notifications page' }));
 vi.mock('../pages/AdminUsersPage', () => ({ default: () => 'the accounts page' }));
 
 const ADMIN: User = {
@@ -121,6 +129,46 @@ describe('AppRouter', () => {
     expect(await screen.findByText('the dashboard page')).toBeDefined();
     expect(window.location.pathname).toBe('/dashboard');
   });
+});
+
+/** The page each navigation entry is meant to open, by the name its stub above renders. */
+const PAGE_AT: Record<string, string> = {
+  '/dashboard': 'the dashboard page',
+  '/health-areas': 'the health areas page',
+  '/upgrades/backlog': 'the idea backlog page',
+  '/upgrades/planned': 'the planned upgrades page',
+  '/upgrades/active': 'the active upgrades page',
+  '/daily-checkin': 'the daily check-in page',
+  '/progress-history': 'the progress history page',
+  '/notifications': 'the notifications page',
+  '/admin/users': 'the accounts page',
+};
+
+/**
+ * The navigation against the route table: every entry the sidebar and the phone menu offer is a path the
+ * table serves, and not one the catch-all sends to the dashboard.
+ *
+ * The two are written apart, `navItems.ts` and `router/index.tsx`, so a path renamed in one and not the
+ * other turns its link into a way to the dashboard, which nothing else notices. The administrator's
+ * entries include everyone else's. Both the page and the URL are checked: the URL alone cannot tell the
+ * dashboard's entry from the catch-all's redirect to it.
+ */
+describe('AppRouter navigation targets', () => {
+  afterEach(() => {
+    window.history.pushState({}, '', '/');
+  });
+
+  it.each(navItemsFor('ADMIN').map((item) => item.to))(
+    'GivenAnAdministrator_WhenTheyFollowTheNavigationTo %s_ThenTheRouteTableServesItsPage',
+    async (to) => {
+      expect(PAGE_AT, `no page is named for the navigation entry ${to}; add it to PAGE_AT`).toHaveProperty([to]);
+
+      visit(to, contextWith({ isAuthenticated: true, user: ADMIN }));
+
+      expect(await screen.findByText(PAGE_AT[to])).toBeDefined();
+      expect(window.location.pathname).toBe(to);
+    },
+  );
 });
 
 /**
