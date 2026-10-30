@@ -12,4 +12,14 @@ import java.time.Instant;
  * @param value     the token, opaque to this context
  * @param expiresAt the instant it stops being accepted
  */
-public record AccessToken(String value, Instant expiresAt) {}
+public record AccessToken(String value, Instant expiresAt) {
+
+    /**
+     * Prints only when the token lapses. A record's generated {@code toString} would print the bearer
+     * token, which is the whole credential and must never reach a log line (NFR-6).
+     */
+    @Override
+    public String toString() {
+        return "AccessToken[expiresAt=" + expiresAt + "]";
+    }
+}
