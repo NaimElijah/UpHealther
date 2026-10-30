@@ -250,3 +250,7 @@ that.
 Schema is **owned by Flyway** and Hibernate runs with `ddl-auto: validate`: it will **not** create or
 alter tables, so any entity change that affects the schema needs a **new `V{n}__name.sql` migration**,
 or the app fails to start. Never edit an already-applied migration; add a new one.
+
+A new migration opens with `SET LOCAL lock_timeout = '5s';` before any other statement, or
+`MigrationLockTimeoutContractTest` fails the build. Once production holds data, an index on a populated
+table is built `CONCURRENTLY`, in a file of its own (ADR-072).

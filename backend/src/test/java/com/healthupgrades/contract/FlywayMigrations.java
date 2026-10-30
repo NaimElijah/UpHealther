@@ -57,6 +57,17 @@ final class FlywayMigrations {
                     .filter(statement -> !statement.isEmpty())
                     .toList();
         }
+
+        /** Whether its major version, the part before any {@code .} or {@code _}, is at least this. */
+        boolean isAtLeast(int major) {
+            return version.getFirst() >= major;
+        }
+
+        /** Its file name, which is how a parameterised test names the case. */
+        @Override
+        public String toString() {
+            return fileName;
+        }
     }
 
     /**

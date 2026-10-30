@@ -826,6 +826,15 @@ table that references `health_upgrades` or `users` states its `ON DELETE` outrig
 context's tables out of the database, or giving one a soft delete, would replace the cascade
 ([ADR-063](../ADRs/ADR-063-one-schema-with-cross-context-foreign-keys.md)).
 
+**Every migration from `V10` on bounds how long it waits for a lock.** Flyway runs each PostgreSQL
+migration in a transaction of its own, on a connection it borrows from the application's pool, and each
+opens with `SET LOCAL lock_timeout`, which ends with that transaction. A migration that cannot get its
+lock in time fails the start rather than queueing the table's traffic behind it.
+`MigrationLockTimeoutContractTest` fails the build on one that does not. While production holds no data,
+index and constraint changes are plain DDL in that transaction; once it does, an index on a populated
+table is built `CONCURRENTLY`, in a file of its own that Flyway runs outside a transaction
+([ADR-072](../ADRs/ADR-072-every-migration-bounds-its-lock-wait.md)).
+
 **Registration's password rules are constraints on the request record.** BR-17's bounds and its
 common-password list all sit on `AuthController.RegisterRequest.password`, so each refusal is the same
 400, with the password named under `fieldErrors`, before `AuthService` runs. The list is read once,
@@ -1061,6 +1070,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the compose backend connects as a role that owns its database rather than as the superuser; why its variables are not `DB_USERNAME` and `DB_PASSWORD`; why one role and not a migrating and a serving one | [ADR-069](../ADRs/ADR-069-the-compose-backend-connects-as-a-role-that-owns-its-database.md) |
 | Why nginx throttles the `/ws` handshake although ADR-017 kept sign-in's limit in the application; why there is no cap on open sockets; what a load balancer would need first | [ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md) |
 | Why registration refuses the 10,000 most common passwords from a pinned SecLists file, rather than asking Have I Been Pwned; how the list is derived and filtered; why the refusal is a constraint beside BR-17's minimum | [ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md) |
+| Why every migration from `V10` opens with `SET LOCAL lock_timeout`, and not `spring.flyway.init-sqls`; when an index change must be `CONCURRENTLY`, in a file of its own | [ADR-072](../ADRs/ADR-072-every-migration-bounds-its-lock-wait.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |
