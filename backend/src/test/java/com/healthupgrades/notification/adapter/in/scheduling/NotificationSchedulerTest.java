@@ -589,7 +589,7 @@ class NotificationSchedulerTest {
     @Test
     void GivenTheDatabaseCannotBeReached_WhenRemindersAreDispatched_ThenTheSweepStopsAtTheFirstSuchFailure() {
         // A transaction that cannot begin means the pool waited out its connection timeout. Every further
-        // attempt would wait it out again, on the one thread all four jobs share, and push the next
+        // attempt would wait it out again, on the one thread every scheduled job shares, and push the next
         // reminder run past its minute.
         when(reminderQuery.findEnabledWithinMinute(any()))
                 .thenReturn(List.of(dueReminder(), dueReminder(), dueReminder()));

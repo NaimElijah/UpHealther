@@ -227,7 +227,7 @@ Compose passes none of the next ten either. Every cron is read in UTC, whatever 
 ([ADR-020](docs/ADRs/ADR-020-the-server-keeps-time-in-utc.md)): `UPGRADE_OVERDUE_CRON`
 (`0 0 8 * * *`), `NOTIFY_CHECKIN_CRON` (`0 0 18 * * *`), `NOTIFY_REMINDERS_CRON` (`0 * * * * *`),
 `AUTH_SESSION_CLEANUP_CRON` (`0 30 3 * * *`) and `NOTIFY_RETENTION_CRON` (`0 45 3 * * *`, which deletes
-notifications ninety days old, [ADR-075](docs/ADRs/ADR-075-notifications-are-kept-for-ninety-days.md));
+notifications older than ninety days, [ADR-075](docs/ADRs/ADR-075-notifications-are-kept-for-ninety-days.md));
 then `AUTH_SESSION_ROTATION_GRACE` (`10s`, between `0s` and `1m`),
 `AUTH_RATE_LIMIT_MAX_CLIENTS` (`10000`), and the refresh and sign-out limit, counted apart from
 sign-in's: `AUTH_SESSION_RATE_LIMIT` (`60`), `AUTH_SESSION_RATE_LIMIT_WINDOW` (`1m`) and

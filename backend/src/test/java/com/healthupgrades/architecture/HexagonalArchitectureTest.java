@@ -613,6 +613,24 @@ class HexagonalArchitectureTest {
             .haveFullyQualifiedName("com.healthupgrades.admin.adapter.in.bootstrap.AdminBootstrapRunner")
             .as("only AdminBootstrapRunner may depend on AdminBootstrapService");
 
+    /**
+     * Only the nightly job may delete notifications across every account.
+     *
+     * <p>{@code NotificationRetentionService.deleteExpired} deletes every user's notifications past their
+     * retention, and takes no owner. Held by a controller, it would let one request delete rows of every
+     * account. So, as with the bootstrap, nothing but its trigger, {@code NotificationRetentionScheduler},
+     * may hold it (ADR-075).
+     */
+    @ArchTest
+    static final ArchRule only_the_nightly_job_deletes_expired_notifications = classes()
+            .that()
+            .haveFullyQualifiedName("com.healthupgrades.notification.application.NotificationRetentionService")
+            .should()
+            .onlyHaveDependentClassesThat()
+            .haveFullyQualifiedName(
+                    "com.healthupgrades.notification.adapter.in.scheduling.NotificationRetentionScheduler")
+            .as("only NotificationRetentionScheduler may depend on NotificationRetentionService");
+
     /** Controllers are a web concern and belong only in the web adapter. */
     @ArchTest
     static final ArchRule controllers_live_only_in_the_web_adapter = classes()

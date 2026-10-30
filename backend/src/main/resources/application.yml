@@ -131,8 +131,8 @@ app:
       # Cron expressions for the delayed-notification jobs, read in UTC (ServerZone, ADR-020).
       daily-checkin: ${NOTIFY_CHECKIN_CRON:0 0 18 * * *} # daily at 18:00 — check-in nudge
       reminders: ${NOTIFY_REMINDERS_CRON:0 * * * * *}    # every minute — user reminder dispatch
-      # Deletes notifications ninety days old (NFR-60, ADR-075). After the session cleanup at 03:30, when
-      # nothing else runs.
+      # Deletes notifications older than ninety days (NFR-60, ADR-075). A quarter of an hour after the
+      # session cleanup, so the two do not overlap.
       retention: ${NOTIFY_RETENTION_CRON:0 45 3 * * *} # daily at 03:45
 
 management:

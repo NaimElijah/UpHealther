@@ -11,7 +11,8 @@ import org.springframework.stereotype.Service;
  * Deletes every user's notifications once they are ninety days old (NFR-60, ADR-075).
  *
  * <p>A class of its own rather than a method on {@link NotificationService}, because a controller holds that
- * service, and this deletes rows of every account: only the nightly job holds this one.
+ * service, and this deletes rows of every account: only the nightly job holds this one, which
+ * {@code HexagonalArchitectureTest} enforces.
  *
  * <p>Nothing else removes a notification, and the messages quote upgrade titles, so without it the table
  * keeps personal data for as long as the account exists, long after the API, which serves only the newest

@@ -54,7 +54,7 @@ deletes what nothing can use.
    is a product decision, recorded here, not an operator's setting; only the schedule is configuration, as
    the session cleanup's is.
 7. **The retention service is not `NotificationService`.** A controller holds that one, and this deletes every
-   account's rows; only the job holds the retention service.
+   account's rows; only the job holds the retention service, which `HexagonalArchitectureTest` enforces.
 
 ## Consequences
 

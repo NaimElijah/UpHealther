@@ -55,6 +55,16 @@ rows, and building an index takes no measurable time.
    `MigrationLockTimeoutContractTest` fails the build on a migration that does not open this way, on a
    session-level `SET`, and on a timeout of `0`, which turns the bound off. `V1` to `V9` are exempt:
    Flyway checksums an applied migration, so they cannot gain the line.
+
+   **The bound is per lock request.** It limits each wait for a lock, not how long the migration holds the
+   locks it already has. A migration that waits for its second table's lock goes on holding its first
+   table's, so traffic on the first queues for that whole wait too, and a migration over several tables
+   can wait once per lock. If the old version, still serving during a rolling deploy, takes the same
+   tables in the other order, as a delete cascading from one table into the next does, the two can
+   deadlock. So a migration that touches several busy tables takes its locks up front, in one
+   `LOCK TABLE` naming them in a fixed order, as V10 does for its one table, or touches one table.
+   Several of V11 to V18 touch more than one table without one, which is harmless while the production
+   database is empty (#206).
 2. **While the production database holds no data, schema and index changes are plain DDL inside Flyway's
    transaction.** `CREATE INDEX`, `DROP INDEX`, `ADD CONSTRAINT` and `VALIDATE CONSTRAINT` on an empty or
    seeded table are instant, and inside a transaction a failure rolls the whole migration back.

@@ -20,8 +20,8 @@ interface ReminderJpaRepository extends JpaRepository<Reminder, UUID> {
      * the precision of a {@code TIME} column, rather than the start of the next minute, which after 23:59
      * would be 00:00 and match nothing. The minute arrives as two integers, not a time: the driver sends a
      * bound {@code LocalTime} as text carrying the JVM's zone offset, which PostgreSQL then reads as whatever
-     * type the expression around it asks for. {@code enabled} alone, not {@code enabled = true}, is the
-     * predicate of the partial index {@code idx_reminders_enabled_time} in V15, which this reads through.
+     * type the expression around it asks for. It reads through the partial index
+     * {@code idx_reminders_enabled_time} in V15, whose predicate is {@code enabled}.
      */
     @Query(
             value = "SELECT * FROM reminders WHERE enabled AND reminder_time"

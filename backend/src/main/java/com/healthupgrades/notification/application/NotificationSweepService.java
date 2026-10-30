@@ -233,7 +233,8 @@ public class NotificationSweepService {
      * <p>The one failure that stops the sweep is the database being out of reach: a
      * {@link CannotCreateTransactionException}, which is what a {@code @Transactional} call throws once the
      * pool has waited out its connection timeout (Hikari's default, 30 s). Every further attempt would wait
-     * it out again on the one thread all four jobs share, so the rest are counted {@code skipped} instead.
+     * it out again on the one thread every scheduled job shares, so the rest are counted {@code skipped}
+     * instead.
      * Any other failure, however many and however adjacent, is a fact about its row, and the sweep goes on
      * (ADR-023).
      *

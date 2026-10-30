@@ -11,7 +11,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Driving adapter that deletes notifications ninety days old, nightly (NFR-60, ADR-075).
+ * Driving adapter that deletes notifications older than ninety days, nightly (NFR-60, ADR-075).
  *
  * <p>A trigger and nothing more: the cutoff and the batching are {@link NotificationRetentionService}'s. The
  * run is timed and counted under its job's name (NFR-25), so a job that stopped running is told apart from

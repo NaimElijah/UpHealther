@@ -221,6 +221,9 @@ Spring's `ApplicationEventPublisher`, so consumers can bind to the transaction:
 rolls back. Such a listener stores its notification in a transaction of its own (`REQUIRES_NEW`): the
 committed transaction is still bound to the thread when the listener runs, and an insert that joined it
 would never be committed ([ADR-028](../ADRs/ADR-028-a-raised-notification-is-stored-in-its-own-transaction-after-the-write-commits.md)).
+`open-in-view` is off, so a request holds a pooled connection only while one of its transactions runs, and
+the two a notified write holds at once are held only while its listener runs
+([ADR-076](../ADRs/ADR-076-open-in-view-is-off.md)).
 Events raised outside a transaction — by the scheduled sweeps — use a plain `@EventListener`,
 because there is no commit for a transactional listener to wait for. `auth` raises the two events that
 end a session's sockets, and consumes them itself: `SessionEndSocketListener` writes nothing, so it
@@ -255,9 +258,9 @@ implements it (mechanism 2).
 
 **5. Scheduled invocation.** Five cron-driven jobs drive the core with no request behind them: the
 overdue sweep, the daily check-in nudge, the per-minute reminder dispatch, the nightly sweep of
-sessions nothing can use again, and the nightly deletion of notifications ninety days old. Each scheduler
-is only the trigger: it times the run through `JobMetrics`, reads the clock where the sweep needs a date,
-and calls the application method that holds the sweep —
+sessions nothing can use again, and the nightly deletion of notifications older than ninety days. Each
+scheduler is only the trigger: it times the run through `JobMetrics`, reads the clock where the sweep needs
+a date, and calls the application method that holds the sweep —
 `UpgradeOverdueService.announceOverdue`, `NotificationSweepService.nudgeDailyCheckin` and
 `dispatchDueReminders`, `AuthSessionService.deleteUnusableSessions`, and
 `NotificationRetentionService.deleteExpired`, a service of its own because a controller holds
@@ -527,10 +530,11 @@ one and when promoting a running one to HARD.
 | `NotificationRetentionScheduler` | daily 03:45 | Deletes every notification created more than ninety days before the run, a thousand at a time, each batch in a transaction of its own whatever the caller's, until a batch comes back short or twenty have run. The cap gives the scheduler's one thread back to the minute-by-minute reminder sweep within seconds; a larger backlog drains over the following nights (NFR-60, [ADR-075](../ADRs/ADR-075-notifications-are-kept-for-ninety-days.md)) |
 
 Each reads the clock through an injected `java.time.Clock`, which is what makes it testable without
-waiting: the three notification and overdue jobs in the scheduler, and the session clean-up in
-`AuthSessionService`, behind its scheduler. The clock and every cron keep time in UTC —
+waiting: the three notification and overdue jobs in the scheduler, the session clean-up in
+`AuthSessionService`, and the retention in `NotificationRetentionService`, each behind its scheduler.
+The clock and every cron keep time in UTC —
 `ServerZone`, which each `@Scheduled` names
-— so the defaults above are 08:00, 18:00, the minute and 03:30 in UTC, whatever the host's zone
+— so the defaults above are 08:00, 18:00, the minute, 03:30 and 03:45 in UTC, whatever the host's zone
 ([ADR-020](../ADRs/ADR-020-the-server-keeps-time-in-utc.md)).
 
 ---
@@ -701,7 +705,7 @@ push service, no analytics, no AI service.
 | Dependency | Used for | How it is reached |
 |---|---|---|
 | **PostgreSQL 15** | All persistent state | JDBC from the backend only. Credentials from `DB_URL` / `DB_USERNAME` / `DB_PASSWORD`, which compose fills from `POSTGRES_APP_USER` and `POSTGRES_APP_PASSWORD` |
-| **Flyway** | Schema ownership and migration on startup | Embedded in the backend; `V1`–`V10` apply in order at boot. An applied migration is never edited — Flyway checksums it, comments included — so a correction is another migration |
+| **Flyway** | Schema ownership and migration on startup | Embedded in the backend; every `V{n}` applies in order at boot. An applied migration is never edited — Flyway checksums it, comments included — so a correction is another migration |
 | **Browser WebSocket** | Real-time notification delivery | The `/ws` STOMP endpoint, proxied by nginx (or Vite in development). nginx throttles its handshake per client address, not what an open socket sends (#382, [ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md)) |
 | **nginx** | Serves the built SPA and proxies `/api` and `/ws` | Also where the security headers live — the content security policy, framing and referrer rules, declared for the whole server so that nginx's own error pages under `/api` and `/ws` carry them too ([ADR-018](../ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)). Absent from `npm run dev`, which serves no headers |
 | **SecLists' common-password list** | The passwords registration refuses as common (BR-17) | Never reached at run time. `scripts/derive_common_passwords.py` derives 10,000 entries from one pinned file, and the result is committed under `backend/src/main/resources/auth/`, beside the MIT notice that ships with it in the jar ([ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md)) |
@@ -1125,6 +1129,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why every enum column carries a `CHECK` of its constants rather than a PostgreSQL enum type or a lookup table, and which numeric bounds the schema holds; why a child row references its parent by id and owner together, why the area key is left unvalidated, and why the single-column area key stands beside it | [ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md) |
 | How a concurrent write that `@Version` does not cover is handled: a per-user invariant over several rows claimed with an advisory try-lock, refused as a retryable 409 rather than waited for, and a lost check-then-insert race translated in the adapter into a 409; what would make the claim the wrong tool | [ADR-074](../ADRs/ADR-074-concurrent-writes-beyond-the-version-check.md) |
 | Why a notification is deleted ninety days after it was created, by a nightly job in batches of a thousand, at most twenty a night; why not thirty days, the newest fifty, or waiting for the privacy notice | [ADR-075](../ADRs/ADR-075-notifications-are-kept-for-ninety-days.md) |
+| Why `open-in-view` is off, what it held a connection for, and what would bring it back | [ADR-076](../ADRs/ADR-076-open-in-view-is-off.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

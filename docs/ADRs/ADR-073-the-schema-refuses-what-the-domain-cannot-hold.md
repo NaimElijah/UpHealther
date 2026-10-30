@@ -62,10 +62,10 @@ requirements do not state is added.
    `health_areas.priority` stay unbounded: no requirement bounds them.
 3. **A column the domain always writes is `NOT NULL`**, and its entity says so with
    `@Column(nullable = false)`: `reminders.reminder_time` and `reminders.enabled`.
-4. **Each constraint is added `NOT VALID` and then validated**, as ADR-072 lays out, but for the one
-   decision 6 names, and a row already
-   outside a domain fails the migration, and so the start. What it should become is a decision about
-   someone's data, which a migration does not take silently, as V7 does not.
+4. **Each `CHECK` and each foreign key is added `NOT VALID` and then validated**, as ADR-072 lays out,
+   except the owner key on the area (decision 6). A row already outside a domain fails the `VALIDATE`, and
+   so the start. What it should become is a decision about someone's data, which a migration does not take
+   silently, as V7 does not. The `NOT NULL` on the two reminder columns is plain.
 5. **A child row's owner is its parent's, by a composite foreign key.** `health_upgrades` and
    `health_areas` gain `UNIQUE (id, user_id)`, and the single-column keys are replaced:
    `progress_entries` and `reflections` reference `health_upgrades (id, user_id)` through
