@@ -82,7 +82,8 @@ app:
       # (S5.A8, ADR-065). The price is the path: the credential goes with every request to the origin,
       # where HttpOnly and SameSite=Strict still keep it from script and from other sites.
       name: __Host-refresh_token
-      # The only path the prefix allows: a browser refuses a __Host- cookie set on any other.
+      # The only path the prefix allows: a browser refuses a __Host- cookie set on any other, silently,
+      # so the application refuses to start with one (RefreshCookieProperties).
       path: /
       # No security attribute is configurable: the cookie is always HttpOnly, Secure and
       # SameSite=Strict (RefreshCookies, ADR-041).

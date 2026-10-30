@@ -129,7 +129,10 @@ that the credential was not attached to ordinary API calls. That scoping is give
 goes with every request to the origin. It is still `HttpOnly`, so no script reads it; still
 `SameSite=Strict`, so no other site's request carries it; and only refresh and sign-out read it. What
 `Path` scoping bought was the credential's absence from requests the server ignores it on, and that is
-worth less than a cookie no other host can plant.
+worth less than a cookie no other host can plant. The name and the path stay settings, but
+`RefreshCookieProperties` refuses to start with a `__Host-` name on any other path: a browser would
+refuse that cookie without a word, and every tab would be signed out while every request still
+answered.
 
 **A request carrying two is still answered as one carrying none.** No browser should send two any more,
 so the rule is a defence that costs nothing. `RefreshCookies.read` reads exactly one or nothing: a
