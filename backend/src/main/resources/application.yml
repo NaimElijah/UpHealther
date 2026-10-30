@@ -27,9 +27,6 @@ spring:
       # mismatch. An entity change therefore needs a new V{n}__*.sql migration, never a schema update here.
       ddl-auto: validate
     show-sql: false
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
   flyway:
     enabled: true
     # Lets Flyway adopt a database that already has tables but no schema history, so an environment
