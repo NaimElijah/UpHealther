@@ -3,6 +3,8 @@ package com.healthupgrades.common.security;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.Duration;
+import org.hibernate.validator.constraints.time.DurationMax;
+import org.hibernate.validator.constraints.time.DurationMin;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
@@ -14,7 +16,8 @@ import org.springframework.validation.annotation.Validated;
  * {@code Keys.hmacShaKeyFor} in {@link JwtTokenProvider}, because bean validation cannot count bits.
  *
  * @param secret         HMAC signing secret; at least 256 bits (NFR-3)
- * @param accessTokenTtl how long an issued access token is accepted (NFR-4)
+ * @param accessTokenTtl how long an issued access token is accepted (NFR-4), between a minute and an
+ *                       hour
  * @param issuer         the {@code iss} claim this application writes and requires
  * @param audience       the {@code aud} claim this application writes and requires, so a token minted
  *                       for another client under a shared secret is not accepted here
@@ -25,7 +28,23 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties("app.jwt")
 public record JwtProperties(
         @NotBlank String secret,
-        @NotNull Duration accessTokenTtl,
+
+        @NotNull @DurationMin(minutes = MIN_ACCESS_TOKEN_TTL_MINUTES) @DurationMax(hours = MAX_ACCESS_TOKEN_TTL_HOURS)
+        Duration accessTokenTtl,
+
         @NotBlank String issuer,
         @NotBlank String audience,
-        @NotNull Duration clockSkew) {}
+        @NotNull Duration clockSkew) {
+
+    /**
+     * The shortest access-token lifetime: a minute. Every open tab renews once per lifetime, so a shorter
+     * one would spend the refresh endpoints' rate limit on renewals alone (S5.A13).
+     */
+    public static final long MIN_ACCESS_TOKEN_TTL_MINUTES = 1;
+
+    /**
+     * The longest: an hour, four times the shipped fifteen minutes. The token cannot be revoked before it
+     * lapses except through its session, so its lifetime is how long a leaked one is worth having (NFR-4).
+     */
+    public static final long MAX_ACCESS_TOKEN_TTL_HOURS = 1;
+}

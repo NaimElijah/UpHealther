@@ -4,10 +4,10 @@
 - **Date:** 2026-10-30
 - **Scope:** `backend/` — the `auth` context's sessions, refresh cookie and their configuration, the
   rate limit in front of the cookie endpoints, and migration `V10__auth_session_spent_tokens.sql`;
-  NFR-34, NFR-36 and NFR-58 in `docs/requirements/requirements.md`.
+  NFR-4, NFR-34, NFR-36, NFR-47 and NFR-58 in `docs/requirements/requirements.md`.
 - **Issue:** [#339](https://github.com/NaimElijah/UpHealther/issues/339), scan 05 of
   [#334](https://github.com/NaimElijah/UpHealther/issues/334): findings S5.A1, S5.A4, S5.A8, S5.A9,
-  S5.A11 and S5.A14.
+  S5.A11, S5.A13 and S5.A14.
   It extends [ADR-015](ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md), whose reuse
   detection it makes hold for any number of rotations and on both cookie endpoints, and
   [ADR-041](ADR-041-the-refresh-cookie-is-always-secure.md), whose cookie it names, and
@@ -37,6 +37,8 @@ most once, and that using it is detected, and the settings and limits around it.
 - **S5.A11, refresh and sign-out were unthrottled.** Both are anonymous, and each attempt reads a
   session under a lock and writes an audit entry, so a caller could write the audit stream at will.
   ADR-021 names this trigger itself.
+- **S5.A13, the lifetimes were unbounded.** `AUTH_SESSION_ROTATION_GRACE=30d` would forgive every
+  replay, which turns reuse detection off, and nothing would report it.
 - **S5.A14, a token without `exp` was accepted.** JJWT checks the expiry only when a token carries one,
   so a token signed with the key and no `exp` would never lapse.
 
@@ -108,6 +110,20 @@ anybody a sign-in.
 `JwtTokenProvider.verify` refuses a token whose claims carry no `exp`, as it refuses one that names no
 session. Every token this application issues has one, so nothing it minted is affected.
 
+### 7. The lifetimes are bounded at startup (S5.A13)
+
+Each is a bean-validation constraint on its properties record, so a value outside it refuses the boot
+with the property named, as a missing one already did. Each bound is a named constant beside its reason:
+
+| Setting | Shipped | Bounds | Why |
+|---|---|---|---|
+| `app.jwt.access-token-ttl` | 15m | 1m to 1h | Shorter renews every tab too often for NFR-58's limit; longer makes a leaked token worth hours |
+| `app.auth.session.idle` | 7d | at least 1h, and at most `absolute` | Shorter than the longest token lets an active session lapse between renewals; longer than the cap does nothing it says |
+| `app.auth.session.absolute` | 30d | 1h to 90d | NFR-47: no session lives indefinitely |
+| `app.auth.session.rotation-grace` | 10s | at most 1m | Longer forgives replays; zero is allowed, and forgives nothing |
+
+The bounds admit every value the repository sets anywhere, `AuthSessionFlowIT`'s zero grace included.
+
 ## Consequences
 
 **Easy.** Reuse is detected however many times the thief has refreshed, and whichever cookie endpoint the
@@ -125,6 +141,8 @@ issued. An account switched off at any moment is signed out at its next refresh 
 - Every refresh also reads the account, one indexed read beside the session's.
 - Renaming the cookie signs every browser out once: the old `refresh_token` is no longer read, and
   lapses on its own `Max-Age`.
+- A deployment that sets a lifetime outside its bounds no longer starts. That is the intent, and
+  the error names the property.
 - A household with more than sixty renewals and sign-outs a minute behind one address is refused 429
   until the window turns.
 - A sibling host that keeps planting a duplicate keeps the victim signed out, because the clearing
@@ -151,6 +169,10 @@ outcome reuse detection exists to prevent.
 **Check the account in `AuthService.continueSession`, after the rotation.** Rejected: the rotation would
 already be committed, so the refusal would have to undo it, and the session would have issued one more
 credential to an account that may no longer sign in.
+
+**Warn about an out-of-range lifetime at startup instead of refusing it.** Rejected: ADR-042 already
+made the application refuse to start without a signing key rather than run insecurely, and a warning at
+boot is read by nobody once the deployment is up.
 
 **Count refresh and sign-out in the sign-in bucket.** Rejected: ten a minute is far below what a
 signed-in household's own tabs ask for, so the honest renewals would spend the allowance a mistyped

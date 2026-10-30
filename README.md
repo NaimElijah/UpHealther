@@ -203,9 +203,9 @@ effect on a native run only — marked *native*.
 |---|---|---|
 | `POSTGRES_DB` | Database name created by the compose Postgres | `healthupgrades` |
 | `POSTGRES_USER` | Database user created by the compose Postgres | `healthupgrades` |
-| `JWT_ACCESS_TOKEN_TTL` | How long an access token is accepted; the SPA renews it, so this is not the session's length | `15m` |
-| `AUTH_SESSION_IDLE` | A session lapses after this long unused; each refresh slides it forward | `7d` |
-| `AUTH_SESSION_ABSOLUTE` | No session outlives this, however often it is refreshed | `30d` |
+| `JWT_ACCESS_TOKEN_TTL` | How long an access token is accepted; the SPA renews it, so this is not the session's length. Between `1m` and `1h`, or the backend refuses to start | `15m` |
+| `AUTH_SESSION_IDLE` | A session lapses after this long unused; each refresh slides it forward. At least `1h` and at most `AUTH_SESSION_ABSOLUTE` | `7d` |
+| `AUTH_SESSION_ABSOLUTE` | No session outlives this, however often it is refreshed. Between `1h` and `90d` | `30d` |
 | `AUTH_RATE_LIMIT` | Sign-in and registration attempts per client address per window — *native* | `10` |
 | `AUTH_RATE_LIMIT_WINDOW` | The window that limit counts over — *native* | `1m` |
 | `DB_URL` | JDBC URL; compose points it at its own Postgres | `jdbc:postgresql://localhost:5432/healthupgrades` |
@@ -218,7 +218,7 @@ effect on a native run only — marked *native*.
 Compose passes none of the next nine either. Every cron is read in UTC, whatever the host's zone
 ([ADR-020](docs/ADRs/ADR-020-the-server-keeps-time-in-utc.md)): `UPGRADE_OVERDUE_CRON`
 (`0 0 8 * * *`), `NOTIFY_CHECKIN_CRON` (`0 0 18 * * *`), `NOTIFY_REMINDERS_CRON` (`0 * * * * *`)
-and `AUTH_SESSION_CLEANUP_CRON` (`0 30 3 * * *`); then `AUTH_SESSION_ROTATION_GRACE` (`10s`),
+and `AUTH_SESSION_CLEANUP_CRON` (`0 30 3 * * *`); then `AUTH_SESSION_ROTATION_GRACE` (`10s`, at most `1m`),
 `AUTH_RATE_LIMIT_MAX_CLIENTS` (`10000`), and the refresh and sign-out limit, counted apart from
 sign-in's: `AUTH_SESSION_RATE_LIMIT` (`60`), `AUTH_SESSION_RATE_LIMIT_WINDOW` (`1m`) and
 `AUTH_SESSION_RATE_LIMIT_MAX_CLIENTS` (`10000`).
