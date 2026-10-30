@@ -13,9 +13,11 @@ import java.util.UUID;
  * <p><strong>Not scoped by owner</strong>, unlike the other user-facing reads (BR-15): it returns the
  * configuration of every id it is given, whoever owns the upgrade. {@code tracking_configs} has no owner
  * column to filter on. It is safe only because its one caller maps upgrades that were already loaded
- * through user-scoped reads, so no id a request supplies reaches it, and {@code HexagonalArchitectureTest}
- * keeps every dependent inside {@code tracking}. A caller outside {@code tracking}, or a request-supplied
- * id reaching it, would make it unsafe; scope it first.
+ * through user-scoped reads, so no id a request supplies reaches it. {@code HexagonalArchitectureTest} pins
+ * both hops: every dependent of this port stays inside {@code tracking}, and the
+ * {@code UpgradeTrackingSummaryPort} the adapter answers serves only {@code UpgradeWebMapper}. A caller
+ * outside {@code tracking}, another dependent of that port, or a request-supplied id reaching either, would
+ * make it unsafe; scope it first.
  */
 public interface TrackingConfigQuery {
 

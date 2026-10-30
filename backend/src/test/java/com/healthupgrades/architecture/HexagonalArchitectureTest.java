@@ -36,6 +36,20 @@ import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition; // builds
 class HexagonalArchitectureTest {
 
     /**
+     * A dependency whose origin implements its target: the supplying side of a port, which is not a use of
+     * it. Declared first, because the rules below are initialised in textual order and read it.
+     */
+    private static final DescribedPredicate<Dependency> ORIGIN_IMPLEMENTS_TARGET =
+            new DescribedPredicate<>("its origin implements its target") {
+                @Override
+                public boolean test(Dependency dependency) {
+                    return dependency
+                            .getOriginClass()
+                            .isAssignableTo(dependency.getTargetClass().getName());
+                }
+            };
+
+    /**
      * The domain must not depend on frameworks, on adapters, or on the application layer.
      *
      * <p>JPA ({@code jakarta.persistence}) and Lombok are deliberately absent from the forbidden list, so
@@ -254,38 +268,83 @@ class HexagonalArchitectureTest {
      * <p>An adapter that reads a repository, publishes an event or writes an audit entry itself is
      * holding a use case, and a second trigger for the same work — an endpoint beside a cron, say — has
      * nothing to call and copies the rules instead. Services orchestrate: load, call the domain method,
-     * save, publish (ADR-002). So a class in {@code ..adapter.in..} reaches no outbound port, and the
-     * scheduled sweeps and the administrator bootstrap call application services that do.
+     * save, publish (ADR-002). So a class in {@code ..adapter.in..} reaches no outbound port, under
+     * {@code domain.port.out} or {@code application.port.out} alike, and the scheduled sweeps and the
+     * administrator bootstrap call application services that do.
      *
-     * <p>Two exceptions, each a pair of an origin and a target rather than a package let off:
+     * <p>Three exceptions, each an origin and a target rather than a package let off:
      * <ul>
-     *   <li><strong>A composition adapter supplying a port the kernel declares.</strong>
-     *       {@code SessionStatusAdapter} and {@code AccountCredentialsAdapter} implement
-     *       {@code SessionStatusPort} and {@code AccountCredentialsPort}, the supplying half of an
-     *       inverted dependency (ADR-015, ADR-062). Implementing a port is not driving one, and the
-     *       kernel's records they return are part of the contract. The exception covers only targets in
-     *       {@code common.domain.port.out}, so a composition adapter still may not read a context's
-     *       repository.</li>
+     *   <li><strong>A composition adapter implementing a port.</strong> {@code SessionStatusAdapter},
+     *       {@code AccountCredentialsAdapter} and {@code UpgradeTrackingSummaryAdapter} supply the half of
+     *       an inverted dependency that the declaring side cannot (ADR-015, ADR-062, ADR-002).
+     *       Implementing a port is not driving one, so the exception covers only a port the origin itself
+     *       implements, and the two records those ports return, {@code AccountCredentials} and
+     *       {@code UpgradeTrackingSummary}. A composition adapter still may not publish an event, write an
+     *       audit entry or read a repository.</li>
      *   <li><strong>{@code SessionEndSocketListener} closing sockets through {@code LiveSocketPort}.</strong>
      *       It translates an event whose decision is already made — {@code AuthSessionService} ended the
      *       session and published it — into the one call that carries it out, with no rule of its own to
      *       duplicate (ADR-054). A use case in front of it would be a pass-through. Any other
      *       {@code ..adapter.in.event..} class gets no such leave.</li>
+     *   <li><strong>{@code UpgradeWebMapper} reading {@code UpgradeTrackingSummaryPort}.</strong> The
+     *       upgrade response shows each upgrade's tracking setup, and the mapper resolves it for the
+     *       aggregates it was handed, in one batch, so the use cases need not return a web shape. The
+     *       mapper reads configurations whoever owns them, and
+     *       {@link #tracking_summary_port_serves_only_the_upgrade_mapper} is what keeps any other class off
+     *       the port.</li>
      * </ul>
+     *
+     * <p>The kernel's own security adapters, {@code BearerTokenAuthenticator} and
+     * {@code UserDetailsServiceImpl}, call {@code SessionStatusPort} and {@code AccountCredentialsPort}
+     * by design: those ports are the kernel's, inverted so that a context can supply them. They live in
+     * {@code common.security}, outside {@code ..adapter.in..}, so this rule does not see them.
      */
     @ArchTest
     static final ArchRule inbound_adapters_do_not_drive_outbound_ports = classes()
             .that()
             .resideInAPackage("..adapter.in..")
-            .should(ArchConditions.onlyHaveDependenciesWhere(
-                    not(dependencyTarget(resideInAPackage("..domain.port.out..")))
-                            .or(dependency(
-                                    resideInAPackage("..adapter.in.composition.."),
-                                    resideInAPackage("com.healthupgrades.common.domain.port.out..")))
-                            .or(dependency(
-                                    "com.healthupgrades.auth.adapter.in.event.SessionEndSocketListener",
-                                    "com.healthupgrades.common.domain.port.out.LiveSocketPort"))))
+            .should(ArchConditions.onlyHaveDependenciesWhere(not(dependencyTarget(resideInAPackage("..port.out..")))
+                    .or(dependencyOrigin(resideInAPackage("..adapter.in.composition.."))
+                            .and(ORIGIN_IMPLEMENTS_TARGET))
+                    .or(dependency(
+                            resideInAPackage("..adapter.in.composition.."),
+                            JavaClass.Predicates.belongToAnyOf(
+                                    com.healthupgrades.common.domain.port.out.AccountCredentials.class,
+                                    com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummary.class)))
+                    .or(dependency(
+                            "com.healthupgrades.auth.adapter.in.event.SessionEndSocketListener",
+                            "com.healthupgrades.common.domain.port.out.LiveSocketPort"))
+                    .or(dependency(
+                            "com.healthupgrades.upgrade.adapter.in.web.UpgradeWebMapper",
+                            "com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort"))
+                    .or(dependency(
+                            "com.healthupgrades.upgrade.adapter.in.web.UpgradeWebMapper",
+                            "com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummary"))))
             .as("inbound adapters must reach the core through use cases, not through outbound ports (ADR-002)");
+
+    /**
+     * The tracking summary port, which reads configurations whoever owns them, serves the upgrade mapper
+     * and nothing else.
+     *
+     * <p>{@code UpgradeTrackingSummaryPort.findByUpgradeIds} passes straight through to
+     * {@code TrackingConfigQuery.findByUpgradeIds}, which is not scoped by owner. Pinning the query inside
+     * {@code tracking} would protect nothing if this port, which the slice rule publishes to every context,
+     * were open: an endpoint taking upgrade ids from a request could read another user's tracking setup
+     * through it (BR-15). So it has two dependents: {@code UpgradeWebMapper}, which passes only the ids of
+     * aggregates already loaded through user-scoped reads, and {@code UpgradeTrackingSummaryAdapter}, which
+     * implements it. With {@link #unscoped_tracking_config_read_stays_inside_tracking} it is the second
+     * half of one pin.
+     */
+    @ArchTest
+    static final ArchRule tracking_summary_port_serves_only_the_upgrade_mapper = classes()
+            .that()
+            .haveFullyQualifiedName("com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort")
+            .should()
+            .onlyHaveDependentClassesThat(JavaClass.Predicates.belongToAnyOf(
+                    com.healthupgrades.upgrade.adapter.in.web.UpgradeWebMapper.class,
+                    com.healthupgrades.tracking.adapter.in.composition.UpgradeTrackingSummaryAdapter.class))
+            .as("UpgradeTrackingSummaryPort, which is not scoped by owner, must be used only by UpgradeWebMapper "
+                    + "and its implementer (BR-15)");
 
     /**
      * Use-case and query ports are contracts, so they must be interfaces. Command and result records
@@ -367,15 +426,8 @@ class HexagonalArchitectureTest {
             .resideInAPackage("..application.port.in..")
             .and()
             .haveSimpleNameEndingWith("SweepQuery")
-            .should(ArchConditions.onlyHaveDependentsWhere(dependencyOrigin(SCHEDULED_WORK)
-                    .or(new DescribedPredicate<Dependency>("its origin implements the port") {
-                        @Override
-                        public boolean test(Dependency dependency) {
-                            return dependency
-                                    .getOriginClass()
-                                    .isAssignableTo(dependency.getTargetClass().getName());
-                        }
-                    })))
+            .should(ArchConditions.onlyHaveDependentsWhere(
+                    dependencyOrigin(SCHEDULED_WORK).or(ORIGIN_IMPLEMENTS_TARGET)))
             .as("sweep ports must be used only by the scheduled jobs' application services (BR-15)");
 
     /**
@@ -389,8 +441,12 @@ class HexagonalArchitectureTest {
      * supplies reaches the query. Scoping it would cost a migration, a join onto another context's table,
      * or a query per response, to close a path that does not exist.
      *
-     * <p>This rule is what keeps that true. It is wrong, and the port must be scoped first, the day a class
-     * outside {@code tracking} needs it, or the day an id from a request reaches it (BR-15).
+     * <p>This rule keeps that true inside {@code tracking}, and
+     * {@link #tracking_summary_port_serves_only_the_upgrade_mapper} keeps it true one hop out, where the
+     * adapter passes the same read through {@code UpgradeTrackingSummaryPort}, which the slice rule publishes
+     * to every context. Either pin alone would leave the read open. Both are wrong, and the port must be
+     * scoped first, the day a class outside {@code tracking} needs it, a class other than
+     * {@code UpgradeWebMapper} needs the summary port, or an id from a request reaches either (BR-15).
      */
     @ArchTest
     static final ArchRule unscoped_tracking_config_read_stays_inside_tracking = classes()

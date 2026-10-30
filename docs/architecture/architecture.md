@@ -243,7 +243,9 @@ reach returns another user's row as absent (BR-15), with one exception:
 `TrackingConfigQuery.findByUpgradeIds`, which the upgrade responses use to show each upgrade's
 tracking setup, returns configurations whoever owns them, because `tracking_configs` has no owner
 column to filter on. Its one caller maps upgrades already loaded through user-scoped reads, so no
-request-supplied id reaches it, and an ArchUnit rule keeps every dependent of it inside `tracking`.
+request-supplied id reaches it. ArchUnit pins both hops: every dependent of `TrackingConfigQuery` stays
+inside `tracking`, and `UpgradeTrackingSummaryPort`, through which the read reaches `upgrade`, serves
+only `UpgradeWebMapper` and the adapter that implements it.
 The administrator bootstrap is the same shape: `AdminBootstrapRunner` parses its setting and calls
 `AdminBootstrapService.bootstrap`, which applies the rules and records the promotion. No driving adapter reaches an outbound port, and
 ArchUnit names the two that may
@@ -285,8 +287,9 @@ The indirection is accepted, and not moved into the use cases. Moving it would c
 `UpgradeService` methods the controller maps, and the dashboard's view, to return an upgrade together
 with its setup: about a dozen signatures, to remove an indirection that is named here instead. The
 cost is that a web mapper does I/O, which a reader of the layering rules would not expect.
-`TrackingConfigQuery`, the port that answers, is not scoped by owner, and ArchUnit keeps every
-dependent of it inside `tracking`; mechanism 5, above, says why that holds.
+`TrackingConfigQuery`, the port that answers, is not scoped by owner. ArchUnit keeps every dependent of
+it inside `tracking`, and every dependent of `UpgradeTrackingSummaryPort` but this mapper and its
+implementer out; mechanism 5, above, says why that holds.
 
 ---
 
