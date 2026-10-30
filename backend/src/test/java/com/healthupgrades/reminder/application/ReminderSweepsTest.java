@@ -26,13 +26,14 @@ class ReminderSweepsTest {
     ReminderSweeps sweeps;
 
     @Test
-    void GivenRemindersAcrossUsers_WhenTheDispatcherAsksForWork_ThenOnlyTheEnabledOnesAreReturned() {
+    void
+            GivenRemindersAcrossUsers_WhenTheDispatcherAsksForAMinutesWork_ThenTheRepositorysAnswerForThatMinuteIsReturned() {
         // Moved from ReminderServiceTest with the method. Deliberately not user-scoped: the scheduler
-        // sweeps every user's reminders, and filters by enabled rather than by owner.
+        // sweeps every user's reminders, and filters by enabled and by minute rather than by owner.
         List<Reminder> enabled =
                 List.of(Reminder.create(UUID.randomUUID(), LocalTime.of(9, 0), ReminderDays.of(List.of("MON")), true));
-        when(repository.findByEnabledTrue()).thenReturn(enabled);
+        when(repository.findEnabledWithinMinute(LocalTime.of(9, 0))).thenReturn(enabled);
 
-        assertThat(sweeps.findEnabled()).isEqualTo(enabled);
+        assertThat(sweeps.findEnabledWithinMinute(LocalTime.of(9, 0))).isEqualTo(enabled);
     }
 }

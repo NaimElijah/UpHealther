@@ -132,7 +132,7 @@ class NotificationSchedulerTest {
                 .daysOfWeek(null)
                 .enabled(true)
                 .build();
-        when(reminderQuery.findEnabled()).thenReturn(List.of(reminder));
+        when(reminderQuery.findEnabledWithinMinute(any())).thenReturn(List.of(reminder));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
 
         scheduler.dispatchReminders();
@@ -143,7 +143,7 @@ class NotificationSchedulerTest {
 
     @Test
     void GivenAReminderDueNow_WhenRemindersAreDispatched_ThenTheNotificationIsAReminderNamingTheUpgrade() {
-        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder()));
+        when(reminderQuery.findEnabledWithinMinute(any())).thenReturn(List.of(dueReminder()));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
 
         scheduler.dispatchReminders();
@@ -167,7 +167,7 @@ class NotificationSchedulerTest {
                 .daysOfWeek(null)
                 .enabled(true)
                 .build();
-        when(reminderQuery.findEnabled()).thenReturn(List.of(reminder));
+        when(reminderQuery.findEnabledWithinMinute(any())).thenReturn(List.of(reminder));
 
         scheduler.dispatchReminders();
 
@@ -299,7 +299,7 @@ class NotificationSchedulerTest {
                 .daysOfWeek("MON")
                 .enabled(true)
                 .build();
-        when(reminderQuery.findEnabled()).thenReturn(List.of(reminder));
+        when(reminderQuery.findEnabledWithinMinute(any())).thenReturn(List.of(reminder));
 
         scheduler.dispatchReminders();
 
@@ -316,7 +316,7 @@ class NotificationSchedulerTest {
                 .daysOfWeek("WED")
                 .enabled(true)
                 .build();
-        when(reminderQuery.findEnabled()).thenReturn(List.of(reminder));
+        when(reminderQuery.findEnabledWithinMinute(any())).thenReturn(List.of(reminder));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
 
         scheduler.dispatchReminders();
@@ -326,11 +326,22 @@ class NotificationSchedulerTest {
     }
 
     @Test
+    void GivenTheClockAtNine_WhenRemindersAreDispatched_ThenOnlyThatMinutesRemindersAreRead() {
+        // #340, D6.12. The minute is the query's to filter on, through an index, rather than every enabled
+        // reminder of every user loaded each minute to be filtered here.
+        when(reminderQuery.findEnabledWithinMinute(any())).thenReturn(List.of());
+
+        scheduler.dispatchReminders();
+
+        verify(reminderQuery).findEnabledWithinMinute(LocalTime.of(9, 0));
+    }
+
+    @Test
     void GivenSeveralRemindersAreDue_WhenRemindersAreDispatched_ThenTheirUpgradesAreLoadedInOneBatch() {
         // NFR-14. This sweep runs every minute; a lookup per reminder is the cost that grows with the
         // number of users.
         UUID otherUpgradeId = UUID.randomUUID();
-        when(reminderQuery.findEnabled())
+        when(reminderQuery.findEnabledWithinMinute(any()))
                 .thenReturn(List.of(
                         Reminder.builder()
                                 .id(UUID.randomUUID())
@@ -355,7 +366,7 @@ class NotificationSchedulerTest {
     void GivenADueReminderWhoseUpgradeHasBeenDeleted_WhenRemindersAreDispatched_ThenItIsSkippedRatherThanFailing() {
         // A reminder can outlive its upgrade. Dereferencing the missing one would throw inside a
         // scheduled job, where nothing is waiting to handle it.
-        when(reminderQuery.findEnabled())
+        when(reminderQuery.findEnabledWithinMinute(any()))
                 .thenReturn(List.of(Reminder.builder()
                         .id(UUID.randomUUID())
                         .upgradeId(upgradeId)
@@ -376,7 +387,7 @@ class NotificationSchedulerTest {
     @EnumSource(value = UpgradeStatus.class, names = "ACTIVE", mode = EnumSource.Mode.EXCLUDE)
     void GivenADueReminderOnAnUpgradeThatIsNotActive_WhenRemindersAreDispatched_ThenNobodyIsNotified(
             UpgradeStatus status) {
-        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder()));
+        when(reminderQuery.findEnabledWithinMinute(any())).thenReturn(List.of(dueReminder()));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(upgradeIn(status)));
 
         scheduler.dispatchReminders();
@@ -390,7 +401,7 @@ class NotificationSchedulerTest {
         // fire every minute a paused upgrade's reminder came due. The run's own line is what says the
         // rule was applied, so it is asserted positively; an absent WARN alone would also pass a run
         // that logged nothing at all.
-        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder()));
+        when(reminderQuery.findEnabledWithinMinute(any())).thenReturn(List.of(dueReminder()));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(upgradeIn(UpgradeStatus.PAUSED)));
 
         List<ILoggingEvent> logged = logsFromScheduler(scheduler::dispatchReminders);
@@ -409,7 +420,7 @@ class NotificationSchedulerTest {
     @Test
     void GivenTheFirstOfTwoDueRemindersFailsToSave_WhenRemindersAreDispatched_ThenTheSecondIsStillFired() {
         // A minute does not repeat, so a reminder the sweep never reached is never sent.
-        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder(), dueReminder()));
+        when(reminderQuery.findEnabledWithinMinute(any())).thenReturn(List.of(dueReminder(), dueReminder()));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
         when(notificationService.create(any(), any(), any(), any(), any(), any()))
                 .thenThrow(saveFailure())
@@ -425,7 +436,7 @@ class NotificationSchedulerTest {
     void GivenTwoDueRemindersFailToSave_WhenRemindersAreDispatched_ThenTheRunFailsWithTheFirstFailure() {
         // The first failure is the one that says why; whatever followed it is most likely the same cause.
         RuntimeException first = saveFailure();
-        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder(), dueReminder()));
+        when(reminderQuery.findEnabledWithinMinute(any())).thenReturn(List.of(dueReminder(), dueReminder()));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
         when(notificationService.create(any(), any(), any(), any(), any(), any()))
                 .thenThrow(first)
@@ -438,7 +449,7 @@ class NotificationSchedulerTest {
 
     @Test
     void GivenADueReminderFailsToSave_WhenRemindersAreDispatched_ThenTheRunIsCountedFailed() {
-        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder()));
+        when(reminderQuery.findEnabledWithinMinute(any())).thenReturn(List.of(dueReminder()));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
         when(notificationService.create(any(), any(), any(), any(), any(), any()))
                 .thenThrow(saveFailure());
@@ -454,7 +465,7 @@ class NotificationSchedulerTest {
         // No stack trace and no message: the one stack trace belongs to the scheduler's ERROR line, and a
         // driver's message can quote the row it refused (NFR-6).
         Reminder reminder = dueReminder();
-        when(reminderQuery.findEnabled()).thenReturn(List.of(reminder));
+        when(reminderQuery.findEnabledWithinMinute(any())).thenReturn(List.of(reminder));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
         when(notificationService.create(any(), any(), any(), any(), any(), any()))
                 .thenThrow(saveFailure());
@@ -481,7 +492,7 @@ class NotificationSchedulerTest {
         // Only the first failure's stack trace reaches the run's ERROR line. For every later one, the
         // root cause's type is what tells a constraint from a dropped connection - without its message,
         // which quotes the row just as the wrapper's does.
-        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder()));
+        when(reminderQuery.findEnabledWithinMinute(any())).thenReturn(List.of(dueReminder()));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
         when(notificationService.create(any(), any(), any(), any(), any(), any()))
                 .thenThrow(new DataIntegrityViolationException(
@@ -504,7 +515,7 @@ class NotificationSchedulerTest {
     @Test
     void GivenADueReminderFailsToSave_WhenRemindersAreDispatched_ThenTheRunLineCountsItFailedNotFired() {
         // The run's line is what says how many were lost; it used to be skipped along with the rest.
-        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder(), dueReminder()));
+        when(reminderQuery.findEnabledWithinMinute(any())).thenReturn(List.of(dueReminder(), dueReminder()));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
         when(notificationService.create(any(), any(), any(), any(), any(), any()))
                 .thenThrow(saveFailure())
@@ -523,7 +534,8 @@ class NotificationSchedulerTest {
     @Test
     void GivenAFailedReminderAndAnOrphanedOne_WhenRemindersAreDispatched_ThenTheOrphanWarningIsStillWritten() {
         UUID deletedUpgradeId = UUID.randomUUID();
-        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder(), dueReminderOn(deletedUpgradeId)));
+        when(reminderQuery.findEnabledWithinMinute(any()))
+                .thenReturn(List.of(dueReminder(), dueReminderOn(deletedUpgradeId)));
         when(upgradeQuery.findAllById(List.of(upgradeId, deletedUpgradeId))).thenReturn(List.of(activeUpgrade()));
         when(notificationService.create(any(), any(), any(), any(), any(), any()))
                 .thenThrow(saveFailure());
@@ -537,7 +549,7 @@ class NotificationSchedulerTest {
     void GivenThreeAdjacentRemindersFailToSave_WhenRemindersAreDispatched_ThenTheOnesAfterThemAreStillFired() {
         // Bad rows can sit next to each other - nothing orders the sweep - and however many there are,
         // they are a fact about those rows, not about the database. Only an outage stops the sweep.
-        when(reminderQuery.findEnabled())
+        when(reminderQuery.findEnabledWithinMinute(any()))
                 .thenReturn(List.of(dueReminder(), dueReminder(), dueReminder(), dueReminder()));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
         when(notificationService.create(any(), any(), any(), any(), any(), any()))
@@ -562,7 +574,7 @@ class NotificationSchedulerTest {
         // Carrying on is for a failed row. An Error - a class that will not load, memory gone - is the
         // JVM saying the next attempt cannot be trusted either, so it is not caught and nothing after it
         // is tried. Widening the catch to Throwable would fail this test and nothing else.
-        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder(), dueReminder()));
+        when(reminderQuery.findEnabledWithinMinute(any())).thenReturn(List.of(dueReminder(), dueReminder()));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
         when(notificationService.create(any(), any(), any(), any(), any(), any()))
                 .thenThrow(new NoClassDefFoundError("com/healthupgrades/Missing"));
@@ -579,7 +591,8 @@ class NotificationSchedulerTest {
         // A transaction that cannot begin means the pool waited out its connection timeout. Every further
         // attempt would wait it out again, on the one thread all four jobs share, and push the next
         // reminder run past its minute.
-        when(reminderQuery.findEnabled()).thenReturn(List.of(dueReminder(), dueReminder(), dueReminder()));
+        when(reminderQuery.findEnabledWithinMinute(any()))
+                .thenReturn(List.of(dueReminder(), dueReminder(), dueReminder()));
         when(upgradeQuery.findAllById(List.of(upgradeId))).thenReturn(List.of(activeUpgrade()));
         when(notificationService.create(any(), any(), any(), any(), any(), any()))
                 .thenThrow(unreachable());

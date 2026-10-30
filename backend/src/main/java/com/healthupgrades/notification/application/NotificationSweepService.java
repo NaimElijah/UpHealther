@@ -147,10 +147,10 @@ public class NotificationSweepService {
      * on every run, so pausing an upgrade quiets its reminders and activating it again brings them
      * back exactly as they were.
      *
-     * <p>Meant to run every minute, which is what a reminder configured to the minute requires. It sweeps
-     * every enabled reminder each time, so the two costly parts are avoided deliberately: due-ness is
-     * decided by the reminder itself without a database round trip, and the upgrades behind the due ones
-     * are loaded in one batch rather than one query each.
+     * <p>Meant to run every minute, which is what a reminder configured to the minute requires. It reads
+     * only the enabled reminders set within this minute, a query an index serves, so a run costs what is
+     * due rather than every reminder there is; whether one is due on today's day is decided by the reminder
+     * itself, and the upgrades behind the due ones are loaded in one batch rather than one query each.
      *
      * <p>Unlike the check-in nudge there is no dedup guard, and none is needed: a given minute occurs
      * once, so a reminder cannot match twice.
@@ -164,7 +164,7 @@ public class NotificationSweepService {
      */
     public void dispatchDueReminders(DayOfWeek today, LocalTime now) {
         // Whether a reminder is due is the reminder's own question to answer, not this service's.
-        List<Reminder> due = reminderQuery.findEnabled().stream()
+        List<Reminder> due = reminderQuery.findEnabledWithinMinute(now).stream()
                 .filter(r -> r.isDueAt(today, now))
                 .toList();
         // Nothing due is the answer in fifty-nine minutes out of sixty. Logging it would write a
