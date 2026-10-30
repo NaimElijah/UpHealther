@@ -1,6 +1,6 @@
 package com.healthupgrades.auth.adapter.in.web;
 
-import com.healthupgrades.auth.application.SessionGrant;
+import com.healthupgrades.auth.application.port.in.SessionGrant;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Clock;
 import java.time.Duration;

@@ -1,4 +1,4 @@
-package com.healthupgrades.auth.application;
+package com.healthupgrades.auth.application.port.in;
 
 import java.time.Instant;
 import java.util.UUID;

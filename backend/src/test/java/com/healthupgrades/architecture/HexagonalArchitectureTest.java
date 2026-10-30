@@ -224,6 +224,39 @@ class HexagonalArchitectureTest {
             .beInterfaces()
             .as("inbound query and command ports must be interfaces");
 
+    /**
+     * A context's ports speak only in published types.
+     *
+     * <p>ADR-002 makes a context's ports its published surface, and the slice rule above lets another
+     * context reach only {@code ..application.port..}, {@code ..domain.model..} and a few other published
+     * packages. A port that takes or returns a type from anywhere else hands its first cross-context
+     * caller an import that the slice rule refuses, and the easy fix is then to widen the slice rule. So
+     * whatever a port names lives where its callers may import it. Each allowed package is here for a
+     * reason:
+     *
+     * <ul>
+     *   <li>{@code java..}: identifiers, times and collections, and what every record compiles against;
+     *   <li>{@code ..application.port..}: the command and result records that sit beside the ports, and
+     *       another context's ports, as {@code UpgradeTrackingSummaryPort} names its own record;
+     *   <li>{@code ..domain.model..}: the aggregates and enums a query returns, which the slice rule
+     *       already publishes;
+     *   <li>{@code com.healthupgrades.common.domain..}: the kernel's own model, which every context
+     *       already shares. No port names it today.
+     * </ul>
+     *
+     * <p>No framework is listed, because no port imports one: a port record that wants a JSpecify,
+     * Lombok or bean-validation annotation is a decision to add here, not something to slip in.
+     */
+    @ArchTest
+    static final ArchRule ports_name_only_published_types = classes()
+            .that()
+            .resideInAPackage("..application.port..")
+            .should()
+            .onlyDependOnClassesThat()
+            .resideInAnyPackage(
+                    "java..", "..application.port..", "..domain.model..", "com.healthupgrades.common.domain..")
+            .as("ports must take and return only published types (ADR-002)");
+
     /** Controllers are a web concern and belong only in the web adapter. */
     @ArchTest
     static final ArchRule controllers_live_only_in_the_web_adapter = classes()

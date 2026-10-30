@@ -1,6 +1,7 @@
 package com.healthupgrades.auth.application;
 
 import com.healthupgrades.auth.application.port.in.SessionCommand;
+import com.healthupgrades.auth.application.port.in.SessionGrant;
 import com.healthupgrades.auth.domain.port.out.AccessToken;
 import com.healthupgrades.auth.domain.port.out.AccessTokenIssuerPort;
 import com.healthupgrades.common.domain.audit.AuditAction;

@@ -19,9 +19,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.healthupgrades.auth.application.AuthResult;
 import com.healthupgrades.auth.application.AuthService;
-import com.healthupgrades.auth.application.RefreshOutcome;
-import com.healthupgrades.auth.application.SessionGrant;
+import com.healthupgrades.auth.application.port.in.RefreshOutcome;
 import com.healthupgrades.auth.application.port.in.SessionCommand;
+import com.healthupgrades.auth.application.port.in.SessionGrant;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.common.security.JwtAuthenticationFilter;

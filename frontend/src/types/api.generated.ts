@@ -280,7 +280,7 @@ export interface UpgradeTrackingConfigDto {
   requiredDaily: boolean | null;
 }
 
-/** Response body: com.healthupgrades.user.adapter.in.web.UserDto */
+/** Response body: com.healthupgrades.auth.adapter.in.web.UserDto */
 export interface UserDto {
   id: string;
   name: string;
