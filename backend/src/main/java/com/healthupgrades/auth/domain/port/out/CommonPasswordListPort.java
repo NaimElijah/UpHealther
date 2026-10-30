@@ -13,9 +13,9 @@ public interface CommonPasswordListPort {
     /**
      * Reads the list.
      *
-     * @return every entry, in the list's order; never empty
-     * @throws IllegalStateException if the list is missing or holds no entries, which is a broken build
-     *         rather than a state to run in
+     * @return every entry, in the list's order; never empty, and never a blank entry
+     * @throws IllegalStateException if the list is missing or holds no entries but blank ones, which is a
+     *         broken build rather than a state to run in
      */
     List<String> entries();
 }

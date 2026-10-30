@@ -13,8 +13,8 @@ import org.springframework.stereotype.Component;
  * Outbound adapter: reads the common-password list bundled in the jar, one entry per line (ADR-071).
  *
  * <p>The file is {@code scripts/derive_common_passwords.py}'s output, and its notice sits beside it. A
- * missing or empty file is refused here, because a jar without the list would otherwise accept every
- * password and nothing would say so.
+ * missing file, an empty one and one of only blank lines are refused here, because a jar without the
+ * list would otherwise accept every password and nothing would say so.
  */
 @Component
 public class ClasspathCommonPasswordList implements CommonPasswordListPort {
@@ -37,7 +37,7 @@ public class ClasspathCommonPasswordList implements CommonPasswordListPort {
     /**
      * {@inheritDoc}
      *
-     * @throws IllegalStateException if nothing is at the location, or it holds no entries
+     * @throws IllegalStateException if nothing is at the location, or it holds no entries but blank lines
      * @throws UncheckedIOException  if the resource exists and cannot be read
      */
     @Override
@@ -53,9 +53,16 @@ public class ClasspathCommonPasswordList implements CommonPasswordListPort {
         return entries;
     }
 
+    /**
+     * The non-blank lines. A blank entry could never match, because {@code @NotBlank} refuses a blank
+     * password first, so a file of nothing but line breaks counts as empty rather than as a list.
+     */
     private List<String> read(ClassPathResource resource) {
         try (InputStream in = resource.getInputStream()) {
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8).lines().toList();
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8)
+                    .lines()
+                    .filter(line -> !line.isBlank())
+                    .toList();
         } catch (IOException unreadable) {
             throw new UncheckedIOException("The common-password list at " + location + " cannot be read", unreadable);
         }

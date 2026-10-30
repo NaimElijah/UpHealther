@@ -22,6 +22,9 @@ class ClasspathCommonPasswordListTest {
     /** On the test classpath, and empty. */
     private static final String EMPTY = "auth/empty-common-passwords.txt";
 
+    /** On the test classpath, and nothing but line breaks. */
+    private static final String BLANK = "auth/blank-common-passwords.txt";
+
     @Test
     void GivenTheShippedResource_WhenItIsRead_ThenEveryEntryComesBackInOrder() {
         assertThat(new ClasspathCommonPasswordList().entries())
@@ -44,6 +47,15 @@ class ClasspathCommonPasswordListTest {
     }
 
     @Test
+    void GivenAResourceOfOnlyLineBreaks_WhenItIsRead_ThenItFailsNamingTheLocation() {
+        // Read line by line, it is a list of blank entries, and a blank password never reaches the list:
+        // @NotBlank refuses it first. A list of nothing else would refuse nothing.
+        assertThatThrownBy(() -> new ClasspathCommonPasswordList(BLANK).entries())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(BLANK);
+    }
+
+    @Test
     void GivenNoResourceAtTheLocation_WhenTheApplicationStarts_ThenItFailsToStart() {
         contextReading(MISSING)
                 .run(context ->
@@ -55,6 +67,13 @@ class ClasspathCommonPasswordListTest {
         contextReading(EMPTY)
                 .run(context ->
                         assertThat(context).hasFailed().getFailure().rootCause().hasMessageContaining(EMPTY));
+    }
+
+    @Test
+    void GivenAResourceOfOnlyLineBreaks_WhenTheApplicationStarts_ThenItFailsToStart() {
+        contextReading(BLANK)
+                .run(context ->
+                        assertThat(context).hasFailed().getFailure().rootCause().hasMessageContaining(BLANK));
     }
 
     /** The policy and the list it loads at startup, with the list read from {@code location}. */

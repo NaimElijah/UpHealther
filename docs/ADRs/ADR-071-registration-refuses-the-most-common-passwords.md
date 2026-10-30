@@ -89,8 +89,8 @@ passwords, answered 400 with a field error on `password`, as BR-17's minimum is.
   `ClasspathCommonPasswordList` implements, so the web adapter never touches an outbound port
   (ADR-064).
 - **It is loaded once.** `CommonPasswordPolicy` builds an immutable set in its constructor, at
-  startup. `ClasspathCommonPasswordList` refuses a missing resource and an empty one, naming where it
-  looked, so the application refuses to start rather than run without the rule.
+  startup. `ClasspathCommonPasswordList` refuses a missing resource, an empty one and one of only blank
+  lines, naming where it looked, so the application refuses to start rather than run without the rule.
   `ClasspathCommonPasswordListTest` starts a context over each and sees it fail.
 - **Registration only.** It is the one route by which a password enters the system (BR-17). The
   seeded demo account's `demo1234` is not on the list, and the rule does not apply at sign-in.

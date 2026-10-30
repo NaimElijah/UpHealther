@@ -832,7 +832,7 @@ at startup: `CommonPasswordPolicy`, in the application layer, loads it through
 `CommonPasswordListPort`, which `ClasspathCommonPasswordList` implements over the classpath, and
 the `@NotCommonPassword` validator asks the policy. Spring builds that validator with the policy
 injected, so a web slice that posts a registration needs the policy bean, which `WebSliceSupport`
-supplies. A missing or empty list stops the application starting
+supplies. A missing list, an empty one or one of only blank lines stops the application starting
 ([ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md)).
 
 **Every request record and response DTO belongs to the web adapter.** Application services take command
