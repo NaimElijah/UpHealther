@@ -20,6 +20,7 @@ import com.healthupgrades.common.domain.exception.RetryableConflictException;
 import com.healthupgrades.common.domain.exception.TooManyRequestsException;
 import com.healthupgrades.tracking.domain.model.DuplicateProgressException;
 import com.healthupgrades.upgrade.adapter.in.web.UpgradeController;
+import com.healthupgrades.upgrade.adapter.in.web.UpgradeRequest;
 import com.healthupgrades.upgrade.adapter.in.web.UpgradeWebMapper;
 import com.healthupgrades.upgrade.application.UpgradeService;
 import io.micrometer.tracing.Span;
@@ -430,6 +431,27 @@ class GlobalExceptionHandlerTest {
 
             assertThat(logged).noneMatch(event -> event.getLevel() == Level.ERROR);
         }
+
+        @Test
+        void GivenABodyThatFailsValidation_WhenItIsRejectedAtDebug_ThenTheLineNamesTheExceptionTypeAndNoRejectedValue()
+                throws Exception {
+            // MethodArgumentNotValidException's message quotes every rejected value, a password included
+            // (NFR-6), so the line names the type and attaches no throwable.
+            String rejected = "Private title " + "x".repeat(UpgradeRequest.TITLE_MAX);
+
+            List<ILoggingEvent> logged = logsFromHandlerAtDebug(() -> mockMvc.perform(post("/api/upgrades")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"title\":\"" + rejected + "\",\"type\":\"HABIT\"}"))
+                    .andExpect(status().isBadRequest()));
+
+            assertThat(logged).singleElement().satisfies(event -> {
+                assertThat(event.getLevel()).isEqualTo(Level.DEBUG);
+                assertThat(event.getThrowableProxy()).isNull();
+                assertThat(event.getFormattedMessage())
+                        .contains("MethodArgumentNotValidException")
+                        .doesNotContain("Private title");
+            });
+        }
     }
 
     /**
@@ -546,6 +568,21 @@ class GlobalExceptionHandlerTest {
             logger.detachAppender(appender);
         }
         return appender.list;
+    }
+
+    /**
+     * As {@link #logsFromHandler}, with the handler's logger at DEBUG, where a refused request is
+     * written, and its level restored afterwards.
+     */
+    private static List<ILoggingEvent> logsFromHandlerAtDebug(Action action) throws Exception {
+        Logger logger = (Logger) LoggerFactory.getLogger(GlobalExceptionHandler.class);
+        Level previous = logger.getLevel();
+        logger.setLevel(Level.DEBUG);
+        try {
+            return logsFromHandler(action);
+        } finally {
+            logger.setLevel(previous);
+        }
     }
 
     @FunctionalInterface
