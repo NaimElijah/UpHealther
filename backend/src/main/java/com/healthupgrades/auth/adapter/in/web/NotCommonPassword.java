@@ -17,7 +17,8 @@ import java.lang.annotation.Target;
 
 /**
  * The annotated password is not on the common-password list (BR-17, ADR-071). Null is valid; pair it
- * with {@code @NotBlank} where a value is required.
+ * with {@code @NotBlank} where a value is required. A value longer than
+ * {@link AuthController#PASSWORD_MAX} is valid too, and left to {@code @Size} to refuse.
  *
  * <p>A constraint rather than a check in {@code AuthService}, so that a common password is refused the
  * way a short one is: a 400 whose {@code fieldErrors.password} says why, before the use case runs.
@@ -49,9 +50,14 @@ public @interface NotCommonPassword {
             this.policy = policy;
         }
 
+        /**
+         * Valid, without normalising, for a value longer than {@link AuthController#PASSWORD_MAX}:
+         * {@code @Size} refuses it anyway, and NFKC can expand one code point to eighteen, so normalising
+         * it would be work spent on a password already refused.
+         */
         @Override
         public boolean isValid(CharSequence value, ConstraintValidatorContext context) {
-            return value == null || !policy.isCommon(value.toString());
+            return value == null || value.length() > AuthController.PASSWORD_MAX || !policy.isCommon(value.toString());
         }
     }
 }
