@@ -172,11 +172,14 @@ a working default, so no `.env` is needed to start — copy `.env.example` to `.
 
 - **`port is already allocated` on 5432** — a host PostgreSQL owns the port. Stop it, or drop the
   `ports:` mapping on the `postgres` service; the backend reaches it over the compose network anyway.
-- **Backend restarts, logs mention Flyway** — a stale `postgres_data` volume. `docker compose down -v`.
-- **Backend restarts, logs say `password authentication failed for user "healthupgrades_app"`** — the
+- **Backend exits, logs mention Flyway** — a stale `postgres_data` volume. `docker compose down -v`.
+- **Backend exits, logs say `password authentication failed for user "healthupgrades_app"`** — the
   `postgres_data` volume predates the role the backend connects as, and PostgreSQL creates that role
   only when it initialises an empty volume. `docker compose down -v`, then start again; this deletes
   the local data, the demo account included, which the migrations seed again.
+- **Backend exits, logs say `permission denied for table …`** — a native `./mvnw spring-boot:run`
+  migrated this volume as the superuser before the compose backend did, so the tables belong to a role
+  the compose backend is not. `docker compose down -v`, then start again; this deletes the local data.
 - **Frontend loads, every call fails** — `curl http://localhost:8080/actuator/health/readiness`.
 
 </details>
@@ -195,7 +198,7 @@ localhost only.
 | `POSTGRES_PASSWORD` | The compose PostgreSQL's superuser password, which the backend never uses; a native run reads `DB_PASSWORD` | `healthupgrades` |
 | `JWT_SECRET` | Token signing key; the application refuses to start without one, or on one under 256 bits | none — compose and `backend/config/` supply a published dev key |
 | `ADMIN_BOOTSTRAP_USER_ID` | An existing account promoted to `ADMIN` at startup while no administrator exists — an id, not an email, because registration is open | empty |
-| `TRUSTED_PROXIES` | Java regex for the hop allowed to set `X-Forwarded-For`; widen it and a caller picks the address the rate limit counts | nginx on the compose network |
+| `TRUSTED_PROXIES` | Java regex for the hop allowed to set `X-Forwarded-For`, `X-Forwarded-Host` and `X-Forwarded-Port`; widen it and a caller picks the address the rate limit counts, and the host and port the API believes it was reached on | nginx on the compose network |
 
 <details>
 <summary>The other sixteen variables, and six that live only in <code>application.yml</code></summary>

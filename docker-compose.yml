@@ -8,8 +8,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-healthupgrades}
       # The role the backend connects as, which scripts/postgres-init/ creates on an empty volume. It
       # owns the database and nothing else, so the API never holds the superuser above (ADR-069).
-      # Named apart from DB_USERNAME and DB_PASSWORD, which .env.example gives a native run: compose
-      # reads a root .env, and would otherwise hand the backend whatever those name.
+      # Named apart from DB_USERNAME and DB_PASSWORD, which a native run reads: compose reads a root
+      # .env, and would otherwise hand the backend whatever those name.
       POSTGRES_APP_USER: ${POSTGRES_APP_USER:-healthupgrades_app}
       POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:-healthupgrades_app}
     # Every port here is published on the loopback address only. The defaults are a published
