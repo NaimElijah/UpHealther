@@ -302,6 +302,17 @@ cd frontend && npm run dev                  # terminal 2 — :3000, proxies /api
 and append-only — Hibernate validates the entities against the schema and refuses to start on a
 mismatch, so an entity change needs a new migration rather than a `ddl-auto` change.
 
+**The common-password list** that registration refuses (BR-17) is
+`backend/src/main/resources/auth/common-passwords.txt`, derived from one pinned SecLists file. It is
+public on purpose: it holds passwords that are already public, so that registration can refuse them,
+and it is not a credential store. To derive it again, download the file the script's `SOURCE_URL` names
+and run `node scripts/python.mjs scripts/derive_common_passwords.py <that file>`. Add `--check` to
+compare instead of write; nothing runs that check for you. Moving the pin means changing
+`SOURCE_COMMIT` and `SOURCE_SHA256` in the script; in the notice beside the list, its `Commit:` and
+`Source:` lines and both SHA-256s; and the commit `CommonPasswordListTest` asserts the notice names.
+That test fails until the notice's derived SHA-256 matches the list
+([ADR-071](docs/ADRs/ADR-071-registration-refuses-the-most-common-passwords.md)).
+
 **Conventions.** Conventional Commits (`type(scope): imperative subject`), one logical change per
 commit, on a `type/short-kebab-description` branch cut from `dev`. A PR merges into `dev`, and
 `dev` → `main` is the release PR — both as merge commits, which keeps the SHAs in
@@ -577,7 +588,9 @@ modifying, running, deploying, redistributing, or training a model on it — nee
 via [github.com/NaimElijah](https://github.com/NaimElijah); an unanswered request is a refused one.
 [`LICENSE`](LICENSE) carries the terms that govern. Third-party dependencies remain under their own;
 the SPA's notices are written by the build and served at `/THIRD-PARTY-NOTICES.txt`
-([ADR-059](docs/ADRs/ADR-059-the-bundle-ships-its-third-party-notices.md)).
+([ADR-059](docs/ADRs/ADR-059-the-bundle-ships-its-third-party-notices.md)). The common-password list
+is SecLists' data under its MIT licence, whose notice ships beside it and in the jar
+([ADR-071](docs/ADRs/ADR-071-registration-refuses-the-most-common-passwords.md)).
 
 ## 🙏 Acknowledgements
 

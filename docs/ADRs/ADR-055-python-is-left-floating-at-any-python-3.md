@@ -1,6 +1,9 @@
 # ADR-055: Python is left floating at any Python 3
 
-- **Status:** Accepted
+- **Status:** Accepted — extended by
+  [ADR-071](ADR-071-registration-refuses-the-most-common-passwords.md), whose
+  `scripts/derive_common_passwords.py` also runs on any Python 3; its output ships, but the script runs
+  by hand, never in the build, and a test pins that output by its digest
 - **Date:** 2026-10-29
 - **Extends:** [ADR-030](ADR-030-the-toolchain-is-pinned-in-the-repository.md), whose "Deliberately
   left floating" list it adds to

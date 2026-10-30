@@ -3,7 +3,7 @@
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
 rather than trusted. A hundred and twenty-two of the hundred and thirty-one entries below name a test —
-a hundred and sixty-three distinct test classes and files between them. Six of the remaining nine name the
+a hundred and sixty-six distinct test classes and files between them. Six of the remaining nine name the
 command, workflow, script or setting that *is* the check (NFR-11, NFR-13, NFR-18, NFR-48, NFR-52,
 NFR-53). The last three — FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is
 about a rendered width, a colour or an overflow, and jsdom has no layout engine to observe any of them;
@@ -179,7 +179,7 @@ The role model behind every entry here is [ADR-016](../ADRs/ADR-016-roles-read-f
 | BR-14 | Concurrent edits to an upgrade are refused rather than silently merged | `UpgradePersistenceIT`, `GlobalExceptionHandlerTest` — **Known deviation:** [#194](https://github.com/NaimElijah/UpHealther/issues/194), only saves that overlap inside the server clash; an edit sent from a page opened before another edit carries no version, and replaces it |
 | BR-15 | A record is visible only to its owner; another user's record is reported as absent, never as forbidden, and in the same words as a record that does not exist, so the answer says nothing about whose it is | `UpgradePersistenceIT`, `HealthAreaPersistenceIT`, `ProgressEntryPersistenceIT`, `NotificationPersistenceIT`, `ReminderServiceTest` (another user's reminder reads exactly as an unknown id), and every `*ControllerTest` |
 | BR-16 | A field stored in a bounded column is refused at the boundary when it exceeds that bound, and the response names the field | `ColumnBoundContractTest` (bound vs. column), `UpgradeControllerTest`, `HealthAreaControllerTest`, `ProgressControllerTest`, `TrackingConfigControllerTest`, `AuthControllerTest` |
-| BR-17 | A password is at least 8 characters, and at most 72 characters and 72 bytes of UTF-8, refused by the API rather than only by the browser | `AuthControllerTest` |
+| BR-17 | A password is at least 8 characters, and at most 72 characters and 72 bytes of UTF-8, and is not one of the 10,000 common passwords on the bundled list, matched by its NFKC form in lower case. Each rule is refused by the API rather than only by the browser, as a 400 naming the password | `AuthControllerTest`, `CommonPasswordPolicyTest` (the matching), `ClasspathCommonPasswordListTest` (a missing list, an empty one or one of only blank lines stops the application starting), `CommonPasswordListTest` (the shipped list and its notice), `AuthSessionFlowIT` (the assembled application refuses a listed password) ([ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md)) |
 | BR-18 | An upgrade can be filed only under a health area its owner owns; a foreign area and a missing one are refused alike, with no hint which it was | `UpgradeServiceTest`, `HealthAreaServiceTest` |
 | BR-19 | A rating is a whole number from 1 to 5: a progress entry's rating, and a reflection's difficulty and benefit ratings | `ProgressControllerTest`, `ReflectionControllerTest` |
 | BR-20 | A numeric progress value is never negative | `ProgressControllerTest` |
@@ -199,6 +199,12 @@ password and nobody was told. From 6.4.4 (the fix for CVE-2025-22228) it throws 
 stated in both units because they differ: a character count alone let 37 accented letters (74 bytes)
 through. The minimum applies at registration, which is the only route by which a password reaches the
 system; the seeded demo account is inserted as a hash by Flyway and never passes through it.
+
+BR-17's list is the most common passwords of eight characters or more, from a pinned SecLists file
+that `scripts/derive_common_passwords.py` filters and cuts to 10,000. Only the list is checked: a
+password that is the account's email or name is not refused for that. Like the length rules, it
+applies at registration only. Sign-in never consults it, so an account registered before it, or
+seeded, still signs in.
 
 BR-18 is checked when an area is set, not on every write: an update that leaves `areaId` as it was does
 not re-check it, so an upgrade filed before the rule existed stays editable. The rule does not rewrite

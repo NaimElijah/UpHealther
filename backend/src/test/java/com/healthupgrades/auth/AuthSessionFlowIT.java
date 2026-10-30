@@ -40,6 +40,9 @@ class AuthSessionFlowIT extends PostgresIT {
 
     private static final String PASSWORD = "correct-horse-battery-staple";
 
+    /** Entry 13 of the common-password list, and long enough to pass BR-17's length rules. */
+    private static final String COMMON_PASSWORD = "password1";
+
     private static final HttpClient client = HttpClient.newHttpClient();
 
     private final ObjectMapper json = new ObjectMapper();
@@ -65,6 +68,19 @@ class AuthSessionFlowIT extends PostgresIT {
         assertThat(setCookie(registered))
                 .as("a __Host- cookie set with a Domain is refused by the browser, so no browser would hold it")
                 .doesNotContain("Domain=");
+    }
+
+    @Test
+    void GivenAPasswordOnTheCommonList_WhenAnAccountRegisters_ThenTheApplicationRefusesItNamingThePassword()
+            throws Exception {
+        // The web slices build CommonPasswordPolicy by hand, in WebSliceSupport. Only the assembled
+        // application shows that Spring builds the constraint's validator with the policy it wired over
+        // the list the jar ships (BR-17, ADR-071).
+        HttpResponse<String> refused = register(COMMON_PASSWORD);
+
+        assertThat(refused.statusCode()).isEqualTo(400);
+        assertThat(body(refused).get("fieldErrors").get("password").asString())
+                .isEqualTo("is one of the most common passwords; choose one that is harder to guess");
     }
 
     @Test
@@ -204,9 +220,13 @@ class AuthSessionFlowIT extends PostgresIT {
     // ------------------------------------------------------------------ the wire
 
     private HttpResponse<String> register() throws Exception {
+        return register(PASSWORD);
+    }
+
+    private HttpResponse<String> register(String password) throws Exception {
         String email = "flow-" + UUID.randomUUID() + "@example.com";
         String payload =
-                json.writeValueAsString(java.util.Map.of("name", "Someone", "email", email, "password", PASSWORD));
+                json.writeValueAsString(java.util.Map.of("name", "Someone", "email", email, "password", password));
         return send(request("/api/auth/register")
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(payload)));

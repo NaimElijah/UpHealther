@@ -4,6 +4,8 @@ import static org.mockito.Mockito.when;
 
 import com.healthupgrades.auth.adapter.in.web.RefreshCookieProperties;
 import com.healthupgrades.auth.adapter.in.web.RefreshCookies;
+import com.healthupgrades.auth.adapter.out.resource.ClasspathCommonPasswordList;
+import com.healthupgrades.auth.application.CommonPasswordPolicy;
 import com.healthupgrades.common.ratelimit.FixedWindowRateLimiter;
 import com.healthupgrades.common.ratelimit.RateLimitProperties;
 import com.healthupgrades.common.ratelimit.RateLimiters;
@@ -125,6 +127,19 @@ public class WebSliceSupport {
     RefreshCookies refreshCookies() {
         return new RefreshCookies(
                 new RefreshCookieProperties(COOKIE_NAME, COOKIE_PATH), Clock.fixed(COOKIE_NOW, ZoneOffset.UTC));
+    }
+
+    /**
+     * The policy registration's {@code @NotCommonPassword} consults, over the list the jar ships.
+     *
+     * <p>A slice does not scan {@code @Component}s, and Spring builds the constraint's validator, which
+     * takes the policy, on the first registration a slice sends, whatever its password. Without this bean
+     * every slice that posts to {@code /api/auth/register} fails. The list is the real one, so a slice
+     * refuses exactly the passwords the application does.
+     */
+    @Bean
+    CommonPasswordPolicy commonPasswordPolicy() {
+        return new CommonPasswordPolicy(new ClasspathCommonPasswordList());
     }
 
     // No Clock bean here: HealthUpgradesApplication already defines one and a second definition of the

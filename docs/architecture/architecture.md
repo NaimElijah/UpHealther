@@ -67,7 +67,7 @@ Ten contexts, each owning its own vocabulary, plus a cross-cutting `common`.
 | `notification` | `Notification` — the inbox and the real-time push | Full, and the only context with a messaging adapter |
 | `healtharea` | `HealthArea` — the groupings upgrades are filed under | Full |
 | `user` | `User` — identity and the stored password hash; `EmailAddress`, the one rule for when two addresses are the same identity | Full |
-| `auth` | `AuthSession` — a signed-in session, the row that makes revocation possible — and the use cases around it: registration, sign-in, sign-out, and announcing a session's end so the sockets it opened close | Full, and it orchestrates over `user` for identity |
+| `auth` | `AuthSession` — a signed-in session, the row that makes revocation possible — and the use cases around it: registration, sign-in, sign-out, and announcing a session's end so the sockets it opened close; the common-password list registration refuses | Full, and it orchestrates over `user` for identity |
 | `admin` | Listing accounts, switching one off or back on, and granting or revoking a role | Two-layer: orchestrates over `user` and `auth`, owns no aggregate. It depends on no context holding a user's own records, and ArchUnit keeps it that way |
 | `dashboard` | The composed dashboard read model | Two-layer: reads through other contexts' ports, persists nothing |
 | `common` | The `DomainEvent` marker and the `DomainEventPublisher` port; the shared exceptions, including `ConflictException`, which a context subclasses to name its own conflict; the audit trail (`AuditTrail` and `LoggingAuditTrail`); the ports it declares for a context to supply or call, `SessionStatusPort`, `AccountCredentialsPort` and `LiveSocketPort`; the global exception handler; JWT security; the WebSocket configuration and the registry of open sockets; and `observability`, `ratelimit` and `time` | Not a context; a shared kernel plus cross-cutting adapters. It depends on no context, and ArchUnit keeps it that way ([ADR-062](../ADRs/ADR-062-the-shared-kernel-depends-on-no-bounded-context.md)) |
@@ -91,6 +91,7 @@ out to). The kinds that occur:
 | `adapter/out/persistence` | A package-private Spring Data repository and the `*RepositoryAdapter` that implements the context's repository port over it | every context but `admin` and `dashboard` |
 | `adapter/out/messaging` | The STOMP push of a notification | `notification` |
 | `adapter/out/security` | Access-token issuing over `JwtTokenProvider`, and the refresh secret generator | `auth` |
+| `adapter/out/resource` | A resource bundled in the jar and read at startup: `ClasspathCommonPasswordList`, which reads the common-password list for `CommonPasswordListPort` | `auth` |
 
 `common/adapter` holds the kernel's own: the global exception handler (`in/web`), `LoggingAuditTrail`
 (`out/audit`) and `SpringDomainEventPublisher` (`out/event`). The rest of the kernel's adapters live
@@ -700,6 +701,7 @@ push service, no analytics, no AI service.
 | **Flyway** | Schema ownership and migration on startup | Embedded in the backend; `V1`–`V10` apply in order at boot. An applied migration is never edited — Flyway checksums it, comments included — so a correction is another migration |
 | **Browser WebSocket** | Real-time notification delivery | The `/ws` STOMP endpoint, proxied by nginx (or Vite in development). nginx throttles its handshake per client address, not what an open socket sends (#382, [ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md)) |
 | **nginx** | Serves the built SPA and proxies `/api` and `/ws` | Also where the security headers live — the content security policy, framing and referrer rules, declared for the whole server so that nginx's own error pages under `/api` and `/ws` carry them too ([ADR-018](../ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)). Absent from `npm run dev`, which serves no headers |
+| **SecLists' common-password list** | The passwords registration refuses as common (BR-17) | Never reached at run time. `scripts/derive_common_passwords.py` derives 10,000 entries from one pinned file, and the result is committed under `backend/src/main/resources/auth/`, beside the MIT notice that ships with it in the jar ([ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md)) |
 | **Browser Notification API** | Desktop notifications when the tab is backgrounded | Optional, permission-gated, and skipped entirely where the API is unavailable. Each carries the notification's title and message, which the operating system keeps after the session ends ([ADR-068](../ADRs/ADR-068-desktop-notifications-keep-their-detail.md)) |
 
 Integration points a maintainer will need:
@@ -823,6 +825,16 @@ carries a `user_id`. The entities map these columns as plain ids, so no JPA casc
 table that references `health_upgrades` or `users` states its `ON DELETE` outright, and moving a
 context's tables out of the database, or giving one a soft delete, would replace the cascade
 ([ADR-063](../ADRs/ADR-063-one-schema-with-cross-context-foreign-keys.md)).
+
+**Registration's password rules are constraints on the request record.** BR-17's bounds and its
+common-password list all sit on `AuthController.RegisterRequest.password`, so each refusal is the same
+400, with the password named under `fieldErrors`, before `AuthService` runs. The list is read once,
+at startup: `CommonPasswordPolicy`, in the application layer, loads it through
+`CommonPasswordListPort`, which `ClasspathCommonPasswordList` implements over the classpath, and
+the `@NotCommonPassword` validator asks the policy. Spring builds that validator with the policy
+injected, so a web slice that posts a registration needs the policy bean, which `WebSliceSupport`
+supplies. A missing list, an empty one or one of only blank lines stops the application starting
+([ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md)).
 
 **Every request record and response DTO belongs to the web adapter.** Application services take command
 records from `application/port/in` and return domain objects; a `*WebMapper` per context translates in
@@ -1048,6 +1060,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why a desktop notification carries the notification's own title and message, though the operating system keeps them after sign-out; when to revisit that | [ADR-068](../ADRs/ADR-068-desktop-notifications-keep-their-detail.md) |
 | Why the compose backend connects as a role that owns its database rather than as the superuser; why its variables are not `DB_USERNAME` and `DB_PASSWORD`; why one role and not a migrating and a serving one | [ADR-069](../ADRs/ADR-069-the-compose-backend-connects-as-a-role-that-owns-its-database.md) |
 | Why nginx throttles the `/ws` handshake although ADR-017 kept sign-in's limit in the application; why there is no cap on open sockets; what a load balancer would need first | [ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md) |
+| Why registration refuses the 10,000 most common passwords from a pinned SecLists file, rather than asking Have I Been Pwned; how the list is derived and filtered; why the refusal is a constraint beside BR-17's minimum | [ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

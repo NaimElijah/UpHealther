@@ -206,6 +206,10 @@ that.
   through, so mocking it leaves the filter and the security config real. A service test audits
   through `support/RecordingAuditTrail`, never a Mockito mock of `AuditTrail`: `recording` is a
   `default` method, which a mock stubs to return `null` without running the operation.
+- **A test's password must be off the common-password list** (BR-17, ADR-071), or registration
+  answers 400 before the use case runs: `password1` and `xxxxxxxx` are on it. Check a candidate with
+  `grep -x` in `src/main/resources/auth/common-passwords.txt`, in lower case. A web slice that posts a
+  registration needs `WebSliceSupport`, which supplies the `CommonPasswordPolicy` its validator takes.
 - **Strict stubs and carry-on loops.** `PotentialStubbingProblem` is a `RuntimeException`, so a loop
   that catches one per item and carries on (`NotificationSweepService`'s sweeps) counts a stub mismatch
   as a real failure, and the test flakes with `HashMap` order. Stub every argument the loop will see,

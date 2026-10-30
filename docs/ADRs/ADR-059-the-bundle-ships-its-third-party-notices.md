@@ -1,6 +1,10 @@
 # ADR-059: The bundle ships its third-party notices
 
-- **Status:** Accepted
+- **Status:** Accepted — extended by
+  [ADR-071](ADR-071-registration-refuses-the-most-common-passwords.md). The jar no longer "needs
+  nothing", as its Decision says: besides the nested jars it keeps whole, it carries third-party
+  data of its own, the common-password list in `BOOT-INF/classes/auth/`, and that list's notice
+  beside it
 - **Date:** 2026-10-29
 - **Scope:** `frontend/vite.config.ts` and the bundle it builds, which `frontend/Dockerfile` copies
   into the nginx image. Also records, for the jar and both images, why they need no build change

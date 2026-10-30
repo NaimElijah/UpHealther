@@ -77,7 +77,8 @@ public class AuthController {
     /**
      * Registers a new user and issues a token.
      *
-     * @param request name, email and password; all validated as non-blank, the email as well-formed
+     * @param request name, email and password; all validated as non-blank, the email as well-formed, and
+     *                the password within BR-17's bounds and off the common-password list
      * @return 201 with the JWT and the new user's public view
      * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if the email is already
      *         registered (surfaces as 422)
@@ -206,7 +207,7 @@ public class AuthController {
             @NotBlank @Size(max = NAME_MAX) String name,
             @NotBlank @Email @Size(max = EMAIL_MAX) String email,
 
-            @NotBlank @Size(min = PASSWORD_MIN, max = PASSWORD_MAX) @MaxUtf8Bytes(PASSWORD_MAX)
+            @NotBlank @Size(min = PASSWORD_MIN, max = PASSWORD_MAX) @MaxUtf8Bytes(PASSWORD_MAX) @NotCommonPassword
             String password) {
         public RegisterRequest {
             email = EmailAddress.normalise(email);
