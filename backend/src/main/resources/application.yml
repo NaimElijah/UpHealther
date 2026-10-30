@@ -176,7 +176,7 @@ logging:
     # INFO is what a deployment should run at: DEBUG is written for a developer reading along, and
     # this application's DEBUG lines fire per domain event - every minute, from dispatchReminders.
     # LOG_LEVEL_APP turns it up for one run without a code change. Everything outside this package
-    # stays at Spring's default INFO, except the two loggers below.
+    # stays at Spring's default INFO, except the three loggers below.
     com.healthupgrades: ${LOG_LEVEL_APP:INFO}
     # The audit stream (ADR-011) is not under com.healthupgrades, so it follows the root level unless it
     # is pinned. Pinned, a root turned down to WARN cannot erase the trail while audit.events goes on
@@ -190,3 +190,8 @@ logging:
     # (ADR-032). Quoted so that it stays a level name: YAML reads a bare OFF as false, which Boot maps
     # back only by alias. See ADR-027.
     org.hibernate.orm.jdbc.error: "OFF"
+    # Spring's resolver writes "Resolved [<exception>]" at DEBUG, untruncated, and a refused request
+    # body's exception quotes every rejected value, a registration's password included (NFR-6). Pinned,
+    # org.springframework.web turned up to DEBUG to diagnose a request cannot write one; the application's
+    # own line names the exception by its type (GlobalExceptionHandler). Not configurable, as AUDIT is not.
+    org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver: INFO

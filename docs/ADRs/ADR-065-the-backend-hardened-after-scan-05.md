@@ -205,6 +205,26 @@ reconstructing. `AuditedResource` loses the three kinds nothing names any more; 
 rescheduling and removing one. **Revisit** if an investigation ever needs to find one child record's
 creation by its own id: an entry could then carry both, at the cost of widening `AuditEvent`.
 
+### 12. Two loggers are pinned at INFO, whatever the levels around them (S5.C9, NFR-6)
+
+ADR-010 lets a deployment set its levels, and `application.yml` leaves everything outside
+`com.healthupgrades` at the root's. Two loggers are now exceptions, fixed in the jar and read from no
+variable:
+
+- **`AUDIT` at INFO.** The audit stream (ADR-011) is not under `com.healthupgrades`, so it followed the
+  root. A root turned down to WARN to quiet a deployment erased the trail while `audit.events` went on
+  counting entries nobody wrote. An audit trail an operator can switch off is not one.
+  `ShippedAuditLevelTest` pins it.
+- **Spring's `ExceptionHandlerExceptionResolver` at INFO.** It writes `Resolved [<exception>]` at DEBUG,
+  untruncated, and a `MethodArgumentNotValidException` quotes every rejected value, so with
+  `org.springframework.web` turned up to diagnose a request, a refused registration's password reached
+  the log beside the application's own line, which names the exception by its type. Nothing it writes at
+  DEBUG is needed: `GlobalExceptionHandler` logs every refusal it maps. `ShippedResolverLevelTest` pins
+  it.
+
+**Revisit** the first if the audit stream moves off the log, and the second if a Spring upgrade stops
+quoting the request in that line, or moves it to another logger, which the test would not see.
+
 ## Consequences
 
 **Easy.** Reuse is detected however many times the thief has refreshed, and whichever cookie endpoint the
