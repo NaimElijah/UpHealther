@@ -43,16 +43,21 @@ public class ReminderService {
      */
     @Transactional
     public Reminder create(UUID userId, UUID upgradeId, ReminderSchedule schedule) {
-        // Audited against the upgrade it hangs off, which is also what ownership is decided by.
-        return auditTrail.recording(AuditAction.REMINDER_CREATE, userId, upgradeId, () -> {
-            upgradeQuery.getOwnedUpgrade(userId, upgradeId); // ownership check (throws if not owned)
-            Reminder reminder = Reminder.create(
-                    upgradeId,
-                    schedule.reminderTime(),
-                    ReminderDays.of(schedule.days()),
-                    schedule.enabled() == null || schedule.enabled());
-            return repository.save(reminder);
-        });
+        // Audited against the reminder, the resource the action names (S5.C6), whose id exists only
+        // once it is saved. A refusal therefore names no resource, as a refused upgrade creation does.
+        return auditTrail.recordingCreation(
+                AuditAction.REMINDER_CREATE,
+                userId,
+                () -> {
+                    upgradeQuery.getOwnedUpgrade(userId, upgradeId); // ownership check (throws if not owned)
+                    Reminder reminder = Reminder.create(
+                            upgradeId,
+                            schedule.reminderTime(),
+                            ReminderDays.of(schedule.days()),
+                            schedule.enabled() == null || schedule.enabled());
+                    return repository.save(reminder);
+                },
+                Reminder::getId);
     }
 
     /**

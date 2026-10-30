@@ -233,14 +233,18 @@ class ReminderServiceTest {
     // ---- NFR-23: every attempt is audited, allowed or refused ----
 
     @Test
-    void GivenAnOwnedUpgrade_WhenAReminderIsAttached_ThenTheAttemptIsAuditedAsAllowedAgainstTheUpgrade() {
+    void GivenAnOwnedUpgrade_WhenAReminderIsAttached_ThenTheAttemptIsAuditedAsAllowedAgainstTheReminder() {
+        // S5.C6: the entry's resource is a REMINDER, so the id it carries is the reminder's.
+        UUID reminderId = UUID.randomUUID();
         when(upgradeQuery.getOwnedUpgrade(userId, upgradeId)).thenReturn(AnUpgrade.active(userId));
-        when(repository.save(any(Reminder.class))).thenAnswer(call -> call.getArgument(0));
+        when(repository.save(any(Reminder.class)))
+                .thenReturn(
+                        Reminder.builder().id(reminderId).upgradeId(upgradeId).build());
 
         service.create(userId, upgradeId, new ReminderSchedule(NINE_AM, List.of("MON"), true));
 
         assertThat(auditTrail.only(AuditAction.REMINDER_CREATE))
-                .hasValue(new AuditEvent(AuditAction.REMINDER_CREATE, userId, upgradeId, AuditOutcome.ALLOWED));
+                .hasValue(new AuditEvent(AuditAction.REMINDER_CREATE, userId, reminderId, AuditOutcome.ALLOWED));
     }
 
     @Test
@@ -250,8 +254,10 @@ class ReminderServiceTest {
 
         catchThrowable(() -> service.create(userId, upgradeId, new ReminderSchedule(NINE_AM, List.of("MON"), true)));
 
+        // Nothing was created, so the entry names no resource, as a refused upgrade or area creation
+        // does. It still names who attempted it, and the action (S5.C6).
         assertThat(auditTrail.only(AuditAction.REMINDER_CREATE))
-                .hasValue(new AuditEvent(AuditAction.REMINDER_CREATE, userId, upgradeId, AuditOutcome.REFUSED));
+                .hasValue(new AuditEvent(AuditAction.REMINDER_CREATE, userId, null, AuditOutcome.REFUSED));
     }
 
     @Test

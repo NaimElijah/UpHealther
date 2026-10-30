@@ -48,24 +48,29 @@ public class ReflectionService {
      */
     @Transactional
     public Reflection create(UUID userId, UUID upgradeId, ReflectionDetails details) {
-        // Audited against the upgrade reflected on: the reflection has no id until it is saved, and
-        // the upgrade is the record whose history somebody would be reconstructing.
-        return auditTrail.recording(AuditAction.REFLECTION_CREATE, userId, upgradeId, () -> {
-            upgradeQuery.getOwnedUpgrade(userId, upgradeId);
-            Reflection reflection = Reflection.builder()
-                    .upgradeId(upgradeId)
-                    .userId(userId)
-                    .date(details.date() != null ? details.date() : LocalDate.now(clock))
-                    .difficultyRating(details.difficultyRating())
-                    .benefitRating(details.benefitRating())
-                    .whatWorked(details.whatWorked())
-                    .whatDidNotWork(details.whatDidNotWork())
-                    .nextAdjustment(details.nextAdjustment())
-                    .build();
-            Reflection saved = repository.save(reflection);
-            eventPublisher.publish(new ReflectionAdded(saved.getId(), upgradeId, userId, LocalDateTime.now(clock)));
-            return saved;
-        });
+        // Audited against the reflection, the resource the action names (S5.C6), whose id exists only
+        // once it is saved. A refusal therefore names no resource, as a refused upgrade creation does.
+        return auditTrail.recordingCreation(
+                AuditAction.REFLECTION_CREATE,
+                userId,
+                () -> {
+                    upgradeQuery.getOwnedUpgrade(userId, upgradeId);
+                    Reflection reflection = Reflection.builder()
+                            .upgradeId(upgradeId)
+                            .userId(userId)
+                            .date(details.date() != null ? details.date() : LocalDate.now(clock))
+                            .difficultyRating(details.difficultyRating())
+                            .benefitRating(details.benefitRating())
+                            .whatWorked(details.whatWorked())
+                            .whatDidNotWork(details.whatDidNotWork())
+                            .nextAdjustment(details.nextAdjustment())
+                            .build();
+                    Reflection saved = repository.save(reflection);
+                    eventPublisher.publish(
+                            new ReflectionAdded(saved.getId(), upgradeId, userId, LocalDateTime.now(clock)));
+                    return saved;
+                },
+                Reflection::getId);
     }
 
     /**

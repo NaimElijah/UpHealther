@@ -598,7 +598,9 @@ paired with a live session of it is the half of a forged token that a signing ke
 same for every entry about one session, so they still join up, and anyone holding a session id finds
 its entries by computing it. Services record
 through `AuditTrail.recording(...)`, which brackets the operation and records the refusal as well as the
-success: BR-15 answers an attempt on somebody else's record with a `404`, so the trail is the only place
+success, or through `recordingCreation(...)` when the record the action names has no id until it is
+saved — a new upgrade, area, reflection, reminder, progress entry or tracking configuration — so the id
+on the line is always of the kind its `resource` field says: BR-15 answers an attempt on somebody else's record with a `404`, so the trail is the only place
 that attempt exists at all. `REFUSED` (the system said no) and `FAILED` (the system broke) are separate
 outcomes because they need separate reactions.
 

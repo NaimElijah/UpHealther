@@ -446,14 +446,15 @@ class TrackingServiceTest {
                 .hasMessageContaining(upgradeId.toString());
     }
 
-    // ---- NFR-23: every change is audited against the upgrade, allowed or refused ----
+    // ---- NFR-23: every change is audited against the record it names, allowed or refused ----
 
     @Test
-    void GivenAnOwnedUpgrade_WhenProgressIsRecorded_ThenTheRecordingAloneIsAuditedAsAllowed() {
+    void GivenAnOwnedUpgrade_WhenProgressIsRecorded_ThenTheRecordingAloneIsAuditedAsAllowedAgainstTheEntry() {
+        // S5.C6: the entry's resource is a PROGRESS_ENTRY, so the id it carries is the entry's.
         recordWithMilestone(today, OptionalInt.empty());
 
         assertThat(auditTrail.recorded())
-                .containsExactly(AuditEvent.allowed(AuditAction.PROGRESS_RECORD, userId, upgradeId));
+                .containsExactly(AuditEvent.allowed(AuditAction.PROGRESS_RECORD, userId, SAVED_ENTRY_ID));
     }
 
     @Test
@@ -465,8 +466,10 @@ class TrackingServiceTest {
                         userId, upgradeId, new ProgressEntryDetails(today, true, null, null, null, null)))
                 .isInstanceOf(ResourceNotFoundException.class);
 
+        // Nothing was created, so the entry names no resource, as a refused upgrade or area creation
+        // does. It still names who attempted it, and the action (S5.C6).
         assertThat(auditTrail.recorded())
-                .containsExactly(new AuditEvent(AuditAction.PROGRESS_RECORD, userId, upgradeId, AuditOutcome.REFUSED));
+                .containsExactly(new AuditEvent(AuditAction.PROGRESS_RECORD, userId, null, AuditOutcome.REFUSED));
     }
 
     @Test
@@ -479,19 +482,26 @@ class TrackingServiceTest {
                 .isInstanceOf(DuplicateProgressException.class);
 
         assertThat(auditTrail.recorded())
-                .containsExactly(new AuditEvent(AuditAction.PROGRESS_RECORD, userId, upgradeId, AuditOutcome.REFUSED));
+                .containsExactly(new AuditEvent(AuditAction.PROGRESS_RECORD, userId, null, AuditOutcome.REFUSED));
     }
 
     @Test
-    void GivenAnOwnedUpgrade_WhenItsConfigurationIsSaved_ThenTheSaveAloneIsAuditedAsAllowed() {
+    void GivenAnOwnedUpgrade_WhenItsConfigurationIsSaved_ThenTheSaveAloneIsAuditedAsAllowedAgainstTheConfiguration() {
+        // S5.C6: the entry's resource is a TRACKING_CONFIG, so the id it carries is the configuration's,
+        // which a first configuration has only once it is saved.
+        UUID configId = UUID.randomUUID();
         when(configRepository.findByUpgradeId(upgradeId)).thenReturn(Optional.empty());
-        when(configRepository.save(any(TrackingConfig.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(configRepository.save(any(TrackingConfig.class))).thenAnswer(inv -> {
+            TrackingConfig saved = inv.getArgument(0);
+            saved.setId(configId);
+            return saved;
+        });
 
         service.saveConfig(
                 userId, upgradeId, new TrackingConfigDetails(TrackingType.BOOLEAN, Frequency.DAILY, null, null, null));
 
         assertThat(auditTrail.recorded())
-                .containsExactly(AuditEvent.allowed(AuditAction.TRACKING_CONFIGURE, userId, upgradeId));
+                .containsExactly(AuditEvent.allowed(AuditAction.TRACKING_CONFIGURE, userId, configId));
     }
 
     @Test
@@ -505,9 +515,10 @@ class TrackingServiceTest {
                         new TrackingConfigDetails(TrackingType.BOOLEAN, Frequency.DAILY, null, null, null)))
                 .isInstanceOf(ResourceNotFoundException.class);
 
+        // Nothing was created, so the entry names no resource, as a refused upgrade or area creation
+        // does. It still names who attempted it, and the action (S5.C6).
         assertThat(auditTrail.recorded())
-                .containsExactly(
-                        new AuditEvent(AuditAction.TRACKING_CONFIGURE, userId, upgradeId, AuditOutcome.REFUSED));
+                .containsExactly(new AuditEvent(AuditAction.TRACKING_CONFIGURE, userId, null, AuditOutcome.REFUSED));
     }
 
     // ---- Inbound ports used by other contexts ----
@@ -577,10 +588,17 @@ class TrackingServiceTest {
     }
 
     /** Records one entry on {@code date} against a stubbed milestone verdict, which is what the BR-10 cases vary. */
+    /** The id a save gives the entry {@link #recordWithMilestone} records, as the database would. */
+    private static final UUID SAVED_ENTRY_ID = UUID.fromString("3d1e9c27-5b40-4f6a-8e12-7a9c0b4d6e85");
+
     private void recordWithMilestone(LocalDate date, OptionalInt milestone) {
         when(progressRepository.existsByUpgradeIdAndDate(any(), any())).thenReturn(false);
         when(configRepository.findByUpgradeId(upgradeId)).thenReturn(Optional.empty());
-        when(progressRepository.save(any(ProgressEntry.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(progressRepository.save(any(ProgressEntry.class))).thenAnswer(inv -> {
+            ProgressEntry saved = inv.getArgument(0);
+            saved.setId(SAVED_ENTRY_ID);
+            return saved;
+        });
         when(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenReturn(List.of());
         when(streakCalculator.milestoneReachedBy(any(), any(), any())).thenReturn(milestone);
 

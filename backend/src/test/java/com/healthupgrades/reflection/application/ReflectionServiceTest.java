@@ -165,15 +165,21 @@ class ReflectionServiceTest {
     }
 
     @Test
-    void GivenAnOwnedUpgrade_WhenAReflectionIsWritten_ThenTheAttemptIsAuditedAsAllowedAgainstTheUpgrade() {
-        // NFR-23. Audited against the upgrade: the reflection has no id until it is saved.
+    void GivenAnOwnedUpgrade_WhenAReflectionIsWritten_ThenTheAttemptIsAuditedAsAllowedAgainstTheReflection() {
+        // NFR-23, and S5.C6: the entry's resource is a REFLECTION, so the id it carries is the
+        // reflection's, read off the save, and not the upgrade's.
+        UUID reflectionId = UUID.randomUUID();
         when(upgradeQuery.getOwnedUpgrade(userId, upgradeId)).thenReturn(AnUpgrade.active(userId));
-        when(repository.save(any(Reflection.class))).thenAnswer(call -> call.getArgument(0));
+        when(repository.save(any(Reflection.class))).thenAnswer(call -> {
+            Reflection saved = call.getArgument(0);
+            saved.setId(reflectionId);
+            return saved;
+        });
 
         service.create(userId, upgradeId, DETAILS);
 
         assertThat(auditTrail.only(AuditAction.REFLECTION_CREATE))
-                .hasValue(new AuditEvent(AuditAction.REFLECTION_CREATE, userId, upgradeId, AuditOutcome.ALLOWED));
+                .hasValue(new AuditEvent(AuditAction.REFLECTION_CREATE, userId, reflectionId, AuditOutcome.ALLOWED));
     }
 
     @Test
@@ -183,8 +189,10 @@ class ReflectionServiceTest {
 
         catchThrowable(() -> service.create(userId, upgradeId, DETAILS));
 
+        // Nothing was created, so the entry names no resource, as a refused upgrade or area creation
+        // does. It still names who attempted it, and the action (S5.C6).
         assertThat(auditTrail.only(AuditAction.REFLECTION_CREATE))
-                .hasValue(new AuditEvent(AuditAction.REFLECTION_CREATE, userId, upgradeId, AuditOutcome.REFUSED));
+                .hasValue(new AuditEvent(AuditAction.REFLECTION_CREATE, userId, null, AuditOutcome.REFUSED));
     }
 
     @Test
