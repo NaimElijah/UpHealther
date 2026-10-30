@@ -149,7 +149,8 @@ exists only for deployments that split the origins.
 The two endpoints reachable without a credential — sign-in and registration — are rate-limited per
 client address by a handler interceptor, which runs before any controller so a refused attempt costs
 no password comparison. The address it counts is the one nginx reported, and only nginx's own address
-is trusted to report one
+is trusted to report one. nginx sets every `X-Forwarded-*` header it forwards, the host and port with
+the address and scheme, so none reaches Tomcat as the caller wrote it
 ([ADR-017](../ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)).
 
 **2. STOMP over WebSocket, API to browser.** One-way in practice: the browser connects and subscribes,

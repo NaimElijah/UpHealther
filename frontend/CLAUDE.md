@@ -9,7 +9,7 @@ architecture and the ADRs, and has the commands.
 and one module per backend area), `components/` (`ui/` primitives, plus `layout/`, `notifications/`,
 `theme/`, `upgrade/`), `contexts/` and `hooks/`, `lib/` (query client, view refresh, local dates),
 `pages/`, `router/`, `types/`, and `test/` (shared test helpers, and guards that span files, like
-`bootScriptCsp.test.ts`).
+`bootScriptCsp.test.ts`, and `nginxConf.test.ts`, which holds `nginx.conf`'s proxy and header rules).
 
 **Node is pinned.** `.nvmrc` names the release CI and the image build with, and `.npmrc`'s
 `engine-strict` makes npm refuse to install outside `package.json`'s `engines` range
