@@ -315,7 +315,7 @@ class HexagonalArchitectureTest {
     /**
      * A sweep port reads every user's rows, so only the scheduled jobs may hold one.
      *
-     * <p>User scoping is enforced at the query layer (BR-15): a read a request can reach takes the
+     * <p>User scoping is enforced at the query layer (BR-15): every read a request can reach takes the
      * owner's id, so another user's record comes back as absent. The sweeps need the opposite — every
      * active upgrade, every enabled reminder, everybody who logged today — and those reads live on a
      * {@code *SweepQuery} port of their own rather than beside the user-scoped ones, where a feature taking
@@ -340,6 +340,29 @@ class HexagonalArchitectureTest {
                         }
                     })))
             .as("sweep ports must be used only by the scheduled jobs' application services (BR-15)");
+
+    /**
+     * The one unscoped by-ids read stays inside the context that owns it.
+     *
+     * <p>{@code TrackingConfigQuery.findByUpgradeIds} returns configurations whoever owns the upgrade,
+     * because {@code tracking_configs} has no owner column to filter on. Today that exposes nothing: its
+     * dependents are {@code TrackingService}, which implements it, and {@code UpgradeTrackingSummaryAdapter},
+     * which answers {@code UpgradeTrackingSummaryPort} for {@code UpgradeWebMapper}. The mapper passes only
+     * the ids of upgrades it was handed, and those were loaded through user-scoped reads, so no id a request
+     * supplies reaches the query. Scoping it would cost a migration, a join onto another context's table,
+     * or a query per response, to close a path that does not exist.
+     *
+     * <p>This rule is what keeps that true. It is wrong, and the port must be scoped first, the day a class
+     * outside {@code tracking} needs it, or the day an id from a request reaches it (BR-15).
+     */
+    @ArchTest
+    static final ArchRule unscoped_tracking_config_read_stays_inside_tracking = classes()
+            .that()
+            .haveFullyQualifiedName("com.healthupgrades.tracking.application.port.in.TrackingConfigQuery")
+            .should()
+            .onlyHaveDependentClassesThat()
+            .resideInAPackage("com.healthupgrades.tracking..")
+            .as("TrackingConfigQuery, which is not scoped by owner, must be used only inside tracking (BR-15)");
 
     /** Controllers are a web concern and belong only in the web adapter. */
     @ArchTest

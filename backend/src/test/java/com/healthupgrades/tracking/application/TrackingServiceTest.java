@@ -564,11 +564,11 @@ class TrackingServiceTest {
         // NFR-14 (#99). The dashboard asks for every running upgrade's streak on each load; reading each
         // history separately made that one query per running upgrade.
         List<UUID> ids = List.of(upgradeId, UUID.randomUUID(), UUID.randomUUID());
-        when(progressRepository.findByUpgradeIdIn(ids)).thenReturn(List.of());
+        when(progressRepository.findByUserIdAndUpgradeIdIn(userId, ids)).thenReturn(List.of());
 
-        service.currentStreaks(ids);
+        service.currentStreaks(userId, ids);
 
-        verify(progressRepository).findByUpgradeIdIn(ids);
+        verify(progressRepository).findByUserIdAndUpgradeIdIn(userId, ids);
         verify(progressRepository, never()).findByUpgradeIdOrderByDateDesc(any());
     }
 
@@ -590,7 +590,7 @@ class TrackingServiceTest {
         UUID onceToday = UUID.randomUUID();
         UUID neverLogged = UUID.randomUUID();
         List<UUID> ids = List.of(upgradeId, onceToday, neverLogged);
-        when(progressRepository.findByUpgradeIdIn(ids))
+        when(progressRepository.findByUserIdAndUpgradeIdIn(userId, ids))
                 .thenReturn(List.of(
                         AProgressEntry.completedOn(upgradeId, userId, today, true),
                         AProgressEntry.completedOn(onceToday, userId, today, true),
@@ -598,14 +598,14 @@ class TrackingServiceTest {
                         AProgressEntry.completedOn(onceToday, userId, today.minusDays(2), true),
                         AProgressEntry.completedOn(upgradeId, userId, today.minusDays(2), true)));
 
-        assertThat(withRealCalculator.currentStreaks(ids))
+        assertThat(withRealCalculator.currentStreaks(userId, ids))
                 .containsExactlyInAnyOrderEntriesOf(Map.of(upgradeId, 3, onceToday, 1, neverLogged, 0));
     }
 
     @Test
     void GivenNoUpgrades_WhenTheirStreaksAreAskedFor_ThenNothingIsQueried() {
         // A dashboard with nothing running asks for no streaks; an empty IN list is not worth a round trip.
-        assertThat(service.currentStreaks(List.of())).isEmpty();
+        assertThat(service.currentStreaks(userId, List.of())).isEmpty();
 
         verifyNoInteractions(progressRepository);
     }

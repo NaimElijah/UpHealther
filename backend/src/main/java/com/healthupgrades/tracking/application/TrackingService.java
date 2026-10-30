@@ -245,17 +245,13 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Prog
 
     // ---- StreakQuery (inbound port) ----
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Unscoped by user, unlike the rest of this service: the caller is the dashboard, which has
-     * already established ownership of the upgrades it is summarising.
-     */
+    /** {@inheritDoc} */
     @Override
-    public Map<UUID, Integer> currentStreaks(Collection<UUID> upgradeIds) {
+    public Map<UUID, Integer> currentStreaks(UUID userId, Collection<UUID> upgradeIds) {
         if (upgradeIds.isEmpty()) return Map.of(); // nothing asked for, nothing queried
-        Map<UUID, List<ProgressEntry>> historyByUpgrade = progressRepository.findByUpgradeIdIn(upgradeIds).stream()
-                .collect(Collectors.groupingBy(ProgressEntry::getUpgradeId));
+        Map<UUID, List<ProgressEntry>> historyByUpgrade =
+                progressRepository.findByUserIdAndUpgradeIdIn(userId, upgradeIds).stream()
+                        .collect(Collectors.groupingBy(ProgressEntry::getUpgradeId));
         LocalDate today = LocalDate.now(clock);
         // Filled from the ids asked for rather than from the history, so an upgrade with nothing logged
         // still gets its zero.

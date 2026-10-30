@@ -56,7 +56,7 @@ public class DashboardAggregationService implements DashboardQuery {
 
         double weeklyRate = calculateWeeklyCompletionRate(userId, today);
         Map<UUID, Integer> streaks = streakQuery.currentStreaks(
-                active.stream().map(HealthUpgrade::getId).toList());
+                userId, active.stream().map(HealthUpgrade::getId).toList());
 
         // The five most recently completed upgrades.
         List<HealthUpgrade> recentlyCompleted = all.stream()

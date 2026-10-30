@@ -3,6 +3,7 @@ package com.healthupgrades.dashboard.application;
 import static java.util.Comparator.reverseOrder;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -284,7 +285,7 @@ class DashboardAggregationServiceTest {
 
         service.getDashboard(userId);
 
-        verify(streakQuery).currentStreaks(askedFor.capture());
+        verify(streakQuery).currentStreaks(eq(userId), askedFor.capture());
         verifyNoMoreInteractions(streakQuery);
         assertThat(askedFor.getValue()).containsExactlyInAnyOrder(first.getId(), second.getId());
     }
@@ -293,7 +294,7 @@ class DashboardAggregationServiceTest {
     void GivenAnActiveUpgrade_WhenTheDashboardIsBuilt_ThenItsStreakIsKeyedByItsId() {
         HealthUpgrade active = upgrade(UpgradeStatus.ACTIVE);
         stubEmptyExceptUpgrades(List.of(active));
-        when(streakQuery.currentStreaks(List.of(active.getId()))).thenReturn(Map.of(active.getId(), 9));
+        when(streakQuery.currentStreaks(userId, List.of(active.getId()))).thenReturn(Map.of(active.getId(), 9));
 
         assertThat(service.getDashboard(userId).streaks()).containsEntry(active.getId(), 9);
     }

@@ -187,9 +187,15 @@ through `JobMetrics`, and calls the application method that holds the sweep —
 `UpgradeOverdueService.announceOverdue`, `NotificationSweepService.nudgeDailyCheckin` and
 `dispatchDueReminders`, and `AuthSessionService.deleteUnusableSessions`. The sweeps read every user's
 rows through sweep ports of their own — `UpgradeSweepQuery`, `ProgressSweepQuery` and
-`ReminderSweepQuery` — which ArchUnit lets only the jobs' application services hold. The
-administrator bootstrap is the same shape: `AdminBootstrapRunner` parses its setting and calls `AdminUserService.bootstrap`,
-which applies the rules and records the promotion. No driving adapter reaches an outbound port, and
+`ReminderSweepQuery` — which ArchUnit lets only the jobs' application services hold. The other query
+ports of the contexts holding a user's own records take the owner's id, so a read a request can
+reach returns another user's row as absent (BR-15), with one exception:
+`TrackingConfigQuery.findByUpgradeIds`, which the upgrade responses use to show each upgrade's
+tracking setup, returns configurations whoever owns them, because `tracking_configs` has no owner
+column to filter on. Its one caller maps upgrades already loaded through user-scoped reads, so no
+request-supplied id reaches it, and an ArchUnit rule keeps every dependent of it inside `tracking`.
+The administrator bootstrap is the same shape: `AdminBootstrapRunner` parses its setting and calls
+`AdminUserService.bootstrap`, which applies the rules and records the promotion. No driving adapter reaches an outbound port, and
 ArchUnit names the two that may
 ([ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)).
 

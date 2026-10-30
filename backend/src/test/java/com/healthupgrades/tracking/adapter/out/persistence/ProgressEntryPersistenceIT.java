@@ -141,10 +141,36 @@ class ProgressEntryPersistenceIT extends PostgresIT {
         entityManager.flush();
         entityManager.clear();
 
-        assertThat(repository.findByUpgradeIdIn(List.of(upgradeId, secondUpgradeId)))
+        assertThat(repository.findByUserIdAndUpgradeIdIn(userId, List.of(upgradeId, secondUpgradeId)))
                 .extracting(ProgressEntry::getUpgradeId, ProgressEntry::getDate)
                 .containsExactlyInAnyOrder(
                         tuple(upgradeId, DAY), tuple(upgradeId, DAY.minusDays(1)), tuple(secondUpgradeId, DAY));
+    }
+
+    @Test
+    void GivenAnotherUsersUpgradeAmongTheIds_WhenHistoriesAreReadInOneBatch_ThenNoneOfTheirEntriesComesBack() {
+        // BR-15. The ids are the caller's to choose, so one of them can be somebody else's upgrade; the
+        // owner filter is what keeps that user's history, and their streak, out of the answer.
+        UUID strangerId = entityManager
+                .persistAndFlush(AUser.aUser()
+                        .id(null)
+                        .email("batch-stranger-" + UUID.randomUUID() + "@example.com")
+                        .build())
+                .getId();
+        UUID strangerUpgradeId = entityManager
+                .persistAndFlush(AnUpgrade.ownedBy(strangerId)
+                        .id(null)
+                        .status(UpgradeStatus.ACTIVE)
+                        .build())
+                .getId();
+        repository.save(entry(upgradeId, userId, DAY, true));
+        repository.save(entry(strangerUpgradeId, strangerId, DAY, true));
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(repository.findByUserIdAndUpgradeIdIn(userId, List.of(upgradeId, strangerUpgradeId)))
+                .extracting(ProgressEntry::getUpgradeId, ProgressEntry::getUserId)
+                .containsExactly(tuple(upgradeId, userId));
     }
 
     @Test
