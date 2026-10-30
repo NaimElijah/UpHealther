@@ -96,9 +96,11 @@ flowchart TD
 ```
 <!-- /generated:context-map -->
 
-`common` is excluded: every context depends on it by definition, so drawing it would add ten edges
-that say nothing. The absent edge is the interesting one — `upgrade` does not point at `tracking`,
-even though an upgrade's response carries its tracking configuration. Its one outgoing edge is to
+`common` is excluded. It depends on no context, which `HexagonalArchitectureTest` fails the build over
+([ADR-062](../../ADRs/ADR-062-the-shared-kernel-depends-on-no-bounded-context.md)), and every context
+depends on it, so drawing it would add ten edges that say nothing. The absent edge is the interesting
+one — `upgrade` does not point at `tracking`, even though
+an upgrade's response carries its tracking configuration. Its one outgoing edge is to
 `healtharea`, whose inbound port confirms an area is the caller's before an upgrade is filed under it. That inversion is
 [ADR-002](../../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md).
 

@@ -145,7 +145,9 @@ read/composition model with no domain or outbound side. All three are deliberate
 
 - **When a context needs something another context has, and the arrow would point the wrong way,
   invert it.** `upgrade` declares `UpgradeTrackingSummaryPort` for the tracking config its response
-  carries, and `tracking` implements it, so the graph stays acyclic (ADR-002).
+  carries, and `tracking` implements it, so the graph stays acyclic (ADR-002). The shared kernel does
+  the same: `common` depends on no context, so it declares `SessionStatusPort` and
+  `AccountCredentialsPort` in `common.domain.port.out`, and `auth` and `user` supply them (ADR-062).
 
 ## Lint
 

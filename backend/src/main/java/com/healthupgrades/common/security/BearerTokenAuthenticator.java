@@ -1,7 +1,7 @@
 package com.healthupgrades.common.security;
 
+import com.healthupgrades.common.domain.port.out.AccountCredentialsPort;
 import com.healthupgrades.common.domain.port.out.SessionStatusPort;
-import com.healthupgrades.user.application.port.in.UserQuery;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +23,7 @@ import org.springframework.stereotype.Component;
 public class BearerTokenAuthenticator {
 
     private final JwtTokenProvider tokenProvider;
-    private final UserQuery userQuery; // inbound read port of the user context
+    private final AccountCredentialsPort accounts; // inverted port; the user context supplies it
     private final SessionStatusPort sessionStatus; // inverted port; the auth context supplies it
 
     /**
@@ -58,7 +58,7 @@ public class BearerTokenAuthenticator {
                 return Optional.<BearerAuthentication>empty();
             }
             Optional<SecurityUser> principal =
-                    userQuery.findById(verified.userId()).map(SecurityUser::from);
+                    accounts.findById(verified.userId()).map(SecurityUser::from);
             if (principal.isEmpty()) {
                 // WARN, not DEBUG: the signature verified, so this token was issued by us and is being
                 // presented for an account that no longer exists. Ordinary expiry does not reach here.

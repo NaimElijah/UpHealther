@@ -62,7 +62,7 @@ Ten contexts, each owning its own vocabulary, plus a cross-cutting `common`.
 | `auth` | Registration, sign-in, sign-out, and the sessions tokens are issued within; announcing a session's end, so the sockets it opened close | `AuthSession` — a signed-in session, the row that makes revocation possible; orchestrates over `user` for identity |
 | `admin` | Listing accounts, switching one off or back on, and granting or revoking a role | Two-layer: orchestrates over `user` and `auth`, owns no aggregate. It depends on no context holding a user's own records, and ArchUnit keeps it that way |
 | `dashboard` | The composed dashboard read model | Two-layer: reads through other contexts' ports, persists nothing |
-| `common` | Cross-cutting: the `DomainEvent` marker, shared exceptions, the event-publisher port, the global exception handler, JWT security, and the WebSocket configuration with the registry of open sockets | Not a context; a shared kernel plus cross-cutting adapters |
+| `common` | Cross-cutting: the `DomainEvent` marker, shared exceptions, the event-publisher port, the global exception handler, JWT security, and the WebSocket configuration with the registry of open sockets | Not a context; a shared kernel plus cross-cutting adapters. It depends on no context, and ArchUnit keeps it that way ([ADR-062](../ADRs/ADR-062-the-shared-kernel-depends-on-no-bounded-context.md)) |
 
 The shapes that differ are deliberate, not drift. `dashboard` is two-layer by design
 ([ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)); `auth` began
@@ -174,7 +174,11 @@ and nothing is queued or persisted between publisher and consumer.
 **4. Direct calls through inbound ports, context to context.** Where a context needs to *read* another,
 it calls that context's `application/port/in` interface and receives domain objects — never a
 repository, never a web DTO. `TrackingService` confirms upgrade ownership this way before recording
-progress.
+progress. The shared kernel never calls a context this way. Where `common` needs what a context knows,
+it declares an outbound port in `common.domain.port.out` and the context supplies it: `auth` answers
+`SessionStatusPort`, whether a session is live, and `user` answers `AccountCredentialsPort`, the
+account a token or a sign-in names, through `AccountCredentialsAdapter`
+([ADR-062](../ADRs/ADR-062-the-shared-kernel-depends-on-no-bounded-context.md)).
 
 **5. Scheduled invocation.** Four cron-driven jobs drive the core with no request behind them: the
 overdue sweep, the daily check-in nudge, the per-minute reminder dispatch, and the nightly sweep of
@@ -773,6 +777,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why a PR into `dev` must have its checks run on the latest `dev`, and a promotion into `main` need not; why a second ruleset rather than strict in the first | [ADR-058](../ADRs/ADR-058-a-pr-into-dev-merges-only-once-its-checks-ran-on-the-latest-dev.md) |
 | Why the bundle ships a notices file for its third-party packages; why the jar and the images need none yet, and when that changes | [ADR-059](../ADRs/ADR-059-the-bundle-ships-its-third-party-notices.md) |
 | Why Dependabot ignores the Tailwind CSS and TypeScript majors, and what moves each by hand | [ADR-060](../ADRs/ADR-060-dependabot-holds-the-tailwind-and-typescript-majors-back.md) |
+| Why the shared kernel depends on no context; why the security adapter loads accounts through a port it declares rather than through `UserQuery`; why `User` and `Role` stay in `user` | [ADR-062](../ADRs/ADR-062-the-shared-kernel-depends-on-no-bounded-context.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

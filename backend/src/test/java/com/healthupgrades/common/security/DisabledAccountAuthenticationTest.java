@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
+import com.healthupgrades.common.domain.port.out.AccountCredentialsPort;
 import com.healthupgrades.support.AUser;
-import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.User;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,7 +48,7 @@ class DisabledAccountAuthenticationTest {
     private static final String WRONG_PASSWORD = "not-the-password";
 
     @Mock
-    UserQuery userQuery;
+    AccountCredentialsPort accounts;
 
     private CountingPasswordEncoder encoder;
     private AuthenticationProvider provider;
@@ -56,7 +56,7 @@ class DisabledAccountAuthenticationTest {
     @BeforeEach
     void setUp() {
         encoder = new CountingPasswordEncoder();
-        UserDetailsServiceImpl userDetailsService = new UserDetailsServiceImpl(userQuery);
+        UserDetailsServiceImpl userDetailsService = new UserDetailsServiceImpl(accounts);
         // The filter is null because authenticationProvider() does not touch it; overriding the encoder
         // is the only reason this is a subclass rather than the bean itself.
         SecurityConfig config = new SecurityConfig(null, userDetailsService) {
@@ -112,7 +112,7 @@ class DisabledAccountAuthenticationTest {
     }
 
     private void registered(User user) {
-        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(user));
+        when(accounts.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(AUser.credentialsFor(user)));
     }
 
     private User enabledUser() {

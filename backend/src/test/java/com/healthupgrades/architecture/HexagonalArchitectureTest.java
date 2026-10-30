@@ -239,6 +239,29 @@ class HexagonalArchitectureTest {
                     + "only user, auth and common");
 
     /**
+     * The shared kernel depends on no bounded context.
+     *
+     * <p>Every context depends on {@code common}, so an arrow from {@code common} into a context makes that
+     * context a dependency of every other one, and leaves it unable to use the kernel without closing a
+     * cycle. Where the kernel needs something a context knows, it declares an outbound port in
+     * {@code common.domain.port.out} and the context supplies it, as {@code SessionStatusPort} and
+     * {@code AccountCredentialsPort} are supplied (ADR-062).
+     *
+     * <p>The cycle rule above does not cover this. It permits an edge from the kernel into a context for as
+     * long as that context imports nothing from the kernel, which is where {@code user} was held while the
+     * security adapter called it. An allow-list rather than a list of the ten contexts, so a context added
+     * later is out of the kernel's reach from its first commit.
+     */
+    @ArchTest
+    static final ArchRule shared_kernel_depends_on_no_bounded_context = noClasses()
+            .that()
+            .resideInAPackage("com.healthupgrades.common..")
+            .should()
+            .dependOnClassesThat(
+                    resideInAPackage("com.healthupgrades..").and(not(resideInAPackage("com.healthupgrades.common.."))))
+            .as("the shared kernel must not depend on any bounded context: common may reach only common");
+
+    /**
      * Spring Data repositories stay package-private, so reaching past a port into another context's
      * persistence is impossible by compilation rather than by discipline.
      */

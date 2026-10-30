@@ -1,7 +1,6 @@
 package com.healthupgrades.common.security;
 
-import com.healthupgrades.user.domain.model.Role;
-import com.healthupgrades.user.domain.model.User;
+import com.healthupgrades.common.domain.port.out.AccountCredentials;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
@@ -16,7 +15,9 @@ import org.springframework.security.core.userdetails.UserDetails;
  *
  * <p>This is the wrapper that keeps Spring Security out of the domain: the {@code User} entity is a plain
  * JPA aggregate, and this adapter type is what implements {@link UserDetails} and is exposed to
- * controllers via {@code @AuthenticationPrincipal}. It implements {@link CredentialsContainer} so Spring
+ * controllers via {@code @AuthenticationPrincipal}. It is built from the kernel's own
+ * {@link AccountCredentials}, never from {@code User}, so the shared kernel names no type of the
+ * {@code user} context (ADR-062). It implements {@link CredentialsContainer} so Spring
  * Security clears the stored password hash once authentication has completed.
  */
 public class SecurityUser implements UserDetails, CredentialsContainer {
@@ -27,28 +28,32 @@ public class SecurityUser implements UserDetails, CredentialsContainer {
     private final UUID id; // the user's identifier, used for ownership scoping
     private final String email; // the username in Spring Security terms
     private String passwordHash; // encoded password; non-final so it can be erased after authentication
-    private final Role role; // read from the row on every request, never carried in the token
+    private final String roleName; // read from the row on every request, never carried in the token
     private final boolean enabled; // false once an administrator has switched the account off
 
-    /** Creates a principal from the identity and authorisation fields of a user. */
-    public SecurityUser(UUID id, String email, String passwordHash, Role role, boolean enabled) {
+    /**
+     * Creates a principal from the identity and authorisation fields of an account.
+     *
+     * @param roleName the role's name without the {@code ROLE_} prefix, as {@code hasRole} matches it
+     */
+    public SecurityUser(UUID id, String email, String passwordHash, String roleName, boolean enabled) {
         this.id = id;
         this.email = email;
         this.passwordHash = passwordHash;
-        this.role = role;
+        this.roleName = roleName;
         this.enabled = enabled;
     }
 
     /**
-     * Wraps a domain user. The one way principals are built, so a field added to the principal is filled
-     * in everywhere at once.
+     * Wraps an account's credentials. The one way principals are built, so a field added to the principal
+     * is filled in everywhere at once.
      *
-     * @param user the account to authenticate as
+     * @param account the account to authenticate as
      * @return a principal carrying the account's id, email and password hash
      */
-    public static SecurityUser from(User user) {
+    public static SecurityUser from(AccountCredentials account) {
         return new SecurityUser(
-                user.getId(), user.getEmail(), user.getPasswordHash(), user.getRole(), user.isEnabled());
+                account.id(), account.email(), account.passwordHash(), account.roleName(), account.enabled());
     }
 
     /** The authenticated user's id — controllers thread this through as the owner id. */
@@ -65,12 +70,7 @@ public class SecurityUser implements UserDetails, CredentialsContainer {
      */
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority(ROLE_PREFIX + role.name()));
-    }
-
-    /** The account's role, for a caller that wants the domain value rather than the authority. */
-    public Role getRole() {
-        return role;
+        return List.of(new SimpleGrantedAuthority(ROLE_PREFIX + roleName));
     }
 
     /** {@inheritDoc} The encoded password used for credential matching (null once erased). */
