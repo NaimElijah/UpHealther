@@ -153,16 +153,18 @@ names only what ArchUnit forbids (see
 [`../architecture.md`](../architecture.md#structural-decisions-not-visible-from-the-file-layout)).
 
 A driving adapter starts work and does nothing else: it calls a use case, through an inbound port or
-the context's own application service, and never an outbound port. A cron job reads the clock and
-times its run; the sweep itself, with its rules and its writes, is an application method.
+the context's own application service, and never an outbound port. A cron job times its run, and
+reads the clock where the sweep needs a date; the sweep itself, with its rules and its writes, is an
+application method.
 `adapter/in/bootstrap` holds `AdminBootstrapRunner`, which runs once at startup and calls an application
 service in the same way. `adapter/in/composition` differs: it sits on the driving side because
 it calls its own context's inbound port, but what it does is implement an outbound port that another
 context or the kernel declared. `tracking` answers `upgrade`'s `UpgradeTrackingSummaryPort`, `auth` the
-kernel's `SessionStatusPort`, and `user` its `AccountCredentialsPort`. The two exceptions to "never an
-outbound port", a composition adapter supplying a kernel port and `SessionEndSocketListener`, are
-named, with their reasons, in `HexagonalArchitectureTest`
-([ADR-002](../../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)).
+kernel's `SessionStatusPort`, and `user` its `AccountCredentialsPort`. The rule covers outbound ports
+under `domain` and `application` alike, and names three exceptions, with their reasons, in
+`HexagonalArchitectureTest`: a composition adapter, to a port it implements and the records that port
+returns; `SessionEndSocketListener`, to `LiveSocketPort`; and `UpgradeWebMapper`, to
+`UpgradeTrackingSummaryPort` ([ADR-064](../../ADRs/ADR-064-the-backends-layering-rules-beyond-adr-002.md)).
 
 This is not a convention anyone has to remember — `HexagonalArchitectureTest` fails the build on
 every arrow that runs the wrong way. Not every context has every part, and

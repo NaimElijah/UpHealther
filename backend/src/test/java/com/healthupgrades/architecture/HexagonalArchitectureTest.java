@@ -112,7 +112,7 @@ class HexagonalArchitectureTest {
      * <p>The JDK is listed by package, not as {@code java..}, because {@code java..} also admits
      * {@code java.sql}, {@code java.net}, file I/O in {@code java.io} and {@code java.util.logging}. None of
      * those is used, and each is the I/O this rule exists to keep out. Anything else is a decision to
-     * record here, with its reason, before a domain class may use it.
+     * record here, with its reason, before a domain class may use it (ADR-064).
      */
     @ArchTest
     static final ArchRule domain_depends_only_on_what_it_needs = classes()
@@ -138,7 +138,7 @@ class HexagonalArchitectureTest {
      * annotations, and so it would also admit the persistence runtime: an entity holding an
      * {@code EntityManager}, or a domain service building a {@code TypedQuery}, would be the domain doing its
      * own I/O, which is what the repository ports and their adapters are for. The runtime types and the
-     * criteria, metamodel and provider packages are therefore banned here by name.
+     * criteria, metamodel and provider packages are therefore banned here by name (ADR-064).
      */
     @ArchTest
     static final ArchRule domain_uses_jpa_only_to_map = noClasses()
@@ -193,7 +193,7 @@ class HexagonalArchitectureTest {
      * is out of the core's reach from its first commit. {@code common.time} is outside too, and unused by the
      * core: the core reads the injected {@code Clock}, and only the schedulers name {@code ServerZone}. Where
      * the core needs what a kernel adapter does, it declares an outbound port and an adapter delegates, as
-     * {@code AccessTokenIssuerPort} does for signing.
+     * {@code AccessTokenIssuerPort} does for signing (ADR-064).
      */
     @ArchTest
     static final ArchRule core_does_not_depend_on_the_kernels_adapters = noClasses()
@@ -202,7 +202,7 @@ class HexagonalArchitectureTest {
             .should()
             .dependOnClassesThat(resideInAPackage("com.healthupgrades.common..")
                     .and(not(resideInAPackage("com.healthupgrades.common.domain.."))))
-            .as("the application and domain layers may reach the kernel only through common.domain (ADR-002)");
+            .as("the application and domain layers may reach the kernel only through common.domain (ADR-064)");
 
     /**
      * Spring Data JPA may only be referenced from the persistence adapters, guaranteeing repositories are
@@ -315,7 +315,7 @@ class HexagonalArchitectureTest {
      * <p>An adapter that reads a repository, publishes an event or writes an audit entry itself is
      * holding a use case, and a second trigger for the same work — an endpoint beside a cron, say — has
      * nothing to call and copies the rules instead. Services orchestrate: load, call the domain method,
-     * save, publish (ADR-002). So a class in {@code ..adapter.in..} reaches no outbound port, under
+     * save, publish (ADR-064). So a class in {@code ..adapter.in..} reaches no outbound port, under
      * {@code domain.port.out} or {@code application.port.out} alike, and the scheduled sweeps and the
      * administrator bootstrap call application services that do.
      *
@@ -367,7 +367,7 @@ class HexagonalArchitectureTest {
                     .or(dependency(
                             "com.healthupgrades.upgrade.adapter.in.web.UpgradeWebMapper",
                             "com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummary"))))
-            .as("inbound adapters must reach the core through use cases, not through outbound ports (ADR-002)");
+            .as("inbound adapters must reach the core through use cases, not through outbound ports (ADR-064)");
 
     /**
      * The tracking summary port, which reads configurations whoever owns them, serves the upgrade mapper
@@ -380,7 +380,7 @@ class HexagonalArchitectureTest {
      * through it (BR-15). So it has two dependents: {@code UpgradeWebMapper}, which passes only the ids of
      * aggregates already loaded through user-scoped reads, and {@code UpgradeTrackingSummaryAdapter}, which
      * implements it. With {@link #unscoped_tracking_config_read_stays_inside_tracking} it is the second
-     * half of one pin.
+     * half of one pin, the trade-off ADR-064 accepts and says when to revisit.
      */
     @ArchTest
     static final ArchRule tracking_summary_port_serves_only_the_upgrade_mapper = classes()
@@ -439,7 +439,7 @@ class HexagonalArchitectureTest {
             .onlyDependOnClassesThat()
             .resideInAnyPackage(
                     "java..", "..application.port..", "..domain.model..", "com.healthupgrades.common.domain..")
-            .as("ports must take and return only published types (ADR-002)");
+            .as("ports must take and return only published types (ADR-064)");
 
     /**
      * The application services that run scheduled work, and the only classes allowed a sweep port. Named
@@ -460,7 +460,7 @@ class HexagonalArchitectureTest {
      * an id from a request could pick one up and return somebody else's row with nothing failing.
      *
      * <p>A dependent is allowed only if it is one of {@link #SCHEDULED_WORK}, or if it implements the port.
-     * Anything else that wants every user's rows is a decision to add here, not an import.
+     * Anything else that wants every user's rows is a decision to add here, not an import (ADR-064).
      *
      * <p>The rule sees only dependencies on the port itself, so each port is implemented by a class of its
      * own — {@code UpgradeSweeps}, {@code ProgressSweeps}, {@code ReminderSweeps} — and never by the

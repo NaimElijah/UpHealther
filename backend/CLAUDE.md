@@ -25,7 +25,7 @@ read/composition model with no domain or outbound side. All three are deliberate
   user-facing query port; `HexagonalArchitectureTest` lets only the jobs' application services depend
   on a `*SweepQuery`. Each is implemented by a class of its own (`UpgradeSweeps`, `ProgressSweeps`,
   `ReminderSweeps`), never by the service a controller holds, or the controller could call the sweep
-  through it. A new read a request can reach takes the owner's id instead.
+  through it (ADR-064). A new read a request can reach takes the owner's id instead.
 
 - **A role opens paths, never rows.** `USER` and `ADMIN` live on the `users` row and are read on every
   request, never carried in the token, so a revoked role takes effect on the next call. `ADMIN` unlocks
@@ -140,7 +140,7 @@ read/composition model with no domain or outbound side. All three are deliberate
   `common` only in `common.domain`, so `common.security`, `common.websocket`, `common.observability`,
   `common.ratelimit`, `common.adapter` and any kernel package added later are out. Declare a port
   instead, as `auth` does with `AccessTokenIssuerPort`, which `JwtAccessTokenIssuer` implements over
-  `JwtTokenProvider` (ADR-002).
+  `JwtTokenProvider` (ADR-064).
 
 - **A request or response record is also the frontend's type.** `FrontendWireTypesContractTest`
   renders every record a controller accepts or returns into `frontend/src/types/api.generated.ts`

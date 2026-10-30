@@ -19,14 +19,17 @@ same origin: a proxy in front of the SPA forwards `/api` and `/ws` to the API, s
 cross-origin request in the default setup.
 
 Inside the API, the code is organised as ten bounded contexts over a ports-and-adapters core. The
-core is not free of frameworks, and says where it is not. The domain imports only the standard
-library, Lombok and this codebase, with one exception: the entities carry `jakarta.persistence`
-mapping annotations ([ADR-001](../ADRs/ADR-001-ddd-hexagonal-architecture.md)). The application
-layer imports no adapter, no web type and not Spring's event bus, but its services are Spring beans
-with `@Transactional`, and `AuthService` takes Spring Security's `PasswordEncoder` and
-`AuthenticationManager`. HTTP, Spring Data, token signing and the event bus reach the core through
-adapters. The boundaries are not a convention — they are checked on every build by an ArchUnit suite,
-which is the authority on what the layering permits.
+core is not free of frameworks, and says where it is not. The domain imports only the JDK packages it
+uses, Lombok and this codebase, with one exception: the entities carry `jakarta.persistence` mapping
+annotations ([ADR-001](../ADRs/ADR-001-ddd-hexagonal-architecture.md)). The application layer imports
+no adapter, no web type and not Spring's event bus, but it uses Spring where that pays, for example:
+its services are Spring beans with `@Transactional`; `AuthService` takes Spring Security's
+`PasswordEncoder` and `AuthenticationManager`; `NotificationService` registers a transaction
+synchronisation; the sweeps recognise `CannotCreateTransactionException`; and the `*BeansConfig` and
+properties classes are `@Configuration` and `@ConfigurationProperties`. That list is illustrative;
+ArchUnit says what is forbidden. HTTP, Spring Data, token signing and the event bus reach the core
+through adapters. The boundaries are not a convention — they are checked on every build by an
+ArchUnit suite, which is the authority on what the layering permits.
 
 > **Diagram:** [System context](arch-diagrams/README.md#1-system-context) — the three
 > processes, the browser, and what each connection carries.
@@ -81,8 +84,8 @@ out to). The kinds that occur:
 | Package | Holds | Found in |
 |---|---|---|
 | `adapter/in/web` | Controllers, request and response records, and the `*WebMapper` that translates in both directions (`auth` and `admin` translate in the controller) | every context but `user` |
-| `adapter/in/scheduling` | A cron trigger: reads the clock, times the run, calls the application method that holds the sweep | `upgrade`, `notification`, `auth` |
-| `adapter/in/event` | A listener that turns a domain event into a call on the application layer | `notification`, `auth` |
+| `adapter/in/scheduling` | A cron trigger: times the run and calls the application method that holds the sweep, reading the clock first where the sweep needs a date (the session clean-up does not: its service reads it) | `upgrade`, `notification`, `auth` |
+| `adapter/in/event` | A listener that turns a domain event into a call on the application layer, or, for `SessionEndSocketListener`, into the one `LiveSocketPort` call that closes a session's sockets: the driving-adapter rule's named exception | `notification`, `auth` |
 | `adapter/in/composition` | The adapter that answers another context's or the kernel's outbound port: `UpgradeTrackingSummaryAdapter` for `UpgradeTrackingSummaryPort`, `SessionStatusAdapter` for `SessionStatusPort`, `AccountCredentialsAdapter` for `AccountCredentialsPort`. It sits under `adapter/in` because it calls its own context's inbound port, and implements a port rather than starting work | `tracking`, `auth`, `user` |
 | `adapter/in/bootstrap` | `AdminBootstrapRunner`, an `ApplicationRunner`: at startup it parses `app.admin.bootstrap-user-id` and calls `AdminBootstrapService.bootstrap`, which nothing else may hold | `admin` |
 | `adapter/out/persistence` | A package-private Spring Data repository and the `*RepositoryAdapter` that implements the context's repository port over it | every context but `admin` and `dashboard` |
@@ -91,8 +94,9 @@ out to). The kinds that occur:
 
 `common/adapter` holds the kernel's own: the global exception handler (`in/web`), `LoggingAuditTrail`
 (`out/audit`) and `SpringDomainEventPublisher` (`out/event`). The rest of the kernel's adapters live
-in packages not named `adapter` (`security`, `websocket`, `observability`, `ratelimit`), which ArchUnit
-treats as adapters all the same.
+in packages not named `adapter` (`security`, `websocket`, `observability`, `ratelimit`). Only one rule
+sees them as adapters: `core_does_not_depend_on_the_kernels_adapters`, which lets the application and
+domain layers reach the kernel in `common.domain` and nowhere else ([ADR-064](../ADRs/ADR-064-the-backends-layering-rules-beyond-adr-002.md)).
 
 ### Frontend modules
 
@@ -232,8 +236,9 @@ implements it (mechanism 2).
 
 **5. Scheduled invocation.** Four cron-driven jobs drive the core with no request behind them: the
 overdue sweep, the daily check-in nudge, the per-minute reminder dispatch, and the nightly sweep of
-sessions nothing can use again. Each scheduler is only the trigger: it reads the clock, times the run
-through `JobMetrics`, and calls the application method that holds the sweep —
+sessions nothing can use again. Each scheduler is only the trigger: it times the run through
+`JobMetrics`, reads the clock where the sweep needs a date, and calls the application method that
+holds the sweep —
 `UpgradeOverdueService.announceOverdue`, `NotificationSweepService.nudgeDailyCheckin` and
 `dispatchDueReminders`, and `AuthSessionService.deleteUnusableSessions`. The sweeps read every user's
 rows through sweep ports of their own — `UpgradeSweepQuery`, `ProgressSweepQuery` and
@@ -247,9 +252,11 @@ request-supplied id reaches it. ArchUnit pins both hops: every dependent of `Tra
 inside `tracking`, and `UpgradeTrackingSummaryPort`, through which the read reaches `upgrade`, serves
 only `UpgradeWebMapper` and the adapter that implements it.
 The administrator bootstrap is the same shape: `AdminBootstrapRunner` parses its setting and calls
-`AdminBootstrapService.bootstrap`, which applies the rules and records the promotion. No driving adapter reaches an outbound port, and
-ArchUnit names the two that may
-([ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)).
+`AdminBootstrapService.bootstrap`, which applies the rules and records the promotion.
+`inbound_adapters_do_not_drive_outbound_ports` keeps every class under `adapter/in` off the outbound
+ports, under `domain` and `application` alike, with three named exceptions: a composition adapter, to
+a port it implements and the records that port returns; `SessionEndSocketListener`, to `LiveSocketPort`;
+and `UpgradeWebMapper`, to `UpgradeTrackingSummaryPort` ([ADR-064](../ADRs/ADR-064-the-backends-layering-rules-beyond-adr-002.md)).
 
 ### Which contexts depend on which
 
@@ -381,16 +388,19 @@ sequenceDiagram
     autonumber
     participant B as Browser
     participant C as AuthController
+    participant A as AuthService
     participant S as AuthSessionService
     participant J as AccessTokenIssuerPort
     participant DB as auth_sessions
 
     Note over B,DB: Signing in
     B->>C: POST /api/auth/login
-    C->>S: open(userId)
+    C->>A: login(email, password)
+    A->>S: open(userId)
     S->>DB: INSERT — only SHA-256(credential) is stored
-    S-->>C: SessionGrant
-    C->>J: issue(userId, sessionId)
+    S-->>A: SessionGrant
+    A->>J: issue(userId, sessionId)
+    A-->>C: AuthResult
     C-->>B: 200 { token } · Set-Cookie: HttpOnly, Secure, SameSite=Strict
 
     Note over B,DB: Renewing, once the access token lapses
@@ -453,8 +463,10 @@ one and when promoting a running one to HARD.
 | `NotificationScheduler.dispatchReminders` | every minute | Fires the reminders due this minute whose upgrade is active (BR-23). Due-ness is decided by the `Reminder` aggregate; the upgrades behind the due ones are loaded in one batch, and their status is read there, so a paused upgrade's reminders are silenced without being changed. A reminder that fails to save does not cost the ones after it |
 | `AuthSessionCleanupScheduler` | daily 03:30 | Deletes revoked and expired sessions. Nothing depends on it running: an expired session is already refused by its own timestamps |
 
-All four read the clock through an injected `java.time.Clock`, which is what makes them testable
-without waiting. The clock and every cron keep time in UTC — `ServerZone`, which each `@Scheduled` names
+Each reads the clock through an injected `java.time.Clock`, which is what makes it testable without
+waiting: the three notification and overdue jobs in the scheduler, and the session clean-up in
+`AuthSessionService`, behind its scheduler. The clock and every cron keep time in UTC —
+`ServerZone`, which each `@Scheduled` names
 — so the defaults above are 08:00, 18:00, the minute and 03:30 in UTC, whatever the host's zone
 ([ADR-020](../ADRs/ADR-020-the-server-keeps-time-in-utc.md)).
 
@@ -676,24 +688,25 @@ Integration points a maintainer will need:
 ## Structural decisions not visible from the file layout
 
 **The dependency arrow always points inward.** `adapter → application → domain`, never the reverse.
-No class in `application` imports anything from `adapter`, in either direction. Nor does any class in
-`application` or `domain` import the kernel's adapters that live outside an `adapter` package:
-`common.security`, `common.websocket`, `common.observability` and `common.ratelimit`. So `AuthService`
+No class in `application` imports anything from `adapter`, in either direction. Nor may a class in
+`application` or `domain` reach the kernel outside `common.domain`, which keeps out the kernel's
+adapters that live outside an `adapter` package — `common.security`, `common.websocket`,
+`common.observability`, `common.ratelimit` — and any kernel package added later. So `AuthService`
 issues tokens through `auth`'s `AccessTokenIssuerPort`, which `JwtAccessTokenIssuer` implements over
-`JwtTokenProvider`
-([ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)). This
+`JwtTokenProvider` ([ADR-064](../ADRs/ADR-064-the-backends-layering-rules-beyond-adr-002.md)). This
 keeps HTTP, Spring Data, token signing and the event bus out of the core, and it is checked rather
 than trusted. It does not make the core Spring-free: services carry `@Service` and `@Transactional`, and
-`AuthService` uses Spring Security's `PasswordEncoder` and `AuthenticationManager`. A service's
+use Spring elsewhere too, `AuthService`'s Spring Security types among them (see the overview). A service's
 collaborators are its ports, though, so its unit test builds it with them mocked and starts no Spring
 context; `AuthServiceTest` supplies the real BCrypt encoder and mocks the `AuthenticationManager`.
 
 **The domain is framework-free, with one deliberate exception.** Domain classes import no Spring, no
 Jackson, no servlet, no bean validation, and `domain_depends_only_on_what_it_needs` allows them only
-the standard library, Lombok, this codebase's own types and `jakarta.persistence`. They do carry JPA
-mapping annotations, because the entities *are* the persistence model — there is no separate
-POJO-plus-mapper layer. All nine `@Entity` classes sit in a `domain/model` package. That trade-off is
-ADR-001's, and ADR-002 reaffirms it.
+the JDK packages they use (`java.lang`, `java.util`, `java.time`, `java.security`, `java.nio.charset`),
+Lombok, this codebase's own types and `jakarta.persistence`, whose runtime types
+`domain_uses_jpa_only_to_map` bans ([ADR-064](../ADRs/ADR-064-the-backends-layering-rules-beyond-adr-002.md)). They do carry JPA mapping annotations, because the
+entities *are* the persistence model — there is no separate POJO-plus-mapper layer. All nine `@Entity`
+classes sit in a `domain/model` package. That trade-off is ADR-001's, and ADR-002 reaffirms it.
 
 **Pure domain services carry no stereotype annotation.** `StreakCalculator`,
 `ProgressEvaluationService` and `UpgradeSchedulingService` are plain classes, hand-registered as beans
@@ -939,6 +952,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the SPA is built on TanStack Query, React Context, axios, `@stomp/stompjs`, a static build and Tailwind's semantic tokens; how its folders are layered, and why core ESLint enforces that rather than a plugin | [ADR-061](../ADRs/ADR-061-the-frontends-stack-and-layering.md) |
 | Why the shared kernel depends on no context; why the security adapter loads accounts through a port it declares rather than through `UserQuery`; why `User` and `Role` stay in `user` | [ADR-062](../ADRs/ADR-062-the-shared-kernel-depends-on-no-bounded-context.md) |
 | Why every context's tables share one schema; why a delete crosses contexts on `ON DELETE` rather than an event; what moving a context out or adding a soft delete would cost | [ADR-063](../ADRs/ADR-063-one-schema-with-cross-context-foreign-keys.md) |
+| Which layering rules the backend enforces beyond ADR-002, and the exceptions each names; why `TrackingConfigQuery` stays unscoped and a web mapper reads a port; when to revisit either | [ADR-064](../ADRs/ADR-064-the-backends-layering-rules-beyond-adr-002.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

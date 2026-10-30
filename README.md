@@ -97,7 +97,7 @@ message pushed to a connected browser.
 
 The backend is **ten bounded contexts over a shared kernel** — `auth`, `user`, `admin`, `healtharea`,
 `upgrade`, `tracking`, `reflection`, `reminder`, `dashboard`, `notification` — each a hexagon:
-adapters depend on the core, and the core depends on nothing outside itself. The graph between
+adapters depend on the core, and the core imports no adapter. The graph between
 them is acyclic, read off the `import` statements rather than drawn, and CI fails when it stops
 matching the code — see the
 [context map](docs/architecture/arch-diagrams/README.md#2-bounded-context-map).
@@ -117,7 +117,8 @@ pushed by listeners that run only after the commit, so a rolled-back write annou
 checked both when activating one and when promoting a running one to `HARD`.
 
 The layering is **enforced, not documented**: `HexagonalArchitectureTest` runs twenty-two ArchUnit rules
-on every `./mvnw test` — the domain stays framework-free, the application depends on no adapter, and
+on every `./mvnw test` — the domain stays framework-free bar JPA mapping annotations, the application
+depends on no adapter, and
 Spring Data is confined to the persistence adapters.
 
 Seven diagrams, outside in: [arch-diagrams](docs/architecture/arch-diagrams/README.md). The prose:

@@ -54,9 +54,15 @@ by an `ON DELETE` clause on a foreign key, not by an event or a call.**
 2. **A table that references `health_upgrades` or `users` states its `ON DELETE` outright.** The rule it
    carries is a requirement: `CASCADE` when the row has no meaning without its parent, `SET NULL` when
    it outlives it. The default, `NO ACTION`, would make the delete fail.
-3. **The deleting context does not learn what went.** `UpgradeService.delete` removes one row and records
+3. **The referencing column is indexed.** A `REFERENCES` clause creates no index, and on every parent
+   delete PostgreSQL's referential-integrity trigger scans the child table for the rows to cascade or
+   null. Without an index that is a sequential scan of a table that only grows.
+   `notifications.related_upgrade_id` has none today. Measured in the review of #378, on PostgreSQL 15.19
+   with synthetic data, its trigger took 10.7 ms against 0.8 ms for the indexed `progress_entries`.
+   [#340](https://github.com/NaimElijah/UpHealther/issues/340) tracks the index.
+4. **The deleting context does not learn what went.** `UpgradeService.delete` removes one row and records
    one audit entry. It publishes no event, and no other context observes the delete.
-4. **The rule is written down where a maintainer will look.** `architecture.md` names it among the
+5. **The rule is written down where a maintainer will look.** `architecture.md` names it among the
    structural decisions not visible from the file layout. The ER diagram draws the foreign keys from
    the migrations, without their `ON DELETE` clauses, so this record and the migrations carry those.
 
@@ -68,7 +74,8 @@ by an `ON DELETE` clause on a foreign key, not by an event or a call.**
   transaction, or none does. There is no window in which an upgrade is gone and its progress is not, and
   no listener that can fail after the commit and leave orphans.
 - **No event plumbing, and no ordering to get right.** Adding a context that stores data against an
-  upgrade costs one `REFERENCES ... ON DELETE CASCADE` and no change to `upgrade`.
+  upgrade costs one `REFERENCES ... ON DELETE CASCADE`, an index on the referencing column, and no
+  change to `upgrade`.
 - **The import graph stays small.** `upgrade` need not know `tracking`, `reminder` or `reflection`
   exist, which keeps the edge ADR-002 removed removed.
 - **The rule is the database's.** A code path that forgets it, or a manual `DELETE`, meets it anyway.
@@ -87,7 +94,11 @@ by an `ON DELETE` clause on a foreign key, not by an event or a call.**
   makes deleting an upgrade fail with a constraint violation. `UpgradePersistenceIT` inserts into the four
   tables that exist, so it will not notice a fifth.
 - **`SET NULL` bypasses the aggregate.** The database changes `health_upgrades.area_id` on its own when
-  an area goes, so `HealthUpgrade` is not loaded and its `@Version` is not incremented.
+  an area goes, so `HealthUpgrade` is not loaded and its `@Version` is not incremented. A request that
+  loaded the upgrade before the area was deleted, and saves it after, therefore passes the version check
+  and writes the old `area_id` back: `HealthUpgrade` has no `@DynamicUpdate`, so every column is written.
+  The stale id violates the foreign key, and the client is answered 500 by the catch-all handler where
+  a 409 would be right. [#340](https://github.com/NaimElijah/UpHealther/issues/340) tracks it.
 - **A delete leaves no trace in another context.** Nothing can react to an upgrade's removal, and an audit
   entry names only the upgrade.
 

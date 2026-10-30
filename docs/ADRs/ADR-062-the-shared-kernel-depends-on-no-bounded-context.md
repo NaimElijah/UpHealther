@@ -85,8 +85,9 @@ otherwise.**
 
 **What this makes hard**
 
-- **One more port, record and adapter.** It is the third of its kind, after `SessionStatusPort` and
-  `UpgradeTrackingSummaryPort`.
+- **One more port, record and adapter.** It is the second port the kernel declares and a context
+  supplies, after `SessionStatusPort`. (`UpgradeTrackingSummaryPort` has the same shape between two
+  contexts, and is not counted here.)
 - **A test of the security adapter stubs the port.** `AUser.credentialsFor` repeats the adapter's
   translation for those tests. `AccountCredentialsAdapterTest` pins the adapter's own translation, so
   a drift between the two fails one of them.
@@ -120,8 +121,9 @@ otherwise.**
 
 ## When to revisit
 
-- **The kernel needs a fourth thing only a context knows.** By then, security may belong in a context
-  of its own, one that the others depend on, rather than in the kernel with ports out of it.
+- **The kernel needs a third thing only a context knows**, after whether a session is live and an
+  account's credentials. By then, security may belong in a context of its own, one that the others
+  depend on, rather than in the kernel with ports out of it.
 - **Authorisation needs more than one role's name.** A permission model, or a second authority per
   account, would mean `roleName` is the wrong shape. That change supersedes ADR-016 as well as this
   record.
