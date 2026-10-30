@@ -6,9 +6,10 @@ architecture and the ADRs, and has the commands.
 `npm run dev` serves on :3000 and proxies `/api` and `/ws` → `http://localhost:8080` (see `vite.config.ts`).
 
 `src/` holds `api/` (the axios client, the token store, the error decoder, the notification socket,
-and one module per backend area), `components/` (`ui/` primitives, plus `layout/`, `notifications/`, `theme/`, `upgrade/`),
-`contexts/` and `hooks/`, `lib/` (query client, view refresh, local dates), `pages/`, `router/`,
-`types/`, and `test/` (shared test helpers, and guards that span files, like `bootScriptCsp.test.ts`).
+and one module per backend area), `components/` (`ui/` primitives, plus `layout/`, `notifications/`,
+`theme/`, `upgrade/`), `contexts/` and `hooks/`, `lib/` (query client, view refresh, local dates),
+`pages/`, `router/`, `types/`, and `test/` (shared test helpers, and guards that span files, like
+`bootScriptCsp.test.ts`).
 
 **Node is pinned.** `.nvmrc` names the release CI and the image build with, and `.npmrc`'s
 `engine-strict` makes npm refuse to install outside `package.json`'s `engines` range
@@ -59,9 +60,11 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
 
   - **Imports are layered, and lint enforces it.** A folder of `src/` imports only from those below
     it: `types` ← `api` ← `lib` ← `contexts` + `hooks` ← `components` ← `pages` ← `router` ←
-    `App.tsx` and `main.tsx`. `axios`, `@stomp/stompjs`, `types/api.generated` and `api/tokenStore` are each imported
-    from one place only, in any spelling Vite or `tsc` resolves, and the globals `fetch`,
-    `XMLHttpRequest` and `WebSocket` are refused outside `src/api/`. Tests are exempt
+    `App.tsx` and `main.tsx`. Four modules are imported only from their owners, in any spelling Vite
+    or `tsc` resolves: `axios` from `src/api/`, `@stomp/stompjs` from `api/notificationSocket.ts`,
+    `types/api.generated` from `types/index.ts`, and `api/tokenStore` from `src/api/` and
+    `contexts/AuthContext.tsx`. The globals `fetch`, `XMLHttpRequest` and `WebSocket` are refused
+    outside `src/api/`. Tests are exempt
     ([ADR-061](../docs/ADRs/ADR-061-the-frontends-stack-and-layering.md)), and
     `src/test/importRules.test.ts` checks the rules through the real configuration. A new folder
     under `src/` gets the owner rules at once, and no layer until `LAYERS` in `eslint.config.js`
@@ -81,8 +84,9 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   refresh cookie, which this code cannot read by design.
   A response interceptor treats a 401 as an expired token rather than a lost session: it renews from
   the cookie — single-flight within the tab and across tabs via `navigator.locks`, since rotation
-  makes a credential good for one use — and retries the request once. Only a refusal from the refresh
-  itself ends the session and redirects to `/login`. Both that and an accepted sign-out end it through
+  makes a credential good for one use — and retries the request once. Only a renewal that fails,
+  refused or unanswered, ends the session and redirects to `/login`; the notification socket's own
+  failed renewal does not (ADR-054). That path and an accepted sign-out both end it through
   `endSession()` in `src/api/session.ts`, a full document navigation so the query cache goes with the
   page; do not add a third way. A 401 from `/api/auth/login` or
   `/api/auth/register` is the form's answer and is left to the page, and a 403 ("known, not allowed")

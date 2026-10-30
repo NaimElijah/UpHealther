@@ -24,19 +24,21 @@ toolchain:
 
 None of them records the choices the code is built on:
 
-- **Server state** is held by TanStack Query (5.104.3, from the lockfile). There is one cache, built by
-  `lib/queryClient.ts` and provided once in `App.tsx`.
+- **Server state** is held by TanStack Query 5. There is one cache, built by `lib/queryClient.ts` and
+  provided once in `App.tsx`.
 - **Shared client state** is three React contexts: `AuthProvider`, `ThemeProvider` and
   `NotificationProvider`. A form's fields, or whether a dialog is open, live in the component that
   shows them.
-- **HTTP** goes through one axios instance (1.20.0), `api/client.ts`. Its interceptors attach the
+- **HTTP** goes through one axios 1 instance, `api/client.ts`. Its interceptors attach the
   in-memory access token, and renew it once on a 401 ([ADR-015](ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)).
   Nothing calls `fetch`.
-- **Push** is STOMP through `@stomp/stompjs` (7.5.0), on a plain WebSocket to `/ws`, in
-  `api/notificationSocket.ts`.
+- **Push** is STOMP through `@stomp/stompjs` 7, on a plain WebSocket to `/ws`, in
+  `api/notificationSocket.ts`. The browser's step of
+  [ADR-054](ADR-054-a-session-that-ends-closes-its-open-sockets.md), dropping the token on the
+  session-ended frame, lives there now, where that record names `NotificationProvider`.
 - **Delivery** is a static build: `vite build` writes `dist/`, and nginx serves it. nginx falls back to
   `index.html` for any path, and proxies `/api` and `/ws` to the backend. Nothing renders on a server.
-- **Styling** is Tailwind CSS (3.4.19, held there by [ADR-060](ADR-060-dependabot-holds-the-tailwind-and-typescript-majors-back.md)).
+- **Styling** is Tailwind CSS 3, held there by [ADR-060](ADR-060-dependabot-holds-the-tailwind-and-typescript-majors-back.md).
   Every colour is a semantic token, and `npm run check:colours` fails on a direct palette class.
 
 The folders of `src/` follow one dependency order, and nothing stated it or checked it. Before this
@@ -49,8 +51,10 @@ imported by the notification provider (A4.F1).
 **The stack.**
 
 - **TanStack Query is the one owner of server state.** A component reads the server through a query and
-  writes through a mutation, and the result is not copied into React state. A write that changes an
-  upgrade refreshes every view of upgrades ([ADR-029](ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)).
+  writes through a mutation, and the result is not copied into React state. The two exceptions are
+  `NotificationProvider`'s `markRead` and `markAllRead`, which call the API directly and write the
+  cache by hand, optimistically, before the answer. A write that changes an upgrade refreshes every
+  view of upgrades ([ADR-029](ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)).
 - **React Context holds the little client state that is shared**, one provider per concern: the
   signed-in user, the theme, and the notification connection with its toasts. Each context object
   lives in its own `…ContextValue.ts`, and its reader in `hooks/`. The split exists because
@@ -72,7 +76,9 @@ imported by the notification provider (A4.F1).
 `types` ← `api` ← `lib` ← `contexts` + `hooks` ← `components` ← `pages` ← `router` ← `App.tsx` and `main.tsx`
 
 `contexts` and `hooks` are one layer, and may import each other: each hook is the reader half of one
-context.
+context. `lib` sits above `api` because it holds what the app knows about its cache, the client and
+the keys a write refreshes: knowledge built on top of the transport, not part of it. The cost is
+that `api/` cannot use `lib/localDate.ts`: a request that needs a date takes it from its caller.
 
 **The single-owner imports.** Some modules may be imported from one place only:
 
@@ -165,6 +171,15 @@ context.
   - dependency-cruiser would add a second tool and a configuration of its own to the gate.
   - What they would add is cycle detection and resolved paths. No production module of `src/` is in an
     import cycle today, and the core rule covers the order.
+- **Feature folders** (`features/upgrades/` holding its own API calls, hooks, components and pages)
+  **instead of folders by kind.** Rejected. Much of the UI is shared across areas: `ErrorState` is on
+  nearly every page, `UpgradeCard` on four, and one write refreshes views in several areas (ADR-029).
+  Folders by kind let one order cover every file. Feature folders would still need that order inside
+  each feature, and a rule for which features may import which.
+- **A test of our own that walks the import graph**, with no dependency. Rejected for now. The core
+  rule reports on the line that breaks it, in the editor and in lint, and needs no resolver. A walk
+  would have to resolve paths the way Vite does, and what it would add over the core rule is cycle
+  detection, which no cycle needs today.
 
 ## When to revisit
 
@@ -177,3 +192,8 @@ context.
 - **TypeScript 7 arrives ([#370](https://github.com/NaimElijah/UpHealther/issues/370)), or a lint plugin
   detects import cycles without a resolver of its own.** Either is the moment to weigh cycle detection
   again.
+- **The first `import()` or `React.lazy` in production code.** The import rules do not see a dynamic
+  import, so it would pass both the layering and the owner rules.
+- **The first import cycle inside a layer**, between `contexts` and `hooks` or between two folders of
+  `components/`. The rule cannot see it; a graph walk, a test of our own or a plugin, then earns its
+  place.
