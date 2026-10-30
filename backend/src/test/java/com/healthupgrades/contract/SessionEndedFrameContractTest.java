@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
 class SessionEndedFrameContractTest {
 
     /** The browser's side, relative to the repository root. */
-    private static final String PROVIDER = "frontend/src/contexts/NotificationProvider.tsx";
+    private static final String SOCKET_MODULE = "frontend/src/api/notificationSocket.ts";
 
     /** The declaration as Prettier writes it: single quotes, one line. */
     private static final Pattern DECLARATION = Pattern.compile("const SESSION_ENDED = '([^']*)';");
@@ -30,12 +30,13 @@ class SessionEndedFrameContractTest {
     @Test
     void GivenTheFrameTheServerEndsASocketWith_WhenTheBrowserLooksForIt_ThenBothNameTheSameMessage()
             throws IOException {
-        String provider = Files.readString(RepositoryVersion.repositoryRoot().resolve(PROVIDER));
+        String socketModule =
+                Files.readString(RepositoryVersion.repositoryRoot().resolve(SOCKET_MODULE));
 
-        Matcher declared = DECLARATION.matcher(provider);
+        Matcher declared = DECLARATION.matcher(socketModule);
 
         assertThat(declared.find())
-                .describedAs("%s must declare the message it looks for as %s", PROVIDER, DECLARATION.pattern())
+                .describedAs("%s must declare the message it looks for as %s", SOCKET_MODULE, DECLARATION.pattern())
                 .isTrue();
         assertThat(declared.group(1)).isEqualTo(StompSessionRegistry.SESSION_ENDED);
     }

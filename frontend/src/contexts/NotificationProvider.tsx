@@ -1,10 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Client } from '@stomp/stompjs';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
-import { clearAccessToken, getAccessToken, hasUsableAccessToken } from '../api/tokenStore';
-import { renewSession } from '../api/client';
 import { getNotifications, getUnreadCount, markNotificationRead, markAllNotificationsRead } from '../api/notifications';
+import { openNotificationSocket } from '../api/notificationSocket';
 import { NotificationContext, type ToastData } from './notificationContextValue';
 import type { AppNotification } from '../types';
 import { toApiError, type ApiError } from '../api/apiError';
@@ -19,42 +17,20 @@ const NOTIF_KEY = ['notifications'];
 const UNREAD_KEY = [...NOTIF_KEY, 'unread-count'];
 
 /**
- * The `message` of the ERROR frame the server closes a socket with once its session has ended: the
- * backend's `StompSessionRegistry.SESSION_ENDED`. `SessionEndedFrameContractTest` fails the backend build
- * if the two differ.
- */
-const SESSION_ENDED = 'Session ended';
-
-/**
- * Builds the WebSocket URL.
- *
- * Same-origin `/ws` through the Vite or nginx proxy by default, so the socket needs no CORS setup;
- * derived from `VITE_API_URL` only when the API is on another origin. The scheme is upgraded in step
- * with the page's, since a `ws://` socket on an `https://` page is blocked by the browser.
- */
-function buildWsUrl(): string {
-  const apiUrl = import.meta.env.VITE_API_URL;
-  if (apiUrl && /^https?:\/\//.test(apiUrl)) {
-    return apiUrl.replace(/^http/, 'ws').replace(/\/$/, '') + '/ws';
-  }
-  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${proto}//${window.location.host}/ws`;
-}
-
-/**
- * Owns notification state: the list, the unread count, the live connection and the toasts.
+ * Owns notification state: the list, the unread count, whether the live connection is up, and the
+ * toasts.
  *
  * Notifications arrive by two routes and both write to the same query cache — a REST fetch on mount,
- * and a STOMP subscription for anything raised while the tab is open. Live arrivals are de-duplicated
- * by id, so a notification that comes in both ways is shown once.
+ * and the socket of `api/notificationSocket` for anything raised while the tab is open. Live arrivals are
+ * de-duplicated by id, so a notification that comes in both ways is shown once.
  *
  * The unread count is the server's, not one counted from the list: the list holds only the fifty most
  * recent, and the count covers every notification (FR-33, #94).
  *
  * It holds the toasts and does not draw them: `ToastContainer` reads them from this context, mounted
  * beside the routes inside this provider and inside the router, because a toast can navigate. Mounted
- * inside the auth provider because the socket authenticates with an access token. The connection
- * follows the session: it opens when signed in and closes on logout or unmount.
+ * inside the auth provider because the socket is opened only while signed in. The connection follows
+ * the session: it opens when signed in and closes on logout or unmount.
  */
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useAuth();
@@ -64,7 +40,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [desktopPermission, setDesktopPermission] = useState<NotificationPermission>(
     typeof Notification !== 'undefined' ? Notification.permission : 'denied',
   );
-  const clientRef = useRef<Client | null>(null);
   const [actionError, setActionError] = useState<ApiError | undefined>(undefined);
 
   const { data: notifications = [], error: listError } = useQuery({
@@ -135,71 +110,18 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     [queryClient, pushToast],
   );
 
-  // STOMP connection lifecycle — connect while authenticated, disconnect on logout/unmount.
-  // Reconnects every five seconds while the socket is down; nothing is lost meanwhile, since anything
-  // missed is still fetched by the REST query.
+  // The socket follows the session: open while authenticated, closed on logout/unmount. While it is down
+  // it reconnects on its own, and nothing is lost meanwhile, since anything missed is still fetched by the
+  // REST query.
   // handleIncoming is a dependency, so it is memoised: a new identity each render would tear the
   // socket down and rebuild it on every render.
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    const client = new Client({
-      brokerURL: buildWsUrl(),
-      // Read at connect time rather than captured when the effect ran. The access token is short
-      // lived and renewed underneath us, so a captured one would be stale by the first reconnect -
-      // and putting it in the dependency list instead would tear the socket down and rebuild it
-      // every fifteen minutes, losing the subscription each time for no reason.
-      //
-      // It is also renewed here when it has lapsed. Reading it without checking was an infinite
-      // loop waiting to happen: a tab left idle past the token's fifteen minutes with no HTTP
-      // traffic to renew it would reconnect with a dead token, be refused, and retry the same dead
-      // token every five seconds - live notifications silently gone, and a refused CONNECT in the
-      // server log every five seconds forever.
-      beforeConnect: async () => {
-        try {
-          if (!hasUsableAccessToken()) {
-            await renewSession();
-          }
-          const current = getAccessToken();
-          client.connectHeaders = current ? { Authorization: `Bearer ${current}` } : {};
-        } catch {
-          // stompjs 7 awaits this hook and schedules no reconnect if it throws, so a failure here
-          // would end the socket permanently rather than for one attempt. A connect with no header
-          // is refused by the server, which is a reconnect rather than a dead client.
-        }
-      },
-      reconnectDelay: 5000,
-      onConnect: () => {
-        setConnected(true);
-        client.subscribe('/user/queue/notifications', (message) => {
-          try {
-            handleIncoming(JSON.parse(message.body) as AppNotification);
-          } catch {
-            // A frame that will not parse is dropped rather than thrown: an exception here would
-            // propagate into the STOMP client and tear down the subscription, costing every later
-            // notification as well as this one.
-          }
-        });
-      },
-      onWebSocketClose: () => setConnected(false),
-      // The server ends a socket whose session has ended with this frame (ADR-054). The token can still
-      // look usable by its clock, so it is dropped: the next attempt renews first instead of presenting
-      // it again, which would be refused - and audited - every five seconds until it lapsed. Any other
-      // ERROR leaves the token alone. Spring sends the same generic one for every refused frame, an
-      // outage included, and dropping a live token then would sign the tab out of a live session.
-      onStompError: (frame) => {
-        if (frame.headers.message === SESSION_ENDED) {
-          clearAccessToken();
-        }
-        setConnected(false);
-      },
-    });
-    client.activate();
-    clientRef.current = client;
+    const close = openNotificationSocket({ onNotification: handleIncoming, onConnectionChange: setConnected });
 
     return () => {
-      client.deactivate();
-      clientRef.current = null;
+      close();
       setConnected(false);
     };
   }, [isAuthenticated, handleIncoming]);

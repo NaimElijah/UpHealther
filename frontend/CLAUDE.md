@@ -5,8 +5,8 @@ architecture and the ADRs, and has the commands.
 
 `npm run dev` serves on :3000 and proxies `/api` and `/ws` → `http://localhost:8080` (see `vite.config.ts`).
 
-`src/` holds `api/` (the axios client, the token store, the error decoder, and one module per backend
-area), `components/` (`ui/` primitives, plus `layout/`, `notifications/`, `theme/`, `upgrade/`),
+`src/` holds `api/` (the axios client, the token store, the error decoder, the notification socket,
+and one module per backend area), `components/` (`ui/` primitives, plus `layout/`, `notifications/`, `theme/`, `upgrade/`),
 `contexts/` and `hooks/`, `lib/` (query client, view refresh, local dates), `pages/`, `router/`,
 `types/`, and `test/` (shared test helpers, and guards that span files, like `bootScriptCsp.test.ts`).
 
@@ -75,7 +75,9 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   itself ends the session and redirects to `/login`. A 401 from `/api/auth/login` or
   `/api/auth/register` is the form's answer and is left to the page, and a 403 ("known, not allowed")
   never ends a session. See [ADR-015](../docs/ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md).
-  All `src/api/*.ts` modules call through this client — add new endpoints there, not with raw axios.
+  Every HTTP call in `src/api/*.ts` goes through this client — add new endpoints there, not with raw
+  axios. The one other transport, the STOMP socket, is `src/api/notificationSocket.ts`, and it takes
+  its origin from the same `apiBaseUrl()`.
 - **Signing out can fail, and the failure has to be shown.** `logout()` rejects when the server could
   not be reached; the refresh cookie is then still in the browser, so the next page load signs the
   user back in. Clearing local state anyway would tell somebody on a shared machine they had signed

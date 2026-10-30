@@ -7,6 +7,7 @@
  * instance elsewhere would bypass both.
  */
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import { apiBaseUrl } from './apiBaseUrl';
 import { clearAccessToken, getAccessToken, setAccessToken } from './tokenStore';
 import type { AuthResponse } from '../types';
 
@@ -16,7 +17,7 @@ import type { AuthResponse } from '../types';
 // withCredentials so the refresh cookie travels even when the API is on another origin; a same-origin
 // request would send it regardless, and a deployment that split the origins would silently not.
 const client = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '',
+  baseURL: apiBaseUrl(),
   withCredentials: true,
 });
 
