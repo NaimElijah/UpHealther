@@ -21,7 +21,6 @@ import com.healthupgrades.support.RecordingAuditTrail;
 import com.healthupgrades.tracking.application.port.in.ProgressEntryDetails;
 import com.healthupgrades.tracking.application.port.in.StreakSummary;
 import com.healthupgrades.tracking.application.port.in.TrackingConfigDetails;
-import com.healthupgrades.tracking.domain.event.ProgressEntryRecorded;
 import com.healthupgrades.tracking.domain.event.StreakAchieved;
 import com.healthupgrades.tracking.domain.model.Frequency;
 import com.healthupgrades.tracking.domain.model.ProgressEntry;
@@ -215,40 +214,6 @@ class TrackingServiceTest {
         when(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenReturn(List.of());
 
         assertThat(service.recordProgress(userId, upgradeId, req).getDate()).isEqualTo(today);
-    }
-
-    @Test
-    void GivenProgressIsRecorded_WhenItIsStored_ThenItIsAnnounced() {
-        UUID entryId = UUID.randomUUID();
-        ProgressEntryDetails req = new ProgressEntryDetails(today, true, null, null, null, null);
-
-        when(progressRepository.existsByUpgradeIdAndDate(any(), any())).thenReturn(false);
-        when(configRepository.findByUpgradeId(upgradeId)).thenReturn(Optional.empty());
-        when(progressRepository.save(any(ProgressEntry.class))).thenAnswer(inv -> {
-            ProgressEntry e = inv.getArgument(0);
-            e.setId(entryId);
-            return e;
-        });
-        when(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenReturn(List.of());
-
-        service.recordProgress(userId, upgradeId, req);
-
-        ArgumentCaptor<ProgressEntryRecorded> event = ArgumentCaptor.forClass(ProgressEntryRecorded.class);
-        verify(eventPublisher).publish(event.capture());
-        assertThat(event.getValue().progressId()).isEqualTo(entryId);
-        assertThat(event.getValue().upgradeId()).isEqualTo(upgradeId);
-        assertThat(event.getValue().userId()).isEqualTo(userId);
-        assertThat(event.getValue().date()).isEqualTo(today);
-    }
-
-    @Test
-    void GivenProgressIsRecorded_WhenItIsAnnounced_ThenTheAnnouncementIsTimedByTheInjectedClock() {
-        // NFR-15 (#100): the wall clock stamps whatever time and zone the host happens to have.
-        recordWithMilestone(today, OptionalInt.empty());
-
-        ArgumentCaptor<ProgressEntryRecorded> event = ArgumentCaptor.forClass(ProgressEntryRecorded.class);
-        verify(eventPublisher).publish(event.capture());
-        assertThat(event.getValue().occurredAt()).isEqualTo(LocalDateTime.now(fixedClock));
     }
 
     @Test

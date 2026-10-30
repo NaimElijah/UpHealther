@@ -384,7 +384,7 @@ sequenceDiagram
     S->>S: score the entry against the tracking config
     S->>R: save(entry)
     R->>DB: INSERT
-    S-->>L: ProgressEntryRecorded · StreakAchieved
+    S-->>L: StreakAchieved — only when the entry reaches a streak milestone
     Note over L: AFTER_COMMIT — nothing fires if the transaction rolls back
     L->>DB: INSERT notification
     L->>W: push

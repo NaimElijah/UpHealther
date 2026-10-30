@@ -12,7 +12,6 @@ import com.healthupgrades.tracking.application.port.in.StreakQuery;
 import com.healthupgrades.tracking.application.port.in.StreakSummary;
 import com.healthupgrades.tracking.application.port.in.TrackingConfigDetails;
 import com.healthupgrades.tracking.application.port.in.TrackingConfigQuery;
-import com.healthupgrades.tracking.domain.event.ProgressEntryRecorded;
 import com.healthupgrades.tracking.domain.event.StreakAchieved;
 import com.healthupgrades.tracking.domain.model.ProgressEntry;
 import com.healthupgrades.tracking.domain.model.TrackingConfig;
@@ -149,8 +148,6 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Prog
             }
 
             ProgressEntry saved = progressRepository.save(entry);
-            eventPublisher.publish(
-                    new ProgressEntryRecorded(saved.getId(), upgradeId, userId, date, LocalDateTime.now(clock)));
 
             List<ProgressEntry> allEntries = progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId);
             streakCalculator
