@@ -869,6 +869,12 @@ returns 500 rather than 400 (BR-16). Nothing structural connects the two: the en
 column disagree, or when a new bounded column is neither mirrored by a DTO nor listed as one no
 request body writes to.
 
+**One character is refused for every field at once.** PostgreSQL refuses U+0000 in any text column, so
+a body carrying one reached the flush and returned 500 with an ERROR line. `NulRefusingStringModule`, a
+Jackson module Boot registers with its mapper, refuses any string a request body carries that holds one,
+which reaches the client as the 400 of a malformed body. It is one module rather than a constraint per
+field so that a field added later is covered without anybody remembering it.
+
 **The repository's commands are defined once, in the root `package.json`.** `npm run setup`,
 `npm start` and `npm test` are its entry points, and CI's jobs call its `test:*` scripts rather than
 spelling out their own, so a local run applies the checks CI applies. `setup` runs `setup:frontend`

@@ -98,6 +98,20 @@ class AuthControllerTest {
     UserDetailsServiceImpl userDetailsService;
 
     @Test
+    void GivenANameCarryingANulCharacter_WhenAVisitorRegisters_ThenItAnswers400BeforeTheUseCase() throws Exception {
+        // S5.B5, on the one anonymous route that stores text: U+0000 used to reach PostgreSQL, which
+        // refuses it, and come back 500 with an ERROR line.
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Some\\u0000one\",\"email\":\"someone@example.com\","
+                                + "\"password\":\"s3cret!42\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+
+        verify(authService, never()).register(anyString(), anyString(), anyString());
+    }
+
+    @Test
     void GivenValidRegistrationDetails_WhenAVisitorRegisters_ThenItAnswers201WithATokenAndTheirProfile()
             throws Exception {
         when(authService.register(anyString(), anyString(), anyString()))
