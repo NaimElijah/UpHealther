@@ -11,8 +11,9 @@
   [#334](https://github.com/NaimElijah/UpHealther/issues/334), finding S5.A6. The owner's decisions are
   [the S5.A6 bullet](https://github.com/NaimElijah/UpHealther/issues/339#issuecomment-6516800870) and
   [the deny-list's terms](https://github.com/NaimElijah/UpHealther/issues/339#issuecomment-6522753362).
-  Builds on [ADR-003](ADR-003-proprietary-source-available-licensing.md) and extends what
-  [ADR-059](ADR-059-the-bundle-ships-its-third-party-notices.md) says about the jar.
+  Builds on [ADR-003](ADR-003-proprietary-source-available-licensing.md), extends what
+  [ADR-059](ADR-059-the-bundle-ships-its-third-party-notices.md) says about the jar, and extends
+  [ADR-055](ADR-055-python-is-left-floating-at-any-python-3.md) to a second script.
 
 ## Context
 
@@ -71,6 +72,11 @@ passwords, answered 400 with a field error on `password`, as BR-17's minimum is.
     any other entry.
   - A duplicate is judged on the normalised form, because the matcher cannot tell `Password1` from
     `password1`. The 10,000 entries are therefore 10,000 passwords the rule refuses separately.
+  - The script runs on any Python 3 that `scripts/python.mjs` accepts, through
+    `from __future__ import annotations`, as `generate.py` does. Its output ships in the jar, yet
+    [ADR-055](ADR-055-python-is-left-floating-at-any-python-3.md) still holds: the script runs by hand,
+    never in the build, and `CommonPasswordListTest` pins its output by the digest the notice records,
+    so what another interpreter derives cannot ship unless the notice's digest changes with it.
 - **The notice.** `common-passwords-NOTICE.txt` sits beside the list. It carries SecLists' MIT notice
   verbatim, the source URL, the pinned commit and both SHA-256s. Both files are in
   `src/main/resources`, so both ship in the jar, under `BOOT-INF/classes/auth/`.

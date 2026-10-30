@@ -33,6 +33,8 @@ length so that only substrings of that length are hashed. A digest is checked wi
 ``printf %s term | sha256sum``. A term is matched anywhere in the normalised entry.
 """
 
+from __future__ import annotations
+
 import argparse
 import hashlib
 import re
