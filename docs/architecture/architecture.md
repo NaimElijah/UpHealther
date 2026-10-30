@@ -374,9 +374,13 @@ The browser's half of a read, and of the write that makes it stale:
    one use. Only a renewal that fails ends the session, through `endSession`, whether the server
    refused it or did not answer within `REFRESH_TIMEOUT_MS`, ten seconds, after which it stops waiting,
    though the request itself runs on, so that the cross-tab lock is not held by a stalled one
-   ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)). The
-   socket's own failed renewal does not: it reconnects without a token, and the tab's next request
-   ends the session ([ADR-054](../ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md)).
+   ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)). A renewal
+   answered 429, the session endpoints' per-address limit, is not a failure of the session: the
+   request fails with that 429, the token is kept, and the next request tries again; at page load the
+   tab shows nobody signed in and ends nothing, so a later load restores the session
+   ([ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md)). The socket's own failed renewal
+   does not end it either: it reconnects without a token, and the tab's next request ends the session
+   ([ADR-054](../ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md)).
 3. **The request is same-origin.** Its base URL is relative unless `VITE_API_URL` is set, which is
    meant for an API on another origin (`api/apiBaseUrl.ts`). So `/api/...` reaches the backend through
    the Vite dev server's proxy, or through nginx in the image.

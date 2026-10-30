@@ -86,7 +86,11 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   the cookie — single-flight within the tab and across tabs via `navigator.locks`, since rotation
   makes a credential good for one use — and retries the request once. Only a renewal that fails,
   refused or unanswered, ends the session and redirects to `/login`; the notification socket's own
-  failed renewal does not (ADR-054). Unanswered means no answer within `REFRESH_TIMEOUT_MS`, ten
+  failed renewal does not (ADR-054). A renewal answered 429 has not failed: the limit is per client
+  address, so someone else behind it can spend it, and `renewSession` rejects with that 429 instead of
+  answering false. The request fails with it, nothing is cleared, and no session ends (ADR-065); keep
+  it that way in any new caller of `renewSession`. What every other failed renewal should do is #377's,
+  and the socket's reconnect loop is #384's. Unanswered means no answer within `REFRESH_TIMEOUT_MS`, ten
   seconds, so a stalled renewal does not keep the cross-tab lock. It stops the wait, never the
   request: a refresh rotates the credential, so cancelling one the server has already committed
   would throw away the only cookie still good. The server's session-ended ERROR frame on the

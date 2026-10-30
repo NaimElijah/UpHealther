@@ -183,7 +183,15 @@ issued. An account switched off at any moment is signed out at its next refresh 
 - A deployment that sets a lifetime outside its bounds no longer starts. That is the intent, and
   the error names the property.
 - A household with more than sixty renewals and sign-outs a minute behind one address is refused 429
-  until the window turns.
+  until the window turns. The limit is counted per address before any cookie is read, so anyone behind
+  the same NAT can spend it, with no account. The SPA therefore treats a 429 from the renewal as no
+  answer about the session: the request that needed the renewal fails with the 429, the token and the
+  cookie are kept, and no session ends; a 429 on the page-load restore shows the tab signed out
+  without ending anything. Before this record a refresh never answered 429, and every refusal other
+  than a 409 ended the session; what the others should do is
+  [#377](https://github.com/NaimElijah/UpHealther/issues/377)'s. The socket still renews on every
+  reconnect, every five seconds, so tabs whose session is dead spend the shared allowance; that loop is
+  [#384](https://github.com/NaimElijah/UpHealther/issues/384)'s.
 - The credential travels with every request to the origin, not only to `/api/auth`, so anything that
   logs request headers on the way, a proxy or an access log, sees it on every call. Nothing in this
   repository logs a request's cookies; a proxy or log added later must not either.
