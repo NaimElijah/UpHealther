@@ -16,8 +16,9 @@ The derivation, in this order, line by line and in the source's rank order:
 1. Strip CR, so the file reads the same whatever line endings it was checked out with.
 2. Keep an entry of ``MIN_LENGTH`` characters or more. A shorter one is refused by BR-17's minimum
    already, so listing it would only push a longer one out.
-3. Drop an entry holding ``@`` (an email address, or part of one), a non-ASCII character or a
-   non-printable one. A space is printable and is kept.
+3. Drop an entry that is an email address as a whole, ``something@domain.tld`` (``EMAIL_ADDRESS``),
+   and one holding a non-ASCII character or a non-printable one. Any other entry holding ``@`` is
+   kept, since ``P@ssw0rd`` is a password, and so is one holding a space, which is printable.
 4. Normalise it as the backend does a password: NFKC, then lower case. On the ASCII left after step 3,
    NFKC changes nothing, so this lower-cases it.
 5. Drop it if it holds a term from ``BLOCKED_TERMS``.
@@ -34,6 +35,7 @@ length so that only substrings of that length are hashed. A digest is checked wi
 
 import argparse
 import hashlib
+import re
 import sys
 import unicodedata
 from collections import Counter
@@ -53,6 +55,10 @@ MIN_LENGTH = 8
 
 # The owner's decision on issue #339 (S5.A6). OWASP ASVS 5.0 6.2.4 asks for at least 3,000.
 LIST_SIZE = 10_000
+
+# A whole entry shaped as an email address, something@domain.tld. An "@" alone is not one: p@ssw0rd and
+# 1qaz@wsx are common passwords, and dropping every entry that held "@" let them register.
+EMAIL_ADDRESS = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 
 OUTPUT = Path(__file__).resolve().parents[1] / "backend/src/main/resources/auth/common-passwords.txt"
 
@@ -113,8 +119,8 @@ def derive(source: bytes) -> tuple[list[str], Counter, int]:
         if len(line) < MIN_LENGTH:
             dropped["shorter than the minimum"] += 1
             continue
-        if "@" in line:
-            dropped["holds @"] += 1
+        if EMAIL_ADDRESS.fullmatch(line):
+            dropped["an email address"] += 1
             continue
         if not line.isascii():
             dropped["non-ASCII"] += 1

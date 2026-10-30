@@ -37,6 +37,12 @@ class CommonPasswordListTest {
     /** Printable ASCII, the space included, which is all the derivation keeps. */
     private static final Pattern PRINTABLE_ASCII = Pattern.compile("[\\x20-\\x7e]+");
 
+    /**
+     * A whole entry shaped as an email address, {@code something@domain.tld}: the one kind of entry with
+     * an {@code @} that the derivation drops.
+     */
+    private static final Pattern EMAIL_ADDRESS = Pattern.compile("[^@\\s]+@[^@\\s]+\\.[^@\\s]+");
+
     @Test
     void GivenTheShippedList_WhenItIsRead_ThenItHoldsTenThousandDistinctEntries() throws IOException {
         List<String> entries = shippedEntries();
@@ -46,14 +52,21 @@ class CommonPasswordListTest {
 
     @Test
     void GivenTheShippedList_WhenEachEntryIsRead_ThenItHasTheShapeTheDerivationKeeps() throws IOException {
-        // At least the minimum, since a shorter one is refused already; printable ASCII with no "@";
-        // and already lower case, which on ASCII is the whole of the normalisation.
+        // At least the minimum, since a shorter one is refused already; printable ASCII, and not an email
+        // address; and already lower case, which on ASCII is the whole of the normalisation.
         assertThat(shippedEntries())
                 .allSatisfy(entry -> assertThat(entry)
                         .hasSizeGreaterThanOrEqualTo(AuthController.PASSWORD_MIN)
                         .matches(PRINTABLE_ASCII)
-                        .doesNotContain("@")
+                        .doesNotMatch(EMAIL_ADDRESS)
                         .isEqualTo(entry.toLowerCase(Locale.ROOT)));
+    }
+
+    @Test
+    void GivenTheShippedList_WhenItIsRead_ThenItKeepsTheCommonPasswordsThatHoldAnAtSign() throws IOException {
+        // An "@" alone does not make an entry an email address. These are common passwords, which a
+        // sprayer tries early; lower case, because the list is stored normalised.
+        assertThat(shippedEntries()).contains("p@ssw0rd", "1qaz@wsx", "zaq1@wsx");
     }
 
     @Test

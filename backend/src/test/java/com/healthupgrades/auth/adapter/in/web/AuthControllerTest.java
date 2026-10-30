@@ -234,6 +234,20 @@ class AuthControllerTest {
     }
 
     @Test
+    void GivenACommonPasswordHoldingAnAtSign_WhenAVisitorRegisters_ThenItIsRefusedLikeAnyOther() throws Exception {
+        // "@" does not make a password an email address: P@ssw0rd is on the list, and the derivation
+        // drops only an entry that is a whole address. ADR-071.
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(registrationWithPassword("P@ssw0rd")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Validation failed"))
+                .andExpect(jsonPath("$.fieldErrors.password").value(COMMON_PASSWORD_MESSAGE));
+
+        verify(authService, never()).register(any(), any(), any());
+    }
+
+    @Test
     void GivenAPasswordThatOnlyContainsACommonOne_WhenAVisitorRegisters_ThenItIsAccepted() throws Exception {
         // The list is matched whole, never as a substring: "password1" is on it and "password1!" is not.
         when(authService.register(anyString(), anyString(), anyString()))

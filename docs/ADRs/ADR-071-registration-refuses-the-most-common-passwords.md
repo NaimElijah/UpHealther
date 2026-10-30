@@ -54,15 +54,21 @@ passwords, answered 400 with a field error on `password`, as BR-17's minimum is.
   is `07f876a616f08fb2cc5c3e0ce04e4a6d1123380580472b0997baebc4e8226977`.
 - **The derivation** is `scripts/derive_common_passwords.py`, committed so that anyone can repeat it.
   It refuses a source with another SHA-256. Line by line in rank order, it strips CR, keeps an entry
-  of eight characters or more, drops one holding `@`, a non-ASCII character or a non-printable one,
-  normalises it, drops slurs and hate slogans, drops a normalised duplicate, and stops at 10,000.
-  Nothing is sorted. The derived list's SHA-256 is
-  `0b88366810ca17dfbd269745fda35ab13e56a7f3e9f82f2f8fed90dab28b722b`.
+  of eight characters or more, drops one that is an email address as a whole (`something@domain.tld`)
+  and one holding a non-ASCII character or a non-printable one, normalises it, drops slurs and hate
+  slogans, drops a normalised duplicate, and stops at 10,000. Nothing is sorted. The derived list's
+  SHA-256 is `e3404947376fd7131257479a5c0441198c5ec0134fd2dc70c7db0837e43753dd`.
   - The list was also read by eye, every entry and the ones that would follow it. The filter's terms
     are the slurs and hate slogans that reading found. The script stores them as SHA-256 digests, so
     the repository does not spell them. They dropped nine entries: six racial or ethnic slurs, one
     slur against disability and two hate codes. One of the six is a former NFL team's name, which
     dictionaries define as an ethnic slur, so the team's sense does not keep it.
+  - An `@` alone does not drop an entry, by the owner's decision on
+    [PR #385](https://github.com/NaimElijah/UpHealther/pull/385)'s review. `p@ssw0rd`, `1qaz@wsx` and
+    `zaq1@wsx` are common passwords that a sprayer tries early, and dropping every entry holding `@`
+    let them register. No entry of the pinned source is a whole address, so the rule drops none of
+    it today. `@yahoo.com` and `@gmail.com.mx`, fragments of one, stay on the list and are refused like
+    any other entry.
   - A duplicate is judged on the normalised form, because the matcher cannot tell `Password1` from
     `password1`. The 10,000 entries are therefore 10,000 passwords the rule refuses separately.
 - **The notice.** `common-passwords-NOTICE.txt` sits beside the list. It carries SecLists' MIT notice
