@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.healthupgrades.auth.domain.model.AuthSession;
 import com.healthupgrades.auth.domain.model.RefreshToken;
+import com.healthupgrades.auth.domain.model.SpentCredential;
 import com.healthupgrades.auth.domain.port.out.AuthSessionRepositoryPort;
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.PostgresIT;
@@ -27,8 +28,9 @@ import org.springframework.context.annotation.Import;
  * {@code TIMESTAMP} or a {@code byte[]} against the wrong type fails the context rather than a method
  * here — and the digests and instants have to survive a round trip unchanged, because a comparison
  * against a mangled digest would refuse every refresh. The queries: revoking every session of one
- * account, and no other account's, and the sweep's choice of which rows nothing can use again. And the
- * foreign key: deleting an account takes its sessions with it, which nothing in Java does.
+ * account, and no other account's, the sweep's choice of which rows nothing can use again, and the
+ * lookup of a spent credential, scoped to its session. And the foreign keys: deleting an account takes
+ * its sessions with it, and deleting a session takes its spent credentials, which nothing in Java does.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -52,14 +54,75 @@ class AuthSessionPersistenceIT extends PostgresIT {
         RefreshToken issued = new RefreshToken(UUID.randomUUID(), "a-secret");
         RefreshToken rotated = new RefreshToken(issued.sessionId(), "a-newer-secret");
         AuthSession session = opened(issued);
-        session.rotate(rotated.hash(), NOW.plusSeconds(60), IDLE);
+        SpentCredential retired = session.rotate(rotated.hash(), NOW.plusSeconds(60), IDLE);
         repository.save(session);
+        flushAndClear();
+        repository.recordSpent(session.getId(), retired);
         flushAndClear();
 
         AuthSession read = repository.findById(session.getId()).orElseThrow();
 
         assertThat(read.matchesCurrent(rotated.hash())).isTrue();
-        assertThat(read.matchesPrevious(issued.hash())).isTrue();
+        assertThat(repository.findSpent(session.getId(), issued.hash()))
+                .contains(new SpentCredential(issued.hash(), NOW.plusSeconds(60)));
+    }
+
+    @Test
+    void GivenASessionThatRotatedTwice_WhenEachSpentCredentialIsLookedUp_ThenBothAreRememberedWithTheirInstants() {
+        // S5.A1: a credential two rotations old has to be recognised, or a thief who refreshed twice is
+        // never detected.
+        RefreshToken first = new RefreshToken(UUID.randomUUID(), "first");
+        RefreshToken second = new RefreshToken(first.sessionId(), "second");
+        AuthSession session = opened(first);
+        SpentCredential firstSpent = session.rotate(second.hash(), NOW.plusSeconds(60), IDLE);
+        SpentCredential secondSpent =
+                session.rotate(new RefreshToken(first.sessionId(), "third").hash(), NOW.plusSeconds(120), IDLE);
+        repository.save(session);
+        flushAndClear();
+        repository.recordSpent(session.getId(), firstSpent);
+        repository.recordSpent(session.getId(), secondSpent);
+        flushAndClear();
+
+        assertThat(repository.findSpent(session.getId(), first.hash())).contains(firstSpent);
+        assertThat(repository.findSpent(session.getId(), second.hash())).contains(secondSpent);
+    }
+
+    @Test
+    void GivenACredentialAnotherSessionSpent_WhenItIsLookedUpForThisSession_ThenItIsNotFound() {
+        // The lookup is scoped by session as well as by digest: one session's history says nothing about
+        // a credential presented to another.
+        RefreshToken spentElsewhere = new RefreshToken(UUID.randomUUID(), "spent-elsewhere");
+        AuthSession elsewhere = opened(spentElsewhere);
+        SpentCredential retired = elsewhere.rotate(
+                new RefreshToken(spentElsewhere.sessionId(), "newer").hash(), NOW.plusSeconds(60), IDLE);
+        AuthSession here = opened(new RefreshToken(UUID.randomUUID(), "here"));
+        repository.save(elsewhere);
+        repository.save(here);
+        flushAndClear();
+        repository.recordSpent(elsewhere.getId(), retired);
+        flushAndClear();
+
+        assertThat(repository.findSpent(here.getId(), spentElsewhere.hash())).isEmpty();
+    }
+
+    @Test
+    void GivenASessionWithSpentCredentials_WhenTheCleanupDeletesIt_ThenItsSpentCredentialsGoWithIt() {
+        // The sweep deletes sessions in one statement, so only the foreign key's cascade can take the
+        // history with them; without it a deleted session would leave its digests behind.
+        RefreshToken issued = new RefreshToken(UUID.randomUUID(), "a-secret");
+        AuthSession session = opened(issued);
+        SpentCredential retired = session.rotate(
+                new RefreshToken(issued.sessionId(), "a-newer-secret").hash(), NOW.plusSeconds(60), IDLE);
+        session.revoke();
+        repository.save(session);
+        flushAndClear();
+        repository.recordSpent(session.getId(), retired);
+        flushAndClear();
+
+        repository.deleteUnusableAsOf(NOW);
+        flushAndClear();
+
+        assertThat(spentRowsOf(session.getId())).isZero();
     }
 
     @Test
@@ -177,6 +240,16 @@ class AuthSessionPersistenceIT extends PostgresIT {
         flushAndClear();
 
         assertThat(repository.findById(session.getId())).isEmpty();
+    }
+
+    /** Counts the spent-credential rows of one session straight from the table, past any port. */
+    private long spentRowsOf(UUID sessionId) {
+        return ((Number) entityManager
+                        .getEntityManager()
+                        .createNativeQuery("SELECT count(*) FROM auth_session_spent_tokens WHERE session_id = :id")
+                        .setParameter("id", sessionId)
+                        .getSingleResult())
+                .longValue();
     }
 
     private User persistedUser() {

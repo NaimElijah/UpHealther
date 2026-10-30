@@ -407,14 +407,16 @@ sequenceDiagram
     B->>C: POST /api/auth/refresh — cookie + X-Requested-With
     C->>S: refresh(credential)
     S->>DB: SELECT … FOR UPDATE
-    S->>DB: UPDATE — previous := current, current := a new secret
+    S->>DB: UPDATE — current := a new secret
+    S->>DB: INSERT the spent digest, and when it was spent
     S-->>C: Rotated
     C-->>B: 200 { token } · a new Set-Cookie
 
     Note over B,DB: The spent credential comes back
     B->>C: POST /api/auth/refresh — the old cookie
     C->>S: refresh(spent credential)
-    alt inside the rotation grace window
+    S->>DB: SELECT the spent digest — any rotation, not only the last
+    alt inside its rotation grace window
         S-->>C: Stale — two tabs, or a retry · audited, refused
         C-->>B: 409 · try again, nothing revoked
     else after it
@@ -425,9 +427,13 @@ sequenceDiagram
 ```
 
 Three things worth noticing. The row is read **`FOR UPDATE`**, so two tabs refreshing together
-serialise instead of both rotating from the same starting state. The old digest is kept, which is the
-only reason a replay is distinguishable from a guess — and a credential matching *neither* digest
-revokes nothing, because the session id travels in a token claim and is therefore not a secret.
+serialise instead of both rotating from the same starting state. Every digest a rotation retires is
+kept in `auth_session_spent_tokens`, with when it was retired, for as long as the session lives and no
+longer — its rows cascade with the session. That is the only reason a replay is distinguishable from a
+guess, however many rotations old it is, and the grace window runs from the moment each one was spent.
+A credential that is neither current nor spent revokes nothing, because the session id travels in a
+token claim and is therefore not a secret
+([ADR-065](../ADRs/ADR-065-every-spent-refresh-credential-is-remembered.md)).
 And the `sid` claim is checked on every authenticated request, together with the `sub` the row must
 name as its owner, which is what turns a revoked row into a refused request rather than a wait for the
 token to expire.

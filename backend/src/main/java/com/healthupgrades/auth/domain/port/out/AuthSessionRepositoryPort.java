@@ -1,6 +1,7 @@
 package com.healthupgrades.auth.domain.port.out;
 
 import com.healthupgrades.auth.domain.model.AuthSession; // the aggregate this port persists
+import com.healthupgrades.auth.domain.model.SpentCredential; // a credential a rotation retired
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,6 +30,26 @@ public interface AuthSessionRepositoryPort {
      * <p>Must be called inside a transaction.
      */
     Optional<AuthSession> findForUpdate(UUID id);
+
+    /**
+     * Remembers a credential a rotation retired, for as long as its session lives.
+     *
+     * <p>Must be called inside the transaction that rotated the session, so the session and its history
+     * never disagree.
+     *
+     * @param sessionId the session that spent it, which must already be stored
+     * @param spent     the retired digest and when it was retired
+     */
+    void recordSpent(UUID sessionId, SpentCredential spent);
+
+    /**
+     * Looks up a credential a session has already spent.
+     *
+     * @param sessionId the session the presented credential names
+     * @param tokenHash the digest of the presented credential
+     * @return the spent credential and when it was spent, or empty if this session never spent it
+     */
+    Optional<SpentCredential> findSpent(UUID sessionId, byte[] tokenHash);
 
     /**
      * Ends every session an account holds.

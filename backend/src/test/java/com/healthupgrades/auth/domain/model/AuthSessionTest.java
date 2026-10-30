@@ -105,12 +105,12 @@ class AuthSessionTest {
     }
 
     @Test
-    void GivenACredentialItNeverIssued_WhenItIsPresented_ThenItMatchesNeitherDigest() {
+    void GivenACredentialItNeverIssued_WhenItIsPresented_ThenItIsNeitherCurrentNorTheOneRetired() {
         AuthSession session = opened();
-        session.rotate(SECOND, OPENED_AT, IDLE);
+        SpentCredential retired = session.rotate(SECOND, OPENED_AT, IDLE);
 
         assertThat(session.matchesCurrent(THIRD)).isFalse();
-        assertThat(session.matchesPrevious(THIRD)).isFalse();
+        assertThat(retired.tokenHash()).isNotEqualTo(THIRD);
     }
 
     @Test
@@ -129,45 +129,40 @@ class AuthSessionTest {
     void GivenTheSupersededCredential_WhenItIsPresentedInsideTheGraceWindow_ThenItIsMerelyStale() {
         // Two tabs waking together. The second one to arrive is holding a credential that was current
         // when it was sent, and signing that user out would be the wrong answer.
-        AuthSession session = opened();
-        session.rotate(SECOND, OPENED_AT, IDLE);
+        SpentCredential retired = opened().rotate(SECOND, OPENED_AT, IDLE);
 
-        assertThat(session.matchesPreviousWithin(FIRST, OPENED_AT.plus(GRACE), GRACE))
-                .isTrue();
+        assertThat(retired.isWithinGrace(OPENED_AT.plus(GRACE), GRACE)).isTrue();
     }
 
     @Test
     void GivenTheSupersededCredential_WhenItIsPresentedAfterTheGraceWindow_ThenItIsNoLongerMerelyStale() {
-        AuthSession session = opened();
-        session.rotate(SECOND, OPENED_AT, IDLE);
+        SpentCredential retired = opened().rotate(SECOND, OPENED_AT, IDLE);
 
-        assertThat(session.matchesPreviousWithin(FIRST, OPENED_AT.plus(GRACE).plusMillis(1), GRACE))
+        assertThat(retired.isWithinGrace(OPENED_AT.plus(GRACE).plusMillis(1), GRACE))
                 .as("past the window it is a replay, and the caller has to treat it as one")
                 .isFalse();
-        assertThat(session.matchesPrevious(FIRST))
+        assertThat(retired.tokenHash())
                 .as("but it is still recognisably the credential this session issued, which is how a "
                         + "replay is told apart from a guess")
-                .isTrue();
+                .isEqualTo(FIRST);
     }
 
     @Test
-    void GivenASessionThatHasNeverRotated_WhenAnyCredentialIsCheckedAgainstThePrevious_ThenThereIsNone() {
-        // There is no superseded credential yet, so nothing may be forgiven as stale and nothing may be
-        // treated as a replay. Without the null guard this is where the first refresh would throw.
-        assertThat(opened().matchesPrevious(FIRST)).isFalse();
-    }
-
-    @Test
-    void GivenTwoRotations_WhenTheOldestCredentialIsPresented_ThenItIsNotRecognisedAtAll() {
-        // Only the immediately previous credential is remembered. An older one is indistinguishable
-        // from a guess, and is refused without revoking anything - which is what stops someone who
-        // knows a session id from ending it by presenting rubbish.
+    void GivenTwoRotations_WhenEachRetiresItsCredential_ThenEachHandsBackTheOneItReplacedAndWhen() {
+        // Every spent credential is remembered, not only the last (S5.A1, ADR-065). This test used to pin
+        // the opposite - that a credential two rotations old was forgotten and refused as a guess - which
+        // is what let a thief who had refreshed twice go undetected. A guess is still told apart from a
+        // replay: it is in no session's history.
         AuthSession session = opened();
-        session.rotate(SECOND, OPENED_AT, IDLE);
-        session.rotate(THIRD, OPENED_AT.plusSeconds(60), IDLE);
+        Instant later = OPENED_AT.plusSeconds(60);
 
+        SpentCredential first = session.rotate(SECOND, OPENED_AT, IDLE);
+        SpentCredential second = session.rotate(THIRD, later, IDLE);
+
+        assertThat(first).isEqualTo(new SpentCredential(FIRST, OPENED_AT));
+        assertThat(second).isEqualTo(new SpentCredential(SECOND, later));
         assertThat(session.matchesCurrent(FIRST)).isFalse();
-        assertThat(session.matchesPrevious(FIRST)).isFalse();
+        assertThat(session.matchesCurrent(THIRD)).isTrue();
     }
 
     private static AuthSession opened() {

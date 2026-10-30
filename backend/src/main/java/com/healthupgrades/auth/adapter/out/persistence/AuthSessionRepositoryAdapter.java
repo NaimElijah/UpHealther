@@ -1,8 +1,11 @@
 package com.healthupgrades.auth.adapter.out.persistence;
 
 import com.healthupgrades.auth.domain.model.AuthSession; // domain aggregate
+import com.healthupgrades.auth.domain.model.SpentCredential; // a credential a rotation retired
 import com.healthupgrades.auth.domain.port.out.AuthSessionRepositoryPort; // the port implemented here
+import jakarta.persistence.EntityManager;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -13,12 +16,17 @@ import org.springframework.stereotype.Component;
  *
  * <p>The adapter exists so the Spring Data interface can stay package-private: the port is the only
  * thing the rest of the application sees, which is what keeps JPA confined to this package.
+ *
+ * <p>The spent credentials are written and read with native SQL rather than as an entity. They are
+ * write-once rows the session's lock already serialises, keyed by a digest, and a byte array is no
+ * identifier JPA can compare; an entity would add a mapping and a dirty check for two statements.
  */
 @Component
 @RequiredArgsConstructor
 class AuthSessionRepositoryAdapter implements AuthSessionRepositoryPort {
 
     private final AuthSessionJpaRepository jpa; // Spring Data proxy
+    private final EntityManager entityManager; // the transaction's, for the spent-credential statements
 
     /** {@inheritDoc} */
     @Override
@@ -36,6 +44,36 @@ class AuthSessionRepositoryAdapter implements AuthSessionRepositoryPort {
     @Override
     public Optional<AuthSession> findForUpdate(UUID id) {
         return jpa.findForUpdate(id);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void recordSpent(UUID sessionId, SpentCredential spent) {
+        entityManager
+                .createNativeQuery("INSERT INTO auth_session_spent_tokens (session_id, token_hash, spent_at) "
+                        + "VALUES (:sessionId, :tokenHash, :spentAt)")
+                .setParameter("sessionId", sessionId)
+                .setParameter("tokenHash", spent.tokenHash())
+                .setParameter("spentAt", spent.spentAt())
+                .executeUpdate();
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public Optional<SpentCredential> findSpent(UUID sessionId, byte[] tokenHash) {
+        // Jakarta Persistence types a native query's results only as Object, whatever class it is given.
+        List<?> spentAt = entityManager
+                .createNativeQuery(
+                        "SELECT spent_at FROM auth_session_spent_tokens "
+                                + "WHERE session_id = :sessionId AND token_hash = :tokenHash",
+                        Instant.class)
+                .setParameter("sessionId", sessionId)
+                .setParameter("tokenHash", tokenHash)
+                .getResultList();
+        return spentAt.stream()
+                .findFirst()
+                .map(Instant.class::cast)
+                .map(instant -> new SpentCredential(tokenHash, instant));
     }
 
     /** {@inheritDoc} */

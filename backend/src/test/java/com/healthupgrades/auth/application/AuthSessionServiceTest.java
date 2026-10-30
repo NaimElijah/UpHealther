@@ -8,6 +8,7 @@ import com.healthupgrades.auth.application.port.in.SessionGrant;
 import com.healthupgrades.auth.domain.event.AuthSessionEnded;
 import com.healthupgrades.auth.domain.event.UserSessionsEnded;
 import com.healthupgrades.auth.domain.model.AuthSession;
+import com.healthupgrades.auth.domain.model.SpentCredential;
 import com.healthupgrades.auth.domain.port.out.AuthSessionRepositoryPort;
 import com.healthupgrades.auth.domain.port.out.SecretGeneratorPort;
 import com.healthupgrades.common.domain.audit.AuditAction;
@@ -20,6 +21,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -149,6 +151,40 @@ class AuthSessionServiceTest {
         assertThat(sessions.byId(opened.sessionId()).isActive(clock.instant())).isFalse();
         assertThat(auditTrail.recorded(AuditAction.AUTH_TOKEN_REUSE, AuditOutcome.REFUSED))
                 .isTrue();
+    }
+
+    @Test
+    void GivenACredentialTwoRotationsOld_WhenItIsPresentedAfterTheGraceWindow_ThenTheSessionIsRevokedAsReuse() {
+        // A thief holding C1 refreshes C1 -> C2 -> C3. When the victim then presents C1, reuse has to be
+        // detected however many generations old it is, or the thief's session lives on to its cap.
+        SessionGrant opened = service.open(USER_ID);
+        SessionGrant second = ((RefreshOutcome.Rotated) service.refresh(opened.refreshToken())).grant();
+        service.refresh(second.refreshToken());
+        clock.moveTo(START.plus(GRACE).plusSeconds(1));
+
+        RefreshOutcome outcome = service.refresh(opened.refreshToken());
+
+        assertThat(outcome).isInstanceOf(RefreshOutcome.Rejected.class);
+        assertThat(sessions.byId(opened.sessionId()).isActive(clock.instant())).isFalse();
+        assertThat(auditTrail.recorded())
+                .contains(new AuditEvent(
+                        AuditAction.AUTH_TOKEN_REUSE, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+        assertThat(published).containsExactly(new AuthSessionEnded(opened.sessionId(), USER_ID, now()));
+    }
+
+    @Test
+    void GivenACredentialTwoRotationsOld_WhenItIsPresentedInsideItsOwnGraceWindow_ThenItIsStaleAndNothingIsRevoked() {
+        // The grace window runs from the moment each credential was spent. Two quick rotations do not
+        // make a request that was already in flight with the first credential a theft.
+        SessionGrant opened = service.open(USER_ID);
+        SessionGrant second = ((RefreshOutcome.Rotated) service.refresh(opened.refreshToken())).grant();
+        service.refresh(second.refreshToken());
+        clock.moveTo(START.plus(GRACE));
+
+        RefreshOutcome outcome = service.refresh(opened.refreshToken());
+
+        assertThat(outcome).isInstanceOf(RefreshOutcome.Stale.class);
+        assertThat(sessions.byId(opened.sessionId()).isActive(clock.instant())).isTrue();
     }
 
     @Test
@@ -570,6 +606,7 @@ class AuthSessionServiceTest {
     private static final class InMemorySessions implements AuthSessionRepositoryPort {
 
         private final Map<UUID, AuthSession> rows = new HashMap<>();
+        private final Map<UUID, List<SpentCredential>> spent = new HashMap<>();
         private final List<Read> reads = new ArrayList<>();
 
         @Override
@@ -591,6 +628,18 @@ class AuthSessionServiceTest {
         }
 
         @Override
+        public void recordSpent(UUID sessionId, SpentCredential credential) {
+            spent.computeIfAbsent(sessionId, id -> new ArrayList<>()).add(credential);
+        }
+
+        @Override
+        public Optional<SpentCredential> findSpent(UUID sessionId, byte[] tokenHash) {
+            return spent.getOrDefault(sessionId, List.of()).stream()
+                    .filter(credential -> Arrays.equals(credential.tokenHash(), tokenHash))
+                    .findFirst();
+        }
+
+        @Override
         public int revokeAllForUser(UUID userId) {
             List<AuthSession> live = rows.values().stream()
                     .filter(session -> session.getUserId().equals(userId))
@@ -607,6 +656,7 @@ class AuthSessionServiceTest {
                     .map(AuthSession::getId)
                     .toList();
             doomed.forEach(rows::remove);
+            doomed.forEach(spent::remove);
             return doomed.size();
         }
 
@@ -642,6 +692,16 @@ class AuthSessionServiceTest {
 
         @Override
         public Optional<AuthSession> findForUpdate(UUID id) {
+            throw down();
+        }
+
+        @Override
+        public void recordSpent(UUID sessionId, SpentCredential credential) {
+            throw down();
+        }
+
+        @Override
+        public Optional<SpentCredential> findSpent(UUID sessionId, byte[] tokenHash) {
             throw down();
         }
 
