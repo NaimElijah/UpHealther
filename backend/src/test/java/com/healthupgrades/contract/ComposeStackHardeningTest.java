@@ -22,7 +22,8 @@ import org.yaml.snakeyaml.constructor.SafeConstructor;
  * Holds the developer stack in {@code docker-compose.yml} to the hardening scan 02 gave it (#336,
  * findings I2.1, I2.7 and I2.8): ports published on loopback only, the database probed over TCP, no
  * privilege gain in any service, and no capability left to the backend. Scan 05 added one more (#339,
- * finding S5.C7): the backend connects as a role of its own, never as the cluster's superuser.
+ * finding S5.C7): the backend connects as a role of its own, never as the cluster's superuser, and the script
+ * in {@code scripts/postgres-init/} creates that role with no administrative attribute.
  *
  * <p>Each one is a single line in the compose file whose loss changes nothing a developer sees: the stack
  * still starts and the tests still pass, while the database and the signing key are open to the network,
@@ -50,6 +51,19 @@ class ComposeStackHardeningTest {
 
     /** Where the postgres image finds the scripts it runs once, when it initialises an empty volume. */
     private static final String INIT_SCRIPTS = "/docker-entrypoint-initdb.d";
+
+    /** The script that creates the role the backend connects as, relative to the repository root. */
+    private static final String APP_ROLE_SCRIPT = "scripts/postgres-init/01-create-app-role.sh";
+
+    /** The role attributes that make a role more than a login, each of which the application role refuses. */
+    private static final List<String> ADMINISTRATIVE_ATTRIBUTES =
+            List.of("SUPERUSER", "CREATEDB", "CREATEROLE", "REPLICATION", "BYPASSRLS");
+
+    /** The statement that creates the application role, up to its terminating semicolon. */
+    private static final Pattern CREATE_ROLE = Pattern.compile("(?is)\\bCREATE\\s+ROLE\\b[^;]*;");
+
+    /** A compose interpolation, {@code ${NAME}} or {@code ${NAME:-default}}, as the whole value. */
+    private static final Pattern INTERPOLATION = Pattern.compile("^\\$\\{(\\w+)(?::-([^}]*))?}$");
 
     @Test
     void GivenTheComposeStack_WhenReadingEveryPublishedPort_ThenEachIsBoundToLoopback() {
@@ -117,9 +131,11 @@ class ComposeStackHardeningTest {
         Map<?, ?> backend = environment("backend");
 
         assertThat(database.get("POSTGRES_APP_USER"))
-                .describedAs("the postgres service must name the application role apart from its superuser")
-                .isNotNull()
-                .isNotEqualTo(database.get("POSTGRES_USER"));
+                .describedAs("the postgres service must name the application role")
+                .isNotNull();
+        assertThat(effective(database.get("POSTGRES_APP_USER")))
+                .describedAs("the application role must not be the superuser the image creates from POSTGRES_USER")
+                .isNotEqualTo(effective(database.get("POSTGRES_USER")));
         assertThat(backend.get("DB_USERNAME"))
                 .describedAs("the backend must connect as the application role the postgres service creates")
                 .isEqualTo(database.get("POSTGRES_APP_USER"));
@@ -131,6 +147,63 @@ class ComposeStackHardeningTest {
                         "the postgres service must mount scripts/postgres-init/, which creates that role, at %s",
                         INIT_SCRIPTS)
                 .anyMatch(volume -> volume.startsWith("./scripts/postgres-init:" + INIT_SCRIPTS));
+    }
+
+    @Test
+    void GivenTheApplicationRoleScript_WhenReadingTheRoleItCreates_ThenItRefusesEveryAdministrativeAttribute() {
+        // The images check proves the backend can sign in and migrate as this role, which a superuser
+        // could do just as well; only the script says what the role may not do (S5.C7, ADR-069).
+        String sql = withoutShellComments(read(APP_ROLE_SCRIPT));
+        var createRole = CREATE_ROLE.matcher(sql);
+        assertThat(createRole.find())
+                .describedAs("%s must create the application role with CREATE ROLE", APP_ROLE_SCRIPT)
+                .isTrue();
+
+        for (String attribute : ADMINISTRATIVE_ATTRIBUTES) {
+            assertThat(createRole.group())
+                    .describedAs("the application role must be created NO%s", attribute)
+                    .containsPattern("(?i)\\bNO" + attribute + "\\b");
+            assertThat(sql)
+                    .describedAs("%s must not grant %s to any role", APP_ROLE_SCRIPT, attribute)
+                    .doesNotContainPattern("(?i)\\b" + attribute + "\\b");
+        }
+        assertThat(sql)
+                .describedAs(
+                        "%s must grant nothing: the role owns its database and holds no other privilege",
+                        APP_ROLE_SCRIPT)
+                .doesNotContainPattern("(?i)\\bGRANT\\b");
+    }
+
+    /**
+     * The value compose gives a variable when the environment does not set it: the default of a
+     * {@code ${NAME:-default}}, the name itself of a bare {@code ${NAME}}, or a literal as written.
+     */
+    private static String effective(Object value) {
+        String text = String.valueOf(value);
+        var interpolation = INTERPOLATION.matcher(text);
+        if (!interpolation.matches()) {
+            return text;
+        }
+        return interpolation.group(2) != null ? interpolation.group(2) : "${" + interpolation.group(1) + "}";
+    }
+
+    /** The script with every shell comment line removed, so a word in a comment is not read as SQL. */
+    private static String withoutShellComments(String script) {
+        return String.join(
+                "\n",
+                script.lines()
+                        .filter(line -> !line.stripLeading().startsWith("#"))
+                        .toList());
+    }
+
+    /** A file under the repository root, as text. */
+    private static String read(String relativePath) {
+        Path file = RepositoryVersion.repositoryRoot().resolve(relativePath);
+        try {
+            return Files.readString(file);
+        } catch (IOException e) {
+            throw new UncheckedIOException("could not read " + file, e);
+        }
     }
 
     /** One service's {@code environment}, as a mapping of each variable to its value. */
