@@ -163,6 +163,20 @@ off `TrackingService` into `TrackingConfigReads`; `UpgradeWebMapper` serves only
 `DashboardWebMapper`; and the account listing is `AccountListQuery`, a port of its own that only `admin`
 may hold, implemented by `AccountListing`. Each rule was shown to fail on a mutated copy.
 
+### 10. A socket holds one subscription for its life (S5.A5)
+
+`JwtChannelInterceptor` records the first SUBSCRIBE's id in the socket's session attributes and refuses
+every later SUBSCRIBE on that socket. Each subscription is registered with the broker, so a socket
+streaming SUBSCRIBE frames with fresh ids would otherwise grow the heap without limit. An UNSUBSCRIBE
+passes, and the broker drops the subscription it names, but it frees nothing here. It did once, and that
+could be raced: the inbound channel hands each frame to a pool, in no fixed order since
+`preserveReceiveOrder` is not set, and an UNSUBSCRIBE reaches the broker by a shorter route than a
+SUBSCRIBE, so one that ran first removed nothing while freeing the slot, and its SUBSCRIBE stayed held
+until the socket closed. The SPA subscribes once per socket and never unsubscribes, so nothing legitimate
+needs a second. **Revisit** if a client ever needs to subscribe to more than one destination, or to drop
+and retake a subscription on one socket: count per destination, with the inbound channel's receive order
+preserved.
+
 ## Consequences
 
 **Easy.** Reuse is detected however many times the thief has refreshed, and whichever cookie endpoint the

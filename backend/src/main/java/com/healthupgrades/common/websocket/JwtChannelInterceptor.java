@@ -36,14 +36,18 @@ import org.springframework.stereotype.Component;
  *   <li>a SUBSCRIBE must come from an authenticated session and name {@link #ALLOWED_SUBSCRIPTION}
  *       exactly — naming the resolved {@code /queue/notifications-user…} of another session, or any
  *       {@code /topic}, is refused;</li>
- *   <li>a socket holds one subscription at a time: a second SUBSCRIBE is refused until an UNSUBSCRIBE
- *       of the one it holds releases it. Each subscription is registered with the broker, so a socket
- *       streaming SUBSCRIBE frames with fresh ids would otherwise grow the heap without limit
- *       (S5.A5);</li>
+ *   <li>a socket holds one subscription for its life: a second SUBSCRIBE is refused, whatever came
+ *       between. Each subscription is registered with the broker, so a socket streaming SUBSCRIBE frames
+ *       with fresh ids would otherwise grow the heap without limit (S5.A5). An UNSUBSCRIBE frees
+ *       nothing, because it could be raced: Spring hands each inbound frame to a pool, and an UNSUBSCRIBE
+ *       that reached the broker before its SUBSCRIBE would remove nothing and leave that subscription
+ *       held. The SPA subscribes once per socket and never unsubscribes;</li>
  *   <li>a SEND is refused outright: the application declares no {@code @MessageMapping}, so there is
  *       nothing server-side for one to reach and anything sending one is probing;</li>
  *   <li>heartbeats, UNSUBSCRIBE and DISCONNECT pass — they carry no destination to abuse, and refusing
- *       a DISCONNECT would leave sessions to be torn down by timeout instead of closed cleanly.</li>
+ *       a DISCONNECT would leave sessions to be torn down by timeout instead of closed cleanly. An
+ *       UNSUBSCRIBE still reaches the broker, which drops the subscription it names; it only does not
+ *       let the socket take another.</li>
  * </ul>
  *
  * <p>Every CONNECT that presents a credential is audited as {@code auth.connect}, allowed or refused,
@@ -74,9 +78,9 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
     public static final String ALLOWED_SUBSCRIPTION = "/user/queue/notifications";
 
     /**
-     * The session attribute that holds the id of the subscription a socket has taken. Spring hands every
-     * frame of one WebSocket session the same attributes map, so it is per socket, and it is discarded
-     * with the socket.
+     * The session attribute that holds the id of the subscription a socket has taken, for the rest of its
+     * life. Spring hands every frame of one WebSocket session the same attributes map, so it is per
+     * socket, and it is discarded with the socket.
      */
     private static final String HELD_SUBSCRIPTION = JwtChannelInterceptor.class.getName() + ".heldSubscription";
 
@@ -109,10 +113,9 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
             // want of a principal, but failing at the door is the honest place to fail.
             case CONNECT, STOMP -> accessor.setUser(authenticate(accessor));
             case SUBSCRIBE -> authoriseSubscription(accessor);
-            case UNSUBSCRIBE -> releaseSubscription(accessor);
             case SEND -> refuse("a SEND, which no server-side mapping receives");
             default -> {
-                /* DISCONNECT, ACK, NACK and the transaction frames name nothing */
+                /* UNSUBSCRIBE, DISCONNECT, ACK, NACK and the transaction frames name nothing */
             }
         }
         return message;
@@ -179,15 +182,6 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
         }
         if (socket.putIfAbsent(HELD_SUBSCRIPTION, id) != null) {
             refuse("a second SUBSCRIBE on a socket that already holds one");
-        }
-    }
-
-    /** Releases the socket's subscription when the UNSUBSCRIBE names it, and only then. */
-    private void releaseSubscription(StompHeaderAccessor accessor) {
-        Map<String, Object> socket = accessor.getSessionAttributes();
-        String id = accessor.getSubscriptionId();
-        if (socket != null && id != null) {
-            socket.remove(HELD_SUBSCRIPTION, id);
         }
     }
 

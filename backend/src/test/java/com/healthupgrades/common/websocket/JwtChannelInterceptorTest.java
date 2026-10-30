@@ -269,24 +269,31 @@ class JwtChannelInterceptorTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    /**
+     * A socket holds one subscription for its life: an UNSUBSCRIBE passes, and frees nothing.
+     *
+     * <p>This test used to pin the opposite, a second SUBSCRIBE accepted once an UNSUBSCRIBE had released
+     * the first. That release could be raced: Spring hands each inbound frame to a pool, in no order
+     * unless {@code preserveReceiveOrder} is set, and an UNSUBSCRIBE reaches the broker by a different
+     * route from a SUBSCRIBE, so one that ran first removed nothing and left its SUBSCRIBE held until the
+     * socket closed, which is S5.A5's growth again. The SPA subscribes once per socket and never
+     * unsubscribes, so nothing legitimate needs a second.
+     */
     @Test
-    void GivenASocketThatUnsubscribed_WhenItSubscribesAgain_ThenItPasses() {
-        // The limit is on what a socket holds, not on how often it subscribes: a client that drops its
-        // subscription and takes it again has never held more than one.
+    void GivenASocketThatUnsubscribed_WhenItSubscribesAgain_ThenItIsStillRefused() {
         Map<String, Object> socket = new ConcurrentHashMap<>();
         Principal user = session();
         interceptor.preSend(subscribeOn(socket, "sub-0", user), channel);
-        interceptor.preSend(unsubscribeOn(socket, "sub-0", user), channel);
+        Message<?> unsubscribe = unsubscribeOn(socket, "sub-0", user);
+        assertThat(interceptor.preSend(unsubscribe, channel)).isSameAs(unsubscribe);
 
-        Message<?> again = subscribeOn(socket, "sub-1", user);
-
-        assertThat(interceptor.preSend(again, channel)).isSameAs(again);
+        assertThatThrownBy(() -> interceptor.preSend(subscribeOn(socket, "sub-1", user), channel))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void GivenAnUnsubscribeNamingAnotherId_WhenTheSocketSubscribesAgain_ThenItIsStillRefused() {
-        // Only the subscription the socket holds is released by name; an UNSUBSCRIBE of an id it never
-        // took would otherwise reset the count and undo the limit.
+        // Nothing is released whatever the UNSUBSCRIBE names, an id the socket never took included.
         Map<String, Object> socket = new ConcurrentHashMap<>();
         Principal user = session();
         interceptor.preSend(subscribeOn(socket, "sub-0", user), channel);

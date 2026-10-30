@@ -178,12 +178,14 @@ The same interceptor authorises the frames that follow, because a session that i
 can still name any destination it likes. A SUBSCRIBE must come from an authenticated session and
 name `/user/queue/notifications` exactly — the resolved `/queue/notifications-user…` of another
 session, and any `/topic`, are refused — and a SEND is refused outright, the application declaring
-no `@MessageMapping` for one to reach. A socket holds one subscription at a time, kept in its
-session attributes: a second SUBSCRIBE is refused until an UNSUBSCRIBE of the one it holds releases
-it, because each subscription is registered with the broker and a socket streaming them would grow the
-heap without limit. Heartbeats, UNSUBSCRIBE and DISCONNECT pass: they name nothing, and refusing a
-DISCONNECT would leave sessions to time out rather than close. A refused SUBSCRIBE or SEND is a WARN
-line, not an audit entry: it authorises a frame on a connection that is already authenticated. Spring
+no `@MessageMapping` for one to reach. A socket holds one subscription for its life, kept in its
+session attributes: a second SUBSCRIBE is refused, because each subscription is registered with the
+broker and a socket streaming them would grow the heap without limit. An UNSUBSCRIBE frees nothing,
+because the inbound channel's pool runs frames in no fixed order, and one that reached the broker
+before its SUBSCRIBE would leave that subscription held. Heartbeats, UNSUBSCRIBE and DISCONNECT pass:
+they name nothing, and refusing a DISCONNECT would leave sessions to time out rather than close. A
+refused SUBSCRIBE or SEND is a WARN line, not an audit entry: it authorises a frame on a connection that
+is already authenticated. Spring
 adds an ERROR line of its own for a refused SEND, and for a frame it cannot decode, which no interceptor
 can suppress; a refused CONNECT or SUBSCRIBE it logs only at DEBUG.
 
