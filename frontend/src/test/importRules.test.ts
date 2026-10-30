@@ -2,7 +2,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { ESLint } from 'eslint';
 
 /**
- * The import rules of `eslint.config.js` (ADR-061), run through the real configuration.
+ * The import rules of `eslint.config.js` (ADR-061), and its one syntax rule, the API layer's bare template
+ * path (NFR-58), run through the real configuration.
  *
  * Flat config keeps only the last `no-restricted-imports` entry that matches a file, so the rules hold
  * only while each block keeps its place: an owner's block after its folder's, the catch-all before both.
@@ -17,7 +18,7 @@ import { ESLint } from 'eslint';
 const eslint = new ESLint();
 
 /** The rules this file is about; anything else a snippet trips, an unused import say, is not. */
-const RULES = new Set(['no-restricted-imports', 'no-restricted-globals']);
+const RULES = new Set(['no-restricted-imports', 'no-restricted-globals', 'no-restricted-syntax']);
 
 /** What the two rules report for `code` as if it were the module at `file`, under `src/`. */
 async function restrictionsIn(file: string, code: string): Promise<string[]> {
@@ -121,6 +122,31 @@ describe('the import rules', () => {
 
     it('GivenTheApiLayerUsingFetch_WhenItIsLinted_ThenItIsAllowed', async () => {
       expect(await restrictionsIn('api/zz.ts', 'export const zz = fetch;\n')).toEqual([]);
+    });
+  });
+
+  describe('a path built in the API layer', () => {
+    /** A module of `api/` that calls the client with `path` as its first argument. */
+    const calling = (method: string, path: string) =>
+      `import client from './client';\nimport { apiPath } from './apiPath';\n\n` +
+      `export const zz = (id: string) => client.${method}(${path});\nexport { apiPath };\n`;
+
+    it.each(['get', 'post', 'put', 'patch', 'delete'])(
+      'GivenAnApiModuleCalling %s_WhenItsPathIsABareTemplate_ThenLintRefusesIt',
+      async (method) => {
+        // NFR-58: an id interpolated as it is can climb out of its segment; apiPath encodes it.
+        expect(await restrictionsIn('api/zz.ts', calling(method, '`/api/upgrades/${id}`'))).toEqual([
+          expect.stringContaining('apiPath'),
+        ]);
+      },
+    );
+
+    it.each([
+      ['an apiPath template', 'apiPath`/api/upgrades/${id}`'],
+      ['a template with nothing interpolated', '`/api/upgrades`'],
+      ['a constant', "'/api/upgrades'"],
+    ])('GivenAnApiModulePassing %s_WhenItIsLinted_ThenItIsAllowed', async (_, path) => {
+      expect(await restrictionsIn('api/zz.ts', calling('get', path))).toEqual([]);
     });
   });
 

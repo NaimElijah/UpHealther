@@ -44,7 +44,7 @@ ArchUnit suite, which is the authority on what the layering permits.
 |---|---|---|
 | **Frontend** | nginx serving a Vite production build (container port 80, published on `127.0.0.1:3000`) | Serving the SPA, and proxying `/api` and `/ws` to the backend so the browser stays same-origin |
 | **Backend** | Spring Boot 4.1 on Java 21, executable jar (port 8080, published on `127.0.0.1` by compose) | The whole domain: authentication, the upgrade lifecycle, tracking, reflections, reminders, the dashboard read model, notifications, and the scheduled jobs |
-| **Database** | PostgreSQL 15 (port 5432, published on `127.0.0.1` by compose; volume `postgres_data`) | Every piece of persistent state. Schema owned by Flyway |
+| **Database** | PostgreSQL 15 (port 5432, published on `127.0.0.1` by compose; volume `postgres_data`) | Every piece of persistent state. Schema owned by Flyway. Under compose the backend connects as a role that owns the database and is no superuser, created by `scripts/postgres-init/` on an empty volume ([ADR-069](../ADRs/ADR-069-the-compose-backend-connects-as-a-role-that-owns-its-database.md)) |
 
 In development the nginx container is not involved: the Vite dev server serves the SPA on 3000 and
 performs the same `/api` and `/ws` proxying itself, so the app behaves identically on both sides.
@@ -102,15 +102,15 @@ domain layers reach the kernel in `common.domain` and nowhere else ([ADR-064](..
 
 | Module | Responsible for |
 |---|---|
-| `src/api/` | One axios instance, `client.ts`, and one module per backend area with a thin function per endpoint. The instance attaches the in-memory access token, and renews it from the refresh cookie and retries once on a 401 rather than signing the user out; `tokenStore.ts` holds the token, and every HTTP call goes through the instance. `api/` owns the credential's renewal and the end of a session: `session.ts`'s `endSession` is the one way a session ends, on sign-out and when a renewal fails, by dropping the token and replacing the document with `/login`, never a router push, so no state of the previous user survives. `apiError.ts`'s `toApiError` is the one place a failure is decoded, into a status, a message, any field errors and the trace id. `notificationSocket.ts` is the STOMP client that delivers notifications live: it presents and renews the same token, and takes the API's origin from `apiBaseUrl.ts`, as the instance does |
+| `src/api/` | One axios instance, `client.ts`, and one module per backend area with a thin function per endpoint. The instance attaches the in-memory access token, and renews it from the refresh cookie and retries once on a 401 rather than signing the user out; `tokenStore.ts` holds the token, and every HTTP call goes through the instance. `api/` owns the credential's renewal and the end of a session: `session.ts`'s `endSession` is the one way a session ends, on sign-out, when a renewal fails and on the server's session-ended frame, by dropping the token, emptying what registered with its `onSessionEnd` (the query cache, and the application `main.tsx` mounted), and replacing the document with `/login`, never a router push, so no state of the previous user survives. A page the browser restores from its back/forward cache reloads, because its script state is the one it was left with ([ADR-066](../ADRs/ADR-066-a-tab-keeps-nothing-of-a-session-that-ended.md)). An id goes into a path only through `apiPath.ts`'s template tag, which encodes it as one segment and refuses an empty, `.` or `..` one, because a route's `:id` arrives decoded. `apiError.ts`'s `toApiError` is the one place a failure is decoded, into a status, a message, any field errors and the trace id. `notificationSocket.ts` is the STOMP client that delivers notifications live: it presents and renews the same token, and takes the API's origin from `apiBaseUrl.ts`, as the instance does |
 | `src/contexts/` | `AuthProvider` owns the current user and the sign-in, registration and sign-out actions. It writes the token three times: it stores the one a sign-in or a registration returns, and clears it when the restore at page load fails; a sign-out the server accepted ends through `endSession`; `NotificationProvider` owns the notification list, the unread count (the server's, since the list holds only the fifty most recent; the unread listed stands in until it can be read), when the STOMP connection is open, and the toasts; `ThemeProvider` owns the light/dark/system choice and the `dark` class on `<html>` |
 | `src/hooks/` | `useAuth`, `useNotifications` and `useTheme` — typed context readers that fail loudly outside their provider |
-| `src/App.tsx`, `src/main.tsx` | The outer half of the composition root. `main.tsx` mounts `App` under `StrictMode`; `App` installs, outermost first, `ThemeProvider`, `ErrorBoundary`, the one `QueryClientProvider` and `AuthProvider` around the router |
+| `src/App.tsx`, `src/main.tsx` | The outer half of the composition root. `main.tsx` mounts `App` under `StrictMode`, and unmounts it when a session ends, through `onSessionEnd`; `App` installs, outermost first, `ThemeProvider`, `ErrorBoundary`, the one `QueryClientProvider` and `AuthProvider` around the router |
 | `src/router/` | `index.tsx`, the route table and the inner half of the composition root: inside `BrowserRouter` it mounts `NotificationProvider` around the routes and `ToastContainer` beside them, so a toast can navigate. `ProtectedRoute` gates every page but sign-in and registration; `RequireRole` adds the administrator check in front of `/admin/users`, a courtesy, since the API decides. `/` and any unknown path redirect |
 | `src/pages/` | One component per route that renders a page |
 | `src/components/` | `ui/` primitives — including `PageContainer`, which decides how wide a page may grow, `Modal`, which every dialog is, and `ErrorState`, which shows a failure with its trace id — `upgrade/` cards, badges, the fields that describe an upgrade, the actions an upgrade's page offers on it, and the sections of that page (its streak, tracking configuration, reminders, progress and reflections), each rendering the read the page hands it and owning its writes and dialog where it has them, `notifications/` bell, dropdown, items and toasts, `layout/` navbar, sidebar and the phone menu, the last two rendering one shared list of links (`navItems.ts`), `theme/` the light, dark and system switch, and `ErrorBoundary.tsx`, which replaces a tree that threw while rendering with a page offering a reload |
 | `src/types/` | `api.generated.ts`, the request and response shapes and enums rendered from the backend's records, and `index.ts`, which gives them the frontend's names and adds, as intersections, what no record declares: a health area's client-side `upgradeCount`, and the `upgradeId` that `createProgress` moves from a new entry into the URL (see "The frontend's wire types are generated from the backend's records") |
-| `src/lib/` | Helpers shared by several pages. `localDate.ts` turns the API's zone-less `YYYY-MM-DD` dates into the user's own day and back, because JavaScript's shortcuts for both go through UTC; `queryClient.ts` builds the one server-state cache and its thirty-second staleness window; `upgradeViews.ts` marks every cached view of upgrades out of date after a write that changed one ([ADR-029](../ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)) |
+| `src/lib/` | Helpers shared by several pages. `localDate.ts` turns the API's zone-less `YYYY-MM-DD` dates into the user's own day and back, because JavaScript's shortcuts for both go through UTC; `queryClient.ts` builds the one server-state cache and its thirty-second staleness window, and registers it to be emptied when a session ends; `upgradeViews.ts` marks every cached view of upgrades out of date after a write that changed one ([ADR-029](../ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)) |
 
 **The folders are layered, and lint enforces it.** Each imports only from those below it: `types` ←
 `api` ← `lib` ← `contexts` + `hooks` ← `components` ← `pages` ← `router` ← `App.tsx` and `main.tsx`.
@@ -149,7 +149,10 @@ exists only for deployments that split the origins.
 The two endpoints reachable without a credential — sign-in and registration — are rate-limited per
 client address by a handler interceptor, which runs before any controller so a refused attempt costs
 no password comparison. The address it counts is the one nginx reported, and only nginx's own address
-is trusted to report one
+is trusted to report one. nginx sets the four `X-Forwarded-*` headers Tomcat reads, `For`, `Proto`,
+`Host` and `Port`, so none reaches Tomcat as the caller wrote it. The host follows the request's `Host`
+header, because the server block names no `server_name` until
+[#209](https://github.com/NaimElijah/UpHealther/issues/209)
 ([ADR-017](../ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)).
 
 **2. STOMP over WebSocket, API to browser.** One-way in practice: the browser connects and subscribes,
@@ -162,7 +165,11 @@ as it is open; a refusal names nobody, as a refused login does. A CONNECT with n
 — what a tab whose session could not be renewed sends every five seconds — presented nothing and is not
 an entry, as a refresh with no cookie is not. A refusal reaches the browser as a STOMP ERROR frame
 whose message is Spring's generic one, the same whatever the cause, an outage included, so the client
-keeps its token through one and retries.
+keeps its token through one and retries. Spring logs some refusals at ERROR, so nginx throttles the
+`/ws` handshake per client address: sixty a minute with a burst of twenty, over the limit answered 429.
+It bounds handshakes, not what one open socket sends, which
+[#382](https://github.com/NaimElijah/UpHealther/issues/382) tracks, and it caps no open sockets
+([ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md)).
 
 The same interceptor authorises the frames that follow, because a session that is merely connected
 can still name any destination it likes. A SUBSCRIBE must come from an authenticated session and
@@ -187,10 +194,11 @@ both after the commit and calls `LiveSocketPort`, which the registry implements:
 declares, as it does `SessionStatusPort` (mechanism 4), so that `auth` and `common` meet at an
 interface. The registry sends each matching socket
 a STOMP ERROR frame (`message: Session ended`), after which Spring closes the WebSocket. Sign-out is
-per device, so only the sockets opened in that session close. That frame, and no other ERROR, makes
-the client drop its access token, so it renews from the cookie before it connects again instead of
-presenting the dead token on every attempt; `SessionEndedFrameContractTest` holds the two copies of
-the message together.
+per device, so only the sockets opened in that session close. That frame, and no other ERROR, ends
+the session in the client's tab through `endSession`: the token is dropped, the query cache emptied,
+and the tab sent to `/login`, so a window whose session ended elsewhere stops showing its data at once
+([ADR-066](../ADRs/ADR-066-a-tab-keeps-nothing-of-a-session-that-ended.md));
+`SessionEndedFrameContractTest` holds the two copies of the message together.
 
 The broker is Spring's in-memory simple broker. There is no external broker, so a push reaches only
 clients connected to *this* instance — see "Known constraints" below.
@@ -348,7 +356,8 @@ The browser's half of a read, and of the write that makes it stale:
    cookie and sends the request once more. A renewal is single-flight, within the tab through one
    shared promise and across tabs through `navigator.locks`, because a rotated credential is good for
    one use. Only a renewal that fails ends the session, through `endSession`, whether the server
-   refused it or did not answer
+   refused it or did not answer within `REFRESH_TIMEOUT_MS`, ten seconds, after which it stops waiting,
+   though the request itself runs on, so that the cross-tab lock is not held by a stalled one
    ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)). The
    socket's own failed renewal does not: it reconnects without a token, and the tab's next request
    ends the session ([ADR-054](../ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md)).
@@ -481,7 +490,11 @@ somebody reports to the log lines that produced it. There are three entry points
 from a different place:
 
 - **HTTP** — `ServerHttpObservationFilter`, from the framework. An inbound W3C `traceparent` continues
-  the caller's trace; otherwise a new one starts. `TraceIdResponseHeaderFilter` returns the id as
+  the caller's trace; otherwise a new one starts. Behind nginx none arrives from a browser: nginx clears
+  the caller's context in both formats the API consumes, W3C (`traceparent`, `tracestate`, `baggage`)
+  and B3 (`b3` and the `X-B3-*` headers), on `/api` and `/ws`, so the id is the API's own. The
+  backend's own configuration narrows what it consumes as well.
+  `TraceIdResponseHeaderFilter` returns the id as
   `X-Trace-Id`, and `GlobalExceptionHandler` stamps it on the error body. The container's error page
   runs after the scope has closed, so `TraceIdErrorAttributes` puts the id the header carried on its
   body instead ([ADR-024](../ADRs/ADR-024-the-container-error-page-keeps-its-status-and-carries-the-trace-id.md)).
@@ -613,11 +626,11 @@ push service, no analytics, no AI service.
 
 | Dependency | Used for | How it is reached |
 |---|---|---|
-| **PostgreSQL 15** | All persistent state | JDBC from the backend only. Credentials from `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` |
+| **PostgreSQL 15** | All persistent state | JDBC from the backend only. Credentials from `DB_URL` / `DB_USERNAME` / `DB_PASSWORD`, which compose fills from `POSTGRES_APP_USER` and `POSTGRES_APP_PASSWORD` |
 | **Flyway** | Schema ownership and migration on startup | Embedded in the backend; `V1`–`V9` apply in order at boot. An applied migration is never edited — Flyway checksums it, comments included — so a correction is another migration |
-| **Browser WebSocket** | Real-time notification delivery | The `/ws` STOMP endpoint, proxied by nginx (or Vite in development) |
-| **nginx** | Serves the built SPA and proxies `/api` and `/ws` | Also where the document's security headers live — the content security policy, framing and referrer rules ([ADR-018](../ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)). Absent from `npm run dev`, which serves no headers |
-| **Browser Notification API** | Desktop notifications when the tab is backgrounded | Optional, permission-gated, and skipped entirely where the API is unavailable |
+| **Browser WebSocket** | Real-time notification delivery | The `/ws` STOMP endpoint, proxied by nginx (or Vite in development). nginx throttles its handshake per client address, not what an open socket sends (#382, [ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md)) |
+| **nginx** | Serves the built SPA and proxies `/api` and `/ws` | Also where the security headers live — the content security policy, framing and referrer rules, declared for the whole server so that nginx's own error pages under `/api` and `/ws` carry them too ([ADR-018](../ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)). Absent from `npm run dev`, which serves no headers |
+| **Browser Notification API** | Desktop notifications when the tab is backgrounded | Optional, permission-gated, and skipped entirely where the API is unavailable. Each carries the notification's title and message, which the operating system keeps after the session ends ([ADR-068](../ADRs/ADR-068-desktop-notifications-keep-their-detail.md)) |
 
 Integration points a maintainer will need:
 
@@ -943,7 +956,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why one version names both modules rather than one each; why a test, not a CI step, holds the four fields together; why `dev` carries the last release's version | [ADR-050](../ADRs/ADR-050-one-version-names-the-whole-repository.md) |
 | Why a release is a tag on its promotion merge, cut by hand; why git-cliff runs from an image rather than release-please, a script or an npm dependency; why the changelog is only ever prepended to | [ADR-051](../ADRs/ADR-051-a-release-is-a-tag-on-its-promotion-and-git-cliff-writes-its-changelog.md) |
 | Why a browser drives the composed stack inside the image check, in Playwright's Chromium, rather than in a job of its own or only before a release; why `e2e/` is its own package; why the frontend publishes `127.0.0.1:3000` and the browser runs in UTC | [ADR-052](../ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md) |
-| Why a session that ends closes its open sockets with an ERROR frame, after the commit; why not a check on every push or on the client's heartbeats; why a session's natural expiry is not covered | [ADR-054](../ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md) |
+| Why a session that ends closes its open sockets with an ERROR frame, after the commit; why not a check on every push or on the client's heartbeats; why a session's natural expiry is not covered. What the tab does with the frame is ADR-066's | [ADR-054](../ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md) |
 | Why the diagram check runs on any Python 3 rather than a pinned one; why it stays on the standard library | [ADR-055](../ADRs/ADR-055-python-is-left-floating-at-any-python-3.md) |
 | Why the compose stack publishes on `127.0.0.1` only and probes PostgreSQL over TCP; why only the backend drops its capabilities | [ADR-057](../ADRs/ADR-057-the-developer-stack-is-reachable-from-this-machine-only.md) |
 | Why a PR into `dev` must have its checks run on the latest `dev`, and a promotion into `main` need not; why a second ruleset rather than strict in the first | [ADR-058](../ADRs/ADR-058-a-pr-into-dev-merges-only-once-its-checks-ran-on-the-latest-dev.md) |
@@ -953,6 +966,10 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the shared kernel depends on no context; why the security adapter loads accounts through a port it declares rather than through `UserQuery`; why `User` and `Role` stay in `user` | [ADR-062](../ADRs/ADR-062-the-shared-kernel-depends-on-no-bounded-context.md) |
 | Why every context's tables share one schema; why a delete crosses contexts on `ON DELETE` rather than an event; what moving a context out or adding a soft delete would cost | [ADR-063](../ADRs/ADR-063-one-schema-with-cross-context-foreign-keys.md) |
 | Which layering rules the backend enforces beyond ADR-002, and the exceptions each names; why `TrackingConfigQuery` stays unscoped and a web mapper reads a port; when to revisit either | [ADR-064](../ADRs/ADR-064-the-backends-layering-rules-beyond-adr-002.md) |
+| Why a page the back/forward cache restores reloads, every time and not only after a sign-out; why a session's end also empties the query cache, through a registration `lib/` makes with `api/`; why the server's session-ended frame ends the session in the tab, superseding part of ADR-054 | [ADR-066](../ADRs/ADR-066-a-tab-keeps-nothing-of-a-session-that-ended.md) |
+| Why a desktop notification carries the notification's own title and message, though the operating system keeps them after sign-out; when to revisit that | [ADR-068](../ADRs/ADR-068-desktop-notifications-keep-their-detail.md) |
+| Why the compose backend connects as a role that owns its database rather than as the superuser; why its variables are not `DB_USERNAME` and `DB_PASSWORD`; why one role and not a migrating and a serving one | [ADR-069](../ADRs/ADR-069-the-compose-backend-connects-as-a-role-that-owns-its-database.md) |
+| Why nginx throttles the `/ws` handshake although ADR-017 kept sign-in's limit in the application; why there is no cap on open sockets; what a load balancer would need first | [ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |
