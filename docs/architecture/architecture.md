@@ -487,7 +487,9 @@ from a different place:
 
 - **HTTP** — `ServerHttpObservationFilter`, from the framework. An inbound W3C `traceparent` continues
   the caller's trace; otherwise a new one starts. Behind nginx none arrives from a browser: nginx clears
-  `traceparent`, `tracestate` and `baggage` on `/api` and `/ws`, so the id is the API's own.
+  the caller's context in both formats the API consumes, W3C (`traceparent`, `tracestate`, `baggage`)
+  and B3 (`b3` and the `X-B3-*` headers), on `/api` and `/ws`, so the id is the API's own. The
+  backend's own configuration narrows what it consumes as well.
   `TraceIdResponseHeaderFilter` returns the id as
   `X-Trace-Id`, and `GlobalExceptionHandler` stamps it on the error body. The container's error page
   runs after the scope has closed, so `TraceIdErrorAttributes` puts the id the header carried on its

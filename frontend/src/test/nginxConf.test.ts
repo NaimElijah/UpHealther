@@ -41,16 +41,30 @@ describe('the nginx configuration', () => {
     }).toEqual({ For: '$remote_addr', Proto: '$scheme', Host: '$host', Port: '$server_port' });
   });
 
+  /**
+   * Every header a caller could continue a trace with. Boot's `management.tracing.propagation.consume`
+   * defaults to W3C, B3 and B3 multi-header, so each format's headers are listed.
+   */
+  const TRACE_HEADERS = [
+    'traceparent',
+    'tracestate',
+    'baggage',
+    'b3',
+    'X-B3-TraceId',
+    'X-B3-SpanId',
+    'X-B3-ParentSpanId',
+    'X-B3-Sampled',
+    'X-B3-Flags',
+  ];
+
   it.each(PROXIED)('GivenTheProxiedLocation%s_WhenItsTraceHeadersAreRead_ThenTheCallersAreCleared', (path) => {
-    // S5.C5: the backend continues an inbound W3C trace, so a caller who sent `traceparent` chose the
-    // trace id the logs and the audit trail join on. An empty value makes nginx send none.
+    // S5.C5: the backend continues an inbound trace, so a caller who sent one chose the trace id the
+    // logs and the audit trail join on. An empty value makes nginx send none.
     const body = locationBody(path);
 
-    expect({
-      traceparent: proxiedHeader(body, 'traceparent'),
-      tracestate: proxiedHeader(body, 'tracestate'),
-      baggage: proxiedHeader(body, 'baggage'),
-    }).toEqual({ traceparent: '""', tracestate: '""', baggage: '""' });
+    expect(Object.fromEntries(TRACE_HEADERS.map((name) => [name, proxiedHeader(body, name)]))).toEqual(
+      Object.fromEntries(TRACE_HEADERS.map((name) => [name, '""'])),
+    );
   });
 
   describe('the socket endpoint', () => {
