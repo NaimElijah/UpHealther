@@ -7,8 +7,8 @@
     `V13__child_rows_share_their_parents_owner.sql`, `V14__area_detach_bumps_upgrade_version.sql` and
     `V16__user_version.sql`.
   - `Reminder`, whose two columns become `@Column(nullable = false)`, and `User`, which gains `@Version`.
-  - `EnumColumnCheckContractTest`, `ValueDomainConstraintIT`, `OwnerConsistencyIT` and
-    `UpgradePersistenceIT` and `UserConcurrentWritesIT`, which enforce it.
+  - `EnumColumnCheckContractTest`, `ValueDomainConstraintIT`, `OwnerConsistencyIT`,
+    `UpgradePersistenceIT`, `UserConcurrentWritesIT` and `AdminDisableRaceIT`, which enforce it.
   - BR-14, BR-15, BR-18, BR-19, BR-20 and NFR-34 in `docs/requirements/requirements.md`.
 - **Issue:** [#340](https://github.com/NaimElijah/UpHealther/issues/340), scan 06 of
   [#334](https://github.com/NaimElijah/UpHealther/issues/334), findings D6.10, D6.11, D6.2 and D6.5. Generalises the
@@ -97,10 +97,17 @@ requirements do not state is added.
 
 9. **An account carries a version too.** `User` has `@Version`, on a `users.version` column V16 adds. Every
    write to an account writes the whole row, so an administrator's disable overtaken by a role change loaded
-   before it was undone by that change, while the audit trail said "disabled" (NFR-34). The overtaken write
-   is now refused at its commit, answered 409 by the handler BR-14 already uses. It is the same rule as
-   decision 8, that a lost race is refused rather than silently won, applied to the second aggregate two
+   before it was undone by that change, while the audit trail said "disabled" (NFR-34). It is the same rule
+   as decision 8, that a lost race is refused rather than silently won, applied to the second aggregate two
    writers can reach at once.
+
+   **The overtaken write is refused at its save.** `UserRepositoryAdapter.save` flushes, and translates
+   Spring's optimistic-lock exception into the `user` context's `AccountModifiedConcurrentlyException`, a
+   `ConflictException`: answered 409, and audited as a refusal. Left to the commit, the clash would not have
+   waited for it: a disable revokes the account's sessions after its save, through a query that flushes
+   first, so the clash surfaced inside the audited body as Spring's exception and was audited FAILED, the
+   outcome the alternatives below reject for upgrades. V16's comment, which says the write is refused "at
+   its commit", predates this; it stays as written, because no migration is edited.
 
 ## Consequences
 
@@ -127,6 +134,9 @@ requirements do not state is added.
 - **A trigger is code in the schema.** `UpgradePersistenceIT` exercises it through a real area delete, and
   through an owner's edit that must not count twice; a change to the version column or to the area key
   needs it read again.
+- **Every account save flushes**, so its `UPDATE` runs, and takes the row's lock, at the save rather than
+  at the commit. Only an administrator's three writes and the bootstrap save an account, each as the last
+  write of its transaction but for the disable's session revocation.
 - **The area key is weaker than it looks.** A legacy row with a foreign area stays, and no constraint
   says it is there. The day such rows are gone, a `VALIDATE` makes the key whole.
 

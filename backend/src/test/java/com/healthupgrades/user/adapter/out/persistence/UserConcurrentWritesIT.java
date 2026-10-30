@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.PostgresIT;
+import com.healthupgrades.user.domain.model.AccountModifiedConcurrentlyException;
 import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User;
 import com.healthupgrades.user.domain.port.out.UserRepositoryPort;
@@ -19,7 +20,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
-import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -34,12 +34,13 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <p>An account's row is written whole, so the write that commits last would put back every value its
  * writer loaded: a role change loaded before a disable would write {@code enabled = true} back, and the
  * disable would be silently undone while the audit trail still said "disabled". {@code User}'s
- * {@code @Version} refuses that write at its commit instead, as the optimistic-lock conflict the API answers
- * 409, the mechanism BR-14 already uses for upgrades.
+ * {@code @Version} refuses that write instead, the mechanism BR-14 already uses for upgrades. The adapter's
+ * save flushes, so the refusal is raised by the save itself, as the {@code user} context's conflict, which
+ * the API answers 409 and the audit trail records as a refusal (ADR-073).
  *
  * <p>The interleaving is forced in one thread rather than raced across two, so the outcome never depends
  * on timing: the outer transaction loads the account, an inner {@code REQUIRES_NEW} transaction disables
- * it and commits, and only then does the outer one change its copy and try to commit.
+ * it and commits, and only then does the outer one change its copy and save it.
  *
  * <p>Both transactions are real, so the class opts out of {@code @DataJpaTest}'s rolled-back transaction, as
  * {@code AuthSessionRowLockIT} does. It deletes the account it creates.
@@ -89,7 +90,7 @@ class UserConcurrentWritesIT extends PostgresIT {
     void
             GivenAnAccountDisabledWhileANameChangeWasInFlight_WhenTheNameChangeIsSaved_ThenItIsRefusedAndTheAccountStaysDisabled() {
         assertThatThrownBy(() -> saveAfterAConcurrentDisable(account -> account.setName(NEW_NAME)))
-                .isInstanceOf(OptimisticLockingFailureException.class);
+                .isInstanceOf(AccountModifiedConcurrentlyException.class);
 
         Map<String, Object> row = storedRow();
         assertThat(row.get("enabled")).as("the disable committed first").isEqualTo(false);
@@ -100,7 +101,7 @@ class UserConcurrentWritesIT extends PostgresIT {
     void
             GivenAnAccountDisabledWhileARoleChangeWasInFlight_WhenTheRoleChangeIsSaved_ThenItIsRefusedAndTheAccountStaysDisabled() {
         assertThatThrownBy(() -> saveAfterAConcurrentDisable(account -> account.changeRole(Role.ADMIN)))
-                .isInstanceOf(OptimisticLockingFailureException.class);
+                .isInstanceOf(AccountModifiedConcurrentlyException.class);
 
         Map<String, Object> row = storedRow();
         assertThat(row.get("enabled")).as("the disable committed first").isEqualTo(false);
@@ -128,7 +129,7 @@ class UserConcurrentWritesIT extends PostgresIT {
 
     /**
      * Loads the account, lets a second transaction disable it and commit, then applies {@code change} to
-     * the copy loaded before the disable and saves it, committing at the end.
+     * the copy loaded before the disable and saves it.
      */
     private void saveAfterAConcurrentDisable(Consumer<User> change) {
         outer.executeWithoutResult(status -> {

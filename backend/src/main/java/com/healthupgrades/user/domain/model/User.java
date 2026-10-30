@@ -60,7 +60,8 @@ public class User {
     /**
      * Optimistic-lock version. Every write to an account writes the whole row, so without it two that
      * overlap undo each other, and an administrator's disable could be switched back on by a role change
-     * loaded before it. With it the overtaken write is refused at its commit, answered 409 (ADR-073).
+     * loaded before it. With it the overtaken write is refused at its save, which flushes, as
+     * {@link AccountModifiedConcurrentlyException}: answered 409, and audited as a refusal (ADR-073).
      */
     @Version
     @Setter(AccessLevel.NONE)

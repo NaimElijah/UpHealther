@@ -7,7 +7,15 @@ import com.healthupgrades.user.domain.model.User; // the aggregate being persist
  */
 public interface UserCommand {
 
-    /** Persists a new or updated user and returns the managed instance. */
+    /**
+     * Persists a new or updated user, writing it immediately, so a write that another one overtook is
+     * refused inside this call rather than at commit.
+     *
+     * @param user the user to persist
+     * @return the managed instance
+     * @throws com.healthupgrades.user.domain.model.AccountModifiedConcurrentlyException if another write
+     *         to the account committed after this copy of it was loaded (ADR-073)
+     */
     User save(User user);
 
     /**

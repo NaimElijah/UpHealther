@@ -52,12 +52,14 @@ public class AdminBootstrapService {
      * registration is open, so an address would go to whoever registered it first.
      *
      * @param accountId the account to promote
+     * @throws com.healthupgrades.user.domain.model.AccountModifiedConcurrentlyException if another write
+     *         to the account, a second instance's bootstrap most likely, committed after it was read. The
+     *         save flushes, so this is raised inside the audited body and recorded {@code REFUSED}
      * @throws org.springframework.dao.DataAccessException or
      *         {@link org.springframework.transaction.TransactionException} if the promotion cannot be
-     *         written. The save does not flush, so the write normally fails at commit, after this method has
-     *         returned: the exception propagates from the transaction proxy, and {@code LoggingAuditTrail}
-     *         records the attempt {@code REFUSED} when the transaction rolls back. Only a failure raised
-     *         inside the call itself is recorded {@code FAILED}, before it is rethrown
+     *         written, recorded {@code FAILED} when raised by the save; one raised at commit, after this
+     *         method has returned, propagates from the transaction proxy, and {@code LoggingAuditTrail}
+     *         records the attempt {@code REFUSED} when the transaction rolls back
      */
     @Transactional
     public void bootstrap(UUID accountId) {

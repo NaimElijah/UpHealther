@@ -881,7 +881,9 @@ overlap inside the server clash, and the later one is answered 409. No request c
 version back, though, so an edit sent from a page opened before another edit replaces that edit instead of
 being refused ([#194](https://github.com/NaimElijah/UpHealther/issues/194)). An account is written whole
 by each of an administrator's disable, enable and role change, so without its version two of them
-overlapping would undo one another, a disable included; the one that was overtaken is refused instead
+overlapping would undo one another, a disable included; the one that was overtaken is refused instead. The
+account save flushes, so the refusal is raised by the save, as the `user` context's
+`AccountModifiedConcurrentlyException`, which the API answers 409 and the audit trail records as a refusal
 ([ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md)). Nothing else is version-checked, because nothing else is edited from two places at
 once. One writer of an upgrade is not Hibernate:
 deleting an area detaches its upgrades through `ON DELETE SET NULL (area_id)`, and a trigger,
