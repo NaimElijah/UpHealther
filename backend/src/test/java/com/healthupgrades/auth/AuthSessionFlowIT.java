@@ -114,6 +114,24 @@ class AuthSessionFlowIT extends PostgresIT {
     }
 
     @Test
+    void GivenACredentialTwoRotationsOld_WhenItIsReplayed_ThenTheSessionIsEndedForEverybody() throws Exception {
+        // S5.A1 through PostgreSQL: the thief refreshed c1 -> c2 -> c3, and the victim presents c1. Each
+        // rotation writes its spent row in the transaction that holds the session's lock, after the
+        // session's own update; only the database shows that both writes land and the lookup finds them.
+        HttpResponse<String> registered = register();
+        String first = credential(registered);
+        String second = credential(refresh(first));
+        String third = credential(refresh(second));
+
+        assertThat(refresh(first).statusCode())
+                .as("a credential two rotations old, past a zero grace, is a replay")
+                .isEqualTo(401);
+        assertThat(refresh(third).statusCode())
+                .as("the replay ended the session, so the thief's current credential stops working too")
+                .isEqualTo(401);
+    }
+
+    @Test
     void GivenAnAccessTokenIssuedWithinASession_WhenThatSessionEnds_ThenTheTokenStopsWorkingAtOnce() throws Exception {
         // The reason a token carries a sid claim at all. Without it, signing out would be a suggestion
         // until the token expired on its own.
