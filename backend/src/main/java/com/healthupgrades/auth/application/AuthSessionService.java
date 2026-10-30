@@ -18,6 +18,8 @@ import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
+import com.healthupgrades.user.application.port.in.UserQuery;
+import com.healthupgrades.user.domain.model.User;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -47,6 +49,8 @@ import org.springframework.transaction.annotation.Transactional;
  *       however many rotations old, means the legitimate client already exchanged it — so whoever is
  *       presenting it now is not that client, and the session is revoked for both of them. Signing the
  *       real user out is the point: it is the only available signal that something is wrong.</li>
+ *   <li><strong>A refresh re-reads the account.</strong> A session whose account has been switched off
+ *       ends on its next refresh, and every other session of that account with it (FR-43).</li>
  *   <li><strong>An unrecognised credential revokes nothing.</strong> If it is neither the current
  *       credential nor a spent one, this is not a credential the session ever issued. Revoking here
  *       would let anyone who learned a session id sign its owner out by guessing at the secret.</li>
@@ -69,6 +73,7 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
     private final AuthSessionProperties properties; // validated app.auth.session settings
     private final AuditTrail auditTrail; // records every refresh and sign-out, and detected reuse
     private final DomainEventPublisher events; // announces a session's end, so its open sockets close too
+    private final UserQuery users; // inbound read port of the user context, to re-read the account on refresh
     private final Clock clock; // injectable, so expiry is testable without waiting
 
     /** {@inheritDoc} */
@@ -127,6 +132,14 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
             return new RefreshOutcome.Rejected();
         }
         if (session.matchesCurrent(presentedHash)) {
+            if (!accountIsEnabled(session.getUserId())) {
+                // Switching an account off ends its sessions, but one opened between a sign-in's
+                // password check and the switch was not there to end (S5.A9). Its next refresh is where
+                // it is seen, so it ends here, and every other session the account holds with it.
+                recordRefusal(AuditAction.AUTH_REFRESH, session, true);
+                revokeAllForUser(session.getUserId());
+                return new RefreshOutcome.Rejected();
+            }
             RefreshToken rotated = new RefreshToken(session.getId(), secrets.generate());
             SpentCredential retired = session.rotate(rotated.hash(), now, properties.idle());
             sessions.save(session);
@@ -264,6 +277,11 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
     /** Records a refusal of a credential that named no session at all, and so names nobody. */
     private void recordRefusalOfNothing(AuditAction action) {
         auditTrail.record(new AuditEvent(action, null, null, AuditOutcome.REFUSED));
+    }
+
+    /** Whether the account still exists and may sign in; a deleted one may not. */
+    private boolean accountIsEnabled(UUID userId) {
+        return users.findById(userId).map(User::isEnabled).orElse(false);
     }
 
     /** Whether the presented credential is one this session issued, current or spent. */

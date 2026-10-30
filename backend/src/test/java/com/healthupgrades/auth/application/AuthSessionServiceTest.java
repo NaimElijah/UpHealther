@@ -2,6 +2,8 @@ package com.healthupgrades.auth.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.healthupgrades.auth.application.port.in.RefreshOutcome;
 import com.healthupgrades.auth.application.port.in.SessionGrant;
@@ -15,8 +17,11 @@ import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.event.DomainEvent;
+import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.MovableClock;
 import com.healthupgrades.support.RecordingAuditTrail;
+import com.healthupgrades.user.application.port.in.UserQuery;
+import com.healthupgrades.user.domain.model.User;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -58,13 +63,24 @@ class AuthSessionServiceTest {
     private final MovableClock clock = new MovableClock(START);
     /** Our own port, recorded rather than mocked, like the rest of this class's collaborators. */
     private final List<DomainEvent> published = new ArrayList<>();
+    /** The account every session here belongs to, enabled until a test switches it off. */
+    private final User account = AUser.withId(USER_ID);
+    /** Our own port, mocked: only the lookup by id is reached, and it answers the one account above. */
+    private final UserQuery users = mock(UserQuery.class);
 
     private AuthSessionService service;
 
     @BeforeEach
     void setUp() {
+        when(users.findById(USER_ID)).thenReturn(Optional.of(account));
         service = new AuthSessionService(
-                sessions, secrets, new AuthSessionProperties(IDLE, ABSOLUTE, GRACE), auditTrail, published::add, clock);
+                sessions,
+                secrets,
+                new AuthSessionProperties(IDLE, ABSOLUTE, GRACE),
+                auditTrail,
+                published::add,
+                users,
+                clock);
     }
 
     @Test
@@ -185,6 +201,28 @@ class AuthSessionServiceTest {
 
         assertThat(outcome).isInstanceOf(RefreshOutcome.Stale.class);
         assertThat(sessions.byId(opened.sessionId()).isActive(clock.instant())).isTrue();
+    }
+
+    @Test
+    void GivenAnAccountSwitchedOffAfterItsSessionOpened_WhenTheSessionIsRefreshed_ThenEverySessionOfTheAccountEnds() {
+        // S5.A9: an administrator can disable an account between a sign-in's password check and its
+        // session opening, and revokeAllForUser then finds nothing to end. Refresh is where such a
+        // session is next seen, so that is where the account is read again.
+        SessionGrant refreshed = service.open(USER_ID);
+        SessionGrant elsewhere = service.open(USER_ID);
+        account.disable();
+
+        RefreshOutcome outcome = service.refresh(refreshed.refreshToken());
+
+        assertThat(outcome).as("Rejected is what clears the cookie").isInstanceOf(RefreshOutcome.Rejected.class);
+        assertThat(service.isActive(refreshed.sessionId(), USER_ID)).isFalse();
+        assertThat(service.isActive(elsewhere.sessionId(), USER_ID))
+                .as("the account's other sessions end too")
+                .isFalse();
+        assertThat(published).containsExactly(new UserSessionsEnded(USER_ID, now()));
+        assertThat(auditTrail.only(AuditAction.AUTH_REFRESH))
+                .hasValue(
+                        new AuditEvent(AuditAction.AUTH_REFRESH, USER_ID, refreshed.sessionId(), AuditOutcome.REFUSED));
     }
 
     @Test
@@ -342,6 +380,7 @@ class AuthSessionServiceTest {
                 new AuthSessionProperties(IDLE, ABSOLUTE, GRACE),
                 auditTrail,
                 published::add,
+                users,
                 clock);
 
         assertThatThrownBy(() -> broken.refresh(UUID.randomUUID() + ".a-secret"))
@@ -492,6 +531,7 @@ class AuthSessionServiceTest {
                 new AuthSessionProperties(IDLE, ABSOLUTE, GRACE),
                 auditTrail,
                 published::add,
+                users,
                 clock);
 
         assertThatThrownBy(() -> broken.revoke(UUID.randomUUID() + ".a-secret"))
