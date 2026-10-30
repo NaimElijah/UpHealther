@@ -3,6 +3,8 @@ package com.healthupgrades.auth.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.healthupgrades.auth.application.port.in.RefreshOutcome;
+import com.healthupgrades.auth.application.port.in.SessionGrant;
 import com.healthupgrades.auth.domain.event.AuthSessionEnded;
 import com.healthupgrades.auth.domain.event.UserSessionsEnded;
 import com.healthupgrades.auth.domain.model.AuthSession;

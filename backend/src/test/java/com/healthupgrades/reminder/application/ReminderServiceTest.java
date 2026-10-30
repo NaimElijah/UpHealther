@@ -230,16 +230,6 @@ class ReminderServiceTest {
         verify(repository, never()).delete(any());
     }
 
-    @Test
-    void GivenRemindersAcrossUsers_WhenTheDispatcherAsksForWork_ThenOnlyTheEnabledOnesAreReturned() {
-        // The one method that is deliberately not user-scoped: the scheduler sweeps every user's
-        // reminders, and filters by enabled rather than by owner.
-        List<Reminder> enabled = List.of(aReminder(true));
-        when(repository.findByEnabledTrue()).thenReturn(enabled);
-
-        assertThat(service.findEnabled()).isEqualTo(enabled);
-    }
-
     // ---- NFR-23: every attempt is audited, allowed or refused ----
 
     @Test

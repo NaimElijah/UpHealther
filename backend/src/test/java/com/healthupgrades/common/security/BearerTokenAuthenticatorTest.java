@@ -7,9 +7,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.healthupgrades.common.domain.port.out.AccountCredentialsPort;
 import com.healthupgrades.common.domain.port.out.SessionStatusPort;
 import com.healthupgrades.support.AUser;
-import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User;
 import java.util.Optional;
@@ -43,7 +43,7 @@ class BearerTokenAuthenticatorTest {
     JwtTokenProvider tokenProvider;
 
     @Mock
-    UserQuery userQuery;
+    AccountCredentialsPort accounts;
 
     @Mock
     SessionStatusPort sessionStatus;
@@ -54,7 +54,7 @@ class BearerTokenAuthenticatorTest {
 
     @BeforeEach
     void setUp() {
-        authenticator = new BearerTokenAuthenticator(tokenProvider, userQuery, sessionStatus);
+        authenticator = new BearerTokenAuthenticator(tokenProvider, accounts, sessionStatus);
         // A live session is the precondition of every case below except the ones about a dead or
         // a borrowed one. It is live for user alone, so a token naming any other account finds it
         // ended unless the test says whose else it is.
@@ -73,7 +73,7 @@ class BearerTokenAuthenticatorTest {
     @Test
     void GivenAVerifiedToken_WhenItIsAuthenticated_ThenThePrincipalIsTheAccountItNames() {
         when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(user.getId(), SESSION_ID)));
-        when(userQuery.findById(user.getId())).thenReturn(Optional.of(user));
+        when(accounts.findById(user.getId())).thenReturn(Optional.of(AUser.credentialsFor(user)));
 
         assertThat(authenticator.authenticate(TOKEN)).hasValueSatisfying(principal -> {
             assertThat(principal.getId()).isEqualTo(user.getId());
@@ -86,7 +86,7 @@ class BearerTokenAuthenticatorTest {
         // A bearer-authenticated request never checks a password, so the hash has no reason to ride
         // along in the security context for the rest of the request.
         when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(user.getId(), SESSION_ID)));
-        when(userQuery.findById(user.getId())).thenReturn(Optional.of(user));
+        when(accounts.findById(user.getId())).thenReturn(Optional.of(AUser.credentialsFor(user)));
 
         assertThat(authenticator.authenticate(TOKEN))
                 .hasValueSatisfying(
@@ -97,7 +97,7 @@ class BearerTokenAuthenticatorTest {
     void GivenAVerifiedToken_WhenItIsAuthenticatedWithItsSession_ThenTheSessionItNamesComesWithThePrincipal() {
         // The socket keeps the session it was opened in, so that ending the session can close it.
         when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(user.getId(), SESSION_ID)));
-        when(userQuery.findById(user.getId())).thenReturn(Optional.of(user));
+        when(accounts.findById(user.getId())).thenReturn(Optional.of(AUser.credentialsFor(user)));
 
         assertThat(authenticator.authenticateWithSession(TOKEN)).hasValueSatisfying(authenticated -> {
             assertThat(authenticated.user().getId()).isEqualTo(user.getId());
@@ -119,7 +119,7 @@ class BearerTokenAuthenticatorTest {
         UUID deleted = UUID.randomUUID();
         givenALiveSessionOf(deleted);
         when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(deleted, SESSION_ID)));
-        when(userQuery.findById(deleted)).thenReturn(Optional.empty());
+        when(accounts.findById(deleted)).thenReturn(Optional.empty());
 
         assertThat(authenticator.authenticate(TOKEN)).isEmpty();
     }
@@ -134,7 +134,7 @@ class BearerTokenAuthenticatorTest {
         givenALiveSessionOf(disabled.getId());
         when(tokenProvider.verify(TOKEN))
                 .thenReturn(Optional.of(new VerifiedAccessToken(disabled.getId(), SESSION_ID)));
-        when(userQuery.findById(disabled.getId())).thenReturn(Optional.of(disabled));
+        when(accounts.findById(disabled.getId())).thenReturn(Optional.of(AUser.credentialsFor(disabled)));
 
         assertThat(authenticator.authenticate(TOKEN)).isEmpty();
     }
@@ -144,7 +144,7 @@ class BearerTokenAuthenticatorTest {
         User admin = AUser.withRole(UUID.randomUUID(), Role.ADMIN);
         givenALiveSessionOf(admin.getId());
         when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(admin.getId(), SESSION_ID)));
-        when(userQuery.findById(admin.getId())).thenReturn(Optional.of(admin));
+        when(accounts.findById(admin.getId())).thenReturn(Optional.of(AUser.credentialsFor(admin)));
 
         assertThat(authenticator.authenticate(TOKEN))
                 .hasValueSatisfying(principal -> assertThat(principal.getAuthorities())
@@ -160,7 +160,7 @@ class BearerTokenAuthenticatorTest {
         when(sessionStatus.isActive(SESSION_ID, user.getId())).thenReturn(false);
 
         assertThat(authenticator.authenticate(TOKEN)).isEmpty();
-        verify(userQuery, never()).findById(any());
+        verify(accounts, never()).findById(any());
     }
 
     @Test
@@ -171,7 +171,7 @@ class BearerTokenAuthenticatorTest {
         when(tokenProvider.verify(TOKEN)).thenReturn(Optional.of(new VerifiedAccessToken(intruder, SESSION_ID)));
 
         assertThat(authenticator.authenticate(TOKEN)).isEmpty();
-        verify(userQuery, never()).findById(any());
+        verify(accounts, never()).findById(any());
     }
 
     @Test
@@ -179,6 +179,6 @@ class BearerTokenAuthenticatorTest {
         when(tokenProvider.verify(TOKEN)).thenReturn(Optional.empty());
 
         assertThat(authenticator.authenticate(TOKEN)).isEmpty();
-        verify(userQuery, never()).findById(any());
+        verify(accounts, never()).findById(any());
     }
 }

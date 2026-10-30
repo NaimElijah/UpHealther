@@ -26,10 +26,17 @@ public interface ProgressEntryRepositoryPort {
     List<ProgressEntry> findByUpgradeIdOrderByDateDesc(UUID upgradeId);
 
     /**
-     * Every progress entry of the given upgrades, in one query and in no particular order: a streak is
-     * counted over a set of dates, so the caller groups them and needs no ordering.
+     * A user's progress entries on the given upgrades, in one query and in no particular order: a streak
+     * is counted over a set of dates, so the caller groups them and needs no ordering.
+     *
+     * <p>Scoped by the owner as well as by the ids, so an id that is another user's yields nothing
+     * (BR-15) rather than that user's history.
+     *
+     * @param userId     the owner whose entries are read
+     * @param upgradeIds the upgrades whose entries are read
+     * @return the owner's entries on those upgrades
      */
-    List<ProgressEntry> findByUpgradeIdIn(Collection<UUID> upgradeIds);
+    List<ProgressEntry> findByUserIdAndUpgradeIdIn(UUID userId, Collection<UUID> upgradeIds);
 
     /** A user's progress entries on a given date. */
     List<ProgressEntry> findByUserIdAndDate(UUID userId, LocalDate date);

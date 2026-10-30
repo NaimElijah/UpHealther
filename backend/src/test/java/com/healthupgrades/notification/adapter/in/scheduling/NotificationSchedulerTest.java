@@ -16,13 +16,14 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.healthupgrades.common.observability.JobMetrics;
+import com.healthupgrades.notification.application.NotificationSweepService;
 import com.healthupgrades.notification.domain.model.NotificationCategory;
 import com.healthupgrades.notification.domain.model.NotificationType;
 import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort;
-import com.healthupgrades.reminder.application.port.in.ReminderQuery;
+import com.healthupgrades.reminder.application.port.in.ReminderSweepQuery;
 import com.healthupgrades.reminder.domain.model.Reminder;
-import com.healthupgrades.tracking.application.port.in.ProgressQuery;
-import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
+import com.healthupgrades.tracking.application.port.in.ProgressSweepQuery;
+import com.healthupgrades.upgrade.application.port.in.UpgradeSweepQuery;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -54,6 +55,10 @@ import org.springframework.transaction.CannotCreateTransactionException;
  * <p>Deterministic through a fixed {@link java.time.Clock} — a scheduler test that read the system clock
  * would pass or fail depending on the minute it ran in.
  *
+ * <p>Driven through the scheduler, over the real {@link NotificationSweepService} that holds the sweeps
+ * since #338, so a test covers the trigger, its metrics and the use case behind it together. Only the
+ * ports are mocked.
+ *
  * <p>"Once a day" is the part worth stating: nothing stops either cron from being configured to run more
  * often than its default, so the guard is what makes the requirement true rather than the schedule.
  */
@@ -61,13 +66,13 @@ import org.springframework.transaction.CannotCreateTransactionException;
 class NotificationSchedulerTest {
 
     @Mock
-    UpgradeQuery upgradeQuery;
+    UpgradeSweepQuery upgradeQuery;
 
     @Mock
-    ProgressQuery progressQuery;
+    ProgressSweepQuery progressQuery;
 
     @Mock
-    ReminderQuery reminderQuery;
+    ReminderSweepQuery reminderQuery;
 
     @Mock
     NotificationRepositoryPort notificationRepository;
@@ -112,14 +117,9 @@ class NotificationSchedulerTest {
 
     @BeforeEach
     void setUp() {
-        scheduler = new NotificationScheduler(
-                upgradeQuery,
-                progressQuery,
-                reminderQuery,
-                notificationRepository,
-                notificationService,
-                jobMetrics,
-                fixedClock);
+        NotificationSweepService sweeps = new NotificationSweepService(
+                upgradeQuery, progressQuery, reminderQuery, notificationRepository, notificationService);
+        scheduler = new NotificationScheduler(sweeps, jobMetrics, fixedClock);
     }
 
     @Test
@@ -720,9 +720,12 @@ class NotificationSchedulerTest {
         when(progressQuery.findUserIdsWithEntriesOn(TODAY)).thenReturn(loggedToday);
     }
 
-    /** Collects what {@link NotificationScheduler} logs while {@code job} runs. */
+    /**
+     * Collects what a sweep logs while {@code job} runs: its lines are written by
+     * {@link NotificationSweepService}, which the scheduler runs.
+     */
     private static List<ILoggingEvent> logsFromScheduler(Runnable job) {
-        Logger logger = (Logger) LoggerFactory.getLogger(NotificationScheduler.class);
+        Logger logger = (Logger) LoggerFactory.getLogger(NotificationSweepService.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
         logger.addAppender(appender);

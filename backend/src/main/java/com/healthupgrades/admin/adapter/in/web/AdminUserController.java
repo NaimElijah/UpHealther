@@ -1,6 +1,6 @@
 package com.healthupgrades.admin.adapter.in.web;
 
-import com.healthupgrades.admin.application.AccountPage;
+import com.healthupgrades.admin.application.port.in.AccountPage;
 import com.healthupgrades.admin.application.port.in.AdminUserCommand;
 import com.healthupgrades.admin.application.port.in.AdminUserQuery;
 import com.healthupgrades.common.security.SecurityUser;

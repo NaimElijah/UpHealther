@@ -97,7 +97,7 @@ message pushed to a connected browser.
 
 The backend is **ten bounded contexts over a shared kernel** — `auth`, `user`, `admin`, `healtharea`,
 `upgrade`, `tracking`, `reflection`, `reminder`, `dashboard`, `notification` — each a hexagon:
-adapters depend on the core, and the core depends on nothing outside itself. The graph between
+adapters depend on the core, and the core imports no adapter. The graph between
 them is acyclic, read off the `import` statements rather than drawn, and CI fails when it stops
 matching the code — see the
 [context map](docs/architecture/arch-diagrams/README.md#2-bounded-context-map).
@@ -116,8 +116,9 @@ pushed by listeners that run only after the commit, so a rolled-back write annou
 `ABANDONED` is not — rescheduling revives it. At most three `HARD` upgrades may be `ACTIVE` at once,
 checked both when activating one and when promoting a running one to `HARD`.
 
-The layering is **enforced, not documented**: `HexagonalArchitectureTest` runs twelve ArchUnit rules
-on every `./mvnw test` — the domain stays framework-free, the application depends on no adapter, and
+The layering is **enforced, not documented**: `HexagonalArchitectureTest` runs twenty-two ArchUnit rules
+on every `./mvnw test` — the domain stays framework-free bar JPA mapping annotations, the application
+depends on no adapter, and
 Spring Data is confined to the persistence adapters.
 
 Seven diagrams, outside in: [arch-diagrams](docs/architecture/arch-diagrams/README.md). The prose:
@@ -318,7 +319,7 @@ the wrong way, and `FrontendWireTypesContractTest` on a record the frontend's co
 | Domain | The `HealthUpgrade` state machine and construction invariants, streaks, reminder scheduling, entry scoring | `./mvnw test` |
 | Application | Every use case in every context, including what a *rejected* operation must not leave behind | `./mvnw test` |
 | Web slice | Each controller against the real security chain: status codes, validation, another user's row as a 404 | `./mvnw test` |
-| Structural | Fifteen ArchUnit rules, plus the frontend wire-type, column-bound, pinned-image and version contracts | `./mvnw test` |
+| Structural | Twenty-five ArchUnit rules, plus the frontend wire-type, column-bound, pinned-image and version contracts | `./mvnw test` |
 | Integration | The app booted against a real PostgreSQL that Testcontainers starts — bean graph, migrations, database-enforced invariants | `./mvnw verify` |
 | Frontend | Session restore and silent token renewal, the notification socket, the route and role gates, the administration page, the content security policy, theme, error boundary | `npm test` in `frontend/` |
 | Smoke | A browser drives both modules together: a new account registers, plans and activates an upgrade, hears of it over the socket, logs a day and reads the dashboard, under nginx's CSP; a second test fetches the third-party notices nginx serves | `npm run test:images` |
@@ -468,7 +469,8 @@ backend/           Spring Boot API — ten bounded contexts, hexagonal, ArchUnit
   src/main/resources/  application.yml, logback-spring.xml, db/migration/V{n}__*.sql
   src/test/java/     domain · application · web slice · architecture · *IT
 frontend/          React + TypeScript SPA, served by nginx in production
-  src/api/           Typed client per resource, the axios instance, error mapping
+  src/api/           Typed client per resource, the axios instance, error mapping, the notification
+                     socket, and session.ts, the one way a session ends
   src/pages/         One page per route; components/, contexts/, hooks/ alongside
 e2e/               Playwright smoke suite: a browser through the composed stack, run by the image check
 docs/              The documentation the repository baseline requires

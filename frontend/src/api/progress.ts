@@ -13,12 +13,6 @@ export const getWeekProgress = async (): Promise<ProgressEntry[]> => {
   return data;
 };
 
-/** Fetches today's entries across all upgrades — what tells the check-in page what is already logged. */
-export const getTodayProgress = async (): Promise<ProgressEntry[]> => {
-  const { data } = await client.get<ProgressEntry[]>('/api/progress/today');
-  return data;
-};
-
 /**
  * Logs a day's progress.
  *
@@ -34,7 +28,7 @@ export const createProgress = async (req: CreateProgressRequest): Promise<Progre
     unit,
     rating,
     note,
-  });
+  } satisfies Omit<CreateProgressRequest, 'upgradeId'>);
   return data;
 };
 

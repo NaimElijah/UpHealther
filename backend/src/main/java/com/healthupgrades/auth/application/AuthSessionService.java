@@ -2,7 +2,9 @@ package com.healthupgrades.auth.application;
 
 import static net.logstash.logback.argument.StructuredArguments.keyValue;
 
+import com.healthupgrades.auth.application.port.in.RefreshOutcome;
 import com.healthupgrades.auth.application.port.in.SessionCommand;
+import com.healthupgrades.auth.application.port.in.SessionGrant;
 import com.healthupgrades.auth.application.port.in.SessionQuery;
 import com.healthupgrades.auth.domain.event.AuthSessionEnded;
 import com.healthupgrades.auth.domain.event.UserSessionsEnded;

@@ -13,7 +13,8 @@ import org.springframework.web.bind.annotation.*;
  * REST adapter for the notification inbox.
  *
  * <p>Read and acknowledge only — notifications are never created through the API. They are produced by
- * {@code NotificationEventListener} reacting to domain events and by {@code NotificationScheduler}, so
+ * {@code NotificationEventListener} reacting to domain events and by {@code NotificationSweepService}'s
+ * scheduled sweeps, so
  * there is no endpoint a client could post one to.
  *
  * <p>This is also the fallback transport: the same payloads are pushed over STOMP as they happen, and

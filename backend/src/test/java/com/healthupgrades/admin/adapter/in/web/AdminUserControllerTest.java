@@ -12,7 +12,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.healthupgrades.admin.application.AccountPage;
+import com.healthupgrades.admin.application.port.in.AccountPage;
 import com.healthupgrades.admin.application.port.in.AdminUserCommand;
 import com.healthupgrades.admin.application.port.in.AdminUserQuery;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;

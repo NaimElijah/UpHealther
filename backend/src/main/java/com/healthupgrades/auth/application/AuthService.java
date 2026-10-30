@@ -1,13 +1,14 @@
 package com.healthupgrades.auth.application;
 
 import com.healthupgrades.auth.application.port.in.SessionCommand;
+import com.healthupgrades.auth.application.port.in.SessionGrant;
+import com.healthupgrades.auth.domain.port.out.AccessToken;
+import com.healthupgrades.auth.domain.port.out.AccessTokenIssuerPort;
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
-import com.healthupgrades.common.security.IssuedAccessToken;
-import com.healthupgrades.common.security.JwtTokenProvider;
 import com.healthupgrades.user.application.port.in.UserCommand;
 import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.EmailAddress;
@@ -42,7 +43,7 @@ public class AuthService {
     private final UserQuery userQuery; // inbound read port of the user context
     private final UserCommand userCommand; // inbound write port of the user context
     private final PasswordEncoder passwordEncoder; // BCrypt encoder
-    private final JwtTokenProvider tokenProvider; // issues JWTs
+    private final AccessTokenIssuerPort tokenIssuer; // outbound token-signing port
     private final AuthenticationManager authenticationManager; // verifies credentials on login
     private final SessionCommand sessions; // opens the server-side session a token belongs to
     private final AuditTrail auditTrail; // records who signed in, and who was turned away
@@ -171,7 +172,7 @@ public class AuthService {
 
     /** Mints a token within a session. The one place the two halves of a grant are put together. */
     private AuthResult issued(User user, SessionGrant grant) {
-        IssuedAccessToken token = tokenProvider.issue(user.getId(), grant.sessionId());
+        AccessToken token = tokenIssuer.issue(user.getId(), grant.sessionId());
         return new AuthResult(token.value(), token.expiresAt(), user, grant);
     }
 }

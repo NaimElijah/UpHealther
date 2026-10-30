@@ -1,4 +1,4 @@
-package com.healthupgrades.user.adapter.in.web;
+package com.healthupgrades.auth.adapter.in.web;
 
 import com.healthupgrades.user.domain.model.Role;
 import java.time.LocalDateTime;
@@ -7,9 +7,10 @@ import java.util.UUID;
 /**
  * Public view of a user on the wire.
  *
- * <p>This is the user context's published presentation model: the {@code auth} context reuses it in
- * {@code TokenPair} rather than declaring a second shape for the same thing. It deliberately carries no
- * password hash and no {@code updatedAt} — everything here is safe to hand to the browser.
+ * <p>The account as {@code /api/auth} returns it: alone from {@code GET /me}, and inside {@link TokenPair}
+ * from registration, sign-in and refresh. It lives beside the controller that returns it, so a change to
+ * that wire shape is made in this context. It deliberately carries no password hash and no
+ * {@code updatedAt} — everything here is safe to hand to the browser.
  *
  * @param id        the user's identifier
  * @param name      display name

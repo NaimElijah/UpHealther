@@ -2,12 +2,11 @@ package com.healthupgrades.auth.adapter.in.web;
 
 import com.healthupgrades.auth.application.AuthResult;
 import com.healthupgrades.auth.application.AuthService;
-import com.healthupgrades.auth.application.RefreshOutcome;
+import com.healthupgrades.auth.application.port.in.RefreshOutcome;
 import com.healthupgrades.auth.application.port.in.SessionCommand;
 import com.healthupgrades.common.domain.exception.AuthenticationRequiredException;
 import com.healthupgrades.common.domain.exception.RetryableConflictException;
 import com.healthupgrades.common.security.SecurityUser;
-import com.healthupgrades.user.adapter.in.web.UserDto;
 import com.healthupgrades.user.domain.model.EmailAddress;
 import com.healthupgrades.user.domain.model.User;
 import jakarta.servlet.http.HttpServletRequest;

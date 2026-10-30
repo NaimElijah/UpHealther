@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
+import com.healthupgrades.common.domain.port.out.AccountCredentialsPort;
 import com.healthupgrades.support.AUser;
-import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User;
 import java.util.Optional;
@@ -20,18 +20,22 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 /**
- * Covers the bridge between Spring Security and the user context: a domain {@link User} is wrapped in a
- * {@link SecurityUser}, which is what keeps the framework out of the domain model.
+ * Covers the bridge between Spring Security and the kernel's account port: the credentials of a domain
+ * {@link User}, as the user context supplies them, are wrapped in a {@link SecurityUser}, which is what
+ * keeps the framework out of the domain model.
  *
  * <p>The id carried on the principal matters beyond identity — every controller threads
  * {@code principal.getId()} down as the owner id, so losing it here would silently break user scoping
  * (BR-15) on every endpoint at once.
+ *
+ * <p>How a typed address is normalised is the user context's rule, so {@code AccountCredentialsAdapterTest}
+ * covers it, on the supplying side of the port.
  */
 @ExtendWith(MockitoExtension.class)
 class UserDetailsServiceImplTest {
 
     @Mock
-    UserQuery userQuery;
+    AccountCredentialsPort accounts;
 
     @InjectMocks
     UserDetailsServiceImpl service;
@@ -39,7 +43,7 @@ class UserDetailsServiceImplTest {
     @Test
     void GivenARegisteredEmail_WhenThePrincipalIsLoaded_ThenItCarriesTheUsersIdentity() {
         User user = AUser.aUser().build();
-        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(user));
+        when(accounts.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(AUser.credentialsFor(user)));
 
         UserDetails details = service.loadUserByUsername(AUser.EMAIL);
 
@@ -51,7 +55,7 @@ class UserDetailsServiceImplTest {
 
     @Test
     void GivenAnUnknownEmail_WhenThePrincipalIsLoaded_ThenItIsReportedAsNotFound() {
-        when(userQuery.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
+        when(accounts.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.loadUserByUsername("nobody@example.com"))
                 .isInstanceOf(UsernameNotFoundException.class)
@@ -60,20 +64,11 @@ class UserDetailsServiceImplTest {
     }
 
     @Test
-    void GivenAMixedCaseEmail_WhenThePrincipalIsLoaded_ThenTheNormalisedAddressIsLookedUp() {
-        when(userQuery.findByEmail(AUser.EMAIL))
-                .thenReturn(Optional.of(AUser.aUser().build()));
-
-        assertThat(service.loadUserByUsername(" Someone@EXAMPLE.com").getUsername())
-                .isEqualTo(AUser.EMAIL);
-    }
-
-    @Test
     void GivenALoadedPrincipal_WhenItsCredentialsAreErased_ThenTheStoredHashIsGone() {
         // Spring Security calls this once authentication has completed. It is the reason the hash is on
         // the principal at all, and the reason SecurityUser implements CredentialsContainer.
-        when(userQuery.findByEmail(AUser.EMAIL))
-                .thenReturn(Optional.of(AUser.aUser().build()));
+        when(accounts.findByEmail(AUser.EMAIL))
+                .thenReturn(Optional.of(AUser.credentialsFor(AUser.aUser().build())));
 
         SecurityUser principal = (SecurityUser) service.loadUserByUsername(AUser.EMAIL);
         principal.eraseCredentials();
@@ -86,8 +81,8 @@ class UserDetailsServiceImplTest {
         // Exactly one authority, and it is the account's own role under Spring Security's prefix.
         // A second authority appearing here would mean the authorization model grew something that
         // is not a role, which is a decision for an ADR rather than a line of wiring.
-        when(userQuery.findByEmail(AUser.EMAIL))
-                .thenReturn(Optional.of(AUser.aUser().build()));
+        when(accounts.findByEmail(AUser.EMAIL))
+                .thenReturn(Optional.of(AUser.credentialsFor(AUser.aUser().build())));
 
         assertThat(service.loadUserByUsername(AUser.EMAIL).getAuthorities())
                 .extracting(GrantedAuthority::getAuthority)
@@ -96,7 +91,8 @@ class UserDetailsServiceImplTest {
 
     @Test
     void GivenAnAdministrator_WhenItsAuthoritiesAreRead_ThenItHoldsTheAdminRole() {
-        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(AUser.withRole(UUID.randomUUID(), Role.ADMIN)));
+        when(accounts.findByEmail(AUser.EMAIL))
+                .thenReturn(Optional.of(AUser.credentialsFor(AUser.withRole(UUID.randomUUID(), Role.ADMIN))));
 
         assertThat(service.loadUserByUsername(AUser.EMAIL).getAuthorities())
                 .extracting(GrantedAuthority::getAuthority)
@@ -109,7 +105,7 @@ class UserDetailsServiceImplTest {
         // it, and BearerTokenAuthenticator is what acts on it for a token.
         User disabled = AUser.aUser().build();
         disabled.disable();
-        when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(disabled));
+        when(accounts.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(AUser.credentialsFor(disabled)));
 
         assertThat(service.loadUserByUsername(AUser.EMAIL).isEnabled()).isFalse();
     }

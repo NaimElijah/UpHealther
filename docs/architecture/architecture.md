@@ -19,9 +19,17 @@ same origin: a proxy in front of the SPA forwards `/api` and `/ws` to the API, s
 cross-origin request in the default setup.
 
 Inside the API, the code is organised as ten bounded contexts over a ports-and-adapters core. The
-domain and application layers know nothing about HTTP, JPA or Spring's event bus; each of those
-arrives through an adapter. The boundaries are not a convention — they are checked on every build by
-an ArchUnit suite, which is the authority on what the layering permits.
+core is not free of frameworks, and says where it is not. The domain imports only the JDK packages it
+uses, Lombok and this codebase, with one exception: the entities carry `jakarta.persistence` mapping
+annotations ([ADR-001](../ADRs/ADR-001-ddd-hexagonal-architecture.md)). The application layer imports
+no adapter, no web type and not Spring's event bus, but it uses Spring where that pays, for example:
+its services are Spring beans with `@Transactional`; `AuthService` takes Spring Security's
+`PasswordEncoder` and `AuthenticationManager`; `NotificationService` registers a transaction
+synchronisation; the sweeps recognise `CannotCreateTransactionException`; and the `*BeansConfig` and
+properties classes are `@Configuration` and `@ConfigurationProperties`. That list is illustrative;
+ArchUnit says what is forbidden. HTTP, Spring Data, token signing and the event bus reach the core
+through adapters. The boundaries are not a convention — they are checked on every build by an
+ArchUnit suite, which is the authority on what the layering permits.
 
 > **Diagram:** [System context](arch-diagrams/README.md#1-system-context) — the three
 > processes, the browser, and what each connection carries.
@@ -59,41 +67,66 @@ Ten contexts, each owning its own vocabulary, plus a cross-cutting `common`.
 | `notification` | `Notification` — the inbox and the real-time push | Full, and the only context with a messaging adapter |
 | `healtharea` | `HealthArea` — the groupings upgrades are filed under | Full |
 | `user` | `User` — identity and the stored password hash; `EmailAddress`, the one rule for when two addresses are the same identity | Full |
-| `auth` | Registration, sign-in, sign-out, and the sessions tokens are issued within; announcing a session's end, so the sockets it opened close | `AuthSession` — a signed-in session, the row that makes revocation possible; orchestrates over `user` for identity |
+| `auth` | `AuthSession` — a signed-in session, the row that makes revocation possible — and the use cases around it: registration, sign-in, sign-out, and announcing a session's end so the sockets it opened close | Full, and it orchestrates over `user` for identity |
 | `admin` | Listing accounts, switching one off or back on, and granting or revoking a role | Two-layer: orchestrates over `user` and `auth`, owns no aggregate. It depends on no context holding a user's own records, and ArchUnit keeps it that way |
 | `dashboard` | The composed dashboard read model | Two-layer: reads through other contexts' ports, persists nothing |
-| `common` | Cross-cutting: the `DomainEvent` marker, shared exceptions, the event-publisher port, the global exception handler, JWT security, and the WebSocket configuration with the registry of open sockets | Not a context; a shared kernel plus cross-cutting adapters |
+| `common` | The `DomainEvent` marker and the `DomainEventPublisher` port; the shared exceptions, including `ConflictException`, which a context subclasses to name its own conflict; the audit trail (`AuditTrail` and `LoggingAuditTrail`); the ports it declares for a context to supply or call, `SessionStatusPort`, `AccountCredentialsPort` and `LiveSocketPort`; the global exception handler; JWT security; the WebSocket configuration and the registry of open sockets; and `observability`, `ratelimit` and `time` | Not a context; a shared kernel plus cross-cutting adapters. It depends on no context, and ArchUnit keeps it that way ([ADR-062](../ADRs/ADR-062-the-shared-kernel-depends-on-no-bounded-context.md)) |
 
 The shapes that differ are deliberate, not drift. `dashboard` is two-layer by design
 ([ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)); `auth` began
 that way and gained an aggregate with sessions
-([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)); and `admin` owns
-no aggregate at all, orchestrating over `user` and `auth`.
+([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)), so it is now full;
+and `admin` owns no aggregate at all, orchestrating over `user` and `auth`.
+
+A context keeps its adapters under `adapter/in` (what starts work) and `adapter/out` (what work reaches
+out to). The kinds that occur:
+
+| Package | Holds | Found in |
+|---|---|---|
+| `adapter/in/web` | Controllers, request and response records, and the `*WebMapper` that translates in both directions (`auth` and `admin` translate in the controller) | every context but `user` |
+| `adapter/in/scheduling` | A cron trigger: times the run and calls the application method that holds the sweep, reading the clock first where the sweep needs a date (the session clean-up does not: its service reads it) | `upgrade`, `notification`, `auth` |
+| `adapter/in/event` | A listener that turns a domain event into a call on the application layer, or, for `SessionEndSocketListener`, into the one `LiveSocketPort` call that closes a session's sockets: the driving-adapter rule's named exception | `notification`, `auth` |
+| `adapter/in/composition` | The adapter that answers another context's or the kernel's outbound port: `UpgradeTrackingSummaryAdapter` for `UpgradeTrackingSummaryPort`, `SessionStatusAdapter` for `SessionStatusPort`, `AccountCredentialsAdapter` for `AccountCredentialsPort`. It sits under `adapter/in` because it calls its own context's inbound port, and implements a port rather than starting work | `tracking`, `auth`, `user` |
+| `adapter/in/bootstrap` | `AdminBootstrapRunner`, an `ApplicationRunner`: at startup it parses `app.admin.bootstrap-user-id` and calls `AdminBootstrapService.bootstrap`, which nothing else may hold | `admin` |
+| `adapter/out/persistence` | A package-private Spring Data repository and the `*RepositoryAdapter` that implements the context's repository port over it | every context but `admin` and `dashboard` |
+| `adapter/out/messaging` | The STOMP push of a notification | `notification` |
+| `adapter/out/security` | Access-token issuing over `JwtTokenProvider`, and the refresh secret generator | `auth` |
+
+`common/adapter` holds the kernel's own: the global exception handler (`in/web`), `LoggingAuditTrail`
+(`out/audit`) and `SpringDomainEventPublisher` (`out/event`). The rest of the kernel's adapters live
+in packages not named `adapter` (`security`, `websocket`, `observability`, `ratelimit`). Only one rule
+sees them as adapters: `core_does_not_depend_on_the_kernels_adapters`, which lets the application and
+domain layers reach the kernel in `common.domain` and nowhere else ([ADR-064](../ADRs/ADR-064-the-backends-layering-rules-beyond-adr-002.md)).
 
 ### Frontend modules
 
 | Module | Responsible for |
 |---|---|
-| `src/api/` | One axios instance and a thin function per endpoint. The instance attaches the in-memory access token, and renews it from the refresh cookie and retries once on a 401 rather than signing the user out; `tokenStore.ts` holds the token, and every call goes through the instance |
-| `src/contexts/` | `AuthProvider` owns the session; `NotificationProvider` owns the notification list, the unread count (the server's, since the list holds only the fifty most recent; the unread listed stands in until it can be read), the STOMP connection and the toasts; `ThemeProvider` owns the light/dark/system choice and the `dark` class on `<html>` |
+| `src/api/` | One axios instance, `client.ts`, and one module per backend area with a thin function per endpoint. The instance attaches the in-memory access token, and renews it from the refresh cookie and retries once on a 401 rather than signing the user out; `tokenStore.ts` holds the token, and every HTTP call goes through the instance. `api/` owns the credential's renewal and the end of a session: `session.ts`'s `endSession` is the one way a session ends, on sign-out and when a renewal fails, by dropping the token and replacing the document with `/login`, never a router push, so no state of the previous user survives. `apiError.ts`'s `toApiError` is the one place a failure is decoded, into a status, a message, any field errors and the trace id. `notificationSocket.ts` is the STOMP client that delivers notifications live: it presents and renews the same token, and takes the API's origin from `apiBaseUrl.ts`, as the instance does |
+| `src/contexts/` | `AuthProvider` owns the current user and the sign-in, registration and sign-out actions. It writes the token three times: it stores the one a sign-in or a registration returns, and clears it when the restore at page load fails; a sign-out the server accepted ends through `endSession`; `NotificationProvider` owns the notification list, the unread count (the server's, since the list holds only the fifty most recent; the unread listed stands in until it can be read), when the STOMP connection is open, and the toasts; `ThemeProvider` owns the light/dark/system choice and the `dark` class on `<html>` |
 | `src/hooks/` | `useAuth`, `useNotifications` and `useTheme` — typed context readers that fail loudly outside their provider |
-| `src/router/` | The route table, and `ProtectedRoute`, which gates every authenticated page |
-| `src/pages/` | One component per route |
-| `src/components/` | `ui/` primitives — including `PageContainer`, which decides how wide a page may grow — `upgrade/` cards, badges, the fields that describe an upgrade and the actions an upgrade's page offers on it, `notifications/` bell, dropdown, items and toasts, `layout/` navbar, sidebar and the phone menu, the last two rendering one shared list of links |
-| `src/types/` | `api.generated.ts`, the request and response shapes and enums rendered from the backend's records, and `index.ts`, which gives them the frontend's names (see "The frontend's wire types are generated from the backend's records") |
+| `src/App.tsx`, `src/main.tsx` | The outer half of the composition root. `main.tsx` mounts `App` under `StrictMode`; `App` installs, outermost first, `ThemeProvider`, `ErrorBoundary`, the one `QueryClientProvider` and `AuthProvider` around the router |
+| `src/router/` | `index.tsx`, the route table and the inner half of the composition root: inside `BrowserRouter` it mounts `NotificationProvider` around the routes and `ToastContainer` beside them, so a toast can navigate. `ProtectedRoute` gates every page but sign-in and registration; `RequireRole` adds the administrator check in front of `/admin/users`, a courtesy, since the API decides. `/` and any unknown path redirect |
+| `src/pages/` | One component per route that renders a page |
+| `src/components/` | `ui/` primitives — including `PageContainer`, which decides how wide a page may grow, `Modal`, which every dialog is, and `ErrorState`, which shows a failure with its trace id — `upgrade/` cards, badges, the fields that describe an upgrade, the actions an upgrade's page offers on it, and the sections of that page (its streak, tracking configuration, reminders, progress and reflections), each rendering the read the page hands it and owning its writes and dialog where it has them, `notifications/` bell, dropdown, items and toasts, `layout/` navbar, sidebar and the phone menu, the last two rendering one shared list of links (`navItems.ts`), `theme/` the light, dark and system switch, and `ErrorBoundary.tsx`, which replaces a tree that threw while rendering with a page offering a reload |
+| `src/types/` | `api.generated.ts`, the request and response shapes and enums rendered from the backend's records, and `index.ts`, which gives them the frontend's names and adds, as intersections, what no record declares: a health area's client-side `upgradeCount`, and the `upgradeId` that `createProgress` moves from a new entry into the URL (see "The frontend's wire types are generated from the backend's records") |
 | `src/lib/` | Helpers shared by several pages. `localDate.ts` turns the API's zone-less `YYYY-MM-DD` dates into the user's own day and back, because JavaScript's shortcuts for both go through UTC; `queryClient.ts` builds the one server-state cache and its thirty-second staleness window; `upgradeViews.ts` marks every cached view of upgrades out of date after a write that changed one ([ADR-029](../ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)) |
+
+**The folders are layered, and lint enforces it.** Each imports only from those below it: `types` ←
+`api` ← `lib` ← `contexts` + `hooks` ← `components` ← `pages` ← `router` ← `App.tsx` and `main.tsx`.
+`contexts` and `hooks` are one layer, since each hook reads one context. A few modules have a single
+owner: `axios` is imported only under `api/`, `@stomp/stompjs` only by `api/notificationSocket.ts`,
+`types/api.generated` only by `types/index.ts`, and `api/tokenStore` only under `api/` and by
+`contexts/AuthContext.tsx`. `eslint.config.js` enforces both with `no-restricted-imports`, on
+production files only, so `npm run lint` fails an import that breaks either. See
+[ADR-061](../ADRs/ADR-061-the-frontends-stack-and-layering.md), which also records why the SPA is built
+on the libraries it is.
 
 ---
 
 ## Communication
 
 Five distinct mechanisms, each used for one thing:
-
-The two endpoints reachable without a credential — sign-in and registration — are rate-limited per
-client address by a handler interceptor, which runs before any controller so a refused attempt costs
-no password comparison. The address it counts is the one nginx reported, and only nginx's own address
-is trusted to report one
-([ADR-017](../ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)).
 
 **1. HTTP, browser to API.** Every read and write. JSON in and out, JWT bearer token in the
 `Authorization` header. The token names its account by id in `sub` and carries nothing else that
@@ -112,6 +145,12 @@ registration as a servlet filter of its own is switched off, because a copy runn
 chain would have its authentication discarded and leave every request anonymous (#238). Same-origin
 through the proxy, so no CORS preflight in the default setup; the `CORS_ALLOWED_ORIGINS` policy
 exists only for deployments that split the origins.
+
+The two endpoints reachable without a credential — sign-in and registration — are rate-limited per
+client address by a handler interceptor, which runs before any controller so a refused attempt costs
+no password comparison. The address it counts is the one nginx reported, and only nginx's own address
+is trusted to report one
+([ADR-017](../ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)).
 
 **2. STOMP over WebSocket, API to browser.** One-way in practice: the browser connects and subscribes,
 the API pushes. The handshake itself is unauthenticated — a browser cannot set headers on it — so the
@@ -144,8 +183,9 @@ which no sweep could see; a socket whose session has ended, or cannot be confirm
 When `auth` ends one session — a sign-out, or a
 replayed refresh credential — it publishes `AuthSessionEnded`; when it ends all of an account's, as
 switching the account off does, it publishes `UserSessionsEnded`. `SessionEndSocketListener` takes
-both after the commit and calls `LiveSocketPort`, which the registry implements: inverted, like
-`SessionStatusPort`, because `common` may not depend on `auth`. The registry sends each matching socket
+both after the commit and calls `LiveSocketPort`, which the registry implements: a port the kernel
+declares, as it does `SessionStatusPort` (mechanism 4), so that `auth` and `common` meet at an
+interface. The registry sends each matching socket
 a STOMP ERROR frame (`message: Session ended`), after which Spring closes the WebSocket. Sign-out is
 per device, so only the sockets opened in that session close. That frame, and no other ERROR, makes
 the client drop its access token, so it renews from the cookie before it connects again instead of
@@ -171,14 +211,52 @@ a session whose end has not landed yet as live.
 Events are asynchronous only in the sense of being decoupled; they are delivered in the same process,
 and nothing is queued or persisted between publisher and consumer.
 
-**4. Direct calls through inbound ports, context to context.** Where a context needs to *read* another,
-it calls that context's `application/port/in` interface and receives domain objects — never a
-repository, never a web DTO. `TrackingService` confirms upgrade ownership this way before recording
-progress.
+**4. Direct calls through ports, context to context.** One mechanism in two forms: a call through a
+port the callee publishes, and a call through a port the caller declares.
+
+*Through the callee's inbound port.* Where a context needs to *read* another, it calls that context's
+`application/port/in` interface and receives domain objects, never a repository. `TrackingService`
+confirms upgrade ownership this way before recording progress. What else may cross is a published
+presentation model, which is not a port: `dashboard` embeds `upgrade`'s `UpgradeDto` and maps it with
+`UpgradeWebMapper`, so the dashboard's upgrades are the ones `/api/upgrades` returns. The slice rule of
+`HexagonalArchitectureTest` lets a context reach another's `adapter/in/web` only for a class named
+`*Dto` or `*WebMapper`, never for a controller or a request record
+([ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)).
+
+*Through a port the caller declares.* Where the arrow would point the wrong way, the side that needs
+something declares an outbound port and the side that has it supplies the answer. `upgrade` declares
+`UpgradeTrackingSummaryPort` and `tracking` answers it (see "Which contexts depend on which"). The
+shared kernel never calls a context. Where `common` needs what a context knows, it declares an outbound
+port in `common.domain.port.out` and the context supplies it: `auth` answers `SessionStatusPort`,
+whether a session is live, and `user` answers `AccountCredentialsPort`, the account a token or a
+sign-in names, each through a composition adapter
+([ADR-062](../ADRs/ADR-062-the-shared-kernel-depends-on-no-bounded-context.md)). `LiveSocketPort` is the
+kernel's third, and the other way round: `auth` calls it and the registry in `common.websocket`
+implements it (mechanism 2).
 
 **5. Scheduled invocation.** Four cron-driven jobs drive the core with no request behind them: the
 overdue sweep, the daily check-in nudge, the per-minute reminder dispatch, and the nightly sweep of
-sessions nothing can use again.
+sessions nothing can use again. Each scheduler is only the trigger: it times the run through
+`JobMetrics`, reads the clock where the sweep needs a date, and calls the application method that
+holds the sweep —
+`UpgradeOverdueService.announceOverdue`, `NotificationSweepService.nudgeDailyCheckin` and
+`dispatchDueReminders`, and `AuthSessionService.deleteUnusableSessions`. The sweeps read every user's
+rows through sweep ports of their own — `UpgradeSweepQuery`, `ProgressSweepQuery` and
+`ReminderSweepQuery` — which ArchUnit lets only the jobs' application services hold. The other query
+ports of the contexts holding a user's own records take the owner's id, so a read a request can
+reach returns another user's row as absent (BR-15), with one exception:
+`TrackingConfigQuery.findByUpgradeIds`, which the upgrade responses use to show each upgrade's
+tracking setup, returns configurations whoever owns them, because `tracking_configs` has no owner
+column to filter on. Its one caller maps upgrades already loaded through user-scoped reads, so no
+request-supplied id reaches it. ArchUnit pins both hops: every dependent of `TrackingConfigQuery` stays
+inside `tracking`, and `UpgradeTrackingSummaryPort`, through which the read reaches `upgrade`, serves
+only `UpgradeWebMapper` and the adapter that implements it.
+The administrator bootstrap is the same shape: `AdminBootstrapRunner` parses its setting and calls
+`AdminBootstrapService.bootstrap`, which applies the rules and records the promotion.
+`inbound_adapters_do_not_drive_outbound_ports` keeps every class under `adapter/in` off the outbound
+ports, under `domain` and `application` alike, with three named exceptions: a composition adapter, to
+a port it implements and the records that port returns; `SessionEndSocketListener`, to `LiveSocketPort`;
+and `UpgradeWebMapper`, to `UpgradeTrackingSummaryPort` ([ADR-064](../ADRs/ADR-064-the-backends-layering-rules-beyond-adr-002.md)).
 
 ### Which contexts depend on which
 
@@ -196,6 +274,29 @@ configuration, which would mean `upgrade → tracking` — and `tracking → upg
 ownership checks. Instead `upgrade` declares `UpgradeTrackingSummaryPort` describing what it needs, in
 a record it owns, and `tracking` supplies it through a composition adapter. Both arrows run the same
 way. ADR-002 records why.
+
+**The reader of that port is a web mapper, not a use case.** `UpgradeWebMapper` holds
+`UpgradeTrackingSummaryPort` and, as it maps upgrades to `UpgradeDto`s, asks it for the configurations
+of all of them in one call. No application service calls the port, so a use case returns a
+`HealthUpgrade` without its tracking setup and the setup arrives later:
+
+1. The controller calls the use case, which loads and saves the aggregate and returns it as its
+   transaction ends.
+2. The controller hands the aggregate to the mapper, which reads the configurations through
+   `UpgradeTrackingSummaryAdapter` and `TrackingConfigQuery.findByUpgradeIds`. That read runs after the
+   use case's transaction has returned, so the upgrade and its tracking setup in one response are two
+   reads, not one snapshot.
+
+`DashboardWebMapper` maps its embedded upgrades through `UpgradeWebMapper`, so the dashboard inherits
+the read.
+
+The indirection is accepted, and not moved into the use cases. Moving it would change the ten
+`UpgradeService` methods the controller maps, and the dashboard's view, to return an upgrade together
+with its setup: about a dozen signatures, to remove an indirection that is named here instead. The
+cost is that a web mapper does I/O, which a reader of the layering rules would not expect.
+`TrackingConfigQuery`, the port that answers, is not scoped by owner. ArchUnit keeps every dependent of
+it inside `tracking`, and every dependent of `UpgradeTrackingSummaryPort` but this mapper and its
+implementer out; mechanism 5, above, says why that holds.
 
 ---
 
@@ -232,6 +333,49 @@ response, reusing the upgrade context's own mapper so the embedded upgrades are 
 `/api/upgrades` returns, and mapping each distinct upgrade once so a single batched query resolves
 every tracking configuration rather than one per upgrade.
 
+### A page's read, end to end
+
+The browser's half of a read, and of the write that makes it stale:
+
+1. **A page asks the cache.** It calls `useQuery` with a key and a function from `api/`, such as
+   `['reminders', id]` and `getReminders`. The upgrade page starts its sections' reads as it mounts,
+   beside the upgrade's own, and hands each section its result, since a section renders only once the
+   upgrade has loaded. There is one cache, built by `lib/queryClient.ts` and provided once in
+   `App.tsx`. An answer stays fresh for thirty seconds, so a page opened again inside that window
+   renders from it without a request; a failed read is retried once.
+2. **The call goes through the one axios instance.** `api/client.ts` adds the in-memory access token
+   as a bearer header. A 401 is taken for a lapsed token: the instance renews it from the refresh
+   cookie and sends the request once more. A renewal is single-flight, within the tab through one
+   shared promise and across tabs through `navigator.locks`, because a rotated credential is good for
+   one use. Only a renewal that fails ends the session, through `endSession`, whether the server
+   refused it or did not answer
+   ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)). The
+   socket's own failed renewal does not: it reconnects without a token, and the tab's next request
+   ends the session ([ADR-054](../ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md)).
+3. **The request is same-origin.** Its base URL is relative unless `VITE_API_URL` is set, which is
+   meant for an API on another origin (`api/apiBaseUrl.ts`). So `/api/...` reaches the backend through
+   the Vite dev server's proxy, or through nginx in the image.
+4. **The answer lands in the cache** under its key, typed by the generated wire types
+   ([ADR-053](../ADRs/ADR-053-the-frontends-wire-types-are-generated-from-the-apis-records.md)), and
+   every component reading that key renders it. A failure is decoded by `toApiError`, and a page that
+   shows one renders it with `ErrorState`, trace id included. A few reads still show as empty when
+   they fail ([#148](https://github.com/NaimElijah/UpHealther/issues/148)).
+5. **A write marks views stale.** A mutation that changes an upgrade calls `refreshUpgradeViews`,
+   which invalidates every key that shows upgrades, because one upgrade shows on several pages
+   ([ADR-029](../ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)).
+   Other writes invalidate the keys they name, such as a reminder's `['reminders', id]`. A progress
+   entry names too few, and leaves the dashboard and the progress history stale for up to thirty
+   seconds ([#192](https://github.com/NaimElijah/UpHealther/issues/192)). Invalidation refetches what
+   a mounted page reads; the rest refetch when their page next opens.
+
+**Notifications arrive by two routes into one cache.** While somebody is signed in,
+`NotificationProvider` reads `['notifications']` over REST, and `api/notificationSocket.ts` hands it
+each notification the server pushes over STOMP. A pushed one is written into the same list unless
+its id is already there, so one that arrives both ways is listed once, and the unread count,
+`['notifications', 'unread-count']`, is read again from the server. Marking read writes the cache
+first and calls the API after; a refusal invalidates the list, so the server's answer replaces the
+guess.
+
 ### A session, end to end
 
 Two credentials with different lifetimes and different hiding places. The short one is in the body
@@ -244,16 +388,19 @@ sequenceDiagram
     autonumber
     participant B as Browser
     participant C as AuthController
+    participant A as AuthService
     participant S as AuthSessionService
-    participant J as JwtTokenProvider
+    participant J as AccessTokenIssuerPort
     participant DB as auth_sessions
 
     Note over B,DB: Signing in
     B->>C: POST /api/auth/login
-    C->>S: open(userId)
+    C->>A: login(email, password)
+    A->>S: open(userId)
     S->>DB: INSERT — only SHA-256(credential) is stored
-    S-->>C: SessionGrant
-    C->>J: issue(userId, sessionId)
+    S-->>A: SessionGrant
+    A->>J: issue(userId, sessionId)
+    A-->>C: AuthResult
     C-->>B: 200 { token } · Set-Cookie: HttpOnly, Secure, SameSite=Strict
 
     Note over B,DB: Renewing, once the access token lapses
@@ -316,8 +463,10 @@ one and when promoting a running one to HARD.
 | `NotificationScheduler.dispatchReminders` | every minute | Fires the reminders due this minute whose upgrade is active (BR-23). Due-ness is decided by the `Reminder` aggregate; the upgrades behind the due ones are loaded in one batch, and their status is read there, so a paused upgrade's reminders are silenced without being changed. A reminder that fails to save does not cost the ones after it |
 | `AuthSessionCleanupScheduler` | daily 03:30 | Deletes revoked and expired sessions. Nothing depends on it running: an expired session is already refused by its own timestamps |
 
-All four read the clock through an injected `java.time.Clock`, which is what makes them testable
-without waiting. The clock and every cron keep time in UTC — `ServerZone`, which each `@Scheduled` names
+Each reads the clock through an injected `java.time.Clock`, which is what makes it testable without
+waiting: the three notification and overdue jobs in the scheduler, and the session clean-up in
+`AuthSessionService`, behind its scheduler. The clock and every cron keep time in UTC —
+`ServerZone`, which each `@Scheduled` names
 — so the defaults above are 08:00, 18:00, the minute and 03:30 in UTC, whatever the host's zone
 ([ADR-020](../ADRs/ADR-020-the-server-keeps-time-in-utc.md)).
 
@@ -539,13 +688,25 @@ Integration points a maintainer will need:
 ## Structural decisions not visible from the file layout
 
 **The dependency arrow always points inward.** `adapter → application → domain`, never the reverse.
-No class in `application` imports anything from `adapter`, in either direction. This is what allows the
-whole core to be unit-tested without Spring, and it is checked rather than trusted.
+No class in `application` imports anything from `adapter`, in either direction. Nor may a class in
+`application` or `domain` reach the kernel outside `common.domain`, which keeps out the kernel's
+adapters that live outside an `adapter` package — `common.security`, `common.websocket`,
+`common.observability`, `common.ratelimit` — and any kernel package added later. So `AuthService`
+issues tokens through `auth`'s `AccessTokenIssuerPort`, which `JwtAccessTokenIssuer` implements over
+`JwtTokenProvider` ([ADR-064](../ADRs/ADR-064-the-backends-layering-rules-beyond-adr-002.md)). This
+keeps HTTP, Spring Data, token signing and the event bus out of the core, and it is checked rather
+than trusted. It does not make the core Spring-free: services carry `@Service` and `@Transactional`, and
+use Spring elsewhere too, `AuthService`'s Spring Security types among them (see the overview). A service's
+collaborators are its ports, though, so its unit test builds it with them mocked and starts no Spring
+context; `AuthServiceTest` supplies the real BCrypt encoder and mocks the `AuthenticationManager`.
 
 **The domain is framework-free, with one deliberate exception.** Domain classes import no Spring, no
-Jackson, no servlet, no bean validation. They do carry JPA mapping annotations, because the entities
-*are* the persistence model — there is no separate POJO-plus-mapper layer. That trade-off is ADR-001's,
-and ADR-002 reaffirms it.
+Jackson, no servlet, no bean validation, and `domain_depends_only_on_what_it_needs` allows them only
+the JDK packages they use (`java.lang`, `java.util`, `java.time`, `java.security`, `java.nio.charset`),
+Lombok, this codebase's own types and `jakarta.persistence`, whose runtime types
+`domain_uses_jpa_only_to_map` bans ([ADR-064](../ADRs/ADR-064-the-backends-layering-rules-beyond-adr-002.md)). They do carry JPA mapping annotations, because the
+entities *are* the persistence model — there is no separate POJO-plus-mapper layer. All nine `@Entity`
+classes sit in a `domain/model` package. That trade-off is ADR-001's, and ADR-002 reaffirms it.
 
 **Pure domain services carry no stereotype annotation.** `StreakCalculator`,
 `ProgressEvaluationService` and `UpgradeSchedulingService` are plain classes, hand-registered as beans
@@ -562,13 +723,29 @@ across the user's *other* upgrades, which one aggregate cannot see. It is a pure
 receives the count as a parameter, and the application layer performs the counting query.
 
 **Spring Data is confined to the persistence adapters, and its interfaces are package-private.**
-Everything else depends on a repository port. Swapping the store would mean rewriting one package per
-context and nothing else.
+Everything else depends on a repository port. That keeps the queries in one package per context, and
+it does not make the store swappable by rewriting those packages alone. The entities in `domain/model`
+carry the JPA mapping, `GlobalExceptionHandler` maps `jakarta.persistence.OptimisticLockException` to a
+409, and the schema is PostgreSQL's, written in Flyway migrations whose foreign keys carry the
+cross-context deletes (see the next paragraph).
+
+**Deleting an upgrade reaches other contexts' tables through foreign keys, not through code.**
+Every context's tables are in one PostgreSQL schema, and `tracking_configs`, `progress_entries`,
+`reminders` and `reflections` reference `health_upgrades(id)` with `ON DELETE CASCADE`. That is how
+FR-14 is carried out: `UpgradeService.delete` removes one row and publishes no event, and the import
+graph shows no edge from `upgrade` to those contexts. `notifications.related_upgrade_id` and
+`health_upgrades.area_id` use `ON DELETE SET NULL`, which is how a notification outlives its upgrade
+(FR-14) and an upgrade survives its area (FR-8); `users(id)` cascades to every table that
+carries a `user_id`. The entities map these columns as plain ids, so no JPA cascade exists to find. A
+table that references `health_upgrades` or `users` states its `ON DELETE` outright, and moving a
+context's tables out of the database, or giving one a soft delete, would replace the cascade
+([ADR-063](../ADRs/ADR-063-one-schema-with-cross-context-foreign-keys.md)).
 
 **Every request record and response DTO belongs to the web adapter.** Application services take command
 records from `application/port/in` and return domain objects; a `*WebMapper` per context translates in
 both directions. A wire-format change therefore cannot reach a use-case signature. `UpgradeTrackingConfigDto`
-duplicating `TrackingConfigDto` field for field is the visible cost, and is intentional.
+duplicating `TrackingConfigDto` field for field is the visible cost, and is intentional. One mapper
+also reads: see "Which contexts depend on which".
 
 **Optimistic locking is on one aggregate.** Only `HealthUpgrade` carries `@Version`. Two saves that
 overlap inside the server clash, and the later one is answered 409. No request carries the version back,
@@ -582,10 +759,9 @@ exceptions and never build a status by hand. The mapping is pinned by a test.
 **No component names a colour.** Every colour in the SPA is a semantic token — `bg-surface`,
 `text-fg-subtle`, `border-line-strong` — declared in `frontend/tailwind.config.js` and given its two
 values, once per theme, in `frontend/src/index.css`. Components name the *role*; the theme decides the
-value. The indirection is not decoration: Tailwind emits nothing for a class it does not recognise and
-raises no error, so a component that reached for a palette shade would render correctly in one theme
-and be invisible in the other, silently. `npm run check:colours` fails the build on any direct palette
-use, and is the only thing that catches it.
+value. `npm run check:colours` fails the build on any direct palette use, and is the only thing that
+catches one, since Tailwind reports nothing for a class it does not recognise. Why the SPA styles this
+way is in [ADR-061](../ADRs/ADR-061-the-frontends-stack-and-layering.md).
 
 Two consequences a maintainer would otherwise have to rediscover. Tokens hold **space-separated RGB
 channels**, not hex, because Tailwind's opacity modifier (`bg-overlay/50`) can only compose an alpha
@@ -773,6 +949,10 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why a PR into `dev` must have its checks run on the latest `dev`, and a promotion into `main` need not; why a second ruleset rather than strict in the first | [ADR-058](../ADRs/ADR-058-a-pr-into-dev-merges-only-once-its-checks-ran-on-the-latest-dev.md) |
 | Why the bundle ships a notices file for its third-party packages; why the jar and the images need none yet, and when that changes | [ADR-059](../ADRs/ADR-059-the-bundle-ships-its-third-party-notices.md) |
 | Why Dependabot ignores the Tailwind CSS and TypeScript majors, and what moves each by hand | [ADR-060](../ADRs/ADR-060-dependabot-holds-the-tailwind-and-typescript-majors-back.md) |
+| Why the SPA is built on TanStack Query, React Context, axios, `@stomp/stompjs`, a static build and Tailwind's semantic tokens; how its folders are layered, and why core ESLint enforces that rather than a plugin | [ADR-061](../ADRs/ADR-061-the-frontends-stack-and-layering.md) |
+| Why the shared kernel depends on no context; why the security adapter loads accounts through a port it declares rather than through `UserQuery`; why `User` and `Role` stay in `user` | [ADR-062](../ADRs/ADR-062-the-shared-kernel-depends-on-no-bounded-context.md) |
+| Why every context's tables share one schema; why a delete crosses contexts on `ON DELETE` rather than an event; what moving a context out or adding a soft delete would cost | [ADR-063](../ADRs/ADR-063-one-schema-with-cross-context-foreign-keys.md) |
+| Which layering rules the backend enforces beyond ADR-002, and the exceptions each names; why `TrackingConfigQuery` stays unscoped and a web mapper reads a port; when to revisit either | [ADR-064](../ADRs/ADR-064-the-backends-layering-rules-beyond-adr-002.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

@@ -2,16 +2,23 @@ package com.healthupgrades.architecture;
 
 import static com.tngtech.archunit.base.DescribedPredicate.alwaysTrue; // matches any origin class
 import static com.tngtech.archunit.base.DescribedPredicate.not; // inverts an allow-list into a ban
+import static com.tngtech.archunit.core.domain.Dependency.Predicates.dependency; // an origin and target pair
+import static com.tngtech.archunit.core.domain.Dependency.Predicates.dependencyOrigin; // an origin predicate
+import static com.tngtech.archunit.core.domain.Dependency.Predicates.dependencyTarget; // a target predicate
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage; // single-package predicate
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage; // package predicate for ignores
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.simpleNameEndingWith; // class-name predicate
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes; // entry point for positive rules
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses; // entry point for forbidding rules
 
+import com.tngtech.archunit.base.DescribedPredicate; // a named predicate, for a rule's exceptions
+import com.tngtech.archunit.core.domain.Dependency; // one class's dependency on another
+import com.tngtech.archunit.core.domain.JavaClass; // an imported class
 import com.tngtech.archunit.core.importer.ImportOption; // controls which classes are analysed
 import com.tngtech.archunit.junit.AnalyzeClasses; // declares the packages ArchUnit imports for this test
 import com.tngtech.archunit.junit.ArchTest; // marks a field as an executable architecture rule
 import com.tngtech.archunit.lang.ArchRule; // the type of a single architecture rule
+import com.tngtech.archunit.lang.conditions.ArchConditions; // conditions over a class's dependencies
 import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition; // builds bounded-context slice rules
 
 /**
@@ -27,6 +34,20 @@ import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition; // builds
         packages = "com.healthupgrades",
         importOptions = ImportOption.DoNotIncludeTests.class) // analyse only production classes
 class HexagonalArchitectureTest {
+
+    /**
+     * A dependency whose origin implements its target: the supplying side of a port, which is not a use of
+     * it. Declared first, because the rules below are initialised in textual order and read it.
+     */
+    private static final DescribedPredicate<Dependency> ORIGIN_IMPLEMENTS_TARGET =
+            new DescribedPredicate<>("its origin implements its target") {
+                @Override
+                public boolean test(Dependency dependency) {
+                    return dependency
+                            .getOriginClass()
+                            .isAssignableTo(dependency.getTargetClass().getName());
+                }
+            };
 
     /**
      * The domain must not depend on frameworks, on adapters, or on the application layer.
@@ -64,6 +85,83 @@ class HexagonalArchitectureTest {
             .as("the domain must not depend on frameworks, adapters, or the application layer");
 
     /**
+     * The domain depends only on what it depends on today, so a library it has never needed cannot arrive
+     * unnoticed.
+     *
+     * <p>The rule above is a deny-list. It names the usual suspects and gives the clearest message when
+     * one of them appears, but it says nothing about a library it does not name: an entity that picked up
+     * logstash's {@code StructuredArguments}, a JWT type or a JDBC driver class would leave it green. This
+     * one is the allow-list behind it. Each entry is here because the domain uses it today:
+     *
+     * <ul>
+     *   <li>{@code java.lang..}: what every class compiles against, records, enums and lambdas included;</li>
+     *   <li>{@code java.util..}: identifiers, collections, {@code Optional}, and the {@code function} and
+     *       {@code stream} types the aggregates use;</li>
+     *   <li>{@code java.time..}: dates, times and durations;</li>
+     *   <li>{@code java.security..} and {@code java.nio.charset..}: the SHA-256 digest a refresh credential is
+     *       stored as, and the charset its bytes are read in;</li>
+     *   <li>{@code jakarta.persistence..}: the mapping annotations the entities carry, the one pragmatic
+     *       exception ADR-001 accepts and {@code architecture.md} names, because the entities are the
+     *       persistence model. {@link #domain_uses_jpa_only_to_map} keeps the persistence runtime out;</li>
+     *   <li>{@code lombok..}: the builders and accessors Lombok generates. Its annotations are compiled
+     *       away, but each generated member keeps {@code @lombok.Generated} in the bytecode;</li>
+     *   <li>{@code com.healthupgrades..}: the domain's own types, the kernel's and other contexts' models,
+     *       which the layering rules constrain on their own.</li>
+     * </ul>
+     *
+     * <p>The JDK is listed by package, not as {@code java..}, because {@code java..} also admits
+     * {@code java.sql}, {@code java.net}, file I/O in {@code java.io} and {@code java.util.logging}. None of
+     * those is used, and each is the I/O this rule exists to keep out. Anything else is a decision to
+     * record here, with its reason, before a domain class may use it (ADR-064).
+     */
+    @ArchTest
+    static final ArchRule domain_depends_only_on_what_it_needs = classes()
+            .that()
+            .resideInAPackage("..domain..")
+            .should()
+            .onlyDependOnClassesThat()
+            .resideInAnyPackage(
+                    "java.lang..",
+                    "java.util..",
+                    "java.time..",
+                    "java.security..",
+                    "java.nio.charset..",
+                    "jakarta.persistence..",
+                    "lombok..",
+                    "com.healthupgrades..")
+            .as("the domain may depend only on the JDK packages it uses, JPA mapping, Lombok and this codebase");
+
+    /**
+     * The domain uses JPA to describe its mapping, never to run a query.
+     *
+     * <p>The allow-list above has to admit {@code jakarta.persistence}, because the entities carry its
+     * annotations, and so it would also admit the persistence runtime: an entity holding an
+     * {@code EntityManager}, or a domain service building a {@code TypedQuery}, would be the domain doing its
+     * own I/O, which is what the repository ports and their adapters are for. The runtime types and the
+     * criteria, metamodel and provider packages are therefore banned here by name (ADR-064).
+     */
+    @ArchTest
+    static final ArchRule domain_uses_jpa_only_to_map = noClasses()
+            .that()
+            .resideInAPackage("..domain..")
+            .should()
+            .dependOnClassesThat(JavaClass.Predicates.belongToAnyOf(
+                            jakarta.persistence.EntityManager.class,
+                            jakarta.persistence.EntityManagerFactory.class,
+                            jakarta.persistence.EntityTransaction.class,
+                            jakarta.persistence.Query.class,
+                            jakarta.persistence.TypedQuery.class,
+                            jakarta.persistence.StoredProcedureQuery.class,
+                            jakarta.persistence.Persistence.class,
+                            jakarta.persistence.PersistenceUnitUtil.class,
+                            jakarta.persistence.PersistenceUtil.class)
+                    .or(resideInAnyPackage(
+                            "jakarta.persistence.criteria..",
+                            "jakarta.persistence.metamodel..",
+                            "jakarta.persistence.spi..")))
+            .as("the domain may use JPA's mapping annotations only, never its runtime");
+
+    /**
      * The application layer must not depend on adapters in either direction. It drives the outbound side
      * through ports (persistence, messaging, events), and states its own input and output shapes —
      * command and result records under {@code application.port.in} — rather than accepting or returning
@@ -77,6 +175,34 @@ class HexagonalArchitectureTest {
             .dependOnClassesThat()
             .resideInAPackage("..adapter..")
             .as("the application layer must not depend on adapters");
+
+    /**
+     * The core reaches the kernel only through the kernel's own core, whatever the kernel's other packages
+     * are called.
+     *
+     * <p>ADR-002 promises that no application class imports an adapter, and the rule above keys on
+     * {@code ..adapter..}. Most of {@code common} is an adapter by what it holds rather than by its name:
+     * {@code common.security} signs and verifies tokens with JJWT and implements Spring Security's types,
+     * {@code common.websocket} configures STOMP, {@code common.observability} wires Micrometer, and
+     * {@code common.ratelimit} is a handler interceptor. A use case that names one of them is tied to a
+     * framework and a key the rule above cannot see.
+     *
+     * <p>So this is an allow-list rather than a list of those packages: {@code ..application..} and
+     * {@code ..domain..} may reach {@code com.healthupgrades.common..} only in {@code common.domain}, its
+     * events, exceptions, audit vocabulary and ports. A kernel package added later, {@code common.mail} say,
+     * is out of the core's reach from its first commit. {@code common.time} is outside too, and unused by the
+     * core: the core reads the injected {@code Clock}, and only the schedulers name {@code ServerZone}. Where
+     * the core needs what a kernel adapter does, it declares an outbound port and an adapter delegates, as
+     * {@code AccessTokenIssuerPort} does for signing (ADR-064).
+     */
+    @ArchTest
+    static final ArchRule core_does_not_depend_on_the_kernels_adapters = noClasses()
+            .that()
+            .resideInAnyPackage("..application..", "..domain..")
+            .should()
+            .dependOnClassesThat(resideInAPackage("com.healthupgrades.common..")
+                    .and(not(resideInAPackage("com.healthupgrades.common.domain.."))))
+            .as("the application and domain layers may reach the kernel only through common.domain (ADR-064)");
 
     /**
      * Spring Data JPA may only be referenced from the persistence adapters, guaranteeing repositories are
@@ -184,6 +310,90 @@ class HexagonalArchitectureTest {
             .as("inbound adapters must not depend on outbound adapters");
 
     /**
+     * A driving adapter triggers a use case; it does not perform one.
+     *
+     * <p>An adapter that reads a repository, publishes an event or writes an audit entry itself is
+     * holding a use case, and a second trigger for the same work — an endpoint beside a cron, say — has
+     * nothing to call and copies the rules instead. Services orchestrate: load, call the domain method,
+     * save, publish (ADR-064). So a class in {@code ..adapter.in..} reaches no outbound port, under
+     * {@code domain.port.out} or {@code application.port.out} alike, and the scheduled sweeps and the
+     * administrator bootstrap call application services that do.
+     *
+     * <p>Three exceptions, each an origin and a target rather than a package let off:
+     * <ul>
+     *   <li><strong>A composition adapter implementing a port.</strong> {@code SessionStatusAdapter},
+     *       {@code AccountCredentialsAdapter} and {@code UpgradeTrackingSummaryAdapter} supply the half of
+     *       an inverted dependency that the declaring side cannot (ADR-015, ADR-062, ADR-002).
+     *       Implementing a port is not driving one, so the exception covers only a port the origin itself
+     *       implements, and the two records those ports return, {@code AccountCredentials} and
+     *       {@code UpgradeTrackingSummary}. A composition adapter still may not publish an event, write an
+     *       audit entry or read a repository.</li>
+     *   <li><strong>{@code SessionEndSocketListener} closing sockets through {@code LiveSocketPort}.</strong>
+     *       It translates an event whose decision is already made — {@code AuthSessionService} ended the
+     *       session and published it — into the one call that carries it out, with no rule of its own to
+     *       duplicate (ADR-054). A use case in front of it would be a pass-through. Any other
+     *       {@code ..adapter.in.event..} class gets no such leave.</li>
+     *   <li><strong>{@code UpgradeWebMapper} reading {@code UpgradeTrackingSummaryPort}.</strong> The
+     *       upgrade response shows each upgrade's tracking setup, and the mapper resolves it for the
+     *       aggregates it was handed, in one batch, so the use cases need not return a web shape. The
+     *       mapper reads configurations whoever owns them, and
+     *       {@link #tracking_summary_port_serves_only_the_upgrade_mapper} is what keeps any other class off
+     *       the port.</li>
+     * </ul>
+     *
+     * <p>The kernel's own security adapters, {@code BearerTokenAuthenticator} and
+     * {@code UserDetailsServiceImpl}, call {@code SessionStatusPort} and {@code AccountCredentialsPort}
+     * by design: those ports are the kernel's, inverted so that a context can supply them. They live in
+     * {@code common.security}, outside {@code ..adapter.in..}, so this rule does not see them.
+     */
+    @ArchTest
+    static final ArchRule inbound_adapters_do_not_drive_outbound_ports = classes()
+            .that()
+            .resideInAPackage("..adapter.in..")
+            .should(ArchConditions.onlyHaveDependenciesWhere(not(dependencyTarget(resideInAPackage("..port.out..")))
+                    .or(dependencyOrigin(resideInAPackage("..adapter.in.composition.."))
+                            .and(ORIGIN_IMPLEMENTS_TARGET))
+                    .or(dependency(
+                            resideInAPackage("..adapter.in.composition.."),
+                            JavaClass.Predicates.belongToAnyOf(
+                                    com.healthupgrades.common.domain.port.out.AccountCredentials.class,
+                                    com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummary.class)))
+                    .or(dependency(
+                            "com.healthupgrades.auth.adapter.in.event.SessionEndSocketListener",
+                            "com.healthupgrades.common.domain.port.out.LiveSocketPort"))
+                    .or(dependency(
+                            "com.healthupgrades.upgrade.adapter.in.web.UpgradeWebMapper",
+                            "com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort"))
+                    .or(dependency(
+                            "com.healthupgrades.upgrade.adapter.in.web.UpgradeWebMapper",
+                            "com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummary"))))
+            .as("inbound adapters must reach the core through use cases, not through outbound ports (ADR-064)");
+
+    /**
+     * The tracking summary port, which reads configurations whoever owns them, serves the upgrade mapper
+     * and nothing else.
+     *
+     * <p>{@code UpgradeTrackingSummaryPort.findByUpgradeIds} passes straight through to
+     * {@code TrackingConfigQuery.findByUpgradeIds}, which is not scoped by owner. Pinning the query inside
+     * {@code tracking} would protect nothing if this port, which the slice rule publishes to every context,
+     * were open: an endpoint taking upgrade ids from a request could read another user's tracking setup
+     * through it (BR-15). So it has two dependents: {@code UpgradeWebMapper}, which passes only the ids of
+     * aggregates already loaded through user-scoped reads, and {@code UpgradeTrackingSummaryAdapter}, which
+     * implements it. With {@link #unscoped_tracking_config_read_stays_inside_tracking} it is the second
+     * half of one pin, the trade-off ADR-064 accepts and says when to revisit.
+     */
+    @ArchTest
+    static final ArchRule tracking_summary_port_serves_only_the_upgrade_mapper = classes()
+            .that()
+            .haveFullyQualifiedName("com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort")
+            .should()
+            .onlyHaveDependentClassesThat(JavaClass.Predicates.belongToAnyOf(
+                    com.healthupgrades.upgrade.adapter.in.web.UpgradeWebMapper.class,
+                    com.healthupgrades.tracking.adapter.in.composition.UpgradeTrackingSummaryAdapter.class))
+            .as("UpgradeTrackingSummaryPort, which is not scoped by owner, must be used only by UpgradeWebMapper "
+                    + "and its implementer (BR-15)");
+
+    /**
      * Use-case and query ports are contracts, so they must be interfaces. Command and result records
      * live in the same package by design and are matched by name rather than by package.
      */
@@ -197,6 +407,120 @@ class HexagonalArchitectureTest {
             .should()
             .beInterfaces()
             .as("inbound query and command ports must be interfaces");
+
+    /**
+     * A context's ports speak only in published types.
+     *
+     * <p>ADR-002 makes a context's ports its published surface, and the slice rule above lets another
+     * context reach only {@code ..application.port..}, {@code ..domain.model..} and a few other published
+     * packages. A port that takes or returns a type from anywhere else hands its first cross-context
+     * caller an import that the slice rule refuses, and the easy fix is then to widen the slice rule. So
+     * whatever a port names lives where its callers may import it. Each allowed package is here for a
+     * reason:
+     *
+     * <ul>
+     *   <li>{@code java..}: identifiers, times and collections, and what every record compiles against;
+     *   <li>{@code ..application.port..}: the command and result records that sit beside the ports, and
+     *       another context's ports, as {@code UpgradeTrackingSummaryPort} names its own record;
+     *   <li>{@code ..domain.model..}: the aggregates and enums a query returns, which the slice rule
+     *       already publishes;
+     *   <li>{@code com.healthupgrades.common.domain..}: the kernel's own model, which every context
+     *       already shares. No port names it today.
+     * </ul>
+     *
+     * <p>No framework is listed, because no port imports one: a port record that wants a JSpecify,
+     * Lombok or bean-validation annotation is a decision to add here, not something to slip in.
+     */
+    @ArchTest
+    static final ArchRule ports_name_only_published_types = classes()
+            .that()
+            .resideInAPackage("..application.port..")
+            .should()
+            .onlyDependOnClassesThat()
+            .resideInAnyPackage(
+                    "java..", "..application.port..", "..domain.model..", "com.healthupgrades.common.domain..")
+            .as("ports must take and return only published types (ADR-064)");
+
+    /**
+     * The application services that run scheduled work, and the only classes allowed a sweep port. Named
+     * by class, so a new one is a deliberate entry here rather than something a new caller slips into.
+     */
+    private static final DescribedPredicate<JavaClass> SCHEDULED_WORK = JavaClass.Predicates.belongToAnyOf(
+                    com.healthupgrades.notification.application.NotificationSweepService.class,
+                    com.healthupgrades.upgrade.application.UpgradeOverdueService.class)
+            .as("the jobs' application services");
+
+    /**
+     * A sweep port reads every user's rows, so only the scheduled jobs may hold one.
+     *
+     * <p>User scoping is enforced at the query layer (BR-15): every read a request can reach takes the
+     * owner's id, so another user's record comes back as absent. The sweeps need the opposite — every
+     * active upgrade, every enabled reminder, everybody who logged today — and those reads live on a
+     * {@code *SweepQuery} port of their own rather than beside the user-scoped ones, where a feature taking
+     * an id from a request could pick one up and return somebody else's row with nothing failing.
+     *
+     * <p>A dependent is allowed only if it is one of {@link #SCHEDULED_WORK}, or if it implements the port.
+     * Anything else that wants every user's rows is a decision to add here, not an import (ADR-064).
+     *
+     * <p>The rule sees only dependencies on the port itself, so each port is implemented by a class of its
+     * own — {@code UpgradeSweeps}, {@code ProgressSweeps}, {@code ReminderSweeps} — and never by the
+     * service a controller holds. Implemented there, the methods would be one call away from a request
+     * handler through the concrete service, past this rule.
+     */
+    @ArchTest
+    static final ArchRule sweep_ports_serve_only_scheduled_work = classes()
+            .that()
+            .resideInAPackage("..application.port.in..")
+            .and()
+            .haveSimpleNameEndingWith("SweepQuery")
+            .should(ArchConditions.onlyHaveDependentsWhere(
+                    dependencyOrigin(SCHEDULED_WORK).or(ORIGIN_IMPLEMENTS_TARGET)))
+            .as("sweep ports must be used only by the scheduled jobs' application services (BR-15)");
+
+    /**
+     * The one unscoped by-ids read stays inside the context that owns it.
+     *
+     * <p>{@code TrackingConfigQuery.findByUpgradeIds} returns configurations whoever owns the upgrade,
+     * because {@code tracking_configs} has no owner column to filter on. Today that exposes nothing: its
+     * dependents are {@code TrackingService}, which implements it, and {@code UpgradeTrackingSummaryAdapter},
+     * which answers {@code UpgradeTrackingSummaryPort} for {@code UpgradeWebMapper}. The mapper passes only
+     * the ids of upgrades it was handed, and those were loaded through user-scoped reads, so no id a request
+     * supplies reaches the query. Scoping it would cost a migration, a join onto another context's table,
+     * or a query per response, to close a path that does not exist.
+     *
+     * <p>This rule keeps that true inside {@code tracking}, and
+     * {@link #tracking_summary_port_serves_only_the_upgrade_mapper} keeps it true one hop out, where the
+     * adapter passes the same read through {@code UpgradeTrackingSummaryPort}, which the slice rule publishes
+     * to every context. Either pin alone would leave the read open. Both are wrong, and the port must be
+     * scoped first, the day a class outside {@code tracking} needs it, a class other than
+     * {@code UpgradeWebMapper} needs the summary port, or an id from a request reaches either (BR-15).
+     */
+    @ArchTest
+    static final ArchRule unscoped_tracking_config_read_stays_inside_tracking = classes()
+            .that()
+            .haveFullyQualifiedName("com.healthupgrades.tracking.application.port.in.TrackingConfigQuery")
+            .should()
+            .onlyHaveDependentClassesThat()
+            .resideInAPackage("com.healthupgrades.tracking..")
+            .as("TrackingConfigQuery, which is not scoped by owner, must be used only inside tracking (BR-15)");
+
+    /**
+     * Only the startup runner may promote the first administrator.
+     *
+     * <p>{@code AdminBootstrapService.bootstrap} grants ADMIN with no administrator asking, and its one guard
+     * is that no enabled administrator exists yet. Behind an endpoint, on a fresh installation, that guard
+     * would let any signed-in user make themselves the installation's administrator. So the use case has a
+     * service of its own, and nothing but {@code AdminBootstrapRunner}, which reads the deployment's
+     * setting at startup, may hold it (ADR-016).
+     */
+    @ArchTest
+    static final ArchRule only_the_runner_bootstraps_an_administrator = classes()
+            .that()
+            .haveFullyQualifiedName("com.healthupgrades.admin.application.AdminBootstrapService")
+            .should()
+            .onlyHaveDependentClassesThat()
+            .haveFullyQualifiedName("com.healthupgrades.admin.adapter.in.bootstrap.AdminBootstrapRunner")
+            .as("only AdminBootstrapRunner may depend on AdminBootstrapService");
 
     /** Controllers are a web concern and belong only in the web adapter. */
     @ArchTest
@@ -237,6 +561,29 @@ class HexagonalArchitectureTest {
                             "com.healthupgrades.common.."))))
             .as("the admin context must not depend on any context holding a user's own records: it may reach "
                     + "only user, auth and common");
+
+    /**
+     * The shared kernel depends on no bounded context.
+     *
+     * <p>Every context depends on {@code common}, so an arrow from {@code common} into a context makes that
+     * context a dependency of every other one, and leaves it unable to use the kernel without closing a
+     * cycle. Where the kernel needs something a context knows, it declares an outbound port in
+     * {@code common.domain.port.out} and the context supplies it, as {@code SessionStatusPort} and
+     * {@code AccountCredentialsPort} are supplied (ADR-062).
+     *
+     * <p>The cycle rule above does not cover this. It permits an edge from the kernel into a context for as
+     * long as that context imports nothing from the kernel, which is where {@code user} was held while the
+     * security adapter called it. An allow-list rather than a list of the ten contexts, so a context added
+     * later is out of the kernel's reach from its first commit.
+     */
+    @ArchTest
+    static final ArchRule shared_kernel_depends_on_no_bounded_context = noClasses()
+            .that()
+            .resideInAPackage("com.healthupgrades.common..")
+            .should()
+            .dependOnClassesThat(
+                    resideInAPackage("com.healthupgrades..").and(not(resideInAPackage("com.healthupgrades.common.."))))
+            .as("the shared kernel must not depend on any bounded context: common may reach only common");
 
     /**
      * Spring Data repositories stay package-private, so reaching past a port into another context's

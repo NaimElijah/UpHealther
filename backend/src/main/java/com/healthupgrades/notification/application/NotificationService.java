@@ -35,7 +35,7 @@ public class NotificationService {
     /**
      * Persist a notification for a user, then push it in real time to any connected session. Offline
      * users pick it up via {@link #listRecent} on their next load. This is the single entry point used
-     * by both the event listener and the scheduler.
+     * by both the event listener and {@link NotificationSweepService}.
      */
     @Transactional
     public Notification create(

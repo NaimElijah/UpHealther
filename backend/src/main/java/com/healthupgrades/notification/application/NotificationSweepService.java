@@ -1,0 +1,310 @@
+package com.healthupgrades.notification.application;
+
+import static net.logstash.logback.argument.StructuredArguments.keyValue;
+
+import com.healthupgrades.notification.domain.model.NotificationCategory;
+import com.healthupgrades.notification.domain.model.NotificationType;
+import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort;
+import com.healthupgrades.reminder.application.port.in.ReminderSweepQuery;
+import com.healthupgrades.reminder.domain.model.Reminder;
+import com.healthupgrades.tracking.application.port.in.ProgressSweepQuery;
+import com.healthupgrades.upgrade.application.port.in.UpgradeSweepQuery;
+import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
+import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import net.logstash.logback.argument.StructuredArgument;
+import org.springframework.core.NestedExceptionUtils;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.CannotCreateTransactionException;
+
+/**
+ * The two sweeps that produce notifications on a schedule rather than in answer to an event: the daily
+ * check-in nudge and the user's configured reminders.
+ *
+ * <p>The use cases themselves, so that whatever triggers them — the cron in
+ * {@code NotificationScheduler} today — decides only <em>when</em> they run, and the rules about who is
+ * nudged and which reminders fire (BR-23) exist once. The caller supplies the day and the time, because
+ * reading the clock is part of being triggered.
+ *
+ * <p>Deliberately not {@code @Transactional}. Each notification is created through
+ * {@link NotificationService#create}, in a transaction of its own, so that one that fails to save does
+ * not roll back the ones before it ({@link Deliveries}).
+ *
+ * <p>Overdue alerts are not here: being overdue is a fact about an upgrade, so the upgrade context
+ * detects it and publishes {@code UpgradeOverdueDetected}, which {@code NotificationEventListener} turns
+ * into a notification.
+ *
+ * <p>Reads from other bounded contexts go through their sweep ports ({@link UpgradeSweepQuery},
+ * {@link ProgressSweepQuery}, {@link ReminderSweepQuery}), which return every user's rows and exist
+ * for scheduled work like this; only the notification store is read through this context's own
+ * outbound port.
+ */
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class NotificationSweepService {
+
+    /**
+     * The check-in sweep's name. Stable across releases: it is a metric tag and a log field, so it is a
+     * contract.
+     */
+    public static final String CHECKIN_JOB = "notification.daily-checkin";
+
+    /** The reminder sweep's name, and a contract for the same reason as {@link #CHECKIN_JOB}. */
+    public static final String REMINDERS_JOB = "notification.reminder-dispatch";
+
+    private static final String CREATE_FAILED = "notification.create-failed";
+
+    private final UpgradeSweepQuery upgradeQuery; // sweep port: every user's upgrades
+    private final ProgressSweepQuery progressQuery; // sweep port: who logged on a day
+    private final ReminderSweepQuery reminderQuery; // sweep port: every enabled reminder
+    private final NotificationRepositoryPort notificationRepository; // own outbound port (dedup guards)
+    private final NotificationService notificationService; // own application service (create + push)
+
+    /**
+     * Nudges every user who has running upgrades but has logged nothing today.
+     *
+     * <p>Two guards keep this from becoming noise: a user who has already logged something today is
+     * skipped, and so is one who has already been nudged since midnight — the second matters because
+     * nothing stops the trigger from running this more than once a day.
+     *
+     * <p>A nudge that fails to save does not cost the users after it; the sweep still ends by rethrowing
+     * the first failure once it has logged what it did ({@link Deliveries}).
+     *
+     * @param today the day to nudge for, by the server's zone
+     * @throws RuntimeException the first nudge that failed to save, after every other nudge was attempted
+     */
+    public void nudgeDailyCheckin(LocalDate today) {
+        Map<UUID, List<HealthUpgrade>> activeByUser = upgradeQuery.findByStatus(UpgradeStatus.ACTIVE).stream()
+                .collect(Collectors.groupingBy(HealthUpgrade::getUserId));
+
+        // With nobody to nudge, the guards are not worth reading.
+        Deliveries nudges = activeByUser.isEmpty() ? new Deliveries(CHECKIN_JOB) : nudge(activeByUser, today);
+
+        log.info(
+                "{} {} {} {} {}",
+                keyValue("job", CHECKIN_JOB),
+                keyValue("usersWithActiveUpgrades", activeByUser.size()),
+                keyValue("nudged", nudges.delivered),
+                keyValue("failed", nudges.failed),
+                keyValue("skipped", nudges.skipped));
+        nudges.rethrowFirstFailure();
+    }
+
+    /**
+     * Nudges each of the given users who has neither been nudged since midnight nor logged anything today.
+     *
+     * <p>Each guard is read once for the whole sweep rather than once per user (NFR-14), which keeps the
+     * sweep at two queries however many users have something running.
+     *
+     * @param activeByUser each user with running upgrades, and those upgrades
+     * @param today        the day the guards are read for
+     * @return how the nudges went: sent, failed, and left unattempted after an outage
+     */
+    private Deliveries nudge(Map<UUID, List<HealthUpgrade>> activeByUser, LocalDate today) {
+        Set<UUID> alreadyNudged = notificationRepository.findUserIdsNotifiedAfter(
+                NotificationType.CHECKIN_REMINDER, today.atStartOfDay());
+        Set<UUID> loggedToday = progressQuery.findUserIdsWithEntriesOn(today);
+
+        // Counts, not lists of user ids: the point is whether the nudge went out at a plausible volume,
+        // and who was nudged is in their own notification list.
+        Deliveries nudges = new Deliveries(CHECKIN_JOB);
+        for (Map.Entry<UUID, List<HealthUpgrade>> nudgeable : activeByUser.entrySet()) {
+            UUID userId = nudgeable.getKey();
+            int upgrades = nudgeable.getValue().size();
+            if (!alreadyNudged.contains(userId) && !loggedToday.contains(userId)) {
+                nudges.attempt(
+                        () -> notificationService.create(
+                                userId,
+                                NotificationType.CHECKIN_REMINDER,
+                                NotificationCategory.REMINDER,
+                                "Daily check-in ⏳",
+                                "You have " + upgrades + " active upgrade" + (upgrades == 1 ? "" : "s")
+                                        + " to track today.",
+                                null),
+                        keyValue("userId", userId));
+            }
+        }
+        return nudges;
+    }
+
+    /**
+     * Fires the reminders that are due at a given minute, for the upgrades that are active (BR-23).
+     *
+     * <p>A due reminder on an upgrade in any other state is silenced, not changed: the status is read
+     * on every run, so pausing an upgrade quiets its reminders and activating it again brings them
+     * back exactly as they were.
+     *
+     * <p>Meant to run every minute, which is what a reminder configured to the minute requires. It sweeps
+     * every enabled reminder each time, so the two costly parts are avoided deliberately: due-ness is
+     * decided by the reminder itself without a database round trip, and the upgrades behind the due ones
+     * are loaded in one batch rather than one query each.
+     *
+     * <p>Unlike the check-in nudge there is no dedup guard, and none is needed: a given minute occurs
+     * once, so a reminder cannot match twice.
+     *
+     * <p>For the same reason nothing retries a reminder this run did not send, which is why one that fails
+     * to save must not take the rest of the minute's reminders with it ({@link Deliveries}).
+     *
+     * @param today the day of the week it is, by the server's zone
+     * @param now   the time of day it is, by the server's zone
+     * @throws RuntimeException the first reminder that failed to save, after every other one was attempted
+     */
+    public void dispatchDueReminders(DayOfWeek today, LocalTime now) {
+        // Whether a reminder is due is the reminder's own question to answer, not this service's.
+        List<Reminder> due = reminderQuery.findEnabled().stream()
+                .filter(r -> r.isDueAt(today, now))
+                .toList();
+        // Nothing due is the answer in fifty-nine minutes out of sixty. Logging it would write a
+        // line a minute, all night, and bury the runs that did something.
+        if (due.isEmpty()) return;
+
+        // Bulk-load the related upgrades in one query instead of one lookup per reminder.
+        List<UUID> upgradeIds =
+                due.stream().map(Reminder::getUpgradeId).distinct().toList();
+        Map<UUID, HealthUpgrade> upgrades = upgradeQuery.findAllById(upgradeIds).stream()
+                .collect(Collectors.toMap(HealthUpgrade::getId, Function.identity()));
+
+        Deliveries reminders = new Deliveries(REMINDERS_JOB);
+        int orphaned = 0;
+        int silenced = 0;
+        for (Reminder reminder : due) {
+            HealthUpgrade u = upgrades.get(reminder.getUpgradeId());
+            if (u == null) {
+                orphaned++;
+            } else if (u.getStatus() != UpgradeStatus.ACTIVE) {
+                silenced++;
+            } else {
+                reminders.attempt(
+                        () -> notificationService.create(
+                                u.getUserId(),
+                                NotificationType.REMINDER,
+                                NotificationCategory.REMINDER,
+                                "Reminder ⏰",
+                                "Time for \"" + u.getTitle() + "\".",
+                                u.getId()),
+                        keyValue("reminderId", reminder.getId()),
+                        keyValue("upgradeId", u.getId()),
+                        keyValue("userId", u.getUserId()));
+            }
+        }
+
+        log.info(
+                "{} {} {} {} {} {}",
+                keyValue("job", REMINDERS_JOB),
+                keyValue("due", due.size()),
+                keyValue("fired", reminders.delivered),
+                keyValue("failed", reminders.failed),
+                keyValue("skipped", reminders.skipped),
+                keyValue("silenced", silenced));
+
+        // A reminder that outlived the upgrade it hangs off. Degraded but still serving, which
+        // ADR-010 defines as WARN - leaving it as two INFO fields nobody diffs would report a real
+        // inconsistency at the level reserved for things going normally. A silenced reminder is not
+        // one: its upgrade is there, and BR-23 is working.
+        if (orphaned > 0) {
+            log.warn("{} {}", keyValue("event", "reminder.orphaned"), keyValue("count", orphaned));
+        }
+        reminders.rethrowFirstFailure();
+    }
+
+    /**
+     * One sweep's notifications: each is attempted on its own, so one that fails to save does not cost
+     * the ones after it (NFR-50, ADR-023).
+     *
+     * <p>The sweep still ends as a failure. A failure is warned about by ids as it happens, and the first
+     * one is rethrown by {@link #rethrowFirstFailure()} once the sweep has said what it did, so the
+     * trigger's {@code JobMetrics} counts the run {@code failed} and Spring's scheduler logs its stack trace
+     * once, at ERROR. The rest are not attached as suppressed: nothing bounds how many rows can fail, and
+     * every attached one would print its own stack trace inside that single entry.
+     *
+     * <p>The one failure that stops the sweep is the database being out of reach: a
+     * {@link CannotCreateTransactionException}, which is what a {@code @Transactional} call throws once the
+     * pool has waited out its connection timeout (Hikari's default, 30 s). Every further attempt would wait
+     * it out again on the one thread all four jobs share, so the rest are counted {@code skipped} instead.
+     * Any other failure, however many and however adjacent, is a fact about its row, and the sweep goes on
+     * (ADR-023).
+     *
+     * <p>Only a {@link RuntimeException} is caught; an {@link Error} still ends the sweep where it stands.
+     *
+     * <p>Plain ints, deliberately: a sweep is walked on one thread, and atomics would advertise a
+     * concurrency requirement that does not exist and send the next reader looking for it.
+     */
+    private static final class Deliveries {
+        private final String job;
+        private int delivered;
+        private int failed;
+        /** Never attempted, because an earlier attempt had found the database out of reach. */
+        private int skipped;
+
+        private boolean unreachable;
+        private RuntimeException firstFailure;
+
+        /** @param job the sweep's job name, written on every WARN it raises */
+        Deliveries(String job) {
+            this.job = job;
+        }
+
+        /**
+         * Creates one notification, or counts it skipped once the sweep has given up.
+         *
+         * @param create creates and pushes the notification
+         * @param ids    what names the notification in the WARN if it fails: ids only, as
+         *               {@code keyValue} arguments. The failure itself is reduced here to its type and its
+         *               root cause's type, so a caller cannot put its message, which can quote the refused
+         *               row, in a log line (NFR-6)
+         */
+        void attempt(Runnable create, StructuredArgument... ids) {
+            if (unreachable) {
+                skipped++;
+                return;
+            }
+            try {
+                create.run();
+            } catch (RuntimeException failure) {
+                failed++;
+                unreachable = failure instanceof CannotCreateTransactionException;
+                if (firstFailure == null) {
+                    firstFailure = failure;
+                }
+                warn(failure, ids);
+                return;
+            }
+            delivered++;
+        }
+
+        private void warn(RuntimeException failure, StructuredArgument[] ids) {
+            List<Object> fields = new ArrayList<>();
+            fields.add(keyValue("event", CREATE_FAILED));
+            fields.add(keyValue("job", job));
+            fields.addAll(Arrays.asList(ids));
+            fields.add(keyValue("exception", failure.getClass().getSimpleName()));
+            fields.add(keyValue(
+                    "rootCause",
+                    NestedExceptionUtils.getMostSpecificCause(failure)
+                            .getClass()
+                            .getSimpleName()));
+            // One placeholder per field, because each sweep names its notification by different ids.
+            log.warn("{} ".repeat(fields.size()).trim(), fields.toArray());
+        }
+
+        /** Ends the run as failed if any notification failed; does nothing when every attempt succeeded. */
+        void rethrowFirstFailure() {
+            if (firstFailure != null) {
+                throw firstFailure;
+            }
+        }
+    }
+}

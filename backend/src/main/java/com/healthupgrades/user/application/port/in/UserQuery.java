@@ -9,8 +9,9 @@ import java.util.UUID;
 /**
  * Inbound port exposing read access to users as DOMAIN objects.
  *
- * <p>The auth context and the bearer-token authenticator behind the JWT filter and the STOMP interceptor
- * look users up through this port rather than reaching into the user persistence directly.
+ * <p>The auth and admin contexts look users up through this port rather than reaching into the user
+ * persistence directly, and so does {@code AccountCredentialsAdapter}, which supplies the accounts the
+ * security adapter behind the JWT filter and the STOMP interceptor authenticates (ADR-062).
  */
 public interface UserQuery {
 
@@ -28,7 +29,7 @@ public interface UserQuery {
      *
      * <p>Takes a page number and a size rather than a {@code Pageable}: paging is a property of the
      * request, but {@code Pageable} is Spring Data's, and letting it through here would put a
-     * persistence type in a contract the admin context and the security adapter both depend on. The
+     * persistence type in a contract the admin and auth contexts both depend on. The
      * adapter turns these two numbers into one.
      *
      * <p>The order is fixed rather than a parameter, because an unordered page is not a page: without
