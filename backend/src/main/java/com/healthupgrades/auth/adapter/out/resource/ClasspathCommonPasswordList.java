@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
 public class ClasspathCommonPasswordList implements CommonPasswordListPort {
 
     /** Where the list is on the classpath, under {@code src/main/resources}. */
-    public static final String LOCATION = "auth/common-passwords.txt";
+    static final String LOCATION = "auth/common-passwords.txt";
 
     private final String location;
 

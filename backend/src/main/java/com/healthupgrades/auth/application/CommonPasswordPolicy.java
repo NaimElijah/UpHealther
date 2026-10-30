@@ -6,7 +6,7 @@ import com.healthupgrades.auth.domain.port.out.CommonPasswordListPort;
 import java.text.Normalizer;
 import java.util.Locale;
 import java.util.Set;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 /**
  * Decides whether a password is on the common-password list that registration refuses (BR-17, ADR-071).
@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
  * <p>The list is read once, when the bean is built at startup, into an immutable set. A list that
  * cannot be read fails that construction, so the application does not start without the rule.
  */
-@Component
+@Service
 public class CommonPasswordPolicy {
 
     private final Set<String> normalisedEntries;
@@ -29,7 +29,8 @@ public class CommonPasswordPolicy {
      * Loads and normalises the list.
      *
      * @param list the port that supplies the entries
-     * @throws IllegalStateException if the port cannot supply them
+     * @throws IllegalStateException if the port finds no list, or no entries in it
+     * @throws java.io.UncheckedIOException if the port finds the list and cannot read it
      */
     public CommonPasswordPolicy(CommonPasswordListPort list) {
         this.normalisedEntries =
