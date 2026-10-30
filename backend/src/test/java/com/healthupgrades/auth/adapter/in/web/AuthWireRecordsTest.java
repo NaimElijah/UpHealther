@@ -38,6 +38,17 @@ class AuthWireRecordsTest {
     }
 
     @Test
+    void GivenAProfileResponse_WhenItIsPrinted_ThenItNamesTheAccountByIdAndNeitherItsNameNorItsAddressAppears() {
+        // GET /me answers every reload with this record, and a whole one fits inside Spring MVC's DEBUG
+        // line, so the generated toString would write the caller's address on each page load.
+        UUID id = UUID.randomUUID();
+
+        String printed = new UserDto(id, NAME, EMAIL, Role.USER, LocalDateTime.of(2026, 9, 1, 8, 0)).toString();
+
+        assertThat(printed).contains(id.toString()).doesNotContain(NAME).doesNotContain(EMAIL);
+    }
+
+    @Test
     void GivenATokenResponse_WhenItIsPrinted_ThenOnlyItsExpiryAppears() {
         UserDto user = new UserDto(UUID.randomUUID(), NAME, EMAIL, Role.USER, LocalDateTime.of(2026, 9, 1, 8, 0));
 

@@ -20,4 +20,15 @@ import java.util.UUID;
  *                  it regardless of what the interface chose to show
  * @param createdAt when the account was created
  */
-public record UserDto(UUID id, String name, String email, Role role, LocalDateTime createdAt) {}
+public record UserDto(UUID id, String name, String email, Role role, LocalDateTime createdAt) {
+
+    /**
+     * Prints the account's id, role and creation and never its name or address. Spring MVC writes a
+     * response body's {@code toString} at DEBUG, and {@code GET /me} answers every page load with this
+     * record (NFR-6).
+     */
+    @Override
+    public String toString() {
+        return "UserDto[id=" + id + ", role=" + role + ", createdAt=" + createdAt + "]";
+    }
+}
