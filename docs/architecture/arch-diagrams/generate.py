@@ -281,6 +281,10 @@ CREATE_TABLE = re.compile(r"CREATE TABLE (\w+)\s*\((.*?)\n\);", re.DOTALL | re.I
 # a definition never has to be split on a comma and the table-body reader below is reused unchanged.
 ALTER_ADD_COLUMN = re.compile(r"ALTER TABLE (\w+)\s+ADD COLUMN\s+([^;]+);", re.IGNORECASE)
 
+# A column a later migration removes, written one per statement like ADD COLUMN. Without it the diagram
+# would go on drawing a column the schema no longer has.
+ALTER_DROP_COLUMN = re.compile(r"ALTER TABLE (\w+)\s+DROP COLUMN\s+(\w+)\s*;", re.IGNORECASE)
+
 
 def sql_type_token(column_definition: str) -> str:
     head = column_definition.strip().split()
@@ -328,9 +332,15 @@ def merge_columns(target: dict, columns: list) -> None:
             target[name] = (type_token, key)
 
 
+def migration_version(migration: Path) -> int:
+    """The version a migration's name carries, V10__x.sql -> 10."""
+    return int(migration.name[1:].split("__", 1)[0])
+
+
 def er_diagram() -> str:
     tables, relations = {}, []
-    for migration in sorted(MIGRATIONS.glob("V*.sql")):
+    # In Flyway's order, by version number: sorted by name, V10 would run before V9.
+    for migration in sorted(MIGRATIONS.glob("V*.sql"), key=migration_version):
         sql = migration.read_text(encoding="utf-8")
         for table, block in CREATE_TABLE.findall(sql):
             merge_columns(tables.setdefault(table, {}),
@@ -343,6 +353,12 @@ def er_diagram() -> str:
                     f"{migration.name}: ALTER TABLE {table} adds a column to a table no "
                     f"migration creates")
             merge_columns(tables[table], table_body_columns([definition], table, relations))
+        for table, column in ALTER_DROP_COLUMN.findall(sql):
+            if column not in tables.get(table, {}):
+                raise SystemExit(
+                    f"{migration.name}: ALTER TABLE {table} drops a column no migration "
+                    f"created")
+            del tables[table][column]
 
     lines = ["erDiagram"]
     lines.extend(sorted(set(relations)))
