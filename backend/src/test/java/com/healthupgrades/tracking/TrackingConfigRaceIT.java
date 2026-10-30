@@ -2,6 +2,8 @@ package com.healthupgrades.tracking;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.reset;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -40,6 +42,9 @@ class TrackingConfigRaceIT extends PostgresIT {
     private static final String UPGRADE = "{\"title\":\"Walk daily\",\"type\":\"HABIT\"}";
     private static final String CONFIGURATION = "{\"trackingType\":\"BOOLEAN\"}";
 
+    /** The losing request's body: different from the winner's, so the stored row says whose it is. */
+    private static final String RESENT_CONFIGURATION = "{\"trackingType\":\"NUMERIC\"}";
+
     private final ObjectMapper json = new ObjectMapper();
 
     @Autowired
@@ -59,6 +64,27 @@ class TrackingConfigRaceIT extends PostgresIT {
         configure(accessToken, upgradeId)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("Tracking configuration was saved concurrently. Please retry."));
+    }
+
+    @Test
+    void GivenAFirstConfigurationThatLostItsRace_WhenItIsResent_ThenItReplacesTheWinnersConfiguration()
+            throws Exception {
+        // The 409 is retryable because a resend finds the winner's configuration and replaces it, which is
+        // what a PUT means (ADR-074). The loser's refusal must also leave the winner's row as it was.
+        String accessToken = registeredAccessToken();
+        String upgradeId = createdUpgradeId(accessToken);
+        configure(accessToken, upgradeId).andExpect(status().isOk());
+        doReturn(Optional.empty()).when(configRepository).findByUpgradeId(any());
+        configure(accessToken, upgradeId, RESENT_CONFIGURATION).andExpect(status().isConflict());
+        reset(configRepository);
+
+        storedConfiguration(accessToken, upgradeId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.trackingType").value("BOOLEAN"));
+        configure(accessToken, upgradeId, RESENT_CONFIGURATION).andExpect(status().isOk());
+        storedConfiguration(accessToken, upgradeId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.trackingType").value("NUMERIC"));
     }
 
     private String registeredAccessToken() throws Exception {
@@ -87,9 +113,18 @@ class TrackingConfigRaceIT extends PostgresIT {
     }
 
     private ResultActions configure(String accessToken, String upgradeId) throws Exception {
+        return configure(accessToken, upgradeId, CONFIGURATION);
+    }
+
+    private ResultActions configure(String accessToken, String upgradeId, String configuration) throws Exception {
         return mockMvc.perform(put("/api/upgrades/{upgradeId}/tracking-config", upgradeId)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(CONFIGURATION));
+                .content(configuration));
+    }
+
+    private ResultActions storedConfiguration(String accessToken, String upgradeId) throws Exception {
+        return mockMvc.perform(get("/api/upgrades/{upgradeId}/tracking-config", upgradeId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken));
     }
 }
