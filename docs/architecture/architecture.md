@@ -149,8 +149,10 @@ exists only for deployments that split the origins.
 The two endpoints reachable without a credential — sign-in and registration — are rate-limited per
 client address by a handler interceptor, which runs before any controller so a refused attempt costs
 no password comparison. The address it counts is the one nginx reported, and only nginx's own address
-is trusted to report one. nginx sets every `X-Forwarded-*` header it forwards, the host and port with
-the address and scheme, so none reaches Tomcat as the caller wrote it
+is trusted to report one. nginx sets the four `X-Forwarded-*` headers Tomcat reads, `For`, `Proto`,
+`Host` and `Port`, so none reaches Tomcat as the caller wrote it. The host follows the request's `Host`
+header, because the server block names no `server_name` until
+[#209](https://github.com/NaimElijah/UpHealther/issues/209)
 ([ADR-017](../ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)).
 
 **2. STOMP over WebSocket, API to browser.** One-way in practice: the browser connects and subscribes,
