@@ -83,6 +83,16 @@ no aggregate at all, orchestrating over `user` and `auth`.
 | `src/types/` | `api.generated.ts`, the request and response shapes and enums rendered from the backend's records, and `index.ts`, which gives them the frontend's names (see "The frontend's wire types are generated from the backend's records") |
 | `src/lib/` | Helpers shared by several pages. `localDate.ts` turns the API's zone-less `YYYY-MM-DD` dates into the user's own day and back, because JavaScript's shortcuts for both go through UTC; `queryClient.ts` builds the one server-state cache and its thirty-second staleness window; `upgradeViews.ts` marks every cached view of upgrades out of date after a write that changed one ([ADR-029](../ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)) |
 
+**The folders are layered, and lint enforces it.** Each imports only from those below it: `types` ←
+`api` ← `lib` ← `contexts` + `hooks` ← `components` ← `pages` ← `router` ← `App.tsx` and `main.tsx`.
+`contexts` and `hooks` are one layer, since each hook reads one context. A few modules have a single
+owner: `axios` is imported only under `api/`, `@stomp/stompjs` only by `api/notificationSocket.ts`,
+`types/api.generated` only by `types/index.ts`, and `api/tokenStore` only under `api/` and by
+`contexts/AuthContext.tsx`. `eslint.config.js` enforces both with `no-restricted-imports`, on
+production files only, so `npm run lint` fails an import that breaks either. See
+[ADR-061](../ADRs/ADR-061-the-frontends-stack-and-layering.md), which also records why the SPA is built
+on the libraries it is.
+
 ---
 
 ## Communication
@@ -582,10 +592,9 @@ exceptions and never build a status by hand. The mapping is pinned by a test.
 **No component names a colour.** Every colour in the SPA is a semantic token — `bg-surface`,
 `text-fg-subtle`, `border-line-strong` — declared in `frontend/tailwind.config.js` and given its two
 values, once per theme, in `frontend/src/index.css`. Components name the *role*; the theme decides the
-value. The indirection is not decoration: Tailwind emits nothing for a class it does not recognise and
-raises no error, so a component that reached for a palette shade would render correctly in one theme
-and be invisible in the other, silently. `npm run check:colours` fails the build on any direct palette
-use, and is the only thing that catches it.
+value. `npm run check:colours` fails the build on any direct palette use, and is the only thing that
+catches one, since Tailwind reports nothing for a class it does not recognise. Why the SPA styles this
+way is in [ADR-061](../ADRs/ADR-061-the-frontends-stack-and-layering.md).
 
 Two consequences a maintainer would otherwise have to rediscover. Tokens hold **space-separated RGB
 channels**, not hex, because Tailwind's opacity modifier (`bg-overlay/50`) can only compose an alpha
@@ -773,6 +782,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why a PR into `dev` must have its checks run on the latest `dev`, and a promotion into `main` need not; why a second ruleset rather than strict in the first | [ADR-058](../ADRs/ADR-058-a-pr-into-dev-merges-only-once-its-checks-ran-on-the-latest-dev.md) |
 | Why the bundle ships a notices file for its third-party packages; why the jar and the images need none yet, and when that changes | [ADR-059](../ADRs/ADR-059-the-bundle-ships-its-third-party-notices.md) |
 | Why Dependabot ignores the Tailwind CSS and TypeScript majors, and what moves each by hand | [ADR-060](../ADRs/ADR-060-dependabot-holds-the-tailwind-and-typescript-majors-back.md) |
+| Why the SPA is built on TanStack Query, React Context, axios, `@stomp/stompjs`, a static build and Tailwind's semantic tokens; how its folders are layered, and why core ESLint enforces that rather than a plugin | [ADR-061](../ADRs/ADR-061-the-frontends-stack-and-layering.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

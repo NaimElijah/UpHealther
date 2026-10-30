@@ -19,7 +19,119 @@ import tseslint from 'typescript-eslint';
  * Each preset is taken whole, and a finding is fixed rather than switched off. react-hooks'
  * `recommended` includes the React Compiler's rules although the compiler is not used. See
  * `docs/ADRs/ADR-035-the-frontend-lints-with-eslint-10-and-a-flat-config.md`.
+ *
+ * After the presets, core ESLint's `no-restricted-imports` enforces two kinds of rule on the production
+ * files of `src/`. One is the layering: a folder imports only from the layers below it. The other is the
+ * single-owner imports, the modules only one place may import. Tests, `src/test/` and `src/setupTests.ts`
+ * are exempt, because a test may compose a provider with the view that reads it. See
+ * `docs/ADRs/ADR-061-the-frontends-stack-and-layering.md`.
  */
+
+/** `src/`'s layers, lowest first. Folders in one entry are one layer, and may import each other. */
+const LAYERS = [['types'], ['api'], ['lib'], ['contexts', 'hooks'], ['components'], ['pages'], ['router']];
+
+/** The order as a reader meets it in a lint message, the entry modules at the top. */
+const ORDER = 'types <- api <- lib <- contexts + hooks <- components <- pages <- router <- App.tsx and main.tsx';
+
+/** Not production code, so neither the layering nor the single-owner imports apply. */
+const TEST_FILES = ['**/*.test.{ts,tsx}', 'src/test/**', 'src/setupTests.ts'];
+
+/**
+ * The imports one place owns. A block lists the keys it is the owner of, and every other block gets the
+ * restriction. `paths` match a package by its exact name; `patterns` match a module by its relative path.
+ */
+const SINGLE_OWNER = {
+  axios: {
+    paths: [
+      {
+        name: 'axios',
+        message:
+          'Single owner (ADR-061, ADR-015): only src/api/ imports axios. Every HTTP call goes through the one ' +
+          'instance in api/client.ts, whose interceptors carry the session; call an api/ module instead.',
+      },
+    ],
+  },
+  stomp: {
+    paths: [
+      {
+        name: '@stomp/stompjs',
+        message:
+          'Single owner (ADR-061): only api/notificationSocket.ts imports @stomp/stompjs. Open the socket with ' +
+          'openNotificationSocket, so the live notifications stay one transport.',
+      },
+    ],
+  },
+  generated: {
+    patterns: [
+      {
+        regex: '(^|/)api\\.generated(\\.ts)?$',
+        message:
+          'Single owner (ADR-053): only types/index.ts imports types/api.generated. Import the names it gives ' +
+          'the wire types from types/ instead.',
+      },
+    ],
+  },
+  tokenStore: {
+    patterns: [
+      {
+        regex: '^(\\.\\.?/)+api/tokenStore(\\.ts)?$',
+        message:
+          'Single owner (ADR-015): only src/api/ and contexts/AuthContext.tsx import api/tokenStore. The access ' +
+          'token stays in memory and reaches no component; call through api/ instead.',
+      },
+    ],
+  },
+};
+
+/**
+ * The `no-restricted-imports` block for some files of one layer.
+ *
+ * Flat config does not merge two `no-restricted-imports` entries that match one file: the last wins. So
+ * each block carries its files' whole set, the layering and every single-owner import they do not own.
+ *
+ * @param files  the globs the block applies to, under `src/`
+ * @param layer  the index into `LAYERS` of the files' layer, or `LAYERS.length` for the entry modules
+ * @param owns   the `SINGLE_OWNER` keys these files are the owner of
+ */
+function restrictImports({ files, layer, owns = [] }) {
+  const above = LAYERS.slice(layer + 1).flat();
+  const own = layer < LAYERS.length ? LAYERS[layer].join(' + ') : 'App.tsx and main.tsx';
+  // The entry modules sit above every layer, and nothing sits above them.
+  const upward = [
+    ...(above.length > 0 ? [`^(\\.\\./)+(${above.join('|')})(/|$)`] : []),
+    '^(\\.\\./)+(App|main)(\\.tsx)?$',
+  ];
+  const layering =
+    layer < LAYERS.length
+      ? [
+          {
+            regex: upward.join('|'),
+            message:
+              `Layering (ADR-061): ${own} imports only from the layers below it, never from one above. The order ` +
+              `is ${ORDER}. Move what both sides need down a layer.`,
+          },
+        ]
+      : [];
+  const restricted = Object.entries(SINGLE_OWNER)
+    .filter(([key]) => !owns.includes(key))
+    .map(([, restriction]) => restriction);
+  const paths = restricted.flatMap((r) => r.paths ?? []);
+  const patterns = [...layering, ...restricted.flatMap((r) => r.patterns ?? [])];
+  return {
+    files,
+    ignores: TEST_FILES,
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { ...(paths.length > 0 && { paths }), ...(patterns.length > 0 && { patterns }) },
+      ],
+    },
+  };
+}
+
+/** The index into `LAYERS` of a folder of `src/`. */
+const layerOf = (folder) => LAYERS.findIndex((folders) => folders.includes(folder));
+
 export default defineConfig([
   globalIgnores(['dist', 'coverage']),
   {
@@ -44,4 +156,20 @@ export default defineConfig([
       globals: globals.nodeBuiltin,
     },
   },
+  // Each owner's block comes after its folder's, so that for the owning file it is the one that applies.
+  restrictImports({ files: ['src/types/**/*.{ts,tsx}'], layer: layerOf('types') }),
+  restrictImports({ files: ['src/types/index.ts'], layer: layerOf('types'), owns: ['generated'] }),
+  restrictImports({ files: ['src/api/**/*.{ts,tsx}'], layer: layerOf('api'), owns: ['axios', 'tokenStore'] }),
+  restrictImports({
+    files: ['src/api/notificationSocket.ts'],
+    layer: layerOf('api'),
+    owns: ['axios', 'tokenStore', 'stomp'],
+  }),
+  restrictImports({ files: ['src/lib/**/*.{ts,tsx}'], layer: layerOf('lib') }),
+  restrictImports({ files: ['src/{contexts,hooks}/**/*.{ts,tsx}'], layer: layerOf('contexts') }),
+  restrictImports({ files: ['src/contexts/AuthContext.tsx'], layer: layerOf('contexts'), owns: ['tokenStore'] }),
+  restrictImports({ files: ['src/components/**/*.{ts,tsx}'], layer: layerOf('components') }),
+  restrictImports({ files: ['src/pages/**/*.{ts,tsx}'], layer: layerOf('pages') }),
+  restrictImports({ files: ['src/router/**/*.{ts,tsx}'], layer: layerOf('router') }),
+  restrictImports({ files: ['src/*.{ts,tsx}'], layer: LAYERS.length }),
 ]);
