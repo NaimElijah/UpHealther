@@ -3,11 +3,11 @@
 - **Status:** Accepted
 - **Date:** 2026-10-30
 - **Scope:** `backend/` — the `auth` context's sessions, refresh cookie and their configuration, the
-  rate limit in front of the cookie endpoints, and migration `V10__auth_session_spent_tokens.sql`;
-  NFR-4, NFR-34, NFR-36, NFR-47 and NFR-58 in `docs/requirements/requirements.md`.
+  rate limit in front of the cookie endpoints, how the audit stream names a session, and migration `V10__auth_session_spent_tokens.sql`;
+  NFR-4, NFR-24, NFR-34, NFR-36, NFR-47 and NFR-58 in `docs/requirements/requirements.md`.
 - **Issue:** [#339](https://github.com/NaimElijah/UpHealther/issues/339), scan 05 of
   [#334](https://github.com/NaimElijah/UpHealther/issues/334): findings S5.A1, S5.A4, S5.A8, S5.A9,
-  S5.A11, S5.A13 and S5.A14.
+  S5.A11, S5.A13, S5.A14 and S5.C3.
   It extends [ADR-015](ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md), whose reuse
   detection it makes hold for any number of rotations and on both cookie endpoints, and
   [ADR-041](ADR-041-the-refresh-cookie-is-always-secure.md), whose cookie it names, and
@@ -41,6 +41,9 @@ most once, and that using it is detected, and the settings and limits around it.
   replay, which turns reuse detection off, and nothing would report it.
 - **S5.A14, a token without `exp` was accepted.** JJWT checks the expiry only when a token carries one,
   so a token signed with the key and no `exp` would never lapse.
+- **S5.C3, the audit stream listed live sessions beside their owners.** Every refresh writes the
+  account's id and the session's, and that pair is what ADR-049 says a signing key alone lacks to forge
+  a token for an existing account.
 
 ## Decision
 
@@ -124,6 +127,13 @@ with the property named, as a missing one already did. Each bound is a named con
 
 The bounds admit every value the repository sets anywhere, `AuthSessionFlowIT`'s zero grace included.
 
+### 8. The audit stream names a session by a digest (S5.C3)
+
+`LoggingAuditTrail` writes an `AUTH_SESSION` resource's id as the first sixteen hex characters of the
+SHA-256 of the id's text. One session always gives the same value, so its entries still join up, and
+anyone who holds a session id, from the database or a support case, finds its entries by computing the
+digest. Every other resource's id is written as it is.
+
 ## Consequences
 
 **Easy.** Reuse is detected however many times the thief has refreshed, and whichever cookie endpoint the
@@ -169,6 +179,15 @@ outcome reuse detection exists to prevent.
 **Check the account in `AuthService.continueSession`, after the rotation.** Rejected: the rotation would
 already be committed, so the refusal would have to undo it, and the session would have issued one more
 credential to an account that may no longer sign in.
+
+**Leave the session id out of the audit line altogether.** Rejected: an investigation of a replay
+needs every entry about one session, and the trace id joins an entry to a request, not to the other
+requests of the same session.
+
+**An HMAC of the session id, under a key of its own.** Rejected for now: it would also stop someone who
+holds a session id from confirming it against the stream, but it needs a second secret to manage, and the
+digest already gives nothing that can be put in a token. **Revisit** if the audit stream is ever shipped
+somewhere readable by people who should not learn which sessions exist.
 
 **Warn about an out-of-range lifetime at startup instead of refusing it.** Rejected: ADR-042 already
 made the application refuse to start without a signing key rather than run insecurely, and a warning at

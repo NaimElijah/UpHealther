@@ -590,7 +590,13 @@ the bootstrap promotion of the first administrator; `LoggingAuditTrail` writes t
 `audit.events{action,outcome}` counter from the same call so the two cannot disagree.
 
 An entry is `(action, actorUserId, resourceId, outcome)` — two enums and two identifiers, with **nowhere
-to put free text**, which is how NFR-6 survives contact with twenty-one new call sites. Services record
+to put free text**, which is how NFR-6 survives contact with twenty-one new call sites. One identifier is
+not written as it is: when the resource is an `AUTH_SESSION`, the line carries the first sixteen hex
+characters of the SHA-256 of the session id instead. The owner's id is on the same line, and an account
+paired with a live session of it is the half of a forged token that a signing key alone lacks
+([ADR-049](../ADRs/ADR-049-a-session-is-live-only-for-the-account-that-owns-it.md)). The digest is the
+same for every entry about one session, so they still join up, and anyone holding a session id finds
+its entries by computing it. Services record
 through `AuditTrail.recording(...)`, which brackets the operation and records the refusal as well as the
 success: BR-15 answers an attempt on somebody else's record with a `404`, so the trail is the only place
 that attempt exists at all. `REFUSED` (the system said no) and `FAILED` (the system broke) are separate

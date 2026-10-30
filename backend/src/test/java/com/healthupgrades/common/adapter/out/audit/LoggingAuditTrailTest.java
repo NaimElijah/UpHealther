@@ -12,7 +12,10 @@ import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.UUID;
 import net.logstash.logback.argument.StructuredArgument;
 import org.junit.jupiter.api.AfterEach;
@@ -102,6 +105,34 @@ class LoggingAuditTrailTest {
     }
 
     @Test
+    void GivenAnAttemptOnASession_WhenItIsRecorded_ThenTheSessionIsNamedByADigestThatStillCorrelates() {
+        // S5.C3: a session id beside its owner's id is the half of a forged token a signing key alone
+        // lacks (ADR-049), so the stream must not hand out live pairs. A fixed digest of the id keeps
+        // every entry about one session joinable without being an id anybody can present.
+        UUID owner = UUID.randomUUID();
+        UUID session = UUID.fromString("6b1f0f4c-9a2d-4c3e-9b7a-1d2e3f4a5b6c");
+
+        trail.record(AuditEvent.allowed(AuditAction.AUTH_REFRESH, owner, session));
+        trail.record(new AuditEvent(AuditAction.AUTH_LOGOUT, owner, session, AuditOutcome.REFUSED));
+
+        assertThat(appender.list).hasSize(2).allSatisfy(line -> {
+            assertThat(line.getFormattedMessage()).doesNotContain(session.toString());
+            assertThat(fieldsOf(line))
+                    .containsEntry("actorId", owner.toString())
+                    .containsEntry("resourceId", sha256Prefix(session.toString()));
+        });
+    }
+
+    @Test
+    void GivenAnAttemptOnAnythingButASession_WhenItIsRecorded_ThenItsIdIsWrittenAsItIs() {
+        UUID resource = UUID.randomUUID();
+
+        trail.record(AuditEvent.allowed(AuditAction.AUTH_CONNECT, UUID.randomUUID(), resource));
+
+        assertThat(fieldsOf(single())).containsEntry("resourceId", resource.toString());
+    }
+
+    @Test
     void GivenTwoAttemptsOnTheSameAction_WhenTheyAreRecorded_ThenTheCounterSeparatesThemByOutcome() {
         UUID actor = UUID.randomUUID();
         trail.record(AuditEvent.allowed(AuditAction.PROGRESS_RECORD, actor, UUID.randomUUID()));
@@ -161,6 +192,12 @@ class LoggingAuditTrailTest {
     }
 
     /** The structured fields the logstash encoder would turn into JSON keys. */
+    /** The first sixteen hex characters of the SHA-256 of {@code text}'s UTF-8, computed independently. */
+    private static String sha256Prefix(String text) throws java.security.NoSuchAlgorithmException {
+        byte[] digest = MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8));
+        return HexFormat.of().formatHex(digest).substring(0, 16);
+    }
+
     private static java.util.Map<String, Object> fieldsOf(ILoggingEvent event) {
         java.util.Map<String, Object> fields = new java.util.LinkedHashMap<>();
         Arrays.stream(event.getArgumentArray())

@@ -4,9 +4,14 @@ import static net.logstash.logback.argument.StructuredArguments.keyValue;
 
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
+import com.healthupgrades.common.domain.audit.AuditedResource;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +35,14 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * <p>Fields are emitted through {@code StructuredArguments}, which renders {@code key=value} into the
  * message for a person reading the console and a first-class JSON field for anything querying it — one
  * statement that is legible in both of the formats {@code logback-spring.xml} selects between.
+ *
+ * <p><b>A session is named by a digest, not by its id.</b> An {@code AUTH_SESSION} entry names the
+ * session's owner beside it, and that pair, an account and a live session of it, is the half of a forged
+ * token that ADR-049 says a signing key alone lacks (S5.C3). So the session id is written as the first
+ * {@value #SESSION_DIGEST_HEX_LENGTH} hex characters of its SHA-256: the same session always gives the
+ * same value, so its entries still join up, but the value is no id anybody can put in a token. A reader
+ * who holds a session id, from the database or a support case, finds its entries by computing the same
+ * digest.
  */
 @Component
 public class LoggingAuditTrail implements AuditTrail {
@@ -39,6 +52,12 @@ public class LoggingAuditTrail implements AuditTrail {
 
     private static final String COUNTER = "audit.events";
     private static final String UNKNOWN = "none";
+
+    /**
+     * How much of a session id's SHA-256 the stream keeps: sixty-four bits, enough that two live sessions
+     * colliding is not a concern, and far too few to invert by any means but guessing the id itself.
+     */
+    static final int SESSION_DIGEST_HEX_LENGTH = 16;
 
     private final MeterRegistry meterRegistry;
 
@@ -99,7 +118,7 @@ public class LoggingAuditTrail implements AuditTrail {
                     keyValue("outcome", event.outcome()),
                     keyValue("resource", event.action().resource()),
                     keyValue("actorId", idOrNone(event.actorUserId())),
-                    keyValue("resourceId", idOrNone(event.resourceId())));
+                    keyValue("resourceId", resourceIdOf(event)));
         } catch (RuntimeException unwritable) {
             return; // Nothing can be reported about a broken logger, by a logger.
         }
@@ -130,5 +149,22 @@ public class LoggingAuditTrail implements AuditTrail {
      */
     private static String idOrNone(UUID id) {
         return id == null ? UNKNOWN : id.toString();
+    }
+
+    /** The resource's id as the stream writes it: a session's as its digest, any other as it is. */
+    private static String resourceIdOf(AuditEvent event) {
+        UUID id = event.resourceId();
+        if (id == null || event.action().resource() != AuditedResource.AUTH_SESSION) {
+            return idOrNone(id);
+        }
+        try {
+            byte[] digest =
+                    MessageDigest.getInstance("SHA-256").digest(id.toString().getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest).substring(0, SESSION_DIGEST_HEX_LENGTH);
+        } catch (NoSuchAlgorithmException impossible) {
+            // Every JVM is required to provide SHA-256, as RefreshToken notes. Rethrown rather than
+            // written in clear: write() swallows it, which loses one line instead of leaking a session.
+            throw new IllegalStateException("SHA-256 is unavailable", impossible);
+        }
     }
 }
