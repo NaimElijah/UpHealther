@@ -100,7 +100,7 @@ class LoggingAuditTrailTest {
         // it reads like the NFR-6 guard and guards nothing. Pinning the whole line means anything new
         // appearing in it has to come through here.
         assertThat(single().getFormattedMessage())
-                .isEqualTo("action=reflection.create outcome=ALLOWED resource=REFLECTION" + " actorId=" + actor
+                .isEqualTo("action=reflection.create outcome=ALLOWED resource=HEALTH_UPGRADE" + " actorId=" + actor
                         + " resourceId=" + resource);
     }
 

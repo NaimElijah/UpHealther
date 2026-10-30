@@ -67,26 +67,21 @@ public class TrackingService implements ProgressQuery, StreakQuery {
      */
     @Transactional
     public TrackingConfig saveConfig(UUID userId, UUID upgradeId, TrackingConfigDetails details) {
-        // Audited against the configuration, the resource the action names (S5.C6). A first one has no
-        // id until it is saved, so the id is read off the save, and a refusal names no resource.
-        return auditTrail.recordingCreation(
-                AuditAction.TRACKING_CONFIGURE,
-                userId,
-                () -> {
-                    upgradeQuery.getOwnedUpgrade(userId, upgradeId); // ownership check (throws if not owned)
-                    TrackingConfig config = configRepository
-                            .findByUpgradeId(upgradeId)
-                            .orElse(TrackingConfig.builder()
-                                    .upgradeId(upgradeId)
-                                    .build());
-                    config.setTrackingType(details.trackingType());
-                    config.setFrequency(details.frequency());
-                    config.setTargetNumericValue(details.targetNumericValue());
-                    config.setTargetUnit(details.targetUnit());
-                    config.setRequiredDaily(details.requiredDaily());
-                    return configRepository.save(config);
-                },
-                TrackingConfig::getId);
+        // Audited against the upgrade, as the action's label says (S5.C6), not the config row: changing
+        // how an upgrade is measured changes what its past progress means, and the upgrade is what
+        // somebody would be reading back. A refusal names the upgrade that was probed.
+        return auditTrail.recording(AuditAction.TRACKING_CONFIGURE, userId, upgradeId, () -> {
+            upgradeQuery.getOwnedUpgrade(userId, upgradeId); // ownership check (throws if not owned)
+            TrackingConfig config = configRepository
+                    .findByUpgradeId(upgradeId)
+                    .orElse(TrackingConfig.builder().upgradeId(upgradeId).build());
+            config.setTrackingType(details.trackingType());
+            config.setFrequency(details.frequency());
+            config.setTargetNumericValue(details.targetNumericValue());
+            config.setTargetUnit(details.targetUnit());
+            config.setRequiredDaily(details.requiredDaily());
+            return configRepository.save(config);
+        });
     }
 
     /**
@@ -123,50 +118,45 @@ public class TrackingService implements ProgressQuery, StreakQuery {
     @Transactional
     public ProgressEntry recordProgress(UUID userId, UUID upgradeId, ProgressEntryDetails details) {
         // The duplicate-per-day refusal (BR-6) is one of the entries worth having in the trail, so the
-        // recording has to bracket the check rather than follow it. Audited against the entry, the
-        // resource the action names (S5.C6), whose id exists only once it is saved.
-        return auditTrail.recordingCreation(
-                AuditAction.PROGRESS_RECORD,
-                userId,
-                () -> {
-                    upgradeQuery.getOwnedUpgrade(userId, upgradeId);
-                    LocalDate date = details.date() != null ? details.date() : LocalDate.now(clock);
+        // recording has to bracket the check rather than follow it. Audited against the upgrade, as the
+        // action's label says (S5.C6), so a refusal names the upgrade it was attempted on.
+        return auditTrail.recording(AuditAction.PROGRESS_RECORD, userId, upgradeId, () -> {
+            upgradeQuery.getOwnedUpgrade(userId, upgradeId);
+            LocalDate date = details.date() != null ? details.date() : LocalDate.now(clock);
 
-                    if (progressRepository.existsByUpgradeIdAndDate(upgradeId, date)) {
-                        throw new DuplicateProgressException("Progress already recorded for date: " + date);
-                    }
+            if (progressRepository.existsByUpgradeIdAndDate(upgradeId, date)) {
+                throw new DuplicateProgressException("Progress already recorded for date: " + date);
+            }
 
-                    ProgressEntry entry = ProgressEntry.builder()
-                            .upgradeId(upgradeId)
-                            .userId(userId)
-                            .date(date)
-                            .completed(details.completed())
-                            .numericValue(details.numericValue())
-                            .unit(details.unit())
-                            .rating(details.rating())
-                            .note(details.note())
-                            .build();
+            ProgressEntry entry = ProgressEntry.builder()
+                    .upgradeId(upgradeId)
+                    .userId(userId)
+                    .date(date)
+                    .completed(details.completed())
+                    .numericValue(details.numericValue())
+                    .unit(details.unit())
+                    .rating(details.rating())
+                    .note(details.note())
+                    .build();
 
-                    // When a tracking config exists, the server decides whether the entry counts as "completed"
-                    // by evaluating it against the configured target (e.g. numericValue >= target), instead of
-                    // trusting the client. This keeps streaks and completion rates honest.
-                    TrackingConfig config =
-                            configRepository.findByUpgradeId(upgradeId).orElse(null);
-                    if (config != null) {
-                        entry.setCompleted(evaluationService.isSuccessful(entry, config));
-                    }
+            // When a tracking config exists, the server decides whether the entry counts as "completed"
+            // by evaluating it against the configured target (e.g. numericValue >= target), instead of
+            // trusting the client. This keeps streaks and completion rates honest.
+            TrackingConfig config = configRepository.findByUpgradeId(upgradeId).orElse(null);
+            if (config != null) {
+                entry.setCompleted(evaluationService.isSuccessful(entry, config));
+            }
 
-                    ProgressEntry saved = progressRepository.save(entry);
+            ProgressEntry saved = progressRepository.save(entry);
 
-                    List<ProgressEntry> allEntries = progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId);
-                    streakCalculator
-                            .milestoneReachedBy(allEntries, date, LocalDate.now(clock))
-                            .ifPresent(days -> eventPublisher.publish(
-                                    new StreakAchieved(upgradeId, userId, days, LocalDateTime.now(clock))));
+            List<ProgressEntry> allEntries = progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId);
+            streakCalculator
+                    .milestoneReachedBy(allEntries, date, LocalDate.now(clock))
+                    .ifPresent(days -> eventPublisher.publish(
+                            new StreakAchieved(upgradeId, userId, days, LocalDateTime.now(clock))));
 
-                    return saved;
-                },
-                ProgressEntry::getId);
+            return saved;
+        });
     }
 
     /**

@@ -119,7 +119,10 @@ read/composition model with no domain or outbound side. All three are deliberate
   use case wraps its body in `auditTrail.recording(action, userId, resourceId, ...)`, or in
   `recordingCreation(...)` when the resource id exists only once the operation has run. Either records
   the attempt whether it succeeded or was refused — a refusal is the entry somebody actually goes
-  looking for, and BR-15 means an attempt on another user's record leaves no other trace.
+  looking for, and BR-15 means an attempt on another user's record leaves no other trace. So a child
+  record's creation (a reflection, a reminder, progress, a tracking configuration) is recorded against
+  its upgrade, through `recording`, and its action's `AuditedResource` is `HEALTH_UPGRADE`: a refusal
+  then names the upgrade that was probed (ADR-065).
   Authentication outcomes, which have no body to wrap, call `auditTrail.record(AuditEvent)` directly.
   Adding an operation means adding a constant to `AuditAction` (in `common`, deliberately: one
   vocabulary, readable in one place) and wrapping the body; it does **not** mean a new log statement.

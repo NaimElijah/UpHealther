@@ -177,6 +177,20 @@ needs a second. **Revisit** if a client ever needs to subscribe to more than one
 and retake a subscription on one socket: count per destination, with the inbound channel's receive order
 preserved.
 
+### 11. A child record's creation names the upgrade it belongs to (S5.C6)
+
+Creating a reflection, a reminder, a progress entry or a tracking configuration is audited against the
+upgrade the record belongs to, on both outcomes, and the four actions label their resource
+`HEALTH_UPGRADE`. Scan 05 found the id on those entries was the upgrade's while the label said
+`REFLECTION`, `REMINDER`, `PROGRESS_ENTRY` or `TRACKING_CONFIG`, so a reader would take it for the
+child's. Of its two fixes, naming the child or relabelling the id, this takes the second. Naming the
+child needs `recordingCreation`, whose refusal can name nothing, since there is no child yet; and a
+refusal on another user's upgrade is the entry somebody goes looking for, because BR-15 answers it with
+a 404 and leaves no other trace. The upgrade is also the record whose history a reader is
+reconstructing. `AuditedResource` loses the three kinds nothing names any more; `REMINDER` stays, for
+rescheduling and removing one. **Revisit** if an investigation ever needs to find one child record's
+creation by its own id: an entry could then carry both, at the cost of widening `AuditEvent`.
+
 ## Consequences
 
 **Easy.** Reuse is detected however many times the thief has refreshed, and whichever cookie endpoint the

@@ -449,12 +449,13 @@ class TrackingServiceTest {
     // ---- NFR-23: every change is audited against the record it names, allowed or refused ----
 
     @Test
-    void GivenAnOwnedUpgrade_WhenProgressIsRecorded_ThenTheRecordingAloneIsAuditedAsAllowedAgainstTheEntry() {
-        // S5.C6: the entry's resource is a PROGRESS_ENTRY, so the id it carries is the entry's.
+    void GivenAnOwnedUpgrade_WhenProgressIsRecorded_ThenTheRecordingAloneIsAuditedAsAllowedAgainstTheUpgrade() {
+        // S5.C6: the action labels its resource as the upgrade, so the id it carries is the upgrade the
+        // entry is recorded against, on a success as on a refusal.
         recordWithMilestone(today, OptionalInt.empty());
 
         assertThat(auditTrail.recorded())
-                .containsExactly(AuditEvent.allowed(AuditAction.PROGRESS_RECORD, userId, SAVED_ENTRY_ID));
+                .containsExactly(AuditEvent.allowed(AuditAction.PROGRESS_RECORD, userId, upgradeId));
     }
 
     @Test
@@ -466,10 +467,10 @@ class TrackingServiceTest {
                         userId, upgradeId, new ProgressEntryDetails(today, true, null, null, null, null)))
                 .isInstanceOf(ResourceNotFoundException.class);
 
-        // Nothing was created, so the entry names no resource, as a refused upgrade or area creation
-        // does. It still names who attempted it, and the action (S5.C6).
+        // The refusal names the upgrade that was probed: BR-15 means an attempt on another user's upgrade
+        // leaves no other trace, and that id is what somebody would be looking for (NFR-23).
         assertThat(auditTrail.recorded())
-                .containsExactly(new AuditEvent(AuditAction.PROGRESS_RECORD, userId, null, AuditOutcome.REFUSED));
+                .containsExactly(new AuditEvent(AuditAction.PROGRESS_RECORD, userId, upgradeId, AuditOutcome.REFUSED));
     }
 
     @Test
@@ -482,13 +483,13 @@ class TrackingServiceTest {
                 .isInstanceOf(DuplicateProgressException.class);
 
         assertThat(auditTrail.recorded())
-                .containsExactly(new AuditEvent(AuditAction.PROGRESS_RECORD, userId, null, AuditOutcome.REFUSED));
+                .containsExactly(new AuditEvent(AuditAction.PROGRESS_RECORD, userId, upgradeId, AuditOutcome.REFUSED));
     }
 
     @Test
-    void GivenAnOwnedUpgrade_WhenItsConfigurationIsSaved_ThenTheSaveAloneIsAuditedAsAllowedAgainstTheConfiguration() {
-        // S5.C6: the entry's resource is a TRACKING_CONFIG, so the id it carries is the configuration's,
-        // which a first configuration has only once it is saved.
+    void GivenAnOwnedUpgrade_WhenItsConfigurationIsSaved_ThenTheSaveAloneIsAuditedAsAllowedAgainstTheUpgrade() {
+        // S5.C6: the action labels its resource as the upgrade, so the id it carries is the upgrade's:
+        // changing how an upgrade is measured changes what its past progress means.
         UUID configId = UUID.randomUUID();
         when(configRepository.findByUpgradeId(upgradeId)).thenReturn(Optional.empty());
         when(configRepository.save(any(TrackingConfig.class))).thenAnswer(inv -> {
@@ -501,7 +502,7 @@ class TrackingServiceTest {
                 userId, upgradeId, new TrackingConfigDetails(TrackingType.BOOLEAN, Frequency.DAILY, null, null, null));
 
         assertThat(auditTrail.recorded())
-                .containsExactly(AuditEvent.allowed(AuditAction.TRACKING_CONFIGURE, userId, configId));
+                .containsExactly(AuditEvent.allowed(AuditAction.TRACKING_CONFIGURE, userId, upgradeId));
     }
 
     @Test
@@ -515,10 +516,11 @@ class TrackingServiceTest {
                         new TrackingConfigDetails(TrackingType.BOOLEAN, Frequency.DAILY, null, null, null)))
                 .isInstanceOf(ResourceNotFoundException.class);
 
-        // Nothing was created, so the entry names no resource, as a refused upgrade or area creation
-        // does. It still names who attempted it, and the action (S5.C6).
+        // The refusal names the upgrade that was probed: BR-15 means an attempt on another user's upgrade
+        // leaves no other trace, and that id is what somebody would be looking for (NFR-23).
         assertThat(auditTrail.recorded())
-                .containsExactly(new AuditEvent(AuditAction.TRACKING_CONFIGURE, userId, null, AuditOutcome.REFUSED));
+                .containsExactly(
+                        new AuditEvent(AuditAction.TRACKING_CONFIGURE, userId, upgradeId, AuditOutcome.REFUSED));
     }
 
     // ---- Inbound ports used by other contexts ----

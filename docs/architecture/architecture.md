@@ -634,10 +634,13 @@ same for every entry about one session, so they still join up, and anyone holdin
 its entries by computing it. Services record
 through `AuditTrail.recording(...)`, which brackets the operation and records the refusal as well as the
 success, or through `recordingCreation(...)` when the record the action names has no id until it is
-saved — a new upgrade, area, reflection, reminder, progress entry or tracking configuration — so the id
-on the line is always of the kind its `resource` field says: BR-15 answers an attempt on somebody else's record with a `404`, so the trail is the only place
-that attempt exists at all. `REFUSED` (the system said no) and `FAILED` (the system broke) are separate
-outcomes because they need separate reactions.
+saved — a new upgrade or area. A child record's creation, a reflection, a reminder, a progress entry
+or a tracking configuration, is recorded against the upgrade it belongs to, and its action's `resource`
+says `HEALTH_UPGRADE`, so the id on the line is always of the kind that field says, and a refusal still
+names the upgrade that was probed. BR-15 answers an attempt on somebody else's record with a `404`, so
+the trail is the only place that attempt exists at all
+([ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md)). `REFUSED` (the system said no) and
+`FAILED` (the system broke) are separate outcomes because they need separate reactions.
 
 There is no audit table. An entry has to outlive the transaction it observes — a refused transition
 rolls back, and a row written inside it would roll back too — and the trace id already on the line joins

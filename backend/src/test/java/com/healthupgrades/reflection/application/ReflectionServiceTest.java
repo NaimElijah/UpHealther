@@ -165,9 +165,9 @@ class ReflectionServiceTest {
     }
 
     @Test
-    void GivenAnOwnedUpgrade_WhenAReflectionIsWritten_ThenTheAttemptIsAuditedAsAllowedAgainstTheReflection() {
-        // NFR-23, and S5.C6: the entry's resource is a REFLECTION, so the id it carries is the
-        // reflection's, read off the save, and not the upgrade's.
+    void GivenAnOwnedUpgrade_WhenAReflectionIsWritten_ThenTheAttemptIsAuditedAsAllowedAgainstTheUpgrade() {
+        // NFR-23, and S5.C6: the action labels its resource as the upgrade, so the id it carries is the
+        // upgrade's, the record the reflection belongs to, on a success as on a refusal.
         UUID reflectionId = UUID.randomUUID();
         when(upgradeQuery.getOwnedUpgrade(userId, upgradeId)).thenReturn(AnUpgrade.active(userId));
         when(repository.save(any(Reflection.class))).thenAnswer(call -> {
@@ -179,7 +179,7 @@ class ReflectionServiceTest {
         service.create(userId, upgradeId, DETAILS);
 
         assertThat(auditTrail.only(AuditAction.REFLECTION_CREATE))
-                .hasValue(new AuditEvent(AuditAction.REFLECTION_CREATE, userId, reflectionId, AuditOutcome.ALLOWED));
+                .hasValue(new AuditEvent(AuditAction.REFLECTION_CREATE, userId, upgradeId, AuditOutcome.ALLOWED));
     }
 
     @Test
@@ -189,10 +189,10 @@ class ReflectionServiceTest {
 
         catchThrowable(() -> service.create(userId, upgradeId, DETAILS));
 
-        // Nothing was created, so the entry names no resource, as a refused upgrade or area creation
-        // does. It still names who attempted it, and the action (S5.C6).
+        // The refusal names the upgrade that was probed: BR-15 means an attempt on another user's upgrade
+        // leaves no other trace, and that id is what somebody would be looking for (NFR-23).
         assertThat(auditTrail.only(AuditAction.REFLECTION_CREATE))
-                .hasValue(new AuditEvent(AuditAction.REFLECTION_CREATE, userId, null, AuditOutcome.REFUSED));
+                .hasValue(new AuditEvent(AuditAction.REFLECTION_CREATE, userId, upgradeId, AuditOutcome.REFUSED));
     }
 
     @Test
