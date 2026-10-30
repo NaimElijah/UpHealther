@@ -181,7 +181,7 @@ which socket belongs to which session and account. It asks `SessionStatusPort` o
 a socket, because a session can end after the CONNECT's own check and before the socket is recorded,
 which no sweep could see; a socket whose session has ended, or cannot be confirmed, is closed at once.
 When `auth` ends one session — a sign-out, or a
-replayed refresh credential — it publishes `AuthSessionEnded`; when it ends all of an account's, as
+replayed refresh credential, presented to refresh or to sign-out — it publishes `AuthSessionEnded`; when it ends all of an account's, as
 switching the account off does, it publishes `UserSessionsEnded`. `SessionEndSocketListener` takes
 both after the commit and calls `LiveSocketPort`, which the registry implements: a port the kernel
 declares, as it does `SessionStatusPort` (mechanism 4), so that `auth` and `common` meet at an
@@ -431,8 +431,10 @@ serialise instead of both rotating from the same starting state. Every digest a 
 kept in `auth_session_spent_tokens`, with when it was retired, for as long as the session lives and no
 longer — its rows cascade with the session. That is the only reason a replay is distinguishable from a
 guess, however many rotations old it is, and the grace window runs from the moment each one was spent.
-A credential that is neither current nor spent revokes nothing, because the session id travels in a
-token claim and is therefore not a secret
+Sign-out treats a spent credential the same way: inside its grace window it signs out, and after it the
+session is revoked as reuse, through the one method refresh uses. A credential that is neither current
+nor spent revokes nothing, because the session id travels in a token claim and is therefore not a
+secret
 ([ADR-065](../ADRs/ADR-065-every-spent-refresh-credential-is-remembered.md)).
 And the `sid` claim is checked on every authenticated request, together with the `sub` the row must
 name as its owner, which is what turns a revoked row into a refused request rather than a wait for the

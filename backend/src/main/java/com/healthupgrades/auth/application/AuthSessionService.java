@@ -151,7 +151,8 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
 
     /**
      * Ends a session whose spent credential was presented after the grace window: two parties hold its
-     * credentials, and the one presenting this is no longer the legitimate client.
+     * credentials, and the one presenting this is no longer the legitimate client. Refresh and sign-out
+     * both come here, so a replay is handled the same whichever endpoint it is presented to.
      */
     private void revokeForReuse(AuthSession session) {
         session.revoke();
@@ -200,15 +201,19 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
         // The credential has to match, not merely name the session. Knowing a session id is not
         // authority to end it, and the id is the half of the credential that travels in a token claim.
         //
-        // A spent digest counts only inside the rotation grace window - the same bound refresh
-        // applies, and for the same reason. Accepting it indefinitely made this a quiet way around
-        // reuse detection: a credential rotated out an hour ago is theft when presented to /refresh
-        // (revoked, logged WARN, audited AUTH_TOKEN_REUSE) and was an ordinary sign-out when presented
-        // here, ending the victim's session while the counter that should stay at zero never moved.
+        // A spent digest signs out only inside the rotation grace window. After it, it is reuse here
+        // exactly as it is at /refresh: the session is revoked, logged WARN and audited AUTH_TOKEN_REUSE.
+        // Signing out with it as an ordinary sign-out would hide the reuse, and refusing it would leave
+        // the session to whoever rotated it - while the caller, answered 204 either way, believes it
+        // ended (S5.A4).
         if (!session.matchesCurrent(presentedHash)) {
             Optional<SpentCredential> spent = sessions.findSpent(session.getId(), presentedHash);
-            if (spent.isEmpty() || !spent.get().isWithinGrace(clock.instant(), properties.rotationGrace())) {
-                recordRefusal(AuditAction.AUTH_LOGOUT, session, spent.isPresent());
+            if (spent.isEmpty()) {
+                recordRefusal(AuditAction.AUTH_LOGOUT, session, false);
+                return false;
+            }
+            if (!spent.get().isWithinGrace(clock.instant(), properties.rotationGrace())) {
+                revokeForReuse(session);
                 return false;
             }
         }

@@ -394,20 +394,31 @@ class AuthSessionServiceTest {
         assertThat(published).isEmpty();
     }
 
+    /**
+     * A spent credential presented to sign-out after its grace window is reuse, exactly as it is when
+     * presented to refresh: the session is revoked, logged at WARN, audited {@code AUTH_TOKEN_REUSE} and
+     * its end published.
+     *
+     * <p>This test used to pin the opposite - the session left alive and nothing recorded - and that was
+     * S5.A4: a thief who refreshed once kept the session while the victim, signing out with the old
+     * credential, was answered 204 and believed it ended. Refusing the sign-out did close the earlier
+     * hole, an ordinary sign-out that hid the reuse, but left the session to the thief. Treating it as
+     * reuse closes both.
+     */
     @Test
-    void GivenACredentialRotatedOutLongAgo_WhenItIsUsedToSignOut_ThenTheSessionIsLeftAlone() {
-        // Otherwise sign-out is a way around reuse detection: the same credential presented to refresh
-        // is theft - revoked, logged, audited AUTH_TOKEN_REUSE - and presented here would have ended the
-        // victim's session as an ordinary sign-out, with the counter that should stay at zero unmoved.
+    void GivenACredentialRotatedOutLongAgo_WhenItIsUsedToSignOut_ThenTheSessionIsRevokedAsReuse() {
         SessionGrant opened = service.open(USER_ID);
         service.refresh(opened.refreshToken());
         clock.moveTo(START.plus(GRACE).plusSeconds(1));
 
-        assertThat(service.revoke(opened.refreshToken())).isFalse();
+        assertThat(service.revoke(opened.refreshToken()))
+                .as("the credential is not accepted as a sign-out")
+                .isFalse();
 
-        assertThat(service.isActive(opened.sessionId(), USER_ID)).isTrue();
+        assertThat(service.isActive(opened.sessionId(), USER_ID)).isFalse();
         assertThat(auditTrail.recorded(AuditAction.AUTH_LOGOUT, AuditOutcome.ALLOWED))
                 .isFalse();
+        assertThat(published).containsExactly(new AuthSessionEnded(opened.sessionId(), USER_ID, now()));
     }
 
     @Test
@@ -452,18 +463,25 @@ class AuthSessionServiceTest {
                 .hasValue(new AuditEvent(AuditAction.AUTH_LOGOUT, null, opened.sessionId(), AuditOutcome.REFUSED));
     }
 
+    /**
+     * One attempt, one entry, as for a replayed refresh: the reuse entry, naming the session and its
+     * owner, and no refused sign-out beside it.
+     *
+     * <p>This test used to expect a refused {@code AUTH_LOGOUT} naming the owner. Since S5.A4 the same
+     * attempt is reuse, and a second entry for it would count every theft among the refused sign-outs.
+     */
     @Test
-    void GivenACredentialRotatedOutLongAgo_WhenItIsUsedToSignOut_ThenTheRefusalNamesTheSessionAndItsOwner() {
-        // Refused, because accepting it would be a way around reuse detection - but the superseded
-        // credential is still proof the session issued it, so its owner is named.
+    void GivenACredentialRotatedOutLongAgo_WhenItIsUsedToSignOut_ThenItIsAuditedAsReuseAndNotAlsoAsARefusedSignOut() {
         SessionGrant opened = service.open(USER_ID);
         service.refresh(opened.refreshToken());
         clock.moveTo(START.plus(GRACE).plusSeconds(1));
 
         service.revoke(opened.refreshToken());
 
-        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT))
-                .hasValue(new AuditEvent(AuditAction.AUTH_LOGOUT, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+        assertThat(auditTrail.recorded())
+                .endsWith(new AuditEvent(
+                        AuditAction.AUTH_TOKEN_REUSE, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT)).isEmpty();
     }
 
     @Test

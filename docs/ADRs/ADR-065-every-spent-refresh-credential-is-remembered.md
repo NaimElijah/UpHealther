@@ -6,7 +6,7 @@
   `AuthSessionRepositoryPort` and its adapter, and migration `V10__auth_session_spent_tokens.sql`;
   NFR-36 in `docs/requirements/requirements.md`.
 - **Issue:** [#339](https://github.com/NaimElijah/UpHealther/issues/339), scan 05 of
-  [#334](https://github.com/NaimElijah/UpHealther/issues/334): finding S5.A1. It extends
+  [#334](https://github.com/NaimElijah/UpHealther/issues/334): findings S5.A1 and S5.A4. It extends
   [ADR-015](ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md), whose reuse detection it
   makes hold for any number of rotations.
 
@@ -37,6 +37,13 @@ session's history never outlives it.
 `rotationGrace` of its own retirement is stale (409, retry); after it, the session is revoked as reuse,
 with the same WARN, `AUTH_TOKEN_REUSE` entry and published end as before. Two quick rotations therefore
 do not turn a request that was already in flight into a theft.
+
+**Sign-out handles a spent credential exactly as refresh does, through one method.** Inside its grace
+window it signs out, as before. After it, `end()` calls the same `revokeForReuse` that `exchange()`
+calls: the session is revoked and the attempt is audited as `AUTH_TOKEN_REUSE`, and not also as a refused
+sign-out. Until now sign-out refused it and left the session alive, so a victim signing out with a
+credential the thief had rotated was answered 204, saw themselves signed out, and left the thief signed
+in, with nothing recording the reuse (S5.A4). The answer on the wire is unchanged: 204, cookie cleared.
 
 **The aggregate no longer holds a previous digest.** `previous_token_hash` and `rotated_at` are dropped in
 `V10`, after their one digest is copied into the new table. Kept, they would be a second record of a
@@ -69,6 +76,10 @@ that saves one indexed read on the rare stale refresh. **Revisit** if a profile 
 **Map the history as an `@ElementCollection` on `AuthSession`.** Rejected: adding to a collection makes
 Hibernate load all of it first, so every refresh would read the session's whole history to append one
 row. **Revisit** if the history is ever bounded to a handful of rows.
+
+**Keep refusing a spent credential at sign-out.** Rejected: the refusal was added so sign-out could not
+hide reuse as an ordinary sign-out, and it did that, but it left the session to the thief, which is the
+outcome reuse detection exists to prevent.
 
 **Treat any credential older than the previous one as reuse, whatever its age.** Rejected: it revokes a
 session whose two rotations both happened inside one grace window, which is two tabs racing, not theft.
