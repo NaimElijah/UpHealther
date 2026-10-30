@@ -226,7 +226,7 @@ effect on a native run only — marked *native*.
 Compose passes none of the next nine either. Every cron is read in UTC, whatever the host's zone
 ([ADR-020](docs/ADRs/ADR-020-the-server-keeps-time-in-utc.md)): `UPGRADE_OVERDUE_CRON`
 (`0 0 8 * * *`), `NOTIFY_CHECKIN_CRON` (`0 0 18 * * *`), `NOTIFY_REMINDERS_CRON` (`0 * * * * *`)
-and `AUTH_SESSION_CLEANUP_CRON` (`0 30 3 * * *`); then `AUTH_SESSION_ROTATION_GRACE` (`10s`, at most `1m`),
+and `AUTH_SESSION_CLEANUP_CRON` (`0 30 3 * * *`); then `AUTH_SESSION_ROTATION_GRACE` (`10s`, between `0s` and `1m`),
 `AUTH_RATE_LIMIT_MAX_CLIENTS` (`10000`), and the refresh and sign-out limit, counted apart from
 sign-in's: `AUTH_SESSION_RATE_LIMIT` (`60`), `AUTH_SESSION_RATE_LIMIT_WINDOW` (`1m`) and
 `AUTH_SESSION_RATE_LIMIT_MAX_CLIENTS` (`10000`).
@@ -540,7 +540,7 @@ Known limitations, load-bearing rather than accidental:
   ([ADR-054](docs/ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md)), but a session that
   idles out or reaches its cap ends with no event to close them (#331) — and a socket only ever
   receives its own user's notifications.
-- **The rate limit is per instance**, counted in process memory, so two instances double it
+- **The rate limits are per instance**, counted in process memory, so two instances double them
   ([ADR-017](docs/ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)).
 - **Server time is UTC, and a user has no zone**, so a reminder set for 09:00 rings at 09:00 UTC
   wherever its owner is ([ADR-020](docs/ADRs/ADR-020-the-server-keeps-time-in-utc.md)).

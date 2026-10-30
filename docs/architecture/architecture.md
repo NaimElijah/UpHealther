@@ -196,9 +196,9 @@ The principal the CONNECT attaches also keeps the session its token was issued w
 which socket belongs to which session and account. It asks `SessionStatusPort` once more as it records
 a socket, because a session can end after the CONNECT's own check and before the socket is recorded,
 which no sweep could see; a socket whose session has ended, or cannot be confirmed, is closed at once.
-When `auth` ends one session — a sign-out, or a
-replayed refresh credential, presented to refresh or to sign-out — it publishes `AuthSessionEnded`; when it ends all of an account's, as
-switching the account off does, or a refresh that finds the account already switched off, it publishes
+When `auth` ends one session — a sign-out, or a replayed refresh credential, presented to refresh or
+to sign-out — it publishes `AuthSessionEnded`; when it ends all of an account's, as switching the
+account off does, or a refresh that finds the account already switched off, it publishes
 `UserSessionsEnded`. `SessionEndSocketListener` takes
 both after the commit and calls `LiveSocketPort`, which the registry implements: a port the kernel
 declares, as it does `SessionStatusPort` (mechanism 4), so that `auth` and `common` meet at an
@@ -426,6 +426,7 @@ sequenceDiagram
     participant A as AuthService
     participant S as AuthSessionService
     participant J as AccessTokenIssuerPort
+    participant U as UserQuery
     participant DB as auth_sessions
 
     Note over B,DB: Signing in
@@ -442,10 +443,17 @@ sequenceDiagram
     B->>C: POST /api/auth/refresh — cookie + X-Requested-With
     C->>S: refresh(credential)
     S->>DB: SELECT … FOR UPDATE
-    S->>DB: UPDATE — current := a new secret
-    S->>DB: INSERT the spent digest, and when it was spent
-    S-->>C: Rotated
-    C-->>B: 200 { token } · a new Set-Cookie
+    S->>U: findById(userId) — is the account still on?
+    alt switched off, or gone
+        S->>DB: UPDATE revoked := true — every session of the account
+        S-->>C: Rejected · audited, refused · UserSessionsEnded
+        C-->>B: 401 · cookie cleared
+    else enabled
+        S->>DB: UPDATE — current := a new secret
+        S->>DB: INSERT the spent digest, and when it was spent
+        S-->>C: Rotated
+        C-->>B: 200 { token } · a new Set-Cookie
+    end
 
     Note over B,DB: The spent credential comes back
     B->>C: POST /api/auth/refresh — the old cookie
@@ -461,11 +469,14 @@ sequenceDiagram
     end
 ```
 
-Three things worth noticing. The row is read **`FOR UPDATE`**, so two tabs refreshing together
-serialise instead of both rotating from the same starting state. Every digest a rotation retires is
-kept in `auth_session_spent_tokens`, with when it was retired, for as long as the session lives and no
-longer — its rows cascade with the session. That is the only reason a replay is distinguishable from a
-guess, however many rotations old it is, and the grace window runs from the moment each one was spent.
+Four things worth noticing. The row is read **`FOR UPDATE`**, so two tabs refreshing together
+serialise instead of both rotating from the same starting state. A refresh with the current credential
+reads the account before it rotates, so an account switched off after its session opened, or deleted,
+is signed out at its next refresh at the latest, and every other session it holds with it. Every
+digest a rotation retires is kept in `auth_session_spent_tokens`, with when it was retired, for as long
+as the session lives and no longer — its rows cascade with the session. That is the only reason a
+replay is distinguishable from a guess, however many rotations old it is, and the grace window runs
+from the moment each one was spent.
 Sign-out treats a spent credential the same way: inside its grace window it signs out, and after it the
 session is revoked as reuse, through the one method refresh uses. Both refuse a session that has already
 ended before looking at the credential at all, so a spent one presented again is not a second theft. A
@@ -597,9 +608,9 @@ Three places are worth knowing about because they were silent and are no longer:
   A refused request, any 4xx, is DEBUG in the same way: its path, its status and its exception's type,
   because a validation failure's message quotes every rejected value, a password included.
 - **A failed real-time push.** It runs from an `afterCommit` callback, so the notification is already
-  durable; the failure is now reported at WARN, by ids and by its own and its root cause's exception types
-with no stack trace, and the caller carries on, where before one unreachable
-  session cancelled everybody else's reminders for that minute.
+  durable; the failure is now reported at WARN, by ids and by its own and its root cause's exception
+  types with no stack trace, and the caller carries on, where before one unreachable session cancelled
+  everybody else's reminders for that minute.
 
 ### In the browser
 
@@ -686,7 +697,7 @@ push service, no analytics, no AI service.
 | Dependency | Used for | How it is reached |
 |---|---|---|
 | **PostgreSQL 15** | All persistent state | JDBC from the backend only. Credentials from `DB_URL` / `DB_USERNAME` / `DB_PASSWORD`, which compose fills from `POSTGRES_APP_USER` and `POSTGRES_APP_PASSWORD` |
-| **Flyway** | Schema ownership and migration on startup | Embedded in the backend; `V1`–`V9` apply in order at boot. An applied migration is never edited — Flyway checksums it, comments included — so a correction is another migration |
+| **Flyway** | Schema ownership and migration on startup | Embedded in the backend; `V1`–`V10` apply in order at boot. An applied migration is never edited — Flyway checksums it, comments included — so a correction is another migration |
 | **Browser WebSocket** | Real-time notification delivery | The `/ws` STOMP endpoint, proxied by nginx (or Vite in development). nginx throttles its handshake per client address, not what an open socket sends (#382, [ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md)) |
 | **nginx** | Serves the built SPA and proxies `/api` and `/ws` | Also where the security headers live — the content security policy, framing and referrer rules, declared for the whole server so that nginx's own error pages under `/api` and `/ws` carry them too ([ADR-018](../ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)). Absent from `npm run dev`, which serves no headers |
 | **Browser Notification API** | Desktop notifications when the tab is backgrounded | Optional, permission-gated, and skipped entirely where the API is unavailable. Each carries the notification's title and message, which the operating system keeps after the session ends ([ADR-068](../ADRs/ADR-068-desktop-notifications-keep-their-detail.md)) |
@@ -1031,7 +1042,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the shared kernel depends on no context; why the security adapter loads accounts through a port it declares rather than through `UserQuery`; why `User` and `Role` stay in `user` | [ADR-062](../ADRs/ADR-062-the-shared-kernel-depends-on-no-bounded-context.md) |
 | Why every context's tables share one schema; why a delete crosses contexts on `ON DELETE` rather than an event; what moving a context out or adding a soft delete would cost | [ADR-063](../ADRs/ADR-063-one-schema-with-cross-context-foreign-keys.md) |
 | Which layering rules the backend enforces beyond ADR-002, and the exceptions each names; why `TrackingConfigQuery` stays unscoped and a web mapper reads a port; when to revisit either | [ADR-064](../ADRs/ADR-064-the-backends-layering-rules-beyond-adr-002.md) |
-| Why a session remembers every refresh credential it spent, and why sign-out with a spent one is reuse; why a refresh re-reads the account; why the cookie is `__Host-` with `Path=/`, and two of them are refused; why refresh and sign-out have a limit of their own; the bounds on the lifetimes; why the audit stream names a session by a digest; how the unscoped reads are closed one hop further | [ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md) |
+| Why a session remembers every refresh credential it spent, and why sign-out with a spent one is reuse; why a refresh re-reads the account; why the cookie is `__Host-` with `Path=/`, and two of them are refused; why the SPA keeps a session whose renewal was rate-limited; why a socket holds one subscription for its life; what a child record's creation names, and why the account list is the one audited read; which loggers are pinned at INFO; why U+0000 is refused by one module; why refresh and sign-out have a limit of their own; the bounds on the lifetimes; why the audit stream names a session by a digest; how the unscoped reads are closed one hop further | [ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md) |
 | Why a page the back/forward cache restores reloads, every time and not only after a sign-out; why a session's end also empties the query cache, through a registration `lib/` makes with `api/`; why the server's session-ended frame ends the session in the tab, superseding part of ADR-054 | [ADR-066](../ADRs/ADR-066-a-tab-keeps-nothing-of-a-session-that-ended.md) |
 | Why trace context is continued only from a trusted hop: why nginx clears the caller's, why the API reads W3C and never B3, and why a STOMP frame never continues a trace; what an upstream tracer would need | [ADR-067](../ADRs/ADR-067-trace-context-is-accepted-only-from-trusted-hops.md) |
 | Why a desktop notification carries the notification's own title and message, though the operating system keeps them after sign-out; when to revisit that | [ADR-068](../ADRs/ADR-068-desktop-notifications-keep-their-detail.md) |

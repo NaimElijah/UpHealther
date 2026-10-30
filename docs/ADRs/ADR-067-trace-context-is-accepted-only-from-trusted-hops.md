@@ -47,8 +47,9 @@ Three paths carried a client's choice in:
 
 ## Consequences
 
-**Easy.** The trace id in a log line or an audit entry is one the service minted, or one nginx
-forwarded, so a trail joined by it joins what the service actually did.
+**Easy.** The trace id in a log line or an audit entry is one the service minted: nginx clears a
+client's trace context and sets none of its own, so a trail joined by it joins what the service actually
+did.
 
 **Hard.**
 

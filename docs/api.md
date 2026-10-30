@@ -87,12 +87,13 @@ and `GlobalExceptionHandler` decides how it surfaces
 
 | Status | Raised when |
 |---|---|
-| `400` | Failed validation, an unbindable body, or a parameter that will not convert. A fraction sent for an integer field, such as a rating of `3.7`, is an unbindable body: it is refused, never truncated ([ADR-033](ADRs/ADR-033-refuse-a-fractional-number-for-an-integer-field.md)) |
-| `401` | Credentials rejected — the response never says which half was wrong — or a protected endpoint called without a token the server accepts. The latter carries `WWW-Authenticate: Bearer`, with `error="invalid_token"` when a token was sent; expired, forged and revoked are not told apart |
+| `400` | Failed validation, an unbindable body, or a parameter that will not convert. A fraction sent for an integer field, such as a rating of `3.7`, is an unbindable body: it is refused, never truncated ([ADR-033](ADRs/ADR-033-refuse-a-fractional-number-for-an-integer-field.md)). So is a body with U+0000 in any string, answered `Malformed request body` before it reaches a use case ([ADR-065](ADRs/ADR-065-the-backend-hardened-after-scan-05.md)) |
+| `401` | Credentials rejected — the response never says which half was wrong — or a protected endpoint called without a token the server accepts, a token that names no expiry included. The latter carries `WWW-Authenticate: Bearer`, with `error="invalid_token"` when a token was sent; expired, forged and revoked are not told apart |
 | `403` | The caller is authenticated and not allowed |
 | `404` | Not found, **including** a record belonging to another user: ownership is enforced by the query being user-scoped, so a foreign row is indistinguishable from a missing one |
 | `409` | A duplicate progress entry for the same upgrade and date, or a stale optimistic-lock `version` |
 | `422` | A business rule refused the operation — an illegal lifecycle transition, a fourth concurrent `HARD` upgrade, or an `areaId` that is not one of the caller's health areas (refused the same way whether it belongs to somebody else or does not exist) |
+| `429` | Too many attempts from one client address in a minute: sign-in and registration together over ten, refresh and sign-out together over sixty, each counted apart. Carries `Retry-After`, in seconds, and is decided before any credential or session is read. The SPA keeps a session whose renewal is answered `429` |
 | `405` `415` `406` | The status Spring defines for the framework exception |
 | `500` | A genuine server fault. Carries the status and a trace id, and nothing else |
 

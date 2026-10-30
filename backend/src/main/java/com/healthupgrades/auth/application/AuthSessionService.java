@@ -137,6 +137,9 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
                 // password check and the switch was not there to end (S5.A9). Its next refresh is where
                 // it is seen, so it ends here, and every other session the account holds with it.
                 recordRefusal(AuditAction.AUTH_REFRESH, session, true);
+                // Holds this session's row lock while it updates every row of the account, so two
+                // refreshes of two of its sessions at once can deadlock: PostgreSQL aborts one with a
+                // 500, and the other still revokes every session. Rare, and safe either way.
                 revokeAllForUser(session.getUserId());
                 return new RefreshOutcome.Rejected();
             }
