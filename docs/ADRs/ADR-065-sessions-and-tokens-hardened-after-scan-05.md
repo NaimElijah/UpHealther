@@ -6,8 +6,8 @@
   rate limit in front of the cookie endpoints, and migration `V10__auth_session_spent_tokens.sql`;
   NFR-34, NFR-36 and NFR-58 in `docs/requirements/requirements.md`.
 - **Issue:** [#339](https://github.com/NaimElijah/UpHealther/issues/339), scan 05 of
-  [#334](https://github.com/NaimElijah/UpHealther/issues/334): findings S5.A1, S5.A4, S5.A8, S5.A9 and
-  S5.A11.
+  [#334](https://github.com/NaimElijah/UpHealther/issues/334): findings S5.A1, S5.A4, S5.A8, S5.A9,
+  S5.A11 and S5.A14.
   It extends [ADR-015](ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md), whose reuse
   detection it makes hold for any number of rotations and on both cookie endpoints, and
   [ADR-041](ADR-041-the-refresh-cookie-is-always-secure.md), whose cookie it names, and
@@ -17,8 +17,7 @@
 ## Context
 
 Scan 05 read the session code against ADR-015's promise that a stolen refresh credential is usable at
-most once, and that using it is detected. It found the promise broken in four places, and one more
-way to abuse the endpoints that keep it:
+most once, and that using it is detected, and the settings and limits around it. It found:
 
 - **S5.A1, reuse after two rotations went undetected.** The session row kept the digest of the current
   credential and of the one before it, and nothing older. A thief holding C1 who refreshed C1 → C2 → C3
@@ -38,6 +37,8 @@ way to abuse the endpoints that keep it:
 - **S5.A11, refresh and sign-out were unthrottled.** Both are anonymous, and each attempt reads a
   session under a lock and writes an audit entry, so a caller could write the audit stream at will.
   ADR-021 names this trigger itself.
+- **S5.A14, a token without `exp` was accepted.** JJWT checks the expiry only when a token carries one,
+  so a token signed with the key and no `exp` would never lapse.
 
 ## Decision
 
@@ -101,6 +102,11 @@ because a signed-in browser calls these endpoints on its own: every tab renews e
 on each page load, and a household shares one address. It is a separate count so that neither allowance
 spends the other: a mistyped password must not cost anybody a renewal, and a busy tab must not cost
 anybody a sign-in.
+
+### 6. A token must name its expiry (S5.A14)
+
+`JwtTokenProvider.verify` refuses a token whose claims carry no `exp`, as it refuses one that names no
+session. Every token this application issues has one, so nothing it minted is affected.
 
 ## Consequences
 

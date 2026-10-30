@@ -131,7 +131,8 @@ Five distinct mechanisms, each used for one thing:
 **1. HTTP, browser to API.** Every read and write. JSON in and out, JWT bearer token in the
 `Authorization` header. The token names its account by id in `sub` and carries nothing else that
 identifies it, and it is accepted only under this application's issuer, audience and signing
-algorithm, so one minted by another service that happens to share the secret is refused.
+algorithm, so one minted by another service that happens to share the secret is refused. It must
+carry an `exp`: JJWT checks one only when it is present, and a token without one would never lapse.
 `BearerTokenAuthenticator` is the single place those rules live — the HTTP filter and the STOMP
 interceptor both authenticate through it, so the two transports cannot drift apart. It accepts a
 token only while the session its `sid` names is live and belongs to the account its `sub` names, so
