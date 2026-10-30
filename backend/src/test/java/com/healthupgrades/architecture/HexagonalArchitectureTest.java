@@ -94,18 +94,25 @@ class HexagonalArchitectureTest {
      * one is the allow-list behind it. Each entry is here because the domain uses it today:
      *
      * <ul>
-     *   <li>{@code java..}: the standard library — identifiers, times, collections, and the secure random
-     *       and digest a refresh credential is built from;</li>
+     *   <li>{@code java.lang..}: what every class compiles against, records, enums and lambdas included;</li>
+     *   <li>{@code java.util..}: identifiers, collections, {@code Optional}, and the {@code function} and
+     *       {@code stream} types the aggregates use;</li>
+     *   <li>{@code java.time..}: dates, times and durations;</li>
+     *   <li>{@code java.security..} and {@code java.nio.charset..}: the SHA-256 digest a refresh credential is
+     *       stored as, and the charset its bytes are read in;</li>
      *   <li>{@code jakarta.persistence..}: the mapping annotations the entities carry, the one pragmatic
      *       exception ADR-001 accepts and {@code architecture.md} names, because the entities are the
-     *       persistence model;</li>
+     *       persistence model. {@link #domain_uses_jpa_only_to_map} keeps the persistence runtime out;</li>
      *   <li>{@code lombok..}: the builders and accessors Lombok generates. Its annotations are compiled
      *       away, but each generated member keeps {@code @lombok.Generated} in the bytecode;</li>
      *   <li>{@code com.healthupgrades..}: the domain's own types, the kernel's and other contexts' models,
      *       which the layering rules constrain on their own.</li>
      * </ul>
      *
-     * <p>Anything else is a decision to record here, with its reason, before a domain class may use it.
+     * <p>The JDK is listed by package, not as {@code java..}, because {@code java..} also admits
+     * {@code java.sql}, {@code java.net}, file I/O in {@code java.io} and {@code java.util.logging}. None of
+     * those is used, and each is the I/O this rule exists to keep out. Anything else is a decision to
+     * record here, with its reason, before a domain class may use it.
      */
     @ArchTest
     static final ArchRule domain_depends_only_on_what_it_needs = classes()
@@ -113,8 +120,46 @@ class HexagonalArchitectureTest {
             .resideInAPackage("..domain..")
             .should()
             .onlyDependOnClassesThat()
-            .resideInAnyPackage("java..", "jakarta.persistence..", "lombok..", "com.healthupgrades..")
-            .as("the domain may depend only on the standard library, JPA mapping, Lombok and this codebase");
+            .resideInAnyPackage(
+                    "java.lang..",
+                    "java.util..",
+                    "java.time..",
+                    "java.security..",
+                    "java.nio.charset..",
+                    "jakarta.persistence..",
+                    "lombok..",
+                    "com.healthupgrades..")
+            .as("the domain may depend only on the JDK packages it uses, JPA mapping, Lombok and this codebase");
+
+    /**
+     * The domain uses JPA to describe its mapping, never to run a query.
+     *
+     * <p>The allow-list above has to admit {@code jakarta.persistence}, because the entities carry its
+     * annotations, and so it would also admit the persistence runtime: an entity holding an
+     * {@code EntityManager}, or a domain service building a {@code TypedQuery}, would be the domain doing its
+     * own I/O, which is what the repository ports and their adapters are for. The runtime types and the
+     * criteria, metamodel and provider packages are therefore banned here by name.
+     */
+    @ArchTest
+    static final ArchRule domain_uses_jpa_only_to_map = noClasses()
+            .that()
+            .resideInAPackage("..domain..")
+            .should()
+            .dependOnClassesThat(JavaClass.Predicates.belongToAnyOf(
+                            jakarta.persistence.EntityManager.class,
+                            jakarta.persistence.EntityManagerFactory.class,
+                            jakarta.persistence.EntityTransaction.class,
+                            jakarta.persistence.Query.class,
+                            jakarta.persistence.TypedQuery.class,
+                            jakarta.persistence.StoredProcedureQuery.class,
+                            jakarta.persistence.Persistence.class,
+                            jakarta.persistence.PersistenceUnitUtil.class,
+                            jakarta.persistence.PersistenceUtil.class)
+                    .or(resideInAnyPackage(
+                            "jakarta.persistence.criteria..",
+                            "jakarta.persistence.metamodel..",
+                            "jakarta.persistence.spi..")))
+            .as("the domain may use JPA's mapping annotations only, never its runtime");
 
     /**
      * The application layer must not depend on adapters in either direction. It drives the outbound side
@@ -132,30 +177,32 @@ class HexagonalArchitectureTest {
             .as("the application layer must not depend on adapters");
 
     /**
-     * The core must not reach the kernel's adapters either, whatever their packages are called.
+     * The core reaches the kernel only through the kernel's own core, whatever the kernel's other packages
+     * are called.
      *
      * <p>ADR-002 promises that no application class imports an adapter, and the rule above keys on
      * {@code ..adapter..}. Most of {@code common} is an adapter by what it holds rather than by its name:
      * {@code common.security} signs and verifies tokens with JJWT and implements Spring Security's types,
      * {@code common.websocket} configures STOMP, {@code common.observability} wires Micrometer, and
      * {@code common.ratelimit} is a handler interceptor. A use case that names one of them is tied to a
-     * framework and a key the rule above cannot see. Where the core needs what one of them does, it
-     * declares an outbound port and an adapter delegates, as {@code AccessTokenIssuerPort} does for
-     * signing. The kernel's own core, {@code common.domain}, stays open to every context.
+     * framework and a key the rule above cannot see.
+     *
+     * <p>So this is an allow-list rather than a list of those packages: {@code ..application..} and
+     * {@code ..domain..} may reach {@code com.healthupgrades.common..} only in {@code common.domain}, its
+     * events, exceptions, audit vocabulary and ports. A kernel package added later, {@code common.mail} say,
+     * is out of the core's reach from its first commit. {@code common.time} is outside too, and unused by the
+     * core: the core reads the injected {@code Clock}, and only the schedulers name {@code ServerZone}. Where
+     * the core needs what a kernel adapter does, it declares an outbound port and an adapter delegates, as
+     * {@code AccessTokenIssuerPort} does for signing.
      */
     @ArchTest
     static final ArchRule core_does_not_depend_on_the_kernels_adapters = noClasses()
             .that()
             .resideInAnyPackage("..application..", "..domain..")
             .should()
-            .dependOnClassesThat()
-            .resideInAnyPackage(
-                    "com.healthupgrades.common.security..",
-                    "com.healthupgrades.common.websocket..",
-                    "com.healthupgrades.common.observability..",
-                    "com.healthupgrades.common.ratelimit..",
-                    "com.healthupgrades.common.adapter..")
-            .as("the application and domain layers must not depend on the kernel's adapters (ADR-002)");
+            .dependOnClassesThat(resideInAPackage("com.healthupgrades.common..")
+                    .and(not(resideInAPackage("com.healthupgrades.common.domain.."))))
+            .as("the application and domain layers may reach the kernel only through common.domain (ADR-002)");
 
     /**
      * Spring Data JPA may only be referenced from the persistence adapters, guaranteeing repositories are

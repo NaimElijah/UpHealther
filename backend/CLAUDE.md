@@ -136,10 +136,11 @@ read/composition model with no domain or outbound side. All three are deliberate
   `admin`, with the smallest web surfaces, translate in the controller instead. Do not give a service
   an HTTP request record or a DTO — the ArchUnit rule will fail the build, which is the point: a
   wire-format change must not reach a use-case signature. The kernel's adapters count too, though
-  most of their packages are not called `adapter`: no `application` or `domain` class imports
-  `common.security`, `common.websocket`, `common.observability`, `common.ratelimit` or
-  `common.adapter`. Declare a port instead, as `auth` does with `AccessTokenIssuerPort`, which
-  `JwtAccessTokenIssuer` implements over `JwtTokenProvider` (ADR-002).
+  most of their packages are not called `adapter`: an `application` or `domain` class may reach
+  `common` only in `common.domain`, so `common.security`, `common.websocket`, `common.observability`,
+  `common.ratelimit`, `common.adapter` and any kernel package added later are out. Declare a port
+  instead, as `auth` does with `AccessTokenIssuerPort`, which `JwtAccessTokenIssuer` implements over
+  `JwtTokenProvider` (ADR-002).
 
 - **A request or response record is also the frontend's type.** `FrontendWireTypesContractTest`
   renders every record a controller accepts or returns into `frontend/src/types/api.generated.ts`
