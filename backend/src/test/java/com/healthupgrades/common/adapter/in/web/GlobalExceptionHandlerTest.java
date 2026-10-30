@@ -15,10 +15,10 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.healthupgrades.common.domain.exception.AuthenticationRequiredException;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
-import com.healthupgrades.common.domain.exception.DuplicateProgressException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.domain.exception.RetryableConflictException;
 import com.healthupgrades.common.domain.exception.TooManyRequestsException;
+import com.healthupgrades.tracking.domain.model.DuplicateProgressException;
 import com.healthupgrades.upgrade.adapter.in.web.UpgradeController;
 import com.healthupgrades.upgrade.adapter.in.web.UpgradeWebMapper;
 import com.healthupgrades.upgrade.application.UpgradeService;
@@ -125,7 +125,7 @@ class GlobalExceptionHandlerTest {
     @Test
     void GivenADuplicateProgressEntry_WhenItIsHandled_ThenTheStatusIsConflict() {
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
-                handler.handleDuplicateProgress(new DuplicateProgressException("Already recorded"), request);
+                handler.handleConflict(new DuplicateProgressException("Already recorded"), request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }

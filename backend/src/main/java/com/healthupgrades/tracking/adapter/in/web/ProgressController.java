@@ -41,7 +41,7 @@ public class ProgressController {
      * @return 201 with the stored entry, carrying the server's completion verdict
      * @throws com.healthupgrades.common.domain.exception.ResourceNotFoundException if no such
      *         upgrade is owned by the caller (404)
-     * @throws com.healthupgrades.common.domain.exception.DuplicateProgressException if an entry
+     * @throws com.healthupgrades.tracking.domain.model.DuplicateProgressException if an entry
      *         already exists for that upgrade and date (409)
      */
     @PostMapping("/api/upgrades/{upgradeId}/progress")

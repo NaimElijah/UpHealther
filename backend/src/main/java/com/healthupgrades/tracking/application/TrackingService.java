@@ -1,7 +1,6 @@
 package com.healthupgrades.tracking.application;
 
 import com.healthupgrades.common.domain.audit.AuditAction;
-import com.healthupgrades.common.domain.exception.DuplicateProgressException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
@@ -13,6 +12,7 @@ import com.healthupgrades.tracking.application.port.in.StreakSummary;
 import com.healthupgrades.tracking.application.port.in.TrackingConfigDetails;
 import com.healthupgrades.tracking.application.port.in.TrackingConfigQuery;
 import com.healthupgrades.tracking.domain.event.StreakAchieved;
+import com.healthupgrades.tracking.domain.model.DuplicateProgressException;
 import com.healthupgrades.tracking.domain.model.ProgressEntry;
 import com.healthupgrades.tracking.domain.model.TrackingConfig;
 import com.healthupgrades.tracking.domain.port.out.ProgressEntryRepositoryPort;

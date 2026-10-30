@@ -65,8 +65,10 @@ read/composition model with no domain or outbound side. All three are deliberate
 
 - **Exception → HTTP status is centralized** in the global exception handler. Throw the right domain
   exception rather than building `ResponseEntity` status by hand: `ResourceNotFoundException` → 404,
-  `BusinessRuleException` → 422, `DuplicateProgressException` / optimistic-lock → 409, bean-validation
-  → 400 with a field → message map. Refusals decided inside the security chain reach the same handler:
+  `BusinessRuleException` → 422, `ConflictException` / optimistic-lock → 409, bean-validation
+  → 400 with a field → message map. A context names its own conflict by subclassing the kernel's
+  `ConflictException`, as `tracking`'s `DuplicateProgressException` does, so the kernel never names a
+  context's type. Refusals decided inside the security chain reach the same handler:
   `ErrorBodySecurityHandlers` forwards an anonymous request as `AuthenticationRequiredException` (401
   with a bearer challenge) and an authorization failure as `AccessDeniedException` (403), so do not
   write a response body from a filter.

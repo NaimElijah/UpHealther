@@ -12,7 +12,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.healthupgrades.common.domain.exception.DuplicateProgressException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.common.security.JwtAuthenticationFilter;
@@ -23,6 +22,7 @@ import com.healthupgrades.support.WebSliceSupport;
 import com.healthupgrades.tracking.application.TrackingService;
 import com.healthupgrades.tracking.application.port.in.ProgressEntryDetails;
 import com.healthupgrades.tracking.application.port.in.StreakSummary;
+import com.healthupgrades.tracking.domain.model.DuplicateProgressException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;

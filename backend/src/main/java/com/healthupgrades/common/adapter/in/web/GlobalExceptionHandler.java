@@ -44,7 +44,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
  *   <tr><th>Exception</th><th>Status</th></tr>
  *   <tr><td>{@link ResourceNotFoundException}</td><td>404 Not Found</td></tr>
  *   <tr><td>{@link BusinessRuleException}</td><td>422 Unprocessable Content</td></tr>
- *   <tr><td>{@link DuplicateProgressException}</td><td>409 Conflict</td></tr>
+ *   <tr><td>{@link ConflictException}, the shape a context's own conflict takes</td><td>409 Conflict</td></tr>
  *   <tr><td>JPA's {@code OptimisticLockException} and Spring's {@link OptimisticLockingFailureException}</td><td>409 Conflict, asking for a retry</td></tr>
  *   <tr><td>{@link RetryableConflictException}</td><td>409 Conflict, which the client retries</td></tr>
  *   <tr><td>{@link TooManyRequestsException}</td><td>429 Too Many Requests, with {@code Retry-After}</td></tr>
@@ -127,10 +127,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .body(body(HttpStatus.UNPROCESSABLE_CONTENT.value(), ex.getMessage(), req.getRequestURI()));
     }
 
-    /** Maps a second progress entry for the same upgrade and day to 409. */
-    @ExceptionHandler(DuplicateProgressException.class)
-    public ResponseEntity<ErrorResponse> handleDuplicateProgress(
-            DuplicateProgressException ex, HttpServletRequest req) {
+    /**
+     * Maps a context's conflict — a second progress entry for the same upgrade and day, today — to 409,
+     * with the conflict's own message. The kernel names the shape, never the context's type.
+     */
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ErrorResponse> handleConflict(ConflictException ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(body(HttpStatus.CONFLICT.value(), ex.getMessage(), req.getRequestURI()));
     }

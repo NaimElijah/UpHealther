@@ -2,7 +2,7 @@ package com.healthupgrades.common.domain.audit;
 
 import com.healthupgrades.common.domain.exception.AuthenticationRequiredException;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
-import com.healthupgrades.common.domain.exception.DuplicateProgressException;
+import com.healthupgrades.common.domain.exception.ConflictException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.domain.exception.RetryableConflictException;
 import com.healthupgrades.common.domain.exception.TooManyRequestsException;
@@ -33,7 +33,8 @@ public enum AuditOutcome {
      * for "no", so they are refusals and everything else is a fault. Listing them explicitly rather
      * than testing a package name keeps the classification greppable, and an exception
      * added later and forgotten here is recorded {@link #FAILED} — visibly wrong in a dashboard rather
-     * than silently miscounted.
+     * than silently miscounted. A context's own refusal counts by the kernel type it extends: its
+     * conflict is a {@link ConflictException}, so the kernel classifies it without naming it.
      *
      * <p>Note what does <em>not</em> arrive here: a {@code @Version} clash decided at commit. The only
      * repository write that flushes is registration's, which translates its own duplicate-address
@@ -48,7 +49,7 @@ public enum AuditOutcome {
         boolean refusal = thrown instanceof BusinessRuleException
                 || thrown instanceof AuthenticationRequiredException
                 || thrown instanceof ResourceNotFoundException
-                || thrown instanceof DuplicateProgressException
+                || thrown instanceof ConflictException
                 || thrown instanceof RetryableConflictException
                 || thrown instanceof TooManyRequestsException;
         return refusal ? REFUSED : FAILED;
