@@ -450,7 +450,7 @@ erDiagram
     health_upgrades ||--o{ progress_entries : ""
     health_upgrades ||--o{ reflections : ""
     health_upgrades ||--o{ reminders : ""
-    health_upgrades ||--o{ tracking_configs : ""
+    health_upgrades ||--o| tracking_configs : ""
     users ||--o{ auth_sessions : ""
     users ||--o{ health_areas : ""
     users ||--o{ health_upgrades : ""
@@ -563,8 +563,8 @@ erDiagram
         boolean revoked
     }
     auth_session_spent_tokens {
-        uuid session_id
-        bytea token_hash
+        uuid session_id PK
+        bytea token_hash PK
         timestamptz spent_at
     }
 ```
@@ -572,9 +572,12 @@ erDiagram
 
 The constraints doing real work: `progress_entries` is unique on `(upgrade_id, date)`, which is
 what makes "one entry per upgrade per day" survive a race the application-level check would miss;
-`tracking_configs.upgrade_id` is unique, so an upgrade has at most one configuration; and
-`auth_session_spent_tokens` is keyed on `(session_id, token_hash)`, a composite key the diagram cannot
-mark, which is the lookup a refresh makes to recognise a replayed credential. `progress_entries` and
+`tracking_configs.upgrade_id` is unique, so an upgrade has at most one configuration, which the diagram
+draws as `||--o|` rather than `||--o{`; and `auth_session_spent_tokens` is keyed on
+`(session_id, token_hash)`, the lookup a refresh makes to recognise a replayed credential. The diagram
+marks both of those columns `PK`: a table has one primary key, so two marks on one table can only be its
+two parts. It does not mark a composite `UNIQUE`, such as `progress_entries`' pair, the same way, because a
+table may have several unique keys and two `UK` marks would read as two of them. `progress_entries` and
 `reflections` reference `health_upgrades` by `(upgrade_id, user_id)`, and `health_upgrades` references
 `health_areas` by `(area_id, user_id)`, so a row cannot name another owner than its parent's
 ([ADR-073](../../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md)). The diagram draws each
