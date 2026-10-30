@@ -73,7 +73,10 @@ app:
       # same credential within a moment; nothing legitimate does so ten seconds later.
       rotation-grace: ${AUTH_SESSION_ROTATION_GRACE:10s}
     cookie:
-      name: refresh_token
+      # The __Secure- prefix makes a browser refuse the cookie unless it is set with Secure from a
+      # secure origin, so a plain-HTTP host cannot plant one (S5.A8). __Host- would also forbid Domain,
+      # but it requires Path=/, which would send the credential with every API call.
+      name: __Secure-refresh_token
       # Narrow on purpose: the credential is then not attached to ordinary API calls at all.
       path: /api/auth
       # No security attribute is configurable: the cookie is always HttpOnly, Secure and

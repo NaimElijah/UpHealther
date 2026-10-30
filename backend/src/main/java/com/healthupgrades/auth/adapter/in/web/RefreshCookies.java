@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseCookie;
@@ -27,6 +28,10 @@ import org.springframework.stereotype.Component;
  *       first of the two things standing between this cookie and CSRF. The second is the
  *       {@code X-Requested-With} header the endpoints require: a form post from another origin cannot
  *       set a header, and a cross-origin {@code fetch} that tries is stopped by preflight.</li>
+ *   <li><strong>The {@code __Secure-} name</strong> — the name {@code application.yml} ships, which
+ *       a browser accepts only with {@code Secure} and from a secure origin, so no plain-HTTP host can
+ *       plant a cookie of that name; and a request carrying two of them is refused (see
+ *       {@link #read}).</li>
  *   <li><strong>{@code Path}</strong> — scoped to the auth endpoints, so the credential is simply not
  *       attached to the hundred ordinary API calls that have no use for it.</li>
  *   <li><strong>{@code Max-Age}</strong> — the session's absolute cap, so the browser discards it at
@@ -79,17 +84,24 @@ public class RefreshCookies {
     /**
      * Reads the credential a request carries.
      *
+     * <p>Two cookies of this name are no credential at all. The {@code __Secure-} prefix keeps a
+     * plain-HTTP host from planting one, but a same-site sibling served over HTTPS can still set one
+     * with {@code Domain} on the parent, and the browser then sends both, with nothing to say which is
+     * whose. Reading either could move this tab into a session somebody else opened (S5.A8). The caller
+     * answers as it does to no cookie, which clears ours.
+     *
      * @param request the inbound request
-     * @return the raw cookie value, or empty when there is none
+     * @return the raw cookie value, or empty when there is none, or more than one
      */
     public Optional<String> read(HttpServletRequest request) {
         if (request.getCookies() == null) {
             return Optional.empty();
         }
-        return Arrays.stream(request.getCookies())
+        List<String> values = Arrays.stream(request.getCookies())
                 .filter(cookie -> properties.name().equals(cookie.getName()))
                 .map(jakarta.servlet.http.Cookie::getValue)
-                .findFirst();
+                .toList();
+        return values.size() == 1 ? Optional.of(values.getFirst()) : Optional.empty();
     }
 
     /** The name the cookie is stored under, for a caller that has to name it on a response. */

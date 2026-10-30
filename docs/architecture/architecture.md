@@ -380,7 +380,8 @@ guess.
 ### A session, end to end
 
 Two credentials with different lifetimes and different hiding places. The short one is in the body
-and lives in the tab's memory; the long one is in a cookie the page cannot read. The server keeps a
+and lives in the tab's memory; the long one is in a cookie the page cannot read, named
+`__Secure-refresh_token` so that no plain-HTTP host can plant one. The server keeps a
 row, which is what makes ending a session mean anything at all — see
 [ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md).
 
@@ -436,7 +437,7 @@ Sign-out treats a spent credential the same way: inside its grace window it sign
 session is revoked as reuse, through the one method refresh uses. A credential that is neither current
 nor spent revokes nothing, because the session id travels in a token claim and is therefore not a
 secret
-([ADR-065](../ADRs/ADR-065-every-spent-refresh-credential-is-remembered.md)).
+([ADR-065](../ADRs/ADR-065-sessions-and-tokens-hardened-after-scan-05.md)).
 And the `sid` claim is checked on every authenticated request, together with the `sub` the row must
 name as its owner, which is what turns a revoked row into a refused request rather than a wait for the
 token to expire.
@@ -445,9 +446,12 @@ Every refresh and every sign-out the service is asked for is audited, as `auth.r
 `auth.logout`, refused ones included (NFR-23). A refusal names the session whenever the row exists, and
 its owner only when the presented credential is one the session issued — the session id is no secret,
 so a wrong secret says nothing about who sent it. Naming the owner says whose credential it was, not who
-sent it, which is also how the reuse entry names a credential that was probably stolen. A request with no cookie at all has presented
-nothing; the controller answers it without asking the service, so the refresh every signed-out page
-load makes is not an entry.
+sent it, which is also how the reuse entry names a credential that was probably stolen. A request with
+no cookie at all has presented nothing; the controller answers it without asking the service, so the
+refresh every signed-out page load makes is not an entry. Nor is a request with two of the cookie, which
+a sibling host can cause by setting one on the parent domain: `RefreshCookies` reads exactly one or
+none, so the request is answered as if it carried none and ours is cleared
+([ADR-065](../ADRs/ADR-065-sessions-and-tokens-hardened-after-scan-05.md)).
 
 ---
 

@@ -55,6 +55,12 @@ public class WebSliceSupport {
     public static final Instant COOKIE_NOW = Instant.parse("2026-09-16T10:15:00Z");
 
     /**
+     * The refresh cookie's name, as {@code application.yml} ships it. A slice builds its own
+     * {@code RefreshCookies}, so {@code ShippedRefreshCookieConfigurationTest} is what pins the shipped one.
+     */
+    public static final String COOKIE_NAME = "__Secure-refresh_token";
+
+    /**
      * The instant the rate limiter believes it is, for every request a slice sends. Fixed, so a slice's
      * attempts all land in one window and a refusal's wait is always the whole window.
      */
@@ -107,7 +113,7 @@ public class WebSliceSupport {
     @Bean
     RefreshCookies refreshCookies() {
         return new RefreshCookies(
-                new RefreshCookieProperties("refresh_token", "/api/auth"), Clock.fixed(COOKIE_NOW, ZoneOffset.UTC));
+                new RefreshCookieProperties(COOKIE_NAME, "/api/auth"), Clock.fixed(COOKIE_NOW, ZoneOffset.UTC));
     }
 
     // No Clock bean here: HealthUpgradesApplication already defines one and a second definition of the

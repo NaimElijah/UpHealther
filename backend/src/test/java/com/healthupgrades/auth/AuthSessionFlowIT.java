@@ -158,7 +158,7 @@ class AuthSessionFlowIT extends PostgresIT {
         String credential = credential(registered);
 
         HttpResponse<String> refused = send(request("/api/auth/refresh")
-                .header("Cookie", "refresh_token=" + credential)
+                .header("Cookie", "__Secure-refresh_token=" + credential)
                 .POST(HttpRequest.BodyPublishers.noBody()));
 
         assertThat(refused.statusCode()).isEqualTo(400);
@@ -192,14 +192,14 @@ class AuthSessionFlowIT extends PostgresIT {
 
     private HttpResponse<String> refresh(String credential) throws Exception {
         return send(request("/api/auth/refresh")
-                .header("Cookie", "refresh_token=" + credential)
+                .header("Cookie", "__Secure-refresh_token=" + credential)
                 .header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest")
                 .POST(HttpRequest.BodyPublishers.noBody()));
     }
 
     private HttpResponse<String> logout(String credential) throws Exception {
         return send(request("/api/auth/logout")
-                .header("Cookie", "refresh_token=" + credential)
+                .header("Cookie", "__Secure-refresh_token=" + credential)
                 .header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest")
                 .POST(HttpRequest.BodyPublishers.noBody()));
     }
