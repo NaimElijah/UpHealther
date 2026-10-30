@@ -189,7 +189,8 @@ class UpgradeControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"Walk\\u0000daily\",\"type\":\"HABIT\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400));
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Malformed request body"));
 
         verify(service, never()).create(any(), any());
     }

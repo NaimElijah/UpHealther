@@ -47,8 +47,14 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @Component
 public class LoggingAuditTrail implements AuditTrail {
 
-    /** Not this class's name: the stream is the thing being addressed, not the writer. */
-    private static final Logger log = LoggerFactory.getLogger("AUDIT");
+    /**
+     * The logger the stream is written to. Not this class's name: the stream is the thing being addressed,
+     * not the writer. Package-private so {@code ShippedAuditLevelTest} pins the level of this name, and a
+     * rename cannot leave the pin on a logger nothing writes to.
+     */
+    static final String LOGGER_NAME = "AUDIT";
+
+    private static final Logger log = LoggerFactory.getLogger(LOGGER_NAME);
 
     private static final String COUNTER = "audit.events";
     private static final String UNKNOWN = "none";

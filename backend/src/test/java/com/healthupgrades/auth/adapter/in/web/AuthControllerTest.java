@@ -106,7 +106,8 @@ class AuthControllerTest {
                         .content("{\"name\":\"Some\\u0000one\",\"email\":\"someone@example.com\","
                                 + "\"password\":\"s3cret!42\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400));
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Malformed request body"));
 
         verify(authService, never()).register(anyString(), anyString(), anyString());
     }

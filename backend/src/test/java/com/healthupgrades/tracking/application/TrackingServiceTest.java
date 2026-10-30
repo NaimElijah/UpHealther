@@ -576,10 +576,13 @@ class TrackingServiceTest {
         verifyNoInteractions(progressRepository);
     }
 
-    /** Records one entry on {@code date} against a stubbed milestone verdict, which is what the BR-10 cases vary. */
-    /** The id a save gives the entry {@link #recordWithMilestone} records, as the database would. */
+    /**
+     * The id a save gives the entry {@link #recordWithMilestone} records, as the database would. Distinct
+     * from the upgrade's, so an audit entry that named the entry instead of the upgrade would show.
+     */
     private static final UUID SAVED_ENTRY_ID = UUID.fromString("3d1e9c27-5b40-4f6a-8e12-7a9c0b4d6e85");
 
+    /** Records one entry on {@code date} against a stubbed milestone verdict, which is what the BR-10 cases vary. */
     private void recordWithMilestone(LocalDate date, OptionalInt milestone) {
         when(progressRepository.existsByUpgradeIdAndDate(any(), any())).thenReturn(false);
         when(configRepository.findByUpgradeId(upgradeId)).thenReturn(Optional.empty());

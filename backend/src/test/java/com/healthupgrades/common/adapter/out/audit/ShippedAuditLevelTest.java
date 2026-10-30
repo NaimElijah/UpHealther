@@ -39,7 +39,9 @@ class ShippedAuditLevelTest {
                     .bind("logging.level", Bindable.mapOf(String.class, LogLevel.class))
                     .orElse(Map.of());
 
-            assertThat(levels).containsEntry("root", LogLevel.WARN).containsEntry("AUDIT", LogLevel.INFO);
+            assertThat(levels)
+                    .containsEntry("root", LogLevel.WARN)
+                    .containsEntry(LoggingAuditTrail.LOGGER_NAME, LogLevel.INFO);
         });
     }
 }

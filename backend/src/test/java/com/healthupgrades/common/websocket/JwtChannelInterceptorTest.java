@@ -16,6 +16,7 @@ import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.RecordingAuditTrail;
 import java.security.Principal;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -301,6 +302,27 @@ class JwtChannelInterceptorTest {
 
         assertThatThrownBy(() -> interceptor.preSend(subscribeOn(socket, "sub-1", user), channel))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void GivenASubscribeWithNoSubscriptionId_WhenItArrives_ThenItIsRefused() {
+        // STOMP requires the id, and no real client omits it. Accepted, a plain map would store no id
+        // under the held key, so the socket would never count as holding one and the limit would reopen.
+        Map<String, Object> socket = new HashMap<>();
+        Principal user = session();
+
+        assertThatThrownBy(() -> interceptor.preSend(subscribeOn(socket, null, user), channel))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void GivenASubscribeOnASocketWithNoAttributes_WhenItArrives_ThenItIsRefused() {
+        // Without the socket's attributes there is nowhere to record what it holds, so refusing is the
+        // only way to keep the one-subscription limit closed.
+        Message<?> subscribe =
+                frameOn(null, StompCommand.SUBSCRIBE, JwtChannelInterceptor.ALLOWED_SUBSCRIPTION, "sub-0", session());
+
+        assertThatThrownBy(() -> interceptor.preSend(subscribe, channel)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

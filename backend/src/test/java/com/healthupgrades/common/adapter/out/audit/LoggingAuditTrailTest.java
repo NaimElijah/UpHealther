@@ -33,7 +33,7 @@ import org.slf4j.LoggerFactory;
  */
 class LoggingAuditTrailTest {
 
-    private static final String AUDIT_LOGGER = "AUDIT";
+    private static final String AUDIT_LOGGER = LoggingAuditTrail.LOGGER_NAME;
 
     private final MeterRegistry meterRegistry = new SimpleMeterRegistry();
     private final LoggingAuditTrail trail = new LoggingAuditTrail(meterRegistry);
@@ -191,13 +191,13 @@ class LoggingAuditTrailTest {
                 .count();
     }
 
-    /** The structured fields the logstash encoder would turn into JSON keys. */
     /** The first sixteen hex characters of the SHA-256 of {@code text}'s UTF-8, computed independently. */
     private static String sha256Prefix(String text) throws java.security.NoSuchAlgorithmException {
         byte[] digest = MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8));
         return HexFormat.of().formatHex(digest).substring(0, 16);
     }
 
+    /** The structured fields the logstash encoder would turn into JSON keys. */
     private static java.util.Map<String, Object> fieldsOf(ILoggingEvent event) {
         java.util.Map<String, Object> fields = new java.util.LinkedHashMap<>();
         Arrays.stream(event.getArgumentArray())
