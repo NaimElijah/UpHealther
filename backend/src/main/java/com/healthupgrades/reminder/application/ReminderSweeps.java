@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
  */
 @Service
 @RequiredArgsConstructor
-public class ReminderSweeps implements ReminderSweepQuery {
+class ReminderSweeps implements ReminderSweepQuery {
 
     private final ReminderRepositoryPort repository; // outbound persistence port
 

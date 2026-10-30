@@ -8,6 +8,8 @@ import com.healthupgrades.auth.adapter.out.resource.ClasspathCommonPasswordList;
 import com.healthupgrades.auth.application.CommonPasswordPolicy;
 import com.healthupgrades.common.ratelimit.FixedWindowRateLimiter;
 import com.healthupgrades.common.ratelimit.RateLimitProperties;
+import com.healthupgrades.common.ratelimit.RateLimiters;
+import com.healthupgrades.common.ratelimit.SessionRateLimitProperties;
 import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.common.security.SecurityUser;
 import com.healthupgrades.user.domain.model.Role;
@@ -57,6 +59,15 @@ public class WebSliceSupport {
     public static final Instant COOKIE_NOW = Instant.parse("2026-09-16T10:15:00Z");
 
     /**
+     * The refresh cookie's name, as {@code application.yml} ships it. A slice builds its own
+     * {@code RefreshCookies}, so {@code ShippedRefreshCookieConfigurationTest} is what pins the shipped one.
+     */
+    public static final String COOKIE_NAME = "__Host-refresh_token";
+
+    /** The refresh cookie's path, as {@code application.yml} ships it, and as its name's prefix requires. */
+    public static final String COOKIE_PATH = "/";
+
+    /**
      * The instant the rate limiter believes it is, for every request a slice sends. Fixed, so a slice's
      * attempts all land in one window and a refusal's wait is always the whole window.
      */
@@ -94,9 +105,15 @@ public class WebSliceSupport {
      * a minute boundary would get a fresh allowance partway through, and a {@code Retry-After} would
      * depend on when the test ran.
      */
-    @Bean
-    FixedWindowRateLimiter rateLimiter(RateLimitProperties properties) {
+    @Bean(RateLimiters.SIGN_IN)
+    FixedWindowRateLimiter signInRateLimiter(RateLimitProperties properties) {
         return new FixedWindowRateLimiter(properties, Clock.fixed(LIMITER_NOW, ZoneOffset.UTC));
+    }
+
+    /** The limiter for refresh and sign-out, built as {@link #signInRateLimiter} is, from its own limits. */
+    @Bean(RateLimiters.SESSION)
+    FixedWindowRateLimiter sessionRateLimiter(SessionRateLimitProperties properties) {
+        return new FixedWindowRateLimiter(properties.limits(), Clock.fixed(LIMITER_NOW, ZoneOffset.UTC));
     }
 
     /**
@@ -109,7 +126,7 @@ public class WebSliceSupport {
     @Bean
     RefreshCookies refreshCookies() {
         return new RefreshCookies(
-                new RefreshCookieProperties("refresh_token", "/api/auth"), Clock.fixed(COOKIE_NOW, ZoneOffset.UTC));
+                new RefreshCookieProperties(COOKIE_NAME, COOKIE_PATH), Clock.fixed(COOKIE_NOW, ZoneOffset.UTC));
     }
 
     /**

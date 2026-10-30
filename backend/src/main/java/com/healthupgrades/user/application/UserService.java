@@ -5,7 +5,6 @@ import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User;
 import com.healthupgrades.user.domain.port.out.UserRepositoryPort;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -37,18 +36,6 @@ public class UserService implements UserQuery, UserCommand {
     @Override
     public boolean existsByEmail(String email) {
         return repository.existsByEmail(email);
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public List<User> findAll(int page, int size) {
-        return repository.findAll(page, size);
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public long count() {
-        return repository.count();
     }
 
     /** {@inheritDoc} */

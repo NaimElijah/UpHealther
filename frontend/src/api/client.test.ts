@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { AxiosAdapter, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import client, { REFRESH_TIMEOUT_MS } from './client';
+import client, { REFRESH_TIMEOUT_MS, renewSession } from './client';
 import { clearAccessToken, getAccessToken, setAccessToken } from './tokenStore';
 
 /**
@@ -231,6 +231,48 @@ describe('the shared API client', () => {
       await expect(outcome).resolves.toMatchObject({ response: { status: 401 } });
       expect(window.location.href).toBe('/login');
       expect(getAccessToken()).toBeNull();
+    });
+
+    it('GivenTheRenewalIsRateLimited_WhenARequestIs401_ThenTheRequestFailsWithThe429AndTheSessionIsKept', async () => {
+      // NFR-39: a 429 says the address has spent its allowance, not that the session is over. The limit
+      // is counted per address before any cookie is read, so somebody else behind the same NAT can cause
+      // one, and ending the session for it would let them sign everybody there out.
+      setAccessToken('expired.jwt.token', '2099-01-01T00:00:00Z');
+      withAdapter((config) => (config.url === '/api/auth/refresh' ? rejection(config, 429) : rejection(config, 401)));
+
+      await expect(client.get('/api/upgrades')).rejects.toMatchObject({ response: { status: 429 } });
+
+      expect(window.location.href).toBe('');
+      expect(getAccessToken()).toBe('expired.jwt.token');
+      expect(pathsSent()).toEqual(['/api/upgrades', '/api/auth/refresh']);
+    });
+
+    it('GivenAnotherTabRotatedFirstAndTheRetryIsRateLimited_WhenARequestIs401_ThenTheSessionIsKept', async () => {
+      // The one retry after a 409 is a second refresh, and it can meet the limit the first did not.
+      vi.useFakeTimers();
+      setAccessToken('expired.jwt.token', '2099-01-01T00:00:00Z');
+      let refreshAttempts = 0;
+      withAdapter((config) => {
+        if (config.url !== '/api/auth/refresh') return rejection(config, 401);
+        refreshAttempts += 1;
+        return rejection(config, refreshAttempts === 1 ? 409 : 429);
+      });
+
+      const outcome = client.get('/api/upgrades').catch((error: unknown) => error);
+      await vi.runAllTimersAsync();
+
+      await expect(outcome).resolves.toMatchObject({ response: { status: 429 } });
+      expect(refreshAttempts).toBe(2);
+      expect(window.location.href).toBe('');
+      expect(getAccessToken()).toBe('expired.jwt.token');
+    });
+
+    it('GivenTheRenewalIsRateLimited_WhenTheSessionIsRenewedDirectly_ThenTheRenewalRejectsWithThe429', async () => {
+      // How the page-load restore and the socket see it: a rejection, which neither treats as a session
+      // that ended, rather than the false that means it did.
+      withAdapter((config) => rejection(config, 429));
+
+      await expect(renewSession()).rejects.toMatchObject({ response: { status: 429 } });
     });
 
     it('GivenARenewalThatNeverAnswers_WhenARequestIs401_ThenTheRenewalGivesUpAtTheTimeout', async () => {

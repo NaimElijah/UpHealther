@@ -80,7 +80,11 @@ export function openNotificationSocket({ onNotification, onConnectionChange }: N
       } catch {
         // stompjs 7 awaits this hook and schedules no reconnect if it throws, so a failure here
         // would end the socket permanently rather than for one attempt. A connect with no header
-        // is refused by the server, which is a reconnect rather than a dead client.
+        // is refused by the server, which is a reconnect rather than a dead client. The header is
+        // cleared rather than left as the previous connect set it: a renewal refused for the rate
+        // limit leaves the lapsed token in memory, and it would only be refused again. What this
+        // loop should do instead is #384's.
+        client.connectHeaders = {};
       }
     },
     reconnectDelay: 5000,

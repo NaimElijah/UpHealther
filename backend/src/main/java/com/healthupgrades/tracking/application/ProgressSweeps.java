@@ -19,7 +19,7 @@ import org.springframework.stereotype.Service;
  */
 @Service
 @RequiredArgsConstructor
-public class ProgressSweeps implements ProgressSweepQuery {
+class ProgressSweeps implements ProgressSweepQuery {
 
     private final ProgressEntryRepositoryPort progressRepository; // outbound persistence port
 

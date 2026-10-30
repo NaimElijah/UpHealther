@@ -131,7 +131,8 @@ Five distinct mechanisms, each used for one thing:
 **1. HTTP, browser to API.** Every read and write. JSON in and out, JWT bearer token in the
 `Authorization` header. The token names its account by id in `sub` and carries nothing else that
 identifies it, and it is accepted only under this application's issuer, audience and signing
-algorithm, so one minted by another service that happens to share the secret is refused.
+algorithm, so one minted by another service that happens to share the secret is refused. It must
+carry an `exp`: JJWT checks one only when it is present, and a token without one would never lapse.
 `BearerTokenAuthenticator` is the single place those rules live — the HTTP filter and the STOMP
 interceptor both authenticate through it, so the two transports cannot drift apart. It accepts a
 token only while the session its `sid` names is live and belongs to the account its `sub` names, so
@@ -148,11 +149,13 @@ exists only for deployments that split the origins.
 
 The two endpoints reachable without a credential — sign-in and registration — are rate-limited per
 client address by a handler interceptor, which runs before any controller so a refused attempt costs
-no password comparison. The address it counts is the one nginx reported, and only nginx's own address
-is trusted to report one. nginx sets the four `X-Forwarded-*` headers Tomcat reads, `For`, `Proto`,
-`Host` and `Port`, so none reaches Tomcat as the caller wrote it. The host follows the request's `Host`
-header, because the server block names no `server_name` until
-[#209](https://github.com/NaimElijah/UpHealther/issues/209)
+no password comparison. Refresh and sign-out, which act on the cookie alone, have an interceptor and a
+limiter of their own, with a looser limit and a separate count, so a refused attempt reads no session
+and writes no audit entry, and neither allowance spends the other. The address both count is the one
+nginx reported, and only nginx's own address is trusted to report one. nginx sets the four
+`X-Forwarded-*` headers Tomcat reads, `For`, `Proto`, `Host` and `Port`, so none reaches Tomcat as the
+caller wrote it. The host follows the request's `Host` header, because the server block names no
+`server_name` until [#209](https://github.com/NaimElijah/UpHealther/issues/209)
 ([ADR-017](../ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)).
 
 **2. STOMP over WebSocket, API to browser.** One-way in practice: the browser connects and subscribes,
@@ -175,10 +178,16 @@ The same interceptor authorises the frames that follow, because a session that i
 can still name any destination it likes. A SUBSCRIBE must come from an authenticated session and
 name `/user/queue/notifications` exactly — the resolved `/queue/notifications-user…` of another
 session, and any `/topic`, are refused — and a SEND is refused outright, the application declaring
-no `@MessageMapping` for one to reach. Heartbeats, UNSUBSCRIBE and DISCONNECT pass untouched:
-they name nothing, and refusing a DISCONNECT would leave sessions to time out rather than close.
-A refused SUBSCRIBE or SEND is a WARN line, not an audit entry: it authorises a frame on a connection
-that is already authenticated.
+no `@MessageMapping` for one to reach. A socket holds one subscription for its life, kept in its
+session attributes: a second SUBSCRIBE is refused, because each subscription is registered with the
+broker and a socket streaming them would grow the heap without limit. An UNSUBSCRIBE frees nothing,
+because the inbound channel's pool runs frames in no fixed order, and one that reached the broker
+before its SUBSCRIBE would leave that subscription held. Heartbeats, UNSUBSCRIBE and DISCONNECT pass:
+they name nothing, and refusing a DISCONNECT would leave sessions to time out rather than close. A
+refused SUBSCRIBE or SEND is a WARN line, not an audit entry: it authorises a frame on a connection that
+is already authenticated. Spring
+adds an ERROR line of its own for a refused SEND, and for a frame it cannot decode, which no interceptor
+can suppress; a refused CONNECT or SUBSCRIBE it logs only at DEBUG.
 
 A connected socket sends nothing the interceptor could check again, so the server closes it instead
 when its session ends ([ADR-054](../ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md)).
@@ -187,9 +196,10 @@ The principal the CONNECT attaches also keeps the session its token was issued w
 which socket belongs to which session and account. It asks `SessionStatusPort` once more as it records
 a socket, because a session can end after the CONNECT's own check and before the socket is recorded,
 which no sweep could see; a socket whose session has ended, or cannot be confirmed, is closed at once.
-When `auth` ends one session — a sign-out, or a
-replayed refresh credential — it publishes `AuthSessionEnded`; when it ends all of an account's, as
-switching the account off does, it publishes `UserSessionsEnded`. `SessionEndSocketListener` takes
+When `auth` ends one session — a sign-out, or a replayed refresh credential, presented to refresh or
+to sign-out — it publishes `AuthSessionEnded`; when it ends all of an account's, as switching the
+account off does, or a refresh that finds the account already switched off, it publishes
+`UserSessionsEnded`. `SessionEndSocketListener` takes
 both after the commit and calls `LiveSocketPort`, which the registry implements: a port the kernel
 declares, as it does `SessionStatusPort` (mechanism 4), so that `auth` and `common` meet at an
 interface. The registry sends each matching socket
@@ -256,9 +266,19 @@ reach returns another user's row as absent (BR-15), with one exception:
 `TrackingConfigQuery.findByUpgradeIds`, which the upgrade responses use to show each upgrade's
 tracking setup, returns configurations whoever owns them, because `tracking_configs` has no owner
 column to filter on. Its one caller maps upgrades already loaded through user-scoped reads, so no
-request-supplied id reaches it. ArchUnit pins both hops: every dependent of `TrackingConfigQuery` stays
-inside `tracking`, and `UpgradeTrackingSummaryPort`, through which the read reaches `upgrade`, serves
-only `UpgradeWebMapper` and the adapter that implements it.
+request-supplied id reaches it. ArchUnit pins every hop to its callers: `TrackingConfigQuery` serves
+only `UpgradeTrackingSummaryAdapter` and its implementer; `UpgradeTrackingSummaryPort`, through which
+the read reaches `upgrade`, serves only `UpgradeWebMapper` and the adapter that implements it; the
+mapper serves only `UpgradeController` and `DashboardWebMapper`, the two classes that hand it upgrades;
+and `DashboardWebMapper` serves only `DashboardController`. Behind the ports, the repository reads they
+use are not pinned, as ADR-065 §9 records. The read of every account is the other unscoped read a
+request could reach, and it is on a port of its own, `AccountListQuery`, which only `AdminUserService`,
+which audits each listing, and its implementer may hold, not on the `UserQuery` every context may
+reach. Each unscoped read, the sweeps included,
+is implemented by a package-private class of its own — `UpgradeSweeps`, `ProgressSweeps`,
+`ReminderSweeps`, `TrackingConfigReads`, `AccountListing` — so no controller can inject the
+implementation and go round the rule on its port
+([ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md)).
 The administrator bootstrap is the same shape: `AdminBootstrapRunner` parses its setting and calls
 `AdminBootstrapService.bootstrap`, which applies the rules and records the promotion.
 `inbound_adapters_do_not_drive_outbound_ports` keeps every class under `adapter/in` off the outbound
@@ -303,8 +323,9 @@ The indirection is accepted, and not moved into the use cases. Moving it would c
 with its setup: about a dozen signatures, to remove an indirection that is named here instead. The
 cost is that a web mapper does I/O, which a reader of the layering rules would not expect.
 `TrackingConfigQuery`, the port that answers, is not scoped by owner. ArchUnit keeps every dependent of
-it inside `tracking`, and every dependent of `UpgradeTrackingSummaryPort` but this mapper and its
-implementer out; mechanism 5, above, says why that holds.
+it inside `tracking`, every dependent of `UpgradeTrackingSummaryPort` but this mapper and its
+implementer out, and every dependent of this mapper but its two callers out; mechanism 5, above, says
+why that holds.
 
 ---
 
@@ -358,9 +379,13 @@ The browser's half of a read, and of the write that makes it stale:
    one use. Only a renewal that fails ends the session, through `endSession`, whether the server
    refused it or did not answer within `REFRESH_TIMEOUT_MS`, ten seconds, after which it stops waiting,
    though the request itself runs on, so that the cross-tab lock is not held by a stalled one
-   ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)). The
-   socket's own failed renewal does not: it reconnects without a token, and the tab's next request
-   ends the session ([ADR-054](../ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md)).
+   ([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)). A renewal
+   answered 429, the session endpoints' per-address limit, is not a failure of the session: the
+   request fails with that 429, the token is kept, and the next request tries again; at page load the
+   tab shows nobody signed in and ends nothing, so a later load restores the session
+   ([ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md)). The socket's own failed renewal
+   does not end it either: it reconnects without a token, and the tab's next request ends the session
+   ([ADR-054](../ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md)).
 3. **The request is same-origin.** Its base URL is relative unless `VITE_API_URL` is set, which is
    meant for an API on another origin (`api/apiBaseUrl.ts`). So `/api/...` reaches the backend through
    the Vite dev server's proxy, or through nginx in the image.
@@ -388,8 +413,9 @@ guess.
 ### A session, end to end
 
 Two credentials with different lifetimes and different hiding places. The short one is in the body
-and lives in the tab's memory; the long one is in a cookie the page cannot read. The server keeps a
-row, which is what makes ending a session mean anything at all — see
+and lives in the tab's memory; the long one is in a cookie the page cannot read, named
+`__Host-refresh_token` with `Path=/` and no `Domain`, so that no other host can plant one. The server
+keeps a row, which is what makes ending a session mean anything at all — see
 [ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md).
 
 ```mermaid
@@ -400,6 +426,7 @@ sequenceDiagram
     participant A as AuthService
     participant S as AuthSessionService
     participant J as AccessTokenIssuerPort
+    participant U as UserQuery
     participant DB as auth_sessions
 
     Note over B,DB: Signing in
@@ -416,14 +443,23 @@ sequenceDiagram
     B->>C: POST /api/auth/refresh — cookie + X-Requested-With
     C->>S: refresh(credential)
     S->>DB: SELECT … FOR UPDATE
-    S->>DB: UPDATE — previous := current, current := a new secret
-    S-->>C: Rotated
-    C-->>B: 200 { token } · a new Set-Cookie
+    S->>U: findById(userId) — is the account still on?
+    alt switched off, or gone
+        S->>DB: UPDATE revoked := true — every session of the account
+        S-->>C: Rejected · audited, refused · UserSessionsEnded
+        C-->>B: 401 · cookie cleared
+    else enabled
+        S->>DB: UPDATE — current := a new secret
+        S->>DB: INSERT the spent digest, and when it was spent
+        S-->>C: Rotated
+        C-->>B: 200 { token } · a new Set-Cookie
+    end
 
     Note over B,DB: The spent credential comes back
     B->>C: POST /api/auth/refresh — the old cookie
     C->>S: refresh(spent credential)
-    alt inside the rotation grace window
+    S->>DB: SELECT the spent digest — any rotation, not only the last
+    alt inside its rotation grace window
         S-->>C: Stale — two tabs, or a retry · audited, refused
         C-->>B: 409 · try again, nothing revoked
     else after it
@@ -433,10 +469,20 @@ sequenceDiagram
     end
 ```
 
-Three things worth noticing. The row is read **`FOR UPDATE`**, so two tabs refreshing together
-serialise instead of both rotating from the same starting state. The old digest is kept, which is the
-only reason a replay is distinguishable from a guess — and a credential matching *neither* digest
-revokes nothing, because the session id travels in a token claim and is therefore not a secret.
+Four things worth noticing. The row is read **`FOR UPDATE`**, so two tabs refreshing together
+serialise instead of both rotating from the same starting state. A refresh with the current credential
+reads the account before it rotates, so an account switched off after its session opened, or deleted,
+is signed out at its next refresh at the latest, and every other session it holds with it. Every
+digest a rotation retires is kept in `auth_session_spent_tokens`, with when it was retired, for as long
+as the session lives and no longer — its rows cascade with the session. That is the only reason a
+replay is distinguishable from a guess, however many rotations old it is, and the grace window runs
+from the moment each one was spent.
+Sign-out treats a spent credential the same way: inside its grace window it signs out, and after it the
+session is revoked as reuse, through the one method refresh uses. Both refuse a session that has already
+ended before looking at the credential at all, so a spent one presented again is not a second theft. A
+credential that is neither current nor spent revokes nothing, because the session id travels in a token
+claim and is therefore not a secret
+([ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md)).
 And the `sid` claim is checked on every authenticated request, together with the `sub` the row must
 name as its owner, which is what turns a revoked row into a refused request rather than a wait for the
 token to expire.
@@ -445,9 +491,13 @@ Every refresh and every sign-out the service is asked for is audited, as `auth.r
 `auth.logout`, refused ones included (NFR-23). A refusal names the session whenever the row exists, and
 its owner only when the presented credential is one the session issued — the session id is no secret,
 so a wrong secret says nothing about who sent it. Naming the owner says whose credential it was, not who
-sent it, which is also how the reuse entry names a credential that was probably stolen. A request with no cookie at all has presented
-nothing; the controller answers it without asking the service, so the refresh every signed-out page
-load makes is not an entry.
+sent it, which is also how the reuse entry names a credential that was probably stolen. A request with
+no cookie at all has presented nothing; the controller answers it without asking the service, so the
+refresh every signed-out page load makes is not an entry. Nor is a request with two of the cookie,
+which the `__Host-` prefix should make impossible, since no other host can set one: `RefreshCookies`
+still reads exactly one or none, answers the request as if it carried none, clears ours, and logs the
+duplicate at WARN with the count and no value
+([ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md)).
 
 ---
 
@@ -490,10 +540,12 @@ somebody reports to the log lines that produced it. There are three entry points
 from a different place:
 
 - **HTTP** — `ServerHttpObservationFilter`, from the framework. An inbound W3C `traceparent` continues
-  the caller's trace; otherwise a new one starts. Behind nginx none arrives from a browser: nginx clears
-  the caller's context in both formats the API consumes, W3C (`traceparent`, `tracestate`, `baggage`)
-  and B3 (`b3` and the `X-B3-*` headers), on `/api` and `/ws`, so the id is the API's own. The
-  backend's own configuration narrows what it consumes as well.
+  the caller's trace; otherwise a new one starts. B3 is never read: `application.yml` sets
+  `management.tracing.propagation.consume` to W3C, which Boot would otherwise extend to B3 and B3
+  multi-header. Behind nginx no context arrives from a browser either: nginx clears the caller's, W3C
+  (`traceparent`, `tracestate`, `baggage`) and B3 (`b3` and the `X-B3-*` headers) alike, on `/api` and
+  `/ws`, so the id is the API's own
+  ([ADR-067](../ADRs/ADR-067-trace-context-is-accepted-only-from-trusted-hops.md)).
   `TraceIdResponseHeaderFilter` returns the id as
   `X-Trace-Id`, and `GlobalExceptionHandler` stamps it on the error body. The container's error page
   runs after the scope has closed, so `TraceIdErrorAttributes` puts the id the header carried on its
@@ -504,6 +556,8 @@ from a different place:
 - **STOMP** — `StompTracingChannelInterceptor` on the inbound, broker and client-outbound channels. It
   spans two threads per frame, because a channel dispatches on the sending thread and handles on an
   executor thread; the sending span's context travels between them on a non-native message header.
+  A frame's own trace headers are never read: a frame from the client starts a trace of its own, and
+  one the server sends while serving a request joins that request's (ADR-067).
 
 Nothing writes the MDC by hand. Correlation is a property of the runtime, so a new log statement,
 controller or job is correlated without its author doing anything.
@@ -551,9 +605,12 @@ Three places are worth knowing about because they were silent and are no longer:
   WARN: the signature was ours, so this is not ordinary expiry. Neither line names a subject. The
   token carries a user id and nothing else identifying, and that id is withheld on purpose: writing
   it down would tie the line to an account whose deletion is the thing the record was meant to end.
+  A refused request, any 4xx, is DEBUG in the same way: its path, its status and its exception's type,
+  because a validation failure's message quotes every rejected value, a password included.
 - **A failed real-time push.** It runs from an `afterCommit` callback, so the notification is already
-  durable; the failure is now reported at WARN and the caller carries on, where before one unreachable
-  session cancelled everybody else's reminders for that minute.
+  durable; the failure is now reported at WARN, by ids and by its own and its root cause's exception
+  types with no stack trace, and the caller carries on, where before one unreachable session cancelled
+  everybody else's reminders for that minute.
 
 ### In the browser
 
@@ -577,15 +634,28 @@ it becomes a themed, reloadable message instead of a blank page.
 `AuditTrail` is an outbound port in `common/domain/port/out/`, beside `DomainEventPublisher` and
 cross-cutting for the same reason. Every state-changing use case records through it, as does every
 authentication outcome — a sign-in, a refresh, a sign-out and a STOMP CONNECT, allowed or refused — and
-the bootstrap promotion of the first administrator; `LoggingAuditTrail` writes them to a logger named `AUDIT` at INFO, and derives the
+the bootstrap promotion of the first administrator, and one read: an administrator's page of the account
+list, the only read across accounts, which names the administrator and no resource; `LoggingAuditTrail` writes them to a logger named `AUDIT` at INFO, a level
+`application.yml` pins so that turning the root level down cannot silence the trail, and derives the
 `audit.events{action,outcome}` counter from the same call so the two cannot disagree.
 
 An entry is `(action, actorUserId, resourceId, outcome)` — two enums and two identifiers, with **nowhere
-to put free text**, which is how NFR-6 survives contact with twenty-one new call sites. Services record
+to put free text**, which is how NFR-6 survives contact with twenty-one new call sites. One identifier is
+not written as it is: when the resource is an `AUTH_SESSION`, the line carries the first sixteen hex
+characters of the SHA-256 of the session id instead. The owner's id is on the same line, and an account
+paired with a live session of it is the half of a forged token that a signing key alone lacks
+([ADR-049](../ADRs/ADR-049-a-session-is-live-only-for-the-account-that-owns-it.md)). The digest is the
+same for every entry about one session, so they still join up, and anyone holding a session id finds
+its entries by computing it. Services record
 through `AuditTrail.recording(...)`, which brackets the operation and records the refusal as well as the
-success: BR-15 answers an attempt on somebody else's record with a `404`, so the trail is the only place
-that attempt exists at all. `REFUSED` (the system said no) and `FAILED` (the system broke) are separate
-outcomes because they need separate reactions.
+success, or through `recordingCreation(...)` when the record the action names has no id until it is
+saved — a new upgrade or area. A child record's creation, a reflection, a reminder, a progress entry
+or a tracking configuration, is recorded against the upgrade it belongs to, and its action's `resource`
+says `HEALTH_UPGRADE`, so the id on the line is always of the kind that field says, and a refusal still
+names the upgrade that was probed. BR-15 answers an attempt on somebody else's record with a `404`, so
+the trail is the only place that attempt exists at all
+([ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md)). `REFUSED` (the system said no) and
+`FAILED` (the system broke) are separate outcomes because they need separate reactions.
 
 There is no audit table. An entry has to outlive the transaction it observes — a refused transition
 rolls back, and a row written inside it would roll back too — and the trace id already on the line joins
@@ -627,7 +697,7 @@ push service, no analytics, no AI service.
 | Dependency | Used for | How it is reached |
 |---|---|---|
 | **PostgreSQL 15** | All persistent state | JDBC from the backend only. Credentials from `DB_URL` / `DB_USERNAME` / `DB_PASSWORD`, which compose fills from `POSTGRES_APP_USER` and `POSTGRES_APP_PASSWORD` |
-| **Flyway** | Schema ownership and migration on startup | Embedded in the backend; `V1`–`V9` apply in order at boot. An applied migration is never edited — Flyway checksums it, comments included — so a correction is another migration |
+| **Flyway** | Schema ownership and migration on startup | Embedded in the backend; `V1`–`V10` apply in order at boot. An applied migration is never edited — Flyway checksums it, comments included — so a correction is another migration |
 | **Browser WebSocket** | Real-time notification delivery | The `/ws` STOMP endpoint, proxied by nginx (or Vite in development). nginx throttles its handshake per client address, not what an open socket sends (#382, [ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md)) |
 | **nginx** | Serves the built SPA and proxies `/api` and `/ws` | Also where the security headers live — the content security policy, framing and referrer rules, declared for the whole server so that nginx's own error pages under `/api` and `/ws` carry them too ([ADR-018](../ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)). Absent from `npm run dev`, which serves no headers |
 | **SecLists' common-password list** | The passwords registration refuses as common (BR-17) | Never reached at run time. `scripts/derive_common_passwords.py` derives 10,000 entries from one pinned file, and the result is committed under `backend/src/main/resources/auth/`, beside the MIT notice that ships with it in the jar ([ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md)) |
@@ -860,6 +930,12 @@ returns 500 rather than 400 (BR-16). Nothing structural connects the two: the en
 column disagree, or when a new bounded column is neither mirrored by a DTO nor listed as one no
 request body writes to.
 
+**One character is refused for every field at once.** PostgreSQL refuses U+0000 in any text column, so
+a body carrying one reached the flush and returned 500 with an ERROR line. `NulRefusingStringModule`, a
+Jackson module Boot registers with its mapper, refuses any string a request body carries that holds one,
+which reaches the client as the 400 of a malformed body. It is one module rather than a constraint per
+field so that a field added later is covered without anybody remembering it.
+
 **The repository's commands are defined once, in the root `package.json`.** `npm run setup`,
 `npm start` and `npm test` are its entry points, and CI's jobs call its `test:*` scripts rather than
 spelling out their own, so a local run applies the checks CI applies. `setup` runs `setup:frontend`
@@ -977,7 +1053,9 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the shared kernel depends on no context; why the security adapter loads accounts through a port it declares rather than through `UserQuery`; why `User` and `Role` stay in `user` | [ADR-062](../ADRs/ADR-062-the-shared-kernel-depends-on-no-bounded-context.md) |
 | Why every context's tables share one schema; why a delete crosses contexts on `ON DELETE` rather than an event; what moving a context out or adding a soft delete would cost | [ADR-063](../ADRs/ADR-063-one-schema-with-cross-context-foreign-keys.md) |
 | Which layering rules the backend enforces beyond ADR-002, and the exceptions each names; why `TrackingConfigQuery` stays unscoped and a web mapper reads a port; when to revisit either | [ADR-064](../ADRs/ADR-064-the-backends-layering-rules-beyond-adr-002.md) |
+| Why a session remembers every refresh credential it spent, and why sign-out with a spent one is reuse; why a refresh re-reads the account; why the cookie is `__Host-` with `Path=/`, and two of them are refused; why the SPA keeps a session whose renewal was rate-limited; why a socket holds one subscription for its life; what a child record's creation names, and why the account list is the one audited read; which loggers are pinned at INFO; why U+0000 is refused by one module; why refresh and sign-out have a limit of their own; the bounds on the lifetimes; why the audit stream names a session by a digest; how the unscoped reads are closed one hop further | [ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md) |
 | Why a page the back/forward cache restores reloads, every time and not only after a sign-out; why a session's end also empties the query cache, through a registration `lib/` makes with `api/`; why the server's session-ended frame ends the session in the tab, superseding part of ADR-054 | [ADR-066](../ADRs/ADR-066-a-tab-keeps-nothing-of-a-session-that-ended.md) |
+| Why trace context is continued only from a trusted hop: why nginx clears the caller's, why the API reads W3C and never B3, and why a STOMP frame never continues a trace; what an upstream tracer would need | [ADR-067](../ADRs/ADR-067-trace-context-is-accepted-only-from-trusted-hops.md) |
 | Why a desktop notification carries the notification's own title and message, though the operating system keeps them after sign-out; when to revisit that | [ADR-068](../ADRs/ADR-068-desktop-notifications-keep-their-detail.md) |
 | Why the compose backend connects as a role that owns its database rather than as the superuser; why its variables are not `DB_USERNAME` and `DB_PASSWORD`; why one role and not a migrating and a serving one | [ADR-069](../ADRs/ADR-069-the-compose-backend-connects-as-a-role-that-owns-its-database.md) |
 | Why nginx throttles the `/ws` handshake although ADR-017 kept sign-in's limit in the application; why there is no cap on open sockets; what a load balancer would need first | [ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md) |

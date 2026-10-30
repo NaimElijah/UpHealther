@@ -1,6 +1,10 @@
 # ADR-064: The backend's layering rules beyond ADR-002, their exceptions and their trade-offs
 
-- **Status:** Accepted
+- **Status:** Accepted — extended by [ADR-065](ADR-065-the-backend-hardened-after-scan-05.md), which
+  closes the unscoped reads one hop further: their implementers are package-private, `UpgradeWebMapper`
+  and `DashboardWebMapper` serve only their callers, the account listing is a port of its own, and the
+  rule named `unscoped_tracking_config_read_stays_inside_tracking` below is narrowed, and renamed
+  `unscoped_tracking_config_read_serves_only_the_summary_adapter`
 - **Date:** 2026-10-30
 - **Scope:**
   - `backend/` — the rules below in `HexagonalArchitectureTest`, and what they moved: the scheduled

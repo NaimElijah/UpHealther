@@ -130,6 +130,20 @@ describe('AuthProvider', () => {
       expect(screen.getByTestId('loading').textContent).toBe('false');
     });
 
+    it('GivenTheRestoreIsRateLimited_WhenTheProviderMounts_ThenItSettlesAnonymousAndEndsNoSession', async () => {
+      // A 429 rejects the renewal rather than answering false: the address spent its allowance, perhaps
+      // somebody else's doing, and the cookie is still good. This tab shows nobody signed in, and the
+      // next page load, once the window turns, restores the session; ending it here would not.
+      renewSession.mockRejectedValue(Object.assign(new Error('Too many requests'), { response: { status: 429 } }));
+
+      renderProvider();
+
+      await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
+      expect(screen.getByTestId('authenticated').textContent).toBe('false');
+      expect(getMe).not.toHaveBeenCalled();
+      expect(window.location.href).toBe('');
+    });
+
     it('GivenARenewedSessionWhoseProfileFails_WhenTheProviderMounts_ThenItSettlesAnonymous', async () => {
       // The account went away between the refresh and the profile read. Showing a signed-in shell with
       // no user behind it would be worse than showing the sign-in page.

@@ -44,7 +44,7 @@ class RateLimitInterceptorTest {
         FixedWindowRateLimiter limiter = new FixedWindowRateLimiter(
                 new RateLimitProperties(LIMIT, Duration.ofMinutes(1), 1000),
                 Clock.fixed(java.time.Instant.parse("2026-09-21T10:00:00Z"), ZoneOffset.UTC));
-        interceptor = new RateLimitInterceptor(limiter, meterRegistry);
+        interceptor = new RateLimitInterceptor(limiter, meterRegistry, RateLimitConfig.SIGN_IN_PATHS);
     }
 
     @Test

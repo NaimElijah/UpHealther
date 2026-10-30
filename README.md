@@ -116,7 +116,7 @@ pushed by listeners that run only after the commit, so a rolled-back write annou
 `ABANDONED` is not — rescheduling revives it. At most three `HARD` upgrades may be `ACTIVE` at once,
 checked both when activating one and when promoting a running one to `HARD`.
 
-The layering is **enforced, not documented**: `HexagonalArchitectureTest` runs twenty-two ArchUnit rules
+The layering is **enforced, not documented**: `HexagonalArchitectureTest` runs twenty-six ArchUnit rules
 on every `./mvnw test` — the domain stays framework-free bar JPA mapping annotations, the application
 depends on no adapter, and
 Spring Data is confined to the persistence adapters.
@@ -201,7 +201,7 @@ localhost only.
 | `TRUSTED_PROXIES` | Java regex for the hop allowed to set `X-Forwarded-For`, `X-Forwarded-Host` and `X-Forwarded-Port`; widen it and a caller picks the address the rate limit counts, and the host and port the API believes it was reached on | nginx on the compose network |
 
 <details>
-<summary>The other sixteen variables, and six that live only in <code>application.yml</code></summary>
+<summary>The other sixteen variables, and nine that live only in <code>application.yml</code></summary>
 
 In `.env.example` order. `docker-compose.yml` does not pass four of them through, so they take
 effect on a native run only — marked *native*.
@@ -211,9 +211,9 @@ effect on a native run only — marked *native*.
 | `POSTGRES_DB` | Database name created by the compose Postgres | `healthupgrades` |
 | `POSTGRES_USER` | The superuser created by the compose Postgres | `healthupgrades` |
 | `POSTGRES_APP_USER`, `POSTGRES_APP_PASSWORD` | The role the compose backend connects as, created on an empty volume and owning the database only ([ADR-069](docs/ADRs/ADR-069-the-compose-backend-connects-as-a-role-that-owns-its-database.md)) | `healthupgrades_app` |
-| `JWT_ACCESS_TOKEN_TTL` | How long an access token is accepted; the SPA renews it, so this is not the session's length | `15m` |
-| `AUTH_SESSION_IDLE` | A session lapses after this long unused; each refresh slides it forward | `7d` |
-| `AUTH_SESSION_ABSOLUTE` | No session outlives this, however often it is refreshed | `30d` |
+| `JWT_ACCESS_TOKEN_TTL` | How long an access token is accepted; the SPA renews it, so this is not the session's length. Between `1m` and `1h`, or the backend refuses to start | `15m` |
+| `AUTH_SESSION_IDLE` | A session lapses after this long unused; each refresh slides it forward. At least `1h` and at most `AUTH_SESSION_ABSOLUTE` | `7d` |
+| `AUTH_SESSION_ABSOLUTE` | No session outlives this, however often it is refreshed. Between `1h` and `90d` | `30d` |
 | `AUTH_RATE_LIMIT` | Sign-in and registration attempts per client address per window — *native* | `10` |
 | `AUTH_RATE_LIMIT_WINDOW` | The window that limit counts over — *native* | `1m` |
 | `DB_URL` | JDBC URL; compose points it at its own Postgres | `jdbc:postgresql://localhost:5432/healthupgrades` |
@@ -223,11 +223,13 @@ effect on a native run only — marked *native*.
 | `LOG_LEVEL_APP` | Level for `com.healthupgrades` only | `INFO` |
 | `VITE_API_URL` | API origin for the SPA; empty uses the same-origin `/api` proxy — *native*, the image takes no build argument | empty |
 
-Compose passes none of the next six either. Every cron is read in UTC, whatever the host's zone
+Compose passes none of the next nine either. Every cron is read in UTC, whatever the host's zone
 ([ADR-020](docs/ADRs/ADR-020-the-server-keeps-time-in-utc.md)): `UPGRADE_OVERDUE_CRON`
 (`0 0 8 * * *`), `NOTIFY_CHECKIN_CRON` (`0 0 18 * * *`), `NOTIFY_REMINDERS_CRON` (`0 * * * * *`)
-and `AUTH_SESSION_CLEANUP_CRON` (`0 30 3 * * *`); then `AUTH_SESSION_ROTATION_GRACE` (`10s`) and
-`AUTH_RATE_LIMIT_MAX_CLIENTS` (`10000`).
+and `AUTH_SESSION_CLEANUP_CRON` (`0 30 3 * * *`); then `AUTH_SESSION_ROTATION_GRACE` (`10s`, between `0s` and `1m`),
+`AUTH_RATE_LIMIT_MAX_CLIENTS` (`10000`), and the refresh and sign-out limit, counted apart from
+sign-in's: `AUTH_SESSION_RATE_LIMIT` (`60`), `AUTH_SESSION_RATE_LIMIT_WINDOW` (`1m`) and
+`AUTH_SESSION_RATE_LIMIT_MAX_CLIENTS` (`10000`).
 
 </details>
 
@@ -337,7 +339,7 @@ the wrong way, and `FrontendWireTypesContractTest` on a record the frontend's co
 | Domain | The `HealthUpgrade` state machine and construction invariants, streaks, reminder scheduling, entry scoring | `./mvnw test` |
 | Application | Every use case in every context, including what a *rejected* operation must not leave behind | `./mvnw test` |
 | Web slice | Each controller against the real security chain: status codes, validation, another user's row as a 404 | `./mvnw test` |
-| Structural | Twenty-five ArchUnit rules, plus the frontend wire-type, column-bound, pinned-image and version contracts | `./mvnw test` |
+| Structural | Twenty-nine ArchUnit rules, the twenty-six in `HexagonalArchitectureTest` and `ServerTimeArchitectureTest`'s three, plus the frontend wire-type, column-bound, pinned-image and version contracts | `./mvnw test` |
 | Integration | The app booted against a real PostgreSQL that Testcontainers starts — bean graph, migrations, database-enforced invariants | `./mvnw verify` |
 | Frontend | Session restore and silent token renewal, the notification socket, the route and role gates, the administration page, the content security policy, theme, error boundary | `npm test` in `frontend/` |
 | Smoke | A browser drives both modules together: a new account registers, plans and activates an upgrade, hears of it over the socket, logs a day and reads the dashboard, under nginx's CSP; a second test fetches the third-party notices nginx serves | `npm run test:images` |
@@ -548,7 +550,7 @@ Known limitations, load-bearing rather than accidental:
   ([ADR-054](docs/ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md)), but a session that
   idles out or reaches its cap ends with no event to close them (#331) — and a socket only ever
   receives its own user's notifications.
-- **The rate limit is per instance**, counted in process memory, so two instances double it
+- **The rate limits are per instance**, counted in process memory, so two instances double them
   ([ADR-017](docs/ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)).
 - **Server time is UTC, and a user has no zone**, so a reminder set for 09:00 rings at 09:00 UTC
   wherever its owner is ([ADR-020](docs/ADRs/ADR-020-the-server-keeps-time-in-utc.md)).

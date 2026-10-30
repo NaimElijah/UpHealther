@@ -209,6 +209,42 @@ class ReminderServiceTest {
     }
 
     @Test
+    void GivenAReminderOnAnotherUsersUpgrade_WhenItIsRescheduled_ThenTheAnswerIsTheOneAnUnknownIdGets() {
+        // S5.B3, BR-15: another user's reminder is absent, word for word. Its upgrade's own refusal
+        // named their upgrade, and differed from the unknown id's, which told the caller it existed.
+        when(repository.findById(reminderId)).thenReturn(Optional.of(aReminder(true)));
+        when(upgradeQuery.getOwnedUpgrade(userId, upgradeId))
+                .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
+        Throwable foreign = catchThrowable(
+                () -> service.update(userId, reminderId, new ReminderSchedule(SIX_PM, List.of("SAT"), true)));
+
+        when(repository.findById(reminderId)).thenReturn(Optional.empty());
+        Throwable unknown = catchThrowable(
+                () -> service.update(userId, reminderId, new ReminderSchedule(SIX_PM, List.of("SAT"), true)));
+
+        assertThat(foreign)
+                .isExactlyInstanceOf(unknown.getClass())
+                .hasMessage(unknown.getMessage())
+                .hasMessageNotContaining(upgradeId.toString());
+    }
+
+    @Test
+    void GivenAReminderOnAnotherUsersUpgrade_WhenItIsDeleted_ThenTheAnswerIsTheOneAnUnknownIdGets() {
+        when(repository.findById(reminderId)).thenReturn(Optional.of(aReminder(true)));
+        when(upgradeQuery.getOwnedUpgrade(userId, upgradeId))
+                .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
+        Throwable foreign = catchThrowable(() -> service.delete(userId, reminderId));
+
+        when(repository.findById(reminderId)).thenReturn(Optional.empty());
+        Throwable unknown = catchThrowable(() -> service.delete(userId, reminderId));
+
+        assertThat(foreign)
+                .isExactlyInstanceOf(unknown.getClass())
+                .hasMessage(unknown.getMessage())
+                .hasMessageNotContaining(upgradeId.toString());
+    }
+
+    @Test
     void GivenAnOwnedReminder_WhenItIsDeleted_ThenItIsRemoved() {
         Reminder reminder = aReminder(true);
         when(repository.findById(reminderId)).thenReturn(Optional.of(reminder));
@@ -234,8 +270,13 @@ class ReminderServiceTest {
 
     @Test
     void GivenAnOwnedUpgrade_WhenAReminderIsAttached_ThenTheAttemptIsAuditedAsAllowedAgainstTheUpgrade() {
+        // S5.C6: the action labels its resource as the upgrade, so the id it carries is the upgrade the
+        // reminder hangs off, on a success as on a refusal.
+        UUID reminderId = UUID.randomUUID();
         when(upgradeQuery.getOwnedUpgrade(userId, upgradeId)).thenReturn(AnUpgrade.active(userId));
-        when(repository.save(any(Reminder.class))).thenAnswer(call -> call.getArgument(0));
+        when(repository.save(any(Reminder.class)))
+                .thenReturn(
+                        Reminder.builder().id(reminderId).upgradeId(upgradeId).build());
 
         service.create(userId, upgradeId, new ReminderSchedule(NINE_AM, List.of("MON"), true));
 
@@ -250,6 +291,8 @@ class ReminderServiceTest {
 
         catchThrowable(() -> service.create(userId, upgradeId, new ReminderSchedule(NINE_AM, List.of("MON"), true)));
 
+        // The refusal names the upgrade that was probed: BR-15 means an attempt on another user's upgrade
+        // leaves no other trace, and that id is what somebody would be looking for (NFR-23).
         assertThat(auditTrail.only(AuditAction.REMINDER_CREATE))
                 .hasValue(new AuditEvent(AuditAction.REMINDER_CREATE, userId, upgradeId, AuditOutcome.REFUSED));
     }

@@ -18,16 +18,18 @@ import lombok.Getter;
  * it expires, and nothing the server does can take it back. A session is the row that makes revocation
  * possible.
  *
- * <p><strong>Rotation.</strong> Every refresh mints a new secret and keeps the digest of the one it
- * replaced. A stolen refresh token is therefore usable at most once before the real client's next
- * refresh invalidates it — or, if the thief refreshes second, its use is detected. That detection is
- * the reason the previous digest is kept at all.
+ * <p><strong>Rotation.</strong> Every refresh mints a new secret and retires the one it replaced, as a
+ * {@link SpentCredential} the caller stores beside the session. A stolen refresh token is therefore
+ * usable at most once before the real client's next refresh invalidates it — or, if the thief refreshes
+ * first, its use is detected when the real client presents a credential the session has already spent.
+ * That detection is the reason every spent digest is kept, and not only the last: a thief who refreshes
+ * twice would otherwise leave the victim holding a credential nothing recognises (ADR-065).
  *
  * <p><strong>Why a grace window.</strong> Two tabs waking together, or a request retried after a
  * connection drop, can both present the same token within a few hundred milliseconds. Treating the
  * second as theft would sign people out for having two tabs open. So a token that was rotated out
- * within {@code rotationGrace} is answered "try again" and nothing is revoked; the same token after
- * that window is theft, and the session ends.
+ * within {@code rotationGrace} of being spent is answered "try again" and nothing is revoked; the same
+ * token after that window is theft, and the session ends.
  *
  * <p><strong>Two expiries.</strong> {@code idleExpiresAt} slides forward on each refresh, so a session
  * in use stays alive; {@code absoluteExpiresAt} never moves, so no session lives forever however busy
@@ -53,19 +55,11 @@ public class AuthSession {
     @Column(nullable = false)
     private byte[] refreshTokenHash;
 
-    /** SHA-256 of the credential this one replaced; null until the first rotation. */
-    @Column
-    private byte[] previousTokenHash;
-
     @Column(nullable = false)
     private Instant createdAt;
 
     @Column(nullable = false)
     private Instant lastUsedAt;
-
-    /** When the last rotation happened, which is what the grace window is measured from. */
-    @Column
-    private Instant rotatedAt;
 
     /** Slides forward on every refresh: a session in use does not lapse. */
     @Column(nullable = false)
@@ -131,30 +125,6 @@ public class AuthSession {
     }
 
     /**
-     * Whether a presented credential is the one rotated out, and recently enough to forgive.
-     *
-     * @param presentedHash the digest of what was presented
-     * @param now           the instant it was presented
-     * @param grace         how long after a rotation the old credential is still merely stale
-     * @return true when this is the immediately previous credential, inside the grace window
-     */
-    public boolean matchesPreviousWithin(byte[] presentedHash, Instant now, Duration grace) {
-        return matchesPrevious(presentedHash) && !now.isAfter(rotatedAt.plus(grace));
-    }
-
-    /**
-     * Whether a presented credential is the one rotated out, whenever that was.
-     *
-     * <p>Outside the grace window this is the signature of a replayed credential: the legitimate client
-     * has already exchanged it, so whoever is presenting it now is not that client.
-     */
-    public boolean matchesPrevious(byte[] presentedHash) {
-        return previousTokenHash != null
-                && rotatedAt != null
-                && MessageDigest.isEqual(previousTokenHash, presentedHash);
-    }
-
-    /**
      * Exchanges the accepted credential for a new one and slides the idle expiry forward.
      *
      * <p>The idle expiry never pushes past the absolute cap: a session refreshed every minute for a
@@ -163,14 +133,16 @@ public class AuthSession {
      * @param newTokenHash the digest of the credential now being handed to the client
      * @param now          the instant of the exchange
      * @param idle         how long the session survives without being used again
+     * @return the credential this exchange retired, which the caller must store beside the session: it is
+     *         how a later replay of it is recognised
      */
-    public void rotate(byte[] newTokenHash, Instant now, Duration idle) {
-        this.previousTokenHash = this.refreshTokenHash;
+    public SpentCredential rotate(byte[] newTokenHash, Instant now, Duration idle) {
+        SpentCredential retired = new SpentCredential(refreshTokenHash, now);
         this.refreshTokenHash = newTokenHash.clone();
-        this.rotatedAt = now;
         this.lastUsedAt = now;
         Instant slid = now.plus(idle);
         this.idleExpiresAt = slid.isAfter(absoluteExpiresAt) ? absoluteExpiresAt : slid;
+        return retired;
     }
 
     /** Ends the session. Nothing it authenticated is undone; it simply stops being usable. */

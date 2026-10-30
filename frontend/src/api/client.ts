@@ -3,8 +3,9 @@
  *
  * Its interceptors are the app's whole session behaviour: outgoing requests carry the in-memory access
  * token, and a 401 is treated as "this token lapsed" rather than "you are signed out" — the request is
- * renewed and retried once, and only a refresh that fails ends the session. Adding a second axios
- * instance elsewhere would bypass both.
+ * renewed and retried once, and only a refresh that fails ends the session. A refresh refused for the
+ * rate limit (429) is not a failed one: it fails the request and keeps the session. Adding a second
+ * axios instance elsewhere would bypass both.
  */
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { apiBaseUrl } from './apiBaseUrl';
@@ -41,6 +42,9 @@ const REFRESH_LOCK = 'healthupgrades.refresh';
 
 /** How long to wait before the one retry after a 409, which means another tab rotated first. */
 const CONFLICT_BACKOFF_MS = 150;
+
+/** The status of a refresh refused because the client address spent its allowance (NFR-59). */
+const TOO_MANY_REQUESTS = 429;
 
 /**
  * How long one renewal is waited for before it counts as unanswered (S5.D5).
@@ -84,7 +88,9 @@ let refreshInFlight: Promise<boolean> | null = null;
  * and asks the cookie for one. Routing it through here rather than a second call site means the mount-
  * time restore shares the lock with everything else.
  *
- * @returns whether there is now a usable access token
+ * @returns whether there is now a usable access token; false means the session is over
+ * @throws the refresh's own error when it was refused for the rate limit (429). That is no answer about
+ *   the session, which is left as it was: the cookie is still good, and the token is not cleared.
  */
 export function renewSession(): Promise<boolean> {
   if (!refreshInFlight) {
@@ -112,8 +118,11 @@ async function withTabLock<T>(work: () => Promise<T>): Promise<T> {
  * One exchange of the refresh cookie, with a single retry when another tab beat us to it.
  *
  * A 409 means the credential was rotated moments ago and this request arrived holding the superseded
- * one — the cookie has since been replaced, so the same request again succeeds. Anything else means the
- * session is over, an answer that does not come within `REFRESH_TIMEOUT_MS` included. The call goes
+ * one — the cookie has since been replaced, so the same request again succeeds. A 429 is rethrown: the
+ * limit is counted per client address before any cookie is read, so somebody else behind the same
+ * address can cause one, and treating it as the end of the session would let them sign everybody there
+ * out. Anything else means the session is over, an answer that does not come within
+ * `REFRESH_TIMEOUT_MS` included (#377 tracks whether it should). The call goes
  * through this client on purpose: the response interceptor below leaves the refresh path alone, so it
  * cannot recurse into itself.
  */
@@ -133,6 +142,9 @@ async function refreshOnce(retryOnConflict = true): Promise<boolean> {
     if (retryOnConflict && axios.isAxiosError(error) && error.response?.status === 409) {
       await delay(CONFLICT_BACKOFF_MS);
       return refreshOnce(false);
+    }
+    if (axios.isAxiosError(error) && error.response?.status === TOO_MANY_REQUESTS) {
+      throw error;
     }
     clearAccessToken();
     return false;
@@ -166,6 +178,9 @@ function delay(ms: number): Promise<void> {
  * sees nothing. Only when the refresh cookie is gone or refused is the session actually over, and then
  * `endSession` (`session.ts`) replaces the page, which also drops any cached server state belonging to
  * the old session.
+ *
+ * A renewal refused for the rate limit rejects, and the request fails with that 429, which the page
+ * shows as any failed call; the session is not ended, so the next request tries the renewal again.
  *
  * Left alone: a sign-in or registration attempt, whose 401 belongs to the form; the refresh call
  * itself, which would otherwise recurse; and any request already retried once, or a server answering

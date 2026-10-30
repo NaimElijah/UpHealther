@@ -83,6 +83,15 @@ public enum AuditAction {
      */
     ADMIN_BOOTSTRAP("admin.bootstrap", AuditedResource.USER),
 
+    /**
+     * An administrator read a page of every account on the installation (S5.A12).
+     *
+     * <p>The one read in this enum. It is the only read that crosses accounts, and the only one whose
+     * result is other people's names and addresses, so who looked is worth a line. It names the
+     * administrator and no resource: a page is no one record.
+     */
+    ADMIN_LIST("admin.list", AuditedResource.USER),
+
     UPGRADE_CREATE("upgrade.create", AuditedResource.HEALTH_UPGRADE),
     UPGRADE_UPDATE("upgrade.update", AuditedResource.HEALTH_UPGRADE),
     UPGRADE_DELETE("upgrade.delete", AuditedResource.HEALTH_UPGRADE),
@@ -97,14 +106,26 @@ public enum AuditAction {
     AREA_UPDATE("area.update", AuditedResource.HEALTH_AREA),
     AREA_DELETE("area.delete", AuditedResource.HEALTH_AREA),
 
-    /** Changing how an upgrade is measured changes what its past progress means. */
-    TRACKING_CONFIGURE("tracking.configure", AuditedResource.TRACKING_CONFIG),
-    PROGRESS_RECORD("progress.record", AuditedResource.PROGRESS_ENTRY),
+    /**
+     * Changing how an upgrade is measured changes what its past progress means.
+     *
+     * <p>This and the next three record a child record's creation, and name the upgrade it belongs to,
+     * not the child: a refusal has no child to name, and the upgrade is the record that was probed, which
+     * BR-15 leaves no other trace of. The label says so, so the id is never read as the child's (S5.C6).
+     */
+    TRACKING_CONFIGURE("tracking.configure", AuditedResource.HEALTH_UPGRADE),
 
-    /** Reflections are append-only (BR-13), so there is nothing else to audit about one. */
-    REFLECTION_CREATE("reflection.create", AuditedResource.REFLECTION),
+    /** A day's progress logged against an upgrade, named by the upgrade. */
+    PROGRESS_RECORD("progress.record", AuditedResource.HEALTH_UPGRADE),
 
-    REMINDER_CREATE("reminder.create", AuditedResource.REMINDER),
+    /**
+     * A reflection written about an upgrade, named by the upgrade. Reflections are append-only (BR-13),
+     * so there is nothing else to audit about one.
+     */
+    REFLECTION_CREATE("reflection.create", AuditedResource.HEALTH_UPGRADE),
+
+    /** A reminder attached to an upgrade, named by the upgrade. */
+    REMINDER_CREATE("reminder.create", AuditedResource.HEALTH_UPGRADE),
     REMINDER_UPDATE("reminder.update", AuditedResource.REMINDER),
     REMINDER_DELETE("reminder.delete", AuditedResource.REMINDER);
 

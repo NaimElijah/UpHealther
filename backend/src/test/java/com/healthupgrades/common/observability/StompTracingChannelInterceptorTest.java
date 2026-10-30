@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
-import io.micrometer.tracing.propagation.Propagator;
 import io.micrometer.tracing.test.simple.SimpleTracer;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -35,8 +34,7 @@ class StompTracingChannelInterceptorTest {
     // Placeholders the interceptor only passes along; nothing is sent to or handled by them.
     private final MessageChannel channel = (message, timeout) -> true;
     private final MessageHandler handler = message -> {};
-    private final StompTracingChannelInterceptor interceptor =
-            new StompTracingChannelInterceptor(tracer, propagatorStartingAFreshSpan());
+    private final StompTracingChannelInterceptor interceptor = new StompTracingChannelInterceptor(tracer);
 
     /** Boot's real tracing stack, with no web server or datasource, so {@code mvn test} needs no database. */
     private final ApplicationContextRunner realTracing = new ApplicationContextRunner()
@@ -71,8 +69,7 @@ class StompTracingChannelInterceptorTest {
         // "" and hold however the parent was wired. This runs against the real tracer instead.
         realTracing.run(context -> {
             Tracer realTracer = context.getBean(Tracer.class);
-            StompTracingChannelInterceptor traced =
-                    new StompTracingChannelInterceptor(realTracer, context.getBean(Propagator.class));
+            StompTracingChannelInterceptor traced = new StompTracingChannelInterceptor(realTracer);
 
             Message<?> forwarded = traced.preSend(frame(StompCommand.SEND, "/app/ping"), channel);
             String sendingTraceId = realTracer.currentSpan().context().traceId();
@@ -90,6 +87,53 @@ class StompTracingChannelInterceptorTest {
 
             assertThat(sendingTraceId).isNotBlank();
             assertThat(handlingTraceId).isEqualTo(sendingTraceId);
+        });
+    }
+
+    @Test
+    void GivenAClientFrameCarryingATraceparent_WhenItIsSent_ThenItStartsAFreshTraceInsteadOfContinuingThatOne() {
+        // ADR-067: trace context is accepted only from a trusted hop, and a STOMP frame comes straight
+        // from the client, whom nginx cannot strip a frame header from. Continuing it would let the
+        // client choose the trace id the logs and the audit trail join on. Real tracer, because
+        // SimpleTracer mints no ids to compare.
+        String clientTraceId = "4bf92f3577b34da6a3ce929d0e0e4736";
+        realTracing.run(context -> {
+            Tracer realTracer = context.getBean(Tracer.class);
+            StompTracingChannelInterceptor traced = new StompTracingChannelInterceptor(realTracer);
+            StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SEND);
+            accessor.setDestination("/app/ping");
+            accessor.addNativeHeader("traceparent", "00-" + clientTraceId + "-00f067aa0ba902b7-01");
+            Message<?> fromClient = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
+
+            Message<?> forwarded = traced.preSend(fromClient, channel);
+            String frameTraceId = realTracer.currentSpan().context().traceId();
+            traced.afterSendCompletion(forwarded, channel, true, null);
+
+            assertThat(frameTraceId).isNotBlank().isNotEqualTo(clientTraceId);
+        });
+    }
+
+    @Test
+    void GivenARequestSpanIsCurrent_WhenTheServerSendsAPush_ThenThePushContinuesThatRequestsTrace() {
+        // The other half of not reading a frame's own headers: a frame the server sends while serving a
+        // request is a child of that request's span, so the push joins the trace that caused it. A span
+        // started with no parent would leave every push in a trace of its own. Real tracer, because
+        // SimpleTracer mints no ids to compare.
+        realTracing.run(context -> {
+            Tracer realTracer = context.getBean(Tracer.class);
+            StompTracingChannelInterceptor traced = new StompTracingChannelInterceptor(realTracer);
+            Span request = realTracer.nextSpan().name("http post").start();
+            String pushTraceId;
+            try (Tracer.SpanInScope serving = realTracer.withSpan(request)) {
+                Message<?> forwarded =
+                        traced.preSend(frame(StompCommand.MESSAGE, "/user/queue/notifications"), channel);
+                pushTraceId = realTracer.currentSpan().context().traceId();
+                traced.afterSendCompletion(forwarded, channel, true, null);
+            } finally {
+                request.end();
+            }
+
+            assertThat(pushTraceId).isNotBlank().isEqualTo(request.context().traceId());
         });
     }
 
@@ -157,28 +201,5 @@ class StompTracingChannelInterceptorTest {
             accessor.setDestination(destination);
         }
         return MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
-    }
-
-    /**
-     * A propagator that finds nothing on the carrier and hands back a fresh root span builder — the
-     * normal case for a browser client, which sends no {@code traceparent}.
-     */
-    private Propagator propagatorStartingAFreshSpan() {
-        return new Propagator() {
-            @Override
-            public java.util.List<String> fields() {
-                return java.util.List.of();
-            }
-
-            @Override
-            public <C> void inject(io.micrometer.tracing.TraceContext context, C carrier, Setter<C> setter) {
-                // Nothing to inject: this test never crosses a process boundary.
-            }
-
-            @Override
-            public <C> Span.Builder extract(C carrier, Getter<C> getter) {
-                return tracer.spanBuilder();
-            }
-        };
     }
 }
