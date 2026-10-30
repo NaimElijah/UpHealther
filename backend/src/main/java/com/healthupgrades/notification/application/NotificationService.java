@@ -121,7 +121,8 @@ public class NotificationService {
      * The user's fifty most recent notifications, newest first.
      *
      * <p>Capped rather than paginated: this backs an inbox of recent activity, and older notifications
-     * are not retrievable through the API at all.
+     * are not retrievable through the API at all. Any notification ninety days old is deleted by
+     * {@link NotificationRetentionService} (NFR-60).
      *
      * @param userId the owner
      * @return up to fifty notifications, read and unread alike

@@ -2,8 +2,8 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. A hundred and twenty-two of the hundred and thirty-one entries below name a test —
-a hundred and sixty-nine distinct test classes and files between them. Six of the remaining nine name the
+rather than trusted. A hundred and twenty-three of the hundred and thirty-two entries below name a test —
+a hundred and seventy-one distinct test classes and files between them. Six of the remaining nine name the
 command, workflow, script or setting that *is* the check (NFR-11, NFR-13, NFR-18, NFR-48, NFR-52,
 NFR-53). The last three — FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is
 about a rendered width, a colour or an overflow, and jsdom has no layout engine to observe any of them;
@@ -257,6 +257,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-15 | Time-dependent behaviour reads an injected clock, so it is testable and timezone-explicit | `UpgradeOverdueSchedulerTest`, `NotificationSchedulerTest`, `UpgradeServiceTest`, `TrackingServiceTest`, `ReflectionServiceTest`, `GlobalExceptionHandlerTest`, `NotificationServiceTest`, `TraceIdErrorAttributesTest` (the container's error page), `HealthUpgradesApplicationTest` and `ServerTimeArchitectureTest` (the clock and every cron keep UTC, nothing outside an entity's `@PrePersist` or `@PreUpdate` method reads the time without the clock, by a call or a method reference, and only the clock bean's own method builds one from the system's, [ADR-020](../ADRs/ADR-020-the-server-keeps-time-in-utc.md)) — **Known deviation:** [#51](https://github.com/NaimElijah/UpHealther/issues/51), entity timestamps bypass the clock |
 | NFR-26 | A real-time push that cannot be delivered degrades to the stored notification and is reported, rather than failing the work that raised it | `StompNotificationPushAdapterTest` |
 | NFR-50 | A notification sweep that fails to save one notification still attempts the rest, and gives up only when the database cannot be reached; the run then still ends as failed, and its log line says how many were sent, failed and skipped | `NotificationSchedulerTest` ([ADR-023](../ADRs/ADR-023-a-notification-sweep-carries-on-past-a-failed-save-and-fails-the-run.md)) |
+| NFR-60 | A notification is deleted once it is ninety days old: a nightly job removes every notification created more than ninety days before it runs, in bounded batches. One exactly ninety days old is kept until the next night | `NotificationRetentionServiceTest` (the cutoff, to the second, and the batches), `NotificationRetentionSchedulerTest`, `NotificationPersistenceIT` (only rows created before the cutoff go, and no more than a batch at a time) ([ADR-075](../ADRs/ADR-075-notifications-are-kept-for-ninety-days.md)) |
 | NFR-49 | A notification raised by a write is stored and pushed only once that write commits, and a write that rolls back raises none. The push waits for the notification's own commit, so a client is never told about a row that then rolled back | `NotificationServiceTest`, `NotificationCommitIT` ([ADR-028](../ADRs/ADR-028-a-raised-notification-is-stored-in-its-own-transaction-after-the-write-commits.md)) |
 
 ### 4.4 Observability and audit

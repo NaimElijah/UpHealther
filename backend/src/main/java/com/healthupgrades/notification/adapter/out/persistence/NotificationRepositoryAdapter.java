@@ -63,4 +63,10 @@ class NotificationRepositoryAdapter implements NotificationRepositoryPort {
     public void markAllReadForUser(UUID userId) {
         jpa.markAllReadForUser(userId);
     }
+
+    /** {@inheritDoc} */
+    @Override
+    public int deleteCreatedBefore(LocalDateTime cutoff, int limit) {
+        return jpa.deleteCreatedBefore(cutoff, limit);
+    }
 }

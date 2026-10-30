@@ -47,6 +47,12 @@ class NotificationPersistenceIT extends PostgresIT {
     /** The start of the day after a target date of 1 October: the earliest an overdue notice for it exists. */
     private static final LocalDateTime OVERDUE_SINCE = LocalDate.of(2026, 10, 2).atStartOfDay();
 
+    /**
+     * A retention cutoff long before any notification another integration test writes, so a delete before it
+     * can only reach the rows a test here created, in a database every IT shares.
+     */
+    private static final LocalDateTime LONG_AGO = LocalDate.of(2001, 1, 1).atStartOfDay();
+
     @Autowired
     NotificationRepositoryPort repository;
 
@@ -231,6 +237,46 @@ class NotificationPersistenceIT extends PostgresIT {
     }
 
     /** A user row for a notification to belong to, with an email no other test's row can collide with. */
+    @Test
+    void GivenNotificationsEitherSideOfTheCutoff_WhenTheOldOnesAreDeleted_ThenOnlyThoseCreatedBeforeItGo() {
+        // NFR-60. Strictly before: one created at the cutoff itself is exactly the retention period old, and
+        // stays for one more night.
+        UUID userId = persistedUser();
+        UUID before = persisted(userId, LONG_AGO.minusSeconds(1)).getId();
+        UUID at = persisted(userId, LONG_AGO).getId();
+        UUID after = persisted(userId, LONG_AGO.plusSeconds(1)).getId();
+
+        int deleted = repository.deleteCreatedBefore(LONG_AGO, 10);
+
+        assertThat(deleted).isEqualTo(1);
+        assertThat(repository.findByIdAndUserId(before, userId)).isEmpty();
+        assertThat(repository.findByIdAndUserId(at, userId)).isPresent();
+        assertThat(repository.findByIdAndUserId(after, userId)).isPresent();
+    }
+
+    @Test
+    void GivenMoreOldNotificationsThanTheLimit_WhenTheOldOnesAreDeleted_ThenOneStatementDeletesNoMoreThanTheLimit() {
+        // The batch bound is what keeps one night's statement short, whatever backlog it finds.
+        UUID userId = persistedUser();
+        persisted(userId, LONG_AGO.minusDays(3));
+        persisted(userId, LONG_AGO.minusDays(2));
+        persisted(userId, LONG_AGO.minusDays(1));
+
+        assertThat(repository.deleteCreatedBefore(LONG_AGO, 2)).isEqualTo(2);
+        assertThat(repository.deleteCreatedBefore(LONG_AGO, 2)).isEqualTo(1);
+        assertThat(repository.deleteCreatedBefore(LONG_AGO, 2)).isZero();
+    }
+
+    private Notification persisted(UUID userId, LocalDateTime createdAt) {
+        return entityManager.persistAndFlush(Notification.builder()
+                .userId(userId)
+                .type(NotificationType.CHECKIN_REMINDER)
+                .category(NotificationCategory.REMINDER)
+                .title("Time to check in")
+                .createdAt(createdAt)
+                .build());
+    }
+
     private UUID persistedUser() {
         return entityManager
                 .persistAndFlush(AUser.aUser()

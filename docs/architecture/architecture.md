@@ -253,13 +253,15 @@ sign-in names, each through a composition adapter
 kernel's third, and the other way round: `auth` calls it and the registry in `common.websocket`
 implements it (mechanism 2).
 
-**5. Scheduled invocation.** Four cron-driven jobs drive the core with no request behind them: the
-overdue sweep, the daily check-in nudge, the per-minute reminder dispatch, and the nightly sweep of
-sessions nothing can use again. Each scheduler is only the trigger: it times the run through
-`JobMetrics`, reads the clock where the sweep needs a date, and calls the application method that
-holds the sweep —
+**5. Scheduled invocation.** Five cron-driven jobs drive the core with no request behind them: the
+overdue sweep, the daily check-in nudge, the per-minute reminder dispatch, the nightly sweep of
+sessions nothing can use again, and the nightly deletion of notifications ninety days old. Each scheduler
+is only the trigger: it times the run through `JobMetrics`, reads the clock where the sweep needs a date,
+and calls the application method that holds the sweep —
 `UpgradeOverdueService.announceOverdue`, `NotificationSweepService.nudgeDailyCheckin` and
-`dispatchDueReminders`, and `AuthSessionService.deleteUnusableSessions`. The sweeps read every user's
+`dispatchDueReminders`, `AuthSessionService.deleteUnusableSessions`, and
+`NotificationRetentionService.deleteExpired`, a service of its own because a controller holds
+`NotificationService`. The sweeps read every user's
 rows through sweep ports of their own — `UpgradeSweepQuery`, `ProgressSweepQuery` and
 `ReminderSweepQuery` — which ArchUnit lets only the jobs' application services hold. The other query
 ports of the contexts holding a user's own records take the owner's id, so a read a request can
@@ -522,6 +524,7 @@ one and when promoting a running one to HARD.
 | `NotificationScheduler.notifyDailyCheckin` | daily 18:00 | Nudges users who have active upgrades and have logged nothing today, at most once a day. Each of its two guards — who was already nudged since midnight, and who has logged today — is one query for the whole sweep. A nudge that fails to save does not cost the users after it |
 | `NotificationScheduler.dispatchReminders` | every minute | Fires the reminders due this minute whose upgrade is active (BR-23). It reads only the enabled reminders set within this minute, from its first instant to its last microsecond so that 23:59 does not wrap, through the partial index `idx_reminders_enabled_time`; whether one is due on today's day is decided by the `Reminder` aggregate; the upgrades behind the due ones are loaded in one batch, and their status is read there, so a paused upgrade's reminders are silenced without being changed. A reminder that fails to save does not cost the ones after it |
 | `AuthSessionCleanupScheduler` | daily 03:30 | Deletes revoked and expired sessions. Nothing depends on it running: an expired session is already refused by its own timestamps |
+| `NotificationRetentionScheduler` | daily 03:45 | Deletes every notification created more than ninety days before the run, a thousand at a time, each batch in its own transaction, until a batch comes back short (NFR-60, [ADR-075](../ADRs/ADR-075-notifications-are-kept-for-ninety-days.md)) |
 
 Each reads the clock through an injected `java.time.Clock`, which is what makes it testable without
 waiting: the three notification and overdue jobs in the scheduler, and the session clean-up in
@@ -1092,6 +1095,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why registration refuses the 10,000 most common passwords from a pinned SecLists file, rather than asking Have I Been Pwned; how the list is derived and filtered; why the refusal is a constraint beside BR-17's minimum | [ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md) |
 | Why every migration from `V10` opens with `SET LOCAL lock_timeout`, and not `spring.flyway.init-sqls`; when an index change must be `CONCURRENTLY`, in a file of its own | [ADR-072](../ADRs/ADR-072-every-migration-bounds-its-lock-wait.md) |
 | Why every enum column carries a `CHECK` of its constants rather than a PostgreSQL enum type or a lookup table, and which numeric bounds the schema holds; why a child row references its parent by id and owner together, and why the area key is left unvalidated | [ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md) |
+| Why a notification is deleted ninety days after it was created, by a nightly job in batches of a thousand; why not thirty days, the newest fifty, or waiting for the privacy notice | [ADR-075](../ADRs/ADR-075-notifications-are-kept-for-ninety-days.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |
