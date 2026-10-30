@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+// The `pageshow` listener registers when the module loads, so the first block needs only the import.
 import { endSession, onSessionEnd } from './session';
 
 /**
@@ -26,18 +27,14 @@ describe('a page restored from the back/forward cache', () => {
     Object.defineProperty(window, 'location', { configurable: true, writable: true, value: realLocation });
   });
 
-  it('GivenTheSessionEnded_WhenThePageIsShownFromTheBackForwardCache_ThenItReloads', () => {
-    endSession();
-
+  it('GivenAPageRestoredFromTheBackForwardCache_WhenItIsShown_ThenItReloads', () => {
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
 
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
-  it('GivenTheSessionEnded_WhenThePageIsShownFromANormalLoad_ThenItDoesNotReload', () => {
+  it('GivenANormalLoad_WhenThePageIsShown_ThenItDoesNotReload', () => {
     // Every load fires pageshow; only a restore sets `persisted`. Reloading on the first would loop.
-    endSession();
-
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: false }));
 
     expect(reload).not.toHaveBeenCalled();
