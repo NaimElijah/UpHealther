@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { loginApi, registerApi, getMe, logoutApi } from '../api/auth';
 import { renewSession } from '../api/client';
+import { endSession } from '../api/session';
 import { clearAccessToken, setAccessToken } from '../api/tokenStore';
 import { AuthContext } from './authContextValue';
 import type { User } from '../types';
@@ -13,7 +14,8 @@ import type { User } from '../types';
 const LEGACY_KEYS = ['jwt_token', 'user'];
 
 /**
- * Owns the session: the signed-in user and the sign-in, registration and sign-out actions.
+ * Owns the signed-in user and the sign-in, registration and sign-out actions. The credential's renewal
+ * and the end of a session belong to `api/` (`client.ts`, `tokenStore.ts` and `session.ts`).
  *
  * Nothing about the session is in web storage any more. The access token lives in memory
  * (`api/tokenStore`), so it dies with the tab; what survives a reload is the `HttpOnly` refresh cookie,
@@ -92,15 +94,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
    * had signed out. The caller shows the failure and the user stays signed in, which is the honest
    * state.
    *
-   * On success it is a full document navigation rather than a router push, so the query cache goes with
-   * it and nothing belonging to the previous user can be read by the next one.
+   * On success the session is ended by `endSession` (`api/session`), the same as when the server refuses
+   * a renewal: a full document navigation, so nothing belonging to the previous user can be read by the
+   * next one. The user is cleared first because that navigation is not instant, and until the page
+   * unloads the app should render nobody signed in.
    */
   const logout = useCallback(async () => {
     await logoutApi();
-    clearAccessToken();
     setUser(null);
     setIsAuthenticated(false);
-    window.location.href = '/login';
+    endSession();
   }, []);
 
   return (

@@ -25,6 +25,8 @@ const NOTIFICATIONS: NotificationContextType = {
   markRead: () => {},
   markAllRead: () => {},
   requestDesktopPermission: () => {},
+  toasts: [],
+  dismissToast: () => {},
 };
 
 function renderNavbar(logout: () => Promise<void>) {

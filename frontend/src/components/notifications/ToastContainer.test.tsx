@@ -3,7 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Modal from '../ui/Modal';
-import ToastContainer, { type ToastData } from './ToastContainer';
+import ToastContainer from './ToastContainer';
+import {
+  NotificationContext,
+  type NotificationContextType,
+  type ToastData,
+} from '../../contexts/notificationContextValue';
 
 /**
  * A toast against an open dialog (#74, ADR-019).
@@ -23,6 +28,21 @@ const streakToast: ToastData = {
   relatedUpgradeId: null,
 };
 
+/** The context the toasts are read from, holding these toasts and nothing else of interest. */
+function withToasts(toasts: ToastData[], dismissToast: (id: string) => void): NotificationContextType {
+  return {
+    notifications: [],
+    unreadCount: 0,
+    connected: true,
+    desktopPermission: 'default',
+    markRead: () => {},
+    markAllRead: () => {},
+    requestDesktopPermission: () => {},
+    toasts,
+    dismissToast,
+  };
+}
+
 /** A page holding both, the way a toast and a dialog meet in the app: a dialog open, a toast arriving. */
 const PageWithDialog: React.FC<{ dialogOpen: boolean; toasts: ToastData[]; onDismiss?: (id: string) => void }> = ({
   dialogOpen,
@@ -30,10 +50,12 @@ const PageWithDialog: React.FC<{ dialogOpen: boolean; toasts: ToastData[]; onDis
   onDismiss = () => {},
 }) => (
   <MemoryRouter>
-    <ToastContainer toasts={toasts} onDismiss={onDismiss} />
-    <Modal isOpen={dialogOpen} onClose={() => {}} title="Log Progress">
-      <p>form</p>
-    </Modal>
+    <NotificationContext.Provider value={withToasts(toasts, onDismiss)}>
+      <ToastContainer />
+      <Modal isOpen={dialogOpen} onClose={() => {}} title="Log Progress">
+        <p>form</p>
+      </Modal>
+    </NotificationContext.Provider>
   </MemoryRouter>
 );
 

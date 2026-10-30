@@ -7,6 +7,8 @@
  * instance elsewhere would bypass both.
  */
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import { apiBaseUrl } from './apiBaseUrl';
+import { endSession } from './session';
 import { clearAccessToken, getAccessToken, setAccessToken } from './tokenStore';
 import type { AuthResponse } from '../types';
 
@@ -16,7 +18,7 @@ import type { AuthResponse } from '../types';
 // withCredentials so the refresh cookie travels even when the API is on another origin; a same-origin
 // request would send it regardless, and a deployment that split the origins would silently not.
 const client = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '',
+  baseURL: apiBaseUrl(),
   withCredentials: true,
 });
 
@@ -128,8 +130,8 @@ function delay(ms: number): Promise<void> {
  * The access token is short-lived by design, so a 401 on an ordinary request is the expected end of its
  * life rather than evidence of anything. The request is retried once with a fresh token and the user
  * sees nothing. Only when the refresh cookie is gone or refused is the session actually over, and then
- * the page is replaced — a hard navigation rather than a router push, because it also drops any cached
- * server state belonging to the old session.
+ * `endSession` (`session.ts`) replaces the page, which also drops any cached server state belonging to
+ * the old session.
  *
  * Left alone: a sign-in or registration attempt, whose 401 belongs to the form; the refresh call
  * itself, which would otherwise recurse; and any request already retried once, or a server answering
@@ -160,11 +162,5 @@ client.interceptors.response.use(
     return Promise.reject(error);
   },
 );
-
-/** Drops the token and sends the browser to the login page, discarding the current document with it. */
-function endSession(): void {
-  clearAccessToken();
-  window.location.href = '/login';
-}
 
 export default client;

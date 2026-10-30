@@ -14,6 +14,8 @@ function aContext(overrides: Partial<NotificationContextType> = {}): Notificatio
     markRead: vi.fn(),
     markAllRead: vi.fn(),
     requestDesktopPermission: vi.fn(),
+    toasts: [],
+    dismissToast: vi.fn(),
     ...overrides,
   };
 }
