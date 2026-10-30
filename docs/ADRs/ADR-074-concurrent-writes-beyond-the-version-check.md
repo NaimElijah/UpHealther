@@ -90,8 +90,16 @@ the API already answers.** `UserRepositoryAdapter.saveAndFlush` is the precedent
 
 1. **The adapter's save flushes**, so the constraint refuses the loser inside the call, where the
    adapter can translate it, rather than at commit.
-2. **It translates that constraint alone, by name.** Any other integrity failure is a defect, and is
-   rethrown unchanged.
+2. **It translates, by name, each constraint whose refusal has a meaning the client can act on, and
+   nothing else.** For the tracking configuration there are two:
+   - the unique `upgrade_id`, which the race refuses;
+   - the foreign key to the upgrade (`tracking_configs_upgrade_id_fkey`), refused when another request
+     deletes the upgrade between the service's ownership check and the insert. That is translated into
+     `ResourceNotFoundException`, a 404, in the words the ownership check uses ("Upgrade not found: …"),
+     so the caller learns what the check would now say.
+
+   Any other violation, such as a missing tracking type, means the code upstream let through what it
+   should not have. It is rethrown unchanged and stays a 500.
 3. **The translation is the exception whose meaning fits.** For the tracking configuration it is the
    kernel's `RetryableConflictException`, a 409: the request was right and was overtaken, and resent
    unchanged it finds the winner's configuration and replaces it, which is what a `PUT` means.
@@ -133,10 +141,11 @@ tracks it.
   claim is held for one short request, so the window is small.
 - **A new route into a running HARD upgrade must count through the port method.** That is the only way
   to count, so the route cannot count without claiming, and `backend/CLAUDE.md` says so.
-- **The constraint's name is a contract.** `tracking_configs_upgrade_id_key` is PostgreSQL's generated
-  name for a column-level `UNIQUE` in `V1__init_schema.sql`. A migration that renames or recreates the
-  constraint must keep the name, or the translation stops matching and the race is a 500 again.
-  `TrackingConfigPersistenceIT` fails if it does.
+- **The constraints' names are a contract.** `tracking_configs_upgrade_id_key` and
+  `tracking_configs_upgrade_id_fkey` are PostgreSQL's generated names for the column-level `UNIQUE` and
+  `REFERENCES` in `V1__init_schema.sql`. A migration that renames or recreates either must keep the
+  name, or the translation stops matching and that race is a 500 again. `TrackingConfigPersistenceIT`
+  fails if it does.
 - **Every tracking-configuration save flushes.** A transaction that wrote more after the save would see
   the INSERT issued earlier than before. `saveConfig` writes nothing after it, so nothing changes today.
 - **The loser's transaction is rolled back.** Spring marks it rollback-only when the violation passes
@@ -202,5 +211,5 @@ tracks it.
   route counts through the same port method. A second invariant takes a key of its own.
 - **A client is seen resending the same first configuration in a loop**, which would mean the 409 is not
   resolving the race, or the race is not rare: `ON CONFLICT` then earns its cost.
-- **A migration touches `tracking_configs.upgrade_id`'s constraint.** Its name must survive, or the
-  translation must change with it.
+- **A migration touches either of `tracking_configs.upgrade_id`'s constraints.** Their names must
+  survive, or the translation must change with them.

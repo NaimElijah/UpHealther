@@ -863,7 +863,9 @@ insert. The adapter's save flushes, so the constraint refuses the loser inside t
 adapter translates that one constraint, by name, into the refusal the API already answers.
 `UserRepositoryAdapter` does it for a duplicate email (FR-4, a 422), and
 `TrackingConfigRepositoryAdapter` for an upgrade's first tracking configuration, as a
-`RetryableConflictException`, since the same `PUT` resent replaces the winner's. Any other integrity
+`RetryableConflictException`, since the same `PUT` resent replaces the winner's. The same adapter
+translates the upgrade foreign key, refused when another request deletes the upgrade between the
+ownership check and the insert, into the 404 the ownership check would now give. Any other integrity
 failure is rethrown unchanged and stays a 500. The progress entry's race is not handled this way yet
 ([#146](https://github.com/NaimElijah/UpHealther/issues/146))
 ([ADR-074](../ADRs/ADR-074-concurrent-writes-beyond-the-version-check.md)).

@@ -1,5 +1,6 @@
 package com.healthupgrades.tracking.domain.port.out;
 
+import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.domain.exception.RetryableConflictException;
 import com.healthupgrades.tracking.domain.model.TrackingConfig; // the aggregate this port persists
 import java.util.Collection;
@@ -18,6 +19,8 @@ public interface TrackingConfigRepositoryPort {
      *
      * @throws RetryableConflictException if the config is new and another config for the same upgrade was
      *                                    stored since the caller looked for one
+     * @throws ResourceNotFoundException  if the config's upgrade no longer exists, because it was deleted
+     *                                    after the caller confirmed it
      */
     TrackingConfig save(TrackingConfig config);
 

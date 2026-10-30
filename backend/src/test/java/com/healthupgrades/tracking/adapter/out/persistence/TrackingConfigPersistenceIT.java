@@ -3,6 +3,7 @@ package com.healthupgrades.tracking.adapter.out.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.domain.exception.RetryableConflictException;
 import com.healthupgrades.support.ATrackingConfig;
 import com.healthupgrades.support.AUser;
@@ -88,12 +89,31 @@ class TrackingConfigPersistenceIT extends PostgresIT {
     }
 
     @Test
-    void GivenAnIntegrityFailureThatIsNotTheUpgradeKey_WhenAConfigurationIsSaved_ThenItIsRethrownUnchanged() {
-        // Only the unique upgrade_id means "configured concurrently". Translating anything else would
-        // answer a defect with a 409 telling the client to retry a request that can never succeed.
-        assertThatThrownBy(() -> repository.save(configFor(UUID.randomUUID())))
+    void
+            GivenAnUpgradeDeletedAfterItsOwnershipWasChecked_WhenItsFirstConfigurationIsSaved_ThenItIsReportedAsNotFound() {
+        // Another tab deletes the upgrade between the service's ownership check and this insert. The
+        // foreign key refuses it, and the caller is told what the ownership check would now say (ADR-074).
+        UUID deletedUpgrade = UUID.randomUUID();
+
+        assertThatThrownBy(() -> repository.save(configFor(deletedUpgrade)))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Upgrade not found: " + deletedUpgrade);
+    }
+
+    @Test
+    void GivenAViolationOfNeitherTranslatedConstraint_WhenAConfigurationIsSaved_ThenItIsRethrownUnchanged() {
+        // Only the unique upgrade_id and the upgrade foreign key have a meaning the client can act on. A
+        // missing tracking type is a defect upstream: translating it would answer a 500's cause with a
+        // 409 or a 404 that misleads.
+        TrackingConfig withoutAType = ATrackingConfig.forUpgrade(upgradeId)
+                .id(null)
+                .trackingType(null)
+                .build();
+
+        assertThatThrownBy(() -> repository.save(withoutAType))
                 .isInstanceOf(DataIntegrityViolationException.class)
-                .hasMessageContaining("tracking_configs_upgrade_id_fkey");
+                .isNotInstanceOf(RetryableConflictException.class)
+                .isNotInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test
@@ -113,12 +133,10 @@ class TrackingConfigPersistenceIT extends PostgresIT {
 
     @Test
     void GivenNoSuchUpgrade_WhenAConfigurationIsInsertedForIt_ThenTheDatabaseRefusesIt() {
+        // Inserted around the adapter, which translates this refusal: the claim here is the schema's.
         UUID noSuchUpgrade = UUID.randomUUID();
 
-        assertThatThrownBy(() -> {
-                    repository.save(configFor(noSuchUpgrade));
-                    entityManager.flush();
-                })
+        assertThatThrownBy(() -> entityManager.persistAndFlush(configFor(noSuchUpgrade)))
                 .isInstanceOfAny(DataIntegrityViolationException.class, ConstraintViolationException.class)
                 .hasMessageContaining("tracking_configs_upgrade_id_fkey");
     }

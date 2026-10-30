@@ -1,6 +1,7 @@
 package com.healthupgrades.tracking;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.reset;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -11,8 +12,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.healthupgrades.support.PostgresIT;
 import com.healthupgrades.tracking.domain.port.out.TrackingConfigRepositoryPort;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.util.Optional;
 import java.util.UUID;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -32,6 +37,10 @@ import tools.jackson.databind.ObjectMapper;
  * while a configuration exists, which is exactly the state the losing request is in, and the real
  * database is left to refuse the insert. Unflushed, that refusal surfaced at commit, where nothing could
  * translate it, and the caller was answered 500 for a request that a moment later would have worked.
+ *
+ * <p>The same seam shows the other race the insert can lose: the upgrade deleted by another request after
+ * its ownership was checked. The foreign key refuses that insert, and the caller is answered 404, as for
+ * any upgrade that does not exist.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -50,6 +59,9 @@ class TrackingConfigRaceIT extends PostgresIT {
     @Autowired
     MockMvc mockMvc;
 
+    @Autowired
+    DataSource dataSource;
+
     @MockitoSpyBean
     TrackingConfigRepositoryPort configRepository;
 
@@ -64,6 +76,27 @@ class TrackingConfigRaceIT extends PostgresIT {
         configure(accessToken, upgradeId)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("Tracking configuration was saved concurrently. Please retry."));
+    }
+
+    @Test
+    void GivenTheUpgradeDeletedAfterItsOwnershipWasChecked_WhenItsFirstConfigurationIsSaved_ThenItIsAnsweredNotFound()
+            throws Exception {
+        // Another tab deletes the upgrade after the service has confirmed it is the caller's and before
+        // the insert. The lookup between the two is where this test does it, on a connection of its own
+        // that commits at once, as the other tab's request would. The foreign key then refuses the
+        // insert, which is a 404 like any request for a missing upgrade, not a 500.
+        String accessToken = registeredAccessToken();
+        String upgradeId = createdUpgradeId(accessToken);
+        doAnswer(lookup -> {
+                    deleteUpgradeElsewhere(upgradeId);
+                    return Optional.empty();
+                })
+                .when(configRepository)
+                .findByUpgradeId(any());
+
+        configure(accessToken, upgradeId)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Upgrade not found: " + upgradeId));
     }
 
     @Test
@@ -121,6 +154,18 @@ class TrackingConfigRaceIT extends PostgresIT {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(configuration));
+    }
+
+    /**
+     * Deletes the upgrade on a connection taken straight from the pool, outside the request's
+     * transaction, in autocommit: the delete is committed before the request's insert runs.
+     */
+    private void deleteUpgradeElsewhere(String upgradeId) throws SQLException {
+        try (Connection otherTab = dataSource.getConnection();
+                PreparedStatement delete = otherTab.prepareStatement("DELETE FROM health_upgrades WHERE id = ?")) {
+            delete.setObject(1, UUID.fromString(upgradeId));
+            delete.executeUpdate();
+        }
     }
 
     private ResultActions storedConfiguration(String accessToken, String upgradeId) throws Exception {
