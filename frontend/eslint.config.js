@@ -22,8 +22,11 @@ import tseslint from 'typescript-eslint';
  *
  * After the presets, core ESLint's `no-restricted-imports` enforces two kinds of rule on the production
  * files of `src/`. One is the layering: a folder imports only from the layers below it. The other is the
- * single-owner imports, the modules only one place may import. Tests, `src/test/` and `src/setupTests.ts`
- * are exempt, because a test may compose a provider with the view that reads it. See
+ * single-owner imports, the modules only one place may import, which apply to every file of `src/`, a
+ * folder `LAYERS` does not name included. `no-restricted-globals` keeps `fetch`, `XMLHttpRequest` and
+ * `WebSocket` inside `src/api/`. Tests, `src/test/` and `src/setupTests.ts` are exempt, because a test
+ * may compose a provider with the view that reads it. `src/test/importRules.test.ts` lints
+ * representative modules through this file, so a block moved out of its place fails a test. See
  * `docs/ADRs/ADR-061-the-frontends-stack-and-layering.md`.
  */
 
@@ -38,13 +41,23 @@ const TEST_FILES = ['**/*.test.{ts,tsx}', 'src/test/**', 'src/setupTests.ts'];
 
 /**
  * The imports one place owns. A block lists the keys it is the owner of, and every other block gets the
- * restriction. `paths` match a package by its exact name; `patterns` match a module by its relative path.
+ * restriction. `paths` match a package by its exact name, and a pattern beside it any subpath of the
+ * package. A module of `src/` is matched by its last segment, with or without an extension, so
+ * `./a/../b/` segments on the way to it change nothing.
  */
 const SINGLE_OWNER = {
   axios: {
     paths: [
       {
         name: 'axios',
+        message:
+          'Single owner (ADR-061, ADR-015): only src/api/ imports axios. Every HTTP call goes through the one ' +
+          'instance in api/client.ts, whose interceptors carry the session; call an api/ module instead.',
+      },
+    ],
+    patterns: [
+      {
+        regex: '^axios/',
         message:
           'Single owner (ADR-061, ADR-015): only src/api/ imports axios. Every HTTP call goes through the one ' +
           'instance in api/client.ts, whose interceptors carry the session; call an api/ module instead.',
@@ -60,11 +73,19 @@ const SINGLE_OWNER = {
           'openNotificationSocket, so the live notifications stay one transport.',
       },
     ],
+    patterns: [
+      {
+        regex: '^@stomp/stompjs/',
+        message:
+          'Single owner (ADR-061): only api/notificationSocket.ts imports @stomp/stompjs. Open the socket with ' +
+          'openNotificationSocket, so the live notifications stay one transport.',
+      },
+    ],
   },
   generated: {
     patterns: [
       {
-        regex: '(^|/)api\\.generated(\\.ts)?$',
+        regex: '(^|/)api\\.generated(\\.(js|jsx|ts|tsx))?$',
         message:
           'Single owner (ADR-053): only types/index.ts imports types/api.generated. Import the names it gives ' +
           'the wire types from types/ instead.',
@@ -74,7 +95,7 @@ const SINGLE_OWNER = {
   tokenStore: {
     patterns: [
       {
-        regex: '^(\\.\\.?/)+api/tokenStore(\\.ts)?$',
+        regex: '^\\.\\.?/(.*/)?tokenStore(\\.(js|jsx|ts|tsx))?$',
         message:
           'Single owner (ADR-015): only src/api/ and contexts/AuthContext.tsx import api/tokenStore. The access ' +
           'token stays in memory and reaches no component; call through api/ instead.',
@@ -129,6 +150,14 @@ function restrictImports({ files, layer, owns = [] }) {
   };
 }
 
+/** The globals that make a request; only `src/api/` uses them, so that every request carries the session. */
+const REQUEST_GLOBALS = ['fetch', 'XMLHttpRequest', 'WebSocket'].map((name) => ({
+  name,
+  message:
+    'Single owner (ADR-061, ADR-015): only src/api/ makes a request. Call an api/ module, whose requests go ' +
+    'through the one axios instance and carry the session.',
+}));
+
 /** The index into `LAYERS` of a folder of `src/`. */
 const layerOf = (folder) => LAYERS.findIndex((folders) => folders.includes(folder));
 
@@ -156,6 +185,14 @@ export default defineConfig([
       globals: globals.nodeBuiltin,
     },
   },
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: [...TEST_FILES, 'src/api/**'],
+    rules: { 'no-restricted-globals': ['error', ...REQUEST_GLOBALS] },
+  },
+  // First, so that every folder's block below replaces it for that folder's files: a folder LAYERS does not
+  // name still gets every single-owner restriction, though no layer.
+  restrictImports({ files: ['src/**/*.{ts,tsx}'], layer: LAYERS.length }),
   // Each owner's block comes after its folder's, so that for the owning file it is the one that applies.
   restrictImports({ files: ['src/types/**/*.{ts,tsx}'], layer: layerOf('types') }),
   restrictImports({ files: ['src/types/index.ts'], layer: layerOf('types'), owns: ['generated'] }),

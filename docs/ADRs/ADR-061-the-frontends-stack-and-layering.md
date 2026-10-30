@@ -84,14 +84,25 @@ context.
 - `api/tokenStore` only under `src/api/` and in `contexts/AuthContext.tsx`, which stores the token a
   sign-in returns, so that the token reaches no component (ADR-015).
 
-**Enforcement** is core ESLint's `no-restricted-imports`, in `eslint.config.js`. `npm run lint` already
-runs it, with `--max-warnings 0`.
+**Enforcement** is core ESLint's `no-restricted-imports` and `no-restricted-globals`, in
+`eslint.config.js`. `npm run lint` already runs them, with `--max-warnings 0`.
 
-- There is one block per folder. Owners get a block of their own after their folder's: the API's
-  folder, `api/notificationSocket.ts`, `types/index.ts` and `contexts/AuthContext.tsx`.
-- Flat config does not merge two entries of this rule that match the same file; the last one wins.
-  So each block carries its files' whole set of restrictions. A helper builds every block from the
-  layer order and the owner list, which are each written once.
+- A first block applies every single-owner restriction, and no layering, to every file of `src/`.
+  Then there is one block per folder, which replaces it for that folder's files. Owners get a block
+  of their own after their folder's: the API's folder, `api/notificationSocket.ts`, `types/index.ts`
+  and `contexts/AuthContext.tsx`.
+- What the owner rules match. A package is matched by its name and by any subpath, so
+  `axios/unsafe/…` and `@stomp/stompjs/…` are refused as well. A module of `src/` is matched by its
+  last segment, with or without a `.js`, `.jsx`, `.ts` or `.tsx` extension, so `../api/./tokenStore`
+  and `../api/tokenStore.js` are refused as well: Vite and `tsc` resolve both.
+- `no-restricted-globals` refuses the globals `fetch`, `XMLHttpRequest` and `WebSocket` outside
+  `src/api/`, so a request cannot skip the interceptors by skipping axios.
+- `src/test/importRules.test.ts` lints representative modules through the real configuration: an
+  upward import per boundary, each owner imported by a non-owner and by its owner, each other
+  spelling, the globals, a new folder and a test. A block moved out of its place fails it.
+- Flat config does not merge two `no-restricted-imports` entries that match the same file; the last
+  one wins. So each block carries its files' whole set of restrictions. A helper builds every block
+  from the layer order and the owner list, which are each written once.
 - Every message names its rule and its ADR.
 - The rules cover production files only. A test, `src/test/` and `src/setupTests.ts` may import across
   layers, because a test may put a provider together with the view that reads it.
@@ -102,20 +113,26 @@ runs it, with `--max-warnings 0`.
 
 - **An import that points upward fails lint** and names the order, so a reviewer does not have to spot
   it.
-- **The session lives in one layer.** A page or a component cannot reach `axios` or the token directly,
-  so a request outside the interceptors needs an edit to `eslint.config.js` first.
+- **The session lives in one layer.** A page or a component cannot import `axios` or the token store,
+  in any spelling either resolves, nor name the global `fetch`, `XMLHttpRequest` or `WebSocket`. So a
+  request outside the interceptors needs an edit to `eslint.config.js` first, or one of the gaps
+  below.
 - **The record of why** these libraries were chosen exists, so the next proposal to replace one starts
   from it.
 
 **What this makes hard**
 
-- **A new folder under `src/` is unrestricted until it is given a layer.** `LAYERS` in
-  `eslint.config.js` has to name it, in the right place.
+- **A new folder under `src/` has no place in the order until it is given one.** `LAYERS` in
+  `eslint.config.js` has to name it, in the right place. Until then the layering does not apply to
+  it; the single-owner rules and the request globals do.
 - **Some cycles get past the rule.** A cycle within a layer, between `contexts` and `hooks`, or between
   two folders of `components/`, passes. The rule restricts where an import may point; it does not
   follow the graph.
 - **Some imports are matched loosely.** Patterns match the import as it is written, a relative path.
   - A dynamic `import()` is not checked at all. No production file uses one.
+  - The layering reads the path from its start, so `../lib/../pages/LoginPage` from `components/`
+    passes it. The owner rules read the last segment, and catch that spelling.
+  - The globals are matched as names, so `window.fetch` and `globalThis.fetch` pass.
   - A folder inside a layer that happens to share a layer's name would be matched as that layer.
     `components/ui/` is not; a future `components/pages/` would be.
 - **A component cannot use axios for a one-off call.** It calls a function in `api/`, which is the

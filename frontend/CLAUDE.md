@@ -60,9 +60,12 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   - **Imports are layered, and lint enforces it.** A folder of `src/` imports only from those below
     it: `types` ← `api` ← `lib` ← `contexts` + `hooks` ← `components` ← `pages` ← `router` ←
     `App.tsx` and `main.tsx`. `axios`, `@stomp/stompjs`, `types/api.generated` and `api/tokenStore` are each imported
-    from one place only. Tests are exempt
-    ([ADR-061](../docs/ADRs/ADR-061-the-frontends-stack-and-layering.md)). A new folder under `src/` is
-    unrestricted until `LAYERS` in `eslint.config.js` gives it its place in the order.
+    from one place only, in any spelling Vite or `tsc` resolves, and the globals `fetch`,
+    `XMLHttpRequest` and `WebSocket` are refused outside `src/api/`. Tests are exempt
+    ([ADR-061](../docs/ADRs/ADR-061-the-frontends-stack-and-layering.md)), and
+    `src/test/importRules.test.ts` checks the rules through the real configuration. A new folder
+    under `src/` gets the owner rules at once, and no layer until `LAYERS` in `eslint.config.js`
+    gives it its place in the order.
 
 - **Layout** belongs to Prettier, with single quotes at 120 columns (`prettier.config.js`):
   `npm run format` rewrites, `npm run format:check` fails CI on any file it would change
