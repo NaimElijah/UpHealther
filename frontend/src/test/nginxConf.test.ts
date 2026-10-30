@@ -71,30 +71,44 @@ describe('the nginx configuration', () => {
     /** One tab's socket, reconnecting every five seconds while it is down (`api/notificationSocket.ts`). */
     const HANDSHAKES_A_MINUTE_FOR_ONE_TAB = 60_000 / 5_000;
 
-    /** The zone a top-level `limit_req_zone` or `limit_conn_zone` declares, with its key and its parameters. */
-    function zone(directive: 'limit_req_zone' | 'limit_conn_zone', name: string) {
-      const match = nginxConf.match(new RegExp(`^\\s*${directive}\\s+(\\S+)\\s+zone=${name}:\\S+([^;]*);`, 'm'));
-      return match ? { key: match[1], parameters: match[2] } : undefined;
+    /** The tabs one client address may have reconnecting at once without meeting the limit (ADR-070). */
+    const TABS_PER_CLIENT = 5;
+
+    /** The `/ws` block, and the key and parameters of the `limit_req_zone` it applies, if any. */
+    function handshakeLimit() {
+      const body = locationBody('/ws');
+      const zone = body.match(/limit_req\s+zone=([^\s;]+)/)?.[1];
+      const declared =
+        zone && nginxConf.match(new RegExp(`^\\s*limit_req_zone\\s+([^\\s;]+)\\s+zone=${zone}:[^\\s;]+([^;]*);`, 'm'));
+      return { body, key: declared ? declared[1] : undefined, parameters: declared ? declared[2] : '' };
     }
 
-    it('GivenTheSocketLocation_WhenItsLimitsAreRead_ThenHandshakesAndOpenSocketsAreCappedPerAddress', () => {
+    it('GivenTheSocketLocation_WhenItsLimitIsRead_ThenHandshakesAreThrottledPerClientAddress', () => {
       // S5.C4: an anonymous client could open sockets, and have each refused frame logged at ERROR, as
       // fast as it liked.
-      const body = locationBody('/ws');
-      const requestZone = body.match(/limit_req\s+zone=(\S+)/)?.[1];
-      const connectionZone = body.match(/limit_conn\s+(\S+)\s+\d+\s*;/)?.[1];
-
-      expect(requestZone && zone('limit_req_zone', requestZone)?.key).toBe('$binary_remote_addr');
-      expect(connectionZone && zone('limit_conn_zone', connectionZone)?.key).toBe('$binary_remote_addr');
+      expect(handshakeLimit().key).toBe('$binary_remote_addr');
     });
 
-    it('GivenTheSocketLocation_WhenItsHandshakeRateIsRead_ThenATabReconnectingEveryFiveSecondsIsUnderIt', () => {
-      const requestZone = locationBody('/ws').match(/limit_req\s+zone=(\S+)/)?.[1] ?? '';
-      const rate = zone('limit_req_zone', requestZone)?.parameters.match(/rate=(\d+)r\/(s|m)/);
+    it('GivenTheHandshakeRate_WhenItIsRead_ThenEveryTabOfAClientReconnectingEveryFiveSecondsFitsUnderIt', () => {
+      const rate = handshakeLimit().parameters.match(/rate=(\d+)r\/(s|m)/);
       if (!rate) throw new Error('The socket location applies no limit_req zone with a rate.');
       const perMinute = Number(rate[1]) * (rate[2] === 's' ? 60 : 1);
 
-      expect(perMinute).toBeGreaterThanOrEqual(HANDSHAKES_A_MINUTE_FOR_ONE_TAB);
+      expect(perMinute).toBeGreaterThanOrEqual(TABS_PER_CLIENT * HANDSHAKES_A_MINUTE_FOR_ONE_TAB);
+    });
+
+    it('GivenTheSocketLocation_WhenItsLimitIsRead_ThenABurstIsAllowedAndARefusalIs429', () => {
+      // Every tab reconnects at once when the backend restarts; without a burst most would be refused.
+      const { body } = handshakeLimit();
+
+      expect(body).toMatch(/limit_req\s+zone=[^\s;]+\s+burst=\d+/);
+      expect(body).toMatch(/limit_req_status\s+429\s*;/);
+    });
+
+    it('GivenTheConfiguration_WhenItsLimitsAreRead_ThenOpenSocketsAreNotCapped', () => {
+      // Everyone behind one address would share a cap, and a tab refused its socket also misses the
+      // session-ended frame (ADR-070). Directives only: a comment may mention the directive.
+      expect(nginxConf).not.toMatch(/^\s*limit_conn(_zone|_status)?\s/m);
     });
   });
 

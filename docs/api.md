@@ -23,7 +23,7 @@ and the `*ControllerTest` named against each area pins the status codes.
 | Dashboard | `GET /api/dashboard` |
 | Sessions | `POST /api/auth/refresh` · `POST /api/auth/logout` — both act on the refresh cookie, and both require an `X-Requested-With` header |
 | Administration | `GET /api/admin/users` · `POST /api/admin/users/{id}/disable` · `POST /api/admin/users/{id}/enable` · `PUT /api/admin/users/{id}/role` — `ADMIN` only, answered 403 for anyone else. An administrator manages accounts and can read nothing an account owns |
-| Real-time | STOMP over `/ws`. The CONNECT frame carries `Authorization: Bearer <token>`; the client may subscribe to `/user/queue/notifications` and to nothing else, and a SEND is refused. When the session the token was issued within ends — signed out, revoked for a replayed credential, or its account switched off — the server sends the socket an ERROR frame with `message: Session ended` and closes it; the SPA then ends the session in that tab and goes to the sign-in page (ADR-066) |
+| Real-time | STOMP over `/ws`. The CONNECT frame carries `Authorization: Bearer <token>`; the client may subscribe to `/user/queue/notifications` and to nothing else, and a SEND is refused. The handshake is throttled per client address by the proxy and answered 429 over the limit. When the session the token was issued within ends — signed out, revoked for a replayed credential, or its account switched off — the server sends the socket an ERROR frame with `message: Session ended` and closes it; the SPA then ends the session in that tab and goes to the sign-in page (ADR-066) |
 
 `GET /api/upgrades` filters on `status`, `type`, `areaId` and `difficulty`.
 

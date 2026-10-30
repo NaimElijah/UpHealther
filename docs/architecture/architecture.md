@@ -163,9 +163,11 @@ as it is open; a refusal names nobody, as a refused login does. A CONNECT with n
 — what a tab whose session could not be renewed sends every five seconds — presented nothing and is not
 an entry, as a refresh with no cookie is not. A refusal reaches the browser as a STOMP ERROR frame
 whose message is Spring's generic one, the same whatever the cause, an outage included, so the client
-keeps its token through one and retries. Spring logs some refusals at ERROR, so nginx throttles `/ws`
-per client address: sixty handshakes a minute with a burst of twenty, and twenty sockets open at once,
-each over the limit answered 429.
+keeps its token through one and retries. Spring logs some refusals at ERROR, so nginx throttles the
+`/ws` handshake per client address: sixty a minute with a burst of twenty, over the limit answered 429.
+It bounds handshakes, not what one open socket sends, which
+[#382](https://github.com/NaimElijah/UpHealther/issues/382) tracks, and it caps no open sockets
+([ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md)).
 
 The same interceptor authorises the frames that follow, because a session that is merely connected
 can still name any destination it likes. A SUBSCRIBE must come from an authenticated session and
@@ -624,7 +626,7 @@ push service, no analytics, no AI service.
 |---|---|---|
 | **PostgreSQL 15** | All persistent state | JDBC from the backend only. Credentials from `DB_URL` / `DB_USERNAME` / `DB_PASSWORD`, which compose fills from `POSTGRES_APP_USER` and `POSTGRES_APP_PASSWORD` |
 | **Flyway** | Schema ownership and migration on startup | Embedded in the backend; `V1`–`V9` apply in order at boot. An applied migration is never edited — Flyway checksums it, comments included — so a correction is another migration |
-| **Browser WebSocket** | Real-time notification delivery | The `/ws` STOMP endpoint, proxied by nginx (or Vite in development) |
+| **Browser WebSocket** | Real-time notification delivery | The `/ws` STOMP endpoint, proxied by nginx (or Vite in development). nginx throttles its handshake per client address, not what an open socket sends (#382, [ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md)) |
 | **nginx** | Serves the built SPA and proxies `/api` and `/ws` | Also where the security headers live — the content security policy, framing and referrer rules, declared for the whole server so that nginx's own error pages under `/api` and `/ws` carry them too ([ADR-018](../ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)). Absent from `npm run dev`, which serves no headers |
 | **Browser Notification API** | Desktop notifications when the tab is backgrounded | Optional, permission-gated, and skipped entirely where the API is unavailable. Each carries the notification's title and message, which the operating system keeps after the session ends ([ADR-068](../ADRs/ADR-068-desktop-notifications-keep-their-detail.md)) |
 
@@ -965,6 +967,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why a page the back/forward cache restores reloads, every time and not only after a sign-out; why a session's end also empties the query cache, through a registration `lib/` makes with `api/`; why the server's session-ended frame ends the session in the tab, superseding part of ADR-054 | [ADR-066](../ADRs/ADR-066-a-tab-keeps-nothing-of-a-session-that-ended.md) |
 | Why a desktop notification carries the notification's own title and message, though the operating system keeps them after sign-out; when to revisit that | [ADR-068](../ADRs/ADR-068-desktop-notifications-keep-their-detail.md) |
 | Why the compose backend connects as a role that owns its database rather than as the superuser; why its variables are not `DB_USERNAME` and `DB_PASSWORD`; why one role and not a migrating and a serving one | [ADR-069](../ADRs/ADR-069-the-compose-backend-connects-as-a-role-that-owns-its-database.md) |
+| Why nginx throttles the `/ws` handshake although ADR-017 kept sign-in's limit in the application; why there is no cap on open sockets; what a load balancer would need first | [ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |
