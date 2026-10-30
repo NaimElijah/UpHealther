@@ -574,7 +574,11 @@ The constraints doing real work: `progress_entries` is unique on `(upgrade_id, d
 what makes "one entry per upgrade per day" survive a race the application-level check would miss;
 `tracking_configs.upgrade_id` is unique, so an upgrade has at most one configuration; and
 `auth_session_spent_tokens` is keyed on `(session_id, token_hash)`, a composite key the diagram cannot
-mark, which is the lookup a refresh makes to recognise a replayed credential.
+mark, which is the lookup a refresh makes to recognise a replayed credential. `progress_entries` and
+`reflections` reference `health_upgrades` by `(upgrade_id, user_id)`, and `health_upgrades` references
+`health_areas` by `(area_id, user_id)`, so a row cannot name another owner than its parent's
+([ADR-073](../../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md)). The diagram draws each
+of those as the relation its id column already had, without the owner column beside it.
 
 The foreign keys carry the deletes too, which the diagram does not draw. `ON DELETE CASCADE` on
 `tracking_configs`, `progress_entries`, `reminders` and `reflections` is how deleting an upgrade deletes

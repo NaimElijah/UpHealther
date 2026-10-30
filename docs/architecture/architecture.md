@@ -816,7 +816,7 @@ cross-context deletes (see the next paragraph).
 
 **Deleting an upgrade reaches other contexts' tables through foreign keys, not through code.**
 Every context's tables are in one PostgreSQL schema, and `tracking_configs`, `progress_entries`,
-`reminders` and `reflections` reference `health_upgrades(id)` with `ON DELETE CASCADE`. That is how
+`reminders` and `reflections` reference `health_upgrades` with `ON DELETE CASCADE`. That is how
 FR-14 is carried out: `UpgradeService.delete` removes one row and publishes no event, and the import
 graph shows no edge from `upgrade` to those contexts. `notifications.related_upgrade_id` and
 `health_upgrades.area_id` use `ON DELETE SET NULL`, which is how a notification outlives its upgrade
@@ -833,7 +833,11 @@ the boundary, and the schema refuses it again for a write that skips them. Every
 `CHECK` listing its enum's constants, BR-19's ratings and BR-20's numeric value carry their bounds, and
 a reminder's time and flag are `NOT NULL`. Each enum's values are therefore written twice, and
 `EnumColumnCheckContractTest` fails the build when a `CHECK` and its enum differ, so a new constant
-arrives with its migration ([ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md)).
+arrives with its migration. A child row's owner is its parent's for the same reason: progress entries
+and reflections reference `health_upgrades (id, user_id)`, and an upgrade references
+`health_areas (id, user_id)`, so a row naming another owner than its parent's cannot be stored. The area
+key is left unvalidated, because rows filed before BR-18 may name another user's area
+([ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md)).
 
 **Every migration from `V10` on bounds how long it waits for a lock.** Flyway runs each PostgreSQL
 migration in a transaction of its own, on a connection it borrows from the application's pool, and each
@@ -1080,7 +1084,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why nginx throttles the `/ws` handshake although ADR-017 kept sign-in's limit in the application; why there is no cap on open sockets; what a load balancer would need first | [ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md) |
 | Why registration refuses the 10,000 most common passwords from a pinned SecLists file, rather than asking Have I Been Pwned; how the list is derived and filtered; why the refusal is a constraint beside BR-17's minimum | [ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md) |
 | Why every migration from `V10` opens with `SET LOCAL lock_timeout`, and not `spring.flyway.init-sqls`; when an index change must be `CONCURRENTLY`, in a file of its own | [ADR-072](../ADRs/ADR-072-every-migration-bounds-its-lock-wait.md) |
-| Why every enum column carries a `CHECK` of its constants rather than a PostgreSQL enum type or a lookup table, and which numeric bounds the schema holds | [ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md) |
+| Why every enum column carries a `CHECK` of its constants rather than a PostgreSQL enum type or a lookup table, and which numeric bounds the schema holds; why a child row references its parent by id and owner together, and why the area key is left unvalidated | [ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |
