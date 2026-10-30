@@ -97,10 +97,12 @@ SUMMARY (not part of the licence terms)
     The repository also contains third-party data that is not original material
     of the Author's: backend/src/main/resources/auth/common-passwords.txt, a list
     of common passwords derived from SecLists
-    (https://github.com/danielmiessler/SecLists). It is treated as a
-    Third-Party Component under this section, and it remains governed by
+    (https://github.com/danielmiessler/SecLists). It is data rather than
+    software, so it is not a Third-Party Component as clause 1.4 defines one,
+    but this section applies to it in the same way: it remains governed by
     SecLists' MIT licence, which is reproduced beside it in
-    common-passwords-NOTICE.txt.
+    common-passwords-NOTICE.txt, and nothing in this licence restricts, extends
+    or otherwise affects your rights in it.
 
     This licence applies only to the original material authored by the Author.
 

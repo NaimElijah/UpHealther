@@ -307,9 +307,10 @@ mismatch, so an entity change needs a new migration rather than a `ddl-auto` cha
 public on purpose: it holds passwords that are already public, so that registration can refuse them,
 and it is not a credential store. To derive it again, download the file the script's `SOURCE_URL` names
 and run `node scripts/python.mjs scripts/derive_common_passwords.py <that file>`. Add `--check` to
-compare instead of write. Moving the pin means changing `SOURCE_COMMIT` and `SOURCE_SHA256` in the
-script and both SHA-256s in the notice beside the list, and `CommonPasswordListTest` fails until the
-notice's derived SHA-256 matches the list
+compare instead of write; nothing runs that check for you. Moving the pin means changing
+`SOURCE_COMMIT` and `SOURCE_SHA256` in the script; in the notice beside the list, its `Commit:` and
+`Source:` lines and both SHA-256s; and the commit `CommonPasswordListTest` asserts the notice names.
+That test fails until the notice's derived SHA-256 matches the list
 ([ADR-071](docs/ADRs/ADR-071-registration-refuses-the-most-common-passwords.md)).
 
 **Conventions.** Conventional Commits (`type(scope): imperative subject`), one logical change per

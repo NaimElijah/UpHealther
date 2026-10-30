@@ -82,8 +82,10 @@ passwords, answered 400 with a field error on `password`, as BR-17's minimum is.
   `src/main/resources`, so both ship in the jar, under `BOOT-INF/classes/auth/`.
   `CommonPasswordListTest` fails when the list's digest differs from the one the notice records.
 - **`LICENSE` §5 names the list.** ADR-003's carve-out covers third-party components the software
-  depends on. This one is data copied into the repository, so §5 now names it as a third-party
-  component governed by its own MIT licence.
+  depends on, which clause 1.4 defines as software. This one is data copied into the repository, so
+  §5 now names it, says it is not a Third-Party Component as clause 1.4 defines one, and applies the
+  section to it in the same way: it stays under its own MIT licence, and nothing in the licence
+  affects anyone's rights in it. Clause 1.4 is unchanged.
 - **Matching.** A password is refused when its NFKC form, lower-cased, is on the list. Each entry is
   normalised the same way as it is loaded. Nothing else is compared: not the email, the name, or the
   service's name.
@@ -100,6 +102,9 @@ passwords, answered 400 with a field error on `password`, as BR-17's minimum is.
   `ClasspathCommonPasswordListTest` starts a context over each and sees it fail.
 - **Registration only.** It is the one route by which a password enters the system (BR-17). The
   seeded demo account's `demo1234` is not on the list, and the rule does not apply at sign-in.
+- **What it meets.** BR-17 with this list meets OWASP ASVS 5.0 L1 6.2.1 and 6.2.4. It does not meet
+  NIST SP 800-63B-4, which also requires 15 characters for a password used as a single factor, and
+  sizes its blocklist against a limit on failed attempts per account, which ADR-017 rejects.
 - **No dependency is added.**
 
 ## Consequences
@@ -123,6 +128,9 @@ passwords, answered 400 with a field error on `password`, as BR-17's minimum is.
 - **The list holds profanity.** The decision names slurs, and only slurs and hate slogans are
   filtered. A profane password is as common as any other, and it is refused like one.
 - **About 96 KB of the jar and a little heap** hold the list. The set is built once.
+- **Re-deriving is checked by hand.** `--check` is a manual step: no CI job and no npm script runs it,
+  since the source is not in the repository. What the build checks is the committed list, against the
+  digest its notice records.
 
 **Neutral**
 
@@ -141,6 +149,8 @@ passwords, answered 400 with a field error on `password`, as BR-17's minimum is.
 - **SecLists is archived, or the file is removed** from it. The pinned copy keeps working, but it has
   no source left to re-derive from.
 - **The list goes three years stale,** counted from the date above.
+- **A new route sets a password,** such as a change or a reset. Its request record must carry BR-17's
+  constraints, `@NotCommonPassword` among them, and "registration only" above stops being true.
 
 ## Alternatives considered
 
@@ -179,3 +189,11 @@ holds a character outside ASCII, and both are given where they differ.
   least the top 3,000, so 10,000 is about three times that floor. Every qualifying `Pwdb` entry, about
   47,000 once normalised and deduplicated, would cost only memory, but it was not asked for.
 - **No list.** Rejected: NIST SP 800-63B-4 requires one, and BR-17 alone lets `password` register.
+- **The policy as a pure domain service.** Rejected. Normalising needs `java.text.Normalizer`, which
+  the domain has never used and `HexagonalArchitectureTest`'s allow-list does not hold, and ADR-064
+  asks for a decision of its own before that list grows. The application layer may use it, and the
+  policy holds nothing a domain object would.
+- **A check in `AuthService`.** Rejected. A refusal there is a `BusinessRuleException`, answered 422
+  with a message, where BR-17's length rules answer 400 with `fieldErrors.password`, so the register
+  page would show the two differently. The use case would also run for a request that validation
+  could have refused.

@@ -91,6 +91,7 @@ out to). The kinds that occur:
 | `adapter/out/persistence` | A package-private Spring Data repository and the `*RepositoryAdapter` that implements the context's repository port over it | every context but `admin` and `dashboard` |
 | `adapter/out/messaging` | The STOMP push of a notification | `notification` |
 | `adapter/out/security` | Access-token issuing over `JwtTokenProvider`, and the refresh secret generator | `auth` |
+| `adapter/out/resource` | A resource bundled in the jar and read at startup: `ClasspathCommonPasswordList`, which reads the common-password list for `CommonPasswordListPort` | `auth` |
 
 `common/adapter` holds the kernel's own: the global exception handler (`in/web`), `LoggingAuditTrail`
 (`out/audit`) and `SpringDomainEventPublisher` (`out/event`). The rest of the kernel's adapters live

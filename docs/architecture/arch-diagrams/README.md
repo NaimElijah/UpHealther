@@ -176,7 +176,8 @@ every arrow that runs the wrong way. Not every context has every part, and
   is a read model that persists nothing.
 - `user` has no web adapter of its own: `auth`'s controller serves its account responses.
 - `auth` has all three layers, with `AuthSession` as its aggregate, and orchestrates over `user` for
-  identity. It adds `adapter/out/security` for signing access tokens and generating secrets.
+  identity. It adds `adapter/out/security` for signing access tokens and generating secrets, and
+  `adapter/out/resource` for reading the common-password list the jar bundles.
 
 ---
 
