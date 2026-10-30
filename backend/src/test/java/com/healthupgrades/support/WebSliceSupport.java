@@ -60,7 +60,10 @@ public class WebSliceSupport {
      * The refresh cookie's name, as {@code application.yml} ships it. A slice builds its own
      * {@code RefreshCookies}, so {@code ShippedRefreshCookieConfigurationTest} is what pins the shipped one.
      */
-    public static final String COOKIE_NAME = "__Secure-refresh_token";
+    public static final String COOKIE_NAME = "__Host-refresh_token";
+
+    /** The refresh cookie's path, as {@code application.yml} ships it, and as its name's prefix requires. */
+    public static final String COOKIE_PATH = "/";
 
     /**
      * The instant the rate limiter believes it is, for every request a slice sends. Fixed, so a slice's
@@ -121,7 +124,7 @@ public class WebSliceSupport {
     @Bean
     RefreshCookies refreshCookies() {
         return new RefreshCookies(
-                new RefreshCookieProperties(COOKIE_NAME, "/api/auth"), Clock.fixed(COOKIE_NOW, ZoneOffset.UTC));
+                new RefreshCookieProperties(COOKIE_NAME, COOKIE_PATH), Clock.fixed(COOKIE_NOW, ZoneOffset.UTC));
     }
 
     // No Clock bean here: HealthUpgradesApplication already defines one and a second definition of the

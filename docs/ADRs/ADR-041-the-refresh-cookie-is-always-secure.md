@@ -2,7 +2,9 @@
 
 - **Status:** Accepted — its "a phone on the LAN" revisit trigger now also meets
   [ADR-057](ADR-057-the-developer-stack-is-reachable-from-this-machine-only.md), which publishes the
-  compose stack on `127.0.0.1` only
+  compose stack on `127.0.0.1` only. The cookie it describes is renamed `__Host-refresh_token`, on
+  `Path=/`, by [ADR-065](ADR-065-the-backend-hardened-after-scan-05.md); the prefix requires the
+  `Secure` this record fixed
 - **Date:** 2026-10-17
 - **Scope:** `RefreshCookies`, `RefreshCookieProperties`, `application.yml`, `docker-compose.yml`,
   `.env.example`.

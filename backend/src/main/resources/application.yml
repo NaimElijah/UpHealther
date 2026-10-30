@@ -76,12 +76,13 @@ app:
       # most absolute, absolute between 1h and 90d, the grace at most 1m.
       rotation-grace: ${AUTH_SESSION_ROTATION_GRACE:10s}
     cookie:
-      # The __Secure- prefix makes a browser refuse the cookie unless it is set with Secure from a
-      # secure origin, so a plain-HTTP host cannot plant one (S5.A8). __Host- would also forbid Domain,
-      # but it requires Path=/, which would send the credential with every API call.
-      name: __Secure-refresh_token
-      # Narrow on purpose: the credential is then not attached to ordinary API calls at all.
-      path: /api/auth
+      # The __Host- prefix makes a browser refuse the cookie unless it is set with Secure, from a secure
+      # origin, with Path=/ and without Domain, so no other host, sibling or parent, can plant one
+      # (S5.A8, ADR-065). The price is the path: the credential goes with every request to the origin,
+      # where HttpOnly and SameSite=Strict still keep it from script and from other sites.
+      name: __Host-refresh_token
+      # The only path the prefix allows: a browser refuses a __Host- cookie set on any other.
+      path: /
       # No security attribute is configurable: the cookie is always HttpOnly, Secure and
       # SameSite=Strict (RefreshCookies, ADR-041).
     schedules:

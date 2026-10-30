@@ -12,14 +12,16 @@ import org.springframework.core.env.MutablePropertySources;
 import org.springframework.core.env.StandardEnvironment;
 
 /**
- * Pins the refresh cookie's name as the jar's own {@code application.yml} ships it (S5.A8).
+ * Pins the refresh cookie's name and path as the jar's own {@code application.yml} ships them (S5.A8).
  *
- * <p>The {@code __Secure-} prefix makes a browser refuse the cookie unless it is set with {@code Secure}
- * from a secure origin, so a plain-HTTP sibling host or a network attacker cannot plant one. The web
- * slices build their cookie from {@link WebSliceSupport#COOKIE_NAME}, so without this test the shipped
- * name could lose its prefix with every other test still green. The configuration is read as
- * {@code ShippedJwtConfigurationTest} reads it: the shipped file alone, with the process environment
- * removed.
+ * <p>The {@code __Host-} prefix makes a browser refuse the cookie unless it is set with {@code Secure},
+ * from a secure origin, with {@code Path=/} and with no {@code Domain}, so no other host, sibling or
+ * parent, can plant one. A browser also refuses a {@code __Host-} cookie on any other path, so the two
+ * settings are pinned together: a narrower path would leave every browser without a session. The web
+ * slices build their cookie from {@link WebSliceSupport#COOKIE_NAME} and {@link
+ * WebSliceSupport#COOKIE_PATH}, so without this test the shipped settings could drift with every other
+ * test still green. The configuration is read as {@code ShippedJwtConfigurationTest} reads it: the
+ * shipped file alone, with the process environment removed.
  */
 class ShippedRefreshCookieConfigurationTest {
 
@@ -34,11 +36,19 @@ class ShippedRefreshCookieConfigurationTest {
             .withUserConfiguration(BindsRefreshCookieProperties.class);
 
     @Test
-    void GivenTheShippedConfiguration_WhenTheCookieSettingsAreBound_ThenTheNameCarriesTheSecurePrefix() {
+    void GivenTheShippedConfiguration_WhenTheCookieSettingsAreBound_ThenTheNameCarriesTheHostPrefix() {
         shipped.run(context -> assertThat(
                         context.getBean(RefreshCookieProperties.class).name())
                 .isEqualTo(WebSliceSupport.COOKIE_NAME)
-                .startsWith("__Secure-"));
+                .startsWith("__Host-"));
+    }
+
+    @Test
+    void GivenTheShippedConfiguration_WhenTheCookieSettingsAreBound_ThenThePathIsTheRootTheHostPrefixRequires() {
+        shipped.run(context -> assertThat(
+                        context.getBean(RefreshCookieProperties.class).path())
+                .isEqualTo(WebSliceSupport.COOKIE_PATH)
+                .isEqualTo("/"));
     }
 
     @Configuration(proxyBeanMethods = false)

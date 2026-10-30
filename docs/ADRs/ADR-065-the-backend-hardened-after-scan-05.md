@@ -91,18 +91,31 @@ account is switched off, or gone, the refresh is refused, audited as a refused `
 account and the session, and every session the account holds is revoked, which publishes
 `UserSessionsEnded` and closes their sockets. The answer is `Rejected`, which clears the cookie.
 
-### 4. The cookie is `__Secure-refresh_token`, and two of them are refused (S5.A8)
+### 4. The cookie is `__Host-refresh_token`, on `Path=/`, and two of them are refused (S5.A8)
 
-**The name carries the `__Secure-` prefix.** A browser accepts a cookie of that name only with `Secure`
-and from a secure origin, so no plain-HTTP host and no network attacker can plant one.
-`ShippedRefreshCookieConfigurationTest` pins the name the jar ships.
+**The name carries the `__Host-` prefix.** A browser accepts a cookie of that name only with `Secure`,
+from a secure origin, with `Path=/` and with no `Domain`. So no other host can set one: not a plain-HTTP
+host, not a network attacker, and not a sibling or parent host served over HTTPS, which under the
+`__Secure-` prefix could still set its own credential with `Domain` on the parent and move the victim's
+tab into the attacker's account. The cookie never had a `Domain`, so nothing else changes.
+`ShippedRefreshCookieConfigurationTest` pins the name and the path the jar ships, together, because a
+browser refuses a `__Host-` cookie on any other path. Chromium, Chrome, Edge and Firefox were checked to
+keep such a cookie set over plain HTTP by `http://localhost`, so development needs no exception, as
+ADR-041 found for `Secure`.
 
-**A request carrying two is answered as one carrying none.** A sibling host served over HTTPS can still
-set a `__Secure-` cookie with `Domain` on the parent, and the browser then sends both with nothing to
-say which is whose. `RefreshCookies.read` therefore reads exactly one or nothing: a refresh with two is
-refused 401 and a sign-out with two is answered 204, both clearing ours, and neither reads a session.
-As with no cookie at all, nothing is audited, because no credential the server could attribute was
-presented.
+**The path is `/`, because the prefix allows no other.** ADR-015 scoped the cookie to `/api/auth`, so
+that the credential was not attached to ordinary API calls. That scoping is given up: the credential now
+goes with every request to the origin. It is still `HttpOnly`, so no script reads it; still
+`SameSite=Strict`, so no other site's request carries it; and only refresh and sign-out read it. What
+`Path` scoping bought was the credential's absence from requests the server ignores it on, and that is
+worth less than a cookie no other host can plant.
+
+**A request carrying two is still answered as one carrying none.** No browser should send two any more,
+so the rule is a defence that costs nothing. `RefreshCookies.read` reads exactly one or nothing: a
+refresh with two is refused 401 and a sign-out with two is answered 204, both clearing ours, and neither
+reads a session. As with no cookie at all, nothing is audited, because no credential the server could
+attribute was presented. The duplicate is logged at WARN with the count and never a value, because two
+cookies mean something is planting them, and that should not go unseen.
 
 ### 5. Refresh and sign-out have a rate limit of their own (S5.A11)
 
@@ -171,9 +184,9 @@ issued. An account switched off at any moment is signed out at its next refresh 
   the error names the property.
 - A household with more than sixty renewals and sign-outs a minute behind one address is refused 429
   until the window turns.
-- A sibling host that keeps planting a duplicate keeps the victim signed out, because the clearing
-  cookie removes only ours. That is a denial of service on one browser, which is the lesser harm than
-  a session moved into the attacker's account.
+- The credential travels with every request to the origin, not only to `/api/auth`, so anything that
+  logs request headers on the way, a proxy or an access log, sees it on every call. Nothing in this
+  repository logs a request's cookies; a proxy or log added later must not either.
 
 ## Alternatives considered
 
@@ -216,7 +229,9 @@ password needs, and an attacker could lock an address out of signing in by refre
 **Leave the limit to nginx.** Rejected: nginx is the only edge in the compose deployment, not in every
 one, and ADR-017 put the sign-in limit in the application for the same reason.
 
-**The `__Host-` prefix.** Rejected: it would also forbid `Domain`, which closes the sibling-host case
-outright, but it requires `Path=/`, which sends the long-lived credential with every API call. ADR-015
-scoped it to `/api/auth` so it is not. **Revisit** if the API moves to a host of its own, where
-`Path=/` costs nothing.
+**Keep `__Secure-` on `Path=/api/auth`, and refuse two cookies.** Rejected: it was this record's first
+answer, and it did not hold. The clearing cookie has no `Domain`, so it removes only ours; the planted
+one, set with `Domain` on the parent, survives it, and the next page load's renewal carries it alone and
+signs the tab in to the attacker's account. Only a name no other host can set closes that. **Revisit**
+never on its own: a deployment that needs the cookie shared across hosts needs a different design, not a
+weaker prefix.

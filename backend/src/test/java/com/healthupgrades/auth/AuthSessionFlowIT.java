@@ -57,10 +57,14 @@ class AuthSessionFlowIT extends PostgresIT {
         assertThat(registered.statusCode()).isEqualTo(201);
         assertThat(body(registered).get("accessToken").asString()).isNotBlank();
         assertThat(setCookie(registered))
-                .as("the credential must not be reachable from script, on any deployment")
+                .as("the credential must not be reachable from script, nor plantable by another host")
                 .contains("HttpOnly")
                 .contains("SameSite=Strict")
-                .contains("Path=/api/auth");
+                .startsWith("__Host-refresh_token=")
+                .contains("; Path=/;");
+        assertThat(setCookie(registered))
+                .as("a __Host- cookie set with a Domain is refused by the browser, so no browser would hold it")
+                .doesNotContain("Domain=");
     }
 
     @Test
@@ -158,7 +162,7 @@ class AuthSessionFlowIT extends PostgresIT {
         String credential = credential(registered);
 
         HttpResponse<String> refused = send(request("/api/auth/refresh")
-                .header("Cookie", "__Secure-refresh_token=" + credential)
+                .header("Cookie", "__Host-refresh_token=" + credential)
                 .POST(HttpRequest.BodyPublishers.noBody()));
 
         assertThat(refused.statusCode()).isEqualTo(400);
@@ -192,14 +196,14 @@ class AuthSessionFlowIT extends PostgresIT {
 
     private HttpResponse<String> refresh(String credential) throws Exception {
         return send(request("/api/auth/refresh")
-                .header("Cookie", "__Secure-refresh_token=" + credential)
+                .header("Cookie", "__Host-refresh_token=" + credential)
                 .header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest")
                 .POST(HttpRequest.BodyPublishers.noBody()));
     }
 
     private HttpResponse<String> logout(String credential) throws Exception {
         return send(request("/api/auth/logout")
-                .header("Cookie", "__Secure-refresh_token=" + credential)
+                .header("Cookie", "__Host-refresh_token=" + credential)
                 .header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest")
                 .POST(HttpRequest.BodyPublishers.noBody()));
     }

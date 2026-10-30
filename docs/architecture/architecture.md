@@ -405,8 +405,8 @@ guess.
 
 Two credentials with different lifetimes and different hiding places. The short one is in the body
 and lives in the tab's memory; the long one is in a cookie the page cannot read, named
-`__Secure-refresh_token` so that no plain-HTTP host can plant one. The server keeps a
-row, which is what makes ending a session mean anything at all — see
+`__Host-refresh_token` with `Path=/` and no `Domain`, so that no other host can plant one. The server
+keeps a row, which is what makes ending a session mean anything at all — see
 [ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md).
 
 ```mermaid
@@ -472,9 +472,10 @@ its owner only when the presented credential is one the session issued — the s
 so a wrong secret says nothing about who sent it. Naming the owner says whose credential it was, not who
 sent it, which is also how the reuse entry names a credential that was probably stolen. A request with
 no cookie at all has presented nothing; the controller answers it without asking the service, so the
-refresh every signed-out page load makes is not an entry. Nor is a request with two of the cookie, which
-a sibling host can cause by setting one on the parent domain: `RefreshCookies` reads exactly one or
-none, so the request is answered as if it carried none and ours is cleared
+refresh every signed-out page load makes is not an entry. Nor is a request with two of the cookie,
+which the `__Host-` prefix should make impossible, since no other host can set one: `RefreshCookies`
+still reads exactly one or none, answers the request as if it carried none, clears ours, and logs the
+duplicate at WARN with the count and no value
 ([ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md)).
 
 ---
@@ -1017,7 +1018,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the shared kernel depends on no context; why the security adapter loads accounts through a port it declares rather than through `UserQuery`; why `User` and `Role` stay in `user` | [ADR-062](../ADRs/ADR-062-the-shared-kernel-depends-on-no-bounded-context.md) |
 | Why every context's tables share one schema; why a delete crosses contexts on `ON DELETE` rather than an event; what moving a context out or adding a soft delete would cost | [ADR-063](../ADRs/ADR-063-one-schema-with-cross-context-foreign-keys.md) |
 | Which layering rules the backend enforces beyond ADR-002, and the exceptions each names; why `TrackingConfigQuery` stays unscoped and a web mapper reads a port; when to revisit either | [ADR-064](../ADRs/ADR-064-the-backends-layering-rules-beyond-adr-002.md) |
-| Why a session remembers every refresh credential it spent, and why sign-out with a spent one is reuse; why a refresh re-reads the account; why the cookie is `__Secure-` and two of them are refused; why refresh and sign-out have a limit of their own; the bounds on the lifetimes; why the audit stream names a session by a digest; how the unscoped reads are closed one hop further | [ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md) |
+| Why a session remembers every refresh credential it spent, and why sign-out with a spent one is reuse; why a refresh re-reads the account; why the cookie is `__Host-` with `Path=/`, and two of them are refused; why refresh and sign-out have a limit of their own; the bounds on the lifetimes; why the audit stream names a session by a digest; how the unscoped reads are closed one hop further | [ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md) |
 | Why a page the back/forward cache restores reloads, every time and not only after a sign-out; why a session's end also empties the query cache, through a registration `lib/` makes with `api/`; why the server's session-ended frame ends the session in the tab, superseding part of ADR-054 | [ADR-066](../ADRs/ADR-066-a-tab-keeps-nothing-of-a-session-that-ended.md) |
 | Why trace context is continued only from a trusted hop: why nginx clears the caller's, why the API reads W3C and never B3, and why a STOMP frame never continues a trace; what an upstream tracer would need | [ADR-067](../ADRs/ADR-067-trace-context-is-accepted-only-from-trusted-hops.md) |
 | Why a desktop notification carries the notification's own title and message, though the operating system keeps them after sign-out; when to revisit that | [ADR-068](../ADRs/ADR-068-desktop-notifications-keep-their-detail.md) |

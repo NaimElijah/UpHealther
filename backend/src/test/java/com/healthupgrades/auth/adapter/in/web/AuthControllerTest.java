@@ -380,10 +380,11 @@ class AuthControllerTest {
                 .andExpect(cookie().value(WebSliceSupport.COOKIE_NAME, GRANT.refreshToken()))
                 .andExpect(cookie().httpOnly(WebSliceSupport.COOKIE_NAME, true))
                 .andExpect(cookie().secure(WebSliceSupport.COOKIE_NAME, true))
-                .andExpect(cookie().path(WebSliceSupport.COOKIE_NAME, "/api/auth"))
+                .andExpect(cookie().path(WebSliceSupport.COOKIE_NAME, WebSliceSupport.COOKIE_PATH))
                 .andExpect(cookie().maxAge(WebSliceSupport.COOKIE_NAME, (int)
                         Duration.ofDays(30).toSeconds()))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("SameSite=Strict")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, not(containsString("Domain"))))
                 .andExpect(jsonPath("$.accessToken").value("issued.jwt.token"));
     }
 

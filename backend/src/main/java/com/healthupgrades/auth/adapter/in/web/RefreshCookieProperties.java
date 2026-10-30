@@ -14,7 +14,7 @@ import org.springframework.validation.annotation.Validated;
  * to any deployment that forgot to turn it on (#87, ADR-041).
  *
  * @param name the cookie's name
- * @param path the path it is scoped to; narrow enough that it is not sent with ordinary API calls
+ * @param path the path it is scoped to; {@code /}, the only one its {@code __Host-} name allows
  */
 @Validated
 @ConfigurationProperties("app.auth.cookie")

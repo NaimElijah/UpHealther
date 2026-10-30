@@ -1,5 +1,7 @@
 package com.healthupgrades.auth.adapter.in.web;
 
+import static net.logstash.logback.argument.StructuredArguments.keyValue;
+
 import com.healthupgrades.auth.application.port.in.SessionGrant;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Clock;
@@ -8,6 +10,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
 
@@ -28,18 +31,23 @@ import org.springframework.stereotype.Component;
  *       first of the two things standing between this cookie and CSRF. The second is the
  *       {@code X-Requested-With} header the endpoints require: a form post from another origin cannot
  *       set a header, and a cross-origin {@code fetch} that tries is stopped by preflight.</li>
- *   <li><strong>The {@code __Secure-} name</strong> — the name {@code application.yml} ships, which
- *       a browser accepts only with {@code Secure} and from a secure origin, so no plain-HTTP host can
- *       plant a cookie of that name; and a request carrying two of them is refused (see
- *       {@link #read}).</li>
- *   <li><strong>{@code Path}</strong> — scoped to the auth endpoints, so the credential is simply not
- *       attached to the hundred ordinary API calls that have no use for it.</li>
+ *   <li><strong>The {@code __Host-} name</strong> — the name {@code application.yml} ships, which a
+ *       browser accepts only with {@code Secure}, from a secure origin, with {@code Path=/} and with no
+ *       {@code Domain}. So no other host can set a cookie of that name: not a plain-HTTP one, and not a
+ *       sibling or parent host served over HTTPS, which could otherwise plant its own credential and
+ *       move this tab into its account (S5.A8). A request carrying two of them is still refused, as a
+ *       defence (see {@link #read}).</li>
+ *   <li><strong>{@code Path=/}</strong> — the only path the {@code __Host-} prefix allows. Its cost is
+ *       that the credential goes with every request to the origin, not only to the auth endpoints;
+ *       {@code HttpOnly} and {@code SameSite=Strict} still keep it from script and from every other
+ *       site, and only the two cookie endpoints ever read it.</li>
  *   <li><strong>{@code Max-Age}</strong> — the session's absolute cap, so the browser discards it at
  *       the moment the server stops honouring it rather than sending a dead credential for a month.</li>
  * </ul>
  */
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class RefreshCookies {
 
     /**
@@ -84,11 +92,11 @@ public class RefreshCookies {
     /**
      * Reads the credential a request carries.
      *
-     * <p>Two cookies of this name are no credential at all. The {@code __Secure-} prefix keeps a
-     * plain-HTTP host from planting one, but a same-site sibling served over HTTPS can still set one
-     * with {@code Domain} on the parent, and the browser then sends both, with nothing to say which is
-     * whose. Reading either could move this tab into a session somebody else opened (S5.A8). The caller
-     * answers as it does to no cookie, which clears ours.
+     * <p>Two cookies of this name are no credential at all. The {@code __Host-} prefix means no other
+     * host can set one, so no browser should ever send two; but if one does, nothing says which is
+     * whose, and reading either could move this tab into a session somebody else opened (S5.A8). The
+     * caller answers as it does to no cookie, which clears ours. The duplicate is logged at WARN, with
+     * the count and never a value, because something planting cookies should not go unseen.
      *
      * @param request the inbound request
      * @return the raw cookie value, or empty when there is none, or more than one
@@ -101,6 +109,11 @@ public class RefreshCookies {
                 .filter(cookie -> properties.name().equals(cookie.getName()))
                 .map(jakarta.servlet.http.Cookie::getValue)
                 .toList();
+        if (values.size() > 1) {
+            log.warn(
+                    "A request carried more than one refresh cookie, so none was read {}",
+                    keyValue("cookies", values.size()));
+        }
         return values.size() == 1 ? Optional.of(values.getFirst()) : Optional.empty();
     }
 
