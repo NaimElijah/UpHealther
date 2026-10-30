@@ -266,12 +266,15 @@ reach returns another user's row as absent (BR-15), with one exception:
 `TrackingConfigQuery.findByUpgradeIds`, which the upgrade responses use to show each upgrade's
 tracking setup, returns configurations whoever owns them, because `tracking_configs` has no owner
 column to filter on. Its one caller maps upgrades already loaded through user-scoped reads, so no
-request-supplied id reaches it. ArchUnit pins every hop: every dependent of `TrackingConfigQuery` stays
-inside `tracking`; `UpgradeTrackingSummaryPort`, through which the read reaches `upgrade`, serves only
-`UpgradeWebMapper` and the adapter that implements it; and the mapper serves only `UpgradeController`
-and `DashboardWebMapper`, the two classes that hand it upgrades. The read of every account is the other
-unscoped read a request could reach, and it is on a port of its own, `AccountListQuery`, which only
-`admin` may hold, not on the `UserQuery` every context reaches. Each unscoped read, the sweeps included,
+request-supplied id reaches it. ArchUnit pins every hop to its callers: `TrackingConfigQuery` serves
+only `UpgradeTrackingSummaryAdapter` and its implementer; `UpgradeTrackingSummaryPort`, through which
+the read reaches `upgrade`, serves only `UpgradeWebMapper` and the adapter that implements it; the
+mapper serves only `UpgradeController` and `DashboardWebMapper`, the two classes that hand it upgrades;
+and `DashboardWebMapper` serves only `DashboardController`. Behind the ports, the repository reads they
+use are not pinned, as ADR-065 §9 records. The read of every account is the other unscoped read a
+request could reach, and it is on a port of its own, `AccountListQuery`, which only `AdminUserService`,
+which audits each listing, and its implementer may hold, not on the `UserQuery` every context may
+reach. Each unscoped read, the sweeps included,
 is implemented by a package-private class of its own — `UpgradeSweeps`, `ProgressSweeps`,
 `ReminderSweeps`, `TrackingConfigReads`, `AccountListing` — so no controller can inject the
 implementation and go round the rule on its port

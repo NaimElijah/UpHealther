@@ -6,9 +6,10 @@ import java.util.List;
 /**
  * Inbound port paging through every account on the installation, for the administration context alone.
  *
- * <p>Not on {@link UserQuery}, which every context reaches: these reads cover every account, names and
+ * <p>Not on {@link UserQuery}, which every context may reach: these reads cover every account, names and
  * addresses included, and nothing but the administrator's account list has a use for them (S5.B6).
- * {@code HexagonalArchitectureTest} lets only {@code admin} depend on it.
+ * {@code HexagonalArchitectureTest} lets only {@code AdminUserService}, which audits each listing as
+ * {@code admin.list}, and the implementer depend on it.
  */
 public interface AccountListQuery {
 

@@ -174,11 +174,33 @@ digest. Every other resource's id is written as it is.
 ### 9. ADR-064's pins close one hop further (S5.B6)
 
 This only extends what ADR-064 decided, that a read not scoped by owner is pinned by ArchUnit rather than
-scoped. Three rules are added: every class implementing such a read is package-private, which made
-`UpgradeSweeps`, `ProgressSweeps` and `ReminderSweeps` package-private and moved the configuration read
-off `TrackingService` into `TrackingConfigReads`; `UpgradeWebMapper` serves only `UpgradeController` and
-`DashboardWebMapper`; and the account listing is `AccountListQuery`, a port of its own that only `admin`
-may hold, implemented by `AccountListing`. Each rule was shown to fail on a mutated copy.
+scoped. Four rules are added, and one is narrowed:
+
+- every class implementing such a read is package-private, which made `UpgradeSweeps`, `ProgressSweeps`
+  and `ReminderSweeps` package-private and moved the configuration read off `TrackingService` into
+  `TrackingConfigReads`;
+- `UpgradeWebMapper` serves only `UpgradeController` and `DashboardWebMapper`, and `DashboardWebMapper`,
+  a public component any context could inject with a `DashboardView` it built itself, serves only
+  `DashboardController`;
+- the account listing is `AccountListQuery`, a port of its own implemented by `AccountListing`, which
+  only `AdminUserService` may hold, because it writes the `admin.list` entry around the read: an admin
+  controller holding the port would list every account and audit nothing;
+- ADR-064's rule that kept `TrackingConfigQuery` inside `tracking` now admits only
+  `UpgradeTrackingSummaryAdapter` and the implementer, so a new class in `tracking` is not a way in
+  either.
+
+The ports are named by class literal, so a rename is a compile error rather than a rule that quietly
+matches nothing. Each rule was shown to fail on a probe class.
+
+**Accepted residual: the repository reads behind the ports.** `UserRepositoryPort.findAll` and `count`,
+and `TrackingConfigRepositoryPort.findByUpgradeIdIn`, are unscoped too, and any class in their context
+can reach them; `UserService` and `TrackingService` already hold those repositories, so a new public
+method on either would bring S5.B6 back one layer down with every rule green. No route reaches one today.
+They are not pinned, because ADR-064 rejected banning calls by method name: a rule on a repository
+method breaks on every rename and says nothing about the next unscoped method added beside it.
+**Revisit** if a third unscoped read is added to either repository, or if a review finds a service
+method that passes one through: the read then moves to a repository port of its own, pinned as the
+inbound ports are.
 
 ### 10. A socket holds one subscription for its life (S5.A5)
 

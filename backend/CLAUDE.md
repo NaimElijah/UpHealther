@@ -27,7 +27,8 @@ read/composition model with no domain or outbound side. All three are deliberate
   `ProgressSweeps`, `ReminderSweeps`), never by the service a controller holds, or the controller could
   call the sweep through it (ADR-064). The two other unscoped reads follow the same pattern:
   `TrackingConfigQuery` (`TrackingConfigReads`) and `AccountListQuery` (`AccountListing`, every account,
-  which only `admin` may hold). `HexagonalArchitectureTest` keeps every such implementer package-private
+  which only `AdminUserService`, which audits the listing, may hold). `HexagonalArchitectureTest` keeps
+  every such implementer package-private
   (ADR-065). A new read a request can reach takes the owner's id instead.
 
 - **A role opens paths, never rows.** `USER` and `ADMIN` live on the `users` row and are read on every

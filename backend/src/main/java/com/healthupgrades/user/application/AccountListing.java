@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
  * The account listing, {@link AccountListQuery} over the repository.
  *
  * <p>Package-private and apart from {@link UserService}, for the reason {@code TrackingConfigReads} gives:
- * a public class implementing the port would be a way to the read past the rule on the port.
+ * a public class implementing the port would be a way to reach the read past the rule on the port.
  */
 @Service
 @RequiredArgsConstructor

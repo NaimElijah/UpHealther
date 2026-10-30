@@ -11,6 +11,12 @@ import static com.tngtech.archunit.core.domain.JavaClass.Predicates.simpleNameEn
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes; // entry point for positive rules
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses; // entry point for forbidding rules
 
+import com.healthupgrades.admin.application.AdminUserService; // the one audited reader of every account
+import com.healthupgrades.dashboard.adapter.in.web.DashboardController; // the dashboard mapper's one caller
+import com.healthupgrades.dashboard.adapter.in.web.DashboardWebMapper; // the last hop to the tracking read
+import com.healthupgrades.tracking.adapter.in.composition.UpgradeTrackingSummaryAdapter; // the read's one user
+import com.healthupgrades.tracking.application.port.in.TrackingConfigQuery; // an unscoped read port
+import com.healthupgrades.user.application.port.in.AccountListQuery; // an unscoped read port
 import com.tngtech.archunit.base.DescribedPredicate; // a named predicate, for a rule's exceptions
 import com.tngtech.archunit.core.domain.Dependency; // one class's dependency on another
 import com.tngtech.archunit.core.domain.JavaClass; // an imported class
@@ -379,8 +385,8 @@ class HexagonalArchitectureTest {
      * were open: an endpoint taking upgrade ids from a request could read another user's tracking setup
      * through it (BR-15). So it has two dependents: {@code UpgradeWebMapper}, which passes only the ids of
      * aggregates already loaded through user-scoped reads, and {@code UpgradeTrackingSummaryAdapter}, which
-     * implements it. With {@link #unscoped_tracking_config_read_stays_inside_tracking} it is the second
-     * half of one pin, the trade-off ADR-064 accepts and says when to revisit.
+     * implements it. With {@link #unscoped_tracking_config_read_serves_only_the_summary_adapter} it is the
+     * second of the hops that pin one read, the trade-off ADR-064 accepts and says when to revisit.
      */
     @ArchTest
     static final ArchRule tracking_summary_port_serves_only_the_upgrade_mapper = classes()
@@ -478,7 +484,7 @@ class HexagonalArchitectureTest {
             .as("sweep ports must be used only by the scheduled jobs' application services (BR-15)");
 
     /**
-     * The one unscoped by-ids read stays inside the context that owns it.
+     * The one unscoped by-ids read serves the one adapter that passes it on, and nothing else.
      *
      * <p>{@code TrackingConfigQuery.findByUpgradeIds} returns configurations whoever owns the upgrade,
      * because {@code tracking_configs} has no owner column to filter on. Today that exposes nothing: its
@@ -488,33 +494,34 @@ class HexagonalArchitectureTest {
      * supplies reaches the query. Scoping it would cost a migration, a join onto another context's table,
      * or a query per response, to close a path that does not exist.
      *
-     * <p>This rule keeps that true inside {@code tracking}, and
+     * <p>This rule keeps that true at the port: its one user is {@code UpgradeTrackingSummaryAdapter}, and
+     * any other class, in {@code tracking} or not, would be a new way to the read.
      * {@link #tracking_summary_port_serves_only_the_upgrade_mapper} keeps it true one hop out, where the
      * adapter passes the same read through {@code UpgradeTrackingSummaryPort}, which the slice rule publishes
-     * to every context. Either pin alone would leave the read open. Both are wrong, and the port must be
-     * scoped first, the day a class outside {@code tracking} needs it, a class other than
+     * to every context, and {@link #upgrade_web_mapper_serves_only_its_two_callers} and
+     * {@link #dashboard_web_mapper_serves_only_its_controller} the hops after that. Any pin alone would leave
+     * the read open. The port must be scoped first, the day another class needs it, a class other than
      * {@code UpgradeWebMapper} needs the summary port, or an id from a request reaches either (BR-15).
      */
     @ArchTest
-    static final ArchRule unscoped_tracking_config_read_stays_inside_tracking = classes()
+    static final ArchRule unscoped_tracking_config_read_serves_only_the_summary_adapter = classes()
             .that()
-            .haveFullyQualifiedName("com.healthupgrades.tracking.application.port.in.TrackingConfigQuery")
-            .should()
-            .onlyHaveDependentClassesThat()
-            .resideInAPackage("com.healthupgrades.tracking..")
-            .as("TrackingConfigQuery, which is not scoped by owner, must be used only inside tracking (BR-15)");
+            .haveFullyQualifiedName(TrackingConfigQuery.class.getName())
+            .should(ArchConditions.onlyHaveDependentsWhere(
+                    dependencyOrigin(JavaClass.Predicates.belongToAnyOf(UpgradeTrackingSummaryAdapter.class))
+                            .or(ORIGIN_IMPLEMENTS_TARGET)))
+            .as("TrackingConfigQuery, which is not scoped by owner, must be used only by "
+                    + "UpgradeTrackingSummaryAdapter and its implementer (BR-15)");
 
-    /** The unscoped read ports that are not sweeps, by name, for {@link #UNSCOPED_READ_PORT}. */
-    private static final java.util.Set<String> UNSCOPED_READ_PORTS_BY_NAME = java.util.Set.of(
-            "com.healthupgrades.tracking.application.port.in.TrackingConfigQuery",
-            "com.healthupgrades.user.application.port.in.AccountListQuery");
-
-    /** The ports whose reads are not scoped by owner, named once for the rules below. */
-    private static final DescribedPredicate<JavaClass> UNSCOPED_READ_PORT = DescribedPredicate.describe(
-            "a port whose reads are not scoped by owner",
-            port -> (port.getPackageName().endsWith(".application.port.in")
-                            && port.getSimpleName().endsWith("SweepQuery"))
-                    || UNSCOPED_READ_PORTS_BY_NAME.contains(port.getName()));
+    /**
+     * The ports whose reads are not scoped by owner, named once for the rules below: every sweep port, by
+     * the predicate {@link #sweep_ports_serve_only_scheduled_work} selects them with, and the two others by
+     * class literal, so a rename is a compile error rather than a rule that quietly stops matching.
+     */
+    private static final DescribedPredicate<JavaClass> UNSCOPED_READ_PORT = resideInAPackage("..application.port.in..")
+            .and(simpleNameEndingWith("SweepQuery"))
+            .or(JavaClass.Predicates.belongToAnyOf(TrackingConfigQuery.class, AccountListQuery.class))
+            .as("a port whose reads are not scoped by owner");
 
     /**
      * An unscoped read is implemented by a class nothing outside its package can name.
@@ -553,20 +560,40 @@ class HexagonalArchitectureTest {
             .as("UpgradeWebMapper must be used only by UpgradeController and DashboardWebMapper (BR-15)");
 
     /**
+     * The dashboard mapper, which hands {@code UpgradeWebMapper} whatever upgrades a {@code DashboardView}
+     * carries, serves the controller that builds that view from user-scoped reads, and nothing else.
+     *
+     * <p>It is a public {@code @Component}, the slice rule publishes every {@code *WebMapper} to every
+     * context, and {@code DashboardView} is a public record anybody can build. Without this a controller
+     * anywhere could build a view of somebody else's upgrades and have their tracking configurations read
+     * for it, with every other pin green (S5.B6).
+     */
+    @ArchTest
+    static final ArchRule dashboard_web_mapper_serves_only_its_controller = classes()
+            .that()
+            .haveFullyQualifiedName(DashboardWebMapper.class.getName())
+            .should()
+            .onlyHaveDependentClassesThat(JavaClass.Predicates.belongToAnyOf(DashboardController.class))
+            .as("DashboardWebMapper must be used only by DashboardController (BR-15)");
+
+    /**
      * The read of every account serves the administration context alone.
      *
      * <p>{@code AccountListQuery} pages through every account on the installation, names and addresses
-     * included. On {@code UserQuery}, which every context reaches, a feature anywhere could have listed
-     * them (S5.B6). It is a port of its own, and only {@code admin} and its implementer may depend on it.
+     * included. On {@code UserQuery}, which every context may reach, a feature anywhere could have listed
+     * them (S5.B6). It is a port of its own, and only {@code AdminUserService}, which writes the
+     * {@code admin.list} audit entry around the read, and its implementer may depend on it: an admin
+     * controller holding the port would list every account and audit nothing (S5.A12).
      */
     @ArchTest
-    static final ArchRule account_listing_serves_only_administration = classes()
+    static final ArchRule account_listing_serves_only_the_audited_admin_service = classes()
             .that()
-            .haveFullyQualifiedName("com.healthupgrades.user.application.port.in.AccountListQuery")
+            .haveFullyQualifiedName(AccountListQuery.class.getName())
             .should(ArchConditions.onlyHaveDependentsWhere(
-                    dependencyOrigin(resideInAPackage("com.healthupgrades.admin.."))
+                    dependencyOrigin(JavaClass.Predicates.belongToAnyOf(AdminUserService.class))
                             .or(ORIGIN_IMPLEMENTS_TARGET)))
-            .as("AccountListQuery, which reads every account, must be used only by the admin context (BR-15)");
+            .as("AccountListQuery, which reads every account, must be used only by AdminUserService and its "
+                    + "implementer (BR-15)");
 
     /**
      * Only the startup runner may promote the first administrator.
