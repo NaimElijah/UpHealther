@@ -28,18 +28,25 @@ export function onSessionEnd(listener: SessionEndListener): () => void {
  * session had ended. It has to be a full document navigation, never a router push. Unloading the page
  * is what discards every provider's state, so nothing belonging to the previous user, their data or
  * `isAuthenticated: true`, can be read by whoever signs in next on the same machine. The query cache is
- * emptied first as well, because the browser may keep the page it leaves in its back/forward cache; the
- * `pageshow` listener below reloads such a page if it is ever restored.
+ * emptied and the application unmounted first as well, because the browser may keep the page it leaves
+ * in its back/forward cache; the `pageshow` listener below reloads such a page if it is ever restored.
  *
  * It does not tell the server. A caller signing out awaits that first. The interceptor calls this once
  * a renewal fails, whether the server refused it or did not answer. The notification socket calls it
  * on the server's session-ended ERROR frame (ADR-066). The socket's own failed renewal does not: the
  * socket reconnects without a token, and the session ends at the tab's next request (ADR-054).
+ *
+ * @throws whatever a listener throws, once the navigation has been started regardless
  */
 export function endSession(): void {
   clearAccessToken();
-  sessionEndListeners.forEach((listener) => listener());
-  window.location.href = '/login';
+  try {
+    sessionEndListeners.forEach((listener) => listener());
+  } finally {
+    // Whatever a listener threw, the tab still leaves the page that showed the session; the error
+    // still propagates to the caller.
+    window.location.href = '/login';
+  }
 }
 
 // A page restored from the back/forward cache resumes the script state it was left with: the access

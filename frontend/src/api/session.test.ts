@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { endSession } from './session';
+import { endSession, onSessionEnd } from './session';
 
 /**
  * A page the browser kept in its back/forward cache comes back with its whole script state, the query
@@ -41,5 +41,35 @@ describe('a page restored from the back/forward cache', () => {
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: false }));
 
     expect(reload).not.toHaveBeenCalled();
+  });
+});
+
+describe('ending a session', () => {
+  const realLocation = window.location;
+
+  beforeEach(() => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      writable: true,
+      value: { ...realLocation, href: '' },
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, 'location', { configurable: true, writable: true, value: realLocation });
+  });
+
+  it('GivenAListenerThatThrows_WhenTheSessionEnds_ThenTheErrorPropagatesAndTheTabStillGoesToSignIn', () => {
+    // A failure while forgetting the session must not leave the tab on the page that showed it (S5.C6).
+    const failure = new Error('the listener failed');
+    const unregister = onSessionEnd(() => {
+      throw failure;
+    });
+    try {
+      expect(() => endSession()).toThrow(failure);
+      expect(window.location.href).toBe('/login');
+    } finally {
+      unregister();
+    }
   });
 });
