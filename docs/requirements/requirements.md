@@ -118,7 +118,7 @@ no way at all — to read another person's health records
 | FR-31 | A user's reminders fire at the configured time and day | `NotificationSchedulerTest`, `ReminderTest`, `ReminderPersistenceIT` (which rows count as enabled, and the day filter's round trip) |
 | FR-32 | Notifications arrive in real time on a connected client, and are readable afterwards regardless | `StompNotificationPushAdapterTest`, `NotificationServiceTest`, `NotificationCommitIT` (each lifecycle notification is stored, not only pushed), `NotificationProvider.test.tsx`, `notificationSocket.test.ts` (the socket's address and the frames it hands on) |
 | FR-33 | A user can read their fifty most recent notifications, see an unread count that covers every notification rather than only the fifty listed, and mark one or all as read | `NotificationServiceTest`, `NotificationControllerTest`, `NotificationPersistenceIT` (the fifty newest, the count beyond them, and mark-all against the real table), `NotificationProvider.test.tsx`, `NotificationBell.test.tsx` (the count the bell shows, capped at 9+) |
-| FR-49 | A user can opt in to desktop notifications, which are raised only while the tab is in the background — with the tab in view, the in-page notice already says it | `NotificationProvider.test.tsx` |
+| FR-49 | A user can opt in to desktop notifications, which are raised only while the tab is in the background — with the tab in view, the in-page notice already says it | `NotificationProvider.test.tsx` ([ADR-068](../ADRs/ADR-068-desktop-notifications-keep-their-detail.md)) |
 
 FR-27's terms are the server's, and `DashboardAggregationServiceTest` pins each. An upgrade is **due
 today** when it is active and today falls between its start and its target end, either of which may be
