@@ -118,7 +118,9 @@ read/composition model with no domain or outbound side. All three are deliberate
   because Boot's imported `defaults.xml` is what puts the trace id on a plain-text line. See
   `../docs/ADRs/ADR-010-structured-logging-and-a-level-policy.md`.
 
-- **A state change is recorded through `AuditTrail`, not through a `log.info`.** Every state-changing
+- **A state change is recorded through `AuditTrail`, not through a `log.info`, and so is the one read
+  across accounts.** The administrator's account list writes an `ADMIN_LIST` entry around every page;
+  a new read that returns another account's data is audited the same way (ADR-065). Every state-changing
   use case wraps its body in `auditTrail.recording(action, userId, resourceId, ...)`, or in
   `recordingCreation(...)` when the resource id exists only once the operation has run. Either records
   the attempt whether it succeeded or was refused — a refusal is the entry somebody actually goes

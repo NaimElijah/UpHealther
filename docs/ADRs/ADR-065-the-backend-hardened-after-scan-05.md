@@ -3,18 +3,23 @@
 - **Status:** Accepted
 - **Date:** 2026-10-30
 - **Scope:** `backend/` — the `auth` context's sessions, refresh cookie and their configuration, the
-  rate limit in front of the cookie endpoints, how the audit stream names a session, the ArchUnit
-  pins on the reads that are not scoped by owner, and migration `V10__auth_session_spent_tokens.sql`;
-  NFR-4, NFR-9, NFR-24, NFR-34, NFR-36, NFR-47 and NFR-59 in `docs/requirements/requirements.md`.
+  rate limit in front of the cookie endpoints, the WebSocket's one subscription, what the audit stream
+  names and the levels it and Spring's exception resolver are pinned at, the refusal of U+0000 in a
+  request body, what a refused request and a failed push log, the ArchUnit pins on the reads that are
+  not scoped by owner, and migration `V10__auth_session_spent_tokens.sql`; the SPA's answer to a
+  rate-limited renewal; FR-42, BR-15, NFR-4, NFR-6, NFR-7, NFR-9, NFR-14, NFR-21, NFR-23, NFR-24,
+  NFR-32, NFR-34, NFR-36, NFR-39, NFR-47 and NFR-59 in `docs/requirements/requirements.md`.
 - **Issue:** [#339](https://github.com/NaimElijah/UpHealther/issues/339), scan 05 of
-  [#334](https://github.com/NaimElijah/UpHealther/issues/334): findings S5.A1, S5.A4, S5.A8, S5.A9,
-  S5.A11, S5.A13, S5.A14, S5.B6 and S5.C3.
+  [#334](https://github.com/NaimElijah/UpHealther/issues/334): findings S5.A1, S5.A4, S5.A5, S5.A8,
+  S5.A9, S5.A11, S5.A12, S5.A13, S5.A14, S5.B5, S5.B6, S5.C3, S5.C6, S5.C8 and S5.C9.
   It extends [ADR-015](ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md), whose reuse
   detection it makes hold for any number of rotations and on both cookie endpoints, and
   [ADR-041](ADR-041-the-refresh-cookie-is-always-secure.md), whose cookie it names, and
   [ADR-017](ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md), whose limiter it uses a
   second time. Section 9 extends
-  [ADR-064](ADR-064-the-backends-layering-rules-beyond-adr-002.md), and changes nothing it decided.
+  [ADR-064](ADR-064-the-backends-layering-rules-beyond-adr-002.md); sections 11 and 13 extend
+  [ADR-011](ADR-011-audit-as-a-log-stream.md), and sections 12 and 15
+  [ADR-010](ADR-010-structured-logging-and-a-level-policy.md).
 
 ## Context
 
@@ -83,8 +88,8 @@ harmlessly, until its own `Max-Age`: nothing reads that name any more. `AuthSess
 V10 over a session stored under V9.
 
 **The history is read with one keyed lookup, not loaded with the aggregate.** The primary key
-`(session_id, token_hash)` is the query a refresh makes, so a busy session's history, up to one row per
-access-token lifetime for thirty days, is never read whole. The adapter writes and reads it with native
+`(session_id, token_hash)` is the query a refresh makes, so a busy session's history is never read
+whole. The adapter writes and reads it with native
 SQL rather than an entity: the rows are written once and never updated, and a byte array is no identifier
 JPA can compare.
 
@@ -250,6 +255,38 @@ variable:
 **Revisit** the first if the audit stream moves off the log, and the second if a Spring upgrade stops
 quoting the request in that line, or moves it to another logger, which the test would not see.
 
+### 13. The administrator's account list is audited, the first audited read (S5.A12)
+
+`AdminUserService` writes an `ADMIN_LIST` entry, naming the administrator and no resource, around every
+page of the account list. ADR-011 records what is written when state changes, and nothing else, and this
+is the one exception: it is the only read that crosses accounts, and the only one whose result is other
+people's names and addresses, so who looked is worth a line. `HexagonalArchitectureTest` lets only that
+service hold `AccountListQuery`, so the read cannot be reached past the entry (section 9). **Revisit** if
+another read starts returning another account's data, which would be audited the same way, or if the
+list's volume ever makes the entries noise, which a page size or a sampling rule would answer.
+
+### 14. U+0000 is refused for every string of every body, by one Jackson module (S5.B5)
+
+PostgreSQL refuses U+0000 in text, so a body carrying one reached the catch-all as a 500 and an ERROR
+line, alert noise anybody, an anonymous registration included, could make on demand.
+`NulRefusingStringModule` refuses it as Jackson reads any `String`, so the request is a 400 with the
+malformed-body message before it reaches a use case. A module rather than a constraint per field,
+because a field added later would otherwise be open until somebody remembered it; no field of this API
+has a use for the character. It covers JSON bodies only, since no query parameter or path variable is
+stored as text. **Revisit** if a field ever needs to carry arbitrary binary-safe text, which would then
+be a `bytea` column, or if a query parameter or path variable starts being stored.
+
+### 15. A refused request and a failed push are logged by their types (S5.C8, NFR-6)
+
+`GlobalExceptionHandler`'s DEBUG line for a 4xx names the exception's class, not the exception, because
+a validation failure's message quotes every rejected value, a password included, and a client's mistake
+needs no stack trace. `StompNotificationPushAdapter`'s WARN for an undelivered push names the failure's
+type and its root cause's, with no throwable, because the line repeats per notification and a message
+can quote what was being sent; the root cause's type is what tells a closed socket from a full broker.
+A 5xx keeps its single ERROR line with the full stack trace, the one exception NFR-6 allows.
+**Revisit** if a class of 4xx turns out to need its detail to diagnose, which would then get a line of
+its own that names its fields and never their values.
+
 ## Consequences
 
 **Easy.** Reuse is detected however many times the thief has refreshed, and whichever cookie endpoint the
@@ -259,14 +296,25 @@ issued. An account switched off at any moment is signed out at its next refresh 
 
 **Hard.**
 
-- Every refresh writes a row, and a session that is refreshed every fifteen minutes for thirty days
-  accumulates about 2,900 of them before the sweep deletes it. A refusal of a credential that is not
-  current costs one more indexed read. The digest lookup is an index comparison, not a constant-time
-  one; what it compares is the SHA-256 of the attacker's own input, so its timing reveals nothing about
-  any credential's secret.
+- Every refresh writes a row, and the rows go only with their session. A tab that renews every fifteen
+  minutes leaves about 2,900 over the thirty-day cap, but a client may refresh whenever it likes, so
+  the real bound is NFR-59's limit: sixty a minute per address, about 86,400 rows a day, kept for up to
+  the absolute cap. Before this record, rotation used constant storage. That is accepted: a row holds
+  under sixty bytes of data, the caller has to hold a live credential and keep it rotating, and #171's
+  unbounded text fields already let any signed-in user fill the disk more cheaply. **Revisit** if
+  `auth_session_spent_tokens` ever dominates the database's size, or when #171 bounds the text fields:
+  then cap the history per session, keeping the newest rows, at a few hundred, past which a replay is
+  old enough to be refused as a guess. A refusal of a credential that is not current costs one more
+  indexed read. The digest lookup is an index comparison, not a constant-time one; what it compares is
+  the SHA-256 of the attacker's own input, so its timing reveals nothing about any credential's secret.
 - Every refresh also reads the account, one indexed read beside the session's.
 - Renaming the cookie signs every browser out once: the old `refresh_token` is no longer read, its
   session is revoked by `V10`, and the cookie lapses on its own `Max-Age`.
+- `V10` drops `previous_token_hash` and `rotated_at` in the release that stops mapping them, and
+  Hibernate validates the schema at boot, so the release before this one cannot run against `V10`. That
+  is accepted because nothing is deployed yet (#224). After the first deployment, a rolling deploy runs
+  both releases at once, so a column is dropped in two steps: one release stops mapping it, and the next
+  drops it. This is the first `DROP COLUMN` in the history, so this is the precedent.
 - A deployment that sets a lifetime outside its bounds no longer starts. That is the intent, and
   the error names the property.
 - A household with more than sixty renewals and sign-outs a minute behind one address is refused 429
