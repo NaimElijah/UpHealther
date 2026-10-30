@@ -21,7 +21,8 @@ import org.yaml.snakeyaml.constructor.SafeConstructor;
 /**
  * Holds the developer stack in {@code docker-compose.yml} to the hardening scan 02 gave it (#336,
  * findings I2.1, I2.7 and I2.8): ports published on loopback only, the database probed over TCP, no
- * privilege gain in any service, and no capability left to the backend.
+ * privilege gain in any service, and no capability left to the backend. Scan 05 added one more (#339,
+ * finding S5.C7): the backend connects as a role of its own, never as the cluster's superuser.
  *
  * <p>Each one is a single line in the compose file whose loss changes nothing a developer sees: the stack
  * still starts and the tests still pass, while the database and the signing key are open to the network,
@@ -46,6 +47,9 @@ class ComposeStackHardeningTest {
     /** {@code pg_isready} asked over TCP on the loopback address, rather than over the Unix socket. */
     private static final Pattern PG_ISREADY_OVER_TCP =
             Pattern.compile("\\bpg_isready\\b.*\\s-h\\s+127\\.0\\.0\\.1(\\s|$)");
+
+    /** Where the postgres image finds the scripts it runs once, when it initialises an empty volume. */
+    private static final String INIT_SCRIPTS = "/docker-entrypoint-initdb.d";
 
     @Test
     void GivenTheComposeStack_WhenReadingEveryPublishedPort_ThenEachIsBoundToLoopback() {
@@ -103,6 +107,35 @@ class ComposeStackHardeningTest {
         assertThat(strings(service("backend"), "cap_drop"))
                 .describedAs("the backend's cap_drop must contain %s (I2.8)", ALL_CAPABILITIES)
                 .contains(ALL_CAPABILITIES);
+    }
+
+    @Test
+    void GivenTheComposeBackend_WhenReadingTheRoleItConnectsAs_ThenItIsTheApplicationRoleNotTheSuperuser() {
+        // The image makes POSTGRES_USER the cluster's superuser, and a backend connecting as it would run
+        // any SQL it could be made to run with every privilege the cluster has (S5.C7, ADR-069).
+        Map<?, ?> database = environment("postgres");
+        Map<?, ?> backend = environment("backend");
+
+        assertThat(database.get("POSTGRES_APP_USER"))
+                .describedAs("the postgres service must name the application role apart from its superuser")
+                .isNotNull()
+                .isNotEqualTo(database.get("POSTGRES_USER"));
+        assertThat(backend.get("DB_USERNAME"))
+                .describedAs("the backend must connect as the application role the postgres service creates")
+                .isEqualTo(database.get("POSTGRES_APP_USER"));
+        assertThat(backend.get("DB_PASSWORD"))
+                .describedAs("the backend must sign in with the application role's password")
+                .isEqualTo(database.get("POSTGRES_APP_PASSWORD"));
+        assertThat(strings(service("postgres"), "volumes"))
+                .describedAs(
+                        "the postgres service must mount scripts/postgres-init/, which creates that role, at %s",
+                        INIT_SCRIPTS)
+                .anyMatch(volume -> volume.startsWith("./scripts/postgres-init:" + INIT_SCRIPTS));
+    }
+
+    /** One service's {@code environment}, as a mapping of each variable to its value. */
+    private static Map<?, ?> environment(String name) {
+        return mapping(service(name).get("environment"), "services." + name + ".environment");
     }
 
     /** One service's definition, failing if the compose file has no such service. */

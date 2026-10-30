@@ -44,7 +44,7 @@ ArchUnit suite, which is the authority on what the layering permits.
 |---|---|---|
 | **Frontend** | nginx serving a Vite production build (container port 80, published on `127.0.0.1:3000`) | Serving the SPA, and proxying `/api` and `/ws` to the backend so the browser stays same-origin |
 | **Backend** | Spring Boot 4.1 on Java 21, executable jar (port 8080, published on `127.0.0.1` by compose) | The whole domain: authentication, the upgrade lifecycle, tracking, reflections, reminders, the dashboard read model, notifications, and the scheduled jobs |
-| **Database** | PostgreSQL 15 (port 5432, published on `127.0.0.1` by compose; volume `postgres_data`) | Every piece of persistent state. Schema owned by Flyway |
+| **Database** | PostgreSQL 15 (port 5432, published on `127.0.0.1` by compose; volume `postgres_data`) | Every piece of persistent state. Schema owned by Flyway. Under compose the backend connects as a role that owns the database and is no superuser, created by `scripts/postgres-init/` on an empty volume ([ADR-069](../ADRs/ADR-069-the-compose-backend-connects-as-a-role-that-owns-its-database.md)) |
 
 In development the nginx container is not involved: the Vite dev server serves the SPA on 3000 and
 performs the same `/api` and `/ws` proxying itself, so the app behaves identically on both sides.
@@ -617,7 +617,7 @@ push service, no analytics, no AI service.
 
 | Dependency | Used for | How it is reached |
 |---|---|---|
-| **PostgreSQL 15** | All persistent state | JDBC from the backend only. Credentials from `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` |
+| **PostgreSQL 15** | All persistent state | JDBC from the backend only. Credentials from `DB_URL` / `DB_USERNAME` / `DB_PASSWORD`, which compose fills from `POSTGRES_APP_USER` and `POSTGRES_APP_PASSWORD` |
 | **Flyway** | Schema ownership and migration on startup | Embedded in the backend; `V1`–`V9` apply in order at boot. An applied migration is never edited — Flyway checksums it, comments included — so a correction is another migration |
 | **Browser WebSocket** | Real-time notification delivery | The `/ws` STOMP endpoint, proxied by nginx (or Vite in development) |
 | **nginx** | Serves the built SPA and proxies `/api` and `/ws` | Also where the security headers live — the content security policy, framing and referrer rules, declared for the whole server so that nginx's own error pages under `/api` and `/ws` carry them too ([ADR-018](../ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)). Absent from `npm run dev`, which serves no headers |
@@ -950,6 +950,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why a session that ends closes its open sockets with an ERROR frame, after the commit; why not a check on every push or on the client's heartbeats; why a session's natural expiry is not covered | [ADR-054](../ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md) |
 | Why the diagram check runs on any Python 3 rather than a pinned one; why it stays on the standard library | [ADR-055](../ADRs/ADR-055-python-is-left-floating-at-any-python-3.md) |
 | Why the compose stack publishes on `127.0.0.1` only and probes PostgreSQL over TCP; why only the backend drops its capabilities | [ADR-057](../ADRs/ADR-057-the-developer-stack-is-reachable-from-this-machine-only.md) |
+| Why the compose backend connects as a role that owns its database rather than as the superuser; why its variables are not `DB_USERNAME` and `DB_PASSWORD`; why one role and not a migrating and a serving one | [ADR-069](../ADRs/ADR-069-the-compose-backend-connects-as-a-role-that-owns-its-database.md) |
 | Why a PR into `dev` must have its checks run on the latest `dev`, and a promotion into `main` need not; why a second ruleset rather than strict in the first | [ADR-058](../ADRs/ADR-058-a-pr-into-dev-merges-only-once-its-checks-ran-on-the-latest-dev.md) |
 | Why the bundle ships a notices file for its third-party packages; why the jar and the images need none yet, and when that changes | [ADR-059](../ADRs/ADR-059-the-bundle-ships-its-third-party-notices.md) |
 | Why Dependabot ignores the Tailwind CSS and TypeScript majors, and what moves each by hand | [ADR-060](../ADRs/ADR-060-dependabot-holds-the-tailwind-and-typescript-majors-back.md) |
