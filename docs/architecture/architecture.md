@@ -19,9 +19,14 @@ same origin: a proxy in front of the SPA forwards `/api` and `/ws` to the API, s
 cross-origin request in the default setup.
 
 Inside the API, the code is organised as ten bounded contexts over a ports-and-adapters core. The
-domain and application layers know nothing about HTTP, JPA or Spring's event bus; each of those
-arrives through an adapter. The boundaries are not a convention — they are checked on every build by
-an ArchUnit suite, which is the authority on what the layering permits.
+core is not free of frameworks, and says where it is not. The domain imports only the standard
+library, Lombok and this codebase, with one exception: the entities carry `jakarta.persistence`
+mapping annotations ([ADR-001](../ADRs/ADR-001-ddd-hexagonal-architecture.md)). The application
+layer imports no adapter, no web type and not Spring's event bus, but its services are Spring beans
+with `@Transactional`, and `AuthService` takes Spring Security's `PasswordEncoder` and
+`AuthenticationManager`. HTTP, Spring Data, token signing and the event bus reach the core through
+adapters. The boundaries are not a convention — they are checked on every build by an ArchUnit suite,
+which is the authority on what the layering permits.
 
 > **Diagram:** [System context](arch-diagrams/README.md#1-system-context) — the three
 > processes, the browser, and what each connection carries.
@@ -59,16 +64,35 @@ Ten contexts, each owning its own vocabulary, plus a cross-cutting `common`.
 | `notification` | `Notification` — the inbox and the real-time push | Full, and the only context with a messaging adapter |
 | `healtharea` | `HealthArea` — the groupings upgrades are filed under | Full |
 | `user` | `User` — identity and the stored password hash; `EmailAddress`, the one rule for when two addresses are the same identity | Full |
-| `auth` | Registration, sign-in, sign-out, and the sessions tokens are issued within; announcing a session's end, so the sockets it opened close | `AuthSession` — a signed-in session, the row that makes revocation possible; orchestrates over `user` for identity |
+| `auth` | `AuthSession` — a signed-in session, the row that makes revocation possible — and the use cases around it: registration, sign-in, sign-out, and announcing a session's end so the sockets it opened close | Full, and it orchestrates over `user` for identity |
 | `admin` | Listing accounts, switching one off or back on, and granting or revoking a role | Two-layer: orchestrates over `user` and `auth`, owns no aggregate. It depends on no context holding a user's own records, and ArchUnit keeps it that way |
 | `dashboard` | The composed dashboard read model | Two-layer: reads through other contexts' ports, persists nothing |
-| `common` | Cross-cutting: the `DomainEvent` marker, shared exceptions, the event-publisher port, the global exception handler, JWT security, and the WebSocket configuration with the registry of open sockets | Not a context; a shared kernel plus cross-cutting adapters. It depends on no context, and ArchUnit keeps it that way ([ADR-062](../ADRs/ADR-062-the-shared-kernel-depends-on-no-bounded-context.md)) |
+| `common` | The `DomainEvent` marker and the `DomainEventPublisher` port; the shared exceptions, including `ConflictException`, which a context subclasses to name its own conflict; the audit trail (`AuditTrail` and `LoggingAuditTrail`); the ports it declares for a context to supply or call, `SessionStatusPort`, `AccountCredentialsPort` and `LiveSocketPort`; the global exception handler; JWT security; the WebSocket configuration and the registry of open sockets; and `observability`, `ratelimit` and `time` | Not a context; a shared kernel plus cross-cutting adapters. It depends on no context, and ArchUnit keeps it that way ([ADR-062](../ADRs/ADR-062-the-shared-kernel-depends-on-no-bounded-context.md)) |
 
 The shapes that differ are deliberate, not drift. `dashboard` is two-layer by design
 ([ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)); `auth` began
 that way and gained an aggregate with sessions
-([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)); and `admin` owns
-no aggregate at all, orchestrating over `user` and `auth`.
+([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)), so it is now full;
+and `admin` owns no aggregate at all, orchestrating over `user` and `auth`.
+
+A context keeps its adapters under `adapter/in` (what starts work) and `adapter/out` (what work reaches
+out to). The kinds that occur:
+
+| Package | Holds | Found in |
+|---|---|---|
+| `adapter/in/web` | Controllers, request and response records, and the `*WebMapper` that translates in both directions (`auth` and `admin` translate in the controller) | every context but `user` |
+| `adapter/in/scheduling` | A cron trigger: reads the clock, times the run, calls the application method that holds the sweep | `upgrade`, `notification`, `auth` |
+| `adapter/in/event` | A listener that turns a domain event into a call on the application layer | `notification`, `auth` |
+| `adapter/in/composition` | The adapter that answers another context's or the kernel's outbound port: `UpgradeTrackingSummaryAdapter` for `UpgradeTrackingSummaryPort`, `SessionStatusAdapter` for `SessionStatusPort`, `AccountCredentialsAdapter` for `AccountCredentialsPort`. It sits under `adapter/in` because it calls its own context's inbound port, and implements a port rather than starting work | `tracking`, `auth`, `user` |
+| `adapter/in/bootstrap` | `AdminBootstrapRunner`, an `ApplicationRunner`: at startup it parses `app.admin.bootstrap-user-id` and calls `AdminUserService.bootstrap` | `admin` |
+| `adapter/out/persistence` | A package-private Spring Data repository and the `*RepositoryAdapter` that implements the context's repository port over it | every context but `admin` and `dashboard` |
+| `adapter/out/messaging` | The STOMP push of a notification | `notification` |
+| `adapter/out/security` | Access-token issuing over `JwtTokenProvider`, and the refresh secret generator | `auth` |
+
+`common/adapter` holds the kernel's own: the global exception handler (`in/web`), `LoggingAuditTrail`
+(`out/audit`) and `SpringDomainEventPublisher` (`out/event`). The rest of the kernel's adapters live
+in packages not named `adapter` (`security`, `websocket`, `observability`, `ratelimit`), which ArchUnit
+treats as adapters all the same.
 
 ### Frontend modules
 
@@ -89,12 +113,6 @@ no aggregate at all, orchestrating over `user` and `auth`.
 
 Five distinct mechanisms, each used for one thing:
 
-The two endpoints reachable without a credential — sign-in and registration — are rate-limited per
-client address by a handler interceptor, which runs before any controller so a refused attempt costs
-no password comparison. The address it counts is the one nginx reported, and only nginx's own address
-is trusted to report one
-([ADR-017](../ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)).
-
 **1. HTTP, browser to API.** Every read and write. JSON in and out, JWT bearer token in the
 `Authorization` header. The token names its account by id in `sub` and carries nothing else that
 identifies it, and it is accepted only under this application's issuer, audience and signing
@@ -112,6 +130,12 @@ registration as a servlet filter of its own is switched off, because a copy runn
 chain would have its authentication discarded and leave every request anonymous (#238). Same-origin
 through the proxy, so no CORS preflight in the default setup; the `CORS_ALLOWED_ORIGINS` policy
 exists only for deployments that split the origins.
+
+The two endpoints reachable without a credential — sign-in and registration — are rate-limited per
+client address by a handler interceptor, which runs before any controller so a refused attempt costs
+no password comparison. The address it counts is the one nginx reported, and only nginx's own address
+is trusted to report one
+([ADR-017](../ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)).
 
 **2. STOMP over WebSocket, API to browser.** One-way in practice: the browser connects and subscribes,
 the API pushes. The handshake itself is unauthenticated — a browser cannot set headers on it — so the
@@ -144,8 +168,9 @@ which no sweep could see; a socket whose session has ended, or cannot be confirm
 When `auth` ends one session — a sign-out, or a
 replayed refresh credential — it publishes `AuthSessionEnded`; when it ends all of an account's, as
 switching the account off does, it publishes `UserSessionsEnded`. `SessionEndSocketListener` takes
-both after the commit and calls `LiveSocketPort`, which the registry implements: inverted, like
-`SessionStatusPort`, because `common` may not depend on `auth`. The registry sends each matching socket
+both after the commit and calls `LiveSocketPort`, which the registry implements: a port the kernel
+declares, as it does `SessionStatusPort` (mechanism 4), so that `auth` and `common` meet at an
+interface. The registry sends each matching socket
 a STOMP ERROR frame (`message: Session ended`), after which Spring closes the WebSocket. Sign-out is
 per device, so only the sockets opened in that session close. That frame, and no other ERROR, makes
 the client drop its access token, so it renews from the cookie before it connects again instead of
@@ -171,14 +196,28 @@ a session whose end has not landed yet as live.
 Events are asynchronous only in the sense of being decoupled; they are delivered in the same process,
 and nothing is queued or persisted between publisher and consumer.
 
-**4. Direct calls through inbound ports, context to context.** Where a context needs to *read* another,
-it calls that context's `application/port/in` interface and receives domain objects — never a
-repository, never a web DTO. `TrackingService` confirms upgrade ownership this way before recording
-progress. The shared kernel never calls a context this way. Where `common` needs what a context knows,
-it declares an outbound port in `common.domain.port.out` and the context supplies it: `auth` answers
-`SessionStatusPort`, whether a session is live, and `user` answers `AccountCredentialsPort`, the
-account a token or a sign-in names, through `AccountCredentialsAdapter`
-([ADR-062](../ADRs/ADR-062-the-shared-kernel-depends-on-no-bounded-context.md)).
+**4. Direct calls through ports, context to context.** One mechanism in two forms: a call through a
+port the callee publishes, and a call through a port the caller declares.
+
+*Through the callee's inbound port.* Where a context needs to *read* another, it calls that context's
+`application/port/in` interface and receives domain objects, never a repository. `TrackingService`
+confirms upgrade ownership this way before recording progress. What else may cross is a published
+presentation model, which is not a port: `dashboard` embeds `upgrade`'s `UpgradeDto` and maps it with
+`UpgradeWebMapper`, so the dashboard's upgrades are the ones `/api/upgrades` returns. The slice rule of
+`HexagonalArchitectureTest` lets a context reach another's `adapter/in/web` only for a class named
+`*Dto` or `*WebMapper`, never for a controller or a request record
+([ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)).
+
+*Through a port the caller declares.* Where the arrow would point the wrong way, the side that needs
+something declares an outbound port and the side that has it supplies the answer. `upgrade` declares
+`UpgradeTrackingSummaryPort` and `tracking` answers it (see "Which contexts depend on which"). The
+shared kernel never calls a context. Where `common` needs what a context knows, it declares an outbound
+port in `common.domain.port.out` and the context supplies it: `auth` answers `SessionStatusPort`,
+whether a session is live, and `user` answers `AccountCredentialsPort`, the account a token or a
+sign-in names, each through a composition adapter
+([ADR-062](../ADRs/ADR-062-the-shared-kernel-depends-on-no-bounded-context.md)). `LiveSocketPort` is the
+kernel's third, and the other way round: `auth` calls it and the registry in `common.websocket`
+implements it (mechanism 2).
 
 **5. Scheduled invocation.** Four cron-driven jobs drive the core with no request behind them: the
 overdue sweep, the daily check-in nudge, the per-minute reminder dispatch, and the nightly sweep of
@@ -215,6 +254,28 @@ configuration, which would mean `upgrade → tracking` — and `tracking → upg
 ownership checks. Instead `upgrade` declares `UpgradeTrackingSummaryPort` describing what it needs, in
 a record it owns, and `tracking` supplies it through a composition adapter. Both arrows run the same
 way. ADR-002 records why.
+
+**The reader of that port is a web mapper, not a use case.** `UpgradeWebMapper` holds
+`UpgradeTrackingSummaryPort` and, as it maps upgrades to `UpgradeDto`s, asks it for the configurations
+of all of them in one call. No application service calls the port, so a use case returns a
+`HealthUpgrade` without its tracking setup and the setup arrives later:
+
+1. The controller calls the use case, which loads and saves the aggregate and returns it as its
+   transaction ends.
+2. The controller hands the aggregate to the mapper, which reads the configurations through
+   `UpgradeTrackingSummaryAdapter` and `TrackingConfigQuery.findByUpgradeIds`. That read runs after the
+   use case's transaction has returned, so the upgrade and its tracking setup in one response are two
+   reads, not one snapshot.
+
+`DashboardWebMapper` maps its embedded upgrades through `UpgradeWebMapper`, so the dashboard inherits
+the read.
+
+The indirection is accepted, and not moved into the use cases. Moving it would change the ten
+`UpgradeService` methods the controller maps, and the dashboard's view, to return an upgrade together
+with its setup: about a dozen signatures, to remove an indirection that is named here instead. The
+cost is that a web mapper does I/O, which a reader of the layering rules would not expect.
+`TrackingConfigQuery`, the port that answers, is not scoped by owner, and ArchUnit keeps every
+dependent of it inside `tracking`; mechanism 5, above, says why that holds.
 
 ---
 
@@ -563,13 +624,19 @@ No class in `application` imports anything from `adapter`, in either direction. 
 `common.security`, `common.websocket`, `common.observability` and `common.ratelimit`. So `AuthService`
 issues tokens through `auth`'s `AccessTokenIssuerPort`, which `JwtAccessTokenIssuer` implements over
 `JwtTokenProvider`
-([ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)). This is
-what allows the whole core to be unit-tested without Spring, and it is checked rather than trusted.
+([ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)). This
+keeps HTTP, Spring Data, token signing and the event bus out of the core, and it is checked rather
+than trusted. It does not make the core Spring-free: services carry `@Service` and `@Transactional`, and
+`AuthService` uses Spring Security's `PasswordEncoder` and `AuthenticationManager`. A service's
+collaborators are its ports, though, so its unit test builds it with them mocked and starts no Spring
+context; `AuthServiceTest` supplies the real BCrypt encoder and mocks the `AuthenticationManager`.
 
 **The domain is framework-free, with one deliberate exception.** Domain classes import no Spring, no
-Jackson, no servlet, no bean validation. They do carry JPA mapping annotations, because the entities
-*are* the persistence model — there is no separate POJO-plus-mapper layer. That trade-off is ADR-001's,
-and ADR-002 reaffirms it.
+Jackson, no servlet, no bean validation, and `domain_depends_only_on_what_it_needs` allows them only
+the standard library, Lombok, this codebase's own types and `jakarta.persistence`. They do carry JPA
+mapping annotations, because the entities *are* the persistence model — there is no separate
+POJO-plus-mapper layer. All nine `@Entity` classes sit in a `domain/model` package. That trade-off is
+ADR-001's, and ADR-002 reaffirms it.
 
 **Pure domain services carry no stereotype annotation.** `StreakCalculator`,
 `ProgressEvaluationService` and `UpgradeSchedulingService` are plain classes, hand-registered as beans
@@ -586,13 +653,29 @@ across the user's *other* upgrades, which one aggregate cannot see. It is a pure
 receives the count as a parameter, and the application layer performs the counting query.
 
 **Spring Data is confined to the persistence adapters, and its interfaces are package-private.**
-Everything else depends on a repository port. Swapping the store would mean rewriting one package per
-context and nothing else.
+Everything else depends on a repository port. That keeps the queries in one package per context, and
+it does not make the store swappable by rewriting those packages alone. The entities in `domain/model`
+carry the JPA mapping, `GlobalExceptionHandler` maps `jakarta.persistence.OptimisticLockException` to a
+409, and the schema is PostgreSQL's, written in Flyway migrations whose foreign keys carry the
+cross-context deletes (see the next paragraph).
+
+**Deleting an upgrade reaches other contexts' tables through foreign keys, not through code.**
+Every context's tables are in one PostgreSQL schema, and `tracking_configs`, `progress_entries`,
+`reminders` and `reflections` reference `health_upgrades(id)` with `ON DELETE CASCADE`. That is how
+FR-14 is carried out: `UpgradeService.delete` removes one row and publishes no event, and the import
+graph shows no edge from `upgrade` to those contexts. `notifications.related_upgrade_id` and
+`health_upgrades.area_id` use `ON DELETE SET NULL`, which is how a notification outlives its upgrade
+(FR-14) and an upgrade survives its area (FR-8); `users(id)` cascades to every table that
+carries a `user_id`. The entities map these columns as plain ids, so no JPA cascade exists to find. A
+table that references `health_upgrades` or `users` states its `ON DELETE` outright, and moving a
+context's tables out of the database, or giving one a soft delete, would replace the cascade
+([ADR-063](../ADRs/ADR-063-one-schema-with-cross-context-foreign-keys.md)).
 
 **Every request record and response DTO belongs to the web adapter.** Application services take command
 records from `application/port/in` and return domain objects; a `*WebMapper` per context translates in
 both directions. A wire-format change therefore cannot reach a use-case signature. `UpgradeTrackingConfigDto`
-duplicating `TrackingConfigDto` field for field is the visible cost, and is intentional.
+duplicating `TrackingConfigDto` field for field is the visible cost, and is intentional. One mapper
+also reads: see "Which contexts depend on which".
 
 **Optimistic locking is on one aggregate.** Only `HealthUpgrade` carries `@Version`. Two saves that
 overlap inside the server clash, and the later one is answered 409. No request carries the version back,
@@ -798,6 +881,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the bundle ships a notices file for its third-party packages; why the jar and the images need none yet, and when that changes | [ADR-059](../ADRs/ADR-059-the-bundle-ships-its-third-party-notices.md) |
 | Why Dependabot ignores the Tailwind CSS and TypeScript majors, and what moves each by hand | [ADR-060](../ADRs/ADR-060-dependabot-holds-the-tailwind-and-typescript-majors-back.md) |
 | Why the shared kernel depends on no context; why the security adapter loads accounts through a port it declares rather than through `UserQuery`; why `User` and `Role` stay in `user` | [ADR-062](../ADRs/ADR-062-the-shared-kernel-depends-on-no-bounded-context.md) |
+| Why every context's tables share one schema; why a delete crosses contexts on `ON DELETE` rather than an event; what moving a context out or adding a soft delete would cost | [ADR-063](../ADRs/ADR-063-one-schema-with-cross-context-foreign-keys.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

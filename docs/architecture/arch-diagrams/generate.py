@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Regenerates the mechanical diagrams in this folder's README from the source they describe.
 
-Three of the six diagrams are derived rather than drawn, because they restate something the code
+Three of the seven diagrams are derived rather than drawn, because they restate something the code
 already states and would otherwise drift the moment anyone adds an import, a field or a column:
 
     context-map    the cross-context dependency graph, from the import statements
@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 
 # The context whose internals the class diagram shows. `upgrade` owns the core aggregate and its
-# state machine, so it is the one worth reading in full; every other context follows the same shape.
+# state machine, so it is the one worth reading in full; the other full contexts share its pattern.
 CLASS_DIAGRAM_CONTEXT = "upgrade"
 
 CONTEXTS = [

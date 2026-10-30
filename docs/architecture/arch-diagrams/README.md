@@ -11,7 +11,7 @@ Read them in order and you have the system. For the prose that goes with them se
 > **Three of these are generated, not drawn.** The context map, the class diagram and the ER diagram
 > are derived from the imports, the package layout and the Flyway migrations respectively, by
 > [`generate.py`](generate.py). CI fails if the committed output stops matching the source, so a
-> diagram here cannot quietly go out of date. The other three describe intent rather than structure,
+> diagram here cannot quietly go out of date. The other four describe intent rather than structure,
 > do not rot, and are written by hand.
 
 ---
@@ -34,7 +34,7 @@ flowchart LR
     subgraph backend["Backend container · Spring Boot :8080"]
         rest["REST controllers"]
         stomp["STOMP endpoint /ws"]
-        jobs["Scheduled jobs<br/>overdue · check-in · reminders"]
+        jobs["Scheduled jobs<br/>overdue · check-in · reminders · session clean-up"]
         core["Domain + application core"]
     end
 
@@ -108,9 +108,10 @@ an upgrade's response carries its tracking configuration. Its one outgoing edge 
 
 ## 3. How to read a context
 
-Every context is the same shape, so learning it once is enough. Arrows run **inward**: adapters
-depend on the core, and the core depends on nothing outside itself. The driven side is inverted —
-persistence and messaging *implement* ports the core declares, rather than the core calling them.
+The contexts share one pattern, though not one shape: this is the full one, and the paragraph after
+it names the contexts that leave parts out. Arrows run **inward**: adapters depend on the core, and
+the core imports no adapter. The driven side is inverted — persistence and messaging *implement* ports
+the core declares, rather than the core calling them.
 
 ```mermaid
 flowchart LR
@@ -118,9 +119,11 @@ flowchart LR
         web["adapter/in/web<br/>controllers · DTOs · mappers"]
         sched["adapter/in/scheduling<br/>cron jobs"]
         evt["adapter/in/event<br/>event listeners"]
+        boot["adapter/in/bootstrap<br/>startup runner"]
+        comp["adapter/in/composition<br/>answers another context's port"]
     end
 
-    subgraph core["the core — no Spring, no JPA queries, no HTTP"]
+    subgraph core["the core — no HTTP, no Spring Data, no adapter imports"]
         portIn["application/port/in<br/>inbound ports · command records"]
         app["application<br/>transactional services"]
         domain["domain/model · domain/service<br/>aggregates · invariants"]
@@ -132,6 +135,8 @@ flowchart LR
         messaging["adapter/out/messaging<br/>STOMP push"]
     end
 
+    foreign["another context's or the kernel's<br/>outbound port"]
+
     driving --> portIn
     driving --> app
     portIn --> app
@@ -139,25 +144,44 @@ flowchart LR
     app --> portOut
     persistence -. implements .-> portOut
     messaging -. implements .-> portOut
+    comp -. implements .-> foreign
 ```
+
+The core is not free of frameworks. The entities in `domain/model` carry `jakarta.persistence`
+mapping annotations, and the application services are Spring beans with `@Transactional`. The label
+names only what ArchUnit forbids (see
+[`../architecture.md`](../architecture.md#structural-decisions-not-visible-from-the-file-layout)).
 
 A driving adapter starts work and does nothing else: it calls a use case, through an inbound port or
 the context's own application service, and never an outbound port. A cron job reads the clock and
-times its run; the sweep itself, with its rules and its writes, is an application method. The two
-adapters allowed an outbound port are named, with their reasons, in `HexagonalArchitectureTest`
+times its run; the sweep itself, with its rules and its writes, is an application method.
+`adapter/in/bootstrap` holds `AdminBootstrapRunner`, which runs once at startup and calls an application
+service in the same way. `adapter/in/composition` differs: it sits on the driving side because
+it calls its own context's inbound port, but what it does is implement an outbound port that another
+context or the kernel declared. `tracking` answers `upgrade`'s `UpgradeTrackingSummaryPort`, `auth` the
+kernel's `SessionStatusPort`, and `user` its `AccountCredentialsPort`. The two exceptions to "never an
+outbound port", a composition adapter supplying a kernel port and `SessionEndSocketListener`, are
+named, with their reasons, in `HexagonalArchitectureTest`
 ([ADR-002](../../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)).
 
 This is not a convention anyone has to remember — `HexagonalArchitectureTest` fails the build on
-every arrow that runs the wrong way. Two contexts are deliberately smaller than this: `auth`
-orchestrates over `user` for identity while owning its own `AuthSession` aggregate, and `dashboard` is
-a read model with no driven side.
+every arrow that runs the wrong way. Not every context has every part, and
+[ADR-002](../../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md) and
+`backend/CLAUDE.md` call that deliberate:
+
+- `admin` and `dashboard` are two-layer: an application layer and driving adapters, with no domain
+  and no driven side. `admin` owns no aggregate and orchestrates over `user` and `auth`; `dashboard`
+  is a read model that persists nothing.
+- `user` has no web adapter of its own: `auth`'s controller serves its account responses.
+- `auth` has all three layers, with `AuthSession` as its aggregate, and orchestrates over `user` for
+  identity. It adds `adapter/out/security` for signing access tokens and generating secrets.
 
 ---
 
 ## 4. Inside one context — `upgrade`
 
 The core context, and the one worth reading in full: it owns `HealthUpgrade`, the aggregate whose
-state machine the whole product is built around. Every other context follows the shape from §3.
+state machine the whole product is built around. The other full contexts follow the shape from §3.
 
 Relations shown are **implements**, **extends**, and *holds a field of this type* — the composition
 that reveals the wiring. Accessors and framework plumbing are left out on purpose; the interesting
@@ -323,6 +347,11 @@ classDiagram
 Read the stereotypes as layers. Note that `UpgradeService` holds `UpgradeRepositoryPort` — an
 interface in the domain — and never the adapter that implements it, which is the whole point.
 
+One arrow runs from a web adapter to an outbound port: `UpgradeWebMapper` holds
+`UpgradeTrackingSummaryPort`, so the mapper reads each upgrade's tracking setup as it builds the
+response, and no use case does. [`architecture.md`](../architecture.md#which-contexts-depend-on-which)
+says why that is accepted.
+
 ---
 
 ## 5. The upgrade lifecycle
@@ -375,7 +404,7 @@ sequenceDiagram
 
     B->>N: POST /api/upgrades/{id}/progress
     N->>F: proxied
-    F->>F: BearerTokenAuthenticator — verify token, load the account named by sub, set security context
+    F->>F: BearerTokenAuthenticator — verify token, check its session is live, load the account named by sub, set security context
     F->>C: request
     C->>S: recordProgress(userId, upgradeId, details)
     S->>U: getOwnedUpgrade(userId, upgradeId)
@@ -533,6 +562,12 @@ erDiagram
 The two constraints doing real work: `progress_entries` is unique on `(upgrade_id, date)`, which is
 what makes "one entry per upgrade per day" survive a race the application-level check would miss; and
 `tracking_configs.upgrade_id` is unique, so an upgrade has at most one configuration.
+
+The foreign keys carry the deletes too, which the diagram does not draw. `ON DELETE CASCADE` on
+`tracking_configs`, `progress_entries`, `reminders` and `reflections` is how deleting an upgrade deletes
+them, and `ON DELETE SET NULL` on `notifications.related_upgrade_id` and `health_upgrades.area_id` is how
+a notification and an upgrade outlive theirs
+([ADR-063](../../ADRs/ADR-063-one-schema-with-cross-context-foreign-keys.md)).
 
 ---
 
