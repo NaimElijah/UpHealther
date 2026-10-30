@@ -48,6 +48,10 @@ class CorrelationIT extends PostgresIT {
 
     private static final String TRACE_ID_HEADER = "X-Trace-Id";
     private static final String INBOUND_TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736";
+
+    /** A trace id sent in B3 form, distinct from the W3C one so neither test can pass on the other's. */
+    private static final String INBOUND_B3_TRACE_ID = "5c0a9e3d1b7f4e26a8d4c1f09b3e7a52";
+
     private static final String TRACE_ID_PATTERN = "[0-9a-f]{32}";
 
     private static final HttpClient client = HttpClient.newHttpClient();
@@ -72,6 +76,26 @@ class CorrelationIT extends PostgresIT {
         HttpResponse<String> response = post("{}", "00-" + INBOUND_TRACE_ID + "-00f067aa0ba902b7-01");
 
         assertThat(traceIdHeader(response)).isEqualTo(INBOUND_TRACE_ID);
+    }
+
+    @Test
+    void GivenAB3Header_WhenTheRequestIsAnswered_ThenItsTraceIsNotContinued() throws Exception {
+        // ADR-067: trace context is accepted from a trusted hop only, and that hop speaks W3C. Boot's
+        // default consumes B3 too, so a client could choose the id the logs and the audit trail join on
+        // by sending b3 instead of the traceparent the proxy strips.
+        HttpResponse<String> response = postWithHeaders("b3", INBOUND_B3_TRACE_ID + "-00f067aa0ba902b7-1");
+
+        assertThat(traceIdHeader(response)).matches(TRACE_ID_PATTERN).isNotEqualTo(INBOUND_B3_TRACE_ID);
+    }
+
+    @Test
+    void GivenMultiHeaderB3_WhenTheRequestIsAnswered_ThenItsTraceIsNotContinued() throws Exception {
+        HttpResponse<String> response = postWithHeaders(
+                "X-B3-TraceId", INBOUND_B3_TRACE_ID,
+                "X-B3-SpanId", "00f067aa0ba902b7",
+                "X-B3-Sampled", "1");
+
+        assertThat(traceIdHeader(response)).matches(TRACE_ID_PATTERN).isNotEqualTo(INBOUND_B3_TRACE_ID);
     }
 
     @Test
@@ -164,6 +188,18 @@ class CorrelationIT extends PostgresIT {
                 .POST(HttpRequest.BodyPublishers.ofString(body));
         if (traceparent != null) {
             request.header("traceparent", traceparent);
+        }
+        return client.send(request.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    /** An empty sign-in body sent with the given header names and values, in pairs. */
+    private HttpResponse<String> postWithHeaders(String... namesAndValues) throws Exception {
+        HttpRequest.Builder request = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + "/api/auth/login"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("{}"));
+        for (int i = 0; i < namesAndValues.length; i += 2) {
+            request.header(namesAndValues[i], namesAndValues[i + 1]);
         }
         return client.send(request.build(), HttpResponse.BodyHandlers.ofString());
     }

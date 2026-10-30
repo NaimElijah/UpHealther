@@ -164,6 +164,11 @@ management:
       # silently dropped, and with no exporter configured a lower rate saves nothing. Revisit when a
       # collector is added: this is the volume that would start leaving the process. See ADR-007.
       probability: 1.0
+    propagation:
+      # W3C only. Boot also consumes B3 and B3_MULTI by default, and the proxy clears the client's
+      # traceparent, so a b3 header would be how a client chose the trace id the logs and the audit trail
+      # join on (S5.C5, ADR-067). What is produced stays W3C, Boot's default.
+      consume: W3C
 
 logging:
   level:

@@ -3,7 +3,6 @@ package com.healthupgrades.common.observability;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.TraceContext;
 import io.micrometer.tracing.Tracer;
-import io.micrometer.tracing.propagation.Propagator;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +32,14 @@ import org.springframework.stereotype.Component;
  * child span, rather than re-entering the same span, so a message with several subscribers cannot end
  * one span twice.
  *
+ * <p><b>A frame's own trace headers are never read.</b> A STOMP frame comes from the client over an open
+ * socket, past the proxy that clears the trace headers of an HTTP request, so continuing a
+ * {@code traceparent} it carried would let the client choose the trace id the logs and the audit trail
+ * join on (S5.C5, ADR-067). Each frame's span is a child of whatever span is current on the sending
+ * thread instead: none for a frame the client sent, which therefore starts a trace of its own, and the
+ * request's for a frame the server sends while serving one, so a push still joins the request that
+ * caused it.
+ *
  * <p>Registration order matters and is asserted: this interceptor is registered <em>before</em>
  * {@code JwtChannelInterceptor}, which rejects a bad CONNECT by throwing from its own {@code preSend}.
  * The chain unwinds completion callbacks in reverse, so a rejected connection is still inside this span
@@ -59,15 +66,11 @@ public class StompTracingChannelInterceptor implements ExecutorChannelIntercepto
     private final ThreadLocal<Deque<Scope>> openScopes = ThreadLocal.withInitial(ArrayDeque::new);
 
     private final Tracer tracer;
-    private final Propagator propagator;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
-        Span span = propagator
-                .extract(accessor, (carrier, key) -> carrier.getFirstNativeHeader(key))
-                .name(spanName(accessor))
-                .start();
+        Span span = tracer.nextSpan().name(spanName(accessor)).start();
         try {
             MessageHeaderAccessor mutable = MessageHeaderAccessor.getMutableAccessor(message);
             mutable.setHeader(TRACE_CONTEXT_HEADER, span.context());
