@@ -332,9 +332,14 @@ def merge_columns(target: dict, columns: list) -> None:
             target[name] = (type_token, key)
 
 
-def migration_version(migration: Path) -> int:
-    """The version a migration's name carries, V10__x.sql -> 10."""
-    return int(migration.name[1:].split("__", 1)[0])
+def migration_version(migration: Path) -> tuple:
+    """The version a migration's name carries, as Flyway orders it: V10__x.sql -> (10,), V1_1__x.sql -> (1, 1).
+
+    A tuple of its parts, not one int: int("1_1") is 11 in Python, so a dotted version would sort
+    after V10 without an error, where Flyway reads it as 1.1 and runs it before V2.
+    """
+    version = migration.name[1:].split("__", 1)[0]
+    return tuple(int(part) for part in re.split(r"[._]", version))
 
 
 def er_diagram() -> str:
