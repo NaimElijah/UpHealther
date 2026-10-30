@@ -1,5 +1,7 @@
 package com.healthupgrades;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.healthupgrades.support.PostgresIT;
 import com.healthupgrades.tracking.domain.service.ProgressEvaluationService;
 import com.healthupgrades.tracking.domain.service.StreakCalculator;
@@ -7,6 +9,8 @@ import com.healthupgrades.upgrade.domain.service.UpgradeSchedulingService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
+import org.springframework.orm.jpa.support.OpenEntityManagerInViewInterceptor;
 
 /**
  * Boots the whole application against a real PostgreSQL.
@@ -27,6 +31,9 @@ import org.springframework.boot.test.context.SpringBootTest;
  *       {@code ddl-auto: validate}, so an entity change without a matching migration fails at startup.
  *       Booting here is what turns that into a build failure.</li>
  * </ul>
+ *
+ * <p>It also pins one property of the context the shipped configuration builds: open-in-view is off, so a
+ * request holds a pooled connection only while one of its transactions runs.
  */
 @SpringBootTest
 class ApplicationContextIT extends PostgresIT {
@@ -40,10 +47,21 @@ class ApplicationContextIT extends PostgresIT {
     @Autowired
     ProgressEvaluationService progressEvaluationService;
 
+    @Autowired
+    ApplicationContext context;
+
     @Test
     void GivenTheRealSchemaAndTheHandWiredBeans_WhenTheApplicationStarts_ThenItComesUpWithBothIntact() {
         // Reaching this point is the assertion. The context started, so Flyway migrated and Hibernate
         // validated the resulting schema; and the hand-wired beans are the fields above, which Spring
         // must inject before any test runs, so a missing @Bean fails the context rather than this body.
+    }
+
+    @Test
+    void GivenTheShippedConfiguration_WhenTheApplicationStarts_ThenNoRequestKeepsAnEntityManagerOpen() {
+        // Boot registers this interceptor exactly when spring.jpa.open-in-view is on, and while it is
+        // registered every request holds its pooled connection until the response has been written.
+        assertThat(context.getBeanNamesForType(OpenEntityManagerInViewInterceptor.class))
+                .isEmpty();
     }
 }

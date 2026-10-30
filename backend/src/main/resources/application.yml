@@ -27,6 +27,10 @@ spring:
       # mismatch. An entity change therefore needs a new V{n}__*.sql migration, never a schema update here.
       ddl-auto: validate
     show-sql: false
+    # Off, so a request gives its connection back when its last transaction ends rather than once its
+    # response has been written. Open-in-view exists to lazy-load associations from the view, and no
+    # entity here maps one: each holds the ids of its neighbours, never the rows (ADR-063).
+    open-in-view: false
   flyway:
     enabled: true
     # Lets Flyway adopt a database that already has tables but no schema history, so an environment
