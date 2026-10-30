@@ -1,6 +1,6 @@
 # ADR-054: A session that ends closes its open sockets, with an ERROR frame, after the commit
 
-- **Status:** Accepted
+- **Status:** Superseded in part by [ADR-066](ADR-066-a-tab-keeps-nothing-of-a-session-that-ended.md)
 - **Date:** 2026-10-25
 - **Scope:**
   - `backend/` — `BearerTokenAuthenticator` and `BearerAuthentication` in `common.security`;

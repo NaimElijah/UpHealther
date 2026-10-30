@@ -482,7 +482,7 @@ docs/              The documentation the repository baseline requires
   requirements/      What the system must do, each naming its enforcing test
   architecture/      What the system is, plus seven diagrams (three generated)
   ADRs/              Why — one file per decision, append-only
-scripts/           The image check, the backend audit, the changelog's git-cliff, and the Maven and Python launchers
+scripts/           The image check, the backend audit, the changelog's git-cliff, the Maven and Python launchers, and postgres-init/, the compose database's application role
 package.json       npm run setup, npm start, npm test, npm run changelog, npm run generate:wire-types — no dependencies; CI runs its test:* scripts
 CHANGELOG.md       Every release, newest first, written by git-cliff as cliff.toml says
 .github/workflows/ CI: backend verify/audit, diagram drift, frontend format/lint/test/audit/build, images and the smoke test

@@ -592,21 +592,34 @@ describe('NotificationProvider', () => {
   });
 
   it('GivenTheServerEndedTheSession_WhenTheSocketReconnects_ThenTheTokenIsRenewedFirst', async () => {
-    // The server ends an open socket with this ERROR frame when its session ends (ADR-054). The token
-    // can still look usable by its clock, and presenting it again would be refused on every attempt,
-    // each refusal an audit entry, until it lapsed fifteen minutes later.
-    setAccessToken('revoked.jwt.token', '2099-01-01T00:00:00Z');
-    renewSession.mockReturnValue(true);
-    renderProvider(authenticated());
-    await waitFor(() => expect(lastClient).toBeDefined());
-
-    act(() => lastClient?.fail('Session ended'));
-    await act(async () => {
-      await lastClient?.prepareConnect();
+    // The server ends an open socket with this ERROR frame when its session ends (ADR-054), and the tab
+    // then ends its own session and leaves for /login (ADR-066). Until the page unloads the socket may
+    // still try once more, and the token, which can still look usable by its clock, must not be
+    // presented again: it would be refused, and the refusal audited. `window.location` is redefined
+    // because jsdom refuses the navigation.
+    const realLocation = window.location;
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      writable: true,
+      value: { ...realLocation, href: '' },
     });
+    try {
+      setAccessToken('revoked.jwt.token', '2099-01-01T00:00:00Z');
+      renewSession.mockReturnValue(true);
+      renderProvider(authenticated());
+      await waitFor(() => expect(lastClient).toBeDefined());
 
-    expect(renewSession).toHaveBeenCalled();
-    expect(lastClient?.connectHeaders).toEqual({ Authorization: 'Bearer renewed.jwt.token' });
+      act(() => lastClient?.fail('Session ended'));
+      await act(async () => {
+        await lastClient?.prepareConnect();
+      });
+
+      expect(window.location.href).toBe('/login');
+      expect(renewSession).toHaveBeenCalled();
+      expect(lastClient?.connectHeaders).toEqual({ Authorization: 'Bearer renewed.jwt.token' });
+    } finally {
+      Object.defineProperty(window, 'location', { configurable: true, writable: true, value: realLocation });
+    }
   });
 
   it('GivenAnErrorFrameForAnyOtherReason_WhenTheSocketReconnects_ThenTheTokenIsKept', async () => {

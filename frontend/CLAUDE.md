@@ -87,14 +87,16 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   makes a credential good for one use — and retries the request once. Only a renewal that fails,
   refused or unanswered, ends the session and redirects to `/login`; the notification socket's own
   failed renewal does not (ADR-054). Unanswered means no answer within `REFRESH_TIMEOUT_MS`, ten
-  seconds, so a stalled renewal does not keep the cross-tab lock. That path and an accepted sign-out both end it through
-  `endSession()` in `src/api/session.ts`, a full document navigation so the query cache goes with the
-  page; do not add a third way. The back/forward cache can keep that page, so `endSession` also empties
-  the query cache first, which `createQueryClient` registers through `onSessionEnd`, and a page the
-  cache restores reloads ([ADR-066](../docs/ADRs/ADR-066-a-page-restored-from-the-back-forward-cache-reloads.md)).
-  State of a new kind that must not outlive a session registers with `onSessionEnd` too. A 401 from `/api/auth/login` or
-  `/api/auth/register` is the form's answer and is left to the page, and a 403 ("known, not allowed")
-  never ends a session. See [ADR-015](../docs/ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md).
+  seconds, so a stalled renewal does not keep the cross-tab lock. The server's session-ended ERROR
+  frame on the socket does end the session, because the server sends it only once it has ended the
+  session itself. That path, that frame and an accepted sign-out all end it through `endSession()` in
+  `src/api/session.ts`, a full document navigation so the query cache goes with the page; do not end
+  one any other way. The back/forward cache can keep that page, so `endSession` also empties the query
+  cache first, which `createQueryClient` registers through `onSessionEnd`, and a page the cache
+  restores reloads ([ADR-066](../docs/ADRs/ADR-066-a-tab-keeps-nothing-of-a-session-that-ended.md)).
+  State of a new kind that must not outlive a session registers with `onSessionEnd` too. A 401 from
+  `/api/auth/login` or `/api/auth/register` is the form's answer and is left to the page, and a 403
+  ("known, not allowed") never ends a session. See [ADR-015](../docs/ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md).
   Every HTTP call in `src/api/*.ts` goes through this client — add new endpoints there, not with raw
   axios. A value interpolated into a path goes through the `apiPath` template tag
   (`` apiPath`/api/upgrades/${id}/plan` ``), never a bare template: React Router decodes `:id`, so a

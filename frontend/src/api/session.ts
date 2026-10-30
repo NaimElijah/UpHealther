@@ -24,17 +24,17 @@ export function onSessionEnd(listener: SessionEndListener): () => void {
  * Ends the session in this tab: drops the access token, empties what `onSessionEnd` registered, and
  * sends the browser to the login page.
  *
- * The one way a session ends here, whether the user signed out or a renewal failed. It has to be a
- * full document navigation, never a router push. Unloading the page is what discards every provider's
- * state, so nothing belonging to the previous user, their data or `isAuthenticated: true`, can be read
- * by whoever signs in next on the same machine. The query cache is emptied first as well, because the
- * browser may keep the page it leaves in its back/forward cache; the `pageshow` listener below reloads
- * such a page if it is ever restored.
+ * The one way a session ends here, whether the user signed out, a renewal failed or the server said the
+ * session had ended. It has to be a full document navigation, never a router push. Unloading the page
+ * is what discards every provider's state, so nothing belonging to the previous user, their data or
+ * `isAuthenticated: true`, can be read by whoever signs in next on the same machine. The query cache is
+ * emptied first as well, because the browser may keep the page it leaves in its back/forward cache; the
+ * `pageshow` listener below reloads such a page if it is ever restored.
  *
  * It does not tell the server. A caller signing out awaits that first. The interceptor calls this once
- * a renewal fails, whether the server refused it or did not answer. The notification socket's own
- * failed renewal does not call it: the socket reconnects without a token, and the session ends at the
- * tab's next request (ADR-054).
+ * a renewal fails, whether the server refused it or did not answer. The notification socket calls it
+ * on the server's session-ended ERROR frame (ADR-066). The socket's own failed renewal does not: the
+ * socket reconnects without a token, and the session ends at the tab's next request (ADR-054).
  */
 export function endSession(): void {
   clearAccessToken();
