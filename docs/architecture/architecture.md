@@ -561,7 +561,8 @@ Three places are worth knowing about because they were silent and are no longer:
   A refused request, any 4xx, is DEBUG in the same way: its path, its status and its exception's type,
   because a validation failure's message quotes every rejected value, a password included.
 - **A failed real-time push.** It runs from an `afterCommit` callback, so the notification is already
-  durable; the failure is now reported at WARN and the caller carries on, where before one unreachable
+  durable; the failure is now reported at WARN, by ids and by its own and its root cause's exception types
+with no stack trace, and the caller carries on, where before one unreachable
   session cancelled everybody else's reminders for that minute.
 
 ### In the browser

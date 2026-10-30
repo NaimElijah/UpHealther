@@ -8,6 +8,7 @@ import com.healthupgrades.notification.domain.port.out.NotificationPushPort;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.NestedExceptionUtils;
 import org.springframework.messaging.MessagingException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
@@ -41,8 +42,9 @@ public class StompNotificationPushAdapter implements NotificationPushPort {
      * reminders for that minute. Nothing recorded it either way.
      *
      * <p>So it is caught, narrowly, and reported at WARN with the ids needed to find the notification
-     * that was not delivered. The catch handles rather than silences: the fact is stored, the failure
-     * is visible, and the user sees the notification on their next load.
+     * that was not delivered, and the failure's type and its root cause's. The catch handles rather
+     * than silences: the fact is stored, the failure is visible, and the user sees the notification on
+     * their next load.
      */
     @Override
     public void push(UUID userId, Notification notification) {
@@ -50,12 +52,20 @@ public class StompNotificationPushAdapter implements NotificationPushPort {
             // Routed to the session(s) whose STOMP principal name == userId (see JwtChannelInterceptor).
             messagingTemplate.convertAndSendToUser(userId.toString(), USER_QUEUE, mapper.toDto(notification));
         } catch (MessagingException undelivered) {
+            // Types only, and no throwable: the line repeats per notification, and a message or stack
+            // trace can quote what was being sent (NFR-6, S5.C8). The root cause's type is what tells a
+            // closed socket from a broker that is full.
             log.warn(
-                    "{} {} {}",
+                    "{} {} {} {} {}",
                     keyValue("event", "notification.push-failed"),
                     keyValue("userId", userId),
                     keyValue("notificationId", notification.getId()),
-                    undelivered);
+                    keyValue("error", undelivered.getClass().getSimpleName()),
+                    keyValue(
+                            "rootCause",
+                            NestedExceptionUtils.getMostSpecificCause(undelivered)
+                                    .getClass()
+                                    .getSimpleName()));
         }
     }
 }
