@@ -107,9 +107,9 @@ public class JwtTokenProvider {
      * Verifies a token and reads the account it names.
      *
      * @param token candidate JWT, from an {@code Authorization} header or a STOMP header
-     * @return the verified claims, or empty when the token is malformed, forged, expired, from another
-     *         issuer or audience, signed with another algorithm, names no session, or names something
-     *         that is not an id
+     * @return the verified claims, or empty when the token is malformed, forged, expired or without an
+     *         expiry, from another issuer or audience, signed with another algorithm, names no session, or
+     *         names something that is not an id
      */
     public Optional<VerifiedAccessToken> verify(String token) {
         try {
@@ -125,6 +125,12 @@ public class JwtTokenProvider {
                 // A token minted before sessions existed names no session; one naming no subject is
                 // malformed. Either way there is no account to authenticate and nothing to revoke.
                 log.debug("Rejected a token: it names no session or no subject");
+                return Optional.empty();
+            }
+            if (claims.getExpiration() == null) {
+                // JJWT checks exp only when the token carries one, so without this a token minted with
+                // none would be accepted for ever. Every token issued here has one (S5.A14).
+                log.debug("Rejected a token: it names no expiry");
                 return Optional.empty();
             }
             return Optional.of(new VerifiedAccessToken(UUID.fromString(subject), UUID.fromString(sessionId)));

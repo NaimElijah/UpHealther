@@ -1,5 +1,7 @@
 package com.healthupgrades.admin.application.port.in;
 
+import java.util.UUID;
+
 /**
  * Inbound read port for account administration.
  *
@@ -11,11 +13,12 @@ package com.healthupgrades.admin.application.port.in;
 public interface AdminUserQuery {
 
     /**
-     * Reads one page of accounts, oldest first.
+     * Reads one page of accounts, oldest first, and audits who read it.
      *
+     * @param actingAdminId the administrator reading the page
      * @param page zero-based page number
      * @param size how many accounts per page
      * @return that page, with the total so a caller knows how many more there are
      */
-    AccountPage list(int page, int size);
+    AccountPage list(UUID actingAdminId, int page, int size);
 }

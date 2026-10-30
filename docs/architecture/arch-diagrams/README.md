@@ -176,7 +176,8 @@ every arrow that runs the wrong way. Not every context has every part, and
   is a read model that persists nothing.
 - `user` has no web adapter of its own: `auth`'s controller serves its account responses.
 - `auth` has all three layers, with `AuthSession` as its aggregate, and orchestrates over `user` for
-  identity. It adds `adapter/out/security` for signing access tokens and generating secrets.
+  identity. It adds `adapter/out/security` for signing access tokens and generating secrets, and
+  `adapter/out/resource` for reading the common-password list the jar bundles.
 
 ---
 
@@ -443,6 +444,7 @@ against a schema that does not match it.
 <!-- generated:er-diagram -->
 ```mermaid
 erDiagram
+    auth_sessions ||--o{ auth_session_spent_tokens : ""
     health_areas |o--o{ health_upgrades : ""
     health_upgrades |o--o{ notifications : ""
     health_upgrades ||--o{ progress_entries : ""
@@ -554,25 +556,31 @@ erDiagram
         uuid id PK
         uuid user_id
         bytea refresh_token_hash
-        bytea previous_token_hash
         timestamptz created_at
         timestamptz last_used_at
-        timestamptz rotated_at
         timestamptz idle_expires_at
         timestamptz absolute_expires_at
         boolean revoked
     }
+    auth_session_spent_tokens {
+        uuid session_id
+        bytea token_hash
+        timestamptz spent_at
+    }
 ```
 <!-- /generated:er-diagram -->
 
-The two constraints doing real work: `progress_entries` is unique on `(upgrade_id, date)`, which is
-what makes "one entry per upgrade per day" survive a race the application-level check would miss; and
-`tracking_configs.upgrade_id` is unique, so an upgrade has at most one configuration.
+The constraints doing real work: `progress_entries` is unique on `(upgrade_id, date)`, which is
+what makes "one entry per upgrade per day" survive a race the application-level check would miss;
+`tracking_configs.upgrade_id` is unique, so an upgrade has at most one configuration; and
+`auth_session_spent_tokens` is keyed on `(session_id, token_hash)`, a composite key the diagram cannot
+mark, which is the lookup a refresh makes to recognise a replayed credential.
 
 The foreign keys carry the deletes too, which the diagram does not draw. `ON DELETE CASCADE` on
 `tracking_configs`, `progress_entries`, `reminders` and `reflections` is how deleting an upgrade deletes
-them, and `ON DELETE SET NULL` on `notifications.related_upgrade_id` and `health_upgrades.area_id` is how
-a notification and an upgrade outlive theirs
+them, on `auth_session_spent_tokens` how deleting a session deletes the credentials it spent, and
+`ON DELETE SET NULL` on `notifications.related_upgrade_id` and `health_upgrades.area_id` is how a
+notification and an upgrade outlive theirs
 ([ADR-063](../../ADRs/ADR-063-one-schema-with-cross-context-foreign-keys.md)).
 
 ---

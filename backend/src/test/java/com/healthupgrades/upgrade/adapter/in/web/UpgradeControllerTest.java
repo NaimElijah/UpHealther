@@ -182,6 +182,20 @@ class UpgradeControllerTest {
     }
 
     @Test
+    void GivenATitleCarryingANulCharacter_WhenAnUpgradeIsCreated_ThenItAnswers400BeforeTheUseCase() throws Exception {
+        // S5.B5: PostgreSQL refuses U+0000 in text, so it reached the catch-all as a 500 and an ERROR
+        // line, alert noise anybody signed in could make on demand. Refused at the body instead.
+        mockMvc.perform(bearer(post(BASE))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Walk\\u0000daily\",\"type\":\"HABIT\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Malformed request body"));
+
+        verify(service, never()).create(any(), any());
+    }
+
+    @Test
     void GivenATitleLongerThanItsColumn_WhenAnUpgradeIsCreated_ThenItAnswers400NamingTheField() throws Exception {
         // health_upgrades.title is VARCHAR(255), which is where the 255 comes from. Unbounded here, an
         // over-long title reached the flush in production and came back 500 - a server fault reported

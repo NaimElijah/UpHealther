@@ -27,6 +27,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.MessageDeliveryException;
+import org.springframework.messaging.MessagingException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 /**
@@ -117,6 +118,26 @@ class StompNotificationPushAdapterTest {
                             "userId=" + userId,
                             "notificationId=" + notification.getId())
                     .doesNotContain(notification.getTitle(), notification.getMessage());
+        });
+    }
+
+    @Test
+    void GivenAPushThatFailsWithACause_WhenItIsLogged_ThenTheLineNamesBothTypesAndAttachesNoThrowable() {
+        // S5.C8: the line repeats per notification, so it names the failure by type, never by message
+        // or stack trace (NFR-6). The root cause's type is what tells a closed socket from a full broker.
+        doThrow(new MessagingException(
+                        "no session", new IllegalStateException("socket closed for someone@example.com")))
+                .when(messagingTemplate)
+                .convertAndSendToUser(anyString(), anyString(), any(Object.class));
+
+        List<ILoggingEvent> logged = logsFromAdapter(
+                () -> new StompNotificationPushAdapter(messagingTemplate, mapper).push(userId, aNotification()));
+
+        assertThat(logged).singleElement().satisfies(warning -> {
+            assertThat(warning.getThrowableProxy()).isNull();
+            assertThat(warning.getFormattedMessage())
+                    .contains("error=MessagingException", "rootCause=IllegalStateException")
+                    .doesNotContain("socket closed", "someone@example.com", "no session");
         });
     }
 

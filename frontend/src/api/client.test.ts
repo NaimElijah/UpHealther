@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { AxiosAdapter, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import client from './client';
+import client, { REFRESH_TIMEOUT_MS, renewSession } from './client';
 import { clearAccessToken, getAccessToken, setAccessToken } from './tokenStore';
 
 /**
@@ -231,6 +231,95 @@ describe('the shared API client', () => {
       await expect(outcome).resolves.toMatchObject({ response: { status: 401 } });
       expect(window.location.href).toBe('/login');
       expect(getAccessToken()).toBeNull();
+    });
+
+    it('GivenTheRenewalIsRateLimited_WhenARequestIs401_ThenTheRequestFailsWithThe429AndTheSessionIsKept', async () => {
+      // NFR-39: a 429 says the address has spent its allowance, not that the session is over. The limit
+      // is counted per address before any cookie is read, so somebody else behind the same NAT can cause
+      // one, and ending the session for it would let them sign everybody there out.
+      setAccessToken('expired.jwt.token', '2099-01-01T00:00:00Z');
+      withAdapter((config) => (config.url === '/api/auth/refresh' ? rejection(config, 429) : rejection(config, 401)));
+
+      await expect(client.get('/api/upgrades')).rejects.toMatchObject({ response: { status: 429 } });
+
+      expect(window.location.href).toBe('');
+      expect(getAccessToken()).toBe('expired.jwt.token');
+      expect(pathsSent()).toEqual(['/api/upgrades', '/api/auth/refresh']);
+    });
+
+    it('GivenAnotherTabRotatedFirstAndTheRetryIsRateLimited_WhenARequestIs401_ThenTheSessionIsKept', async () => {
+      // The one retry after a 409 is a second refresh, and it can meet the limit the first did not.
+      vi.useFakeTimers();
+      setAccessToken('expired.jwt.token', '2099-01-01T00:00:00Z');
+      let refreshAttempts = 0;
+      withAdapter((config) => {
+        if (config.url !== '/api/auth/refresh') return rejection(config, 401);
+        refreshAttempts += 1;
+        return rejection(config, refreshAttempts === 1 ? 409 : 429);
+      });
+
+      const outcome = client.get('/api/upgrades').catch((error: unknown) => error);
+      await vi.runAllTimersAsync();
+
+      await expect(outcome).resolves.toMatchObject({ response: { status: 429 } });
+      expect(refreshAttempts).toBe(2);
+      expect(window.location.href).toBe('');
+      expect(getAccessToken()).toBe('expired.jwt.token');
+    });
+
+    it('GivenTheRenewalIsRateLimited_WhenTheSessionIsRenewedDirectly_ThenTheRenewalRejectsWithThe429', async () => {
+      // How the page-load restore and the socket see it: a rejection, which neither treats as a session
+      // that ended, rather than the false that means it did.
+      withAdapter((config) => rejection(config, 429));
+
+      await expect(renewSession()).rejects.toMatchObject({ response: { status: 429 } });
+    });
+
+    it('GivenARenewalThatNeverAnswers_WhenARequestIs401_ThenTheRenewalGivesUpAtTheTimeout', async () => {
+      // S5.D5: the renewal runs holding the cross-tab lock, so one that hangs would stall every tab's
+      // renewal, and every request behind a 401, for as long as the connection stayed open. What a
+      // renewal given up then does is #377's question; this pins only that the wait ends, and when.
+      vi.useFakeTimers();
+      setAccessToken('expired.jwt.token', '2099-01-01T00:00:00Z');
+      withAdapter((config) =>
+        config.url === '/api/auth/refresh' ? new Promise<AxiosResponse>(() => {}) : rejection(config, 401),
+      );
+      let settled = false;
+      void client
+        .get('/api/upgrades')
+        .catch(() => undefined)
+        .finally(() => {
+          settled = true;
+        });
+
+      await vi.advanceTimersByTimeAsync(REFRESH_TIMEOUT_MS - 1);
+      expect(settled).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(settled).toBe(true);
+    });
+
+    it('GivenTheRenewalDeadline_WhenItIsRead_ThenItIsTenSeconds', () => {
+      // NFR-39 names the number, so a change to it is a change to the requirement.
+      expect(REFRESH_TIMEOUT_MS).toBe(10_000);
+    });
+
+    it('GivenARenewalStillRunningAtTheDeadline_WhenTheDeadlinePasses_ThenTheRequestIsNotCancelled', async () => {
+      // A refresh rotates the credential. One the server has already committed carries the only cookie
+      // still good, so the deadline stops the wait and leaves the request to run (S5.D5).
+      vi.useFakeTimers();
+      setAccessToken('expired.jwt.token', '2099-01-01T00:00:00Z');
+      let refreshSignal: InternalAxiosRequestConfig['signal'];
+      withAdapter((config) => {
+        if (config.url !== '/api/auth/refresh') return rejection(config, 401);
+        refreshSignal = config.signal;
+        return new Promise<AxiosResponse>(() => {});
+      });
+      void client.get('/api/upgrades').catch(() => undefined);
+
+      await vi.advanceTimersByTimeAsync(REFRESH_TIMEOUT_MS);
+
+      expect(refreshSignal?.aborted ?? false).toBe(false);
     });
 
     it('GivenAnotherTabHoldsTheRefreshLock_WhenARequestIs401_ThenTheRenewalWaitsForTheLockBeforeRotating', async () => {

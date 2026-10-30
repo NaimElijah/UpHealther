@@ -9,7 +9,7 @@ architecture and the ADRs, and has the commands.
 and one module per backend area), `components/` (`ui/` primitives, plus `layout/`, `notifications/`,
 `theme/`, `upgrade/`), `contexts/` and `hooks/`, `lib/` (query client, view refresh, local dates),
 `pages/`, `router/`, `types/`, and `test/` (shared test helpers, and guards that span files, like
-`bootScriptCsp.test.ts`).
+`bootScriptCsp.test.ts`, and `nginxConf.test.ts`, which holds `nginx.conf`'s proxy and header rules).
 
 **Node is pinned.** `.nvmrc` names the release CI and the image build with, and `.npmrc`'s
 `engine-strict` makes npm refuse to install outside `package.json`'s `engines` range
@@ -86,14 +86,32 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   the cookie — single-flight within the tab and across tabs via `navigator.locks`, since rotation
   makes a credential good for one use — and retries the request once. Only a renewal that fails,
   refused or unanswered, ends the session and redirects to `/login`; the notification socket's own
-  failed renewal does not (ADR-054). That path and an accepted sign-out both end it through
-  `endSession()` in `src/api/session.ts`, a full document navigation so the query cache goes with the
-  page; do not add a third way. A 401 from `/api/auth/login` or
-  `/api/auth/register` is the form's answer and is left to the page, and a 403 ("known, not allowed")
-  never ends a session. See [ADR-015](../docs/ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md).
+  failed renewal does not (ADR-054). A renewal answered 429 has not failed: the limit is per client
+  address, so someone else behind it can spend it, and `renewSession` rejects with that 429 instead of
+  answering false. The request fails with it, nothing is cleared, and no session ends (ADR-065); keep
+  it that way in any new caller of `renewSession`. What every other failed renewal should do is #377's,
+  and the socket's reconnect loop is #384's. Unanswered means no answer within `REFRESH_TIMEOUT_MS`, ten
+  seconds, so a stalled renewal does not keep the cross-tab lock. It stops the wait, never the
+  request: a refresh rotates the credential, so cancelling one the server has already committed
+  would throw away the only cookie still good. The server's session-ended ERROR frame on the
+  socket does end the session, because the server sends it only once it has ended the
+  session itself. That path, that frame and an accepted sign-out all end it through `endSession()` in
+  `src/api/session.ts`, a full document navigation so the query cache goes with the page; do not end
+  one any other way. The back/forward cache can keep that page, so `endSession` first empties the
+  query cache and unmounts the application, which `createQueryClient` and `main.tsx` register through
+  `onSessionEnd`, and a page the cache restores reloads. The unmount is synchronous, so never call
+  `endSession` during React's render or commit, where React cannot finish it
+  ([ADR-066](../docs/ADRs/ADR-066-a-tab-keeps-nothing-of-a-session-that-ended.md)).
+  State of a new kind that must not outlive a session registers with `onSessionEnd` too. A 401 from
+  `/api/auth/login` or `/api/auth/register` is the form's answer and is left to the page, and a 403
+  ("known, not allowed") never ends a session. See [ADR-015](../docs/ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md).
   Every HTTP call in `src/api/*.ts` goes through this client — add new endpoints there, not with raw
-  axios. The one other transport, the STOMP socket, is `src/api/notificationSocket.ts`, and it takes
-  its origin from the same `apiBaseUrl()`.
+  axios. A value interpolated into a path goes through the `apiPath` template tag
+  (`` apiPath`/api/upgrades/${id}/plan` ``), never a bare template: React Router decodes `:id`, so a
+  link to `/upgrades/..%2Fhealth-areas%3F` would otherwise send the page's calls to another endpoint
+  (NFR-58). `npm run lint` refuses a `client.get/post/put/patch/delete` in `src/api/` whose path is a
+  template with anything interpolated. The one other transport, the STOMP socket, is
+  `src/api/notificationSocket.ts`, and it takes its origin from the same `apiBaseUrl()`.
 - **Signing out can fail, and the failure has to be shown.** `logout()` rejects when the server could
   not be reached; the refresh cookie is then still in the browser, so the next page load signs the
   user back in. Clearing local state anyway would tell somebody on a shared machine they had signed
@@ -158,6 +176,9 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   boot script at all, whitespace included, changes its hash. Adding a third-party script, font or
   image source means editing the policy; that friction is deliberate
   ([ADR-018](../docs/ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)).
+  The policy and its companion headers are declared on the `server` block, not in a location, and no
+  location may declare an `add_header` of its own: nginx would then drop every inherited one from it.
+  `src/test/nginxConf.test.ts` fails on either.
 - **Third-party notices ship with the build.** A runtime dependency's licence reaches
   `THIRD-PARTY-NOTICES.txt` by itself, through Vite's `build.license`, and the smoke test fails when a
   package in `dependencies` has no section. CSS, a font or an image taken from a package is invisible

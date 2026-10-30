@@ -1,5 +1,10 @@
 package com.healthupgrades.support;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.regex.Pattern;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -28,12 +33,15 @@ import org.testcontainers.utility.DockerImageName;
  * <p>{@code @ServiceConnection} is what points Spring's {@code DataSource} at it; no test needs to read
  * a URL, and {@code application.yml}'s {@code DB_*} defaults are never consulted during {@code verify}.
  *
- * <p><strong>The sign-in rate limit is raised here for every integration test.</strong> The real limit
+ * <p><strong>The rate limits are raised here for every integration test.</strong> The real limit
  * is ten attempts a minute per address, and an IT suite registers and signs in far more often than
  * that from one address — the loopback — so the limit would start refusing tests partway through a
  * run, in an order that depends on how fast the machine is. Raised on this base class rather than on
  * each subclass so every {@code *IT} keeps the same context cache key and the suite still starts one
- * application. {@code RateLimitedSignInTest} is where the limit itself is asserted.
+ * application. {@code RateLimitedSignInTest} is where the limit itself is asserted. The session limit,
+ * on refresh and sign-out, is raised for the same reason, though the suite is far from its sixty today:
+ * an IT added later should not start failing partway through a run because the loopback spent it.
+ * {@code RateLimitedSessionEndpointsTest} and {@code ShippedRateLimitConfigurationTest} assert that one.
  *
  * <p><strong>A cached context keeps one idle connection, not ten.</strong> Spring keeps every distinct
  * test context alive for the whole run, and each holds its own Hikari pool, whose minimum idle defaults
@@ -44,7 +52,12 @@ import org.testcontainers.utility.DockerImageName;
  * done, while its pool can still grow to ten for a test that needs them concurrently. Set here, for the
  * same reason as the rate limit: one value for every {@code *IT}, one context cache key.
  */
-@TestPropertySource(properties = {"app.rate-limit.limit=1000000", "spring.datasource.hikari.minimum-idle=1"})
+@TestPropertySource(
+        properties = {
+            "app.rate-limit.limit=1000000",
+            "app.session-rate-limit.limit=1000000",
+            "spring.datasource.hikari.minimum-idle=1"
+        })
 public abstract class PostgresIT {
 
     /** The image {@code docker-compose.yml} runs too, so tests and production share a dialect. */
@@ -53,7 +66,58 @@ public abstract class PostgresIT {
     @ServiceConnection
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(IMAGE);
 
+    /** What a database of its own may be called: {@code CREATE DATABASE} takes no bind parameter. */
+    private static final Pattern DATABASE_NAME = Pattern.compile("[a-z][a-z0-9_]*");
+
     static {
         POSTGRES.start();
+    }
+
+    /**
+     * Creates an empty database of its own in the shared container, for a test that migrates a schema one
+     * version at a time.
+     *
+     * <p>Every other {@code *IT} shares the container's default database, which Flyway has already taken to
+     * the latest version, so a test of what one migration does to the rows written before it needs a
+     * database nobody else migrates. An earlier one of the same name is dropped first, so a test can run
+     * twice in one JVM.
+     *
+     * @param name the database's name, lowercase letters, digits and underscores
+     * @return where it is, and how to sign in to it
+     * @throws IllegalArgumentException if the name is not one {@code CREATE DATABASE} can take as it is
+     * @throws SQLException if the container refuses either statement
+     */
+    protected static IsolatedDatabase createIsolatedDatabase(String name) throws SQLException {
+        if (!DATABASE_NAME.matcher(name).matches()) {
+            throw new IllegalArgumentException("not a plain database name: " + name);
+        }
+        try (Connection admin = DriverManager.getConnection(
+                        POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+                Statement statement = admin.createStatement()) {
+            statement.execute("DROP DATABASE IF EXISTS " + name);
+            statement.execute("CREATE DATABASE " + name);
+        }
+        String url = "jdbc:postgresql://" + POSTGRES.getHost() + ":"
+                + POSTGRES.getMappedPort(PostgreSQLContainer.POSTGRESQL_PORT) + "/" + name;
+        return new IsolatedDatabase(url, POSTGRES.getUsername(), POSTGRES.getPassword());
+    }
+
+    /**
+     * A database created by {@link #createIsolatedDatabase}.
+     *
+     * @param jdbcUrl  its JDBC URL
+     * @param username the role that owns it
+     * @param password that role's password
+     */
+    protected record IsolatedDatabase(String jdbcUrl, String username, String password) {
+
+        /**
+         * Opens a connection to it, which the caller closes.
+         *
+         * @throws SQLException if the container refuses the connection
+         */
+        public Connection connect() throws SQLException {
+            return DriverManager.getConnection(jdbcUrl, username, password);
+        }
     }
 }

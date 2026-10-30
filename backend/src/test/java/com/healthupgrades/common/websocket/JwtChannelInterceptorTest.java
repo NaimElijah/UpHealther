@@ -16,8 +16,11 @@ import com.healthupgrades.common.security.BearerTokenAuthenticator;
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.RecordingAuditTrail;
 import java.security.Principal;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -256,6 +259,84 @@ class JwtChannelInterceptorTest {
     }
 
     @Test
+    void GivenASocketHoldingASubscription_WhenASecondSubscribeArrives_ThenItIsRefused() {
+        // S5.A5: each SUBSCRIBE registers with the broker, so a signed-in socket streaming them with
+        // fresh ids would grow the single instance's heap without limit. The client needs one.
+        Map<String, Object> socket = new ConcurrentHashMap<>();
+        Principal user = session();
+        interceptor.preSend(subscribeOn(socket, "sub-0", user), channel);
+
+        assertThatThrownBy(() -> interceptor.preSend(subscribeOn(socket, "sub-1", user), channel))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /**
+     * A socket holds one subscription for its life: an UNSUBSCRIBE passes, and frees nothing.
+     *
+     * <p>This test used to pin the opposite, a second SUBSCRIBE accepted once an UNSUBSCRIBE had released
+     * the first. That release could be raced: Spring hands each inbound frame to a pool, in no order
+     * unless {@code preserveReceiveOrder} is set, and an UNSUBSCRIBE reaches the broker by a different
+     * route from a SUBSCRIBE, so one that ran first removed nothing and left its SUBSCRIBE held until the
+     * socket closed, which is S5.A5's growth again. The SPA subscribes once per socket and never
+     * unsubscribes, so nothing legitimate needs a second.
+     */
+    @Test
+    void GivenASocketThatUnsubscribed_WhenItSubscribesAgain_ThenItIsStillRefused() {
+        Map<String, Object> socket = new ConcurrentHashMap<>();
+        Principal user = session();
+        interceptor.preSend(subscribeOn(socket, "sub-0", user), channel);
+        Message<?> unsubscribe = unsubscribeOn(socket, "sub-0", user);
+        assertThat(interceptor.preSend(unsubscribe, channel)).isSameAs(unsubscribe);
+
+        assertThatThrownBy(() -> interceptor.preSend(subscribeOn(socket, "sub-1", user), channel))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void GivenAnUnsubscribeNamingAnotherId_WhenTheSocketSubscribesAgain_ThenItIsStillRefused() {
+        // Nothing is released whatever the UNSUBSCRIBE names, an id the socket never took included.
+        Map<String, Object> socket = new ConcurrentHashMap<>();
+        Principal user = session();
+        interceptor.preSend(subscribeOn(socket, "sub-0", user), channel);
+        interceptor.preSend(unsubscribeOn(socket, "not-held", user), channel);
+
+        assertThatThrownBy(() -> interceptor.preSend(subscribeOn(socket, "sub-1", user), channel))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void GivenASubscribeWithNoSubscriptionId_WhenItArrives_ThenItIsRefused() {
+        // STOMP requires the id, and no real client omits it. Accepted, a plain map would store no id
+        // under the held key, so the socket would never count as holding one and the limit would reopen.
+        Map<String, Object> socket = new HashMap<>();
+        Principal user = session();
+
+        assertThatThrownBy(() -> interceptor.preSend(subscribeOn(socket, null, user), channel))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void GivenASubscribeOnASocketWithNoAttributes_WhenItArrives_ThenItIsRefused() {
+        // Without the socket's attributes there is nowhere to record what it holds, so refusing is the
+        // only way to keep the one-subscription limit closed.
+        Message<?> subscribe =
+                frameOn(null, StompCommand.SUBSCRIBE, JwtChannelInterceptor.ALLOWED_SUBSCRIPTION, "sub-0", session());
+
+        assertThatThrownBy(() -> interceptor.preSend(subscribe, channel)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void GivenTwoSocketsOfOneAccount_WhenEachSubscribes_ThenBothPass() {
+        // Per socket, not per account: two tabs each hold their own subscription.
+        Principal user = session();
+        interceptor.preSend(subscribeOn(new ConcurrentHashMap<>(), "sub-0", user), channel);
+
+        Message<?> secondTab = subscribeOn(new ConcurrentHashMap<>(), "sub-0", user);
+
+        assertThat(interceptor.preSend(secondTab, channel)).isSameAs(secondTab);
+    }
+
+    @Test
     void GivenAHeartbeat_WhenItArrives_ThenItPasses() {
         // A heartbeat carries no command at all. Reading one as an unauthorised frame would close every
         // idle socket on its first keepalive.
@@ -291,11 +372,33 @@ class JwtChannelInterceptorTest {
         return new StompPrincipal(UUID.randomUUID().toString(), UUID.randomUUID());
     }
 
+    /** A frame on a socket of its own, which has held no subscription before it. */
     private static Message<byte[]> frameFrom(StompCommand command, String destination, Principal user) {
+        return frameOn(new ConcurrentHashMap<>(), command, destination, "sub-0", user);
+    }
+
+    /** A SUBSCRIBE to the one allowed destination, on the socket whose attributes are {@code socket}. */
+    private static Message<byte[]> subscribeOn(Map<String, Object> socket, String id, Principal user) {
+        return frameOn(socket, StompCommand.SUBSCRIBE, JwtChannelInterceptor.ALLOWED_SUBSCRIPTION, id, user);
+    }
+
+    /** An UNSUBSCRIBE of {@code id}, on the socket whose attributes are {@code socket}. */
+    private static Message<byte[]> unsubscribeOn(Map<String, Object> socket, String id, Principal user) {
+        return frameOn(socket, StompCommand.UNSUBSCRIBE, null, id, user);
+    }
+
+    /**
+     * A frame on one socket. Spring hands every frame of a WebSocket session the same attributes map, so
+     * sharing {@code socket} between frames is what makes them frames of one socket.
+     */
+    private static Message<byte[]> frameOn(
+            Map<String, Object> socket, StompCommand command, String destination, String id, Principal user) {
         StompHeaderAccessor accessor = StompHeaderAccessor.create(command);
         if (destination != null) {
             accessor.setDestination(destination);
         }
+        accessor.setSubscriptionId(id);
+        accessor.setSessionAttributes(socket);
         accessor.setUser(user);
         accessor.setLeaveMutable(true);
         return MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());

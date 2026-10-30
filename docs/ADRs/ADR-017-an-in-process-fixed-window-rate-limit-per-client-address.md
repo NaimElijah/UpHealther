@@ -1,6 +1,8 @@
 # ADR-017: An in-process fixed-window rate limit per client address, not per account
 
-- **Status:** Accepted
+- **Status:** Accepted — extended by [ADR-070](ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md),
+  and by [ADR-065](ADR-065-the-backend-hardened-after-scan-05.md), which puts refresh and sign-out behind
+  a second limiter of the same kind, with a map and an allowance of its own
 - **Date:** 2026-09-21
 - **Scope:** `backend/` — a `HandlerInterceptor` over the two anonymous authentication endpoints — plus
   the nginx and Tomcat configuration that makes the client address trustworthy. Closes #56. No new

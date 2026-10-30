@@ -1,6 +1,9 @@
 # ADR-003: Publish source-available under a proprietary licence, not open source
 
-- **Status:** Accepted
+- **Status:** Accepted — extended by
+  [ADR-071](ADR-071-registration-refuses-the-most-common-passwords.md), which applies `LICENSE` §5 to
+  vendored third-party data, the common-password list, as well as to the components the software
+  depends on
 - **Date:** 2026-08-18
 - **Scope:** The repository as a whole. No effect on the architecture, the build or the runtime.
 

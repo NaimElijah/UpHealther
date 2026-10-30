@@ -11,6 +11,12 @@ import static com.tngtech.archunit.core.domain.JavaClass.Predicates.simpleNameEn
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes; // entry point for positive rules
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses; // entry point for forbidding rules
 
+import com.healthupgrades.admin.application.AdminUserService; // the one audited reader of every account
+import com.healthupgrades.dashboard.adapter.in.web.DashboardController; // the dashboard mapper's one caller
+import com.healthupgrades.dashboard.adapter.in.web.DashboardWebMapper; // the last hop to the tracking read
+import com.healthupgrades.tracking.adapter.in.composition.UpgradeTrackingSummaryAdapter; // the read's one user
+import com.healthupgrades.tracking.application.port.in.TrackingConfigQuery; // an unscoped read port
+import com.healthupgrades.user.application.port.in.AccountListQuery; // an unscoped read port
 import com.tngtech.archunit.base.DescribedPredicate; // a named predicate, for a rule's exceptions
 import com.tngtech.archunit.core.domain.Dependency; // one class's dependency on another
 import com.tngtech.archunit.core.domain.JavaClass; // an imported class
@@ -379,8 +385,8 @@ class HexagonalArchitectureTest {
      * were open: an endpoint taking upgrade ids from a request could read another user's tracking setup
      * through it (BR-15). So it has two dependents: {@code UpgradeWebMapper}, which passes only the ids of
      * aggregates already loaded through user-scoped reads, and {@code UpgradeTrackingSummaryAdapter}, which
-     * implements it. With {@link #unscoped_tracking_config_read_stays_inside_tracking} it is the second
-     * half of one pin, the trade-off ADR-064 accepts and says when to revisit.
+     * implements it. With {@link #unscoped_tracking_config_read_serves_only_the_summary_adapter} it is the
+     * second of the hops that pin one read, the trade-off ADR-064 accepts and says when to revisit.
      */
     @ArchTest
     static final ArchRule tracking_summary_port_serves_only_the_upgrade_mapper = classes()
@@ -478,7 +484,7 @@ class HexagonalArchitectureTest {
             .as("sweep ports must be used only by the scheduled jobs' application services (BR-15)");
 
     /**
-     * The one unscoped by-ids read stays inside the context that owns it.
+     * The one unscoped by-ids read serves the one adapter that passes it on, and nothing else.
      *
      * <p>{@code TrackingConfigQuery.findByUpgradeIds} returns configurations whoever owns the upgrade,
      * because {@code tracking_configs} has no owner column to filter on. Today that exposes nothing: its
@@ -488,21 +494,106 @@ class HexagonalArchitectureTest {
      * supplies reaches the query. Scoping it would cost a migration, a join onto another context's table,
      * or a query per response, to close a path that does not exist.
      *
-     * <p>This rule keeps that true inside {@code tracking}, and
+     * <p>This rule keeps that true at the port: its one user is {@code UpgradeTrackingSummaryAdapter}, and
+     * any other class, in {@code tracking} or not, would be a new way to the read.
      * {@link #tracking_summary_port_serves_only_the_upgrade_mapper} keeps it true one hop out, where the
      * adapter passes the same read through {@code UpgradeTrackingSummaryPort}, which the slice rule publishes
-     * to every context. Either pin alone would leave the read open. Both are wrong, and the port must be
-     * scoped first, the day a class outside {@code tracking} needs it, a class other than
+     * to every context, and {@link #upgrade_web_mapper_serves_only_its_two_callers} and
+     * {@link #dashboard_web_mapper_serves_only_its_controller} the hops after that. Any pin alone would leave
+     * the read open. The port must be scoped first, the day another class needs it, a class other than
      * {@code UpgradeWebMapper} needs the summary port, or an id from a request reaches either (BR-15).
      */
     @ArchTest
-    static final ArchRule unscoped_tracking_config_read_stays_inside_tracking = classes()
+    static final ArchRule unscoped_tracking_config_read_serves_only_the_summary_adapter = classes()
             .that()
-            .haveFullyQualifiedName("com.healthupgrades.tracking.application.port.in.TrackingConfigQuery")
+            .haveFullyQualifiedName(TrackingConfigQuery.class.getName())
+            .should(ArchConditions.onlyHaveDependentsWhere(
+                    dependencyOrigin(JavaClass.Predicates.belongToAnyOf(UpgradeTrackingSummaryAdapter.class))
+                            .or(ORIGIN_IMPLEMENTS_TARGET)))
+            .as("TrackingConfigQuery, which is not scoped by owner, must be used only by "
+                    + "UpgradeTrackingSummaryAdapter and its implementer (BR-15)");
+
+    /**
+     * The ports whose reads are not scoped by owner, named once for the rules below: every sweep port, by
+     * the predicate {@link #sweep_ports_serve_only_scheduled_work} selects them with, and the two others by
+     * class literal, so a rename is a compile error rather than a rule that quietly stops matching.
+     */
+    private static final DescribedPredicate<JavaClass> UNSCOPED_READ_PORT = resideInAPackage("..application.port.in..")
+            .and(simpleNameEndingWith("SweepQuery"))
+            .or(JavaClass.Predicates.belongToAnyOf(TrackingConfigQuery.class, AccountListQuery.class))
+            .as("a port whose reads are not scoped by owner");
+
+    /**
+     * An unscoped read is implemented by a class nothing outside its package can name.
+     *
+     * <p>The rules on each port see only dependencies on the port. A public class implementing it is a
+     * second way in: a controller could inject the class and call the read with an id from a request, and
+     * no port rule would notice (S5.B6). So each one is implemented by a package-private class of its own,
+     * never by a public service, and Spring wires the port to it. This extends ADR-064's sweep rule to every
+     * unscoped read (ADR-065).
+     */
+    @ArchTest
+    static final ArchRule unscoped_reads_are_implemented_by_package_private_classes = classes()
+            .that(JavaClass.Predicates.implement(UNSCOPED_READ_PORT))
             .should()
-            .onlyHaveDependentClassesThat()
-            .resideInAPackage("com.healthupgrades.tracking..")
-            .as("TrackingConfigQuery, which is not scoped by owner, must be used only inside tracking (BR-15)");
+            .notBePublic()
+            .as("a class implementing an unscoped read must be package-private (BR-15)");
+
+    /**
+     * The upgrade mapper, which reads tracking configurations for whatever upgrades it is handed, serves
+     * the two web classes that hand it upgrades loaded through user-scoped reads, and nothing else.
+     *
+     * <p>{@code UpgradeWebMapper.toDtos} calls {@code UpgradeTrackingSummaryPort}, so the pin on that port
+     * holds only while every caller of the mapper is one that cannot pass it somebody else's upgrade. The
+     * slice rule publishes the upgrade context's web DTOs, and the mapper beside them, to every context;
+     * this closes that hop (S5.B6). A new caller is a decision to add here, after checking where its
+     * upgrades come from.
+     */
+    @ArchTest
+    static final ArchRule upgrade_web_mapper_serves_only_its_two_callers = classes()
+            .that()
+            .haveFullyQualifiedName("com.healthupgrades.upgrade.adapter.in.web.UpgradeWebMapper")
+            .should()
+            .onlyHaveDependentClassesThat(JavaClass.Predicates.belongToAnyOf(
+                    com.healthupgrades.upgrade.adapter.in.web.UpgradeController.class,
+                    com.healthupgrades.dashboard.adapter.in.web.DashboardWebMapper.class))
+            .as("UpgradeWebMapper must be used only by UpgradeController and DashboardWebMapper (BR-15)");
+
+    /**
+     * The dashboard mapper, which hands {@code UpgradeWebMapper} whatever upgrades a {@code DashboardView}
+     * carries, serves the controller that builds that view from user-scoped reads, and nothing else.
+     *
+     * <p>It is a public {@code @Component}, the slice rule publishes every {@code *WebMapper} to every
+     * context, and {@code DashboardView} is a public record anybody can build. Without this a controller
+     * anywhere could build a view of somebody else's upgrades and have their tracking configurations read
+     * for it, with every other pin green (S5.B6).
+     */
+    @ArchTest
+    static final ArchRule dashboard_web_mapper_serves_only_its_controller = classes()
+            .that()
+            .haveFullyQualifiedName(DashboardWebMapper.class.getName())
+            .should()
+            .onlyHaveDependentClassesThat(JavaClass.Predicates.belongToAnyOf(DashboardController.class))
+            .as("DashboardWebMapper must be used only by DashboardController (BR-15)");
+
+    /**
+     * The read of every account serves the administration context alone.
+     *
+     * <p>{@code AccountListQuery} pages through every account on the installation, names and addresses
+     * included. On {@code UserQuery}, which every context may reach, a feature anywhere could have listed
+     * them (S5.B6). It is a port of its own, and only {@code AdminUserService}, which writes the
+     * {@code admin.list} audit entry around the read, and its implementer may depend on it: an admin
+     * controller holding the port would list every account and audit nothing (S5.A12).
+     */
+    @ArchTest
+    static final ArchRule account_listing_serves_only_the_audited_admin_service = classes()
+            .that()
+            .haveFullyQualifiedName(AccountListQuery.class.getName())
+            .should(ArchConditions.onlyHaveDependentsWhere(
+                    dependencyOrigin(JavaClass.Predicates.belongToAnyOf(AdminUserService.class))
+                            .or(ORIGIN_IMPLEMENTS_TARGET)))
+            .as("AccountListQuery, which reads every account, must be used only by AdminUserService and its "
+                    + "implementer (BR-15)");
 
     /**
      * Only the startup runner may promote the first administrator.

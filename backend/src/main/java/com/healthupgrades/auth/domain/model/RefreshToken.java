@@ -83,4 +83,13 @@ public record RefreshToken(UUID sessionId, String secret) {
             throw new IllegalStateException("SHA-256 is unavailable", impossible);
         }
     }
+
+    /**
+     * Prints neither half. The generated {@code toString} would print the secret, which is the whole
+     * credential, and the session id beside it (NFR-6).
+     */
+    @Override
+    public String toString() {
+        return "RefreshToken[redacted]";
+    }
 }

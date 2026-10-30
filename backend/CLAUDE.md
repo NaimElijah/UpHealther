@@ -23,9 +23,13 @@ read/composition model with no domain or outbound side. All three are deliberate
   The scheduled sweeps are the one reader of every user's rows, and they read through a port of their
   own — `UpgradeSweepQuery`, `ProgressSweepQuery`, `ReminderSweepQuery` — never through the
   user-facing query port; `HexagonalArchitectureTest` lets only the jobs' application services depend
-  on a `*SweepQuery`. Each is implemented by a class of its own (`UpgradeSweeps`, `ProgressSweeps`,
-  `ReminderSweeps`), never by the service a controller holds, or the controller could call the sweep
-  through it (ADR-064). A new read a request can reach takes the owner's id instead.
+  on a `*SweepQuery`. Each is implemented by a package-private class of its own (`UpgradeSweeps`,
+  `ProgressSweeps`, `ReminderSweeps`), never by the service a controller holds, or the controller could
+  call the sweep through it (ADR-064). The two other unscoped reads follow the same pattern:
+  `TrackingConfigQuery` (`TrackingConfigReads`) and `AccountListQuery` (`AccountListing`, every account,
+  which only `AdminUserService`, which audits the listing, may hold). `HexagonalArchitectureTest` keeps
+  every such implementer package-private
+  (ADR-065). A new read a request can reach takes the owner's id instead.
 
 - **A role opens paths, never rows.** `USER` and `ADMIN` live on the `users` row and are read on every
   request, never carried in the token, so a revoked role takes effect on the next call. `ADMIN` unlocks
@@ -106,17 +110,24 @@ read/composition model with no domain or outbound side. All three are deliberate
   unexpected fault with its stack trace, message included: a 5xx, from `GlobalExceptionHandler`, or a
   scheduled run that threw, which Spring's scheduler logs (ADR-026). Hibernate's SQL exception logger,
   `org.hibernate.orm.jdbc.error`, is `OFF` in `application.yml` for this reason: it quotes the refused
-  row on every SQL failure, handled or not. Do not turn it back on (ADR-027, ADR-032). A line that
+  row on every SQL failure, handled or not. Do not turn it back on (ADR-027, ADR-032). Spring's
+  `ExceptionHandlerExceptionResolver` is pinned at `INFO` beside it, because its DEBUG line quotes every
+  rejected value of a refused body, a password included (ADR-065). A line that
   repeats per item names an exception by its type, never its message. The output format is chosen by
   the `json-logs` profile in `src/main/resources/logback-spring.xml`; do not write a `<pattern>` there,
   because Boot's imported `defaults.xml` is what puts the trace id on a plain-text line. See
   `../docs/ADRs/ADR-010-structured-logging-and-a-level-policy.md`.
 
-- **A state change is recorded through `AuditTrail`, not through a `log.info`.** Every state-changing
+- **A state change is recorded through `AuditTrail`, not through a `log.info`, and so is the one read
+  across accounts.** The administrator's account list writes an `ADMIN_LIST` entry around every page;
+  a new read that returns another account's data is audited the same way (ADR-065). Every state-changing
   use case wraps its body in `auditTrail.recording(action, userId, resourceId, ...)`, or in
   `recordingCreation(...)` when the resource id exists only once the operation has run. Either records
   the attempt whether it succeeded or was refused — a refusal is the entry somebody actually goes
-  looking for, and BR-15 means an attempt on another user's record leaves no other trace.
+  looking for, and BR-15 means an attempt on another user's record leaves no other trace. So a child
+  record's creation (a reflection, a reminder, progress, a tracking configuration) is recorded against
+  its upgrade, through `recording`, and its action's `AuditedResource` is `HEALTH_UPGRADE`: a refusal
+  then names the upgrade that was probed (ADR-065).
   Authentication outcomes, which have no body to wrap, call `auditTrail.record(AuditEvent)` directly.
   Adding an operation means adding a constant to `AuditAction` (in `common`, deliberately: one
   vocabulary, readable in one place) and wrapping the body; it does **not** mean a new log statement.
@@ -195,6 +206,10 @@ that.
   through, so mocking it leaves the filter and the security config real. A service test audits
   through `support/RecordingAuditTrail`, never a Mockito mock of `AuditTrail`: `recording` is a
   `default` method, which a mock stubs to return `null` without running the operation.
+- **A test's password must be off the common-password list** (BR-17, ADR-071), or registration
+  answers 400 before the use case runs: `password1` and `xxxxxxxx` are on it. Check a candidate with
+  `grep -x` in `src/main/resources/auth/common-passwords.txt`, in lower case. A web slice that posts a
+  registration needs `WebSliceSupport`, which supplies the `CommonPasswordPolicy` its validator takes.
 - **Strict stubs and carry-on loops.** `PotentialStubbingProblem` is a `RuntimeException`, so a loop
   that catches one per item and carries on (`NotificationSweepService`'s sweeps) counts a stub mismatch
   as a real failure, and the test flakes with `HashMap` order. Stub every argument the loop will see,
@@ -219,7 +234,10 @@ that.
 - **Every `*IT` shares one database.** `PostgresIT` starts a single container for the whole run;
   `@DataJpaTest` ITs roll back, unless one opts out as `AuthSessionRowLockIT` does to hold a lock across
   two transactions (it deletes what it commits), but `@SpringBootTest` ITs commit rows that every later
-  class sees, and failsafe's order is the filesystem's. Assert only on rows the test itself created. When an IT fails
+  class sees, and failsafe's order is the filesystem's. Assert only on rows the test itself created. A
+  test of what one migration does to rows written before it cannot use that database, which Flyway has
+  already taken to the latest version: it takes one of its own from `PostgresIT.createIsolatedDatabase`
+  and migrates it with Flyway's `target`, as `AuthSessionMigrationIT` does. When an IT fails
   on a tree that passed elsewhere, reproduce with `-Dfailsafe.runOrder=alphabetical` and
   `reversealphabetical` before re-running anything.
 - **After changing a signature, a constructor's arity or a record's shape, build with `clean`.** An

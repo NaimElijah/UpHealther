@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { openNotificationSocket, type NotificationSocketHandlers } from './notificationSocket';
 import { clearAccessToken, getAccessToken, setAccessToken } from './tokenStore';
 import { notificationAsSent } from '../test/wireFixtures';
+import { createQueryClient } from '../lib/queryClient';
 import type { AppNotification } from '../types';
 
 /** The last client the socket constructed, so a test can read its configuration and drive it. */
@@ -148,6 +149,22 @@ describe('openNotificationSocket', () => {
       expect(client.connectHeaders).not.toHaveProperty('Authorization');
     });
 
+    it('GivenARenewalRejectedAfterAnEarlierConnect_WhenTheClientPreparesToReconnect_ThenTheOldTokenIsNotPresentedAgain', async () => {
+      // A rate-limited renewal (429) rejects and leaves the lapsed token in memory, because it ends no
+      // session. The reconnect must then go without a header, as the comment in the hook promises,
+      // rather than with whatever the previous connect sent.
+      setAccessToken('live.jwt.token', '2099-01-01T00:00:00Z');
+      const { client } = open();
+      await client.config.beforeConnect?.();
+      expect(client.connectHeaders).toEqual({ Authorization: 'Bearer live.jwt.token' });
+      setAccessToken('lapsed.jwt.token', '2000-01-01T00:00:00Z');
+      renewSession.mockRejectedValue(Object.assign(new Error('Too many requests'), { response: { status: 429 } }));
+
+      await expect(client.config.beforeConnect?.()).resolves.toBeUndefined();
+
+      expect(client.connectHeaders).not.toHaveProperty('Authorization');
+    });
+
     it('GivenTheSocketIsOpened_WhenItsClientIsConfigured_ThenItReconnectsAfterADelay', () => {
       // stompjs reconnects only when the delay is above zero.
       expect(open().client.config.reconnectDelay).toBeGreaterThan(0);
@@ -234,6 +251,29 @@ describe('openNotificationSocket', () => {
       expect(onNotification).not.toHaveBeenCalled();
     });
 
+    it('GivenAnErrorFrameForAnyOtherReason_WhenItArrives_ThenTheTokenIsKeptAndItReportsDisconnected', () => {
+      setAccessToken('live.jwt.token', '2099-01-01T00:00:00Z');
+      const { client, onConnectionChange } = openConnected();
+
+      client.config.onStompError?.({ headers: { message: 'Failed to send message to ExecutorSubscribableChannel' } });
+
+      expect(getAccessToken()).toBe('live.jwt.token');
+      expect(onConnectionChange).toHaveBeenLastCalledWith(false);
+    });
+  });
+
+  describe('a session the server ended', () => {
+    // S5.D2: a window whose session ended elsewhere, by a sign-out in another tab or an administrator
+    // switching the account off, kept showing that session's data until its next HTTP call. The server
+    // says so on the socket, so the window ends its own session at once (ADR-066).
+    beforeEach(() => {
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        writable: true,
+        value: { ...realLocation, href: '' },
+      });
+    });
+
     it('GivenTheServerEndedTheSession_WhenItsErrorFrameArrives_ThenTheTokenIsDroppedAndItReportsDisconnected', () => {
       setAccessToken('live.jwt.token', '2099-01-01T00:00:00Z');
       const { client, onConnectionChange, onNotification } = openConnected();
@@ -245,14 +285,30 @@ describe('openNotificationSocket', () => {
       expect(onNotification).not.toHaveBeenCalled();
     });
 
-    it('GivenAnErrorFrameForAnyOtherReason_WhenItArrives_ThenTheTokenIsKeptAndItReportsDisconnected', () => {
+    it('GivenTheServerEndedTheSession_WhenItsErrorFrameArrives_ThenTheTabEndsItsSessionAndForgetsItsData', () => {
+      const queryClient = createQueryClient();
+      queryClient.setQueryData(['upgrades'], [{ id: 'u-1' }]);
       setAccessToken('live.jwt.token', '2099-01-01T00:00:00Z');
-      const { client, onConnectionChange } = openConnected();
+      const { client } = openConnected();
+
+      client.config.onStompError?.({ headers: { message: 'Session ended' } });
+
+      expect(window.location.href).toBe('/login');
+      expect(queryClient.getQueryCache().getAll()).toEqual([]);
+    });
+
+    it('GivenAnErrorFrameForAnyOtherReason_WhenItArrives_ThenTheTabStaysWhereItIsWithItsData', () => {
+      // Spring sends one generic ERROR for every refused frame, an outage included; and a renewal that
+      // failed is #377's, not this frame's. Neither says the session is over.
+      const queryClient = createQueryClient();
+      queryClient.setQueryData(['upgrades'], [{ id: 'u-1' }]);
+      setAccessToken('live.jwt.token', '2099-01-01T00:00:00Z');
+      const { client } = openConnected();
 
       client.config.onStompError?.({ headers: { message: 'Failed to send message to ExecutorSubscribableChannel' } });
 
-      expect(getAccessToken()).toBe('live.jwt.token');
-      expect(onConnectionChange).toHaveBeenLastCalledWith(false);
+      expect(window.location.href).toBe('');
+      expect(queryClient.getQueryCache().getAll()).toHaveLength(1);
     });
   });
 });

@@ -9,7 +9,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
 /**
  * Counts attempts per client, in fixed windows, in this process's memory.
@@ -29,11 +28,13 @@ import org.springframework.stereotype.Component;
  * somebody's count is forgotten, which is a weaker limit rather than a broken process, and that is the
  * right way round.
  *
+ * <p>Not a component: {@link RateLimiters} builds one per limit, each with its own map, so that two
+ * limits never share a count.
+ *
  * <p>Correctness under concurrency rests on {@link ConcurrentHashMap#compute}, which holds the bin lock
  * for one key while the window is read, judged and replaced. A read-then-write pair would let two
  * threads both see the last permitted attempt and both allow it.
  */
-@Component
 @RequiredArgsConstructor
 public class FixedWindowRateLimiter {
 

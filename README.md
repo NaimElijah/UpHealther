@@ -116,7 +116,7 @@ pushed by listeners that run only after the commit, so a rolled-back write annou
 `ABANDONED` is not — rescheduling revives it. At most three `HARD` upgrades may be `ACTIVE` at once,
 checked both when activating one and when promoting a running one to `HARD`.
 
-The layering is **enforced, not documented**: `HexagonalArchitectureTest` runs twenty-two ArchUnit rules
+The layering is **enforced, not documented**: `HexagonalArchitectureTest` runs twenty-six ArchUnit rules
 on every `./mvnw test` — the domain stays framework-free bar JPA mapping annotations, the application
 depends on no adapter, and
 Spring Data is confined to the persistence adapters.
@@ -172,7 +172,14 @@ a working default, so no `.env` is needed to start — copy `.env.example` to `.
 
 - **`port is already allocated` on 5432** — a host PostgreSQL owns the port. Stop it, or drop the
   `ports:` mapping on the `postgres` service; the backend reaches it over the compose network anyway.
-- **Backend restarts, logs mention Flyway** — a stale `postgres_data` volume. `docker compose down -v`.
+- **Backend exits, logs mention Flyway** — a stale `postgres_data` volume. `docker compose down -v`.
+- **Backend exits, logs say `password authentication failed for user "healthupgrades_app"`** — the
+  `postgres_data` volume predates the role the backend connects as, and PostgreSQL creates that role
+  only when it initialises an empty volume. `docker compose down -v`, then start again; this deletes
+  the local data, the demo account included, which the migrations seed again.
+- **Backend exits, logs say `permission denied for table …`** — a native `./mvnw spring-boot:run`
+  migrated this volume as the superuser before the compose backend did, so the tables belong to a role
+  the compose backend is not. `docker compose down -v`, then start again; this deletes the local data.
 - **Frontend loads, every call fails** — `curl http://localhost:8080/actuator/health/readiness`.
 
 </details>
@@ -188,13 +195,13 @@ localhost only.
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `POSTGRES_PASSWORD` | Database password; compose hands it to the backend, a native run reads `DB_PASSWORD` | `healthupgrades` |
+| `POSTGRES_PASSWORD` | The compose PostgreSQL's superuser password, which the backend never uses; a native run reads `DB_PASSWORD` | `healthupgrades` |
 | `JWT_SECRET` | Token signing key; the application refuses to start without one, or on one under 256 bits | none — compose and `backend/config/` supply a published dev key |
 | `ADMIN_BOOTSTRAP_USER_ID` | An existing account promoted to `ADMIN` at startup while no administrator exists — an id, not an email, because registration is open | empty |
-| `TRUSTED_PROXIES` | Java regex for the hop allowed to set `X-Forwarded-For`; widen it and a caller picks the address the rate limit counts | nginx on the compose network |
+| `TRUSTED_PROXIES` | Java regex for the hop allowed to set `X-Forwarded-For`, `X-Forwarded-Host` and `X-Forwarded-Port`; widen it and a caller picks the address the rate limit counts, and the host and port the API believes it was reached on | nginx on the compose network |
 
 <details>
-<summary>The other fourteen variables, and six that live only in <code>application.yml</code></summary>
+<summary>The other sixteen variables, and nine that live only in <code>application.yml</code></summary>
 
 In `.env.example` order. `docker-compose.yml` does not pass four of them through, so they take
 effect on a native run only — marked *native*.
@@ -202,24 +209,27 @@ effect on a native run only — marked *native*.
 | Variable | Purpose | Default |
 |---|---|---|
 | `POSTGRES_DB` | Database name created by the compose Postgres | `healthupgrades` |
-| `POSTGRES_USER` | Database user created by the compose Postgres | `healthupgrades` |
-| `JWT_ACCESS_TOKEN_TTL` | How long an access token is accepted; the SPA renews it, so this is not the session's length | `15m` |
-| `AUTH_SESSION_IDLE` | A session lapses after this long unused; each refresh slides it forward | `7d` |
-| `AUTH_SESSION_ABSOLUTE` | No session outlives this, however often it is refreshed | `30d` |
+| `POSTGRES_USER` | The superuser created by the compose Postgres | `healthupgrades` |
+| `POSTGRES_APP_USER`, `POSTGRES_APP_PASSWORD` | The role the compose backend connects as, created on an empty volume and owning the database only ([ADR-069](docs/ADRs/ADR-069-the-compose-backend-connects-as-a-role-that-owns-its-database.md)) | `healthupgrades_app` |
+| `JWT_ACCESS_TOKEN_TTL` | How long an access token is accepted; the SPA renews it, so this is not the session's length. Between `1m` and `1h`, or the backend refuses to start | `15m` |
+| `AUTH_SESSION_IDLE` | A session lapses after this long unused; each refresh slides it forward. At least `1h` and at most `AUTH_SESSION_ABSOLUTE` | `7d` |
+| `AUTH_SESSION_ABSOLUTE` | No session outlives this, however often it is refreshed. Between `1h` and `90d` | `30d` |
 | `AUTH_RATE_LIMIT` | Sign-in and registration attempts per client address per window — *native* | `10` |
 | `AUTH_RATE_LIMIT_WINDOW` | The window that limit counts over — *native* | `1m` |
 | `DB_URL` | JDBC URL; compose points it at its own Postgres | `jdbc:postgresql://localhost:5432/healthupgrades` |
-| `DB_USERNAME`, `DB_PASSWORD` | Credentials the backend connects with | `healthupgrades` |
+| `DB_USERNAME`, `DB_PASSWORD` | Credentials the backend connects with; compose sets them from `POSTGRES_APP_USER` and `POSTGRES_APP_PASSWORD`, and a native run's default is the compose PostgreSQL's superuser | `healthupgrades` |
 | `CORS_ALLOWED_ORIGINS` | Cross-origin callers and `/ws` handshake origins; unused behind the proxy — *native* | `http://localhost:3000` |
 | `SPRING_PROFILES_ACTIVE` | `json-logs` writes one JSON object per line; compose sets it | empty locally |
 | `LOG_LEVEL_APP` | Level for `com.healthupgrades` only | `INFO` |
 | `VITE_API_URL` | API origin for the SPA; empty uses the same-origin `/api` proxy — *native*, the image takes no build argument | empty |
 
-Compose passes none of the next six either. Every cron is read in UTC, whatever the host's zone
+Compose passes none of the next nine either. Every cron is read in UTC, whatever the host's zone
 ([ADR-020](docs/ADRs/ADR-020-the-server-keeps-time-in-utc.md)): `UPGRADE_OVERDUE_CRON`
 (`0 0 8 * * *`), `NOTIFY_CHECKIN_CRON` (`0 0 18 * * *`), `NOTIFY_REMINDERS_CRON` (`0 * * * * *`)
-and `AUTH_SESSION_CLEANUP_CRON` (`0 30 3 * * *`); then `AUTH_SESSION_ROTATION_GRACE` (`10s`) and
-`AUTH_RATE_LIMIT_MAX_CLIENTS` (`10000`).
+and `AUTH_SESSION_CLEANUP_CRON` (`0 30 3 * * *`); then `AUTH_SESSION_ROTATION_GRACE` (`10s`, between `0s` and `1m`),
+`AUTH_RATE_LIMIT_MAX_CLIENTS` (`10000`), and the refresh and sign-out limit, counted apart from
+sign-in's: `AUTH_SESSION_RATE_LIMIT` (`60`), `AUTH_SESSION_RATE_LIMIT_WINDOW` (`1m`) and
+`AUTH_SESSION_RATE_LIMIT_MAX_CLIENTS` (`10000`).
 
 </details>
 
@@ -292,6 +302,17 @@ cd frontend && npm run dev                  # terminal 2 — :3000, proxies /api
 and append-only — Hibernate validates the entities against the schema and refuses to start on a
 mismatch, so an entity change needs a new migration rather than a `ddl-auto` change.
 
+**The common-password list** that registration refuses (BR-17) is
+`backend/src/main/resources/auth/common-passwords.txt`, derived from one pinned SecLists file. It is
+public on purpose: it holds passwords that are already public, so that registration can refuse them,
+and it is not a credential store. To derive it again, download the file the script's `SOURCE_URL` names
+and run `node scripts/python.mjs scripts/derive_common_passwords.py <that file>`. Add `--check` to
+compare instead of write; nothing runs that check for you. Moving the pin means changing
+`SOURCE_COMMIT` and `SOURCE_SHA256` in the script; in the notice beside the list, its `Commit:` and
+`Source:` lines and both SHA-256s; and the commit `CommonPasswordListTest` asserts the notice names.
+That test fails until the notice's derived SHA-256 matches the list
+([ADR-071](docs/ADRs/ADR-071-registration-refuses-the-most-common-passwords.md)).
+
 **Conventions.** Conventional Commits (`type(scope): imperative subject`), one logical change per
 commit, on a `type/short-kebab-description` branch cut from `dev`. A PR merges into `dev`, and
 `dev` → `main` is the release PR — both as merge commits, which keeps the SHAs in
@@ -319,7 +340,7 @@ the wrong way, and `FrontendWireTypesContractTest` on a record the frontend's co
 | Domain | The `HealthUpgrade` state machine and construction invariants, streaks, reminder scheduling, entry scoring | `./mvnw test` |
 | Application | Every use case in every context, including what a *rejected* operation must not leave behind | `./mvnw test` |
 | Web slice | Each controller against the real security chain: status codes, validation, another user's row as a 404 | `./mvnw test` |
-| Structural | Twenty-five ArchUnit rules, plus the frontend wire-type, column-bound, pinned-image and version contracts | `./mvnw test` |
+| Structural | Twenty-nine ArchUnit rules, the twenty-six in `HexagonalArchitectureTest` and `ServerTimeArchitectureTest`'s three, plus the frontend wire-type, column-bound, pinned-image and version contracts | `./mvnw test` |
 | Integration | The app booted against a real PostgreSQL that Testcontainers starts — bean graph, migrations, database-enforced invariants | `./mvnw verify` |
 | Frontend | Session restore and silent token renewal, the notification socket, the route and role gates, the administration page, the content security policy, theme, error boundary | `npm test` in `frontend/` |
 | Smoke | A browser drives both modules together: a new account registers, plans and activates an upgrade, hears of it over the socket, logs a day and reads the dashboard, under nginx's CSP; a second test fetches the third-party notices nginx serves | `npm run test:images` |
@@ -477,7 +498,7 @@ docs/              The documentation the repository baseline requires
   requirements/      What the system must do, each naming its enforcing test
   architecture/      What the system is, plus seven diagrams (three generated)
   ADRs/              Why — one file per decision, append-only
-scripts/           The image check, the backend audit, the changelog's git-cliff, and the Maven and Python launchers
+scripts/           The image check, the backend audit, the changelog's git-cliff, the Maven and Python launchers, and postgres-init/, the compose database's application role
 package.json       npm run setup, npm start, npm test, npm run changelog, npm run generate:wire-types — no dependencies; CI runs its test:* scripts
 CHANGELOG.md       Every release, newest first, written by git-cliff as cliff.toml says
 .github/workflows/ CI: backend verify/audit, diagram drift, frontend format/lint/test/audit/build, images and the smoke test
@@ -530,7 +551,7 @@ Known limitations, load-bearing rather than accidental:
   ([ADR-054](docs/ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md)), but a session that
   idles out or reaches its cap ends with no event to close them (#331) — and a socket only ever
   receives its own user's notifications.
-- **The rate limit is per instance**, counted in process memory, so two instances double it
+- **The rate limits are per instance**, counted in process memory, so two instances double them
   ([ADR-017](docs/ADRs/ADR-017-an-in-process-fixed-window-rate-limit-per-client-address.md)).
 - **Server time is UTC, and a user has no zone**, so a reminder set for 09:00 rings at 09:00 UTC
   wherever its owner is ([ADR-020](docs/ADRs/ADR-020-the-server-keeps-time-in-utc.md)).
@@ -567,7 +588,9 @@ modifying, running, deploying, redistributing, or training a model on it — nee
 via [github.com/NaimElijah](https://github.com/NaimElijah); an unanswered request is a refused one.
 [`LICENSE`](LICENSE) carries the terms that govern. Third-party dependencies remain under their own;
 the SPA's notices are written by the build and served at `/THIRD-PARTY-NOTICES.txt`
-([ADR-059](docs/ADRs/ADR-059-the-bundle-ships-its-third-party-notices.md)).
+([ADR-059](docs/ADRs/ADR-059-the-bundle-ships-its-third-party-notices.md)). The common-password list
+is SecLists' data under its MIT licence, whose notice ships beside it and in the jar
+([ADR-071](docs/ADRs/ADR-071-registration-refuses-the-most-common-passwords.md)).
 
 ## 🙏 Acknowledgements
 

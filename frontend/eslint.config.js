@@ -24,8 +24,10 @@ import tseslint from 'typescript-eslint';
  * files of `src/`. One is the layering: a folder imports only from the layers below it. The other is the
  * single-owner imports, the modules only one place may import, which apply to every file of `src/`, a
  * folder `LAYERS` does not name included. `no-restricted-globals` keeps `fetch`, `XMLHttpRequest` and
- * `WebSocket` inside `src/api/`. Tests, `src/test/` and `src/setupTests.ts` are exempt, because a test
- * may compose a provider with the view that reads it. `src/test/importRules.test.ts` lints
+ * `WebSocket` inside `src/api/`, and `no-restricted-syntax` refuses, inside `src/api/`, a client call whose
+ * path is a template with a value interpolated into it, which must go through `apiPath` (NFR-58). Tests,
+ * `src/test/` and `src/setupTests.ts` are exempt, because a test may compose a provider with the view
+ * that reads it. `src/test/importRules.test.ts` lints
  * representative modules through this file, so a block moved out of its place fails a test. See
  * `docs/ADRs/ADR-061-the-frontends-stack-and-layering.md`.
  */
@@ -158,6 +160,21 @@ const REQUEST_GLOBALS = ['fetch', 'XMLHttpRequest', 'WebSocket'].map((name) => (
     'through the one axios instance and carry the session.',
 }));
 
+/**
+ * A call to the shared client whose path is a template with something interpolated into it (NFR-58). An id
+ * put into a path as it is can climb out of its segment, so `src/api/` builds every such path with the
+ * `apiPath` tag, which encodes each value. A tagged template is a different node, so `apiPath` passes.
+ */
+const BARE_TEMPLATE_PATH = {
+  selector:
+    "CallExpression[callee.type='MemberExpression'][callee.object.name='client']" +
+    '[callee.property.name=/^(get|post|put|patch|delete)$/]' +
+    "[arguments.0.type='TemplateLiteral'][arguments.0.expressions.length>0]",
+  message:
+    'NFR-58: build an API path with the apiPath tag (api/apiPath.ts), which encodes every interpolated ' +
+    'value as one segment, never with a bare template.',
+};
+
 /** The index into `LAYERS` of a folder of `src/`. */
 const layerOf = (folder) => LAYERS.findIndex((folders) => folders.includes(folder));
 
@@ -189,6 +206,11 @@ export default defineConfig([
     files: ['src/**/*.{ts,tsx}'],
     ignores: [...TEST_FILES, 'src/api/**'],
     rules: { 'no-restricted-globals': ['error', ...REQUEST_GLOBALS] },
+  },
+  {
+    files: ['src/api/**/*.{ts,tsx}'],
+    ignores: TEST_FILES,
+    rules: { 'no-restricted-syntax': ['error', BARE_TEMPLATE_PATH] },
   },
   // First, so that every folder's block below replaces it for that folder's files: a folder LAYERS does not
   // name still gets every single-owner restriction, though no layer.

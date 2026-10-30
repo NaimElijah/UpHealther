@@ -40,6 +40,9 @@ class AuthSessionFlowIT extends PostgresIT {
 
     private static final String PASSWORD = "correct-horse-battery-staple";
 
+    /** Entry 13 of the common-password list, and long enough to pass BR-17's length rules. */
+    private static final String COMMON_PASSWORD = "password1";
+
     private static final HttpClient client = HttpClient.newHttpClient();
 
     private final ObjectMapper json = new ObjectMapper();
@@ -57,10 +60,27 @@ class AuthSessionFlowIT extends PostgresIT {
         assertThat(registered.statusCode()).isEqualTo(201);
         assertThat(body(registered).get("accessToken").asString()).isNotBlank();
         assertThat(setCookie(registered))
-                .as("the credential must not be reachable from script, on any deployment")
+                .as("the credential must not be reachable from script, nor plantable by another host")
                 .contains("HttpOnly")
                 .contains("SameSite=Strict")
-                .contains("Path=/api/auth");
+                .startsWith("__Host-refresh_token=")
+                .contains("; Path=/;");
+        assertThat(setCookie(registered))
+                .as("a __Host- cookie set with a Domain is refused by the browser, so no browser would hold it")
+                .doesNotContain("Domain=");
+    }
+
+    @Test
+    void GivenAPasswordOnTheCommonList_WhenAnAccountRegisters_ThenTheApplicationRefusesItNamingThePassword()
+            throws Exception {
+        // The web slices build CommonPasswordPolicy by hand, in WebSliceSupport. Only the assembled
+        // application shows that Spring builds the constraint's validator with the policy it wired over
+        // the list the jar ships (BR-17, ADR-071).
+        HttpResponse<String> refused = register(COMMON_PASSWORD);
+
+        assertThat(refused.statusCode()).isEqualTo(400);
+        assertThat(body(refused).get("fieldErrors").get("password").asString())
+                .isEqualTo("is one of the most common passwords; choose one that is harder to guess");
     }
 
     @Test
@@ -106,6 +126,24 @@ class AuthSessionFlowIT extends PostgresIT {
                 .isEqualTo(401);
         assertThat(refresh(live).statusCode())
                 .as("the honest client's own credential stops working too")
+                .isEqualTo(401);
+    }
+
+    @Test
+    void GivenACredentialTwoRotationsOld_WhenItIsReplayed_ThenTheSessionIsEndedForEverybody() throws Exception {
+        // S5.A1 through PostgreSQL: the thief refreshed c1 -> c2 -> c3, and the victim presents c1. Each
+        // rotation writes its spent row in the transaction that holds the session's lock, after the
+        // session's own update; only the database shows that both writes land and the lookup finds them.
+        HttpResponse<String> registered = register();
+        String first = credential(registered);
+        String second = credential(refresh(first));
+        String third = credential(refresh(second));
+
+        assertThat(refresh(first).statusCode())
+                .as("a credential two rotations old, past a zero grace, is a replay")
+                .isEqualTo(401);
+        assertThat(refresh(third).statusCode())
+                .as("the replay ended the session, so the thief's current credential stops working too")
                 .isEqualTo(401);
     }
 
@@ -158,7 +196,7 @@ class AuthSessionFlowIT extends PostgresIT {
         String credential = credential(registered);
 
         HttpResponse<String> refused = send(request("/api/auth/refresh")
-                .header("Cookie", "refresh_token=" + credential)
+                .header("Cookie", "__Host-refresh_token=" + credential)
                 .POST(HttpRequest.BodyPublishers.noBody()));
 
         assertThat(refused.statusCode()).isEqualTo(400);
@@ -182,9 +220,13 @@ class AuthSessionFlowIT extends PostgresIT {
     // ------------------------------------------------------------------ the wire
 
     private HttpResponse<String> register() throws Exception {
+        return register(PASSWORD);
+    }
+
+    private HttpResponse<String> register(String password) throws Exception {
         String email = "flow-" + UUID.randomUUID() + "@example.com";
         String payload =
-                json.writeValueAsString(java.util.Map.of("name", "Someone", "email", email, "password", PASSWORD));
+                json.writeValueAsString(java.util.Map.of("name", "Someone", "email", email, "password", password));
         return send(request("/api/auth/register")
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(payload)));
@@ -192,14 +234,14 @@ class AuthSessionFlowIT extends PostgresIT {
 
     private HttpResponse<String> refresh(String credential) throws Exception {
         return send(request("/api/auth/refresh")
-                .header("Cookie", "refresh_token=" + credential)
+                .header("Cookie", "__Host-refresh_token=" + credential)
                 .header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest")
                 .POST(HttpRequest.BodyPublishers.noBody()));
     }
 
     private HttpResponse<String> logout(String credential) throws Exception {
         return send(request("/api/auth/logout")
-                .header("Cookie", "refresh_token=" + credential)
+                .header("Cookie", "__Host-refresh_token=" + credential)
                 .header(RefreshCookies.REQUESTED_WITH, "XMLHttpRequest")
                 .POST(HttpRequest.BodyPublishers.noBody()));
     }

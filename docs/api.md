@@ -21,15 +21,21 @@ and the `*ControllerTest` named against each area pins the status codes.
 | Reminders | `GET POST /api/upgrades/{id}/reminders` · `PUT DELETE /api/reminders/{id}` |
 | Notifications | `GET /api/notifications` · `GET /api/notifications/unread-count` · `POST /api/notifications/{id}/read` · `POST /api/notifications/read-all` |
 | Dashboard | `GET /api/dashboard` |
-| Sessions | `POST /api/auth/refresh` · `POST /api/auth/logout` — both act on the refresh cookie, and both require an `X-Requested-With` header |
+| Sessions | `POST /api/auth/refresh` · `POST /api/auth/logout` — both act on the refresh cookie, `__Host-refresh_token` on `Path=/` (`HttpOnly`, `Secure`, `SameSite=Strict`, no `Domain`), and both require an `X-Requested-With` header. A request carrying two of the cookie is answered as one carrying none |
 | Administration | `GET /api/admin/users` · `POST /api/admin/users/{id}/disable` · `POST /api/admin/users/{id}/enable` · `PUT /api/admin/users/{id}/role` — `ADMIN` only, answered 403 for anyone else. An administrator manages accounts and can read nothing an account owns |
-| Real-time | STOMP over `/ws`. The CONNECT frame carries `Authorization: Bearer <token>`; the client may subscribe to `/user/queue/notifications` and to nothing else, and a SEND is refused. When the session the token was issued within ends — signed out, revoked for a replayed credential, or its account switched off — the server sends the socket an ERROR frame with `message: Session ended` and closes it; a client renews its token before connecting again |
+| Real-time | STOMP over `/ws`. The CONNECT frame carries `Authorization: Bearer <token>`; the client may subscribe to `/user/queue/notifications` and to nothing else, once for the socket's life (a second SUBSCRIBE is refused, after an UNSUBSCRIBE too), and a SEND is refused. The handshake is throttled per client address by the proxy and answered 429 over the limit. When the session the token was issued within ends — signed out, revoked for a replayed credential, or its account switched off — the server sends the socket an ERROR frame with `message: Session ended` and closes it; the SPA then ends the session in that tab and goes to the sign-in page (ADR-066) |
 
 `GET /api/upgrades` filters on `status`, `type`, `areaId` and `difficulty`.
 
 An email is one identity however it is typed: the API trims and lowercases it before comparing or
 storing it. `POST /api/auth/register` refuses an address already held with `422` and the message
 `That email is already registered`, which does not repeat the address.
+
+`POST /api/auth/register` refuses a password outside BR-17 with `400` and the reason under
+`fieldErrors.password`: shorter than 8 characters, longer than 72 characters or 72 bytes of UTF-8, or
+one of the 10,000 common passwords on the list the API bundles, compared in lower case after NFKC
+normalisation. A common one is answered `is one of the most common passwords; choose one that is
+harder to guess` ([ADR-071](ADRs/ADR-071-registration-refuses-the-most-common-passwords.md)).
 
 A date-time in a body is an ISO-8601 local date-time with no offset, such as `2026-01-14T09:13:02`,
 with a fraction of a second when it has one. A notification's `createdAt` is stamped from the server's
@@ -87,12 +93,13 @@ and `GlobalExceptionHandler` decides how it surfaces
 
 | Status | Raised when |
 |---|---|
-| `400` | Failed validation, an unbindable body, or a parameter that will not convert. A fraction sent for an integer field, such as a rating of `3.7`, is an unbindable body: it is refused, never truncated ([ADR-033](ADRs/ADR-033-refuse-a-fractional-number-for-an-integer-field.md)) |
-| `401` | Credentials rejected — the response never says which half was wrong — or a protected endpoint called without a token the server accepts. The latter carries `WWW-Authenticate: Bearer`, with `error="invalid_token"` when a token was sent; expired, forged and revoked are not told apart |
+| `400` | Failed validation, an unbindable body, or a parameter that will not convert. A fraction sent for an integer field, such as a rating of `3.7`, is an unbindable body: it is refused, never truncated ([ADR-033](ADRs/ADR-033-refuse-a-fractional-number-for-an-integer-field.md)). So is a body with U+0000 in any string, answered `Malformed request body` before it reaches a use case ([ADR-065](ADRs/ADR-065-the-backend-hardened-after-scan-05.md)) |
+| `401` | Credentials rejected — the response never says which half was wrong — or a protected endpoint called without a token the server accepts, a token that names no expiry included. The latter carries `WWW-Authenticate: Bearer`, with `error="invalid_token"` when a token was sent; expired, forged and revoked are not told apart |
 | `403` | The caller is authenticated and not allowed |
 | `404` | Not found, **including** a record belonging to another user: ownership is enforced by the query being user-scoped, so a foreign row is indistinguishable from a missing one |
 | `409` | A duplicate progress entry for the same upgrade and date, or a stale optimistic-lock `version` |
 | `422` | A business rule refused the operation — an illegal lifecycle transition, a fourth concurrent `HARD` upgrade, or an `areaId` that is not one of the caller's health areas (refused the same way whether it belongs to somebody else or does not exist) |
+| `429` | Too many attempts from one client address in a minute: sign-in and registration together over ten, refresh and sign-out together over sixty, each counted apart. Carries `Retry-After`, in seconds, and is decided before any credential or session is read. The SPA keeps a session whose renewal is answered `429` |
 | `405` `415` `406` | The status Spring defines for the framework exception |
 | `500` | A genuine server fault. Carries the status and a trace id, and nothing else |
 

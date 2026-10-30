@@ -23,5 +23,15 @@ import java.util.UUID;
  * @param enabled   false once an administrator has switched it off
  * @param createdAt when the account was created
  */
-public record AdminAccountDto(
-        UUID id, String name, String email, Role role, boolean enabled, LocalDateTime createdAt) {}
+public record AdminAccountDto(UUID id, String name, String email, Role role, boolean enabled, LocalDateTime createdAt) {
+
+    /**
+     * Prints everything but the name and the address. Spring MVC writes a response body at DEBUG and
+     * TRACE, and the account list is a page of other people's (NFR-6).
+     */
+    @Override
+    public String toString() {
+        return "AdminAccountDto[id=" + id + ", role=" + role + ", enabled=" + enabled + ", createdAt=" + createdAt
+                + "]";
+    }
+}

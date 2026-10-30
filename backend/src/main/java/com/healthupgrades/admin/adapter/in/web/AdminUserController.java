@@ -60,15 +60,17 @@ public class AdminUserController {
     /**
      * Lists accounts, oldest first.
      *
+     * @param principal the administrator, who is named in the audit entry
      * @param page zero-based page number
      * @param size how many per page, at most {@link #MAX_PAGE_SIZE}
      * @return 200 with the page and the total behind it
      */
     @GetMapping
     public ResponseEntity<AccountPageDto> list(
+            @AuthenticationPrincipal SecurityUser principal,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "" + DEFAULT_PAGE_SIZE) @Min(1) @Max(MAX_PAGE_SIZE) int size) {
-        return ResponseEntity.ok(toPageDto(adminUserQuery.list(page, size)));
+        return ResponseEntity.ok(toPageDto(adminUserQuery.list(principal.getId(), page, size)));
     }
 
     /**

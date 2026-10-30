@@ -1,3 +1,4 @@
+import { apiPath } from './apiPath';
 import client from './client';
 import type { HealthArea, CreateHealthAreaRequest } from '../types';
 
@@ -15,11 +16,11 @@ export const createHealthArea = async (req: CreateHealthAreaRequest): Promise<He
 
 /** Replaces a health area's attributes; omitted fields are cleared, not preserved. */
 export const updateHealthArea = async (id: string, req: CreateHealthAreaRequest): Promise<HealthArea> => {
-  const { data } = await client.put<HealthArea>(`/api/health-areas/${id}`, req);
+  const { data } = await client.put<HealthArea>(apiPath`/api/health-areas/${id}`, req);
   return data;
 };
 
 /** Deletes a health area. Upgrades filed under it keep the now-dangling area id. */
 export const deleteHealthArea = async (id: string): Promise<void> => {
-  await client.delete(`/api/health-areas/${id}`);
+  await client.delete(apiPath`/api/health-areas/${id}`);
 };
