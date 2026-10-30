@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.healthupgrades.admin.application.AdminBootstrapService;
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
@@ -41,6 +42,10 @@ import org.springframework.dao.DataAccessResourceFailureException;
  *   <li>it <strong>never fails the boot</strong>, so a typo in a deployment variable is a warning
  *       rather than an outage.</li>
  * </ul>
+ *
+ * <p>Driven through the runner, over the real {@link AdminBootstrapService} that holds these rules since
+ * #338, so the parsing the runner keeps and the rules behind it are covered together; only the
+ * ports are mocked.
  */
 @ExtendWith(MockitoExtension.class)
 class AdminBootstrapRunnerTest {
@@ -156,6 +161,7 @@ class AdminBootstrapRunnerTest {
     }
 
     private void run(String bootstrapUserId) {
-        new AdminBootstrapRunner(userQuery, userCommand, auditTrail, bootstrapUserId).run(null);
+        new AdminBootstrapRunner(new AdminBootstrapService(userQuery, userCommand, auditTrail), bootstrapUserId)
+                .run(null);
     }
 }

@@ -4,11 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.healthupgrades.common.domain.exception.AuthenticationRequiredException;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
-import com.healthupgrades.common.domain.exception.DuplicateProgressException;
-import com.healthupgrades.common.domain.exception.OptimisticLockException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.domain.exception.RetryableConflictException;
 import com.healthupgrades.common.domain.exception.TooManyRequestsException;
+import com.healthupgrades.tracking.domain.model.DuplicateProgressException;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
@@ -36,19 +35,6 @@ class AuditOutcomeTest {
     @Test
     void GivenASecondEntryForTheSameDay_WhenTheOutcomeIsClassified_ThenItIsARefusal() {
         assertThat(AuditOutcome.of(new DuplicateProgressException("already recorded")))
-                .isEqualTo(AuditOutcome.REFUSED);
-    }
-
-    /**
-     * Pins the classifier, not a live path. A version clash is decided at commit, after the service
-     * method has returned, so it never reaches {@code AuditOutcome.of} — {@code LoggingAuditTrail}
-     * records it on the rollback path instead ({@code AuditCommitIT}). This keeps the function total
-     * over the four exceptions that make up the domain's vocabulary for "no", so that a future throw
-     * site is classified correctly the day it appears rather than counted as a fault.
-     */
-    @Test
-    void GivenTheDomainsOptimisticLockException_WhenItIsClassified_ThenItCountsAsARefusal() {
-        assertThat(AuditOutcome.of(new OptimisticLockException("version clash")))
                 .isEqualTo(AuditOutcome.REFUSED);
     }
 

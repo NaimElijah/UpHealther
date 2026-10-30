@@ -354,7 +354,7 @@ class AuthenticatedBoundaryTest {
         // unreachable. The service behind this one is mocked, so reaching it at all is the assertion.
         WebSliceSupport.authenticateAs(authenticator, UUID.randomUUID(), Role.ADMIN);
         when(adminUserQuery.list(anyInt(), anyInt()))
-                .thenReturn(new com.healthupgrades.admin.application.AccountPage(List.of(), 0, 25, 0));
+                .thenReturn(new com.healthupgrades.admin.application.port.in.AccountPage(List.of(), 0, 25, 0));
 
         mockMvc.perform(WebSliceSupport.bearer(json(request(HttpMethod.GET, ADMIN_PATH))))
                 .andExpect(status().isOk());

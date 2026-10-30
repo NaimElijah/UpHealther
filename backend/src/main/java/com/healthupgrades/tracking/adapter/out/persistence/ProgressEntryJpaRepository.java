@@ -19,7 +19,7 @@ interface ProgressEntryJpaRepository extends JpaRepository<ProgressEntry, UUID> 
 
     List<ProgressEntry> findByUpgradeIdOrderByDateDesc(UUID upgradeId); // derived query, newest first
 
-    List<ProgressEntry> findByUpgradeIdIn(Collection<UUID> upgradeIds); // derived query: batch load
+    List<ProgressEntry> findByUserIdAndUpgradeIdIn(UUID userId, Collection<UUID> upgradeIds); // batch, owner's only
 
     Optional<ProgressEntry> findByUpgradeIdAndDate(UUID upgradeId, LocalDate date); // derived query
 

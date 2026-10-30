@@ -1,7 +1,5 @@
 package com.healthupgrades.admin.application.port.in;
 
-import com.healthupgrades.admin.application.AccountPage;
-
 /**
  * Inbound read port for account administration.
  *

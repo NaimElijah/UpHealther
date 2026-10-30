@@ -3,7 +3,6 @@ package com.healthupgrades.reminder.application;
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
-import com.healthupgrades.reminder.application.port.in.ReminderQuery;
 import com.healthupgrades.reminder.application.port.in.ReminderSchedule;
 import com.healthupgrades.reminder.domain.model.Reminder;
 import com.healthupgrades.reminder.domain.model.ReminderDays;
@@ -16,15 +15,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Use cases for reminders: attach one to an upgrade, reschedule it, remove it, and expose the enabled
- * ones for dispatch.
+ * Use cases for reminders: attach one to an upgrade, reschedule it and remove it. The dispatch sweep's read
+ * of every user's enabled reminders is {@link ReminderSweeps}', not this service's, because a controller
+ * holds this one.
  *
  * <p>A reminder has no owner of its own — ownership is established through the upgrade it belongs to,
  * which is why every method here starts by resolving that upgrade through {@link UpgradeQuery}.
  */
 @Service
 @RequiredArgsConstructor
-public class ReminderService implements ReminderQuery {
+public class ReminderService {
 
     private final ReminderRepositoryPort repository;
     private final UpgradeQuery upgradeQuery;
@@ -111,11 +111,5 @@ public class ReminderService implements ReminderQuery {
                 .orElseThrow(() -> new ResourceNotFoundException("Reminder not found: " + reminderId));
         upgradeQuery.getOwnedUpgrade(userId, reminder.getUpgradeId()); // ownership via parent upgrade
         return reminder;
-    }
-
-    /** {@inheritDoc} Exposes enabled reminders as domain objects for the notification scheduler. */
-    @Override
-    public List<Reminder> findEnabled() {
-        return repository.findByEnabledTrue();
     }
 }

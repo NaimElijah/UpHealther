@@ -15,11 +15,10 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.healthupgrades.common.domain.exception.AuthenticationRequiredException;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
-import com.healthupgrades.common.domain.exception.DuplicateProgressException;
-import com.healthupgrades.common.domain.exception.OptimisticLockException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.domain.exception.RetryableConflictException;
 import com.healthupgrades.common.domain.exception.TooManyRequestsException;
+import com.healthupgrades.tracking.domain.model.DuplicateProgressException;
 import com.healthupgrades.upgrade.adapter.in.web.UpgradeController;
 import com.healthupgrades.upgrade.adapter.in.web.UpgradeWebMapper;
 import com.healthupgrades.upgrade.application.UpgradeService;
@@ -43,6 +42,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -125,7 +125,7 @@ class GlobalExceptionHandlerTest {
     @Test
     void GivenADuplicateProgressEntry_WhenItIsHandled_ThenTheStatusIsConflict() {
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
-                handler.handleDuplicateProgress(new DuplicateProgressException("Already recorded"), request);
+                handler.handleConflict(new DuplicateProgressException("Already recorded"), request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
@@ -133,7 +133,7 @@ class GlobalExceptionHandlerTest {
     @Test
     void GivenAnOptimisticLockFailure_WhenItIsHandled_ThenTheStatusIsConflict() {
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
-                handler.handleOptimisticLock(new OptimisticLockException("stale version"), request);
+                handler.handleOptimisticLock(new OptimisticLockingFailureException("stale version"), request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
@@ -141,7 +141,7 @@ class GlobalExceptionHandlerTest {
     @Test
     void GivenAnOptimisticLockFailure_WhenItIsHandled_ThenTheUnderlyingMessageIsNotLeaked() {
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response = handler.handleOptimisticLock(
-                new OptimisticLockException("Row was updated by transaction 8123"), request);
+                new OptimisticLockingFailureException("Row was updated by transaction 8123"), request);
 
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getMessage()).doesNotContain("8123");
@@ -464,7 +464,7 @@ class GlobalExceptionHandlerTest {
         void GivenAVersionClashFoundAtCommit_WhenTheDispatcherResolvesIt_ThenTheAnswerIs409AskingForARetry()
                 throws Exception {
             // BR-14 as it really arrives: Hibernate's clash surfaces at commit, translated by Spring into
-            // ObjectOptimisticLockingFailureException (UpgradePersistenceIT), not the domain exception.
+            // ObjectOptimisticLockingFailureException (UpgradePersistenceIT).
             controller.failure = new ObjectOptimisticLockingFailureException("HealthUpgrade", CLASHING_UPGRADE_ID);
 
             mockMvc.perform(get(FailingController.PATH))
@@ -506,7 +506,7 @@ class GlobalExceptionHandlerTest {
                         new BusinessRuleException("Only ACTIVE upgrades can be paused"),
                         HttpStatus.UNPROCESSABLE_CONTENT),
                 Arguments.of(new DuplicateProgressException("Already recorded"), HttpStatus.CONFLICT),
-                Arguments.of(new OptimisticLockException("stale version"), HttpStatus.CONFLICT),
+                Arguments.of(new OptimisticLockingFailureException("stale version"), HttpStatus.CONFLICT),
                 Arguments.of(new jakarta.persistence.OptimisticLockException("stale version"), HttpStatus.CONFLICT),
                 Arguments.of(new RetryableConflictException("overtaken"), HttpStatus.CONFLICT),
                 Arguments.of(new TooManyRequestsException(Duration.ofSeconds(30)), HttpStatus.TOO_MANY_REQUESTS),

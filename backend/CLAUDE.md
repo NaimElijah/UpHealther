@@ -20,6 +20,12 @@ read/composition model with no domain or outbound side. All three are deliberate
   is the security adapter's principal, not the `user` domain entity. Repositories scope by user
   (`findByIdAndUserId`, `findByUserIdAndStatus`, …). There is no implicit "current user" — always
   thread `userId` through service calls. A missing/foreign row surfaces as `ResourceNotFoundException`.
+  The scheduled sweeps are the one reader of every user's rows, and they read through a port of their
+  own — `UpgradeSweepQuery`, `ProgressSweepQuery`, `ReminderSweepQuery` — never through the
+  user-facing query port; `HexagonalArchitectureTest` lets only the jobs' application services depend
+  on a `*SweepQuery`. Each is implemented by a class of its own (`UpgradeSweeps`, `ProgressSweeps`,
+  `ReminderSweeps`), never by the service a controller holds, or the controller could call the sweep
+  through it (ADR-064). A new read a request can reach takes the owner's id instead.
 
 - **A role opens paths, never rows.** `USER` and `ADMIN` live on the `users` row and are read on every
   request, never carried in the token, so a revoked role takes effect on the next call. `ADMIN` unlocks
@@ -61,8 +67,10 @@ read/composition model with no domain or outbound side. All three are deliberate
 
 - **Exception → HTTP status is centralized** in the global exception handler. Throw the right domain
   exception rather than building `ResponseEntity` status by hand: `ResourceNotFoundException` → 404,
-  `BusinessRuleException` → 422, `DuplicateProgressException` / optimistic-lock → 409, bean-validation
-  → 400 with a field → message map. Refusals decided inside the security chain reach the same handler:
+  `BusinessRuleException` → 422, `ConflictException` / optimistic-lock → 409, bean-validation
+  → 400 with a field → message map. A context names its own conflict by subclassing the kernel's
+  `ConflictException`, as `tracking`'s `DuplicateProgressException` does, so the kernel never names a
+  context's type. Refusals decided inside the security chain reach the same handler:
   `ErrorBodySecurityHandlers` forwards an anonymous request as `AuthenticationRequiredException` (401
   with a bearer challenge) and an authorization failure as `AccessDeniedException` (403), so do not
   write a response body from a filter.
@@ -127,7 +135,12 @@ read/composition model with no domain or outbound side. All three are deliberate
   e.g. `StreakSummary`). A `*WebMapper` in `adapter/in/web` translates in both directions; `auth` and
   `admin`, with the smallest web surfaces, translate in the controller instead. Do not give a service
   an HTTP request record or a DTO — the ArchUnit rule will fail the build, which is the point: a
-  wire-format change must not reach a use-case signature.
+  wire-format change must not reach a use-case signature. The kernel's adapters count too, though
+  most of their packages are not called `adapter`: an `application` or `domain` class may reach
+  `common` only in `common.domain`, so `common.security`, `common.websocket`, `common.observability`,
+  `common.ratelimit`, `common.adapter` and any kernel package added later are out. Declare a port
+  instead, as `auth` does with `AccessTokenIssuerPort`, which `JwtAccessTokenIssuer` implements over
+  `JwtTokenProvider` (ADR-064).
 
 - **A request or response record is also the frontend's type.** `FrontendWireTypesContractTest`
   renders every record a controller accepts or returns into `frontend/src/types/api.generated.ts`
@@ -145,7 +158,9 @@ read/composition model with no domain or outbound side. All three are deliberate
 
 - **When a context needs something another context has, and the arrow would point the wrong way,
   invert it.** `upgrade` declares `UpgradeTrackingSummaryPort` for the tracking config its response
-  carries, and `tracking` implements it, so the graph stays acyclic (ADR-002).
+  carries, and `tracking` implements it, so the graph stays acyclic (ADR-002). The shared kernel does
+  the same: `common` depends on no context, so it declares `SessionStatusPort` and
+  `AccountCredentialsPort` in `common.domain.port.out`, and `auth` and `user` supply them (ADR-062).
 
 ## Lint
 
@@ -181,7 +196,7 @@ that.
   through `support/RecordingAuditTrail`, never a Mockito mock of `AuditTrail`: `recording` is a
   `default` method, which a mock stubs to return `null` without running the operation.
 - **Strict stubs and carry-on loops.** `PotentialStubbingProblem` is a `RuntimeException`, so a loop
-  that catches one per item and carries on (`NotificationScheduler`'s sweeps) counts a stub mismatch
+  that catches one per item and carries on (`NotificationSweepService`'s sweeps) counts a stub mismatch
   as a real failure, and the test flakes with `HashMap` order. Stub every argument the loop will see,
   as `nudgeFailsFor` in `NotificationSchedulerTest` does, and re-run before trusting a green.
 - `./mvnw test` needs **no database**; keep it that way. The `*IT`s that `./mvnw verify` adds boot the

@@ -1,4 +1,4 @@
-package com.healthupgrades.admin.application;
+package com.healthupgrades.admin.application.port.in;
 
 import com.healthupgrades.user.domain.model.User;
 import java.util.List;

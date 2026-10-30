@@ -4,8 +4,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import com.healthupgrades.auth.application.SessionGrant;
 import com.healthupgrades.auth.application.port.in.SessionCommand;
+import com.healthupgrades.auth.application.port.in.SessionGrant;
 import com.healthupgrades.common.domain.port.out.LiveSocketPort;
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.PostgresIT;

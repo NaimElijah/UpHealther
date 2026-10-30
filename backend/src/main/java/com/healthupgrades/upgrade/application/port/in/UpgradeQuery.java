@@ -1,7 +1,6 @@
 package com.healthupgrades.upgrade.application.port.in;
 
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // returned domain aggregate
-import com.healthupgrades.upgrade.domain.model.UpgradeStatus; // status filter
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -12,6 +11,9 @@ import java.util.UUID;
  * <p>This is how other bounded contexts (tracking, reflection, reminder, dashboard, notification) obtain
  * upgrades without reaching into the upgrade context's persistence — they depend on this interface and
  * receive {@link HealthUpgrade} domain objects, never a web DTO or a repository.
+ *
+ * <p>Every read is scoped by the owner, so another user's upgrade is reported as absent (BR-15). The
+ * scheduled sweeps' reads across every user are on {@link UpgradeSweepQuery} instead.
  */
 public interface UpgradeQuery {
 
@@ -23,10 +25,4 @@ public interface UpgradeQuery {
 
     /** All of a user's upgrades. */
     List<HealthUpgrade> findByUser(UUID userId);
-
-    /** All upgrades in a status across every user (used by scheduled jobs). */
-    List<HealthUpgrade> findByStatus(UpgradeStatus status);
-
-    /** Batch lookup of upgrades by id. */
-    List<HealthUpgrade> findAllById(Iterable<UUID> ids);
 }

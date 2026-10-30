@@ -1,7 +1,6 @@
 package com.healthupgrades.tracking.application;
 
 import com.healthupgrades.common.domain.audit.AuditAction;
-import com.healthupgrades.common.domain.exception.DuplicateProgressException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
@@ -11,8 +10,8 @@ import com.healthupgrades.tracking.application.port.in.StreakQuery;
 import com.healthupgrades.tracking.application.port.in.StreakSummary;
 import com.healthupgrades.tracking.application.port.in.TrackingConfigDetails;
 import com.healthupgrades.tracking.application.port.in.TrackingConfigQuery;
-import com.healthupgrades.tracking.domain.event.ProgressEntryRecorded;
 import com.healthupgrades.tracking.domain.event.StreakAchieved;
+import com.healthupgrades.tracking.domain.model.DuplicateProgressException;
 import com.healthupgrades.tracking.domain.model.ProgressEntry;
 import com.healthupgrades.tracking.domain.model.TrackingConfig;
 import com.healthupgrades.tracking.domain.port.out.ProgressEntryRepositoryPort;
@@ -27,7 +26,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -39,7 +37,9 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Confirms upgrade ownership through the upgrade context's inbound {@link UpgradeQuery} port, and
  * itself implements the tracking inbound ports ({@link TrackingConfigQuery}, {@link ProgressQuery},
- * {@link StreakQuery}) so other contexts can read tracking data as domain objects.
+ * {@link StreakQuery}) so other contexts can read tracking data as domain objects. The check-in sweep's
+ * read of every user's entries is {@link ProgressSweeps}', not this service's, because controllers hold
+ * this one.
  */
 @Service
 @RequiredArgsConstructor
@@ -147,8 +147,6 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Stre
             }
 
             ProgressEntry saved = progressRepository.save(entry);
-            eventPublisher.publish(
-                    new ProgressEntryRecorded(saved.getId(), upgradeId, userId, date, LocalDateTime.now(clock)));
 
             List<ProgressEntry> allEntries = progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId);
             streakCalculator
@@ -229,29 +227,19 @@ public class TrackingService implements TrackingConfigQuery, ProgressQuery, Stre
 
     /** {@inheritDoc} */
     @Override
-    public Set<UUID> findUserIdsWithEntriesOn(LocalDate date) {
-        return progressRepository.findUserIdsWithEntriesOn(date);
-    }
-
-    /** {@inheritDoc} */
-    @Override
     public List<ProgressEntry> findByUserIdAndDateBetween(UUID userId, LocalDate start, LocalDate end) {
         return progressRepository.findByUserIdAndDateBetween(userId, start, end);
     }
 
     // ---- StreakQuery (inbound port) ----
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Unscoped by user, unlike the rest of this service: the caller is the dashboard, which has
-     * already established ownership of the upgrades it is summarising.
-     */
+    /** {@inheritDoc} */
     @Override
-    public Map<UUID, Integer> currentStreaks(Collection<UUID> upgradeIds) {
+    public Map<UUID, Integer> currentStreaks(UUID userId, Collection<UUID> upgradeIds) {
         if (upgradeIds.isEmpty()) return Map.of(); // nothing asked for, nothing queried
-        Map<UUID, List<ProgressEntry>> historyByUpgrade = progressRepository.findByUpgradeIdIn(upgradeIds).stream()
-                .collect(Collectors.groupingBy(ProgressEntry::getUpgradeId));
+        Map<UUID, List<ProgressEntry>> historyByUpgrade =
+                progressRepository.findByUserIdAndUpgradeIdIn(userId, upgradeIds).stream()
+                        .collect(Collectors.groupingBy(ProgressEntry::getUpgradeId));
         LocalDate today = LocalDate.now(clock);
         // Filled from the ids asked for rather than from the history, so an upgrade with nothing logged
         // still gets its zero.

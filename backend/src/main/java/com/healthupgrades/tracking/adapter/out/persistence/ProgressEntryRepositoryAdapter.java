@@ -45,8 +45,8 @@ class ProgressEntryRepositoryAdapter implements ProgressEntryRepositoryPort {
 
     /** {@inheritDoc} */
     @Override
-    public List<ProgressEntry> findByUpgradeIdIn(Collection<UUID> upgradeIds) {
-        return jpa.findByUpgradeIdIn(upgradeIds);
+    public List<ProgressEntry> findByUserIdAndUpgradeIdIn(UUID userId, Collection<UUID> upgradeIds) {
+        return jpa.findByUserIdAndUpgradeIdIn(userId, upgradeIds);
     }
 
     /** {@inheritDoc} */

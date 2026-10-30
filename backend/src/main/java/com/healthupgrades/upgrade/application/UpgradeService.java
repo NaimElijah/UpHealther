@@ -29,7 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Each state change follows the pattern: load the aggregate, invoke the domain method (which guards the
  * transition), save via the repository port, publish a domain event, and return the domain aggregate.
  * Command methods return {@link HealthUpgrade}; the web adapter maps it to a DTO. Implements the
- * {@link UpgradeQuery} inbound port so other contexts read upgrades as domain objects.
+ * {@link UpgradeQuery} inbound port so other contexts read upgrades as domain objects. The sweeps' reads of
+ * every user's upgrades are {@link UpgradeSweeps}', not this service's, because controllers hold this one.
  */
 @Service
 @RequiredArgsConstructor
@@ -342,17 +343,5 @@ public class UpgradeService implements UpgradeQuery {
     @Override
     public List<HealthUpgrade> findByUser(UUID userId) {
         return repository.findByUserId(userId);
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public List<HealthUpgrade> findByStatus(UpgradeStatus status) {
-        return repository.findByStatus(status);
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public List<HealthUpgrade> findAllById(Iterable<UUID> ids) {
-        return repository.findAllById(ids);
     }
 }

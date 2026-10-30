@@ -12,7 +12,6 @@ import static org.mockito.Mockito.when;
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
-import com.healthupgrades.common.domain.exception.DuplicateProgressException;
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.support.AProgressEntry;
@@ -21,8 +20,8 @@ import com.healthupgrades.support.RecordingAuditTrail;
 import com.healthupgrades.tracking.application.port.in.ProgressEntryDetails;
 import com.healthupgrades.tracking.application.port.in.StreakSummary;
 import com.healthupgrades.tracking.application.port.in.TrackingConfigDetails;
-import com.healthupgrades.tracking.domain.event.ProgressEntryRecorded;
 import com.healthupgrades.tracking.domain.event.StreakAchieved;
+import com.healthupgrades.tracking.domain.model.DuplicateProgressException;
 import com.healthupgrades.tracking.domain.model.Frequency;
 import com.healthupgrades.tracking.domain.model.ProgressEntry;
 import com.healthupgrades.tracking.domain.model.TrackingConfig;
@@ -218,40 +217,6 @@ class TrackingServiceTest {
     }
 
     @Test
-    void GivenProgressIsRecorded_WhenItIsStored_ThenItIsAnnounced() {
-        UUID entryId = UUID.randomUUID();
-        ProgressEntryDetails req = new ProgressEntryDetails(today, true, null, null, null, null);
-
-        when(progressRepository.existsByUpgradeIdAndDate(any(), any())).thenReturn(false);
-        when(configRepository.findByUpgradeId(upgradeId)).thenReturn(Optional.empty());
-        when(progressRepository.save(any(ProgressEntry.class))).thenAnswer(inv -> {
-            ProgressEntry e = inv.getArgument(0);
-            e.setId(entryId);
-            return e;
-        });
-        when(progressRepository.findByUpgradeIdOrderByDateDesc(upgradeId)).thenReturn(List.of());
-
-        service.recordProgress(userId, upgradeId, req);
-
-        ArgumentCaptor<ProgressEntryRecorded> event = ArgumentCaptor.forClass(ProgressEntryRecorded.class);
-        verify(eventPublisher).publish(event.capture());
-        assertThat(event.getValue().progressId()).isEqualTo(entryId);
-        assertThat(event.getValue().upgradeId()).isEqualTo(upgradeId);
-        assertThat(event.getValue().userId()).isEqualTo(userId);
-        assertThat(event.getValue().date()).isEqualTo(today);
-    }
-
-    @Test
-    void GivenProgressIsRecorded_WhenItIsAnnounced_ThenTheAnnouncementIsTimedByTheInjectedClock() {
-        // NFR-15 (#100): the wall clock stamps whatever time and zone the host happens to have.
-        recordWithMilestone(today, OptionalInt.empty());
-
-        ArgumentCaptor<ProgressEntryRecorded> event = ArgumentCaptor.forClass(ProgressEntryRecorded.class);
-        verify(eventPublisher).publish(event.capture());
-        assertThat(event.getValue().occurredAt()).isEqualTo(LocalDateTime.now(fixedClock));
-    }
-
-    @Test
     void GivenAnUpgradeOwnedBySomebodyElse_WhenProgressIsRecorded_ThenNothingIsStoredOrAnnounced() {
         when(upgradeQuery.getOwnedUpgrade(userId, upgradeId))
                 .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
@@ -293,7 +258,8 @@ class TrackingServiceTest {
     void GivenTheEntryReachesNoMilestone_WhenProgressIsRecorded_ThenNothingIsAnnounced() {
         recordWithMilestone(today, OptionalInt.empty());
 
-        verify(eventPublisher, never()).publish(any(StreakAchieved.class));
+        // Any event, not only StreakAchieved: a milestone is the one thing recording progress announces.
+        verify(eventPublisher, never()).publish(any());
     }
 
     @Test
@@ -564,11 +530,11 @@ class TrackingServiceTest {
         // NFR-14 (#99). The dashboard asks for every running upgrade's streak on each load; reading each
         // history separately made that one query per running upgrade.
         List<UUID> ids = List.of(upgradeId, UUID.randomUUID(), UUID.randomUUID());
-        when(progressRepository.findByUpgradeIdIn(ids)).thenReturn(List.of());
+        when(progressRepository.findByUserIdAndUpgradeIdIn(userId, ids)).thenReturn(List.of());
 
-        service.currentStreaks(ids);
+        service.currentStreaks(userId, ids);
 
-        verify(progressRepository).findByUpgradeIdIn(ids);
+        verify(progressRepository).findByUserIdAndUpgradeIdIn(userId, ids);
         verify(progressRepository, never()).findByUpgradeIdOrderByDateDesc(any());
     }
 
@@ -590,7 +556,7 @@ class TrackingServiceTest {
         UUID onceToday = UUID.randomUUID();
         UUID neverLogged = UUID.randomUUID();
         List<UUID> ids = List.of(upgradeId, onceToday, neverLogged);
-        when(progressRepository.findByUpgradeIdIn(ids))
+        when(progressRepository.findByUserIdAndUpgradeIdIn(userId, ids))
                 .thenReturn(List.of(
                         AProgressEntry.completedOn(upgradeId, userId, today, true),
                         AProgressEntry.completedOn(onceToday, userId, today, true),
@@ -598,14 +564,14 @@ class TrackingServiceTest {
                         AProgressEntry.completedOn(onceToday, userId, today.minusDays(2), true),
                         AProgressEntry.completedOn(upgradeId, userId, today.minusDays(2), true)));
 
-        assertThat(withRealCalculator.currentStreaks(ids))
+        assertThat(withRealCalculator.currentStreaks(userId, ids))
                 .containsExactlyInAnyOrderEntriesOf(Map.of(upgradeId, 3, onceToday, 1, neverLogged, 0));
     }
 
     @Test
     void GivenNoUpgrades_WhenTheirStreaksAreAskedFor_ThenNothingIsQueried() {
         // A dashboard with nothing running asks for no streaks; an empty IN list is not worth a round trip.
-        assertThat(service.currentStreaks(List.of())).isEmpty();
+        assertThat(service.currentStreaks(userId, List.of())).isEmpty();
 
         verifyNoInteractions(progressRepository);
     }

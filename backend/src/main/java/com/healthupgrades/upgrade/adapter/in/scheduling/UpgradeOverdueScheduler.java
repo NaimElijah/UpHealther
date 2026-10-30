@@ -1,70 +1,35 @@
 package com.healthupgrades.upgrade.adapter.in.scheduling;
 
-import static net.logstash.logback.argument.StructuredArguments.keyValue;
+import static com.healthupgrades.upgrade.application.UpgradeOverdueService.JOB;
 
-import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.common.observability.JobMetrics;
 import com.healthupgrades.common.time.ServerZone;
-import com.healthupgrades.upgrade.application.port.in.UpgradeQuery;
-import com.healthupgrades.upgrade.domain.event.UpgradeOverdueDetected;
-import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
-import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
+import com.healthupgrades.upgrade.application.UpgradeOverdueService;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Driving adapter that periodically looks for active upgrades which have passed their target date and
- * announces each as a domain event.
+ * Driving adapter that runs the overdue sweep, {@link UpgradeOverdueService#announceOverdue}, nightly.
  *
- * <p>Overdue-ness is a fact about an upgrade, so this context detects and publishes it; deciding what to
- * do about it — notifying the owner, say — belongs to whoever listens. The scan runs outside any
- * transaction, so the events are published immediately rather than on commit.
- *
- * <p>The cron expression is configured under {@code app.upgrades.schedules.overdue}.
+ * <p>A trigger and nothing more: it reads the clock in the server's zone, and times the run and counts
+ * how it ended under the job's name (NFR-25). The cron expression is configured under
+ * {@code app.upgrades.schedules.overdue}.
  */
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class UpgradeOverdueScheduler {
 
-    /** Stable across releases: it is a metric tag and a log field, so it is a contract, not a label. */
-    private static final String JOB = "upgrade.overdue-scan";
-
-    private final UpgradeQuery upgradeQuery; // own context's read view
-    private final DomainEventPublisher eventPublisher; // outbound port
+    private final UpgradeOverdueService overdue; // own application service: the sweep
     private final JobMetrics jobMetrics; // times the run and counts how it ended
     private final Clock clock; // injectable clock keeps "today" deterministic
 
-    /**
-     * Publishes {@link UpgradeOverdueDetected} for every active upgrade now past its target date.
-     *
-     * <p>The INFO line is what makes a nightly sweep visible at all: without it, a run that scanned
-     * nothing because a query silently stopped matching is indistinguishable from a run with nothing to
-     * find. Counts only — an upgrade's title is the user's own words about their health.
-     */
+    /** Announces every active upgrade now past its target date. */
     @Scheduled(cron = "${app.upgrades.schedules.overdue}", zone = ServerZone.ID)
     public void detectOverdueUpgrades() {
-        jobMetrics.timed(JOB, () -> {
-            LocalDate today = LocalDate.now(clock);
-            LocalDateTime detectedAt = LocalDateTime.now(clock);
-
-            int scanned = 0;
-            int announced = 0;
-            for (HealthUpgrade upgrade : upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)) {
-                scanned++;
-                if (upgrade.isOverdue(today)) {
-                    announced++;
-                    eventPublisher.publish(new UpgradeOverdueDetected(
-                            upgrade.getId(), upgrade.getUserId(), upgrade.getTargetEndDate(), detectedAt));
-                }
-            }
-
-            log.info("{} {} {}", keyValue("job", JOB), keyValue("scanned", scanned), keyValue("announced", announced));
-        });
+        jobMetrics.timed(JOB, () -> overdue.announceOverdue(LocalDate.now(clock), LocalDateTime.now(clock)));
     }
 }

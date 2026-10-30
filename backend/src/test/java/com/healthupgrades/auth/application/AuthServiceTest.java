@@ -9,12 +9,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.healthupgrades.auth.application.port.in.SessionCommand;
+import com.healthupgrades.auth.application.port.in.SessionGrant;
+import com.healthupgrades.auth.domain.port.out.AccessToken;
+import com.healthupgrades.auth.domain.port.out.AccessTokenIssuerPort;
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
-import com.healthupgrades.common.security.IssuedAccessToken;
-import com.healthupgrades.common.security.JwtTokenProvider;
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.RecordingAuditTrail;
 import com.healthupgrades.user.application.port.in.UserCommand;
@@ -57,8 +58,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 class AuthServiceTest {
 
     private static final String RAW_PASSWORD = "correct-horse-battery-staple";
-    private static final IssuedAccessToken ISSUED =
-            new IssuedAccessToken("issued.jwt.token", Instant.parse("2026-09-16T10:15:00Z"));
+    private static final AccessToken ISSUED =
+            new AccessToken("issued.jwt.token", Instant.parse("2026-09-16T10:15:00Z"));
     private static final SessionGrant GRANT = new SessionGrant(
             UUID.fromString("6b1f0f4c-9a2d-4c3e-9b7a-1d2e3f4a5b6c"),
             "6b1f0f4c-9a2d-4c3e-9b7a-1d2e3f4a5b6c.a-secret",
@@ -71,7 +72,7 @@ class AuthServiceTest {
     UserCommand userCommand;
 
     @Mock
-    JwtTokenProvider tokenProvider;
+    AccessTokenIssuerPort tokenIssuer;
 
     @Mock
     AuthenticationManager authenticationManager;
@@ -88,7 +89,7 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         service = new AuthService(
-                userQuery, userCommand, passwordEncoder, tokenProvider, authenticationManager, sessions, auditTrail);
+                userQuery, userCommand, passwordEncoder, tokenIssuer, authenticationManager, sessions, auditTrail);
         // Opening a session is a precondition of every successful sign-in here, and the subject
         // of none of them - AuthSessionServiceTest is where that behaviour is pinned. Lenient,
         // so the refusal tests are not failed for a stub they never reach.
@@ -99,7 +100,7 @@ class AuthServiceTest {
     void GivenAnUnregisteredEmail_WhenTheVisitorRegisters_ThenTheUserIsSavedAndATokenIssued() {
         when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
         when(userCommand.register(any(User.class))).thenAnswer(AuthServiceTest::persisted);
-        when(tokenProvider.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
+        when(tokenIssuer.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
 
         AuthResult result = service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD);
 
@@ -113,7 +114,7 @@ class AuthServiceTest {
         // NFR-23. The new account is both who acted and what was acted on: there was nobody before it.
         when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
         when(userCommand.register(any(User.class))).thenAnswer(AuthServiceTest::persisted);
-        when(tokenProvider.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
+        when(tokenIssuer.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
 
         UUID registered =
                 service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD).user().getId();
@@ -131,7 +132,7 @@ class AuthServiceTest {
                 .hasMessage("That email is already registered");
 
         verify(userCommand, never()).register(any());
-        verify(tokenProvider, never()).issue(any(), any());
+        verify(tokenIssuer, never()).issue(any(), any());
     }
 
     @Test
@@ -148,7 +149,7 @@ class AuthServiceTest {
     void GivenAMixedCaseEmailWithSpaces_WhenAVisitorRegisters_ThenItIsCheckedAndStoredTrimmedAndLowercase() {
         when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
         when(userCommand.register(any(User.class))).thenAnswer(AuthServiceTest::persisted);
-        when(tokenProvider.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
+        when(tokenIssuer.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
 
         service.register(AUser.NAME, "  SomeOne@Example.com ", RAW_PASSWORD);
 
@@ -168,7 +169,7 @@ class AuthServiceTest {
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessage("That email is already registered");
 
-        verify(tokenProvider, never()).issue(any(), any());
+        verify(tokenIssuer, never()).issue(any(), any());
         assertThat(auditTrail.only(AuditAction.AUTH_REGISTER))
                 .hasValue(new AuditEvent(AuditAction.AUTH_REGISTER, null, null, AuditOutcome.REFUSED));
     }
@@ -178,7 +179,7 @@ class AuthServiceTest {
         User user = AUser.aUser().build();
         when(authenticationManager.authenticate(any())).thenReturn(authenticated());
         when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(user));
-        when(tokenProvider.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
+        when(tokenIssuer.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
 
         service.login(" SOMEONE@example.com", RAW_PASSWORD);
 
@@ -191,7 +192,7 @@ class AuthServiceTest {
     void GivenARawPassword_WhenTheVisitorRegisters_ThenOnlyItsHashIsStored() {
         when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
         when(userCommand.register(any(User.class))).thenAnswer(AuthServiceTest::persisted);
-        when(tokenProvider.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
+        when(tokenIssuer.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
 
         service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD);
 
@@ -210,7 +211,7 @@ class AuthServiceTest {
         User user = AUser.aUser().build();
         when(authenticationManager.authenticate(any())).thenReturn(authenticated());
         when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(user));
-        when(tokenProvider.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
+        when(tokenIssuer.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
 
         AuthResult result = service.login(AUser.EMAIL, RAW_PASSWORD);
 
@@ -224,7 +225,7 @@ class AuthServiceTest {
 
         assertThatThrownBy(() -> service.login(AUser.EMAIL, "wrong")).isInstanceOf(BadCredentialsException.class);
 
-        verify(tokenProvider, never()).issue(any(), any());
+        verify(tokenIssuer, never()).issue(any(), any());
     }
 
     @Test
@@ -232,7 +233,7 @@ class AuthServiceTest {
         User user = AUser.aUser().build();
         when(authenticationManager.authenticate(any())).thenReturn(authenticated());
         when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(user));
-        when(tokenProvider.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
+        when(tokenIssuer.issue(any(UUID.class), any(UUID.class))).thenReturn(ISSUED);
 
         service.login(AUser.EMAIL, RAW_PASSWORD);
 
@@ -288,7 +289,7 @@ class AuthServiceTest {
         // one event twice, differently, is a trail nobody can total.
         when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
         when(userCommand.register(any())).thenAnswer(AuthServiceTest::persisted);
-        when(tokenProvider.issue(any(UUID.class), any(UUID.class)))
+        when(tokenIssuer.issue(any(UUID.class), any(UUID.class)))
                 .thenThrow(new IllegalStateException("secret too short"));
 
         assertThatThrownBy(() -> service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD))
@@ -305,7 +306,7 @@ class AuthServiceTest {
         when(authenticationManager.authenticate(any())).thenReturn(authenticated());
         when(userQuery.findByEmail(AUser.EMAIL))
                 .thenReturn(Optional.of(AUser.aUser().build()));
-        when(tokenProvider.issue(any(UUID.class), any(UUID.class)))
+        when(tokenIssuer.issue(any(UUID.class), any(UUID.class)))
                 .thenThrow(new IllegalStateException("secret too short"));
 
         assertThatThrownBy(() -> service.login(AUser.EMAIL, RAW_PASSWORD)).isInstanceOf(IllegalStateException.class);
@@ -336,7 +337,7 @@ class AuthServiceTest {
 
         assertThatThrownBy(() -> service.login(AUser.EMAIL, RAW_PASSWORD)).isInstanceOf(BusinessRuleException.class);
 
-        verify(tokenProvider, never()).issue(any(), any());
+        verify(tokenIssuer, never()).issue(any(), any());
     }
 
     @Test
@@ -344,7 +345,7 @@ class AuthServiceTest {
         User user = AUser.aUser().build();
         when(authenticationManager.authenticate(any())).thenReturn(authenticated());
         when(userQuery.findByEmail(AUser.EMAIL)).thenReturn(Optional.of(user));
-        when(tokenProvider.issue(user.getId(), GRANT.sessionId())).thenReturn(ISSUED);
+        when(tokenIssuer.issue(user.getId(), GRANT.sessionId())).thenReturn(ISSUED);
 
         assertThat(service.login(AUser.EMAIL, RAW_PASSWORD).token()).isEqualTo(ISSUED.value());
     }

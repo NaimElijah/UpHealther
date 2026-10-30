@@ -7,10 +7,10 @@ import java.util.UUID;
 /**
  * How an account looks to an administrator.
  *
- * <p>Its own shape rather than a reuse of {@code UserDto}, for one field: {@code enabled}. An
- * administration list that cannot show which accounts are switched off is not much of a list, and
- * putting the flag on {@code UserDto} would add an always-true field to every sign-in response for the
- * benefit of one screen.
+ * <p>Its own shape rather than a reuse of {@code auth}'s {@code UserDto}, the account as the sign-in
+ * responses return it, for one field: {@code enabled}. An administration list that cannot show which
+ * accounts are switched off is not much of a list, and putting the flag on {@code UserDto} would add an
+ * always-true field to every sign-in response for the benefit of one screen.
  *
  * <p>What is <em>not</em> here is the point of the type: no password hash, and nothing about what the
  * account has been doing. An administrator sees that an account exists, what it may do, and whether it
