@@ -209,6 +209,42 @@ class ReminderServiceTest {
     }
 
     @Test
+    void GivenAReminderOnAnotherUsersUpgrade_WhenItIsRescheduled_ThenTheAnswerIsTheOneAnUnknownIdGets() {
+        // S5.B3, BR-15: another user's reminder is absent, word for word. Its upgrade's own refusal
+        // named their upgrade, and differed from the unknown id's, which told the caller it existed.
+        when(repository.findById(reminderId)).thenReturn(Optional.of(aReminder(true)));
+        when(upgradeQuery.getOwnedUpgrade(userId, upgradeId))
+                .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
+        Throwable foreign = catchThrowable(
+                () -> service.update(userId, reminderId, new ReminderSchedule(SIX_PM, List.of("SAT"), true)));
+
+        when(repository.findById(reminderId)).thenReturn(Optional.empty());
+        Throwable unknown = catchThrowable(
+                () -> service.update(userId, reminderId, new ReminderSchedule(SIX_PM, List.of("SAT"), true)));
+
+        assertThat(foreign)
+                .isExactlyInstanceOf(unknown.getClass())
+                .hasMessage(unknown.getMessage())
+                .hasMessageNotContaining(upgradeId.toString());
+    }
+
+    @Test
+    void GivenAReminderOnAnotherUsersUpgrade_WhenItIsDeleted_ThenTheAnswerIsTheOneAnUnknownIdGets() {
+        when(repository.findById(reminderId)).thenReturn(Optional.of(aReminder(true)));
+        when(upgradeQuery.getOwnedUpgrade(userId, upgradeId))
+                .thenThrow(new ResourceNotFoundException("Upgrade not found: " + upgradeId));
+        Throwable foreign = catchThrowable(() -> service.delete(userId, reminderId));
+
+        when(repository.findById(reminderId)).thenReturn(Optional.empty());
+        Throwable unknown = catchThrowable(() -> service.delete(userId, reminderId));
+
+        assertThat(foreign)
+                .isExactlyInstanceOf(unknown.getClass())
+                .hasMessage(unknown.getMessage())
+                .hasMessageNotContaining(upgradeId.toString());
+    }
+
+    @Test
     void GivenAnOwnedReminder_WhenItIsDeleted_ThenItIsRemoved() {
         Reminder reminder = aReminder(true);
         when(repository.findById(reminderId)).thenReturn(Optional.of(reminder));

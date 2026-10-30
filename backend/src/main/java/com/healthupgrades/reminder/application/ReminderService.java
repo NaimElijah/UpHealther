@@ -109,12 +109,25 @@ public class ReminderService {
         });
     }
 
-    /** Single ownership guard: a reminder is the caller's only if the upgrade it hangs off is. */
+    /**
+     * Single ownership guard: a reminder is the caller's only if the upgrade it hangs off is.
+     *
+     * <p>Another user's reminder is answered exactly as an unknown id is, the same exception and the
+     * same words (BR-15, S5.B3). The upgrade's own refusal names that user's upgrade, and reads
+     * differently from a missing reminder's, so letting it through told the caller the reminder existed
+     * and whose upgrade it was on.
+     */
     private Reminder getOwnedReminder(UUID userId, UUID reminderId) {
-        Reminder reminder = repository
-                .findById(reminderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Reminder not found: " + reminderId));
-        upgradeQuery.getOwnedUpgrade(userId, reminder.getUpgradeId()); // ownership via parent upgrade
+        Reminder reminder = repository.findById(reminderId).orElseThrow(() -> reminderNotFound(reminderId));
+        try {
+            upgradeQuery.getOwnedUpgrade(userId, reminder.getUpgradeId()); // ownership via parent upgrade
+        } catch (ResourceNotFoundException notTheirs) {
+            throw reminderNotFound(reminderId);
+        }
         return reminder;
+    }
+
+    private static ResourceNotFoundException reminderNotFound(UUID reminderId) {
+        return new ResourceNotFoundException("Reminder not found: " + reminderId);
     }
 }
