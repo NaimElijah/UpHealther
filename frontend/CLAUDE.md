@@ -72,7 +72,9 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   A response interceptor treats a 401 as an expired token rather than a lost session: it renews from
   the cookie — single-flight within the tab and across tabs via `navigator.locks`, since rotation
   makes a credential good for one use — and retries the request once. Only a refusal from the refresh
-  itself ends the session and redirects to `/login`. A 401 from `/api/auth/login` or
+  itself ends the session and redirects to `/login`. Both that and an accepted sign-out end it through
+  `endSession()` in `src/api/session.ts`, a full document navigation so the query cache goes with the
+  page; do not add a third way. A 401 from `/api/auth/login` or
   `/api/auth/register` is the form's answer and is left to the page, and a 403 ("known, not allowed")
   never ends a session. See [ADR-015](../docs/ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md).
   Every HTTP call in `src/api/*.ts` goes through this client — add new endpoints there, not with raw

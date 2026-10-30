@@ -206,6 +206,25 @@ describe('AuthProvider', () => {
       expect(window.location.href).toBe('/login');
     });
 
+    it('GivenASignedInUser_WhenTheySignOut_ThenTheAppRendersSignedOutUntilThePageUnloads', async () => {
+      // A document navigation is not instant, and the app goes on rendering until the page unloads. In
+      // those moments it renders nobody signed in, so no protected page and no socket outlives the sign-out.
+      loginApi.mockResolvedValue(SESSION);
+      logoutApi.mockResolvedValue(undefined);
+      renderProvider();
+      await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
+      await act(async () => {
+        screen.getByText('sign in').click();
+      });
+
+      await act(async () => {
+        screen.getByText('sign out').click();
+      });
+
+      expect(screen.getByTestId('authenticated').textContent).toBe('false');
+      expect(screen.getByTestId('user').textContent).toBe('none');
+    });
+
     it('GivenTheServerCannotBeReached_WhenTheUserSignsOut_ThenTheyStaySignedInRatherThanBeingToldOtherwise', async () => {
       // The honest state. The refresh cookie is still in the browser, so the session is still live —
       // clearing the UI would tell somebody on a shared machine they had signed out when they had not.
