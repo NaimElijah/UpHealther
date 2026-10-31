@@ -20,6 +20,9 @@ import type { AppNotification } from '../types';
  */
 const SESSION_ENDED = 'Session ended';
 
+/** How long the client waits before each reconnect while the socket is down. */
+const RECONNECT_DELAY_MS = 5000;
+
 /**
  * Builds the WebSocket URL.
  *
@@ -99,7 +102,7 @@ export function openNotificationSocket({ onNotification, onConnectionChange }: N
         client.connectHeaders = {};
       }
     },
-    reconnectDelay: 5000,
+    reconnectDelay: RECONNECT_DELAY_MS,
     onConnect: () => {
       onConnectionChange(true);
       client.subscribe('/user/queue/notifications', (message) => {

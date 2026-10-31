@@ -17,6 +17,12 @@ const NOTIF_KEY = ['notifications'];
  */
 const UNREAD_KEY = [...NOTIF_KEY, 'unread-count'];
 
+/** The most toasts shown at once; a burst of notifications would otherwise cover the page. */
+const MAX_TOASTS = 4;
+
+/** How long a toast stays up before it dismisses itself. */
+const TOAST_LIFETIME_MS = 6000;
+
 /**
  * Owns notification state: the list, the unread count, whether the live connection is up, and the
  * toasts.
@@ -83,9 +89,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         [
           { id: n.id, category: n.category, title: n.title, message: n.message, relatedUpgradeId: n.relatedUpgradeId },
           ...prev,
-        ].slice(0, 4),
+        ].slice(0, MAX_TOASTS),
       );
-      window.setTimeout(() => dismissToast(n.id), 6000);
+      window.setTimeout(() => dismissToast(n.id), TOAST_LIFETIME_MS);
     },
     [dismissToast],
   );
