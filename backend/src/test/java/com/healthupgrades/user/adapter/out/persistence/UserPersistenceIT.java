@@ -190,6 +190,20 @@ class UserPersistenceIT extends PostgresIT {
         assertThat(onlyPage.total()).isEqualTo(accounts);
     }
 
+    @Test
+    void GivenTheLastPageTheAdminListAdmits_WhenItIsRead_ThenItRunsAndComesBackEmpty() {
+        // The bound AdminUserController sets, restated because the controller's constants are its own: the
+        // largest page whose offset, page times size, still fits the int Spring Data hands the query, which
+        // refuses one page more. AdminUserControllerTest pins the bound against a mocked query; only a real
+        // one runs the offset.
+        int largestPageSize = 100;
+        int lastPage = Integer.MAX_VALUE / largestPageSize;
+
+        UserPage beyondEveryAccount = repository.findAll(lastPage, largestPageSize);
+
+        assertThat(beyondEveryAccount.users()).isEmpty();
+    }
+
     /** The session factory's statistics, which this class's properties switch on. */
     private Statistics statistics() {
         return entityManager
