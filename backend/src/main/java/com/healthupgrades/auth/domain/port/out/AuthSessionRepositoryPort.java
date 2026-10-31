@@ -18,6 +18,8 @@ public interface AuthSessionRepositoryPort {
      * no version, so a general save cannot tell a new session from a stored one and reads the row before
      * writing it, on every sign-in and registration.
      *
+     * <p>Must be called inside a transaction.
+     *
      * @param session a session just opened, whose id no stored session holds
      * @return the same instance, now managed
      */
@@ -29,8 +31,8 @@ public interface AuthSessionRepositoryPort {
     /**
      * Persists a session and writes the change to the database before returning, rather than at commit.
      *
-     * <p>For a change the caller is about to announce: a revocation for reuse is logged and audited as
-     * done, and a plain {@link #save} of a session already read issues no statement until the
+     * <p>For a change the caller is about to announce: a revocation for reuse is audited as done before
+     * the commit, and a plain {@link #save} of a session already read issues no statement until the
      * transaction ends, so the announcement would precede the write it claims.
      *
      * <p>Must be called inside a transaction.

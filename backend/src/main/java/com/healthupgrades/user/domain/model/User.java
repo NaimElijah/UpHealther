@@ -15,8 +15,9 @@ import lombok.*;
  * setters: production code creates an account through {@link #register}, which leaves both at their
  * defaults, and they change afterwards only through {@link #changeRole}, {@link #disable} and
  * {@link #enable}, so the places an account gains a privilege or loses its access are countable. The
- * builder exists for persistence and for tests that need an account already in a particular state, as
- * {@code HealthUpgrade}'s does; production code does not reach for it.
+ * builder backs {@link #register} and the tests that need an account already in a particular state;
+ * Hibernate uses the no-argument constructor. No other production class calls it, which
+ * {@code HexagonalArchitectureTest} enforces, because it can set the role.
  */
 @Entity
 @Table(name = "users")

@@ -144,8 +144,8 @@ public class AuthService {
      * <p>The session was decided before this is called, and the account read inside the transaction that
      * decided it; all that is left is to mint the token. Nothing here touches the database: the rotation
      * has already committed, so a fault now would answer without the new credential, and the client's
-     * next refresh would present the spent one as a replay (D2.1). Token issuing stays here rather than
-     * moving to the controller, so the web adapter never touches the signing key.
+     * next refresh would present the spent one as a replay (#342, D2.1). Token issuing stays here rather
+     * than moving to the controller, so the web adapter never touches the signing key.
      *
      * @param user  the account the rotated session belongs to, as the refresh read it
      * @param grant the session and its new credential

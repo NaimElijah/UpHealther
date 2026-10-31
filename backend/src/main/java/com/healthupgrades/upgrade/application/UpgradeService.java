@@ -50,7 +50,8 @@ public class UpgradeService implements UpgradeQuery {
      * @param userId  the owner
      * @param details the attributes to store
      * @return the persisted aggregate
-     * @throws BusinessRuleException if the title or type is missing, or the area is not the caller's (BR-18)
+     * @throws BusinessRuleException if the title or type is missing, the type is retired (FR-9), or the area
+     *         is not the caller's (BR-18)
      */
     @Transactional
     public HealthUpgrade create(UUID userId, UpgradeDetails details) {
@@ -112,8 +113,9 @@ public class UpgradeService implements UpgradeQuery {
      * @param details the replacement attributes
      * @return the saved aggregate
      * @throws ResourceNotFoundException if the upgrade does not exist or belongs to somebody else
-     * @throws BusinessRuleException if the title or type is missing, the change would exceed the
-     *         concurrent-HARD limit, or the upgrade is moved to an area that is not the caller's (BR-18)
+     * @throws BusinessRuleException if the title or type is missing, the type would change to a retired
+     *         one (FR-9), the change would exceed the concurrent-HARD limit, or the upgrade is moved to an
+     *         area that is not the caller's (BR-18)
      * @throws RetryableConflictException if the promotion to HARD needs the limit checked while another
      *         of the user's requests is checking it; nothing is changed, and the same request may be resent
      */

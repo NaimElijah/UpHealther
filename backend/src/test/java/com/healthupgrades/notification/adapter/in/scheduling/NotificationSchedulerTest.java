@@ -702,7 +702,8 @@ class NotificationSchedulerTest {
     /**
      * Makes the nudge to {@code failing} throw {@code failure} and the nudge to {@link #userId} succeed.
      *
-     * <p>Stubbed by user, not by call order, because the sweep walks a {@code HashMap}. Both users are
+     * <p>Stubbed by user, not by call order, because the sweep walks the map of who has something running,
+     * which {@code Collectors.toUnmodifiableMap} builds with no defined order. Both users are
      * stubbed because strict stubs answer a call that matches no stub with {@code PotentialStubbingProblem},
      * and the sweep, which carries on past any {@code RuntimeException}, would count that as a second
      * failed save whenever the map happened to reach {@link #userId} first.

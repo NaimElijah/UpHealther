@@ -48,6 +48,9 @@ public class UpgradeController {
      *
      * @param req title and type are required; the rest is optional
      * @return 201 with the created upgrade, and a {@code Location} naming the route that reads it back
+     * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if the type is the retired
+     *         {@code PROTOCOL}, or the upgrade is filed under an area the caller does not own or that does
+     *         not exist (BR-18) (422)
      */
     @PostMapping
     public ResponseEntity<UpgradeDto> create(

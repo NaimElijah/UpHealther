@@ -22,7 +22,7 @@ public sealed interface RefreshOutcome {
      * <p>Carries the account as the refresh read it, inside the transaction that rotated the credential.
      * By the time the caller sees this the rotation has committed, so a second read of the account that
      * failed would answer a fault without the new credential, and the client's next refresh would present
-     * the spent one as a replay (D2.1).
+     * the spent one as a replay (#342, D2.1).
      *
      * @param user  the account the session belongs to, so a fresh access token can be issued for it
      * @param grant the new credential and the session it belongs to

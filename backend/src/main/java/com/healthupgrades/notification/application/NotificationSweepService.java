@@ -108,7 +108,8 @@ public class NotificationSweepService {
      * Nudges each of the given users who has neither been nudged since midnight nor logged anything today.
      *
      * <p>Each guard is read once for the whole sweep rather than once per user (NFR-14), which keeps the
-     * sweep at two queries however many users have something running.
+     * sweep at the grouped count of who has something running and these two guards, however many users
+     * that is.
      *
      * @param activeByUser each user with running upgrades, and how many they have
      * @param today        the day the guards are read for

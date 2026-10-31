@@ -99,7 +99,8 @@ class UserRepositoryAdapter implements UserRepositoryPort {
      * between pages and one of them is never shown.
      *
      * <p>The total is the one Spring Data's page already carries. It counts only when the page cannot
-     * tell it, a full page or one past the first; a second count beside it would run on every full page.
+     * tell it, a full page or an empty one past the first; a second count beside it would run on every
+     * full page.
      */
     @Override
     public UserPage findAll(int page, int size) {
