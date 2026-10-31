@@ -8,9 +8,17 @@ import type { AppNotification } from '../../types';
 /** How many of the most recent notifications the panel lists; the full page lists the rest. */
 const PANEL_SIZE = 8;
 
-/** @param onClose called after selecting a notification, and by the bell's outside-click handler */
+/**
+ * @param id      the panel's id, which the bell's `aria-controls` names
+ * @param onClose called after selecting a notification or following View all; it closes the panel and
+ *                gives focus back to the bell
+ * @param onActed called after an action that keeps the panel open but removes its own button, Mark all
+ *                read or the desktop prompt, so focus goes back to the bell rather than to `<body>`
+ */
 interface Props {
+  id: string;
   onClose: () => void;
+  onActed: () => void;
 }
 
 /**
@@ -25,7 +33,7 @@ interface Props {
  * mark-read is shown at the top, each with the trace id (NFR-30). Selecting one closes the panel, so its refusal is
  * seen the next time the panel opens.
  */
-const NotificationDropdown: React.FC<Props> = ({ onClose }) => {
+const NotificationDropdown: React.FC<Props> = ({ id, onClose, onActed }) => {
   const {
     notifications,
     unreadCount,
@@ -46,13 +54,23 @@ const NotificationDropdown: React.FC<Props> = ({ onClose }) => {
   };
 
   return (
-    <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-surface rounded-xl border border-line shadow-xl z-50 overflow-hidden">
+    <div
+      id={id}
+      className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-surface rounded-xl border border-line shadow-xl z-50 overflow-hidden"
+    >
       <div className="flex items-center justify-between px-4 py-3 border-b border-line-subtle">
         <span className="font-semibold text-fg-muted text-sm">
           Notifications{unreadCount > 0 && <span className="text-brand-fg"> ({unreadCount})</span>}
         </span>
         {unreadCount > 0 && (
-          <button onClick={markAllRead} className="text-xs text-brand-fg hover:underline">
+          <button
+            type="button"
+            onClick={() => {
+              markAllRead();
+              onActed();
+            }}
+            className="text-xs text-brand-fg hover:underline"
+          >
             Mark all read
           </button>
         )}
@@ -60,7 +78,11 @@ const NotificationDropdown: React.FC<Props> = ({ onClose }) => {
 
       {desktopPermission === 'default' && (
         <button
-          onClick={requestDesktopPermission}
+          type="button"
+          onClick={() => {
+            requestDesktopPermission();
+            onActed();
+          }}
           className="w-full text-left px-4 py-2 text-xs text-brand-fg bg-brand-soft hover:bg-brand-soft-hover border-b border-line-subtle"
         >
           🔔 Enable desktop notifications
@@ -98,6 +120,7 @@ const NotificationDropdown: React.FC<Props> = ({ onClose }) => {
       </div>
 
       <button
+        type="button"
         onClick={() => {
           onClose();
           navigate('/notifications');

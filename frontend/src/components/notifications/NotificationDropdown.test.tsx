@@ -25,7 +25,7 @@ function renderPanel(context: NotificationContextType) {
   return render(
     <NotificationContext.Provider value={context}>
       <MemoryRouter>
-        <NotificationDropdown onClose={vi.fn()} />
+        <NotificationDropdown id="panel" onClose={vi.fn()} onActed={vi.fn()} />
       </MemoryRouter>
     </NotificationContext.Provider>,
   );

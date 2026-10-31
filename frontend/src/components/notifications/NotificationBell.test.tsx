@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { useState } from 'react';
+import { MemoryRouter } from 'react-router-dom';
+import { notificationAsSent } from '../../test/wireFixtures';
 import NotificationBell from './NotificationBell';
 import { NotificationContext, type NotificationContextType } from '../../contexts/notificationContextValue';
 
@@ -50,5 +53,93 @@ describe('NotificationBell', () => {
 
     const bell = screen.getByRole('button', { name: 'Notifications' });
     expect(within(bell).queryByText('0')).toBeNull();
+  });
+});
+
+/** A context whose actions change what it holds, as the provider's do, around a bell inside a router. */
+function StatefulBell() {
+  const [unread, setUnread] = useState(2);
+  const [permission, setPermission] = useState<NotificationPermission>('default');
+  const value: NotificationContextType = {
+    notifications: [notificationAsSent({ id: 'n1', title: 'Time to log', relatedUpgradeId: null, read: false })],
+    unreadCount: unread,
+    connected: true,
+    desktopPermission: permission,
+    markRead: () => setUnread((n) => n - 1),
+    markAllRead: () => setUnread(0),
+    requestDesktopPermission: () => setPermission('granted'),
+    toasts: [],
+    dismissToast: () => {},
+  };
+  return (
+    <NotificationContext.Provider value={value}>
+      <MemoryRouter>
+        <NotificationBell />
+      </MemoryRouter>
+    </NotificationContext.Provider>
+  );
+}
+
+function openPanel() {
+  render(<StatefulBell />);
+  const bell = screen.getByRole('button', { name: /^Notifications/ });
+  bell.focus();
+  fireEvent.click(bell);
+  return bell;
+}
+
+/**
+ * The bell is a disclosure, as the WAI-ARIA Authoring Practices describe one: it says whether its panel
+ * is open and which panel it opens, Escape closes the panel, and focus comes back to the bell rather than
+ * falling to `<body>` when the panel closes or an action in it removes the control that had focus
+ * (WCAG 4.1.2, 2.4.3, finding X9.12).
+ */
+describe('NotificationBell disclosure', () => {
+  it('GivenTheBell_WhenItIsPressed_ThenItSaysItIsExpandedAndNamesThePanelItControls', () => {
+    render(<StatefulBell />);
+    const bell = screen.getByRole('button', { name: /^Notifications/ });
+    expect(bell.getAttribute('aria-expanded')).toBe('false');
+
+    fireEvent.click(bell);
+
+    expect(bell.getAttribute('aria-expanded')).toBe('true');
+    const panel = document.getElementById(bell.getAttribute('aria-controls') ?? '');
+    expect(panel?.textContent).toContain('View all notifications');
+  });
+
+  it('GivenThePanelIsOpen_WhenEscapeIsPressed_ThenItClosesAndTheBellHasFocus', () => {
+    const bell = openPanel();
+    screen.getByRole('button', { name: 'View all notifications' }).focus();
+
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+
+    expect(screen.queryByRole('button', { name: 'View all notifications' })).toBeNull();
+    expect(bell.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(bell);
+  });
+
+  it.each(['Mark all read', /Enable desktop notifications/])(
+    'GivenThePanelIsOpen_When%sIsUsedAndGoes_ThenFocusReturnsToTheBell',
+    (name) => {
+      const bell = openPanel();
+      const action = screen.getByRole('button', { name });
+      action.focus();
+
+      fireEvent.click(action);
+
+      expect(screen.queryByRole('button', { name })).toBeNull();
+      expect(document.activeElement).toBe(bell);
+    },
+  );
+
+  it('GivenANotificationWithNoUpgrade_WhenItIsSelected_ThenThePanelClosesAndTheBellHasFocus', () => {
+    const bell = openPanel();
+    const item = screen.getByRole('button', { name: /Time to log/ });
+    item.focus();
+
+    fireEvent.click(item);
+
+    expect(bell.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(bell);
   });
 });
