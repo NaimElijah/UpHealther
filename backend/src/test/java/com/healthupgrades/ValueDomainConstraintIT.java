@@ -17,7 +17,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * The value domains the schema holds of its own (ADR-073): a write that bypasses the application is refused
- * by PostgreSQL when it stores a value the domain has no name for.
+ * by PostgreSQL when it stores a value the domain has no name for, or a completion time that disagrees
+ * with the status (ADR-080).
  *
  * <p>Each case writes one row the way a stray {@code UPDATE} would, past every check in Java, and expects
  * the constraint that refuses it by name. Each test rolls back, so the rows it writes are its own.
@@ -65,6 +66,9 @@ class ValueDomainConstraintIT extends PostgresIT {
                 "health_upgrades,  status,            'DRAFT',     health_upgrades_status_check",
                 "health_upgrades,  type,              'NAP',       health_upgrades_type_check",
                 "health_upgrades,  difficulty,        'EXTREME',   health_upgrades_difficulty_check",
+                // Each half of ADR-080's tie: COMPLETED with no stamp, and a stamp on an upgrade still an IDEA.
+                "health_upgrades,  status,            'COMPLETED', health_upgrades_completed_at_check",
+                "health_upgrades,  completed_at,      LOCALTIMESTAMP, health_upgrades_completed_at_check",
                 "tracking_configs, tracking_type,     'COLOUR',    tracking_configs_tracking_type_check",
                 "tracking_configs, frequency,         'HOURLY',    tracking_configs_frequency_check",
                 "notifications,    type,              'SPAM',      notifications_type_check",
@@ -100,13 +104,17 @@ class ValueDomainConstraintIT extends PostgresIT {
 
     @Test
     void GivenTheEdgesOfEachDomainAndNoValueAtAll_WhenTheyAreWritten_ThenEachIsAccepted() {
-        // The bounds are inclusive, and a nullable column keeps accepting NULL: a CHECK passes it.
+        // The bounds are inclusive, and a nullable column keeps accepting NULL: a CHECK passes it. A
+        // COMPLETED upgrade with its completion time is the one stamped row the tie accepts.
         jdbc.update("UPDATE progress_entries SET rating = 5, numeric_value = 0 WHERE upgrade_id = ?", upgradeId);
         jdbc.update("UPDATE progress_entries SET rating = 1, numeric_value = NULL WHERE upgrade_id = ?", upgradeId);
         jdbc.update("UPDATE reflections SET difficulty_rating = 1, benefit_rating = 5 WHERE upgrade_id = ?", upgradeId);
         jdbc.update("UPDATE reflections SET difficulty_rating = 5, benefit_rating = 1 WHERE upgrade_id = ?", upgradeId);
         jdbc.update("UPDATE health_upgrades SET difficulty = NULL, status = 'ABANDONED' WHERE id = ?", upgradeId);
         jdbc.update("UPDATE tracking_configs SET frequency = NULL WHERE upgrade_id = ?", upgradeId);
+        jdbc.update(
+                "UPDATE health_upgrades SET status = 'COMPLETED', completed_at = LOCALTIMESTAMP WHERE id = ?",
+                upgradeId);
 
         assertThat(jdbc.queryForObject(
                         "SELECT rating FROM progress_entries WHERE upgrade_id = ?", Integer.class, upgradeId))

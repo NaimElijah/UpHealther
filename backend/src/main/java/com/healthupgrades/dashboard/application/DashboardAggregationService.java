@@ -65,12 +65,11 @@ public class DashboardAggregationService implements DashboardQuery {
                 userId, active.stream().map(HealthUpgrade::getId).toList());
 
         // The five most recently completed upgrades, by when each was completed: an edit moves updatedAt,
-        // and FR-13 lets a completed upgrade be edited (FR-27, ADR-080). A completed row always has the
-        // stamp, since V19 backfilled the old ones; one without it would sort last rather than fail.
+        // and FR-13 lets a completed upgrade be edited (FR-27, ADR-080). No null is ordered: V20's CHECK
+        // refuses a COMPLETED row without the stamp.
         List<HealthUpgrade> recentlyCompleted = all.stream()
                 .filter(u -> u.getStatus() == UpgradeStatus.COMPLETED)
-                .sorted(Comparator.comparing(
-                        HealthUpgrade::getCompletedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+                .sorted(Comparator.comparing(HealthUpgrade::getCompletedAt, Comparator.reverseOrder()))
                 .limit(RECENTLY_COMPLETED_SHOWN)
                 .toList();
 

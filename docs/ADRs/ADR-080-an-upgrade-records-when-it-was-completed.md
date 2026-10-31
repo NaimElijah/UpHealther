@@ -3,8 +3,9 @@
 - **Status:** Accepted
 - **Date:** 2026-10-31
 - **Scope:**
-  - `backend/` — `V19__upgrade_completed_at.sql`, `HealthUpgrade.completedAt` and `complete(LocalDateTime)`,
-    `UpgradeService.complete`, and the "recently completed" order in `DashboardAggregationService`.
+  - `backend/` — `V19__upgrade_completed_at.sql`, `V20__upgrade_completed_at_follows_status.sql`,
+    `HealthUpgrade.completedAt` and `complete(LocalDateTime)`, `UpgradeService.complete`, and the
+    "recently completed" order in `DashboardAggregationService`.
   - Not the wire: no response record carries the column.
 - **Issue:** [#342](https://github.com/NaimElijah/UpHealther/issues/342), scan 08 of
   [#334](https://github.com/NaimElijah/UpHealther/issues/334), finding D3.1, with the owner's decision
@@ -30,6 +31,10 @@ transition into COMPLETED, from the injected clock, and the dashboard orders rec
 - **The column.** `V19` adds it as `TIMESTAMP`, as `updated_at` is, and the entity holds a
   `LocalDateTime`. It is null for every upgrade that has not been completed. COMPLETED is terminal (no
   transition leaves it), so the stamp never moves once set; an edit moves `updated_at` and leaves it.
+- **The schema ties it to the status.** `V20` adds `health_upgrades_completed_at_check`,
+  `(status = 'COMPLETED') = (completed_at IS NOT NULL)`, as V12 holds each value domain
+  ([ADR-073](ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md)): a stray write can neither
+  mark an upgrade COMPLETED without a stamp nor stamp one that is not.
 - **The clock.** `HealthUpgrade.complete(LocalDateTime at)` takes the moment, as the other transitions
   take their dates, and refuses a null one. `UpgradeService.complete` passes
   `LocalDateTime.now(clock)`, the same instant the `HealthUpgradeCompleted` event carries, so the two
@@ -58,9 +63,15 @@ transition into COMPLETED, from the injected clock, and the dashboard orders rec
 - **Old rows carry a guess.** A completion before V19 that was edited later is dated at the edit, and
   nothing marks which rows were guessed. A feature that needs exact completion times cannot trust rows
   stamped before V19 ran.
-- **The column is not tied to the status in the schema.** Nothing in the database refuses a COMPLETED
-  row with no `completed_at`; the domain is the only writer that sets either. The dashboard sorts such a
-  row last rather than failing.
+- **A status change written past the domain must set the stamp too.** V20 refuses a manual `UPDATE`
+  that marks an upgrade COMPLETED without `completed_at`, or that moves one out of COMPLETED and keeps
+  it, so a data fix states both columns. In exchange the dashboard orders no null: a COMPLETED row
+  without the stamp cannot exist, and an aggregate built that way in memory fails the sort loudly.
+- **The tie is cheap only while the table is small.** V20 validates in the same transaction as the
+  `ADD CONSTRAINT`, so the scan of `health_upgrades` runs while the ADD's ACCESS EXCLUSIVE lock is
+  still held: harmless with no production data yet
+  ([#206](https://github.com/NaimElijah/UpHealther/issues/206)), but a later change to the rule on a
+  populated table validates in a migration of its own (ADR-072).
 
 ## Alternatives considered
 

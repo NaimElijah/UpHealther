@@ -879,8 +879,10 @@ moving a context's tables out of the database, or giving one a soft delete, woul
 
 **The schema refuses a value the domain has no name for.** The request records refuse a bad value at
 the boundary, and the schema refuses it again for a write that skips them. Every enum column carries a
-`CHECK` listing its enum's constants, BR-19's ratings and BR-20's numeric value carry their bounds, and
-a reminder's time and flag are `NOT NULL`. Each enum's values are therefore written twice, and
+`CHECK` listing its enum's constants, BR-19's ratings and BR-20's numeric value carry their bounds, an
+upgrade has a `completed_at` exactly when it is `COMPLETED`
+([ADR-080](../ADRs/ADR-080-an-upgrade-records-when-it-was-completed.md)), and a reminder's time and flag
+are `NOT NULL`. Each enum's values are therefore written twice, and
 `EnumColumnCheckContractTest` fails the build when a `CHECK` and its enum differ, so a new constant
 arrives with its migration. A child row's owner is its parent's for the same reason: progress entries
 and reflections reference `health_upgrades (id, user_id)`, and an upgrade references
