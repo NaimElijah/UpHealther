@@ -3,7 +3,10 @@
 - **Status:** Accepted — superseded in part by
   [ADR-083](ADR-083-a-route-change-moves-focus-to-the-new-pages-heading.md): a route change now moves
   focus to the new page's heading, so "the app manages no focus on a route change anywhere" no longer
-  holds
+  holds. And the navbar is no longer a `<nav>` (b4942b6c,
+  [#343](https://github.com/NaimElijah/UpHealther/issues/343)), so the reason *One list, two renderings*
+  gives for naming the links' landmark "Main", "because the navbar is a `<nav>` too", no longer holds;
+  the name stays
 - **Date:** 2026-10-06
 - **Scope:** `frontend/src/components/layout/` — `NavMenu`, `NavLinks`, `navItems`, and the brand in
   `Navbar`. Builds on [ADR-013](ADR-013-trapping-focus-without-a-native-dialog.md); no new dependency.
