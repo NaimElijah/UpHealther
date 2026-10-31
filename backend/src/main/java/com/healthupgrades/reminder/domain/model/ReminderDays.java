@@ -16,9 +16,9 @@ import java.util.stream.Stream;
 /**
  * The days of the week a reminder fires on.
  *
- * <p>Owns the encoding of the day filter. The column holds a comma-separated string of three-letter
- * tokens, and all parsing and formatting lives here, so two readers cannot disagree about the format; the
- * storage form is an implementation detail of this type.
+ * <p>Owns the encoding of the day filter. This type writes the column as a comma-separated string of
+ * three-letter tokens, and all parsing and formatting lives here, so two readers cannot disagree about the
+ * format; the storage form is an implementation detail of this type.
  *
  * <p>An empty set means <em>every day</em> rather than <em>no days</em>: a reminder with no day filter
  * is the common case and fires daily.
@@ -50,9 +50,9 @@ public final class ReminderDays {
     /**
      * Parses day tokens supplied from outside.
      *
-     * <p>Accepts both the three-letter form and the full day name, in any case, and stores the three-letter
-     * form, so a full name always matches. Blank and null entries are ignored, so a list holding only blank
-     * entries means every day.
+     * <p>Accepts both the three-letter form and the full day name, in any case; {@link #toStorageValue}
+     * writes the three-letter form, so a full name always matches. Blank and null entries are ignored, so
+     * a list holding only blank entries means every day.
      *
      * <p>An unrecognised token is rejected rather than skipped. Skipping is worse than failing here:
      * a filter of {@code ["Mondays","Fridays"]} would parse to nothing, and nothing means
