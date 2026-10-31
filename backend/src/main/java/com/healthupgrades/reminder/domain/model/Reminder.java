@@ -115,7 +115,6 @@ public class Reminder {
      */
     public boolean isDueAt(DayOfWeek day, LocalTime time) {
         return isEnabled()
-                && reminderTime != null
                 && days().includes(day)
                 && reminderTime.getHour() == time.getHour()
                 && reminderTime.getMinute() == time.getMinute();

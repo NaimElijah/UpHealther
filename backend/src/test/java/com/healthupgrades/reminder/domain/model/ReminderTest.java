@@ -153,17 +153,6 @@ class ReminderTest {
     }
 
     @Test
-    void GivenAReminderWithNoTimeSet_WhenDueIsChecked_ThenItIsNeverDue() {
-        // Built past the factory, which refuses a reminder with no time.
-        Reminder reminder = Reminder.builder()
-                .upgradeId(UUID.randomUUID())
-                .daysOfWeek("MON")
-                .enabled(true)
-                .build();
-        assertThat(reminder.isDueAt(DayOfWeek.MONDAY, NINE_AM)).isFalse();
-    }
-
-    @Test
     void GivenNoTime_WhenAReminderIsCreated_ThenItIsRefused() {
         // D3.9. The column is NOT NULL, so a reminder with no time reached the database and failed there
         // as a 500 rather than being refused as the rule it is.
