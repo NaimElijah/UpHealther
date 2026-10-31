@@ -31,10 +31,12 @@ import org.springframework.stereotype.Component;
  * unusable token refuses the connection.
  *
  * <p>Authenticating the connection is not enough on its own. Once a session exists it may name any
- * destination it likes: another account's queue by its user-prefixed form, {@code /user/<userId>/…},
- * whose user id is no secret, or a raw broker destination. The resolved queue's suffix is the socket's
- * session id, a random UUID, so it is not the route an attacker would take, but nothing that names it
- * should pass either. So the later frames are authorised too, against an allow-list of commands:
+ * destination it likes: another account's queue by its user-prefixed form, {@code /user/<userId>/…}, or
+ * a raw broker destination. A user id is an identifier, not a credential, so nothing may rest on its
+ * being unknown, though the API shows another account's id only to administrators. The resolved queue's
+ * suffix is the socket's session id, a random UUID, so it is not the route an attacker would take, but
+ * nothing that names it should pass either. So the later frames are authorised too, against an
+ * allow-list of commands:
  * <ul>
  *   <li>a SUBSCRIBE must come from an authenticated session and name {@link #ALLOWED_SUBSCRIPTION}
  *       exactly — naming {@code /user/<anotherUserId>/…}, the resolved {@code /queue/notifications-user…}
@@ -102,7 +104,8 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
     private final AuditTrail auditTrail; // records every CONNECT, allowed or refused
 
     /**
-     * Authenticates a connecting frame and authorises every other frame that can name a destination.
+     * Authenticates a connecting frame, authorises a subscription, and refuses every command outside its
+     * allow-list.
      *
      * @param message the inbound STOMP message
      * @param channel the client inbound channel
@@ -153,8 +156,9 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
             // missing header is a client with no session left to offer, an unusable token is a session
             // that ended. Spring turns the exception into a refused connection, and for a CONNECT, as for
             // a SUBSCRIBE, logs nothing above DEBUG itself. That is not true of every frame: a refused
-            // frame of any other command, and a frame it cannot decode, spring-websocket 7.0.9's
-            // StompSubProtocolHandler logs at ERROR, which no interceptor can prevent (S5.C4).
+            // frame of any command but CONNECT, STOMP and SUBSCRIBE, and a frame it cannot decode,
+            // spring-websocket 7.0.9's StompSubProtocolHandler logs at ERROR, which no interceptor can
+            // prevent (S5.C4).
             log.debug("Refused a STOMP CONNECT: no bearer token");
             // Audited only when something was presented. A tab whose session could not be renewed
             // reconnects with no header at all every five seconds, and that is no more an attempt than a
