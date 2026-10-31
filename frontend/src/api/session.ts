@@ -12,7 +12,9 @@ const sessionEndListeners = new Set<SessionEndListener>();
  * navigation alone does not discard it: a page the back/forward cache keeps is restored with its script
  * state intact (S5.D1). `createQueryClient` registers the cache it builds.
  *
- * @param listener  called synchronously by `endSession`, once per session end
+ * @param listener  called synchronously by `endSession`, once per call. That is not once per session:
+ *                  parallel requests whose renewal fails each call it, so a listener must bear running
+ *                  again
  * @returns a function that unregisters it
  */
 export function onSessionEnd(listener: SessionEndListener): () => void {

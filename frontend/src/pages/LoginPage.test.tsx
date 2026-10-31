@@ -124,6 +124,24 @@ describe('LoginPage', () => {
     expect(screen.queryByText('Invalid email or password.')).toBeNull();
   });
 
+  it('GivenAPasswordOfSpaces_WhenTheApiRefusesItAsBlank_ThenTheFormSaysWhichFieldRatherThanValidationFailed', async () => {
+    // Spaces pass the form's own check, and the API's @NotBlank answers 400 with the detail in
+    // fieldErrors and only "Validation failed" in the message.
+    login.mockRejectedValue(
+      apiFailure(400, {
+        message: 'Validation failed',
+        fieldErrors: { password: 'must not be blank' },
+        traceId: 'trace-login',
+      }),
+    );
+    renderLogin();
+
+    await signIn('someone@example.com', '   ');
+
+    expect(await screen.findByText('Password: must not be blank.')).toBeDefined();
+    expect(screen.queryByText(/Validation failed/)).toBeNull();
+  });
+
   it('GivenTooManyAttempts_WhenTheFormIsSubmitted_ThenTheUserIsToldToWaitNotThatTheyAreWrong', async () => {
     // The rate limit answers 429 (ADR-017). Showing "invalid email or password" here would send
     // somebody who typed the right password off to reset it, and they would keep trying — which is

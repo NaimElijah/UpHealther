@@ -104,10 +104,10 @@ domain layers reach the kernel in `common.domain` and nowhere else ([ADR-064](..
 | Module | Responsible for |
 |---|---|
 | `src/api/` | One axios instance, `client.ts`, and one module per backend area with a thin function per endpoint. The instance attaches the in-memory access token, and renews it from the refresh cookie and retries once on a 401 rather than signing the user out; `tokenStore.ts` holds the token, and every HTTP call goes through the instance. `api/` owns the credential's renewal and the end of a session: `session.ts`'s `endSession` is the one way a session ends, on sign-out, when a renewal fails and on the server's session-ended frame, by dropping the token, emptying what registered with its `onSessionEnd` (the query cache, and the application `main.tsx` mounted), and replacing the document with `/login`, never a router push, so no state of the previous user survives. A page the browser restores from its back/forward cache reloads, because its script state is the one it was left with ([ADR-066](../ADRs/ADR-066-a-tab-keeps-nothing-of-a-session-that-ended.md)). An id goes into a path only through `apiPath.ts`'s template tag, which encodes it as one segment and refuses an empty, `.` or `..` one, because a route's `:id` arrives decoded. `apiError.ts`'s `toApiError` is the one place a failure is decoded, into a status, a message, any field errors and the trace id. `notificationSocket.ts` is the STOMP client that delivers notifications live: it presents and renews the same token, and takes the API's origin from `apiBaseUrl.ts`, as the instance does |
-| `src/contexts/` | `AuthProvider` owns the current user and the sign-in, registration and sign-out actions. It writes the token three times: it stores the one a sign-in or a registration returns, and clears it when the restore at page load fails; a sign-out the server accepted ends through `endSession`; `NotificationProvider` owns the notification list, the unread count (the server's, since the list holds only the fifty most recent; the unread listed stands in until it can be read), when the STOMP connection is open, and the toasts; `ThemeProvider` owns the light/dark/system choice and the `dark` class on `<html>` |
+| `src/contexts/` | `AuthProvider` owns the current user and the sign-in, registration and sign-out actions. It writes the token three times: it stores the one a sign-in or a registration returns, and clears it when the restore at page load fails; a sign-out the server accepted ends through `endSession`. Until the page-load restore settles, `isLoading` is true and the sign-in and registration pages refuse to submit, so a restore that succeeds signs the tab in and redirects it before anybody can sign in on top of it; the sign-in and registration actions also wait for the restore themselves, a backstop for any other caller, so a restore that lands late cannot replace the account just signed in with the one whose refresh cookie the browser held. A restore whose deadline passed while its refresh was still out is not covered: that refresh's cookie can land after a later sign-in's ([#403](https://github.com/NaimElijah/UpHealther/issues/403)); `NotificationProvider` owns the notification list, the unread count (the server's, since the list holds only the fifty most recent; the unread listed stands in until it can be read), when the STOMP connection is open, and the toasts; `ThemeProvider` owns the light/dark/system choice and the `dark` class on `<html>` |
 | `src/hooks/` | `useAuth`, `useNotifications` and `useTheme` — typed context readers that fail loudly outside their provider |
 | `src/App.tsx`, `src/main.tsx` | The outer half of the composition root. `main.tsx` mounts `App` under `StrictMode`, and unmounts it when a session ends, through `onSessionEnd`; `App` installs, outermost first, `ThemeProvider`, `ErrorBoundary`, the one `QueryClientProvider` and `AuthProvider` around the router |
-| `src/router/` | `index.tsx`, the route table and the inner half of the composition root: inside `BrowserRouter` it mounts `NotificationProvider` around the routes and `ToastContainer` beside them, so a toast can navigate. `ProtectedRoute` gates every page but sign-in and registration; `RequireRole` adds the administrator check in front of `/admin/users`, a courtesy, since the API decides. `/` and any unknown path redirect |
+| `src/router/` | `index.tsx`, the route table and the inner half of the composition root: inside `BrowserRouter` it mounts `NotificationProvider` around the routes and `ToastContainer` beside them, so both can navigate: a toast opens its upgrade, and so does the provider when a desktop notification is clicked. `ProtectedRoute` gates every page but sign-in and registration; `RequireRole` adds the administrator check in front of `/admin/users`, a courtesy, since the API decides. `/` and any unknown path redirect |
 | `src/pages/` | One component per route that renders a page |
 | `src/components/` | `ui/` primitives — including `PageContainer`, which decides how wide a page may grow, `Modal`, which every dialog is, and `ErrorState`, which shows a failure with its trace id — `upgrade/` cards, badges, the fields that describe an upgrade, the actions an upgrade's page offers on it, and the sections of that page (its streak, tracking configuration, reminders, progress and reflections), each rendering the read the page hands it and owning its writes and dialog where it has them, `notifications/` bell, dropdown, items and toasts, `layout/` navbar, sidebar and the phone menu, the last two rendering one shared list of links (`navItems.ts`), `theme/` the light, dark and system switch, and `ErrorBoundary.tsx`, which replaces a tree that threw while rendering with a page offering a reload |
 | `src/types/` | `api.generated.ts`, the request and response shapes and enums rendered from the backend's records, and `index.ts`, which gives them the frontend's names and adds, as intersections, what no record declares: a health area's client-side `upgradeCount`, and the `upgradeId` that `createProgress` moves from a new entry into the URL (see "The frontend's wire types are generated from the backend's records") |
@@ -170,31 +170,38 @@ as it is open; a refusal names nobody, as a refused login does. A CONNECT with n
 an entry, as a refresh with no cookie is not. A refusal reaches the browser as a STOMP ERROR frame,
 after which Spring closes the socket. `StompRefusalErrorHandler`, registered on the STOMP endpoint
 registry, words its `message` from the type of what was thrown, never from its text: `Unauthenticated`
-for a CONNECT without a usable token, `Refused` for a SUBSCRIBE or SEND on a connected socket that the
+for a CONNECT without a usable token, `Refused` for any frame on a connected socket that the
 interceptor turns down, and `Frame not processed` for anything else, an outage while authenticating, a
-frame that could not be decoded, or a SUBSCRIBE or SEND before any CONNECT, which Spring refuses before
-the interceptor runs. The client acts on none of these and keeps its token through one, and retries
-([ADR-078](../ADRs/ADR-078-a-refused-stomp-frame-is-answered-in-fixed-words.md)). Spring logs
-some refusals at ERROR, so nginx throttles the `/ws` handshake per client address: sixty a minute with
-a burst of twenty, over the limit answered 429.
+frame that could not be decoded, or any frame but a CONNECT (or STOMP) sent before any CONNECT, which
+Spring refuses before the interceptor runs. The client acts on none of these and keeps its token through
+one, and retries ([ADR-078](../ADRs/ADR-078-a-refused-stomp-frame-is-answered-in-fixed-words.md)).
+Spring logs some refusals at ERROR, so nginx throttles the `/ws` handshake per client address: sixty a
+minute with a burst of twenty, over the limit answered 429.
 It bounds handshakes, not what one open socket sends, which
 [#382](https://github.com/NaimElijah/UpHealther/issues/382) tracks, and it caps no open sockets
 ([ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md)).
 
-The same interceptor authorises the frames that follow, because a session that is merely connected
-can still name any destination it likes. A SUBSCRIBE must come from an authenticated session and
-name `/user/queue/notifications` exactly — the resolved `/queue/notifications-user…` of another
-session, and any `/topic`, are refused — and a SEND is refused outright, the application declaring
-no `@MessageMapping` for one to reach. A socket holds one subscription for its life, kept in its
-session attributes: a second SUBSCRIBE is refused, because each subscription is registered with the
-broker and a socket streaming them would grow the heap without limit. An UNSUBSCRIBE frees nothing,
-because the inbound channel's pool runs frames in no fixed order, and one that reached the broker
-before its SUBSCRIBE would leave that subscription held. Heartbeats, UNSUBSCRIBE and DISCONNECT pass:
-they name nothing, and refusing a DISCONNECT would leave sessions to time out rather than close. A
-refused SUBSCRIBE or SEND is a WARN line, not an audit entry: it authorises a frame on a connection that
-is already authenticated. Spring
-adds an ERROR line of its own for a refused SEND, and for a frame it cannot decode, which no interceptor
-can suppress; a refused CONNECT or SUBSCRIBE it logs only at DEBUG.
+The same interceptor authorises the frames that follow, because a session that is merely connected can
+still name any destination it likes. A SUBSCRIBE must come from an authenticated session and name
+`/user/queue/notifications` exactly — another account's `/user/<userId>/…`, the resolved
+`/queue/notifications-user…` of another session, and any `/topic`, are refused. It must be in `auto` ack
+mode, named or left to the default, because the other modes need the ACK this refuses. The commands are
+an allow-list ([ADR-079](../ADRs/ADR-079-the-stomp-interceptor-allow-lists-what-a-client-may-send.md)):
+CONNECT, STOMP, SUBSCRIBE, UNSUBSCRIBE and DISCONNECT, and every other is refused. That covers a SEND,
+the application declaring no `@MessageMapping` for one to reach; the frames STOMP defines for the server
+to send, MESSAGE, CONNECTED, RECEIPT and ERROR, which Spring decodes from a client all the same and, for
+a MESSAGE, routes as it would a SEND, so one addressed to another account's user queue would reach that
+account's socket; and ACK, NACK, BEGIN, COMMIT and ABORT, the SPA subscribing in the default ack mode
+and opening no transaction. A socket holds one subscription for its life, kept in its session
+attributes: a second SUBSCRIBE is refused, because each subscription is registered with the broker and a
+socket streaming them would grow the heap without limit. An UNSUBSCRIBE frees nothing, because the
+inbound channel's pool runs frames in no fixed order, and one that reached the broker before its
+SUBSCRIBE would leave that subscription held. Heartbeats, UNSUBSCRIBE and DISCONNECT pass: they name
+nothing, and refusing a DISCONNECT would leave sessions to time out rather than close. Any other message
+without a command is refused. A refused frame after CONNECT is a WARN line, not an audit entry: it
+authorises a frame on a connection that is already authenticated. Spring adds an ERROR line of its own
+for a refused frame of any command but CONNECT, STOMP and SUBSCRIBE, and for a frame it cannot decode,
+which no interceptor can suppress; a refused CONNECT or SUBSCRIBE it logs only at DEBUG.
 
 A connected socket sends nothing the interceptor could check again, so the server closes it instead
 when its session ends ([ADR-054](../ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md)).
@@ -217,8 +224,10 @@ and the tab sent to `/login`, so a window whose session ended elsewhere stops sh
 ([ADR-066](../ADRs/ADR-066-a-tab-keeps-nothing-of-a-session-that-ended.md));
 `SessionEndedFrameContractTest` holds the two copies of the message together.
 
-The broker is Spring's in-memory simple broker. There is no external broker, so a push reaches only
-clients connected to *this* instance — see "Known constraints" below.
+The broker is Spring's in-memory simple broker, serving `/queue` and nothing else: nothing broadcasts
+on a `/topic`, and with no `@MessageMapping` there is no application destination prefix. There is no
+external broker, so a push reaches only clients connected to *this* instance — see "Known constraints"
+below.
 
 **3. In-process domain events, context to context.** A context that changes state publishes a record
 implementing `DomainEvent` through the `DomainEventPublisher` port. The adapter behind it delegates to
@@ -416,18 +425,23 @@ The browser's half of a read, and of the write that makes it stale:
 5. **A write marks views stale.** A mutation that changes an upgrade calls `refreshUpgradeViews`,
    which invalidates every key that shows upgrades, because one upgrade shows on several pages
    ([ADR-029](../ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)).
-   Other writes invalidate the keys they name, such as a reminder's `['reminders', id]`. A progress
-   entry names too few, and leaves the dashboard and the progress history stale for up to thirty
-   seconds ([#192](https://github.com/NaimElijah/UpHealther/issues/192)). Invalidation refetches what
-   a mounted page reads; the rest refetch when their page next opens.
+   Deleting a health area calls it too, because the delete detaches the upgrades filed under the area;
+   creating or renaming one invalidates `['healthAreas']` and `['dashboard']`, whose By Area names
+   every area ([ADR-081](../ADRs/ADR-081-a-write-that-changes-upgrades-indirectly-refreshes-their-views-too.md)).
+   Other writes invalidate the keys they name, such as a reminder's
+   `['reminders', id]`. A progress entry names too few, and leaves the dashboard and the progress
+   history stale for up to thirty seconds ([#192](https://github.com/NaimElijah/UpHealther/issues/192)).
+   Invalidation refetches what a mounted page reads; the rest refetch when their page next opens.
 
 **Notifications arrive by two routes into one cache.** While somebody is signed in,
 `NotificationProvider` reads `['notifications']` over REST, and `api/notificationSocket.ts` hands it
 each notification the server pushes over STOMP. A pushed one is written into the same list unless
 its id is already there, so one that arrives both ways is listed once, and the unread count,
-`['notifications', 'unread-count']`, is read again from the server. Marking read writes the cache
-first and calls the API after; a refusal invalidates the list, so the server's answer replaces the
-guess.
+`['notifications', 'unread-count']`, is read again from the server. Marking one or all read first
+cancels a list or count fetch in flight, and waits for the cancel, since that fetch was answered
+before the write and would undo it; it then writes the cache and calls the API. Accepted or refused,
+the write is followed by invalidating the list and the count, so the server's answer replaces the
+guess and the cancelled fetch is made again.
 
 ### A session, end to end
 
@@ -1112,6 +1126,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the dialog traps focus by hand rather than through a native `<dialog>`; why `inert` and not `aria-hidden`; why the overlay is portalled | [ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md) |
 | Why a phone gets the navigation in the shared dialog rather than a drawer or a tab bar; when the menu closes; why the brand leaves the navbar below 360px | [ADR-022](../ADRs/ADR-022-the-phone-navigation-is-the-shared-dialog-not-a-drawer.md) |
 | Why a write to an upgrade refreshes every page's view of upgrades rather than its own, and why not a zero staleness window or patched caches | [ADR-029](../ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md) |
+| Why deleting a health area refreshes every view of upgrades, and creating or renaming one the dashboard | [ADR-081](../ADRs/ADR-081-a-write-that-changes-upgrades-indirectly-refreshes-their-views-too.md) |
 | Why a notification sweep carries on past a failed save, still fails the run, and gives up only when the database cannot be reached | [ADR-023](../ADRs/ADR-023-a-notification-sweep-carries-on-past-a-failed-save-and-fails-the-run.md) |
 | Why a lifecycle notification is stored in its own transaction after the write commits, and why a failed one can be lost but never fails the write | [ADR-028](../ADRs/ADR-028-a-raised-notification-is-stored-in-its-own-transaction-after-the-write-commits.md) |
 | Why the container's error page is let through security by dispatcher type, and how it gets the trace id the request's own dispatch saw | [ADR-024](../ADRs/ADR-024-the-container-error-page-keeps-its-status-and-carries-the-trace-id.md) |
@@ -1149,6 +1164,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the `upgrade` context restates `tracking`'s tracking type and frequency as enums of its own in `domain.model`, held equal by a contract test, rather than importing them, carrying strings, or placing them in `port.out` or `port.in` | [ADR-077](../ADRs/ADR-077-a-context-mirrors-another-contexts-closed-set-in-its-own-model.md) |
 | Why a refused STOMP frame is answered `Unauthenticated`, `Refused` or `Frame not processed`, chosen by the exception's type and never its text, why `Session ended` passes untouched, and why the SPA acts on none of the three | [ADR-078](../ADRs/ADR-078-a-refused-stomp-frame-is-answered-in-fixed-words.md) |
 | Why an upgrade records when it was completed, stamped from the injected clock and backfilled approximately from `updated_at`, rather than restating FR-27 or waiting for #263's lifecycle history | [ADR-080](../ADRs/ADR-080-an-upgrade-records-when-it-was-completed.md) |
+| Why the STOMP interceptor allow-lists the commands a client may send rather than deny-listing the ones it must not; why a subscription must be in `auto` ack mode; why the broker serves `/queue` alone with no application destination prefix; what a `@MessageMapping`, a broadcast or another ack mode would need first | [ADR-079](../ADRs/ADR-079-the-stomp-interceptor-allow-lists-what-a-client-may-send.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

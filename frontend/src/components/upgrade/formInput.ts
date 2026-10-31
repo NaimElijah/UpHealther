@@ -3,8 +3,10 @@ import { toApiError, toFormMessage } from '../../api/apiError';
 /**
  * Parses a decimal field, treating unparseable input as absent.
  *
- * A cleared number input yields an empty string, and `parseFloat('')` is NaN — which would serialise
- * to `null` and be read as a logged value rather than as no value.
+ * A cleared number input yields an empty string, and `parseFloat('')` is NaN. Kept in the form's state,
+ * a NaN would come back as the controlled input's `value`, since `value ?? ''` lets it through, and
+ * React refuses NaN there with a warning. Sent, it would serialise to `null`, which the API reads as no
+ * value just as it reads an absent field.
  */
 export const numOrUndef = (v: string): number | undefined => {
   const n = parseFloat(v);

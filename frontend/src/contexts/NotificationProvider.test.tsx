@@ -179,6 +179,7 @@ function Probe() {
   return (
     <div>
       <span data-testid="count">{notifications.length}</span>
+      <span data-testid="unread-listed">{notifications.filter((n) => !n.read).length}</span>
       <span data-testid="load-error">{loadError ? `${loadError.message} ${loadError.traceId}` : ''}</span>
       <span data-testid="action-error">{actionError ? `${actionError.message} ${actionError.traceId}` : ''}</span>
       <span data-testid="unread">{unreadCount}</span>
@@ -203,8 +204,10 @@ function authenticated(): AuthContextType {
   };
 }
 
-function renderProvider(auth: AuthContextType = authenticated()) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function renderProvider(
+  auth: AuthContextType = authenticated(),
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+) {
   return render(
     <AuthContext.Provider value={auth}>
       <QueryClientProvider client={queryClient}>
@@ -225,15 +228,19 @@ function renderProvider(auth: AuthContextType = authenticated()) {
  * Three things here are only observable from a test. The socket is opened from an effect whose cleanup
  * must deactivate it — a dropped cleanup leaks a connection per mount, and `React.StrictMode`
  * double-invokes effects, so the leak starts in development rather than in production. A frame that
- * will not parse must be dropped rather than thrown, because an exception inside a STOMP callback tears
- * down the subscription and costs every *later* notification too. And an arrival must be de-duplicated
- * by id against the REST fetch, since a notification can genuinely come both ways.
+ * will not parse must be dropped rather than thrown into the client, because an exception inside a
+ * STOMP callback tears down the subscription and costs every *later* notification too. And an arrival
+ * must be de-duplicated by id against the REST fetch, since a notification can genuinely come both ways.
  */
 describe('NotificationProvider', () => {
   beforeEach(() => {
     lastClient = undefined;
     renewSession.mockReset();
     resetNotificationApi();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('GivenASignedInUser_WhenTheProviderMounts_ThenItOpensASocketAndSubscribesOnConnect', async () => {
@@ -288,9 +295,22 @@ describe('NotificationProvider', () => {
     expect(screen.getByTestId('count').textContent).toBe('1');
   });
 
-  it('GivenAFrameThatWillNotParse_WhenItArrives_ThenItIsDroppedAndLaterOnesStillArrive', async () => {
+  it('GivenAFrameThatWillNotParse_WhenItArrives_ThenItIsDroppedAndReportedAndLaterOnesStillArrive', async () => {
     // The reason the handler catches: throwing here propagates into the STOMP client and tears down
-    // the subscription, so the cost is every notification after this one, not just this one.
+    // the subscription, so the cost is every notification after this one, not just this one. The parse
+    // error is reported on a microtask instead, caught here so it does not fail the run as uncaught.
+    // Every other microtask runs as usual, since React schedules work on them too.
+    const reported: unknown[] = [];
+    const realQueueMicrotask = globalThis.queueMicrotask;
+    vi.stubGlobal('queueMicrotask', (task: () => void) =>
+      realQueueMicrotask(() => {
+        try {
+          task();
+        } catch (error) {
+          reported.push(error);
+        }
+      }),
+    );
     renderProvider();
     await waitFor(() => expect(lastClient).toBeDefined());
     act(() => lastClient?.connect());
@@ -299,6 +319,7 @@ describe('NotificationProvider', () => {
     act(() => lastClient?.deliver(JSON.stringify(PUSHED)));
 
     await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('1'));
+    expect(reported).toEqual([expect.any(SyntaxError)]);
   });
 
   // FR-33 (#94) — the unread count covers every notification, and the list holds only the fifty most
@@ -330,7 +351,12 @@ describe('NotificationProvider', () => {
 
   it('GivenTheCountCannotBeRead_WhenANotificationIsMarkedRead_ThenTheBadgeStillCountsTheListed', async () => {
     // A drop applied to a count never read would invent a zero and hide the controls again.
-    getNotifications.mockResolvedValue([PUSHED, { ...PUSHED, id: 'n-2' }]);
+    let held: AppNotification[] = [PUSHED, { ...PUSHED, id: 'n-2' }];
+    getNotifications.mockImplementation(async () => held);
+    // The server applies the write, since the list is read again once it lands.
+    markNotificationRead.mockImplementation(async (id: string) => {
+      held = held.map((n) => (n.id === id ? { ...n, read: true } : n));
+    });
     getUnreadCount.mockRejectedValue(new Error('Network Error'));
     renderProvider();
     await waitFor(() => expect(screen.getByTestId('unread').textContent).toBe('2'));
@@ -435,6 +461,92 @@ describe('NotificationProvider', () => {
 
     await waitFor(() => expect(getUnreadCount).toHaveBeenCalledTimes(3));
     await waitFor(() => expect(screen.getByTestId('unread').textContent).toBe('72'));
+  });
+
+  // The list is written optimistically too. A list fetch already in flight, a focus refetch say, was
+  // answered before the write reached the server; landing on top of it, it showed the row unread again
+  // while the badge said 0, which hides "Mark all read".
+
+  /**
+   * Renders the provider over a list holding one unread notification, then starts a list refetch the
+   * test answers later, and returns that answer.
+   */
+  async function aListFetchInFlight(): Promise<(list: AppNotification[]) => Promise<void>> {
+    let staleList: (list: AppNotification[]) => void = () => {};
+    getNotifications
+      .mockResolvedValueOnce([PUSHED])
+      .mockImplementationOnce(
+        () =>
+          new Promise<AppNotification[]>((resolve) => {
+            staleList = resolve;
+          }),
+      )
+      .mockResolvedValue([{ ...PUSHED, read: true }]);
+    getUnreadCount.mockResolvedValueOnce(1).mockResolvedValue(0);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderProvider(authenticated(), queryClient);
+    await waitFor(() => expect(screen.getByTestId('unread-listed').textContent).toBe('1'));
+    await waitFor(() => expect(screen.getByTestId('unread').textContent).toBe('1'));
+    act(() => {
+      void queryClient.refetchQueries({ queryKey: ['notifications'], exact: true });
+    });
+    await waitFor(() => expect(getNotifications).toHaveBeenCalledTimes(2));
+    return async (list) => {
+      await act(async () => staleList(list));
+      await act(settled);
+    };
+  }
+
+  it('GivenAListFetchInFlight_WhenANotificationIsMarkedRead_ThenTheStaleListDoesNotStick', async () => {
+    const answerStaleList = await aListFetchInFlight();
+
+    act(() => screen.getByRole('button', { name: 'Mark read' }).click());
+    await act(settled);
+    await answerStaleList([PUSHED]);
+
+    expect(screen.getByTestId('unread-listed').textContent).toBe('0');
+  });
+
+  it('GivenAListFetchInFlight_WhenAllAreMarkedRead_ThenTheStaleListDoesNotStick', async () => {
+    const answerStaleList = await aListFetchInFlight();
+
+    act(() => screen.getByRole('button', { name: 'Mark all read' }).click());
+    await act(settled);
+    await answerStaleList([PUSHED]);
+
+    expect(screen.getByTestId('unread-listed').textContent).toBe('0');
+  });
+
+  // Cancelling the list fetch reverts it, and nothing re-ran it: a notification it would have brought,
+  // one missed while the socket was down say, stayed off the list until the next focus or mount.
+
+  it('GivenAListFetchInFlightCarryingAMissedNotification_WhenAnotherIsMarkedRead_ThenTheMissedOneIsListed', async () => {
+    const answerStaleList = await aListFetchInFlight();
+    getNotifications.mockResolvedValue([{ ...PUSHED, read: true }, OTHER]);
+    getUnreadCount.mockResolvedValue(1);
+
+    act(() => screen.getByRole('button', { name: 'Mark read' }).click());
+    await act(settled);
+    await answerStaleList([PUSHED, OTHER]);
+
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('2'));
+    expect(screen.getByTestId('unread-listed').textContent).toBe('1');
+    expect(screen.getByTestId('unread').textContent).toBe('1');
+  });
+
+  it('GivenAListFetchInFlightCarryingAMissedNotification_WhenAllAreMarkedRead_ThenTheMissedOneIsListed', async () => {
+    const answerStaleList = await aListFetchInFlight();
+    getNotifications.mockResolvedValue([
+      { ...PUSHED, read: true },
+      { ...OTHER, read: true },
+    ]);
+
+    act(() => screen.getByRole('button', { name: 'Mark all read' }).click());
+    await act(settled);
+    await answerStaleList([PUSHED, OTHER]);
+
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('2'));
+    expect(screen.getByTestId('unread-listed').textContent).toBe('0');
   });
 
   it('GivenTheCountAlreadyExcludesTheNotification_WhenItIsMarkedRead_ThenTheServersCountWins', async () => {
@@ -681,12 +793,15 @@ describe('NotificationProvider', () => {
 class FakeDesktopNotification {
   static permission: NotificationPermission = 'default';
   static raised: Array<{ title: string; body?: string }> = [];
+  /** Every one raised, so a test can click it as the user would in the operating system's tray. */
+  static instances: FakeDesktopNotification[] = [];
   /** The user says yes: the path FR-49's opt-in exists for. */
   static requestPermission = () => Promise.resolve<NotificationPermission>('granted');
   onclick: (() => void) | null = null;
 
   constructor(title: string, options?: { body?: string }) {
     FakeDesktopNotification.raised.push({ title, body: options?.body });
+    FakeDesktopNotification.instances.push(this);
   }
 
   close() {}
@@ -708,6 +823,7 @@ describe('NotificationProvider desktop notifications', () => {
     resetNotificationApi();
     FakeDesktopNotification.permission = 'default';
     FakeDesktopNotification.raised = [];
+    FakeDesktopNotification.instances = [];
     vi.stubGlobal('Notification', FakeDesktopNotification);
   });
 
@@ -716,6 +832,27 @@ describe('NotificationProvider desktop notifications', () => {
     // Removes the own property setTabHidden defined, so jsdom's own getter shows through again.
     Reflect.deleteProperty(document, 'hidden');
   });
+
+  /** Mounts the provider beside a page for each upgrade, so a test can read where a click navigated to. */
+  async function renderBesideRoutes() {
+    // jsdom implements no window focus, and says so on stderr; the click focuses the tab first.
+    vi.spyOn(window, 'focus').mockImplementation(() => {});
+    render(
+      <AuthContext.Provider value={authenticated()}>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={['/dashboard']}>
+            <NotificationProvider>
+              <Routes>
+                <Route path="/dashboard" element={<p>the dashboard</p>} />
+                <Route path="/upgrades/:id" element={<UpgradePage />} />
+              </Routes>
+            </NotificationProvider>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </AuthContext.Provider>,
+    );
+    await waitFor(() => expect(lastClient).toBeDefined());
+  }
 
   async function deliverWhileConnected(notification: AppNotification) {
     renderProvider();
@@ -752,6 +889,40 @@ describe('NotificationProvider desktop notifications', () => {
 
     await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('1'));
     expect(FakeDesktopNotification.raised).toEqual([]);
+  });
+
+  // A document navigation here dropped the cache and the in-memory token, and spent a refresh against
+  // the per-address allowance (NFR-59) to get them back.
+  it('GivenADesktopNotificationAboutAnUpgrade_WhenItIsClicked_ThenThatUpgradeOpensWithoutReloadingThePage', async () => {
+    FakeDesktopNotification.permission = 'granted';
+    setTabHidden(true);
+    const assign = vi.fn();
+    vi.stubGlobal('location', { ...window.location, assign });
+    await renderBesideRoutes();
+    act(() => lastClient?.connect());
+    act(() => lastClient?.deliver(JSON.stringify({ ...PUSHED, relatedUpgradeId: 'upgrade-7' })));
+
+    act(() => FakeDesktopNotification.instances[0].onclick?.());
+
+    expect(await screen.findByText('the page of upgrade-7')).toBeDefined();
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('GivenAnOpenSocket_WhenTheUserMovesToAnotherPage_ThenTheSocketIsKept', async () => {
+    // The router's navigate changes identity on every move; held where the socket's handler depends on
+    // it, each move would tear the socket down and open another, losing what arrived in between.
+    FakeDesktopNotification.permission = 'granted';
+    setTabHidden(true);
+    await renderBesideRoutes();
+    const opened = lastClient;
+    act(() => opened?.connect());
+    act(() => opened?.deliver(JSON.stringify({ ...PUSHED, relatedUpgradeId: 'upgrade-7' })));
+
+    act(() => FakeDesktopNotification.instances[0].onclick?.());
+    await screen.findByText('the page of upgrade-7');
+
+    expect(lastClient).toBe(opened);
+    expect(opened?.deactivated).toBe(0);
   });
 
   it('GivenPermissionWasNeverGranted_WhenANotificationArrivesInAHiddenTab_ThenNoDesktopNotificationIsRaised', async () => {

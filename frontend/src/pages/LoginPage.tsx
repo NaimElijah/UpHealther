@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import ThemeToggle from '../components/theme/ThemeToggle';
-import { toApiError } from '../api/apiError';
+import { toApiError, toFormMessage } from '../api/apiError';
 
 /**
  * Sign-in page, one of the two routes reachable without a session.
@@ -16,9 +16,14 @@ import { toApiError } from '../api/apiError';
  *
  * Redirects to the dashboard when already signed in, which is what stops a user with a valid session
  * from landing here by typing the URL.
+ *
+ * Refuses to submit until the page-load restore has settled (`isLoading`). A restore that succeeds
+ * signs the tab in as the account whose refresh cookie the browser holds, and redirects it, before a
+ * sign-in sent meanwhile could land; that sign-in would then put another account's token under the
+ * restored one's socket, or, refused, report nothing on a page already gone.
  */
 const LoginPage: React.FC = () => {
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,6 +36,7 @@ const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     setError('');
     if (!email || !password) {
       setError('Please fill in all fields.');
@@ -43,16 +49,11 @@ const LoginPage: React.FC = () => {
     } catch (thrown) {
       const failure = toApiError(thrown);
       // 401 is the only status that means "these credentials are not good", and it keeps the
-      // deliberately vague message. Anything else is ours, so say what the API said and hand over the
-      // trace id — this is the highest-traffic failure path in the application, and it was the one
-      // place a server fault was being reported to the user as their own mistake.
-      setError(
-        failure.status === 401
-          ? 'Invalid email or password.'
-          : failure.traceId
-            ? `${failure.message} (reference ${failure.traceId})`
-            : failure.message,
-      );
+      // deliberately vague message. Anything else is ours, so say what the API said: the field it
+      // refused, or the message and the trace id — this is the highest-traffic failure path in the
+      // application, and it was the one place a server fault was being reported to the user as their
+      // own mistake.
+      setError(failure.status === 401 ? 'Invalid email or password.' : toFormMessage(failure));
     } finally {
       setLoading(false);
     }
@@ -88,7 +89,7 @@ const LoginPage: React.FC = () => {
             autoComplete="current-password"
           />
           {error && <p className="text-sm text-danger-fg text-center">{error}</p>}
-          <Button type="submit" loading={loading} className="w-full">
+          <Button type="submit" loading={loading || isLoading} className="w-full">
             Sign In
           </Button>
         </form>

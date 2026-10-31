@@ -21,8 +21,9 @@ class StompFrameRefusedException extends IllegalArgumentException {
         UNAUTHENTICATED("Unauthenticated"),
 
         /**
-         * A SUBSCRIBE or SEND on a connected socket that the interceptor turns down. One sent before any
-         * CONNECT never reaches the interceptor: Spring refuses it first, and it reads as
+         * A frame on a connected socket that the interceptor turns down: a SUBSCRIBE it does not authorise,
+         * or any command outside its allow-list, a SEND or a client's MESSAGE among them. One sent before
+         * any CONNECT never reaches the interceptor: Spring refuses it first, and it reads as
          * {@code Frame not processed}.
          */
         REFUSED("Refused");

@@ -1,6 +1,7 @@
 # ADR-078: A refused STOMP frame is answered in fixed words, and the SPA acts only on Session ended
 
-- **Status:** Accepted
+- **Status:** Accepted — extended by
+  [ADR-079](ADR-079-the-stomp-interceptor-allow-lists-what-a-client-may-send.md)
 - **Date:** 2026-10-31
 - **Scope:**
   - `backend/` — `StompRefusalErrorHandler` and `StompFrameRefusedException` in `common.websocket`, the

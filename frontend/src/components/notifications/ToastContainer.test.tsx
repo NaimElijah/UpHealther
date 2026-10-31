@@ -108,4 +108,15 @@ describe('ToastContainer', () => {
       buttons.forEach((button) => expect(fireEvent.mouseDown(button)).toBe(false));
     });
   });
+
+  // A tab opened before a deploy that adds a category receives one this build does not know. Read
+  // without a fallback, its colours threw during render, and the error boundary blanked the app.
+  it('GivenACategoryThisBuildDoesNotKnow_WhenItsToastIsShown_ThenItRendersAsInfo', () => {
+    const unknown = { ...streakToast, category: 'URGENT' } as unknown as ToastData;
+
+    render(<PageWithDialog dialogOpen={false} toasts={[unknown]} />);
+
+    expect(screen.getByRole('status').className).toContain('bg-info-soft');
+    expect(screen.getByText('🔥 7-day streak!')).toBeDefined();
+  });
 });
