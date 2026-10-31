@@ -88,7 +88,9 @@ const UpgradeProgress: React.FC<Props> = ({ upgradeId, read, trackingConfig }) =
         {progress.length === 0 ? (
           <p className="text-fg-subtle text-sm text-center py-4">No progress logged yet.</p>
         ) : (
-          <div className="space-y-2 max-h-64 overflow-y-auto">
+          // A box that scrolls on its own is a tab stop, so the keyboard can scroll it in every browser,
+          // Safari included, and a named region, so what the stop is gets said (WCAG 2.1.1, 4.1.2).
+          <div tabIndex={0} role="region" aria-label="Progress entries" className="space-y-2 max-h-64 overflow-y-auto">
             {progress.map((p) => (
               <div key={p.id} className="flex items-center justify-between p-3 bg-sunken rounded-lg text-sm">
                 <span className="text-fg-subtle">{parseLocalDate(p.date).toLocaleDateString()}</span>

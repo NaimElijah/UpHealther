@@ -263,6 +263,18 @@ describe('UpgradeDetailsPage', () => {
     expect(isBefore(middle, oldest)).toBe(true);
   });
 
+  // Review finding 14 on #407: the history scrolls inside a box of its own, with no name, role or tab stop,
+  // so a keyboard user in a browser that does not focus scrollable boxes could not scroll it (WCAG 2.1.1).
+  it('GivenLoggedProgress_WhenTheDetailsPageRenders_ThenItsScrollingHistoryIsANamedRegionTheKeyboardReaches', async () => {
+    getProgressByUpgrade.mockResolvedValue([anEntry('p-1', '2026-03-10', 'first day')]);
+
+    renderPage();
+
+    const history = await screen.findByRole('region', { name: 'Progress entries' });
+    expect(history.tabIndex).toBe(0);
+    expect(within(history).getByText('first day')).toBeDefined();
+  });
+
   it('GivenReflectionsReturnedNewestFirst_WhenTheDetailsPageRenders_ThenTheNewestReflectionIsListedFirst', async () => {
     getReflectionsByUpgrade.mockResolvedValue([
       aReflection('r-2', '2026-03-14', 'Went in before breakfast'),
