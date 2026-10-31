@@ -7,7 +7,7 @@ import { markNotificationRead } from './notifications';
 import { createProgress, getProgressByUpgrade, getStreak } from './progress';
 import { createReflection, getReflectionsByUpgrade } from './reflections';
 import { createReminder, deleteReminder, getReminders, updateReminder } from './reminders';
-import { getTrackingConfig, saveTrackingConfig } from './trackingConfig';
+import { saveTrackingConfig } from './trackingConfig';
 import {
   deleteUpgrade,
   getUpgradeById,
@@ -68,7 +68,6 @@ describe('an id put into an API path', () => {
     ['createReminder', () => createReminder(HOSTILE, NO_BODY), `/api/upgrades/${ENCODED}/reminders`],
     ['updateReminder', () => updateReminder(HOSTILE, NO_BODY), `/api/reminders/${ENCODED}`],
     ['deleteReminder', () => deleteReminder(HOSTILE), `/api/reminders/${ENCODED}`],
-    ['getTrackingConfig', () => getTrackingConfig(HOSTILE), `/api/upgrades/${ENCODED}/tracking-config`],
     ['saveTrackingConfig', () => saveTrackingConfig(HOSTILE, NO_BODY), `/api/upgrades/${ENCODED}/tracking-config`],
     ['getUpgradeById', () => getUpgradeById(HOSTILE), `/api/upgrades/${ENCODED}`],
     ['updateUpgrade', () => updateUpgrade(HOSTILE, NO_BODY), `/api/upgrades/${ENCODED}`],

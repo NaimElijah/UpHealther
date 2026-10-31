@@ -2,12 +2,6 @@ import { apiPath } from './apiPath';
 import client from './client';
 import type { SaveTrackingConfigRequest, TrackingConfig } from '../types';
 
-/** Fetches an upgrade's tracking configuration. Rejects with a 404 when none is set up. */
-export const getTrackingConfig = async (upgradeId: string): Promise<TrackingConfig> => {
-  const { data } = await client.get<TrackingConfig>(apiPath`/api/upgrades/${upgradeId}/tracking-config`);
-  return data;
-};
-
 /**
  * Creates or replaces an upgrade's tracking configuration.
  *
