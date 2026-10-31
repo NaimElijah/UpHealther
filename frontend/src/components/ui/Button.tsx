@@ -38,8 +38,9 @@ const sizeClasses: Record<string, string> = {
  * disabled button gives up focus: pressing Save dropped focus to `<body>` for as long as the save took
  * (WCAG 2.4.3). Cancelling the click's default is what stops a submit button sending its form again,
  * and it covers Enter in one of the form's fields too, which a browser turns into a click on the submit
- * button. `aria-busy` says why the button is unavailable. A caller's own `disabled` is ignored while
- * loading for the same reason: several pages also disable the button while their write is in flight.
+ * button. `aria-busy` says why the button is unavailable, so its spinner announces nothing of its own.
+ * A caller's own `disabled` is ignored while loading for the same reason as `disabled` is not used:
+ * several pages also disable the button while their write is in flight.
  *
  * Forwards its ref to the `<button>`, so a caller can move focus to it when the control that had focus
  * is gone.
@@ -64,7 +65,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       }}
       className={`inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:cursor-not-allowed ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
     >
-      {loading && <LoadingSpinner size="sm" />}
+      {loading && <LoadingSpinner size="sm" announce={false} />}
       {children}
     </button>
   ),
