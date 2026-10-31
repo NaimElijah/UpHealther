@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useEffect, useState } from 'react';
-import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import RouteFocus from './RouteFocus';
 import PageHeading from '../components/ui/PageHeading';
 import NavMenu from '../components/layout/NavMenu';
@@ -16,12 +16,23 @@ const USER: User = {
   createdAt: '2026-03-15T09:00:00',
 };
 
-/** A page whose heading is there from its first render, with a link to the other pages. */
+/** The browser's Back, which a test cannot press in a `MemoryRouter`. */
+const BackButton = () => {
+  const navigate = useNavigate();
+  return (
+    <button type="button" onClick={() => navigate(-1)}>
+      Back
+    </button>
+  );
+};
+
+/** A page whose heading is there from its first render, with a link to the other pages, and Back. */
 const ReadyPage = ({ title }: { title: string }) => (
   <>
     <PageHeading>{title}</PageHeading>
     <Link to="/dashboard">To the dashboard</Link>
     <Link to="/slow">To the slow page</Link>
+    <BackButton />
   </>
 );
 
@@ -87,6 +98,21 @@ describe('RouteFocus', () => {
     fireEvent.click(link);
 
     expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1, name: 'Dashboard' }));
+  });
+
+  // Back to the first entry restores the first entry's location key, so a check against the first key
+  // instead of the one before would take it for no change at all (review finding 18 on #407).
+  it('GivenALinkWasFollowedFromTheFirstEntry_WhenBackIsPressed_ThenTheFirstPagesHeadingHasFocus', () => {
+    renderApp();
+    fireEvent.click(screen.getByRole('link', { name: 'To the dashboard' }));
+    // Pressed from the page, so focus starts on Back: both routes draw `ReadyPage`, which React keeps, h1
+    // and all, so a heading that already had focus would keep it whether or not anything moved it.
+    const back = screen.getByRole('button', { name: 'Back' });
+    back.focus();
+
+    fireEvent.click(back);
+
+    expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1, name: 'Health Areas' }));
   });
 
   it('GivenThePhoneMenu_WhenOneOfItsLinksIsFollowed_ThenFocusLandsOnTheNewPagesHeadingNotTheMenuButton', () => {
