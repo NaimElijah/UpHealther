@@ -71,8 +71,10 @@ const ProgressHistoryPage: React.FC = () => {
         />
       ) : (
         <Card>
-          {/* A list, so a screen reader says how many entries there are and moves between them. */}
-          <ul className="space-y-3">
+          {/* A list, so a screen reader says how many entries there are and moves between them. The role is
+              explicit because Tailwind's preflight strips list-style, and WebKit then stops exposing a <ul>
+              as a list. */}
+          <ul role="list" className="space-y-3">
             {sorted.map((entry) => {
               const upgrade = upgradeMap[entry.upgradeId];
               return (

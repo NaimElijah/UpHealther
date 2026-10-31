@@ -188,6 +188,17 @@ describe('ProgressHistoryPage entries', () => {
     expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(2);
   });
 
+  it('GivenTwoEntries_WhenTheWeekIsListed_ThenTheListDeclaresItsRoleExplicitly', async () => {
+    // Review finding 25 on #407, as on the dashboard: Tailwind's preflight strips list-style, and WebKit
+    // then stops exposing a <ul> as a list. jsdom keeps the implicit role, so the test above passes
+    // either way; the explicit attribute is what VoiceOver relies on.
+    getWeekProgress.mockResolvedValue([anEntry({ id: 'e1', note: 'first' }), anEntry({ id: 'e2', note: 'second' })]);
+    renderPage();
+
+    await screen.findByText('first');
+    expect(screen.getByRole('list').getAttribute('role')).toBe('list');
+  });
+
   it('GivenARatedEntry_WhenTheWeekIsListed_ThenItsRatingIsReadAsAScoreOutOfFiveAndTheStarsAreHidden', async () => {
     getWeekProgress.mockResolvedValue([anEntry({ rating: 4 })]);
     renderPage();
