@@ -188,8 +188,8 @@ export default defineConfig([
       js.configs.recommended,
       tseslint.configs.recommended,
       reactHooks.configs.flat.recommended,
-      // Vite's preset: `allowConstantExport` as before, plus `allowCompoundComponents`, which
-      // `@vitejs/plugin-react` has supported since 4.7.
+      // Vite's preset: `allowConstantExport` plus `allowCompoundComponents`, which `@vitejs/plugin-react`
+      // has supported since 4.7.
       reactRefresh.configs.vite(),
     ],
     languageOptions: {
