@@ -71,7 +71,8 @@ const LoginPage: React.FC = () => {
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
-      <div className="bg-surface rounded-2xl shadow-xl p-8 w-full max-w-md">
+      {/* The main landmark: this page renders outside Layout, whose <main> the signed-in pages share. */}
+      <main className="bg-surface rounded-2xl shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <div className="text-5xl mb-3">💪</div>
           <PageHeading className="text-2xl font-bold text-fg">UpHealther</PageHeading>
@@ -115,7 +116,7 @@ const LoginPage: React.FC = () => {
             Register
           </Link>
         </p>
-      </div>
+      </main>
     </div>
   );
 };

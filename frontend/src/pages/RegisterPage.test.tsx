@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { AxiosError, AxiosHeaders } from 'axios';
 import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import RegisterPage from './RegisterPage';
 import { AuthContext, type AuthContextType } from '../contexts/authContextValue';
@@ -241,5 +241,20 @@ describe('RegisterPage form errors', () => {
 
     await screen.findByRole('alert');
     expect(document.activeElement).toBe(screen.getByLabelText('Full Name'));
+  });
+});
+
+/**
+ * The page has a main landmark around its form, as every signed-in page has through the shell. It renders
+ * outside the shell, so it had none, and a screen reader's landmark list was empty (WCAG 1.3.1, 2.4.1,
+ * finding X9.18).
+ */
+describe('RegisterPage landmark', () => {
+  it('GivenThePage_WhenItRenders_ThenItsHeadingAndFormAreInsideTheMainLandmark', () => {
+    renderRegister();
+
+    const main = within(screen.getByRole('main'));
+    expect(main.getByRole('heading', { level: 1, name: 'Create Account' })).toBeDefined();
+    expect(main.getByLabelText('Email')).toBeDefined();
   });
 });
