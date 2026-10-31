@@ -198,6 +198,32 @@ class AdminUserControllerTest {
     }
 
     @Test
+    void GivenAPageWhoseOffsetWouldPassTheLargestInt_WhenAccountsAreListed_ThenItIsRefusedAs400() throws Exception {
+        // D2.4. Spring Data refuses an offset past Integer.MAX_VALUE with an exception that answers 500;
+        // the bound on the page is what turns it into a 400 before any query is built.
+        asAdmin();
+        String firstPagePastTheBound = String.valueOf(AdminUserController.MAX_PAGE + 1);
+
+        mockMvc.perform(bearer(get("/api/admin/users").param("page", firstPagePastTheBound)))
+                .andExpect(status().isBadRequest());
+
+        verify(adminUserQuery, never()).list(any(), anyPage(), anyPage());
+    }
+
+    @Test
+    void GivenTheLastPageWithinTheBound_WhenAccountsAreListedAtTheLargestSize_ThenItIsAnswered() throws Exception {
+        asAdmin();
+        int page = AdminUserController.MAX_PAGE;
+        when(adminUserQuery.list(ADMIN_ID, page, AdminUserController.MAX_PAGE_SIZE))
+                .thenReturn(new AccountPage(List.of(), page, AdminUserController.MAX_PAGE_SIZE, 0L));
+
+        mockMvc.perform(bearer(get("/api/admin/users")
+                        .param("page", String.valueOf(page))
+                        .param("size", String.valueOf(AdminUserController.MAX_PAGE_SIZE))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void GivenAPageOfExactlyTheMaximum_WhenAccountsAreListed_ThenItIsAnswered() throws Exception {
         asAdmin();
         when(adminUserQuery.list(ADMIN_ID, 0, 100)).thenReturn(new AccountPage(List.of(), 0, 100, 0L));
