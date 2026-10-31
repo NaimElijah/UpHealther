@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getUpgradeById } from '../api/upgrades';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Card from '../components/ui/Card';
+import PageHeading from '../components/ui/PageHeading';
 import UpgradeStatusBadge from '../components/upgrade/UpgradeStatusBadge';
 import UpgradeTypeBadge from '../components/upgrade/UpgradeTypeBadge';
 import UpgradeActions from '../components/upgrade/UpgradeActions';
@@ -84,7 +85,7 @@ const UpgradeDetails: React.FC = () => {
           <UpgradeTypeBadge type={upgrade.type} />
           <Badge variant={difficultyBadgeVariant(upgrade.difficulty)}>{difficultyLabel(upgrade.difficulty)}</Badge>
         </div>
-        <h1 className="text-2xl font-bold text-fg break-words">{upgrade.title}</h1>
+        <PageHeading className="text-2xl font-bold text-fg break-words">{upgrade.title}</PageHeading>
         {upgrade.description && <p className="text-fg-subtle mt-2 break-words">{upgrade.description}</p>}
         {upgrade.motivation && (
           <div className="mt-4 bg-brand-soft rounded-lg p-3">

@@ -5,6 +5,7 @@ import { getDashboard } from '../api/dashboard';
 import { useAuth } from '../hooks/useAuth';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Card from '../components/ui/Card';
+import PageHeading from '../components/ui/PageHeading';
 import Button from '../components/ui/Button';
 import UpgradeCard from '../components/upgrade/UpgradeCard';
 import EmptyState from '../components/ui/EmptyState';
@@ -89,9 +90,9 @@ const DashboardPage: React.FC = () => {
     <PageContainer className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-fg break-words">
+          <PageHeading className="text-2xl font-bold text-fg break-words">
             Good {partOfDay(now.getHours())}, {user?.name?.split(' ')[0]} 👋
-          </h1>
+          </PageHeading>
           <p className="text-fg-subtle mt-1">
             {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </p>

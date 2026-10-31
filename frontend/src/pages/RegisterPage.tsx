@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
+import PageHeading from '../components/ui/PageHeading';
 import ThemeToggle from '../components/theme/ThemeToggle';
 import { toApiError, toFormMessage } from '../api/apiError';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -86,7 +87,7 @@ const RegisterPage: React.FC = () => {
       <div className="bg-surface rounded-2xl shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <div className="text-5xl mb-3">💪</div>
-          <h1 className="text-2xl font-bold text-fg">Create Account</h1>
+          <PageHeading className="text-2xl font-bold text-fg">Create Account</PageHeading>
           <p className="text-fg-subtle mt-1">Start your health journey today</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">

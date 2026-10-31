@@ -1,7 +1,8 @@
 import React from 'react';
+import PageHeading from './PageHeading';
 
 /**
- * @param title    the page's heading, rendered as the single h1
+ * @param title    the page's heading, rendered as the single h1, which takes focus after a route change
  * @param subtitle optional line of context below it
  * @param action   optional button aligned to the right, usually the page's primary action
  */
@@ -22,7 +23,7 @@ interface PageHeaderProps {
 const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle, action }) => (
   <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
     <div className="min-w-0">
-      <h1 className="text-2xl font-bold text-fg">{title}</h1>
+      <PageHeading className="text-2xl font-bold text-fg">{title}</PageHeading>
       {subtitle && <p className="mt-1 text-sm text-fg-subtle">{subtitle}</p>}
     </div>
     {action && <div className="shrink-0">{action}</div>}

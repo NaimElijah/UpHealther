@@ -1,6 +1,9 @@
 # ADR-022: The phone navigation is the shared dialog, not a drawer
 
-- **Status:** Accepted
+- **Status:** Accepted — superseded in part by
+  [ADR-083](ADR-083-a-route-change-moves-focus-to-the-new-pages-heading.md): a route change now moves
+  focus to the new page's heading, so "the app manages no focus on a route change anywhere" no longer
+  holds
 - **Date:** 2026-10-06
 - **Scope:** `frontend/src/components/layout/` — `NavMenu`, `NavLinks`, `navItems`, and the brand in
   `Navbar`. Builds on [ADR-013](ADR-013-trapping-focus-without-a-native-dialog.md); no new dependency.
