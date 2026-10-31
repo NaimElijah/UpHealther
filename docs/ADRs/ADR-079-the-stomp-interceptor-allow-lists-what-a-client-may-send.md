@@ -3,12 +3,15 @@
 - **Status:** Accepted
 - **Date:** 2026-10-31
 - **Scope:**
-  - `backend/` — `JwtChannelInterceptor.preSend` in `common.websocket`, and the wording of
-    `StompFrameRefusedException`'s Javadoc.
+  - `backend/` — `JwtChannelInterceptor.preSend` in `common.websocket`, and its `refuse`, which throws
+    the refusal for every call site to rethrow; `WebSocketConfig`, whose broker no longer serves `/topic`
+    and which sets no application destination prefix; and the wording of `StompFrameRefusedException`'s
+    Javadoc.
   - `JwtChannelInterceptorTest`, which refuses each command in turn, and `StompRefusalIT`, which sends a
     client's MESSAGE frame over a real socket.
 - **Issue:** [#342](https://github.com/NaimElijah/UpHealther/issues/342), scan 08 of
-  [#334](https://github.com/NaimElijah/UpHealther/issues/334), finding D1.1. Extends
+  [#334](https://github.com/NaimElijah/UpHealther/issues/334), findings D1.1, D1.5 (the unused `/topic`
+  and `/app` prefixes) and D1.12 (`refuse`'s shape). Extends
   [ADR-078](ADR-078-a-refused-stomp-frame-is-answered-in-fixed-words.md), whose `Refused` now answers any
   frame the interceptor turns down on a connected socket, not only a SUBSCRIBE or a SEND.
 
@@ -58,6 +61,10 @@ refused.**
 - **Every other command is refused** with ADR-078's `Refused`: SEND; MESSAGE, CONNECTED, RECEIPT and
   ERROR, which only the server sends; and ACK, NACK, BEGIN, COMMIT and ABORT, which nothing here needs.
   The refusal is logged by naming the command, an enum and never client text.
+- **The broker serves `/queue` alone, and there is no application destination prefix.** Nothing
+  broadcasts on a `/topic`, and no `@MessageMapping` exists for an `/app` frame to reach, so
+  `WebSocketConfig` enables neither. The interceptor would refuse a frame naming either anyway; leaving
+  them configured would only describe routes that do not exist.
 
 ADR-078 said `Refused` answers a SUBSCRIBE or SEND on a connected socket. It now answers any frame on a
 connected socket that the interceptor turns down. The three words, and how the handler chooses them from
@@ -66,8 +73,8 @@ the exception's type, are unchanged.
 **What did not change.** A refusal after CONNECT is still a WARN line and not an audit entry, as
 [ADR-021](ADR-021-what-a-refused-authentication-names-and-what-is-no-attempt.md) records the owner
 deciding on #98: it authorises a frame on a connection that is already authenticated.
-Spring still logs an ERROR line of its own for a refused frame of any command but CONNECT and SUBSCRIBE,
-which no interceptor can suppress; that volume is S5.C4, tracked in #382.
+Spring still logs an ERROR line of its own for a refused frame of any command but CONNECT, STOMP and
+SUBSCRIBE, which no interceptor can suppress; that volume is S5.C4, tracked in #382.
 
 ## Consequences
 
@@ -102,7 +109,10 @@ which no interceptor can suppress; that volume is S5.C4, tracked in #382.
 ## When to revisit
 
 - **A feature needs a client to send.** A `@MessageMapping` reopens SEND, and the interceptor then needs
-  to authorise its destinations as it does a subscription's.
+  to authorise its destinations as it does a subscription's. It also needs
+  `setApplicationDestinationPrefixes` back in `WebSocketConfig`, or no SEND reaches it.
+- **A feature broadcasts.** A push to every subscriber needs `/topic` back on the simple broker, and the
+  SUBSCRIBE check then needs to allow that destination by name.
 - **A subscription in `client` ack mode, or STOMP transactions.** The SUBSCRIBE check would then accept
   that mode and ACK and NACK be named in the allow-list, or BEGIN, COMMIT and ABORT would.
 - **A Spring release whose handler refuses the server-only commands from a client itself.** The
