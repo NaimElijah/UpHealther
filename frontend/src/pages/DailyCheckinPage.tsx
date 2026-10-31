@@ -20,8 +20,10 @@ type ProgressMap = Record<string, Partial<CreateProgressRequest>>;
 /**
  * Parses a numeric field, treating unparseable input as absent.
  *
- * Clearing a number input yields an empty string, and `parseFloat('')` is NaN — which serialises to
- * `null` and would be read as a logged value of nothing rather than as no value at all.
+ * Clearing a number input yields an empty string, and `parseFloat('')` is NaN. Kept in the draft, a
+ * NaN would come back as the controlled input's `value`, since `value ?? ''` lets it through, and React
+ * refuses NaN there with a warning. Sent, it would serialise to `null`, which the API reads as no value
+ * just as it reads an absent field.
  */
 const numOrUndef = (v: string): number | undefined => {
   const n = parseFloat(v);
