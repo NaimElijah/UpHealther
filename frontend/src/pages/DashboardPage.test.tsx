@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -389,4 +389,39 @@ describe('DashboardPage sections', () => {
 
     expect(await tileFigure('Weekly Rate')).toBe(shown);
   });
+});
+
+/**
+ * The greeting names the part of the user's own day: morning until noon, afternoon until six, evening
+ * after. The times are built on the local clock, which the suite pins to Los Angeles, so each case sits
+ * on one side of a cut-off on every machine.
+ */
+describe('DashboardPage greeting', () => {
+  beforeEach(() => {
+    getDashboard.mockReset();
+    getDashboard.mockResolvedValue(aDashboard([]));
+    vi.useFakeTimers({ toFake: ['Date'] });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each([
+    ['1159', 'Morning', 11, 59],
+    ['1200', 'Afternoon', 12, 0],
+    ['1759', 'Afternoon', 17, 59],
+    ['1800', 'Evening', 18, 0],
+  ] as const)(
+    'GivenTheLocalTime%s_WhenTheDashboardIsShown_ThenTheGreetingSaysGood%s',
+    async (_time, partOfDay, hour, minute) => {
+      vi.setSystemTime(new Date(2026, 2, 12, hour, minute));
+
+      renderPage();
+
+      expect((await screen.findByRole('heading', { level: 1 })).textContent).toBe(
+        `Good ${partOfDay.toLowerCase()}, Ada 👋`,
+      );
+    },
+  );
 });
