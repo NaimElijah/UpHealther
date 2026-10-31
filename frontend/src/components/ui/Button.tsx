@@ -1,5 +1,6 @@
 import React from 'react';
 import LoadingSpinner from './LoadingSpinner';
+import { buttonClasses, type ButtonSize, type ButtonVariant } from './buttonStyles';
 
 /**
  * Extends the native button attributes, so `type`, `onClick`, `aria-*` and the rest pass straight
@@ -11,24 +12,11 @@ import LoadingSpinner from './LoadingSpinner';
  *                button stays focusable meanwhile, and `disabled` is ignored while it is set
  */
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
-  size?: 'sm' | 'md' | 'lg';
+  variant?: ButtonVariant;
+  size?: ButtonSize;
   loading?: boolean;
   children: React.ReactNode;
 }
-
-const variantClasses: Record<string, string> = {
-  primary: 'bg-brand text-fg-inverted hover:bg-brand-hover',
-  secondary: 'bg-muted text-fg-muted hover:bg-muted-strong',
-  danger: 'bg-danger text-fg-inverted hover:bg-danger-hover',
-  ghost: 'bg-transparent text-fg-subtle hover:bg-muted',
-};
-
-const sizeClasses: Record<string, string> = {
-  sm: 'px-3 py-1.5 text-sm',
-  md: 'px-4 py-2 text-sm',
-  lg: 'px-6 py-3 text-base',
-};
 
 /**
  * The app's button. While `loading` it refuses every press, which is what prevents duplicate
@@ -63,7 +51,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         }
         onClick?.(e);
       }}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:cursor-not-allowed ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
+      className={buttonClasses(variant, size, className)}
     >
       {loading && <LoadingSpinner size="sm" announce={false} />}
       {children}
