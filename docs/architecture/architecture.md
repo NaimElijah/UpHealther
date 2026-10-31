@@ -838,7 +838,12 @@ which is why `ApplicationContextIT` exists.
 **Business invariants live on the aggregate, not in services.** `HealthUpgrade` has no setters: status
 moves only through its transition methods, descriptive fields only through `updateDetails`, difficulty
 only through `changeDifficulty`, and instances are created through a validating factory. A service
-orchestrates — load, call the domain method, save, publish — and does not decide.
+orchestrates — load, call the domain method, save, publish — and does not decide. `User` has no setters
+either: an account is created through `User.register`, at the ordinary role and enabled, and its role
+and flag change only through `changeRole`, `disable` and `enable`; `HexagonalArchitectureTest` lets no
+production class but `User` call its builder, which could set either. `Reflection`, append-only by
+BR-13, has no setters and no factory: `ReflectionService` creates one through its builder, and nothing
+changes it afterwards.
 
 The one invariant that cannot live there is the max-concurrent-HARD rule, because it needs a count
 across the user's *other* upgrades, which one aggregate cannot see. It is a pure domain service that
