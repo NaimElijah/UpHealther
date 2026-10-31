@@ -375,8 +375,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         private String traceId;
 
         /**
-         * Private on purpose: {@link GlobalExceptionHandler#body} is the only way to make one, which is
-         * what stops a future handler from returning an error body with no trace id on it.
+         * Private, so no class outside {@link GlobalExceptionHandler} can make one. Inside it nothing
+         * stops a handler calling this directly, since the class is nested, and the setters are public:
+         * the trace id is on every body only because every handler builds it through
+         * {@link GlobalExceptionHandler#body}. That is a convention of this class, not something the
+         * compiler enforces.
          *
          * @param status    HTTP status code, repeated in the body for clients that only read the payload
          * @param message   user-facing description of the failure
