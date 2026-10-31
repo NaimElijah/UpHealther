@@ -86,6 +86,14 @@ class AuthSessionServiceTest {
     }
 
     @Test
+    void GivenAnAuthenticatedAccount_WhenASessionIsOpened_ThenItIsInsertedAsANewRow() {
+        // D2.12. Through the port's insert, not save, which would read the row before writing it.
+        SessionGrant grant = service.open(USER_ID);
+
+        assertThat(sessions.inserted()).containsExactly(grant.sessionId());
+    }
+
+    @Test
     void GivenAnAuthenticatedAccount_WhenASessionIsOpened_ThenTheCredentialNamesItAndOnlyItsHashIsStored() {
         SessionGrant grant = service.open(USER_ID);
 
@@ -793,6 +801,7 @@ class AuthSessionServiceTest {
         private final Map<UUID, AuthSession> rows = new HashMap<>();
         private final Map<UUID, List<SpentCredential>> spent = new HashMap<>();
         private final List<Read> reads = new ArrayList<>();
+        private final List<UUID> inserted = new ArrayList<>();
         private RuntimeException revokeAllFailure;
         /** Whether a revoked session has been written out, as only {@code saveAndFlush} does before commit. */
         private boolean revocationWritten;
@@ -800,6 +809,15 @@ class AuthSessionServiceTest {
         /** Makes every later {@code revokeAllForUser} throw, as a deadlock PostgreSQL aborts does. */
         void failRevokeAllWith(RuntimeException failure) {
             revokeAllFailure = failure;
+        }
+
+        @Override
+        public AuthSession insert(AuthSession session) {
+            if (rows.containsKey(session.getId())) {
+                throw new IllegalStateException("session " + session.getId() + " is already stored");
+            }
+            inserted.add(session.getId());
+            return save(session);
         }
 
         @Override
@@ -876,6 +894,10 @@ class AuthSessionServiceTest {
             return List.copyOf(reads);
         }
 
+        List<UUID> inserted() {
+            return List.copyOf(inserted);
+        }
+
         boolean revocationWritten() {
             return revocationWritten;
         }
@@ -886,6 +908,11 @@ class AuthSessionServiceTest {
 
         private static DataAccessResourceFailureException down() {
             return new DataAccessResourceFailureException("the session store is unreachable");
+        }
+
+        @Override
+        public AuthSession insert(AuthSession session) {
+            throw down();
         }
 
         @Override

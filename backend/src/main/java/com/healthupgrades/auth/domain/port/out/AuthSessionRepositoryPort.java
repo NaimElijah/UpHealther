@@ -11,7 +11,19 @@ import java.util.UUID;
  */
 public interface AuthSessionRepositoryPort {
 
-    /** Persists a new or updated session and returns the managed instance. */
+    /**
+     * Stores a session that has never been stored, as one INSERT.
+     *
+     * <p>Apart from {@link #save} because the id is assigned rather than generated and the aggregate has
+     * no version, so a general save cannot tell a new session from a stored one and reads the row before
+     * writing it, on every sign-in and registration.
+     *
+     * @param session a session just opened, whose id no stored session holds
+     * @return the same instance, now managed
+     */
+    AuthSession insert(AuthSession session);
+
+    /** Persists an updated session and returns the managed instance. */
     AuthSession save(AuthSession session);
 
     /**

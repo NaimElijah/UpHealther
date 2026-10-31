@@ -84,7 +84,7 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
         RefreshToken token = new RefreshToken(sessionId, secrets.generate());
         AuthSession session = AuthSession.opened(
                 sessionId, userId, token.hash(), clock.instant(), properties.idle(), properties.absolute());
-        sessions.save(session);
+        sessions.insert(session);
         return new SessionGrant(sessionId, token.value(), session.getAbsoluteExpiresAt());
     }
 
