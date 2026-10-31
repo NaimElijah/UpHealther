@@ -48,7 +48,8 @@ export const updateUpgrade = async (id: string, req: CreateUpgradeRequest): Prom
  *
  * @throws the API's 404 when the upgrade is not the caller's, and 422 when the move is not legal from its current
  *   status or activating it would exceed the concurrent-HARD limit; 409 when that limit check collides with
- *   another of the caller's requests, and the request may be resent unchanged
+ *   another of the caller's requests, which may be resent unchanged, or when another save of the upgrade
+ *   overlapped this one (BR-14)
  */
 export const performUpgradeAction = async (id: string, status: ActionTarget): Promise<HealthUpgrade> => {
   const actionMap: Record<ActionTarget, string> = {
@@ -80,7 +81,8 @@ export const planUpgrade = async (id: string, plannedStartDate: string): Promise
  * to `PLANNED`.
  *
  * @param newDate `YYYY-MM-DD`
- * @throws the API's 422 when the upgrade is `COMPLETED`, and 404 when it is not the caller's
+ * @throws the API's 422 when the upgrade is `COMPLETED`, 404 when it is not the caller's, 400 when `newDate` is
+ *   missing or not a date, and 409 when another save of the upgrade overlapped this one (BR-14)
  */
 export const rescheduleUpgrade = async (id: string, newDate: string): Promise<HealthUpgrade> => {
   const { data } = await client.post<HealthUpgrade>(apiPath`/api/upgrades/${id}/reschedule`, {
