@@ -107,8 +107,7 @@ public class AuthService {
     public AuthResult login(String rawEmail, String password) {
         String email = EmailAddress.normalise(rawEmail);
         try {
-            authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(email, password));
+            authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(email, password));
             User user = userQuery.findByEmail(email).orElseThrow(() -> new BusinessRuleException("User not found"));
             // As in register: after the token, so a signing failure cannot produce two entries for one
             // sign-in attempt.
