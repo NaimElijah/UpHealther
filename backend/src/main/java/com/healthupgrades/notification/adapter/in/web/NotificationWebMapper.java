@@ -10,8 +10,9 @@ import org.springframework.stereotype.Component;
  * <p>Shared by both transports on purpose. The real-time push and the REST list must deliver an
  * identical payload — the frontend renders whichever arrives first with the same component — so both
  * build it here, in {@code NotificationController} and {@code StompNotificationPushAdapter}, and cannot
- * drift apart. The STOMP adapter, an outbound adapter, importing this inbound class is the one reverse
- * arrow {@code HexagonalArchitectureTest} leaves open.
+ * drift apart. The STOMP adapter, an outbound adapter, importing this inbound class is the only
+ * outbound-to-inbound import in the codebase. {@code HexagonalArchitectureTest} forbids only the
+ * inbound-to-outbound direction, so nothing stops a second one.
  */
 @Component
 public class NotificationWebMapper {

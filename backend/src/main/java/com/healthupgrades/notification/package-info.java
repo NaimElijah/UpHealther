@@ -25,8 +25,9 @@
  *       run; it stops only when the database is out of reach (NFR-50, ADR-023).
  *   <li><strong>An overdue upgrade is announced once per target date it misses</strong> (BR-11, ADR-025).
  *   <li><strong>One mapper builds the payload for both transports</strong> ({@code NotificationWebMapper}), so
- *       the REST list and the push cannot differ. The STOMP adapter importing it is the one reverse arrow
- *       between adapters that {@code HexagonalArchitectureTest} leaves open.
+ *       the REST list and the push cannot differ. The STOMP adapter importing it is the only
+ *       outbound-to-inbound import in the codebase; {@code HexagonalArchitectureTest} forbids only the
+ *       other direction, so nothing stops a second one.
  *   <li><strong>Reads of other contexts' rows go through their sweep ports</strong>
  *       ({@code UpgradeSweepQuery}, {@code ProgressSweepQuery}, {@code ReminderSweepQuery}), which only this
  *       context's sweep service may use.
