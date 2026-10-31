@@ -45,6 +45,7 @@ public @interface NotCommonPassword {
 
         private final CommonPasswordPolicy policy;
 
+        /** @param policy decides whether a password is common */
         public Validator(CommonPasswordPolicy policy) {
             this.policy = policy;
         }
