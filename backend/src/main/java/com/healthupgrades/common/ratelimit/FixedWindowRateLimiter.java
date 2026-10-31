@@ -137,7 +137,7 @@ public class FixedWindowRateLimiter {
      *
      * <p>The count is an {@link AtomicInteger} rather than an {@code int} so the record itself can be
      * reused across attempts in the same window — replacing it on every attempt would allocate per
-     * request and lose the increment under {@code compute}'s lock.
+     * request.
      */
     private record Window(Instant startedAt, AtomicInteger attempts) {
 
