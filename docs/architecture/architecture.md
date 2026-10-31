@@ -170,31 +170,38 @@ as it is open; a refusal names nobody, as a refused login does. A CONNECT with n
 an entry, as a refresh with no cookie is not. A refusal reaches the browser as a STOMP ERROR frame,
 after which Spring closes the socket. `StompRefusalErrorHandler`, registered on the STOMP endpoint
 registry, words its `message` from the type of what was thrown, never from its text: `Unauthenticated`
-for a CONNECT without a usable token, `Refused` for a SUBSCRIBE or SEND on a connected socket that the
+for a CONNECT without a usable token, `Refused` for any frame on a connected socket that the
 interceptor turns down, and `Frame not processed` for anything else, an outage while authenticating, a
-frame that could not be decoded, or a SUBSCRIBE or SEND before any CONNECT, which Spring refuses before
-the interceptor runs. The client acts on none of these and keeps its token through one, and retries
-([ADR-078](../ADRs/ADR-078-a-refused-stomp-frame-is-answered-in-fixed-words.md)). Spring logs
-some refusals at ERROR, so nginx throttles the `/ws` handshake per client address: sixty a minute with
-a burst of twenty, over the limit answered 429.
+frame that could not be decoded, or any frame but a CONNECT (or STOMP) sent before any CONNECT, which
+Spring refuses before the interceptor runs. The client acts on none of these and keeps its token through
+one, and retries ([ADR-078](../ADRs/ADR-078-a-refused-stomp-frame-is-answered-in-fixed-words.md)).
+Spring logs some refusals at ERROR, so nginx throttles the `/ws` handshake per client address: sixty a
+minute with a burst of twenty, over the limit answered 429.
 It bounds handshakes, not what one open socket sends, which
 [#382](https://github.com/NaimElijah/UpHealther/issues/382) tracks, and it caps no open sockets
 ([ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md)).
 
-The same interceptor authorises the frames that follow, because a session that is merely connected
-can still name any destination it likes. A SUBSCRIBE must come from an authenticated session and
-name `/user/queue/notifications` exactly — the resolved `/queue/notifications-user…` of another
-session, and any `/topic`, are refused — and a SEND is refused outright, the application declaring
-no `@MessageMapping` for one to reach. A socket holds one subscription for its life, kept in its
-session attributes: a second SUBSCRIBE is refused, because each subscription is registered with the
-broker and a socket streaming them would grow the heap without limit. An UNSUBSCRIBE frees nothing,
-because the inbound channel's pool runs frames in no fixed order, and one that reached the broker
-before its SUBSCRIBE would leave that subscription held. Heartbeats, UNSUBSCRIBE and DISCONNECT pass:
-they name nothing, and refusing a DISCONNECT would leave sessions to time out rather than close. A
-refused SUBSCRIBE or SEND is a WARN line, not an audit entry: it authorises a frame on a connection that
-is already authenticated. Spring
-adds an ERROR line of its own for a refused SEND, and for a frame it cannot decode, which no interceptor
-can suppress; a refused CONNECT or SUBSCRIBE it logs only at DEBUG.
+The same interceptor authorises the frames that follow, because a session that is merely connected can
+still name any destination it likes. A SUBSCRIBE must come from an authenticated session and name
+`/user/queue/notifications` exactly — another account's `/user/<userId>/…`, the resolved
+`/queue/notifications-user…` of another session, and any `/topic`, are refused. It must be in `auto` ack
+mode, named or left to the default, because the other modes need the ACK this refuses. The commands are
+an allow-list ([ADR-079](../ADRs/ADR-079-the-stomp-interceptor-allow-lists-what-a-client-may-send.md)):
+CONNECT, STOMP, SUBSCRIBE, UNSUBSCRIBE and DISCONNECT, and every other is refused. That covers a SEND,
+the application declaring no `@MessageMapping` for one to reach; the frames STOMP defines for the server
+to send, MESSAGE, CONNECTED, RECEIPT and ERROR, which Spring decodes from a client all the same and, for
+a MESSAGE, routes as it would a SEND, so one addressed to another account's user queue would reach that
+account's socket; and ACK, NACK, BEGIN, COMMIT and ABORT, the SPA subscribing in the default ack mode
+and opening no transaction. A socket holds one subscription for its life, kept in its session
+attributes: a second SUBSCRIBE is refused, because each subscription is registered with the broker and a
+socket streaming them would grow the heap without limit. An UNSUBSCRIBE frees nothing, because the
+inbound channel's pool runs frames in no fixed order, and one that reached the broker before its
+SUBSCRIBE would leave that subscription held. Heartbeats, UNSUBSCRIBE and DISCONNECT pass: they name
+nothing, and refusing a DISCONNECT would leave sessions to time out rather than close. Any other message
+without a command is refused. A refused frame after CONNECT is a WARN line, not an audit entry: it
+authorises a frame on a connection that is already authenticated. Spring adds an ERROR line of its own
+for a refused frame of any command but CONNECT, STOMP and SUBSCRIBE, and for a frame it cannot decode,
+which no interceptor can suppress; a refused CONNECT or SUBSCRIBE it logs only at DEBUG.
 
 A connected socket sends nothing the interceptor could check again, so the server closes it instead
 when its session ends ([ADR-054](../ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md)).
@@ -217,8 +224,10 @@ and the tab sent to `/login`, so a window whose session ended elsewhere stops sh
 ([ADR-066](../ADRs/ADR-066-a-tab-keeps-nothing-of-a-session-that-ended.md));
 `SessionEndedFrameContractTest` holds the two copies of the message together.
 
-The broker is Spring's in-memory simple broker. There is no external broker, so a push reaches only
-clients connected to *this* instance — see "Known constraints" below.
+The broker is Spring's in-memory simple broker, serving `/queue` and nothing else: nothing broadcasts
+on a `/topic`, and with no `@MessageMapping` there is no application destination prefix. There is no
+external broker, so a push reaches only clients connected to *this* instance — see "Known constraints"
+below.
 
 **3. In-process domain events, context to context.** A context that changes state publishes a record
 implementing `DomainEvent` through the `DomainEventPublisher` port. The adapter behind it delegates to
@@ -1142,6 +1151,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why `open-in-view` is off, what it held a connection for, and what would bring it back | [ADR-076](../ADRs/ADR-076-open-in-view-is-off.md) |
 | Why the `upgrade` context restates `tracking`'s tracking type and frequency as enums of its own in `domain.model`, held equal by a contract test, rather than importing them, carrying strings, or placing them in `port.out` or `port.in` | [ADR-077](../ADRs/ADR-077-a-context-mirrors-another-contexts-closed-set-in-its-own-model.md) |
 | Why a refused STOMP frame is answered `Unauthenticated`, `Refused` or `Frame not processed`, chosen by the exception's type and never its text, why `Session ended` passes untouched, and why the SPA acts on none of the three | [ADR-078](../ADRs/ADR-078-a-refused-stomp-frame-is-answered-in-fixed-words.md) |
+| Why the STOMP interceptor allow-lists the commands a client may send rather than deny-listing the ones it must not; why a subscription must be in `auto` ack mode; why the broker serves `/queue` alone with no application destination prefix; what a `@MessageMapping`, a broadcast or another ack mode would need first | [ADR-079](../ADRs/ADR-079-the-stomp-interceptor-allow-lists-what-a-client-may-send.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |
