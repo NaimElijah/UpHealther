@@ -130,7 +130,7 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
             }
             // An allow-list, not a deny-list: Spring decodes any command from a client and routes a
             // client's MESSAGE as it would a SEND (finding D1.1). The command is an enum, never client text.
-            default -> refuse("a " + command + " frame, which this application's client never sends");
+            default -> throw refuse("a " + command + " frame, which this application's client never sends");
         }
         return message;
     }
@@ -183,29 +183,33 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
 
     private void authoriseSubscription(StompHeaderAccessor accessor) {
         if (accessor.getUser() == null) {
-            refuse("a SUBSCRIBE from a session that never connected");
+            throw refuse("a SUBSCRIBE from a session that never connected");
         }
         if (!ALLOWED_SUBSCRIPTION.equals(accessor.getDestination())) {
-            refuse("a SUBSCRIBE to a destination this application does not publish to");
+            throw refuse("a SUBSCRIBE to a destination this application does not publish to");
         }
         Map<String, Object> socket = accessor.getSessionAttributes();
         String id = accessor.getSubscriptionId();
         if (socket == null || id == null) {
             // Without the socket's attributes there is nowhere to count what it holds, and STOMP requires
             // the id. Neither happens over a real WebSocket; refusing keeps the limit closed if it did.
-            refuse("a SUBSCRIBE with no socket or no subscription id");
+            throw refuse("a SUBSCRIBE with no socket or no subscription id");
         }
         if (socket.putIfAbsent(HELD_SUBSCRIPTION, id) != null) {
-            refuse("a second SUBSCRIBE on a socket that already holds one");
+            throw refuse("a second SUBSCRIBE on a socket that already holds one");
         }
     }
 
-    private void refuse(String what) {
+    /**
+     * Logs a refused frame and builds the exception that refuses it, for the caller to throw, so the
+     * compiler sees that nothing runs after a refusal.
+     */
+    private StompFrameRefusedException refuse(String what) {
         // WARN rather than DEBUG, and the opposite call from a rejected CONNECT: a stale token is
         // ordinary, whereas a correct client never sends either of these. The destination is deliberately
         // left out of the line - it is text the client chose, and writing it down would copy whatever it
         // contains, newlines included, into the log.
         log.warn("Refused {}", what);
-        throw new StompFrameRefusedException(Reason.REFUSED, "Refused " + what);
+        return new StompFrameRefusedException(Reason.REFUSED, "Refused " + what);
     }
 }
