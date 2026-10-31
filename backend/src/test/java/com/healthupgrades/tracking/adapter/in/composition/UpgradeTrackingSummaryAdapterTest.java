@@ -56,4 +56,20 @@ class UpgradeTrackingSummaryAdapterTest {
                                 "steps",
                                 true)));
     }
+
+    @Test
+    void GivenAConfigurationWithNoFrequency_WhenItsSummaryIsFound_ThenItsFrequencyIsNull() {
+        // Frequency is optional (the request may leave it out), so the summary must carry its absence:
+        // converting a missing one would throw, and GET /api/upgrades/{id} would answer 500.
+        UUID unscheduled = UUID.randomUUID();
+        TrackingConfig withoutFrequency =
+                ATrackingConfig.forUpgrade(unscheduled).frequency(null).build();
+        UpgradeTrackingSummaryAdapter answering = new UpgradeTrackingSummaryAdapter(ids -> List.of(withoutFrequency));
+
+        UpgradeTrackingSummary summary =
+                answering.findByUpgradeIds(List.of(unscheduled)).get(unscheduled);
+
+        assertThat(summary.frequency()).isNull();
+        assertThat(summary.trackingType()).isEqualTo(UpgradeTrackingType.BOOLEAN);
+    }
 }
