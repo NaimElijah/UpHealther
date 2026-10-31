@@ -320,6 +320,35 @@ class AuthServiceTest {
     }
 
     @Test
+    void
+            GivenAnErrorWhileTheSessionStarts_WhenAVisitorRegisters_ThenTheAttemptIsAuditedAsFailedAndTheErrorPropagates() {
+        // D1.4 on registration: an Error is not a RuntimeException, and a catch of only the latter let it
+        // leave no entry at all.
+        when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
+        when(userCommand.register(any())).thenAnswer(AuthServiceTest::persisted);
+        when(tokenIssuer.issue(any(UUID.class), any(UUID.class))).thenThrow(new StackOverflowError());
+
+        assertThatThrownBy(() -> service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD))
+                .isInstanceOf(StackOverflowError.class);
+
+        assertThat(auditTrail.only(AuditAction.AUTH_REGISTER))
+                .hasValue(new AuditEvent(AuditAction.AUTH_REGISTER, null, null, AuditOutcome.FAILED));
+    }
+
+    @Test
+    void GivenAnErrorWhileTheSessionStarts_WhenTheUserLogsIn_ThenTheAttemptIsAuditedAsFailedAndTheErrorPropagates() {
+        when(authenticationManager.authenticate(any())).thenReturn(authenticated());
+        when(userQuery.findByEmail(AUser.EMAIL))
+                .thenReturn(Optional.of(AUser.aUser().build()));
+        when(tokenIssuer.issue(any(UUID.class), any(UUID.class))).thenThrow(new StackOverflowError());
+
+        assertThatThrownBy(() -> service.login(AUser.EMAIL, RAW_PASSWORD)).isInstanceOf(StackOverflowError.class);
+
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGIN))
+                .hasValue(new AuditEvent(AuditAction.AUTH_LOGIN, null, null, AuditOutcome.FAILED));
+    }
+
+    @Test
     void GivenAnEmailAlreadyTaken_WhenAVisitorRegisters_ThenTheRefusalIsAuditedWithNoSubject() {
         when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(true);
 

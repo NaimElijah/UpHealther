@@ -2,6 +2,7 @@ package com.healthupgrades.auth.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -674,6 +675,47 @@ class AuthSessionServiceTest {
 
         assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT))
                 .hasValue(new AuditEvent(AuditAction.AUTH_LOGOUT, null, null, AuditOutcome.FAILED));
+    }
+
+    @Test
+    void GivenTheSessionStoreThrowsAnError_WhenARefreshIsAttempted_ThenItIsAuditedAsFailedAndTheErrorPropagates() {
+        // D1.4 on the refresh endpoint: an Error is not a RuntimeException, and a catch of only the latter
+        // let it leave no entry, where the trail matters most.
+        AuthSessionService broken = serviceOver(sessionsThrowing(new StackOverflowError()));
+
+        assertThatThrownBy(() -> broken.refresh(UUID.randomUUID() + ".a-secret"))
+                .isInstanceOf(StackOverflowError.class);
+
+        assertThat(auditTrail.only(AuditAction.AUTH_REFRESH))
+                .hasValue(new AuditEvent(AuditAction.AUTH_REFRESH, null, null, AuditOutcome.FAILED));
+    }
+
+    @Test
+    void GivenTheSessionStoreThrowsAnError_WhenSignOutIsAttempted_ThenItIsAuditedAsFailedAndTheErrorPropagates() {
+        AuthSessionService broken = serviceOver(sessionsThrowing(new StackOverflowError()));
+
+        assertThatThrownBy(() -> broken.revoke(UUID.randomUUID() + ".a-secret")).isInstanceOf(StackOverflowError.class);
+
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT))
+                .hasValue(new AuditEvent(AuditAction.AUTH_LOGOUT, null, null, AuditOutcome.FAILED));
+    }
+
+    /** A session store whose locking read throws what it is given: the first thing a refresh or sign-out asks. */
+    private static AuthSessionRepositoryPort sessionsThrowing(Error error) {
+        AuthSessionRepositoryPort store = mock(AuthSessionRepositoryPort.class);
+        when(store.findForUpdate(any(UUID.class))).thenThrow(error);
+        return store;
+    }
+
+    private AuthSessionService serviceOver(AuthSessionRepositoryPort store) {
+        return new AuthSessionService(
+                store,
+                secrets,
+                new AuthSessionProperties(IDLE, ABSOLUTE, GRACE),
+                auditTrail,
+                published::add,
+                users,
+                clock);
     }
 
     @Test

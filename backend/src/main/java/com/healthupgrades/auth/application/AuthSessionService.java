@@ -100,11 +100,12 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
     public RefreshOutcome refresh(String presentedCredential) {
         try {
             return exchange(presentedCredential);
-        } catch (RuntimeException thrown) {
+        } catch (RuntimeException | Error thrown) {
             // A fault, not a refusal - the distinction AuthService.login draws for a sign-in. Nothing
             // about the attempt is known for certain once the store has failed, so nothing is named.
             // Only a failure inside the transaction gets here: one that stops it from starting is
-            // thrown by the proxy before this method runs, and is not audited (#133).
+            // thrown by the proxy before this method runs, and is not audited (#133). An Error is caught
+            // too, as AuditTrail.recording catches one: it is the attempt that most needs an entry.
             auditTrail.record(AuditEvent.from(AuditAction.AUTH_REFRESH, null, null, thrown));
             throw thrown;
         }
@@ -197,7 +198,7 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
     public boolean revoke(String presentedCredential) {
         try {
             return end(presentedCredential);
-        } catch (RuntimeException thrown) {
+        } catch (RuntimeException | Error thrown) {
             // As in refresh: a fault, recorded as one, naming nothing it cannot be sure of.
             auditTrail.record(AuditEvent.from(AuditAction.AUTH_LOGOUT, null, null, thrown));
             throw thrown;

@@ -84,7 +84,7 @@ public class AuthService {
             AuthResult result = startSession(user);
             auditTrail.record(AuditEvent.allowed(AuditAction.AUTH_REGISTER, user.getId(), user.getId()));
             return result;
-        } catch (RuntimeException thrown) {
+        } catch (RuntimeException | Error thrown) {
             auditTrail.record(AuditEvent.from(AuditAction.AUTH_REGISTER, null, null, thrown));
             throw thrown;
         }
@@ -118,7 +118,7 @@ public class AuthService {
             // attribution, which is the honest limit of auditing an anonymous endpoint.
             auditTrail.record(new AuditEvent(AuditAction.AUTH_LOGIN, null, null, AuditOutcome.REFUSED));
             throw refused;
-        } catch (RuntimeException thrown) {
+        } catch (RuntimeException | Error thrown) {
             // Everything else is a fault, not a rejection - the same distinction GlobalExceptionHandler
             // draws when it refuses to report a database outage to the user as a wrong password.
             auditTrail.record(AuditEvent.from(AuditAction.AUTH_LOGIN, null, null, thrown));
