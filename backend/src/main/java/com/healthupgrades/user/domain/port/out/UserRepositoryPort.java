@@ -2,7 +2,7 @@ package com.healthupgrades.user.domain.port.out;
 
 import com.healthupgrades.user.domain.model.Role; // the role an existence check asks about
 import com.healthupgrades.user.domain.model.User; // the aggregate this port persists
-import java.util.List;
+import com.healthupgrades.user.domain.model.UserPage; // a page of them, with the total
 import java.util.Optional;
 import java.util.UUID;
 
@@ -52,12 +52,9 @@ public interface UserRepositoryPort {
      *
      * @param page zero-based page number
      * @param size how many accounts per page
-     * @return that page of accounts, oldest first
+     * @return that page of accounts, oldest first, and how many accounts exist in all
      */
-    List<User> findAll(int page, int size);
-
-    /** How many accounts exist, for a caller paging through them. */
-    long count();
+    UserPage findAll(int page, int size);
 
     /**
      * Whether any <em>enabled</em> account holds a given role.

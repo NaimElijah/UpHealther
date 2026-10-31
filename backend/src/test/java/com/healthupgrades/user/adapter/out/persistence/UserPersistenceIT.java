@@ -8,6 +8,7 @@ import com.healthupgrades.support.PostgresIT;
 import com.healthupgrades.user.domain.model.EmailAlreadyRegisteredException;
 import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User;
+import com.healthupgrades.user.domain.model.UserPage;
 import com.healthupgrades.user.domain.port.out.UserRepositoryPort;
 import jakarta.persistence.PersistenceException;
 import java.util.UUID;
@@ -122,7 +123,7 @@ class UserPersistenceIT extends PostgresIT {
         insertUser(A, "2020-01-01T00:00:00");
         insertUser(B, "2020-01-02T00:00:00");
 
-        assertThat(repository.findAll(0, 4)).extracting(User::getId).containsExactly(A, B, C, D);
+        assertThat(repository.findAll(0, 4).users()).extracting(User::getId).containsExactly(A, B, C, D);
     }
 
     @Test
@@ -135,8 +136,30 @@ class UserPersistenceIT extends PostgresIT {
         insertUser(B, "2020-01-02T00:00:00");
         insertUser(D, "2020-01-03T00:00:00");
 
-        assertThat(repository.findAll(0, 2)).extracting(User::getId).containsExactly(A, B);
-        assertThat(repository.findAll(1, 2)).extracting(User::getId).containsExactly(C, D);
+        assertThat(repository.findAll(0, 2).users()).extracting(User::getId).containsExactly(A, B);
+        assertThat(repository.findAll(1, 2).users()).extracting(User::getId).containsExactly(C, D);
+    }
+
+    @Test
+    void GivenMoreAccountsThanOnePage_WhenAFullPageIsRead_ThenItCarriesHowManyAccountsExistInAll() {
+        // D2.13. The total comes with the page, from the one count the page runs. Compared with the
+        // table's own count, because other integration tests commit accounts into the shared database.
+        insertUser(A, "2020-01-01T00:00:00");
+        insertUser(B, "2020-01-02T00:00:00");
+        insertUser(C, "2020-01-03T00:00:00");
+
+        UserPage firstPage = repository.findAll(0, 2);
+
+        assertThat(firstPage.users()).hasSize(2);
+        assertThat(firstPage.total()).isEqualTo(accountsInTheTable());
+    }
+
+    private long accountsInTheTable() {
+        return ((Number) entityManager
+                        .getEntityManager()
+                        .createNativeQuery("SELECT count(*) FROM users")
+                        .getSingleResult())
+                .longValue();
     }
 
     @Test

@@ -1,7 +1,6 @@
 package com.healthupgrades.user.application.port.in;
 
-import com.healthupgrades.user.domain.model.User; // returned domain aggregate
-import java.util.List;
+import com.healthupgrades.user.domain.model.UserPage; // returned page of domain aggregates
 
 /**
  * Inbound port paging through every account on the installation, for the administration context alone.
@@ -26,10 +25,7 @@ public interface AccountListQuery {
      *
      * @param page zero-based page number
      * @param size how many accounts per page
-     * @return that page of accounts, oldest first
+     * @return that page of accounts, oldest first, and how many accounts exist in all
      */
-    List<User> findAll(int page, int size);
-
-    /** How many accounts exist, for a caller paging through them. */
-    long count();
+    UserPage findAll(int page, int size);
 }
