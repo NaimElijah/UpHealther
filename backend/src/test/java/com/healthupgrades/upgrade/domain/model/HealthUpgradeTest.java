@@ -239,6 +239,17 @@ class HealthUpgradeTest {
         assertTransition(from, outcome, upgrade -> upgrade.activate(REFERENCE_DAY));
     }
 
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(UpgradeStatus.class)
+    void GivenAnUpgradeInEachState_WhenAskedWhetherItCanBeActivated_ThenItAnswersAsTheTransitionWould(
+            UpgradeStatus status) {
+        // D3.2: the service decides on this whether an activation claims a HARD slot, so it must never
+        // disagree with the transition it stands in for.
+        boolean accepted = catchThrowable(() -> upgradeIn(status).activate(REFERENCE_DAY)) == null;
+
+        assertThat(upgradeIn(status).canActivate()).isEqualTo(accepted);
+    }
+
     @ParameterizedTest(name = "{0} -> {1}")
     @CsvSource({
         "IDEA, REFUSED",

@@ -181,11 +181,23 @@ public class HealthUpgrade {
      * @throws BusinessRuleException if the upgrade is not PLANNED or PAUSED
      */
     public void activate(LocalDate startDate) {
-        if (status != UpgradeStatus.PLANNED && status != UpgradeStatus.PAUSED) {
+        if (!canActivate()) {
             throw new BusinessRuleException("Only PLANNED or PAUSED upgrades can be activated");
         }
         this.actualStartDate = startDate;
         this.status = UpgradeStatus.ACTIVE;
+    }
+
+    /**
+     * Whether {@link #activate} would accept this upgrade in its current state.
+     *
+     * <p>For the caller that must decide something before the transition, as the service decides whether
+     * an activation would claim a HARD slot: one the transition refuses claims none.
+     *
+     * @return true when the upgrade is PLANNED or PAUSED
+     */
+    public boolean canActivate() {
+        return status == UpgradeStatus.PLANNED || status == UpgradeStatus.PAUSED;
     }
 
     /**

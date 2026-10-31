@@ -45,6 +45,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -502,6 +503,25 @@ class UpgradeServiceTest {
         assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.PLANNED);
         verify(repository, never()).save(any());
         verify(eventPublisher, never()).publish(any());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(
+            value = UpgradeStatus.class,
+            names = {"ACTIVE", "COMPLETED"})
+    void GivenAHardUpgradeThatCannotBeActivated_WhenItIsActivatedWithTheLimitReached_ThenTheTransitionIsWhatRefusesIt(
+            UpgradeStatus status) {
+        // D3.2. An upgrade the transition refuses claims no slot, so its refusal must be the transition's,
+        // not the HARD limit's, and it must not take the user's limit claim either.
+        HealthUpgrade upgrade = upgradeWith(status, Difficulty.HARD);
+        when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.of(upgrade));
+        lenient().when(repository.countActiveHardUpgradesForLimitCheck(userId)).thenReturn(3L);
+
+        assertThatThrownBy(() -> service.activate(userId, upgradeId, null))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessage("Only PLANNED or PAUSED upgrades can be activated");
+
+        verify(repository, never()).countActiveHardUpgradesForLimitCheck(any());
     }
 
     @Test
