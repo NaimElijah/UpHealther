@@ -422,6 +422,20 @@ describe('HealthAreasPage form errors', () => {
     getHealthAreas.mockResolvedValue([anArea()]);
   });
 
+  // `fireEvent.submit` skips the browser's own validation, so without this a form that lost `noValidate`
+  // passed every test, while in a browser the native bubble took the place of the form's message and focus
+  // (review finding 16 on #407).
+  it('GivenEitherAreaDialog_WhenItOpens_ThenItsFormChecksItselfRatherThanTheBrowser', async () => {
+    renderPage();
+    const create = await openCreate();
+    expect(create.getByLabelText('Name').closest('form')?.noValidate).toBe(true);
+    fireEvent.click(create.getByRole('button', { name: 'Cancel' }));
+
+    const edit = await openEdit();
+
+    expect(edit.getByLabelText('Name').closest('form')?.noValidate).toBe(true);
+  });
+
   it('GivenTheNewAreaDialog_WhenItOpens_ThenTheNameIsMarkedRequired', async () => {
     renderPage();
     const dialog = await openCreate();

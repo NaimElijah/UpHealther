@@ -217,6 +217,15 @@ describe('LoginPage title', () => {
  * (WCAG 3.3.1, 3.3.2, 4.1.3, finding X9.5).
  */
 describe('LoginPage form errors', () => {
+  // `fireEvent.submit` skips the browser's own validation, so without this a form that lost `noValidate`
+  // passed every test, while in a browser the native bubble took the place of the form's message and focus
+  // (review finding 16 on #407).
+  it('GivenTheSignInForm_WhenItRenders_ThenItChecksItselfRatherThanTheBrowser', () => {
+    renderLogin();
+
+    expect(screen.getByLabelText('Email').closest('form')?.noValidate).toBe(true);
+  });
+
   it('GivenTheSignInForm_WhenItRenders_ThenBothFieldsAreMarkedRequired', () => {
     renderLogin();
 

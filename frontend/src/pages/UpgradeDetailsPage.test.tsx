@@ -1214,6 +1214,18 @@ describe('UpgradeDetailsPage editing an upgrade', () => {
     expect(updateUpgrade.mock.calls[0][1].type).toBe('PROTOCOL');
   });
 
+  // `fireEvent.submit` skips the browser's own validation, so without this a form that lost `noValidate`
+  // passed every test, while in a browser the native bubble took the place of the form's message and focus
+  // (review finding 16 on #407).
+  it('GivenTheEditDialog_WhenItOpens_ThenItsFormChecksItselfRatherThanTheBrowser', async () => {
+    serveUpgrade(described);
+    renderPage();
+
+    const dialog = await openEdit();
+
+    expect(dialog.getByLabelText('Title').closest('form')?.noValidate).toBe(true);
+  });
+
   it('GivenTheTitleIsCleared_WhenTheEditIsSaved_ThenNothingIsSentAndTheTitleIsAskedFor', async () => {
     serveUpgrade(described);
     renderPage();
@@ -1614,6 +1626,16 @@ describe('UpgradeDetailsPage rescheduling an upgrade', () => {
       expect(await screen.findByText(/11\/1\/2026/)).toBeDefined();
     },
   );
+
+  // Review finding 16 on #407, as for the edit dialog above.
+  it('GivenTheRescheduleDialog_WhenItOpens_ThenItsFormChecksItselfRatherThanTheBrowser', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });
+    renderPage();
+
+    const dialog = await openReschedule();
+
+    expect(dialog.getByLabelText('New start date').closest('form')?.noValidate).toBe(true);
+  });
 
   it('GivenTheDateIsCleared_WhenTheRescheduleIsSubmitted_ThenNothingIsSentAndADateIsAskedFor', async () => {
     serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });

@@ -400,6 +400,20 @@ describe('UpgradeBacklogPage form errors', () => {
     getUpgrades.mockResolvedValue([anIdea()]);
   });
 
+  // `fireEvent.submit` skips the browser's own validation, so without this a form that lost `noValidate`
+  // passed every test, while in a browser the native bubble took the place of the form's message and focus
+  // (review finding 16 on #407).
+  it('GivenEitherBacklogDialog_WhenItOpens_ThenItsFormChecksItselfRatherThanTheBrowser', async () => {
+    renderPage();
+    const create = await openCreate();
+    expect(create.getByLabelText('Title').closest('form')?.noValidate).toBe(true);
+    fireEvent.click(create.getByRole('button', { name: 'Cancel' }));
+
+    const plan = await openPlan();
+
+    expect(plan.getByLabelText('Start date').closest('form')?.noValidate).toBe(true);
+  });
+
   it('GivenTheNewIdeaDialog_WhenItIsSubmittedWithoutATitle_ThenTheTitleIsRequiredInvalidAndHasFocus', async () => {
     renderPage();
     const dialog = await openCreate('');
