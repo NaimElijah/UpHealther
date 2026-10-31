@@ -708,6 +708,25 @@ describe('UpgradeDetailsPage', () => {
     expect(screen.queryByText('Target:')).toBeNull();
   });
 
+  // The difficulty pill names the difficulty as the form and the upgrade card do. It showed the raw
+  // value, "MEDIUM" in capitals beside "Active" and "Habit", and an empty pill for none.
+
+  it('GivenADifficulty_WhenTheDetailsPageIsShown_ThenItIsNamedByItsLabel', async () => {
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    expect(screen.getByText('Medium')).toBeDefined();
+    expect(screen.queryByText('MEDIUM')).toBeNull();
+  });
+
+  it('GivenNoDifficulty_WhenTheDetailsPageIsShown_ThenThePillSaysItIsNotSet', async () => {
+    getUpgradeById.mockResolvedValue({ ...anUpgrade(), difficulty: null });
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    expect(screen.getByText('Not set')).toBeDefined();
+  });
+
   it('GivenASavedConfiguration_WhenItIsShown_ThenItsTypeAndFrequencyAreNamedAsTheFormNamesThem', async () => {
     getUpgradeById.mockResolvedValue({
       ...anUpgrade(),
