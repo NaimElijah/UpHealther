@@ -12,6 +12,7 @@ import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
 import { parseLocalDate } from '../lib/localDate';
+import { RATING_MAX } from '../components/upgrade/RatingPicker';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
@@ -70,14 +71,15 @@ const ProgressHistoryPage: React.FC = () => {
         />
       ) : (
         <Card>
-          <div className="space-y-3">
+          {/* A list, so a screen reader says how many entries there are and moves between them. */}
+          <ul className="space-y-3">
             {sorted.map((entry) => {
               const upgrade = upgradeMap[entry.upgradeId];
               return (
                 // Wraps rather than truncating, and the details drop below the title on a narrow window:
                 // a note cut at 8rem, or a title squeezed to nothing beside it, lost what was written
                 // (WCAG 1.4.10).
-                <div
+                <li
                   key={entry.id}
                   className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 p-3 bg-sunken rounded-lg text-sm"
                 >
@@ -102,13 +104,21 @@ const ProgressHistoryPage: React.FC = () => {
                         {entry.numericValue} {entry.unit}
                       </span>
                     )}
-                    {entry.rating != null && <span>{'⭐'.repeat(entry.rating)}</span>}
+                    {/* The stars are read as a score on its scale; read aloud one by one they gave no scale. */}
+                    {entry.rating != null && (
+                      <span>
+                        <span aria-hidden="true">{'⭐'.repeat(entry.rating)}</span>
+                        <span className="sr-only">
+                          Rating {entry.rating} of {RATING_MAX}
+                        </span>
+                      </span>
+                    )}
                     {entry.note && <span className="text-fg-faint italic break-words min-w-0">{entry.note}</span>}
                   </div>
-                </div>
+                </li>
               );
             })}
-          </div>
+          </ul>
         </Card>
       )}
     </PageContainer>

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ProgressHistoryPage from './ProgressHistoryPage';
 import type { HealthUpgrade, ProgressEntry } from '../types';
@@ -153,5 +153,34 @@ describe('ProgressHistoryPage headings', () => {
 
     expect(screen.getByRole('heading', { level: 1 })).toBeDefined();
     expect(headingOutlineProblems()).toEqual([]);
+  });
+});
+
+/**
+ * The week's entries are a list, and a rating is read as a score on its scale. The entries were a stack of
+ * divs, and a rating was a row of stars read aloud one by one with no scale (WCAG 1.1.1, 1.3.1,
+ * finding X9.23).
+ */
+describe('ProgressHistoryPage entries', () => {
+  beforeEach(() => {
+    getWeekProgress.mockReset();
+    getUpgrades.mockReset();
+    getUpgrades.mockResolvedValue([anUpgrade()]);
+  });
+
+  it('GivenTwoEntries_WhenTheWeekIsListed_ThenTheyAreItemsOfAList', async () => {
+    getWeekProgress.mockResolvedValue([anEntry({ id: 'e1', note: 'first' }), anEntry({ id: 'e2', note: 'second' })]);
+    renderPage();
+
+    await screen.findByText('first');
+    expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(2);
+  });
+
+  it('GivenARatedEntry_WhenTheWeekIsListed_ThenItsRatingIsReadAsAScoreOutOfFiveAndTheStarsAreHidden', async () => {
+    getWeekProgress.mockResolvedValue([anEntry({ rating: 4 })]);
+    renderPage();
+
+    expect(await screen.findByText('Rating 4 of 5')).toBeDefined();
+    expect(screen.getByText('⭐⭐⭐⭐').getAttribute('aria-hidden')).toBe('true');
   });
 });

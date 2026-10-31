@@ -1,7 +1,7 @@
 import React, { useId } from 'react';
 
 /** The scale a progress rating is on, which the API's `rating` takes from 1 to this. */
-const RATING_MAX = 5;
+export const RATING_MAX = 5;
 const SCORES = Array.from({ length: RATING_MAX }, (_, i) => i + 1);
 
 /**
