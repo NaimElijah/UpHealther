@@ -349,6 +349,45 @@ describe('ActiveUpgradesPage title', () => {
 });
 
 /**
+ * Completing an upgrade takes its card off the page, and pausing or resuming one moves it to the other
+ * list, so the pressed button goes in each case and focus fell to `<body>`. It goes to the page's heading
+ * instead (WCAG 2.4.3, finding X9.4; untested until review finding 4 on #407).
+ */
+describe('ActiveUpgradesPage focus after a transition', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    performUpgradeAction.mockReset();
+  });
+
+  it.each([
+    ['Complete', anActiveUpgrade(), 'COMPLETED'],
+    ['Pause', anActiveUpgrade(), 'PAUSED'],
+    ['Resume', aPausedUpgrade(), 'ACTIVE'],
+  ] as const)(
+    'GivenFocusOn%s_WhenTheChangeLands_ThenFocusMovesToThePageHeading',
+    async (action, upgrade, next: UpgradeStatus) => {
+      let current = upgrade;
+      getUpgrades.mockImplementation((status: UpgradeStatus) =>
+        Promise.resolve(current.status === status ? [current] : []),
+      );
+      performUpgradeAction.mockImplementation((_id: string, status: ActionTarget) => {
+        current = { ...current, status };
+        return Promise.resolve(current);
+      });
+      renderPage();
+      const button = await screen.findByRole('button', { name: `${action} ${upgrade.title}` });
+      button.focus();
+
+      fireEvent.click(button);
+
+      await waitFor(() => expect(current.status).toBe(next));
+      await waitFor(() => expect(screen.queryByRole('button', { name: `${action} ${upgrade.title}` })).toBeNull());
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 })));
+    },
+  );
+});
+
+/**
  * The page's headings form an outline: one `h1`, and no level skipped below it, a failed load included.
  * Section titles were plain text, cards were `h3`s straight under the `h1`, and a page that failed to load
  * had no `h1` at all (WCAG 1.3.1, 2.4.6, finding X9.11).

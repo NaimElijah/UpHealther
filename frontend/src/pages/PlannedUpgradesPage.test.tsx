@@ -101,6 +101,31 @@ describe('PlannedUpgradesPage', () => {
  * The planned list reads as a timeline: soonest start first, and an upgrade with no start date last
  * rather than first. The API returns the list unordered, so this order is the page's alone.
  */
+/**
+ * Activating an upgrade takes its card off this page, and the pressed button with it, so focus fell to
+ * `<body>`. It goes to the page's heading instead (WCAG 2.4.3, finding X9.4; untested until review
+ * finding 4 on #407).
+ */
+describe('PlannedUpgradesPage focus after activating', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    performUpgradeAction.mockReset();
+  });
+
+  it('GivenFocusOnActivate_WhenTheChangeLands_ThenFocusMovesToThePageHeading', async () => {
+    getUpgrades.mockResolvedValueOnce([aPlannedHardUpgrade()]).mockResolvedValue([]);
+    performUpgradeAction.mockResolvedValue({ ...aPlannedHardUpgrade(), status: 'ACTIVE' });
+    renderPage();
+    const activate = await screen.findByRole('button', { name: 'Activate Run a half marathon' });
+    activate.focus();
+
+    fireEvent.click(activate);
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Activate Run a half marathon' })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 })));
+  });
+});
+
 describe('PlannedUpgradesPage order', () => {
   beforeEach(() => {
     getUpgrades.mockReset();
