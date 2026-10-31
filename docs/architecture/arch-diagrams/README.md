@@ -507,6 +507,7 @@ erDiagram
         bigint version
         timestamp created_at
         timestamp updated_at
+        timestamp completed_at
     }
     tracking_configs {
         uuid id PK

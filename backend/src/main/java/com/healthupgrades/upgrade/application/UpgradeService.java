@@ -264,9 +264,10 @@ public class UpgradeService implements UpgradeQuery {
     public HealthUpgrade complete(UUID userId, UUID id) {
         return auditTrail.recording(AuditAction.UPGRADE_COMPLETE, userId, id, () -> {
             HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
-            upgrade.complete();
+            LocalDateTime now = LocalDateTime.now(clock);
+            upgrade.complete(now);
             HealthUpgrade saved = repository.save(upgrade);
-            eventPublisher.publish(new HealthUpgradeCompleted(saved.getId(), userId, LocalDateTime.now(clock)));
+            eventPublisher.publish(new HealthUpgradeCompleted(saved.getId(), userId, now));
             return saved;
         });
     }

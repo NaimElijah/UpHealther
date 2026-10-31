@@ -550,6 +550,18 @@ class UpgradeServiceTest {
     }
 
     @Test
+    void GivenAnActiveUpgrade_WhenItIsCompleted_ThenItRecordsTheInjectedClocksNow() {
+        // ADR-080. The same instant the completion event carries, so the two never disagree.
+        HealthUpgrade upgrade = upgradeWith(UpgradeStatus.ACTIVE, Difficulty.EASY);
+        when(repository.findByIdAndUserId(upgradeId, userId)).thenReturn(Optional.of(upgrade));
+        when(repository.save(upgrade)).thenReturn(upgrade);
+
+        service.complete(userId, upgradeId);
+
+        assertThat(upgrade.getCompletedAt()).isEqualTo(LocalDateTime.now(fixedClock));
+    }
+
+    @Test
     void GivenACompletedUpgrade_WhenItIsPaused_ThenItIsRejectedAndNothingIsSavedOrAnnounced() {
         // BR-3: COMPLETED is terminal. The guard lives on the aggregate; what this pins is that the
         // service does not save or announce anything once the aggregate has refused.

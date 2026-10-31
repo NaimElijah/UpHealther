@@ -12,6 +12,7 @@ import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import com.healthupgrades.user.domain.model.User;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -283,6 +284,23 @@ class UpgradePersistenceIT extends PostgresIT {
         Map<UUID, Long> active = repository.countByOwner(UpgradeStatus.ACTIVE);
 
         assertThat(active).containsEntry(ownerId, 2L).containsEntry(strangerId, 1L);
+    }
+
+    @Test
+    void GivenAnUpgradeCompletedAtAMoment_WhenItIsReadBack_ThenTheMomentIsTheOneRecorded() {
+        // FR-27, ADR-080: the column V19 adds, mapped, and the stamp surviving the round trip unchanged.
+        UUID id = persistedUpgrade().getId();
+        entityManager.flush();
+        entityManager.clear();
+        HealthUpgrade upgrade = repository.findByIdAndUserId(id, ownerId).orElseThrow();
+        LocalDateTime at = LocalDateTime.of(2026, 3, 20, 18, 45, 30);
+        upgrade.complete(at);
+        repository.save(upgrade);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(repository.findByIdAndUserId(id, ownerId).orElseThrow().getCompletedAt())
+                .isEqualTo(at);
     }
 
     @Test

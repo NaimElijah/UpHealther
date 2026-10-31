@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
@@ -287,7 +288,39 @@ class HealthUpgradeTest {
         assertTransition(from, outcome, upgrade -> upgrade.activate(REFERENCE_DAY));
     }
 
+    @Test
+    void GivenAnActiveUpgrade_WhenItIsCompleted_ThenItRecordsTheMomentItWasCompleted() {
+        // FR-27, ADR-080: the dashboard orders completions by this, not by the last edit.
+        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
+        LocalDateTime at = REFERENCE_DAY.atTime(18, 45);
+
+        upgrade.complete(at);
+
+        assertThat(upgrade.getCompletedAt()).isEqualTo(at);
+    }
+
+    @Test
+    void GivenACompletedUpgrade_WhenItsDetailsAreEdited_ThenWhenItWasCompletedStaysPut() {
+        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
+        LocalDateTime at = REFERENCE_DAY.atTime(18, 45);
+        upgrade.complete(at);
+
+        upgrade.updateDetails(null, "Renamed long after", null, UpgradeType.HABIT, null, null, null);
+
+        assertThat(upgrade.getCompletedAt()).isEqualTo(at);
+    }
+
     // D3.9: each of these values is what its state is defined by, so none of them may be null.
+
+    @Test
+    void GivenAnActiveUpgrade_WhenItIsCompletedWithNoMoment_ThenItIsRefusedAndStaysActive() {
+        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
+
+        assertThatThrownBy(() -> upgrade.complete(null)).isInstanceOf(BusinessRuleException.class);
+
+        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.ACTIVE);
+        assertThat(upgrade.getCompletedAt()).isNull();
+    }
 
     @Test
     void GivenAnIdea_WhenItIsPlannedWithNoDate_ThenItIsRefusedAndStaysAnIdea() {
@@ -362,7 +395,7 @@ class HealthUpgradeTest {
     })
     void GivenAnUpgradeInEachState_WhenItIsCompleted_ThenOnlyAnActiveOneBecomesCompleted(
             UpgradeStatus from, String outcome) {
-        assertTransition(from, outcome, HealthUpgrade::complete);
+        assertTransition(from, outcome, upgrade -> upgrade.complete(REFERENCE_DAY.atTime(9, 0)));
     }
 
     @ParameterizedTest(name = "{0} -> {1}")

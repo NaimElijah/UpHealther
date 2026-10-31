@@ -372,7 +372,10 @@ Three things in that flow are easy to miss:
 
 `GET /api/dashboard` is the widest read. `DashboardAggregationService` calls four inbound ports —
 upgrades, progress entries, streaks, health areas — buckets the upgrades by status and date, computes
-the weekly rate, and returns a `DashboardView` of domain objects. The streaks of every active upgrade
+the weekly rate, and returns a `DashboardView` of domain objects. Its five recently completed upgrades
+are ordered by `health_upgrades.completed_at`, which `HealthUpgrade.complete` stamps from the injected
+clock and no edit moves, not by `updated_at`, which every edit does
+([ADR-080](../ADRs/ADR-080-an-upgrade-records-when-it-was-completed.md)). The streaks of every active upgrade
 come from one call, which reads all their histories in a single query. The web mapper then turns it into the
 response, reusing the upgrade context's own mapper so the embedded upgrades are identical to what
 `/api/upgrades` returns, and mapping each distinct upgrade once so a single batched query resolves
@@ -1145,6 +1148,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why `open-in-view` is off, what it held a connection for, and what would bring it back | [ADR-076](../ADRs/ADR-076-open-in-view-is-off.md) |
 | Why the `upgrade` context restates `tracking`'s tracking type and frequency as enums of its own in `domain.model`, held equal by a contract test, rather than importing them, carrying strings, or placing them in `port.out` or `port.in` | [ADR-077](../ADRs/ADR-077-a-context-mirrors-another-contexts-closed-set-in-its-own-model.md) |
 | Why a refused STOMP frame is answered `Unauthenticated`, `Refused` or `Frame not processed`, chosen by the exception's type and never its text, why `Session ended` passes untouched, and why the SPA acts on none of the three | [ADR-078](../ADRs/ADR-078-a-refused-stomp-frame-is-answered-in-fixed-words.md) |
+| Why an upgrade records when it was completed, stamped from the injected clock and backfilled approximately from `updated_at`, rather than restating FR-27 or waiting for #263's lifecycle history | [ADR-080](../ADRs/ADR-080-an-upgrade-records-when-it-was-completed.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

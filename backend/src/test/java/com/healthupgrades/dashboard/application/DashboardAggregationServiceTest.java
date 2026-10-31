@@ -246,7 +246,20 @@ class DashboardAggregationServiceTest {
         assertThat(recent).hasSize(5);
         assertThat(recent.get(0)).as("newest first").isSameAs(newest);
         assertThat(recent).doesNotContain(oldest);
-        assertThat(recent).extracting(HealthUpgrade::getUpdatedAt).isSortedAccordingTo(reverseOrder());
+        assertThat(recent).extracting(HealthUpgrade::getCompletedAt).isSortedAccordingTo(reverseOrder());
+    }
+
+    @Test
+    void GivenAnOldCompletionEditedToday_WhenTheDashboardIsBuilt_ThenItIsOrderedByWhenItWasCompletedNotByTheEdit() {
+        // D3.1, FR-27. FR-13 lets a completed upgrade be edited, and an edit moves updatedAt: ordered by
+        // it, renaming something finished long ago put it back at the top of "recently completed".
+        HealthUpgrade completedLongAgoEditedToday = completed(today.minusDays(30), today);
+        HealthUpgrade completedYesterday = completed(today.minusDays(1), today.minusDays(1));
+        stubEmptyExceptUpgrades(List.of(completedLongAgoEditedToday, completedYesterday));
+
+        List<HealthUpgrade> recent = service.getDashboard(userId).recentlyCompleted();
+
+        assertThat(recent).containsExactly(completedYesterday, completedLongAgoEditedToday);
     }
 
     @Test
@@ -359,12 +372,23 @@ class DashboardAggregationServiceTest {
                 .isZero();
     }
 
-    private HealthUpgrade completedAt(LocalDate updatedAt) {
+    private HealthUpgrade completedAt(LocalDate completedOn) {
         return HealthUpgrade.builder()
                 .id(UUID.randomUUID())
                 .userId(userId)
                 .status(UpgradeStatus.COMPLETED)
-                .updatedAt(updatedAt.atStartOfDay())
+                .completedAt(completedOn.atStartOfDay())
+                .build();
+    }
+
+    /** A completed upgrade, completed on one day and last edited on another. */
+    private HealthUpgrade completed(LocalDate completedOn, LocalDate lastEditedOn) {
+        return HealthUpgrade.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .status(UpgradeStatus.COMPLETED)
+                .completedAt(completedOn.atStartOfDay())
+                .updatedAt(lastEditedOn.atStartOfDay())
                 .build();
     }
 

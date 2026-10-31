@@ -69,6 +69,12 @@ public class HealthUpgrade {
 
     private String successCriteria;
 
+    /**
+     * When the upgrade was completed; null until it is. Set by {@link #complete} alone, and COMPLETED is
+     * terminal, so an edit afterwards never moves it the way it moves {@code updatedAt} (FR-27, ADR-080).
+     */
+    private LocalDateTime completedAt;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -224,14 +230,17 @@ public class HealthUpgrade {
     }
 
     /**
-     * Finishes a running upgrade successfully: ACTIVE → COMPLETED, which is terminal.
+     * Finishes a running upgrade successfully: ACTIVE → COMPLETED, which is terminal, recording when.
      *
-     * @throws BusinessRuleException if the upgrade is not ACTIVE
+     * @param at the moment it was completed, from the caller's clock
+     * @throws BusinessRuleException if the upgrade is not ACTIVE, or no moment is given
      */
-    public void complete() {
+    public void complete(LocalDateTime at) {
         if (status != UpgradeStatus.ACTIVE) {
             throw new BusinessRuleException("Only ACTIVE upgrades can be completed");
         }
+        if (at == null) throw new BusinessRuleException("A completed upgrade must record when it was completed");
+        this.completedAt = at;
         this.status = UpgradeStatus.COMPLETED;
     }
 
