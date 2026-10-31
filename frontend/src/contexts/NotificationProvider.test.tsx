@@ -623,15 +623,15 @@ describe('NotificationProvider', () => {
   });
 
   it('GivenAnErrorFrameForAnyOtherReason_WhenTheSocketReconnects_ThenTheTokenIsKept', async () => {
-    // What Spring sends for any refused frame, an outage included. Dropping the token on one would send
-    // the tab's next request out anonymous, and with the server failing, the renewal that 401 triggers
-    // fails too and signs the user out of a session that is still live.
+    // What the server sends for a frame it could not process, an outage included. Dropping the token on
+    // one would send the tab's next request out anonymous, and with the server failing, the renewal that
+    // 401 triggers fails too and signs the user out of a session that is still live.
     setAccessToken('still.good.token', '2099-01-01T00:00:00Z');
     renewSession.mockReturnValue(true);
     renderProvider(authenticated());
     await waitFor(() => expect(lastClient).toBeDefined());
 
-    act(() => lastClient?.fail('Failed to send message to ExecutorSubscribableChannel[clientInboundChannel]'));
+    act(() => lastClient?.fail('Frame not processed'));
     await act(async () => {
       await lastClient?.prepareConnect();
     });

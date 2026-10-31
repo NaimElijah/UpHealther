@@ -4,13 +4,14 @@ import com.healthupgrades.common.security.SecurityUser;
 import com.healthupgrades.healtharea.application.HealthAreaService;
 import com.healthupgrades.healtharea.domain.model.HealthArea;
 import jakarta.validation.Valid;
+import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.util.UriComponentsBuilder;
 
 /**
  * REST adapter for health areas — the folders a user organises upgrades into.
@@ -20,9 +21,12 @@ import org.springframework.web.bind.annotation.*;
  * is reported as not found (404), not forbidden.
  */
 @RestController
-@RequestMapping("/api/health-areas")
+@RequestMapping(HealthAreaController.PATH)
 @RequiredArgsConstructor
 public class HealthAreaController {
+
+    /** The collection's route; an area's own route is this followed by its id. */
+    static final String PATH = "/api/health-areas";
 
     private final HealthAreaService service;
     private final HealthAreaWebMapper mapper;
@@ -30,14 +34,21 @@ public class HealthAreaController {
     /**
      * Creates a health area for the caller.
      *
+     * <p>{@code Location} is a relative reference (RFC 9110 section 10.2.2), so it stays right behind a
+     * proxy that rewrites the host or the scheme.
+     *
      * @param req name (required), plus optional description, priority, icon and colour
-     * @return 201 with the created area
+     * @return 201 with the created area, and a {@code Location} naming the route that reads it back
      */
     @PostMapping
     public ResponseEntity<HealthAreaDto> create(
             @AuthenticationPrincipal SecurityUser principal, @Valid @RequestBody HealthAreaRequest req) {
         HealthArea created = service.create(principal.getId(), mapper.toDetails(req));
-        return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toDto(created));
+        URI location = UriComponentsBuilder.fromPath(PATH)
+                .pathSegment("{id}")
+                .buildAndExpand(created.getId())
+                .toUri();
+        return ResponseEntity.created(location).body(mapper.toDto(created));
     }
 
     /**

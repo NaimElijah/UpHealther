@@ -1,5 +1,7 @@
 package com.healthupgrades.upgrade.application.port.out;
 
+import com.healthupgrades.upgrade.domain.model.UpgradeTrackingFrequency;
+import com.healthupgrades.upgrade.domain.model.UpgradeTrackingType;
 import java.util.UUID;
 
 /**
@@ -7,14 +9,15 @@ import java.util.UUID;
  *
  * <p>Owned by {@code upgrade}, not by {@code tracking}: the point of {@link UpgradeTrackingSummaryPort}
  * is that this context states what it needs and another satisfies it, so this record must not be
- * expressed in the supplying context's types. The enum-valued fields are carried as their names for the
- * same reason — importing tracking's enums here would recreate the dependency the port exists to remove.
+ * expressed in the supplying context's types. The enum-valued fields are this context's mirrors of
+ * tracking's enums for the same reason — importing those would recreate the dependency the port exists
+ * to remove — and a contract test holds each mirror equal to its original (ADR-077).
  */
 public record UpgradeTrackingSummary(
         UUID id,
         UUID upgradeId,
-        String trackingType,
-        String frequency,
+        UpgradeTrackingType trackingType,
+        UpgradeTrackingFrequency frequency,
         Double targetNumericValue,
         String targetUnit,
         Boolean requiredDaily) {}

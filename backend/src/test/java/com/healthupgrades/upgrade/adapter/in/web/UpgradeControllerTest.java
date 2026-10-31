@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -31,6 +32,8 @@ import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPor
 import com.healthupgrades.upgrade.domain.model.Difficulty;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
+import com.healthupgrades.upgrade.domain.model.UpgradeTrackingFrequency;
+import com.healthupgrades.upgrade.domain.model.UpgradeTrackingType;
 import com.healthupgrades.upgrade.domain.model.UpgradeType;
 import java.time.LocalDate;
 import java.util.List;
@@ -44,6 +47,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -105,6 +109,18 @@ class UpgradeControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.title").value(AnUpgrade.TITLE))
                 .andExpect(jsonPath("$.status").value("IDEA"));
+    }
+
+    @Test
+    void GivenAValidBody_WhenAnUpgradeIsCreated_ThenLocationNamesTheRouteThatReadsItBack() throws Exception {
+        // RFC 9110 section 15.3.2: a 201 says where the created resource is, which is GET /api/upgrades/{id}.
+        when(service.create(eq(userId), any())).thenReturn(anUpgrade(UpgradeStatus.IDEA));
+
+        mockMvc.perform(bearer(post(BASE))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Cold showers\",\"type\":\"HABIT\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(header().string(HttpHeaders.LOCATION, BASE + "/" + upgradeId));
     }
 
     @Test
@@ -265,7 +281,14 @@ class UpgradeControllerTest {
         when(trackingSummaries.findByUpgradeIds(List.of(upgradeId)))
                 .thenReturn(Map.of(
                         upgradeId,
-                        new UpgradeTrackingSummary(configId, upgradeId, "NUMERIC", "WEEKLY", 10_000.0, "steps", true)));
+                        new UpgradeTrackingSummary(
+                                configId,
+                                upgradeId,
+                                UpgradeTrackingType.NUMERIC,
+                                UpgradeTrackingFrequency.WEEKLY,
+                                10_000.0,
+                                "steps",
+                                true)));
 
         mockMvc.perform(bearer(get(BASE + "/" + upgradeId)))
                 .andExpect(status().isOk())

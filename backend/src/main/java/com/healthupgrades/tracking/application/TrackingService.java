@@ -7,6 +7,7 @@ import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.tracking.application.port.in.ProgressEntryDetails;
 import com.healthupgrades.tracking.application.port.in.ProgressQuery;
+import com.healthupgrades.tracking.application.port.in.SavedTrackingConfig;
 import com.healthupgrades.tracking.application.port.in.StreakQuery;
 import com.healthupgrades.tracking.application.port.in.StreakSummary;
 import com.healthupgrades.tracking.application.port.in.TrackingConfigDetails;
@@ -26,6 +27,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -63,27 +65,27 @@ public class TrackingService implements ProgressQuery, StreakQuery {
      * @param userId    the owner
      * @param upgradeId the upgrade to configure
      * @param details   the configuration to store
-     * @return the saved configuration
+     * @return the saved configuration, and whether this save created it
      * @throws ResourceNotFoundException   if the upgrade does not exist or belongs to somebody else
      * @throws RetryableConflictException if a concurrent request stored the upgrade's first configuration
      *                                     after this one looked for it; resending this request replaces it
      */
     @Transactional
-    public TrackingConfig saveConfig(UUID userId, UUID upgradeId, TrackingConfigDetails details) {
+    public SavedTrackingConfig saveConfig(UUID userId, UUID upgradeId, TrackingConfigDetails details) {
         // Audited against the upgrade, as the action's label says (S5.C6), not the config row: changing
         // how an upgrade is measured changes what its past progress means, and the upgrade is what
         // somebody would be reading back. A refusal names the upgrade that was probed.
         return auditTrail.recording(AuditAction.TRACKING_CONFIGURE, userId, upgradeId, () -> {
             upgradeQuery.getOwnedUpgrade(userId, upgradeId); // ownership check (throws if not owned)
-            TrackingConfig config = configRepository
-                    .findByUpgradeId(upgradeId)
-                    .orElse(TrackingConfig.builder().upgradeId(upgradeId).build());
+            Optional<TrackingConfig> existing = configRepository.findByUpgradeId(upgradeId);
+            TrackingConfig config = existing.orElseGet(
+                    () -> TrackingConfig.builder().upgradeId(upgradeId).build());
             config.setTrackingType(details.trackingType());
             config.setFrequency(details.frequency());
             config.setTargetNumericValue(details.targetNumericValue());
             config.setTargetUnit(details.targetUnit());
             config.setRequiredDaily(details.requiredDaily());
-            return configRepository.save(config);
+            return new SavedTrackingConfig(configRepository.save(config), existing.isEmpty());
         });
     }
 

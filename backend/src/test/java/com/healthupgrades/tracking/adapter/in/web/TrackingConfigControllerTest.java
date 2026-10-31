@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -20,8 +21,10 @@ import com.healthupgrades.common.security.UserDetailsServiceImpl;
 import com.healthupgrades.support.ATrackingConfig;
 import com.healthupgrades.support.WebSliceSupport;
 import com.healthupgrades.tracking.application.TrackingService;
+import com.healthupgrades.tracking.application.port.in.SavedTrackingConfig;
 import com.healthupgrades.tracking.application.port.in.TrackingConfigDetails;
 import com.healthupgrades.tracking.domain.model.Frequency;
+import com.healthupgrades.tracking.domain.model.TrackingConfig;
 import com.healthupgrades.tracking.domain.model.TrackingType;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +33,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -71,7 +75,7 @@ class TrackingConfigControllerTest {
     @Test
     void GivenANumericConfiguration_WhenItIsSaved_ThenItAnswers200CarryingTheTargetAndItsUnit() throws Exception {
         when(trackingService.saveConfig(eq(userId), eq(upgradeId), any()))
-                .thenReturn(ATrackingConfig.numeric(upgradeId, 10_000.0, "steps"));
+                .thenReturn(replaced(ATrackingConfig.numeric(upgradeId, 10_000.0, "steps")));
 
         mockMvc.perform(bearer(put(path))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -84,9 +88,36 @@ class TrackingConfigControllerTest {
     }
 
     @Test
+    void GivenAnUpgradeWithNoConfiguration_WhenItsFirstConfigurationIsSaved_ThenItAnswers201() throws Exception {
+        // RFC 9110 section 9.3.4: a PUT that creates its target's first representation answers 201.
+        when(trackingService.saveConfig(eq(userId), eq(upgradeId), any()))
+                .thenReturn(new SavedTrackingConfig(ATrackingConfig.booleanTracking(upgradeId), true));
+
+        mockMvc.perform(bearer(put(path))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"trackingType\":\"BOOLEAN\"}"))
+                .andExpect(status().isCreated())
+                // The created resource is the request's own URI, so there is nothing for Location to name.
+                .andExpect(header().doesNotExist(HttpHeaders.LOCATION))
+                .andExpect(jsonPath("$.trackingType").value("BOOLEAN"));
+    }
+
+    @Test
+    void GivenAnUpgradeAlreadyConfigured_WhenItsConfigurationIsSavedAgain_ThenItAnswers200() throws Exception {
+        when(trackingService.saveConfig(eq(userId), eq(upgradeId), any()))
+                .thenReturn(replaced(ATrackingConfig.booleanTracking(upgradeId)));
+
+        mockMvc.perform(bearer(put(path))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"trackingType\":\"BOOLEAN\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.trackingType").value("BOOLEAN"));
+    }
+
+    @Test
     void GivenEveryField_WhenAConfigurationIsSaved_ThenEachReachesTheUseCaseUnderItsOwnName() throws Exception {
         when(trackingService.saveConfig(eq(userId), eq(upgradeId), any()))
-                .thenReturn(ATrackingConfig.numeric(upgradeId, 10_000.0, "steps"));
+                .thenReturn(replaced(ATrackingConfig.numeric(upgradeId, 10_000.0, "steps")));
 
         mockMvc.perform(bearer(put(path))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -166,5 +197,10 @@ class TrackingConfigControllerTest {
                 .thenThrow(new ResourceNotFoundException("Tracking config not found for upgrade: " + upgradeId));
 
         mockMvc.perform(bearer(get(path))).andExpect(status().isNotFound());
+    }
+
+    /** A save that replaced the upgrade's configuration rather than creating its first. */
+    private static SavedTrackingConfig replaced(TrackingConfig config) {
+        return new SavedTrackingConfig(config, false);
     }
 }

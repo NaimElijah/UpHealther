@@ -52,7 +52,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
  *   <tr><td>{@link HttpMessageNotReadableException}</td><td>400 Bad Request, parser detail withheld</td></tr>
  *   <tr><td>{@link TypeMismatchException}</td><td>400 Bad Request</td></tr>
  *   <tr><td>every other Spring MVC exception</td><td>the status Spring defines for it (405, 415, 406, 404, …)</td></tr>
- *   <tr><td>{@link BadCredentialsException} / {@link AccountStatusException}</td><td>401 Unauthorized, message withheld</td></tr>
+ *   <tr><td>{@link BadCredentialsException} / {@link AccountStatusException}</td><td>401 Unauthorized, message withheld, with a {@code WWW-Authenticate: Bearer} challenge</td></tr>
  *   <tr><td>{@link AuthenticationRequiredException}</td><td>401 Unauthorized, with a {@code WWW-Authenticate: Bearer} challenge</td></tr>
  *   <tr><td>{@link AccessDeniedException}</td><td>403 Forbidden</td></tr>
  *   <tr><td>anything else</td><td>500 Internal Server Error, message withheld</td></tr>
@@ -84,7 +84,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      */
     private static final String INTERNAL_ERROR_MESSAGE = "Internal server error";
 
-    /** RFC 6750 section 3: a request with no credential is told the scheme and nothing else. */
+    /** RFC 6750 section 3: a refusal that is not about a presented bearer token names the scheme alone. */
     private static final String BEARER_CHALLENGE = "Bearer";
 
     /** RFC 6750 section 3.1: the credential was presented and not accepted. */
@@ -209,10 +209,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      *
      * <p>The message is replaced with a single generic one: telling a caller that the email exists but
      * the password was wrong is free information for anyone enumerating accounts.
+     *
+     * <p>The challenge is the bare scheme, as for a request with no token: RFC 9110 section 15.5.2 puts
+     * one on every 401, and a sign-in's refusal is about credentials, not a bearer token, so there is no
+     * {@code invalid_token} to report. That holds even when the client sent one: the SPA attaches any token
+     * it holds, and on this public route an unusable one is simply left anonymous.
      */
     @ExceptionHandler({BadCredentialsException.class, AccountStatusException.class})
     public ResponseEntity<ErrorResponse> handleBadCredentials(AuthenticationException ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .header(HttpHeaders.WWW_AUTHENTICATE, BEARER_CHALLENGE)
                 .body(body(HttpStatus.UNAUTHORIZED.value(), "Invalid credentials", req.getRequestURI()));
     }
 

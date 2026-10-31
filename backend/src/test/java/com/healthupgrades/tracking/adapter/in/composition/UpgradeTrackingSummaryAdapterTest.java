@@ -8,6 +8,8 @@ import com.healthupgrades.tracking.domain.model.Frequency;
 import com.healthupgrades.tracking.domain.model.TrackingConfig;
 import com.healthupgrades.tracking.domain.model.TrackingType;
 import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummary;
+import com.healthupgrades.upgrade.domain.model.UpgradeTrackingFrequency;
+import com.healthupgrades.upgrade.domain.model.UpgradeTrackingType;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -46,6 +48,28 @@ class UpgradeTrackingSummaryAdapterTest {
                 .containsExactly(Map.entry(
                         configured,
                         new UpgradeTrackingSummary(
-                                config.getId(), configured, "NUMERIC", "WEEKLY", 10_000.0, "steps", true)));
+                                config.getId(),
+                                configured,
+                                UpgradeTrackingType.NUMERIC,
+                                UpgradeTrackingFrequency.WEEKLY,
+                                10_000.0,
+                                "steps",
+                                true)));
+    }
+
+    @Test
+    void GivenAConfigurationWithNoFrequency_WhenItsSummaryIsFound_ThenItsFrequencyIsNull() {
+        // Frequency is optional (the request may leave it out), so the summary must carry its absence:
+        // converting a missing one would throw, and GET /api/upgrades/{id} would answer 500.
+        UUID unscheduled = UUID.randomUUID();
+        TrackingConfig withoutFrequency =
+                ATrackingConfig.forUpgrade(unscheduled).frequency(null).build();
+        UpgradeTrackingSummaryAdapter answering = new UpgradeTrackingSummaryAdapter(ids -> List.of(withoutFrequency));
+
+        UpgradeTrackingSummary summary =
+                answering.findByUpgradeIds(List.of(unscheduled)).get(unscheduled);
+
+        assertThat(summary.frequency()).isNull();
+        assertThat(summary.trackingType()).isEqualTo(UpgradeTrackingType.BOOLEAN);
     }
 }

@@ -21,7 +21,7 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
  *
  * <p>The endpoint is left unauthenticated in {@code SecurityConfig} on purpose: the JWT cannot travel on
  * a browser's WebSocket handshake, so {@link JwtChannelInterceptor} authenticates the STOMP CONNECT
- * frame instead.
+ * frame instead. A frame it refuses is answered by {@link StompRefusalErrorHandler}, in fixed words.
  */
 @Configuration
 @EnableWebSocketMessageBroker
@@ -34,7 +34,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Value("${app.cors.allowed-origins:http://localhost:3000}")
     private String allowedOrigins;
 
-    /** Registers the {@code /ws} endpoint, permitting the same origins as the REST API. */
+    /**
+     * Registers the {@code /ws} endpoint, permitting the same origins as the REST API, and the handler
+     * that words the ERROR frame for a client frame the server did not process.
+     */
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         // Native WebSocket (no SockJS). Same-origin requests via the Vite/nginx proxy need no CORS,
@@ -44,6 +47,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .filter(s -> !s.isEmpty())
                 .toArray(String[]::new);
         registry.addEndpoint("/ws").setAllowedOriginPatterns(origins);
+        registry.setErrorHandler(new StompRefusalErrorHandler());
     }
 
     /**

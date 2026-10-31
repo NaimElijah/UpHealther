@@ -4,13 +4,14 @@ import com.healthupgrades.common.security.SecurityUser;
 import com.healthupgrades.reminder.application.ReminderService;
 import com.healthupgrades.reminder.domain.model.Reminder;
 import jakarta.validation.Valid;
+import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.util.UriComponentsBuilder;
 
 /**
  * REST adapter for reminders — the recurring nudges attached to an upgrade.
@@ -24,6 +25,9 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequiredArgsConstructor
 public class ReminderController {
+
+    /** The reminders' own route; a reminder's is this followed by its id. */
+    static final String REMINDERS = "/api/reminders";
 
     private final ReminderService service;
     private final ReminderWebMapper mapper;
@@ -45,9 +49,13 @@ public class ReminderController {
     /**
      * Adds a reminder to an upgrade. An upgrade may have several.
      *
+     * <p>{@code Location} names the reminder's own route, {@code /api/reminders/&#123;id&#125;}, which
+     * its update and delete take, as a relative reference (RFC 9110 section 10.2.2).
+     *
      * @param upgradeId the upgrade to attach it to
      * @param req       the schedule; time is required, and an absent day list means every day
-     * @return 201 with the created reminder, enabled unless the body says otherwise
+     * @return 201 with the created reminder, enabled unless the body says otherwise, and a
+     *         {@code Location} naming it
      * @throws com.healthupgrades.common.domain.exception.ResourceNotFoundException if no such
      *         upgrade is owned by the caller (404)
      * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if a day token is not
@@ -59,7 +67,11 @@ public class ReminderController {
             @PathVariable UUID upgradeId,
             @Valid @RequestBody ReminderRequest req) {
         Reminder created = service.create(principal.getId(), upgradeId, mapper.toSchedule(req));
-        return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toDto(created));
+        URI location = UriComponentsBuilder.fromPath(REMINDERS)
+                .pathSegment("{id}")
+                .buildAndExpand(created.getId())
+                .toUri();
+        return ResponseEntity.created(location).body(mapper.toDto(created));
     }
 
     /**
@@ -76,7 +88,7 @@ public class ReminderController {
      * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if a day token is not
      *         a recognisable day (422)
      */
-    @PutMapping("/api/reminders/{id}")
+    @PutMapping(REMINDERS + "/{id}")
     public ResponseEntity<ReminderDto> update(
             @AuthenticationPrincipal SecurityUser principal,
             @PathVariable UUID id,
@@ -93,7 +105,7 @@ public class ReminderController {
      * @throws com.healthupgrades.common.domain.exception.ResourceNotFoundException if the reminder
      *         does not exist, or its upgrade is not the caller's (404)
      */
-    @DeleteMapping("/api/reminders/{id}")
+    @DeleteMapping(REMINDERS + "/{id}")
     public ResponseEntity<Void> delete(@AuthenticationPrincipal SecurityUser principal, @PathVariable UUID id) {
         service.delete(principal.getId(), id);
         return ResponseEntity.noContent().build();
