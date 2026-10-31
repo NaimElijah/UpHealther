@@ -37,6 +37,17 @@ function buildWsUrl(): string {
   return `${proto}//${window.location.host}/ws`;
 }
 
+/**
+ * Rethrows an error on a microtask, so the browser reports it as any uncaught error while the STOMP
+ * client, whose subscription a throw inside its callback would cost, never sees it. `reportError` would
+ * do the same; jsdom 30 does not implement it.
+ */
+function reportOffTheClient(error: unknown): void {
+  queueMicrotask(() => {
+    throw error;
+  });
+}
+
 /** What the socket tells whoever opened it. */
 export interface NotificationSocketHandlers {
   /** A notification the server pushed, already parsed from its frame. */
@@ -49,8 +60,9 @@ export interface NotificationSocketHandlers {
  * Opens the socket and subscribes to the signed-in user's notifications.
  *
  * It reconnects every five seconds while the socket is down, until it is closed. A frame that will not
- * parse is dropped. An error `onNotification` throws is rethrown on a microtask, so the browser reports
- * it as any uncaught error, and it never reaches the STOMP client: the next frame is delivered as usual.
+ * parse is dropped, and its parse error, like an error `onNotification` throws, is rethrown on a
+ * microtask, so the browser reports it as any uncaught error, and it never reaches the STOMP client: the
+ * next frame is delivered as usual.
  * The server's session-ended ERROR frame ends the session in this tab, through `endSession`; any other
  * ERROR leaves it alone.
  *
@@ -94,21 +106,18 @@ export function openNotificationSocket({ onNotification, onConnectionChange }: N
         let notification: AppNotification;
         try {
           notification = JSON.parse(message.body) as AppNotification;
-        } catch {
-          // A frame that will not parse is dropped rather than thrown: an exception here would
-          // propagate into the STOMP client and tear down the subscription, costing every later
-          // notification as well as this one.
+        } catch (error) {
+          // Not thrown here: an exception would propagate into the STOMP client and tear down the
+          // subscription, costing every later notification as well as this one. Reported instead,
+          // as the handler's failure below is, because a frame this client cannot read is a bug too.
+          reportOffTheClient(error);
           return;
         }
         try {
           onNotification(notification);
         } catch (error) {
-          // The handler's own failure is a bug to see, not a frame to drop. Rethrown on a microtask,
-          // it is reported as uncaught, and the STOMP client, which it would cost the subscription,
-          // never sees it. `reportError` would do the same; jsdom 30 does not implement it.
-          queueMicrotask(() => {
-            throw error;
-          });
+          // The handler's own failure is a bug to see, not a frame to drop.
+          reportOffTheClient(error);
         }
       });
     },

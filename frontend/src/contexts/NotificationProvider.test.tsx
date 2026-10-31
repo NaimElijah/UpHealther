@@ -228,8 +228,8 @@ function renderProvider(
  * Three things here are only observable from a test. The socket is opened from an effect whose cleanup
  * must deactivate it — a dropped cleanup leaks a connection per mount, and `React.StrictMode`
  * double-invokes effects, so the leak starts in development rather than in production. A frame that
- * will not parse must be dropped rather than thrown, because an exception inside a STOMP callback tears
- * down the subscription and costs every *later* notification too. And an arrival must be de-duplicated
+ * will not parse must be dropped rather than thrown into the client, because an exception inside a
+ * STOMP callback tears down the subscription and costs every *later* notification too. And an arrival must be de-duplicated
  * by id against the REST fetch, since a notification can genuinely come both ways.
  */
 describe('NotificationProvider', () => {
@@ -237,6 +237,10 @@ describe('NotificationProvider', () => {
     lastClient = undefined;
     renewSession.mockReset();
     resetNotificationApi();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('GivenASignedInUser_WhenTheProviderMounts_ThenItOpensASocketAndSubscribesOnConnect', async () => {
@@ -293,7 +297,20 @@ describe('NotificationProvider', () => {
 
   it('GivenAFrameThatWillNotParse_WhenItArrives_ThenItIsDroppedAndLaterOnesStillArrive', async () => {
     // The reason the handler catches: throwing here propagates into the STOMP client and tears down
-    // the subscription, so the cost is every notification after this one, not just this one.
+    // the subscription, so the cost is every notification after this one, not just this one. The parse
+    // error is reported on a microtask instead, caught here so it does not fail the run as uncaught.
+    // Every other microtask runs as usual, since React schedules work on them too.
+    const reported: unknown[] = [];
+    const realQueueMicrotask = globalThis.queueMicrotask;
+    vi.stubGlobal('queueMicrotask', (task: () => void) =>
+      realQueueMicrotask(() => {
+        try {
+          task();
+        } catch (error) {
+          reported.push(error);
+        }
+      }),
+    );
     renderProvider();
     await waitFor(() => expect(lastClient).toBeDefined());
     act(() => lastClient?.connect());
@@ -302,6 +319,7 @@ describe('NotificationProvider', () => {
     act(() => lastClient?.deliver(JSON.stringify(PUSHED)));
 
     await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('1'));
+    expect(reported).toEqual([expect.any(SyntaxError)]);
   });
 
   // FR-33 (#94) — the unread count covers every notification, and the list holds only the fifty most
