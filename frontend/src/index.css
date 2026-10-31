@@ -9,9 +9,12 @@
  * see the `<alpha-value>` pattern in `tailwind.config.js`.
  *
  * Every foreground/background pair used in the app was checked against WCAG AA: 4.5:1 for text, 3:1 for
- * control boundaries and graphical state. The worst text pair is 4.63:1 and the worst non-text pair is
- * 3.29:1. `line` and `line-subtle` are deliberate exceptions — a card's outline and a list's divider
- * identify no component or state, and forcing 3:1 there would put a mid-grey box round every panel.
+ * control boundaries and graphical state. The worst text pair is 4.63:1 and the worst non-text pair that
+ * carries a boundary or a state is 3.29:1. `line` and `line-subtle` are deliberate exceptions — a card's
+ * outline and a list's divider identify no component or state, and forcing 3:1 there would put a mid-grey
+ * box round every panel. So is a chosen toggle's `brand` fill against the `muted` around it, 2.53:1 in the
+ * dark theme: the toggles mark their choice with an `fg` ring as well, 11.87:1 or more in both themes
+ * (measured in a browser), so the fill is not what carries the state.
  *
  * `.dark` is put on `<html>` by the boot script in `index.html` before first paint, and kept in step
  * afterwards by `ThemeProvider`.
