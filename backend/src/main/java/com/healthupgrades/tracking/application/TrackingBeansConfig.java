@@ -8,8 +8,9 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Wires the tracking context's pure domain services as Spring beans.
  *
- * <p>Both services are framework-free (no {@code @Service}); the application layer exposes them so the
- * tracking and dashboard services can have them injected.
+ * <p>Both services are framework-free (no {@code @Service}); the application layer exposes them so
+ * {@code TrackingService} can have them injected. The dashboard injects neither: it reads streaks
+ * through {@code StreakQuery}.
  */
 @Configuration
 public class TrackingBeansConfig {

@@ -10,8 +10,10 @@ import lombok.*;
  * One day's progress against one upgrade.
  *
  * <p>At most one entry may exist per upgrade per date. That is a domain invariant checked before
- * insertion and backed by a unique constraint here, so a race that slips past the check still fails at
- * the database rather than producing two entries for a day.
+ * insertion and backed by V1's {@code uq_progress_upgrade_date}, so a race that slips past the check
+ * still fails at the database rather than producing two entries for a day. The
+ * {@code @UniqueConstraint} below only describes that constraint: with {@code ddl-auto: validate},
+ * Hibernate creates nothing.
  *
  * <p>Which of the value fields is meaningful depends on the upgrade's {@link TrackingType}: an entry
  * carries all of them and fills in the one its type calls for, so the columns are nullable by design.

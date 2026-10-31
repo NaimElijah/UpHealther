@@ -54,7 +54,8 @@ public class HealthAreaController {
     /**
      * Lists the caller's health areas.
      *
-     * @return 200 with every area the caller owns, in persistence order
+     * @return 200 with every area the caller owns, in no particular order: the query has no ORDER BY,
+     *         so two calls may list them differently
      */
     @GetMapping
     public ResponseEntity<List<HealthAreaDto>> findAll(@AuthenticationPrincipal SecurityUser principal) {

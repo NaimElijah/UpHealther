@@ -107,7 +107,8 @@ public class UpgradeController {
      * @throws com.healthupgrades.common.domain.exception.ResourceNotFoundException if no such
      *         upgrade is owned by the caller (404)
      * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if the change would exceed the
-     *         concurrent-HARD limit (422)
+     *         concurrent-HARD limit, blanks the title or the type, chooses a retired type, or files the
+     *         upgrade under an area the caller does not own or that does not exist (BR-18) (422)
      * @throws com.healthupgrades.common.domain.exception.RetryableConflictException if the limit had to be
      *         checked while another of the caller's requests was checking it (409; resend unchanged)
      */

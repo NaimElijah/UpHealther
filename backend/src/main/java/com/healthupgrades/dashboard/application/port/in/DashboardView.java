@@ -12,7 +12,7 @@ import java.util.UUID;
  * @param active               upgrades currently ACTIVE
  * @param planned              upgrades currently PLANNED
  * @param today                upgrades active on today's date
- * @param overdue              upgrades past their target date
+ * @param overdue              ACTIVE upgrades past their target date
  * @param recentlyCompleted    the five most recently completed upgrades
  * @param weeklyCompletionRate percentage of the last week's progress entries marked completed
  * @param streaks              current streak per ACTIVE upgrade id
