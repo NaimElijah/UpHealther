@@ -23,7 +23,8 @@ export type User = Wire.UserDto;
  *
  * Only the access token is here. The refresh credential arrives in an `HttpOnly` cookie that this
  * code cannot read, which is the point of it being there rather than in the body. `expiresAt` is
- * ISO-8601: when the access token lapses, so the client can renew before a request fails.
+ * ISO-8601: when the access token lapses. Only the notification socket reads it, to renew a lapsed
+ * token before it connects; an HTTP request renews after it is answered 401.
  */
 export type AuthResponse = Wire.TokenPair;
 

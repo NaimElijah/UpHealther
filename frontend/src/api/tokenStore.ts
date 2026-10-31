@@ -20,10 +20,11 @@ let accessToken: string | null = null;
 let expiresAtMs: number | null = null;
 
 /**
- * How far ahead of expiry a token is already treated as expired.
+ * How far ahead of expiry a token is already treated as expired, by {@link hasUsableAccessToken}.
  *
- * A token that lapses in two seconds will lapse in transit, so a request carrying it is a wasted round
- * trip and a retry. Renewing early costs one refresh and hides the boundary from the user.
+ * Its one caller is the notification socket's connect: a token that lapses in two seconds will lapse
+ * before the CONNECT is read, and a refused connect costs a reconnect delay. Renewing early costs one
+ * refresh. HTTP requests do not consult it; they send whatever token there is and renew on a 401.
  */
 const EXPIRY_MARGIN_MS = 30_000;
 
