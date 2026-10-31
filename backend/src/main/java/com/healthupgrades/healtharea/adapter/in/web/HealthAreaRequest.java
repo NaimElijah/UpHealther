@@ -15,7 +15,7 @@ import org.jspecify.annotations.Nullable;
  * @param priority    ordering hint, optional
  * @param icon        the glyph to draw for the area, usually an emoji; optional. Not an icon-font key
  *                    — see {@link HealthAreaDto}
- * @param color       colour token, optional
+ * @param color       free text, up to 50 characters, optional
  */
 public record HealthAreaRequest(
         @NotBlank @Size(max = NAME_MAX) String name,

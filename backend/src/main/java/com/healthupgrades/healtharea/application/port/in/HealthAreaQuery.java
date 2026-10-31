@@ -1,6 +1,6 @@
 package com.healthupgrades.healtharea.application.port.in;
 
-import com.healthupgrades.healtharea.domain.model.HealthArea; // returned domain aggregate
+import com.healthupgrades.healtharea.domain.model.HealthArea;
 import java.util.List;
 import java.util.UUID;
 
@@ -11,7 +11,12 @@ import java.util.UUID;
  */
 public interface HealthAreaQuery {
 
-    /** All health areas owned by a user. */
+    /**
+     * All health areas owned by a user, in no particular order.
+     *
+     * @param userId the owner
+     * @return the user's areas; empty when there are none
+     */
     List<HealthArea> listByUser(UUID userId);
 
     /**

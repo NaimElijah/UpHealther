@@ -12,7 +12,10 @@ public enum TrackingType {
     /** Did it or did not: the entry's completion flag decides. */
     BOOLEAN,
 
-    /** A measured quantity: success is reaching the target, and only when the units agree. */
+    /**
+     * A measured quantity: success is reaching the target, and only when the units are comparable (an
+     * unstated unit is read as the other side's).
+     */
     NUMERIC,
 
     /** A one-to-five self-rating: three or better counts as a success. */

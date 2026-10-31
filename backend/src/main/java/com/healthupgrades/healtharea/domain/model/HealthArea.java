@@ -49,14 +49,22 @@ public class HealthArea {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
-    /** Stamps the creation and update timestamps before the row is first inserted. */
+    /**
+     * Stamps the creation and update timestamps before the row is first inserted.
+     *
+     * <p>Reads the JVM's default zone rather than the injected clock: the one place NFR-15 allows it (ADR-020,
+     * #51).
+     */
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
 
-    /** Refreshes the update timestamp before each update. */
+    /**
+     * Refreshes the update timestamp before each update, from the JVM's default zone as
+     * {@link #onCreate} does.
+     */
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();

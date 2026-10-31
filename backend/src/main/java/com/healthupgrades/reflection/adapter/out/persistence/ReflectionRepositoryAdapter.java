@@ -1,7 +1,7 @@
 package com.healthupgrades.reflection.adapter.out.persistence;
 
-import com.healthupgrades.reflection.domain.model.Reflection; // domain aggregate
-import com.healthupgrades.reflection.domain.port.out.ReflectionRepositoryPort; // the port implemented here
+import com.healthupgrades.reflection.domain.model.Reflection;
+import com.healthupgrades.reflection.domain.port.out.ReflectionRepositoryPort;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 class ReflectionRepositoryAdapter implements ReflectionRepositoryPort {
 
-    private final ReflectionJpaRepository jpa; // Spring Data proxy
+    private final ReflectionJpaRepository jpa;
 
     /** {@inheritDoc} */
     @Override

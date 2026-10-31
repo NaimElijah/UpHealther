@@ -28,6 +28,9 @@ import org.springframework.web.util.UriComponentsBuilder;
  * <p>Every endpoint is scoped to the authenticated principal; an upgrade owned by somebody else is
  * reported as not found. Delegates to {@link UpgradeService}, which returns domain objects, and maps
  * them with {@link UpgradeWebMapper}.
+ *
+ * <p>Every endpoint that changes an upgrade is subject to its optimistic lock: a save that overlaps
+ * another save of the same upgrade inside the server is refused with a 409 (BR-14).
  */
 @RestController
 @RequestMapping(UpgradeController.PATH)
@@ -37,8 +40,8 @@ public class UpgradeController {
     /** The collection's route; an upgrade's own route is this followed by its id. */
     static final String PATH = "/api/upgrades";
 
-    private final UpgradeService service; // application service (returns domain aggregates)
-    private final UpgradeWebMapper mapper; // maps domain -> UpgradeDto (with tracking config)
+    private final UpgradeService service;
+    private final UpgradeWebMapper mapper;
 
     /**
      * Creates an upgrade, which always starts as an IDEA.
@@ -110,8 +113,8 @@ public class UpgradeController {
      * @throws com.healthupgrades.common.domain.exception.ResourceNotFoundException if no such
      *         upgrade is owned by the caller (404)
      * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if the change would exceed the
-     *         concurrent-HARD limit, blanks the title or the type, chooses a retired type, or files the
-     *         upgrade under an area the caller does not own or that does not exist (BR-18) (422)
+     *         concurrent-HARD limit, chooses a retired type, or files the upgrade under an area the caller
+     *         does not own or that does not exist (BR-18) (422)
      * @throws com.healthupgrades.common.domain.exception.RetryableConflictException if the limit had to be
      *         checked while another of the caller's requests was checking it (409; resend unchanged)
      */

@@ -31,6 +31,7 @@ public class Reflection {
     @Column(nullable = false)
     private UUID upgradeId;
 
+    /** Copy of the owning upgrade's owner; a composite foreign key refuses a mismatch (V13, BR-15). */
     @Column(nullable = false)
     private UUID userId;
 
@@ -56,14 +57,22 @@ public class Reflection {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
-    /** Stamps the creation and update timestamps before the row is first inserted. */
+    /**
+     * Stamps the creation and update timestamps before the row is first inserted.
+     *
+     * <p>Reads the JVM's default zone rather than the injected clock: the one place NFR-15 allows it (ADR-020,
+     * #51).
+     */
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
 
-    /** Refreshes the update timestamp before each update. */
+    /**
+     * Refreshes the update timestamp before each update, from the JVM's default zone as
+     * {@link #onCreate} does. No path updates a reflection (BR-13), so this never fires today.
+     */
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();

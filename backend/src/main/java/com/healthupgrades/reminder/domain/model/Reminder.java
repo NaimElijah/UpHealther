@@ -12,8 +12,7 @@ import lombok.*;
  * A recurring nudge attached to an upgrade.
  *
  * <p>The aggregate answers whether it is due, rather than exposing its schedule for others to interpret:
- * the day list used to be a raw CSV column that the notification scheduler re-parsed with its own copy
- * of the format.
+ * the day filter is stored as a string that only {@link ReminderDays} reads or writes.
  */
 @Entity
 @Table(name = "reminders")
@@ -49,8 +48,9 @@ public class Reminder {
      * Creates a reminder for an upgrade.
      *
      * @param upgradeId    the upgrade it belongs to, and through which it is owned
-     * @param reminderTime the local time it fires at
-     * @param days         the days it fires on; an empty filter means every day
+     * @param reminderTime the time of day it fires at, in the server's zone
+     * @param days         the days it fires on; an empty filter means every day. Not null: use
+     *                     {@link ReminderDays#EVERY_DAY} for every day
      * @param enabled      whether it starts switched on
      * @return the new reminder
      * @throws BusinessRuleException if no time is given
@@ -68,7 +68,7 @@ public class Reminder {
     /**
      * Changes when the reminder fires, leaving its enabled state untouched.
      *
-     * @param reminderTime the new local time
+     * @param reminderTime the new time of day, in the server's zone
      * @param days         the new day filter; empty means every day
      * @throws BusinessRuleException if no time is given
      */
@@ -110,7 +110,7 @@ public class Reminder {
      * exact-instant comparison would miss almost every reminder.
      *
      * @param day  the day being checked
-     * @param time the wall-clock time being checked
+     * @param time the wall-clock time being checked, in the server's zone
      * @return true if the reminder is due right now
      */
     public boolean isDueAt(DayOfWeek day, LocalTime time) {
@@ -120,14 +120,22 @@ public class Reminder {
                 && reminderTime.getMinute() == time.getMinute();
     }
 
-    /** Stamps the creation and update timestamps before the row is first inserted. */
+    /**
+     * Stamps the creation and update timestamps before the row is first inserted.
+     *
+     * <p>Reads the JVM's default zone rather than the injected clock: the one place NFR-15 allows it (ADR-020,
+     * #51).
+     */
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
 
-    /** Refreshes the update timestamp before each update. */
+    /**
+     * Refreshes the update timestamp before each update, from the JVM's default zone as
+     * {@link #onCreate} does.
+     */
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();

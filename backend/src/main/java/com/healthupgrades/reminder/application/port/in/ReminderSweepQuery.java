@@ -1,6 +1,6 @@
 package com.healthupgrades.reminder.application.port.in;
 
-import com.healthupgrades.reminder.domain.model.Reminder; // returned domain aggregate
+import com.healthupgrades.reminder.domain.model.Reminder;
 import java.time.LocalTime;
 import java.util.List;
 

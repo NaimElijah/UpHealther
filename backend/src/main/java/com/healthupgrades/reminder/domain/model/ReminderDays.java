@@ -16,17 +16,16 @@ import java.util.stream.Stream;
 /**
  * The days of the week a reminder fires on.
  *
- * <p>Exists because the set was previously a bare comma-separated {@code String} whose format was parsed
- * independently in two other layers — the reminder application service and the notification scheduler —
- * so nothing owned the encoding and the two readers could disagree. All parsing and formatting lives
- * here now, and the storage form is an implementation detail of this type.
+ * <p>Owns the encoding of the day filter. The column holds a comma-separated string of three-letter
+ * tokens, and all parsing and formatting lives here, so two readers cannot disagree about the format; the
+ * storage form is an implementation detail of this type.
  *
  * <p>An empty set means <em>every day</em> rather than <em>no days</em>: a reminder with no day filter
  * is the common case and fires daily.
  */
 public final class ReminderDays {
 
-    /** How days are written in storage and on the wire, e.g. {@code MON}. */
+    /** Length of a day token: the first three letters of the {@code DayOfWeek} name, e.g. {@code MON}. */
     private static final int TOKEN_LENGTH = 3;
 
     private static final String SEPARATOR = ",";
@@ -51,15 +50,16 @@ public final class ReminderDays {
     /**
      * Parses day tokens supplied from outside.
      *
-     * <p>Accepts both the three-letter form and the full day name, in any case, because the boundary
-     * previously accepted whatever it was given and stored it verbatim — a full name was silently stored
-     * and then never matched.
+     * <p>Accepts both the three-letter form and the full day name, in any case, and stores the three-letter
+     * form, so a full name always matches. Blank and null entries are ignored, so a list holding only blank
+     * entries means every day.
      *
      * <p>An unrecognised token is rejected rather than skipped. Skipping is worse than failing here:
      * a filter of {@code ["Mondays","Fridays"]} would parse to nothing, and nothing means
      * <em>every day</em>, so a typo would quietly turn a twice-weekly reminder into a daily one.
      *
      * @param tokens day names; null or empty yields {@link #EVERY_DAY}
+     * @return the parsed filter; {@link #EVERY_DAY} when no day remains after blank entries are ignored
      * @throws BusinessRuleException if a token is not a recognisable day
      */
     public static ReminderDays of(Collection<String> tokens) {
@@ -77,7 +77,11 @@ public final class ReminderDays {
      *
      * <p>Lenient where {@link #of} is strict: rows written before this type existed may hold tokens it
      * cannot read, and refusing to load them would make a reminder unfetchable rather than merely
-     * mis-scheduled. Unreadable tokens are dropped.
+     * mis-scheduled. Unreadable tokens are dropped, and a value with no readable token yields
+     * {@link #EVERY_DAY}, so that reminder fires daily.
+     *
+     * @param csv the stored value; null or blank means no day filter
+     * @return the parsed filter
      */
     public static ReminderDays fromStorageValue(String csv) {
         if (csv == null || csv.isBlank()) return EVERY_DAY;

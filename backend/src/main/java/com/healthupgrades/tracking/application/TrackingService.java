@@ -42,6 +42,8 @@ import org.springframework.transaction.annotation.Transactional;
  * contexts can read tracking data as domain objects. The two reads that are not scoped by owner are not
  * this service's, because controllers hold this one: the check-in sweep's is {@link ProgressSweeps}', and
  * the configurations by upgrade id are {@code TrackingConfigReads}'.
+ *
+ * <p>The writes are recorded in the audit trail, whether they succeed or are refused (ADR-011).
  */
 @Service
 @RequiredArgsConstructor
@@ -50,12 +52,12 @@ public class TrackingService implements ProgressQuery, StreakQuery {
     /** How many days the week spans, today included. */
     static final int DAYS_IN_A_WEEK = 7;
 
-    private final TrackingConfigRepositoryPort configRepository; // outbound: tracking configs
-    private final ProgressEntryRepositoryPort progressRepository; // outbound: progress entries
+    private final TrackingConfigRepositoryPort configRepository;
+    private final ProgressEntryRepositoryPort progressRepository;
     private final UpgradeQuery upgradeQuery; // inbound port of the upgrade context (ownership checks)
-    private final StreakCalculator streakCalculator; // pure domain service
-    private final ProgressEvaluationService evaluationService; // pure domain service
-    private final DomainEventPublisher eventPublisher; // in-process domain events
+    private final StreakCalculator streakCalculator;
+    private final ProgressEvaluationService evaluationService;
+    private final DomainEventPublisher eventPublisher;
     private final AuditTrail auditTrail; // records the attempt, allowed or refused
     private final Clock clock; // single source of "today" for defaulting and streaks, and of event times
 
@@ -75,9 +77,9 @@ public class TrackingService implements ProgressQuery, StreakQuery {
      */
     @Transactional
     public SavedTrackingConfig saveConfig(UUID userId, UUID upgradeId, TrackingConfigDetails details) {
-        // Audited against the upgrade, as the action's label says (S5.C6), not the config row: changing
-        // how an upgrade is measured changes what its past progress means, and the upgrade is what
-        // somebody would be reading back. A refusal names the upgrade that was probed.
+        // Audited against the upgrade, as the action's label says (ADR-065, section 11), not the config
+        // row: changing how an upgrade is measured changes what its past progress means, and the upgrade
+        // is what somebody would be reading back. A refusal names the upgrade that was probed.
         return auditTrail.recording(AuditAction.TRACKING_CONFIGURE, userId, upgradeId, () -> {
             upgradeQuery.getOwnedUpgrade(userId, upgradeId); // ownership check (throws if not owned)
             Optional<TrackingConfig> existing = configRepository.findByUpgradeId(upgradeId);
@@ -121,13 +123,15 @@ public class TrackingService implements ProgressQuery, StreakQuery {
      * @param details   the entry; a null date means today by the injected clock
      * @return the persisted entry, carrying the server's completion verdict
      * @throws ResourceNotFoundException if the upgrade does not exist or belongs to somebody else
-     * @throws DuplicateProgressException if an entry already exists for that upgrade and date
+     * @throws DuplicateProgressException if an entry already exists for that upgrade and date; a concurrent
+     *         duplicate that passes the existence check reaches the unique constraint untranslated and
+     *         surfaces as 500 (BR-6, #146)
      */
     @Transactional
     public ProgressEntry recordProgress(UUID userId, UUID upgradeId, ProgressEntryDetails details) {
         // The duplicate-per-day refusal (BR-6) is one of the entries worth having in the trail, so the
         // recording has to bracket the check rather than follow it. Audited against the upgrade, as the
-        // action's label says (S5.C6), so a refusal names the upgrade it was attempted on.
+        // action's label says (ADR-065, section 11), so a refusal names the upgrade it was attempted on.
         return auditTrail.recording(AuditAction.PROGRESS_RECORD, userId, upgradeId, () -> {
             upgradeQuery.getOwnedUpgrade(userId, upgradeId);
             LocalDate date = details.date() != null ? details.date() : LocalDate.now(clock);
@@ -212,8 +216,6 @@ public class TrackingService implements ProgressQuery, StreakQuery {
                 streakCalculator.calculateLongestStreak(entries));
     }
 
-    // ---- ProgressQuery (inbound port) ----
-
     /** {@inheritDoc} */
     @Override
     public List<ProgressEntry> getWeekProgress(UUID userId) {
@@ -221,8 +223,6 @@ public class TrackingService implements ProgressQuery, StreakQuery {
         LocalDate firstDay = today.minusDays(DAYS_IN_A_WEEK - 1L);
         return progressRepository.findByUserIdAndDateBetween(userId, firstDay, today);
     }
-
-    // ---- StreakQuery (inbound port) ----
 
     /** {@inheritDoc} */
     @Override
