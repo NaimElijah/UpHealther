@@ -1,5 +1,5 @@
 import React from 'react';
-import Badge from '../ui/Badge';
+import Badge, { type BadgeVariant } from '../ui/Badge';
 import type { UpgradeType } from '../../types';
 
 /** @param type what kind of change the upgrade is */
@@ -14,10 +14,7 @@ interface Props {
  * including the legacy `PROTOCOL`, which is never offered in the create form but must still render on
  * a row that already carries it.
  */
-const typeMap: Record<
-  UpgradeType,
-  { variant: 'green' | 'yellow' | 'blue' | 'red' | 'gray' | 'purple'; label: string }
-> = {
+const typeMap: Record<UpgradeType, { variant: BadgeVariant; label: string }> = {
   HABIT: { variant: 'green', label: 'Habit' },
   ONE_TIME_ACTION: { variant: 'blue', label: 'One-Time' },
   PRODUCT_REPLACEMENT: { variant: 'purple', label: 'Product' },
