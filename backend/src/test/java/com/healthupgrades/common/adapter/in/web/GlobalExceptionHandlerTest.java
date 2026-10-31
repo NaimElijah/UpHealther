@@ -183,8 +183,8 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void GivenARefusedSignIn_WhenItIsHandled_ThenThe401CarriesABareBearerChallenge() {
-        // RFC 9110 section 15.5.2: every 401 names the scheme that would succeed. A sign-in presents no
-        // bearer token, so there is no invalid_token to report, only the scheme.
+        // RFC 9110 section 15.5.2: every 401 names the scheme that would succeed. A sign-in's refusal is
+        // about credentials, not a bearer token, so there is no invalid_token to report, only the scheme.
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
                 handler.handleBadCredentials(new BadCredentialsException("Bad credentials"), request);
 

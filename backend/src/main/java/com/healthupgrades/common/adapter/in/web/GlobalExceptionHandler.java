@@ -84,7 +84,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      */
     private static final String INTERNAL_ERROR_MESSAGE = "Internal server error";
 
-    /** RFC 6750 section 3: a request that presented no bearer token is told the scheme and nothing else. */
+    /** RFC 6750 section 3: a refusal that is not about a presented bearer token names the scheme alone. */
     private static final String BEARER_CHALLENGE = "Bearer";
 
     /** RFC 6750 section 3.1: the credential was presented and not accepted. */
@@ -211,8 +211,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * the password was wrong is free information for anyone enumerating accounts.
      *
      * <p>The challenge is the bare scheme, as for a request with no token: RFC 9110 section 15.5.2 puts
-     * one on every 401, and a sign-in presents no bearer token whose rejection {@code invalid_token}
-     * could describe.
+     * one on every 401, and a sign-in's refusal is about credentials, not a bearer token, so there is no
+     * {@code invalid_token} to report. That holds even when the client sent one: the SPA attaches any token
+     * it holds, and on this public route an unusable one is simply left anonymous.
      */
     @ExceptionHandler({BadCredentialsException.class, AccountStatusException.class})
     public ResponseEntity<ErrorResponse> handleBadCredentials(AuthenticationException ex, HttpServletRequest req) {
