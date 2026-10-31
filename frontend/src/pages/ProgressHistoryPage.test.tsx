@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ProgressHistoryPage from './ProgressHistoryPage';
 import type { HealthUpgrade, ProgressEntry } from '../types';
 import { upgradeAsSent } from '../test/wireFixtures';
+import { headingOutlineProblems } from '../test/headingOutline';
 
 const getWeekProgress = vi.fn();
 const getUpgrades = vi.fn();
@@ -129,5 +130,28 @@ describe('ProgressHistoryPage title', () => {
     renderPage();
 
     expect(document.title).toBe('Progress History – UpHealther');
+  });
+});
+
+/**
+ * The page's headings form an outline: one `h1`, and no level skipped below it, a failed load included.
+ * Section titles were plain text, cards were `h3`s straight under the `h1`, and a page that failed to load
+ * had no `h1` at all (WCAG 1.3.1, 2.4.6, finding X9.11).
+ */
+describe('ProgressHistoryPage headings', () => {
+  beforeEach(() => {
+    getWeekProgress.mockReset();
+    getUpgrades.mockReset();
+  });
+
+  it('GivenTheLoadFails_WhenThePageRenders_ThenTheFailureSitsUnderThePagesHeading', async () => {
+    getWeekProgress.mockRejectedValue(new Error('down'));
+    getUpgrades.mockResolvedValue([]);
+
+    renderPage();
+    await screen.findByRole('alert');
+
+    expect(screen.getByRole('heading', { level: 1 })).toBeDefined();
+    expect(headingOutlineProblems()).toEqual([]);
   });
 });

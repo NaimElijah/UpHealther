@@ -12,6 +12,7 @@ import EmptyState from '../components/ui/EmptyState';
 import { performUpgradeAction } from '../api/upgrades';
 import type { ActionTarget } from '../types';
 import PageContainer from '../components/ui/PageContainer';
+import PageHeader from '../components/ui/PageHeader';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
 import { refreshUpgradeViews } from '../lib/upgradeViews';
@@ -84,7 +85,13 @@ const DashboardPage: React.FC = () => {
         <LoadingSpinner size="lg" />
       </div>
     );
-  if (error) return <ErrorState title="Could not load your dashboard." error={toApiError(error)} />;
+  if (error)
+    return (
+      <PageContainer>
+        <PageHeader title="Dashboard" />
+        <ErrorState title="Could not load your dashboard." error={toApiError(error)} />
+      </PageContainer>
+    );
 
   // Rounded, not scaled: the API sends a percentage already (see DashboardDto.weeklyCompletionRate).
   const completionPct = Math.round(data?.weeklyCompletionRate ?? 0);
@@ -161,7 +168,12 @@ const DashboardPage: React.FC = () => {
 
       <Card header="Today's Health Moves">
         {(data?.todayUpgrades?.length ?? 0) === 0 ? (
-          <EmptyState icon="✅" title="All done for today!" description="No active upgrades to track today." />
+          <EmptyState
+            icon="✅"
+            title="All done for today!"
+            description="No active upgrades to track today."
+            level={3}
+          />
         ) : (
           <div className="space-y-3">
             {data!.todayUpgrades.map((u) => (
@@ -187,6 +199,7 @@ const DashboardPage: React.FC = () => {
             icon="🔥"
             title="No active upgrades"
             description="Activate a planned upgrade to get started."
+            level={3}
             action={<Button onClick={() => navigate('/upgrades/planned')}>View Planned</Button>}
           />
         ) : (

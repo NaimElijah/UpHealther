@@ -22,6 +22,7 @@ import {
 import Badge from '../components/ui/Badge';
 import { difficultyBadgeVariant, difficultyLabel } from '../components/upgrade/upgradeMeta';
 import PageContainer from '../components/ui/PageContainer';
+import PageHeader from '../components/ui/PageHeader';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
 import { parseLocalDate } from '../lib/localDate';
@@ -63,7 +64,12 @@ const UpgradeDetails: React.FC = () => {
   // read in the cache, so the page and its sections stay mounted, with any open dialog and its draft,
   // and the failure is shown above them.
   if (!upgrade)
-    return <ErrorState title="Could not load this upgrade." error={error ? toApiError(error) : undefined} />;
+    return (
+      <PageContainer width="narrow">
+        <PageHeader title="Upgrade" />
+        <ErrorState title="Could not load this upgrade." error={error ? toApiError(error) : undefined} />
+      </PageContainer>
+    );
 
   return (
     <PageContainer width="narrow" className="space-y-6">

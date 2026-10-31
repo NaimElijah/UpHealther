@@ -6,6 +6,7 @@ import { MemoryRouter } from 'react-router-dom';
 import UpgradeBacklogPage from './UpgradeBacklogPage';
 import type { HealthUpgrade } from '../types';
 import { upgradeAsSent } from '../test/wireFixtures';
+import { headingOutlineProblems } from '../test/headingOutline';
 
 const getUpgrades = vi.fn();
 const planUpgrade = vi.fn();
@@ -420,5 +421,35 @@ describe('UpgradeBacklogPage form errors', () => {
 
     await dialog.findByText('Pick a start date.');
     expect(document.activeElement).toBe(dialog.getByLabelText('Start date'));
+  });
+});
+
+/**
+ * The page's headings form an outline: one `h1`, and no level skipped below it, a failed load included.
+ * Section titles were plain text, cards were `h3`s straight under the `h1`, and a page that failed to load
+ * had no `h1` at all (WCAG 1.3.1, 2.4.6, finding X9.11).
+ */
+describe('UpgradeBacklogPage headings', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+  });
+
+  it('GivenThePageHasLoaded_WhenItRenders_ThenItsHeadingsFormAnOutlineWithoutGaps', async () => {
+    getUpgrades.mockResolvedValue([anIdea()]);
+
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    expect(headingOutlineProblems()).toEqual([]);
+  });
+
+  it('GivenTheLoadFails_WhenThePageRenders_ThenTheFailureSitsUnderThePagesHeading', async () => {
+    getUpgrades.mockRejectedValue(new Error('down'));
+
+    renderPage();
+    await screen.findByRole('alert');
+
+    expect(screen.getByRole('heading', { level: 1 })).toBeDefined();
+    expect(headingOutlineProblems()).toEqual([]);
   });
 });

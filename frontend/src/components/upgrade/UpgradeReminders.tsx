@@ -151,7 +151,7 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
     });
 
   return (
-    <Card header={<span>Reminders ({reminders.length})</span>}>
+    <Card header={`Reminders (${reminders.length})`}>
       {reminders.length === 0 ? (
         <p className="text-fg-subtle text-sm mb-4">No reminders yet. Add one to get notified.</p>
       ) : (

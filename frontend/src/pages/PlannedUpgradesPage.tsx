@@ -67,7 +67,13 @@ const PlannedUpgradesPage: React.FC = () => {
         <LoadingSpinner size="lg" />
       </div>
     );
-  if (error) return <ErrorState title="Could not load your upgrades." error={toApiError(error)} />;
+  if (error)
+    return (
+      <PageContainer>
+        <PageHeader title="Planned Upgrades" />
+        <ErrorState title="Could not load your upgrades." error={toApiError(error)} />
+      </PageContainer>
+    );
 
   return (
     <PageContainer>
@@ -84,28 +90,34 @@ const PlannedUpgradesPage: React.FC = () => {
           action={<Button onClick={() => navigate('/upgrades/backlog')}>Go to Backlog</Button>}
         />
       ) : (
-        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {sorted.map((u) => (
-            <div key={u.id}>
-              {u.plannedStartDate && (
-                <p className="text-xs text-fg-faint mb-1 ml-1">
-                  Starts: {parseLocalDate(u.plannedStartDate).toLocaleDateString()}
-                </p>
-              )}
-              <UpgradeCard
-                upgrade={u}
-                onStatusChange={changeStatus}
-                refusal={refusalFor(u.id)}
-                busy={statusMutation.isPending}
-                pendingTransition={
-                  statusMutation.isPending && statusMutation.variables?.id === u.id
-                    ? statusMutation.variables.status
-                    : undefined
-                }
-              />
-            </div>
-          ))}
-        </div>
+        <section aria-labelledby="planned-list-heading">
+          {/* Named for the outline only: the cards' titles are h3s, so they need a section heading above them. */}
+          <h2 id="planned-list-heading" className="sr-only">
+            Soonest first
+          </h2>
+          <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            {sorted.map((u) => (
+              <div key={u.id}>
+                {u.plannedStartDate && (
+                  <p className="text-xs text-fg-faint mb-1 ml-1">
+                    Starts: {parseLocalDate(u.plannedStartDate).toLocaleDateString()}
+                  </p>
+                )}
+                <UpgradeCard
+                  upgrade={u}
+                  onStatusChange={changeStatus}
+                  refusal={refusalFor(u.id)}
+                  busy={statusMutation.isPending}
+                  pendingTransition={
+                    statusMutation.isPending && statusMutation.variables?.id === u.id
+                      ? statusMutation.variables.status
+                      : undefined
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        </section>
       )}
     </PageContainer>
   );

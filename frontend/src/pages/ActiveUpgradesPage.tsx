@@ -87,7 +87,13 @@ const ActiveUpgradesPage: React.FC = () => {
         <LoadingSpinner size="lg" />
       </div>
     );
-  if (error) return <ErrorState title="Could not load your upgrades." error={toApiError(error)} />;
+  if (error)
+    return (
+      <PageContainer>
+        <PageHeader title="Active Upgrades" />
+        <ErrorState title="Could not load your upgrades." error={toApiError(error)} />
+      </PageContainer>
+    );
 
   return (
     <PageContainer>
@@ -101,7 +107,13 @@ const ActiveUpgradesPage: React.FC = () => {
         }
       />
       {upgrades.length > 0 ? (
-        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">{upgrades.map(cardFor)}</div>
+        <section aria-labelledby="running-upgrades-heading">
+          {/* Named for the outline only, as the visible Paused below is: the cards' titles are h3s. */}
+          <h2 id="running-upgrades-heading" className="sr-only">
+            Running
+          </h2>
+          <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">{upgrades.map(cardFor)}</div>
+        </section>
       ) : (
         paused.length === 0 && (
           <EmptyState

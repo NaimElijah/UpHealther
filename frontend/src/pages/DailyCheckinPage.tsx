@@ -83,7 +83,13 @@ const DailyCheckinPage: React.FC = () => {
         <LoadingSpinner size="lg" />
       </div>
     );
-  if (error) return <ErrorState title="Could not load your active upgrades." error={toApiError(error)} />;
+  if (error)
+    return (
+      <PageContainer width="narrow">
+        <PageHeader title="Daily Check-in" />
+        <ErrorState title="Could not load your active upgrades." error={toApiError(error)} />
+      </PageContainer>
+    );
 
   if (submitted) {
     return (

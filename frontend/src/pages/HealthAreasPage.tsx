@@ -200,7 +200,13 @@ const HealthAreasPage: React.FC = () => {
         <LoadingSpinner size="lg" />
       </div>
     );
-  if (error) return <ErrorState title="Could not load your health areas." error={toApiError(error)} />;
+  if (error)
+    return (
+      <PageContainer>
+        <PageHeader title="Health Areas" />
+        <ErrorState title="Could not load your health areas." error={toApiError(error)} />
+      </PageContainer>
+    );
 
   return (
     <PageContainer>
@@ -218,37 +224,44 @@ const HealthAreasPage: React.FC = () => {
           action={<Button onClick={openCreate}>Create Your First Area</Button>}
         />
       ) : (
-        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {areas.map((area) => (
-            <Card key={area.id}>
-              <div className="flex items-start gap-2">
-                <span
-                  className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden text-2xl leading-none"
-                  aria-hidden="true"
-                >
-                  {areaIconGlyph(area.icon)}
-                </span>
-                <div className="min-w-0">
-                  <h3 className="font-semibold text-fg break-words">{area.name}</h3>
-                  {area.upgradeCount !== undefined && (
-                    <p className="text-xs text-fg-subtle">
-                      {area.upgradeCount} upgrade{area.upgradeCount !== 1 ? 's' : ''}
-                    </p>
-                  )}
+        <section aria-labelledby="health-areas-list-heading">
+          {/* Named for the outline only: the areas' names are h3s, and a section heading above them keeps
+              them from sitting straight under the page's h1. */}
+          <h2 id="health-areas-list-heading" className="sr-only">
+            Your areas
+          </h2>
+          <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            {areas.map((area) => (
+              <Card key={area.id}>
+                <div className="flex items-start gap-2">
+                  <span
+                    className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden text-2xl leading-none"
+                    aria-hidden="true"
+                  >
+                    {areaIconGlyph(area.icon)}
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-fg break-words">{area.name}</h3>
+                    {area.upgradeCount !== undefined && (
+                      <p className="text-xs text-fg-subtle">
+                        {area.upgradeCount} upgrade{area.upgradeCount !== 1 ? 's' : ''}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-              {area.description && <p className="text-sm text-fg-subtle mt-2 break-words">{area.description}</p>}
-              <div className="flex flex-wrap gap-2 mt-4">
-                <Button size="sm" variant="secondary" onClick={() => openEdit(area)}>
-                  Edit
-                </Button>
-                <Button size="sm" variant="danger" onClick={() => openDelete(area.id)}>
-                  Delete
-                </Button>
-              </div>
-            </Card>
-          ))}
-        </div>
+                {area.description && <p className="text-sm text-fg-subtle mt-2 break-words">{area.description}</p>}
+                <div className="flex flex-wrap gap-2 mt-4">
+                  <Button size="sm" variant="secondary" onClick={() => openEdit(area)}>
+                    Edit
+                  </Button>
+                  <Button size="sm" variant="danger" onClick={() => openDelete(area.id)}>
+                    Delete
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
       )}
 
       <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="New Health Area">

@@ -78,13 +78,11 @@ const UpgradeProgress: React.FC<Props> = ({ upgradeId, read, trackingConfig }) =
   return (
     <>
       <Card
-        header={
-          <div className="flex items-center justify-between">
-            <span>Progress History ({progress.length})</span>
-            <Button size="sm" onClick={openProgress}>
-              + Log Progress
-            </Button>
-          </div>
+        header={`Progress History (${progress.length})`}
+        headerAction={
+          <Button size="sm" onClick={openProgress}>
+            + Log Progress
+          </Button>
         }
       >
         {progress.length === 0 ? (

@@ -18,6 +18,7 @@ import type {
   UpgradeStatus,
 } from '../types';
 import { healthAreaAsSent, reflectionAsSent, trackingConfigAsSent, upgradeAsSent } from '../test/wireFixtures';
+import { headingOutlineProblems } from '../test/headingOutline';
 
 const getUpgradeById = vi.fn();
 const updateUpgrade = vi.fn();
@@ -219,6 +220,25 @@ describe('UpgradeDetailsPage', () => {
   });
 
   // WCAG 2.4.2, finding X9.2: the document is titled after the upgrade the page shows.
+
+  // WCAG 1.3.1, 2.4.6, finding X9.11: the sections are headings under the upgrade's h1, and a failed load
+  // still has the page's h1 above it.
+  it('GivenTheUpgradeHasLoaded_WhenItsPageRenders_ThenItsHeadingsFormAnOutlineWithoutGaps', async () => {
+    renderPage();
+    await screen.findByRole('heading', { level: 1, name: 'Cold showers' });
+
+    expect(screen.getByRole('heading', { level: 2, name: /Reminders/ })).toBeDefined();
+    expect(headingOutlineProblems()).toEqual([]);
+  });
+
+  it('GivenTheUpgradeCannotBeLoaded_WhenItsPageRenders_ThenTheFailureSitsUnderThePagesHeading', async () => {
+    getUpgradeById.mockRejectedValue(new Error('down'));
+    renderPage();
+    await screen.findByRole('alert');
+
+    expect(screen.getByRole('heading', { level: 1 })).toBeDefined();
+    expect(headingOutlineProblems()).toEqual([]);
+  });
   it('GivenAnUpgrade_WhenItsPageLoads_ThenTheDocumentIsTitledAfterIt', async () => {
     document.title = '';
 

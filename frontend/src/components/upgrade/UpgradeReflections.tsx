@@ -62,13 +62,11 @@ const UpgradeReflections: React.FC<Props> = ({ upgradeId, read }) => {
   return (
     <>
       <Card
-        header={
-          <div className="flex items-center justify-between">
-            <span>Reflections ({reflections.length})</span>
-            <Button size="sm" variant="secondary" onClick={openReflection}>
-              + Add Reflection
-            </Button>
-          </div>
+        header={`Reflections (${reflections.length})`}
+        headerAction={
+          <Button size="sm" variant="secondary" onClick={openReflection}>
+            + Add Reflection
+          </Button>
         }
       >
         {reflections.length === 0 ? (

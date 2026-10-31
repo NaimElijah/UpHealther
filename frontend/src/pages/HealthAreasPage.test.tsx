@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import HealthAreasPage from './HealthAreasPage';
 import type { HealthArea } from '../types';
 import { healthAreaAsSent } from '../test/wireFixtures';
+import { headingOutlineProblems } from '../test/headingOutline';
 
 const getHealthAreas = vi.fn();
 const createHealthArea = vi.fn();
@@ -442,5 +443,35 @@ describe('HealthAreasPage form errors', () => {
 
     await dialog.findByText('Priority must be a whole number.');
     expect(document.activeElement).toBe(dialog.getByLabelText('Priority'));
+  });
+});
+
+/**
+ * The page's headings form an outline: one `h1`, and no level skipped below it, a failed load included.
+ * Section titles were plain text, cards were `h3`s straight under the `h1`, and a page that failed to load
+ * had no `h1` at all (WCAG 1.3.1, 2.4.6, finding X9.11).
+ */
+describe('HealthAreasPage headings', () => {
+  beforeEach(() => {
+    getHealthAreas.mockReset();
+  });
+
+  it('GivenThePageHasLoaded_WhenItRenders_ThenItsHeadingsFormAnOutlineWithoutGaps', async () => {
+    getHealthAreas.mockResolvedValue([anArea()]);
+
+    renderPage();
+    await screen.findByText('Sleep');
+
+    expect(headingOutlineProblems()).toEqual([]);
+  });
+
+  it('GivenTheLoadFails_WhenThePageRenders_ThenTheFailureSitsUnderThePagesHeading', async () => {
+    getHealthAreas.mockRejectedValue(new Error('down'));
+
+    renderPage();
+    await screen.findByRole('alert');
+
+    expect(screen.getByRole('heading', { level: 1 })).toBeDefined();
+    expect(headingOutlineProblems()).toEqual([]);
   });
 });

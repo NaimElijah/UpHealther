@@ -6,6 +6,7 @@ import { MemoryRouter } from 'react-router-dom';
 import DashboardPage from './DashboardPage';
 import type { AreaSummary, DashboardDto, HealthUpgrade } from '../types';
 import { upgradeAsSent } from '../test/wireFixtures';
+import { headingOutlineProblems } from '../test/headingOutline';
 
 const getDashboard = vi.fn();
 const performUpgradeAction = vi.fn();
@@ -289,11 +290,12 @@ describe('DashboardPage', () => {
   });
 });
 
-/** The card headed by `heading`, once the dashboard has loaded. */
+/** The card headed by `heading`, once the dashboard has loaded: the heading sits in the card's header row. */
 async function findCard(heading: string | RegExp): Promise<HTMLElement> {
-  const header = await screen.findByText(heading);
-  if (!header.parentElement) throw new Error(`No card around the heading "${String(heading)}"`);
-  return header.parentElement;
+  const header = await screen.findByRole('heading', { level: 2, name: heading });
+  const card = header.parentElement?.parentElement;
+  if (!card) throw new Error(`No card around the heading "${String(heading)}"`);
+  return card;
 }
 
 /**
@@ -488,5 +490,39 @@ describe('DashboardPage focus after a transition', () => {
     expect(document.activeElement).toBe(complete);
     expect(complete.hasAttribute('disabled')).toBe(false);
     expect(complete.getAttribute('aria-busy')).toBe('true');
+  });
+});
+
+/**
+ * The page's headings form an outline: one `h1`, and no level skipped below it, a failed load included.
+ * Section titles were plain text, cards were `h3`s straight under the `h1`, and a page that failed to load
+ * had no `h1` at all (WCAG 1.3.1, 2.4.6, finding X9.11).
+ */
+describe('DashboardPage headings', () => {
+  beforeEach(() => {
+    getDashboard.mockReset();
+  });
+
+  it('GivenThePageHasLoaded_WhenItRenders_ThenItsHeadingsFormAnOutlineWithoutGaps', async () => {
+    getDashboard.mockResolvedValue({
+      ...aDashboardWithStreaks([anActiveUpgrade('upgrade-1', 'Evening walk')], { 'upgrade-1': 3 }),
+      todayUpgrades: [anActiveUpgrade('upgrade-1', 'Evening walk')],
+      areaSummary: [{ areaId: 'area-1', areaName: 'Sleep', totalUpgrades: 1, activeCount: 1, completedCount: 0 }],
+    });
+
+    renderPage();
+    await screen.findAllByText('Evening walk');
+
+    expect(headingOutlineProblems()).toEqual([]);
+  });
+
+  it('GivenTheLoadFails_WhenThePageRenders_ThenTheFailureSitsUnderThePagesHeading', async () => {
+    getDashboard.mockRejectedValue(new Error('down'));
+
+    renderPage();
+    await screen.findByRole('alert');
+
+    expect(screen.getByRole('heading', { level: 1 })).toBeDefined();
+    expect(headingOutlineProblems()).toEqual([]);
   });
 });

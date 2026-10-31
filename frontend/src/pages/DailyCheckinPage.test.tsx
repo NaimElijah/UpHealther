@@ -7,6 +7,7 @@ import DailyCheckinPage from './DailyCheckinPage';
 import { createQueryClient } from '../lib/queryClient';
 import type { HealthUpgrade } from '../types';
 import { trackingConfigAsSent, upgradeAsSent } from '../test/wireFixtures';
+import { headingOutlineProblems } from '../test/headingOutline';
 
 const getUpgrades = vi.fn();
 const createProgress = vi.fn();
@@ -394,5 +395,35 @@ describe('DailyCheckinPage rating', () => {
 
     expect((rating.getByRole('radio', { name: 'Rate 3 of 5' }) as HTMLInputElement).checked).toBe(true);
     expect(rating.getAllByRole('radio').filter((r) => (r as HTMLInputElement).checked)).toHaveLength(1);
+  });
+});
+
+/**
+ * The page's headings form an outline: one `h1`, and no level skipped below it, a failed load included.
+ * Section titles were plain text, cards were `h3`s straight under the `h1`, and a page that failed to load
+ * had no `h1` at all (WCAG 1.3.1, 2.4.6, finding X9.11).
+ */
+describe('DailyCheckinPage headings', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+  });
+
+  it('GivenThePageHasLoaded_WhenItRenders_ThenItsHeadingsFormAnOutlineWithoutGaps', async () => {
+    getUpgrades.mockResolvedValue([anUpgrade()]);
+
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    expect(headingOutlineProblems()).toEqual([]);
+  });
+
+  it('GivenTheLoadFails_WhenThePageRenders_ThenTheFailureSitsUnderThePagesHeading', async () => {
+    getUpgrades.mockRejectedValue(new Error('down'));
+
+    renderPage();
+    await screen.findByRole('alert');
+
+    expect(screen.getByRole('heading', { level: 1 })).toBeDefined();
+    expect(headingOutlineProblems()).toEqual([]);
   });
 });

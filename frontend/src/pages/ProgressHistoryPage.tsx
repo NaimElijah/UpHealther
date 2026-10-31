@@ -52,7 +52,12 @@ const ProgressHistoryPage: React.FC = () => {
       </div>
     );
   if (pError || uError)
-    return <ErrorState title="Could not load this progress history." error={toApiError(pError ?? uError)} />;
+    return (
+      <PageContainer>
+        <PageHeader title="Progress History" />
+        <ErrorState title="Could not load this progress history." error={toApiError(pError ?? uError)} />
+      </PageContainer>
+    );
 
   return (
     <PageContainer>

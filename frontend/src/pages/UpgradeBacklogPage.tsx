@@ -150,7 +150,13 @@ const UpgradeBacklogPage: React.FC = () => {
         <LoadingSpinner size="lg" />
       </div>
     );
-  if (error) return <ErrorState title="Could not load your backlog." error={toApiError(error)} />;
+  if (error)
+    return (
+      <PageContainer>
+        <PageHeader title="Idea Backlog" />
+        <ErrorState title="Could not load your backlog." error={toApiError(error)} />
+      </PageContainer>
+    );
 
   return (
     <PageContainer>
@@ -167,11 +173,17 @@ const UpgradeBacklogPage: React.FC = () => {
           action={<Button onClick={openCreate}>Add First Idea</Button>}
         />
       ) : (
-        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {upgrades.map((u) => (
-            <UpgradeCard key={u.id} upgrade={u} onPlan={openPlan} />
-          ))}
-        </div>
+        <section aria-labelledby="backlog-list-heading">
+          {/* Named for the outline only: the cards' titles are h3s, so they need a section heading above them. */}
+          <h2 id="backlog-list-heading" className="sr-only">
+            Your ideas
+          </h2>
+          <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            {upgrades.map((u) => (
+              <UpgradeCard key={u.id} upgrade={u} onPlan={openPlan} />
+            ))}
+          </div>
+        </section>
       )}
 
       <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="New Upgrade Idea">
