@@ -38,8 +38,11 @@ public @interface NoLaterThanTomorrow {
     /** How many days past the server's today a progress entry may be dated. */
     int DAYS_AHEAD = 1;
 
-    /** Lowercase and mid-sentence in shape, like the built-in messages it is shown beside. */
-    String message() default "must not be later than tomorrow";
+    /**
+     * Lowercase and mid-sentence in shape, like the built-in messages it is shown beside. It names no
+     * "tomorrow": the SPA shows it as it is, and a user far from UTC would read that as their own.
+     */
+    String message() default "must not be more than a day ahead";
 
     Class<?>[] groups() default {};
 
