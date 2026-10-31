@@ -13,12 +13,17 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import javax.sql.DataSource;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * What the session table actually does, which no in-memory fake can tell us.
@@ -32,7 +37,7 @@ import org.springframework.context.annotation.Import;
  * lookup of a spent credential, scoped to its session. And the foreign keys: deleting an account takes
  * its sessions with it, and deleting a session takes its spent credentials, which nothing in Java does.
  */
-@DataJpaTest
+@DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(AuthSessionRepositoryAdapter.class)
 class AuthSessionPersistenceIT extends PostgresIT {
@@ -46,6 +51,16 @@ class AuthSessionPersistenceIT extends PostgresIT {
 
     @Autowired
     TestEntityManager entityManager;
+
+    @Autowired
+    DataSource dataSource;
+
+    private JdbcTemplate jdbc;
+
+    @BeforeEach
+    void setUp() {
+        jdbc = new JdbcTemplate(dataSource);
+    }
 
     @Test
     void GivenASessionWithTokenDigests_WhenItIsReadBack_ThenTheBytesAreUnchanged() {
@@ -112,7 +127,7 @@ class AuthSessionPersistenceIT extends PostgresIT {
     void GivenASessionWithInstants_WhenItIsReadBack_ThenTheyAreTheSameInstants() {
         // TIMESTAMPTZ, not TIMESTAMP. A naive column would make the value depend on the timezone of
         // whichever host happened to write it, and expiry is compared against now() on another.
-        AuthSession session = repository.save(opened(new RefreshToken(UUID.randomUUID(), "a-secret")));
+        AuthSession session = repository.insert(opened(new RefreshToken(UUID.randomUUID(), "a-secret")));
         flushAndClear();
 
         AuthSession read = repository.findById(session.getId()).orElseThrow();
@@ -125,8 +140,8 @@ class AuthSessionPersistenceIT extends PostgresIT {
     @Test
     void GivenSeveralLiveSessionsForOneAccount_WhenTheyAreAllRevoked_ThenNoneOfThemRemainUsable() {
         User owner = persistedUser();
-        AuthSession first = repository.save(openedFor(owner, "one"));
-        AuthSession second = repository.save(openedFor(owner, "two"));
+        AuthSession first = repository.insert(openedFor(owner, "one"));
+        AuthSession second = repository.insert(openedFor(owner, "two"));
         flushAndClear();
 
         assertThat(repository.revokeAllForUser(owner.getId())).isEqualTo(2);
@@ -143,8 +158,8 @@ class AuthSessionPersistenceIT extends PostgresIT {
         // it holds only while no other live session is in the shared table.
         User switchedOff = persistedUser();
         User bystander = persistedUser();
-        AuthSession ended = repository.save(openedFor(switchedOff, "one"));
-        AuthSession untouched = repository.save(openedFor(bystander, "two"));
+        AuthSession ended = repository.insert(openedFor(switchedOff, "one"));
+        AuthSession untouched = repository.insert(openedFor(bystander, "two"));
         flushAndClear();
 
         repository.revokeAllForUser(switchedOff.getId());
@@ -163,7 +178,7 @@ class AuthSessionPersistenceIT extends PostgresIT {
         User owner = persistedUser();
         AuthSession session = openedFor(owner, "one");
         session.revoke();
-        repository.save(session);
+        repository.insert(session);
         flushAndClear();
 
         assertThat(repository.revokeAllForUser(owner.getId())).isZero();
@@ -181,16 +196,16 @@ class AuthSessionPersistenceIT extends PostgresIT {
                 .createNativeQuery("DELETE FROM auth_sessions")
                 .executeUpdate();
         User owner = persistedUser();
-        AuthSession live = repository.save(openedFor(owner, "live"));
+        AuthSession live = repository.insert(openedFor(owner, "live"));
         AuthSession signedOut = openedFor(owner, "signed-out");
         signedOut.revoke();
-        repository.save(signedOut);
+        repository.insert(signedOut);
         // Each expiry on its own: unused past its idle window but inside its cap, and past its cap with
         // an idle window that has not run out, so each row is unusable for exactly one reason.
         AuthSession idledOut =
-                repository.save(openedFor(owner, "idled-out", NOW.minus(IDLE).minusSeconds(1), IDLE));
+                repository.insert(openedFor(owner, "idled-out", NOW.minus(IDLE).minusSeconds(1), IDLE));
         AuthSession capped =
-                repository.save(openedFor(owner, "capped", NOW.minus(ABSOLUTE).minusSeconds(1), ABSOLUTE.plus(IDLE)));
+                repository.insert(openedFor(owner, "capped", NOW.minus(ABSOLUTE).minusSeconds(1), ABSOLUTE.plus(IDLE)));
         flushAndClear();
 
         assertThat(repository.deleteUnusableAsOf(NOW)).isEqualTo(3);
@@ -212,7 +227,7 @@ class AuthSessionPersistenceIT extends PostgresIT {
         // The cascade is a property of the foreign key. Without it, deleting an account would leave
         // behind rows holding token digests for a person who no longer exists.
         User owner = persistedUser();
-        AuthSession session = repository.save(openedFor(owner, "one"));
+        AuthSession session = repository.insert(openedFor(owner, "one"));
         flushAndClear();
 
         entityManager
@@ -223,6 +238,47 @@ class AuthSessionPersistenceIT extends PostgresIT {
         flushAndClear();
 
         assertThat(repository.findById(session.getId())).isEmpty();
+    }
+
+    @Test
+    void GivenARevokedSession_WhenItIsSavedAndFlushed_ThenTheTableAlreadySaysSoBeforeCommit() {
+        // D2.3. A reuse is logged and audited as a revocation done, right after this call. The row is
+        // read through JDBC on the transaction's own connection, which Hibernate does not flush for, so
+        // it shows what the database holds, not what the persistence context intends to write.
+        AuthSession session = stored(opened(new RefreshToken(UUID.randomUUID(), "a-secret")));
+        AuthSession locked = repository.findForUpdate(session.getId()).orElseThrow();
+        locked.revoke();
+
+        repository.saveAndFlush(locked);
+
+        assertThat(jdbc.queryForObject(
+                        "SELECT revoked FROM auth_sessions WHERE id = ?", Boolean.class, session.getId()))
+                .isTrue();
+    }
+
+    @Test
+    void GivenANewSession_WhenItIsStored_ThenOnlyItsInsertReachesTheDatabase() {
+        // D2.12. The id is assigned and there is no @Version, so Spring Data cannot tell a new session
+        // from a stored one, and a merge reads the row before inserting it - on every sign-in.
+        AuthSession session = openedFor(persistedUser(), "a-secret");
+        Statistics statistics = statistics();
+        statistics.clear();
+
+        repository.insert(session);
+        entityManager.flush();
+
+        assertThat(statistics.getPrepareStatementCount())
+                .as("the INSERT, and no SELECT before it")
+                .isEqualTo(1);
+    }
+
+    /** Hibernate's own count of what it sent, which this class's properties switch on. */
+    private Statistics statistics() {
+        return entityManager
+                .getEntityManager()
+                .getEntityManagerFactory()
+                .unwrap(SessionFactory.class)
+                .getStatistics();
     }
 
     /** Counts the spent-credential rows of one session straight from the table, past any port. */
@@ -260,7 +316,7 @@ class AuthSessionPersistenceIT extends PostgresIT {
 
     /** Stores a newly opened session and detaches it, as a sign-in commits one before any refresh. */
     private AuthSession stored(AuthSession opened) {
-        repository.save(opened);
+        repository.insert(opened);
         flushAndClear();
         return opened;
     }

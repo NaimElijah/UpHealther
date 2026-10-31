@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 
 import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
@@ -96,6 +97,25 @@ class HealthUpgradeTest {
                 .isInstanceOf(BusinessRuleException.class);
     }
 
+    @Test
+    @SuppressWarnings("deprecation") // the retired kind is what this test is about
+    void GivenTheRetiredProtocolKind_WhenAnUpgradeIsCreated_ThenItIsRejected() {
+        // D3.7. While a new upgrade could still be PROTOCOL, the deprecation's removal condition, that no
+        // stored row carries it, could never be met.
+        assertThatThrownBy(() -> HealthUpgrade.create(
+                        UUID.randomUUID(),
+                        null,
+                        "Cold showers",
+                        null,
+                        UpgradeType.PROTOCOL,
+                        Difficulty.MEDIUM,
+                        null,
+                        null,
+                        null,
+                        null))
+                .isInstanceOf(BusinessRuleException.class);
+    }
+
     // ---- editing details ----
 
     @Test
@@ -127,6 +147,35 @@ class HealthUpgradeTest {
 
         assertThat(upgrade.getTitle()).isEqualTo("New title");
         assertThat(upgrade.getStatus()).isEqualTo(status);
+    }
+
+    @Test
+    @SuppressWarnings("deprecation") // the retired kind is what this test is about
+    void GivenAnUpgradeOfAnotherKind_WhenItsDetailsChooseTheRetiredProtocolKind_ThenTheEditIsRejected() {
+        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
+
+        assertThatThrownBy(() -> upgrade.updateDetails(null, "New title", null, UpgradeType.PROTOCOL, null, null, null))
+                .isInstanceOf(BusinessRuleException.class);
+
+        assertThat(upgrade.getType()).isEqualTo(UpgradeType.HABIT);
+        assertThat(upgrade.getTitle()).isEqualTo("Test Upgrade");
+    }
+
+    @Test
+    @SuppressWarnings("deprecation") // the retired kind is what this test is about
+    void GivenAnUpgradeAlreadyOfTheRetiredProtocolKind_WhenItsDetailsAreEditedKeepingIt_ThenTheEditLands() {
+        // The SPA sends the type back unchanged on every edit, so a row that already carries PROTOCOL
+        // must stay editable.
+        HealthUpgrade upgrade = HealthUpgrade.builder()
+                .title("Old protocol")
+                .type(UpgradeType.PROTOCOL)
+                .status(UpgradeStatus.ACTIVE)
+                .build();
+
+        upgrade.updateDetails(null, "New title", null, UpgradeType.PROTOCOL, null, null, null);
+
+        assertThat(upgrade.getTitle()).isEqualTo("New title");
+        assertThat(upgrade.getType()).isEqualTo(UpgradeType.PROTOCOL);
     }
 
     @Test
@@ -239,6 +288,89 @@ class HealthUpgradeTest {
         assertTransition(from, outcome, upgrade -> upgrade.activate(REFERENCE_DAY));
     }
 
+    @Test
+    void GivenAnActiveUpgrade_WhenItIsCompleted_ThenItRecordsTheMomentItWasCompleted() {
+        // FR-27, ADR-080: the dashboard orders completions by this, not by the last edit.
+        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
+        LocalDateTime at = REFERENCE_DAY.atTime(18, 45);
+
+        upgrade.complete(at);
+
+        assertThat(upgrade.getCompletedAt()).isEqualTo(at);
+    }
+
+    @Test
+    void GivenACompletedUpgrade_WhenItsDetailsAreEdited_ThenWhenItWasCompletedStaysPut() {
+        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
+        LocalDateTime at = REFERENCE_DAY.atTime(18, 45);
+        upgrade.complete(at);
+
+        upgrade.updateDetails(null, "Renamed long after", null, UpgradeType.HABIT, null, null, null);
+
+        assertThat(upgrade.getCompletedAt()).isEqualTo(at);
+    }
+
+    // D3.9: each of these values is what its state is defined by, so none of them may be null.
+
+    @Test
+    void GivenAnActiveUpgrade_WhenItIsCompletedWithNoMoment_ThenItIsRefusedAndStaysActive() {
+        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
+
+        assertThatThrownBy(() -> upgrade.complete(null)).isInstanceOf(BusinessRuleException.class);
+
+        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.ACTIVE);
+        assertThat(upgrade.getCompletedAt()).isNull();
+    }
+
+    @Test
+    void GivenAnIdea_WhenItIsPlannedWithNoDate_ThenItIsRefusedAndStaysAnIdea() {
+        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.IDEA);
+
+        assertThatThrownBy(() -> upgrade.plan(null)).isInstanceOf(BusinessRuleException.class);
+
+        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.IDEA);
+    }
+
+    @Test
+    void GivenAPlannedUpgrade_WhenItIsActivatedWithNoStartDate_ThenItIsRefusedAndStaysPlanned() {
+        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.PLANNED);
+
+        assertThatThrownBy(() -> upgrade.activate(null)).isInstanceOf(BusinessRuleException.class);
+
+        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.PLANNED);
+        assertThat(upgrade.getActualStartDate()).isNull();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(
+            value = UpgradeStatus.class,
+            names = {"PLANNED", "ABANDONED"})
+    void GivenAnUpgrade_WhenItIsRescheduledToNoDate_ThenItIsRefusedAndKeepsItsStateAndDate(UpgradeStatus status) {
+        // An ABANDONED upgrade would otherwise be revived to PLANNED with no planned date at all.
+        HealthUpgrade upgrade = HealthUpgrade.builder()
+                .title("Test Upgrade")
+                .type(UpgradeType.HABIT)
+                .status(status)
+                .plannedStartDate(REFERENCE_DAY)
+                .build();
+
+        assertThatThrownBy(() -> upgrade.reschedule(null)).isInstanceOf(BusinessRuleException.class);
+
+        assertThat(upgrade.getStatus()).isEqualTo(status);
+        assertThat(upgrade.getPlannedStartDate()).isEqualTo(REFERENCE_DAY);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(UpgradeStatus.class)
+    void GivenAnUpgradeInEachState_WhenAskedWhetherItCanBeActivated_ThenItAnswersAsTheTransitionWould(
+            UpgradeStatus status) {
+        // D3.2: the service decides on this whether an activation claims a HARD slot, so it must never
+        // disagree with the transition it stands in for.
+        boolean accepted = catchThrowable(() -> upgradeIn(status).activate(REFERENCE_DAY)) == null;
+
+        assertThat(upgradeIn(status).canActivate()).isEqualTo(accepted);
+    }
+
     @ParameterizedTest(name = "{0} -> {1}")
     @CsvSource({
         "IDEA, REFUSED",
@@ -263,7 +395,7 @@ class HealthUpgradeTest {
     })
     void GivenAnUpgradeInEachState_WhenItIsCompleted_ThenOnlyAnActiveOneBecomesCompleted(
             UpgradeStatus from, String outcome) {
-        assertTransition(from, outcome, HealthUpgrade::complete);
+        assertTransition(from, outcome, upgrade -> upgrade.complete(REFERENCE_DAY.atTime(9, 0)));
     }
 
     @ParameterizedTest(name = "{0} -> {1}")

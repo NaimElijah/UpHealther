@@ -2,7 +2,7 @@ package com.healthupgrades.user.domain.port.out;
 
 import com.healthupgrades.user.domain.model.Role; // the role an existence check asks about
 import com.healthupgrades.user.domain.model.User; // the aggregate this port persists
-import java.util.List;
+import com.healthupgrades.user.domain.model.UserPage; // a page of them, with the total
 import java.util.Optional;
 import java.util.UUID;
 
@@ -44,20 +44,18 @@ public interface UserRepositoryPort {
      *
      * <p>Takes a page number and a size rather than a {@code Pageable}: paging is a property of the
      * request, but {@code Pageable} is Spring Data's, and letting it through here would put a
-     * persistence type in a contract the admin context and the security adapter both depend on. The
-     * adapter turns these two numbers into one.
+     * persistence type in the domain's own port, which only the {@code user} context's application
+     * services hold, and from there into {@code AccountListQuery}, which the admin context depends on.
+     * The adapter turns these two numbers into one.
      *
      * <p>The order is fixed rather than a parameter, because an unordered page is not a page: without
      * it the database may return the same row on two pages and never return another.
      *
      * @param page zero-based page number
      * @param size how many accounts per page
-     * @return that page of accounts, oldest first
+     * @return that page of accounts, oldest first, and how many accounts exist in all
      */
-    List<User> findAll(int page, int size);
-
-    /** How many accounts exist, for a caller paging through them. */
-    long count();
+    UserPage findAll(int page, int size);
 
     /**
      * Whether any <em>enabled</em> account holds a given role.

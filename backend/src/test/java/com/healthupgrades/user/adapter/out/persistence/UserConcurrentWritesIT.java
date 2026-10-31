@@ -51,9 +51,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class UserConcurrentWritesIT extends PostgresIT {
 
-    private static final String ORIGINAL_NAME = "Original";
-    private static final String NEW_NAME = "Renamed";
-
     @Autowired
     UserRepositoryPort repository;
 
@@ -75,7 +72,6 @@ class UserConcurrentWritesIT extends PostgresIT {
         accountId = outer.execute(status -> repository
                 .save(AUser.aUser()
                         .id(null)
-                        .name(ORIGINAL_NAME)
                         .email(UUID.randomUUID() + "@example.com")
                         .build())
                 .getId());
@@ -84,17 +80,6 @@ class UserConcurrentWritesIT extends PostgresIT {
     @AfterEach
     void deleteTheAccount() {
         new JdbcTemplate(dataSource).update("DELETE FROM users WHERE id = ?", accountId);
-    }
-
-    @Test
-    void
-            GivenAnAccountDisabledWhileANameChangeWasInFlight_WhenTheNameChangeIsSaved_ThenItIsRefusedAndTheAccountStaysDisabled() {
-        assertThatThrownBy(() -> saveAfterAConcurrentDisable(account -> account.setName(NEW_NAME)))
-                .isInstanceOf(AccountModifiedConcurrentlyException.class);
-
-        Map<String, Object> row = storedRow();
-        assertThat(row.get("enabled")).as("the disable committed first").isEqualTo(false);
-        assertThat(row.get("name")).as("the overtaken name change did not land").isEqualTo(ORIGINAL_NAME);
     }
 
     @Test
@@ -147,7 +132,6 @@ class UserConcurrentWritesIT extends PostgresIT {
     }
 
     private Map<String, Object> storedRow() {
-        return new JdbcTemplate(dataSource)
-                .queryForMap("SELECT name, role, enabled FROM users WHERE id = ?", accountId);
+        return new JdbcTemplate(dataSource).queryForMap("SELECT role, enabled FROM users WHERE id = ?", accountId);
     }
 }

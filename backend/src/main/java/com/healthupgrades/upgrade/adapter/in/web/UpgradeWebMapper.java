@@ -1,9 +1,9 @@
 package com.healthupgrades.upgrade.adapter.in.web;
 
-import com.healthupgrades.upgrade.application.port.in.UpgradeDetails; // the shape use cases accept
-import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummary; // what this context asked for
-import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort; // who fills it in
-import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // domain aggregate being mapped
+import com.healthupgrades.upgrade.application.port.in.UpgradeDetails;
+import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummary;
+import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort;
+import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
@@ -51,7 +51,7 @@ public class UpgradeWebMapper {
      * one call instead of one lookup per upgrade, avoiding the N+1 pattern on list endpoints.
      */
     public List<UpgradeDto> toDtos(List<HealthUpgrade> upgrades) {
-        if (upgrades.isEmpty()) return List.of(); // nothing to map
+        if (upgrades.isEmpty()) return List.of();
         List<UUID> ids = upgrades.stream().map(HealthUpgrade::getId).toList();
         Map<UUID, UpgradeTrackingSummary> summaries = trackingSummaries.findByUpgradeIds(ids);
         return upgrades.stream()

@@ -10,9 +10,10 @@ import java.time.Instant;
  * only one of them is in this body. The other is the refresh credential, which is in a cookie the
  * client cannot read and must not try to.
  *
- * <p>{@code expiresAt} is here so the client can renew <em>before</em> a request fails rather than
- * after. Without it the only way to discover expiry is to be refused, which costs a round trip and
- * a retry on whichever request happened to be first.
+ * <p>{@code expiresAt} is here so a client can tell a token about to lapse from one that is not. The
+ * SPA uses it in one place: the notification socket renews before it connects with a token that would
+ * lapse, because a socket is authenticated once. Its HTTP requests do not; they renew after a 401, and
+ * retry the request that was refused.
  *
  * @param accessToken the short-lived bearer token, for the client to hold in memory
  * @param expiresAt   when it stops being accepted

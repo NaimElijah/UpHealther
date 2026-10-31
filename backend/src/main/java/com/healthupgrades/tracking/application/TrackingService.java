@@ -47,6 +47,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class TrackingService implements ProgressQuery, StreakQuery {
 
+    /** How many days the week spans, today included. */
+    static final int DAYS_IN_A_WEEK = 7;
+
     private final TrackingConfigRepositoryPort configRepository; // outbound: tracking configs
     private final ProgressEntryRepositoryPort progressRepository; // outbound: progress entries
     private final UpgradeQuery upgradeQuery; // inbound port of the upgrade context (ownership checks)
@@ -209,24 +212,14 @@ public class TrackingService implements ProgressQuery, StreakQuery {
                 streakCalculator.calculateLongestStreak(entries));
     }
 
-    /**
-     * The user's entries over the last seven days, today inclusive.
-     *
-     * @param userId the owner
-     * @return the week's entries, ordered as the store returns them
-     */
-    public List<ProgressEntry> getWeekProgress(UUID userId) {
-        LocalDate today = LocalDate.now(clock);
-        LocalDate weekAgo = today.minusDays(6);
-        return progressRepository.findByUserIdAndDateBetween(userId, weekAgo, today);
-    }
-
     // ---- ProgressQuery (inbound port) ----
 
     /** {@inheritDoc} */
     @Override
-    public List<ProgressEntry> findByUserIdAndDateBetween(UUID userId, LocalDate start, LocalDate end) {
-        return progressRepository.findByUserIdAndDateBetween(userId, start, end);
+    public List<ProgressEntry> getWeekProgress(UUID userId) {
+        LocalDate today = LocalDate.now(clock);
+        LocalDate firstDay = today.minusDays(DAYS_IN_A_WEEK - 1L);
+        return progressRepository.findByUserIdAndDateBetween(userId, firstDay, today);
     }
 
     // ---- StreakQuery (inbound port) ----

@@ -27,7 +27,8 @@ public interface AuditTrail {
      * Runs an operation that produces something, and records how it ended either way.
      *
      * <p>The exception is rethrown untouched, so the caller's contract and the HTTP status mapping are
-     * unchanged — this observes the operation, it does not handle it.
+     * unchanged — this observes the operation, it does not handle it. An {@link Error} is recorded too,
+     * as a failure: it is the attempt that most needs an entry (NFR-23).
      *
      * @param action      what is being attempted
      * @param actorUserId the user attempting it
@@ -40,7 +41,7 @@ public interface AuditTrail {
             T result = operation.get();
             record(AuditEvent.allowed(action, actorUserId, resourceId));
             return result;
-        } catch (RuntimeException thrown) {
+        } catch (RuntimeException | Error thrown) {
             record(AuditEvent.from(action, actorUserId, resourceId, thrown));
             throw thrown;
         }
@@ -70,7 +71,7 @@ public interface AuditTrail {
             T result = operation.get();
             record(AuditEvent.allowed(action, actorUserId, createdId.apply(result)));
             return result;
-        } catch (RuntimeException thrown) {
+        } catch (RuntimeException | Error thrown) {
             // Nothing was created, so there is genuinely no resource to name.
             record(AuditEvent.from(action, actorUserId, null, thrown));
             throw thrown;

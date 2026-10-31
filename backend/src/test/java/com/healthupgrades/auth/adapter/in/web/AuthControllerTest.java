@@ -508,9 +508,10 @@ class AuthControllerTest {
     void GivenTheCurrentCredential_WhenItIsRefreshed_ThenItAnswers200WithANewTokenAndANewCookie() throws Exception {
         SessionGrant rotated =
                 new SessionGrant(GRANT.sessionId(), GRANT.sessionId() + ".a-newer-secret", GRANT.expiresAt());
-        when(sessions.refresh(GRANT.refreshToken())).thenReturn(new RefreshOutcome.Rotated(USER_ID, rotated));
-        when(authService.continueSession(USER_ID, rotated))
-                .thenReturn(new AuthResult("a.newer.token", EXPIRES_AT, aUser(), rotated));
+        User account = aUser();
+        when(sessions.refresh(GRANT.refreshToken())).thenReturn(new RefreshOutcome.Rotated(account, rotated));
+        when(authService.continueSession(account, rotated))
+                .thenReturn(new AuthResult("a.newer.token", EXPIRES_AT, account, rotated));
 
         mockMvc.perform(post("/api/auth/refresh")
                         .cookie(PRESENTED)

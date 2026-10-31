@@ -381,7 +381,10 @@ Three things in that flow are easy to miss:
 
 `GET /api/dashboard` is the widest read. `DashboardAggregationService` calls four inbound ports —
 upgrades, progress entries, streaks, health areas — buckets the upgrades by status and date, computes
-the weekly rate, and returns a `DashboardView` of domain objects. The streaks of every active upgrade
+the weekly rate, and returns a `DashboardView` of domain objects. Its five recently completed upgrades
+are ordered by `health_upgrades.completed_at`, which `HealthUpgrade.complete` stamps from the injected
+clock and no edit moves, not by `updated_at`, which every edit does
+([ADR-080](../ADRs/ADR-080-an-upgrade-records-when-it-was-completed.md)). The streaks of every active upgrade
 come from one call, which reads all their histories in a single query. The web mapper then turns it into the
 response, reusing the upgrade context's own mapper so the embedded upgrades are identical to what
 `/api/upgrades` returns, and mapping each distinct upgrade once so a single batched query resolves
@@ -481,7 +484,7 @@ sequenceDiagram
     else enabled
         S->>DB: UPDATE — current := a new secret
         S->>DB: INSERT the spent digest, and when it was spent
-        S-->>C: Rotated
+        S-->>C: Rotated, with the account it read
         C-->>B: 200 { token } · a new Set-Cookie
     end
 
@@ -502,7 +505,10 @@ sequenceDiagram
 Four things worth noticing. The row is read **`FOR UPDATE`**, so two tabs refreshing together
 serialise instead of both rotating from the same starting state. A refresh with the current credential
 reads the account before it rotates, so an account switched off after its session opened, or deleted,
-is signed out at its next refresh at the latest, and every other session it holds with it. Every
+is signed out at its next refresh at the latest, and every other session it holds with it. That read
+is also the account the new access token is issued for: once the rotation has committed nothing reads
+the database again, so a fault there cannot answer without the new cookie and leave the browser holding
+a spent credential its next refresh would present as a replay. Every
 digest a rotation retires is kept in `auth_session_spent_tokens`, with when it was retired, for as long
 as the session lives and no longer — its rows cascade with the session. That is the only reason a
 replay is distinguishable from a guess, however many rotations old it is, and the grace window runs
@@ -547,8 +553,8 @@ one and when promoting a running one to HARD.
 
 | Job | Default schedule | What it does |
 |---|---|---|
-| `UpgradeOverdueScheduler` | daily 08:00 | Publishes `UpgradeOverdueDetected` for every active upgrade past its target date. The notification listener creates at most one notification per upgrade per target date it misses, so the repeated detection does not repeat the alert ([ADR-025](../ADRs/ADR-025-an-overdue-upgrade-is-announced-once-per-target-date.md)) |
-| `NotificationScheduler.notifyDailyCheckin` | daily 18:00 | Nudges users who have active upgrades and have logged nothing today, at most once a day. Each of its two guards — who was already nudged since midnight, and who has logged today — is one query for the whole sweep. A nudge that fails to save does not cost the users after it |
+| `UpgradeOverdueScheduler` | daily 08:00 | Publishes `UpgradeOverdueDetected` for every active upgrade past its target date, read by one query for just those; its run line counts the upgrades it announced. The notification listener creates at most one notification per upgrade per target date it misses, so the repeated detection does not repeat the alert ([ADR-025](../ADRs/ADR-025-an-overdue-upgrade-is-announced-once-per-target-date.md)) |
+| `NotificationScheduler.notifyDailyCheckin` | daily 18:00 | Nudges users who have active upgrades and have logged nothing today, at most once a day. Who has active upgrades is one grouped count, never the upgrades themselves. Each of its two guards — who was already nudged since midnight, and who has logged today — is one query for the whole sweep. A nudge that fails to save does not cost the users after it |
 | `NotificationScheduler.dispatchReminders` | every minute | Fires the reminders due this minute whose upgrade is active (BR-23). It reads only the enabled reminders set within this minute, from its first instant to its last microsecond so that 23:59 does not wrap, through the partial index `idx_reminders_enabled_time`; whether one is due on today's day is decided by the `Reminder` aggregate; the upgrades behind the due ones are loaded in one batch, and their status is read there, so a paused upgrade's reminders are silenced without being changed. A reminder that fails to save does not cost the ones after it |
 | `AuthSessionCleanupScheduler` | daily 03:30 | Deletes revoked and expired sessions. Nothing depends on it running: an expired session is already refused by its own timestamps |
 | `NotificationRetentionScheduler` | daily 03:45 | Deletes every notification created more than ninety days before the run, a thousand at a time, each batch in a transaction of its own whatever the caller's, until a batch comes back short or twenty have run. The cap gives the scheduler's one thread back to the minute-by-minute reminder sweep within seconds; a larger backlog drains over the following nights (NFR-60, [ADR-075](../ADRs/ADR-075-notifications-are-kept-for-ninety-days.md)) |
@@ -638,7 +644,10 @@ Three places are worth knowing about because they were silent and are no longer:
   token carries a user id and nothing else identifying, and that id is withheld on purpose: writing
   it down would tie the line to an account whose deletion is the thing the record was meant to end.
   A refused request, any 4xx, is DEBUG in the same way: its path, its status and its exception's type,
-  because a validation failure's message quotes every rejected value, a password included.
+  because a validation failure's message quotes every rejected value, a password included. A spent
+  refresh credential replayed past the grace window is WARN, naming the session and its owner by id,
+  and written from an `afterCommit` callback, so it never says "revoked" of a session whose revocation
+  rolled back; its `AUTH_TOKEN_REUSE` entry, a refusal, is written at once.
 - **A failed real-time push.** It runs from an `afterCommit` callback, so the notification is already
   durable; the failure is now reported at WARN, by ids and by its own and its root cause's exception
   types with no stack trace, and the caller carries on, where before one unreachable session cancelled
@@ -832,7 +841,12 @@ which is why `ApplicationContextIT` exists.
 **Business invariants live on the aggregate, not in services.** `HealthUpgrade` has no setters: status
 moves only through its transition methods, descriptive fields only through `updateDetails`, difficulty
 only through `changeDifficulty`, and instances are created through a validating factory. A service
-orchestrates — load, call the domain method, save, publish — and does not decide.
+orchestrates — load, call the domain method, save, publish — and does not decide. `User` has no setters
+either: an account is created through `User.register`, at the ordinary role and enabled, and its role
+and flag change only through `changeRole`, `disable` and `enable`; `HexagonalArchitectureTest` lets no
+production class but `User` call its builder, which could set either. `Reflection`, append-only by
+BR-13, has no setters and no factory: `ReflectionService` creates one through its builder, and nothing
+changes it afterwards.
 
 The one invariant that cannot live there is the max-concurrent-HARD rule, because it needs a count
 across the user's *other* upgrades, which one aggregate cannot see. It is a pure domain service that
@@ -873,8 +887,10 @@ moving a context's tables out of the database, or giving one a soft delete, woul
 
 **The schema refuses a value the domain has no name for.** The request records refuse a bad value at
 the boundary, and the schema refuses it again for a write that skips them. Every enum column carries a
-`CHECK` listing its enum's constants, BR-19's ratings and BR-20's numeric value carry their bounds, and
-a reminder's time and flag are `NOT NULL`. Each enum's values are therefore written twice, and
+`CHECK` listing its enum's constants, BR-19's ratings and BR-20's numeric value carry their bounds, an
+upgrade has a `completed_at` exactly when it is `COMPLETED`
+([ADR-080](../ADRs/ADR-080-an-upgrade-records-when-it-was-completed.md)), and a reminder's time and flag
+are `NOT NULL`. Each enum's values are therefore written twice, and
 `EnumColumnCheckContractTest` fails the build when a `CHECK` and its enum differ, so a new constant
 arrives with its migration. A child row's owner is its parent's for the same reason: progress entries
 and reflections reference `health_upgrades (id, user_id)`, and an upgrade references
@@ -1210,6 +1226,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the `upgrade` context restates `tracking`'s tracking type and frequency as enums of its own in `domain.model`, held equal by a contract test, rather than importing them, carrying strings, or placing them in `port.out` or `port.in` | [ADR-077](../ADRs/ADR-077-a-context-mirrors-another-contexts-closed-set-in-its-own-model.md) |
 | Why a refused STOMP frame is answered `Unauthenticated`, `Refused` or `Frame not processed`, chosen by the exception's type and never its text, why `Session ended` passes untouched, and why the SPA acts on none of the three | [ADR-078](../ADRs/ADR-078-a-refused-stomp-frame-is-answered-in-fixed-words.md) |
 | Why the STOMP interceptor allow-lists the commands a client may send rather than deny-listing the ones it must not; why a subscription must be in `auto` ack mode; why the broker serves `/queue` alone with no application destination prefix; what a `@MessageMapping`, a broadcast or another ack mode would need first | [ADR-079](../ADRs/ADR-079-the-stomp-interceptor-allow-lists-what-a-client-may-send.md) |
+| Why an upgrade records when it was completed, stamped from the injected clock and backfilled approximately from `updated_at`, rather than restating FR-27 or waiting for #263's lifecycle history | [ADR-080](../ADRs/ADR-080-an-upgrade-records-when-it-was-completed.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

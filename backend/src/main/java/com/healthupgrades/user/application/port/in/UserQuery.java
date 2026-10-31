@@ -17,10 +17,20 @@ public interface UserQuery {
     /** Looks up a user by id, the identity an access token names. */
     Optional<User> findById(UUID id);
 
-    /** Looks up a user by email (the login identity). */
+    /**
+     * Looks up a user by email (the login identity).
+     *
+     * @param email the address, already normalised with {@code EmailAddress.normalise}: it is compared
+     *              exactly with the stored one, which is always normalised, so an address as typed may
+     *              miss its own account (FR-4)
+     */
     Optional<User> findByEmail(String email);
 
-    /** Whether a user already exists with the given email. */
+    /**
+     * Whether a user already exists with the given email.
+     *
+     * @param email the address, already normalised, for the reason {@link #findByEmail} gives
+     */
     boolean existsByEmail(String email);
 
     /**

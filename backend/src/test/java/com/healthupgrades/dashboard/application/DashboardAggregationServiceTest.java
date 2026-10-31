@@ -107,7 +107,7 @@ class DashboardAggregationServiceTest {
                 upgrade(UpgradeStatus.COMPLETED));
         when(upgradeQuery.findByUser(userId)).thenReturn(upgrades);
         // 2 of 4 weekly entries completed -> 50%
-        when(progressQuery.findByUserIdAndDateBetween(any(), any(), any()))
+        when(progressQuery.getWeekProgress(any()))
                 .thenReturn(List.of(entry(true), entry(true), entry(false), entry(false)));
         when(healthAreaQuery.listByUser(userId)).thenReturn(List.of());
 
@@ -127,8 +127,7 @@ class DashboardAggregationServiceTest {
         // number is already a percentage, so anything downstream must render it as-is. Asserting 50.0
         // rather than 0.5 is what stops it being "corrected" back into a fraction.
         when(upgradeQuery.findByUser(userId)).thenReturn(List.of());
-        when(progressQuery.findByUserIdAndDateBetween(any(), any(), any()))
-                .thenReturn(List.of(entry(true), entry(false)));
+        when(progressQuery.getWeekProgress(any())).thenReturn(List.of(entry(true), entry(false)));
         when(healthAreaQuery.listByUser(userId)).thenReturn(List.of());
 
         assertThat(service.getDashboard(userId).weeklyCompletionRate()).isEqualTo(50.0);
@@ -138,7 +137,7 @@ class DashboardAggregationServiceTest {
     void GivenNothingLoggedThisWeek_WhenTheRateIsComputed_ThenItIsZeroRatherThanUndefined() {
         // Dividing by an empty week would be NaN, which serialises to invalid JSON.
         when(upgradeQuery.findByUser(userId)).thenReturn(List.of());
-        when(progressQuery.findByUserIdAndDateBetween(any(), any(), any())).thenReturn(List.of());
+        when(progressQuery.getWeekProgress(any())).thenReturn(List.of());
         when(healthAreaQuery.listByUser(userId)).thenReturn(List.of());
 
         assertThat(service.getDashboard(userId).weeklyCompletionRate()).isEqualTo(0.0);
@@ -154,21 +153,23 @@ class DashboardAggregationServiceTest {
                 .date(today)
                 .build();
         when(upgradeQuery.findByUser(userId)).thenReturn(List.of());
-        when(progressQuery.findByUserIdAndDateBetween(any(), any(), any())).thenReturn(List.of(entry(true), unscored));
+        when(progressQuery.getWeekProgress(any())).thenReturn(List.of(entry(true), unscored));
         when(healthAreaQuery.listByUser(userId)).thenReturn(List.of());
 
         assertThat(service.getDashboard(userId).weeklyCompletionRate()).isEqualTo(50.0);
     }
 
     @Test
-    void GivenTheDashboardIsBuilt_WhenTheWeekIsSelected_ThenItSpansSevenDaysEndingToday() {
+    void GivenTheDashboardIsBuilt_WhenTheWeekIsSelected_ThenItIsTheOneProgressWeekReturns() {
+        // The week has one owner: TrackingService, whose test pins that it spans seven days ending
+        // today. The dashboard asks for that week rather than computing its own bounds.
         when(upgradeQuery.findByUser(userId)).thenReturn(List.of());
-        when(progressQuery.findByUserIdAndDateBetween(any(), any(), any())).thenReturn(List.of());
+        when(progressQuery.getWeekProgress(any())).thenReturn(List.of());
         when(healthAreaQuery.listByUser(userId)).thenReturn(List.of());
 
         service.getDashboard(userId);
 
-        verify(progressQuery).findByUserIdAndDateBetween(userId, today.minusDays(6), today);
+        verify(progressQuery).getWeekProgress(userId);
     }
 
     // ---- Buckets ----
@@ -246,7 +247,20 @@ class DashboardAggregationServiceTest {
         assertThat(recent).hasSize(5);
         assertThat(recent.get(0)).as("newest first").isSameAs(newest);
         assertThat(recent).doesNotContain(oldest);
-        assertThat(recent).extracting(HealthUpgrade::getUpdatedAt).isSortedAccordingTo(reverseOrder());
+        assertThat(recent).extracting(HealthUpgrade::getCompletedAt).isSortedAccordingTo(reverseOrder());
+    }
+
+    @Test
+    void GivenAnOldCompletionEditedToday_WhenTheDashboardIsBuilt_ThenItIsOrderedByWhenItWasCompletedNotByTheEdit() {
+        // D3.1, FR-27. FR-13 lets a completed upgrade be edited, and an edit moves updatedAt: ordered by
+        // it, renaming something finished long ago put it back at the top of "recently completed".
+        HealthUpgrade completedLongAgoEditedToday = completed(today.minusDays(30), today);
+        HealthUpgrade completedYesterday = completed(today.minusDays(1), today.minusDays(1));
+        stubEmptyExceptUpgrades(List.of(completedLongAgoEditedToday, completedYesterday));
+
+        List<HealthUpgrade> recent = service.getDashboard(userId).recentlyCompleted();
+
+        assertThat(recent).containsExactly(completedYesterday, completedLongAgoEditedToday);
     }
 
     @Test
@@ -311,7 +325,7 @@ class DashboardAggregationServiceTest {
                 inArea(areaId, UpgradeStatus.COMPLETED),
                 inArea(areaId, UpgradeStatus.PLANNED));
         when(upgradeQuery.findByUser(userId)).thenReturn(upgrades);
-        when(progressQuery.findByUserIdAndDateBetween(any(), any(), any())).thenReturn(List.of());
+        when(progressQuery.getWeekProgress(any())).thenReturn(List.of());
         when(healthAreaQuery.listByUser(userId)).thenReturn(List.of(area));
 
         DashboardView.AreaSummary summary =
@@ -334,7 +348,7 @@ class DashboardAggregationServiceTest {
                 .name("Movement")
                 .build();
         when(upgradeQuery.findByUser(userId)).thenReturn(List.of());
-        when(progressQuery.findByUserIdAndDateBetween(any(), any(), any())).thenReturn(List.of());
+        when(progressQuery.getWeekProgress(any())).thenReturn(List.of());
         when(healthAreaQuery.listByUser(userId)).thenReturn(List.of(empty));
 
         DashboardView.AreaSummary summary =
@@ -359,12 +373,23 @@ class DashboardAggregationServiceTest {
                 .isZero();
     }
 
-    private HealthUpgrade completedAt(LocalDate updatedAt) {
+    private HealthUpgrade completedAt(LocalDate completedOn) {
         return HealthUpgrade.builder()
                 .id(UUID.randomUUID())
                 .userId(userId)
                 .status(UpgradeStatus.COMPLETED)
-                .updatedAt(updatedAt.atStartOfDay())
+                .completedAt(completedOn.atStartOfDay())
+                .build();
+    }
+
+    /** A completed upgrade, completed on one day and last edited on another. */
+    private HealthUpgrade completed(LocalDate completedOn, LocalDate lastEditedOn) {
+        return HealthUpgrade.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .status(UpgradeStatus.COMPLETED)
+                .completedAt(completedOn.atStartOfDay())
+                .updatedAt(lastEditedOn.atStartOfDay())
                 .build();
     }
 
@@ -392,7 +417,7 @@ class DashboardAggregationServiceTest {
     /** Stubs every port but the upgrade list, which is what most of these cases vary. */
     private void stubEmptyExceptUpgrades(List<HealthUpgrade> upgrades) {
         when(upgradeQuery.findByUser(userId)).thenReturn(upgrades);
-        when(progressQuery.findByUserIdAndDateBetween(any(), any(), any())).thenReturn(List.of());
+        when(progressQuery.getWeekProgress(any())).thenReturn(List.of());
         when(healthAreaQuery.listByUser(userId)).thenReturn(List.of());
     }
 }

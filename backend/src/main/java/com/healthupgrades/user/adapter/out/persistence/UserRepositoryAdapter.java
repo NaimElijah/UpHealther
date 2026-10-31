@@ -4,14 +4,15 @@ import com.healthupgrades.user.domain.model.AccountModifiedConcurrentlyException
 import com.healthupgrades.user.domain.model.EmailAlreadyRegisteredException;
 import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User; // domain aggregate
+import com.healthupgrades.user.domain.model.UserPage; // a page of them, with the total
 import com.healthupgrades.user.domain.port.out.UserRepositoryPort; // the port implemented here
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
@@ -96,17 +97,16 @@ class UserRepositoryAdapter implements UserRepositoryPort {
      * the caller: {@code created_at} is not unique, so it is paired with the primary key to give a
      * total order — without a tie-break, two accounts created in the same millisecond can shuffle
      * between pages and one of them is never shown.
+     *
+     * <p>The total is the one Spring Data's page already carries. It counts only when the page cannot
+     * tell it, a full page or an empty one past the first; a second count beside it would run on every
+     * full page.
      */
     @Override
-    public List<User> findAll(int page, int size) {
-        return jpa.findAll(PageRequest.of(page, size, Sort.by("createdAt").and(Sort.by("id"))))
-                .getContent();
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public long count() {
-        return jpa.count();
+    public UserPage findAll(int page, int size) {
+        Page<User> found =
+                jpa.findAll(PageRequest.of(page, size, Sort.by("createdAt").and(Sort.by("id"))));
+        return new UserPage(found.getContent(), found.getTotalElements());
     }
 
     /** {@inheritDoc} */

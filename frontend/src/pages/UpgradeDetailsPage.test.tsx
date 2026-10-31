@@ -406,6 +406,21 @@ describe('UpgradeDetailsPage', () => {
     expect((screen.getByLabelText('Date') as HTMLInputElement).value).toBe('2026-03-11');
   });
 
+  // FR-18, #342 D3.16 — the API refuses a progress date past the server's tomorrow, which is UTC's today
+  // plus a day, not the user's. In Los Angeles at 22:00 on 11 March, UTC is already on 12 March, so the
+  // last date the API accepts is 13 March, two days past the local one.
+
+  it('GivenLateEveningWestOfUtc_WhenLogProgressIsOpened_ThenTheDateCannotGoPastTheServersTomorrow', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-12T05:00:00Z'));
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+
+    expect((screen.getByLabelText('Date') as HTMLInputElement).max).toBe('2026-03-13');
+  });
+
   it('GivenLateEveningWestOfUtc_WhenAddReflectionIsOpened_ThenItOffersTheLocalDay', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-03-12T05:00:00Z'));

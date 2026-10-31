@@ -61,8 +61,9 @@ export type HealthArea = Wire.HealthAreaDto & { upgradeCount?: number };
  * The value is bound straight from the request body, so it is generated from the backend enum rather
  * than copied: a name offered here and missing there would fail to deserialize and surface as a 500.
  *
- * `PROTOCOL` is legacy: it is accepted and rendered so an existing row displays, but it is not one of
- * the documented kinds and is deliberately absent from the create form.
+ * `PROTOCOL` is retired: it is rendered so an existing row displays, and an edit that sends it back
+ * unchanged is accepted, but the API refuses it on creation or as a change to another kind (422), so it
+ * is deliberately absent from the create form.
  */
 export type UpgradeType = Wire.UpgradeType;
 

@@ -196,7 +196,8 @@ class NotificationEventListenerTest {
     @Test
     void GivenTheUpgradeNoLongerExists_WhenAnEventIsHandled_ThenTheNotificationIsStillCreatedWithAGenericTitle() {
         // Deletion publishes nothing, so an event can arrive after its upgrade is gone. The user is still
-        // owed the notification; failing to create it would lose it outright.
+        // owed the notification; failing to create it would lose it outright. D2.16: the generic phrase
+        // is not quoted, because quote marks say "the name you gave it", and it opens the sentence here.
         when(upgradeQuery.findOwned(userId, upgradeId)).thenReturn(Optional.empty());
 
         listener.onPaused(new HealthUpgradePaused(upgradeId, userId, OCCURRED_AT));
@@ -207,7 +208,39 @@ class NotificationEventListenerTest {
                         eq(NotificationType.UPGRADE_PAUSED),
                         eq(NotificationCategory.INFO),
                         any(),
-                        contains("your upgrade"),
+                        eq("Your upgrade is paused."),
+                        eq(upgradeId));
+    }
+
+    @Test
+    void GivenTheUpgradeNoLongerExists_WhenItsCompletionIsAnnounced_ThenTheGenericPhraseIsNotQuoted() {
+        when(upgradeQuery.findOwned(userId, upgradeId)).thenReturn(Optional.empty());
+
+        listener.onCompleted(new HealthUpgradeCompleted(upgradeId, userId, OCCURRED_AT));
+
+        verify(notificationService)
+                .create(
+                        eq(userId),
+                        eq(NotificationType.UPGRADE_COMPLETED),
+                        eq(NotificationCategory.SUCCESS),
+                        any(),
+                        eq("Congrats! You completed your upgrade."),
+                        eq(upgradeId));
+    }
+
+    @Test
+    void GivenATitledUpgrade_WhenItsPauseIsAnnounced_ThenTheTitleIsQuoted() {
+        givenTheUpgradeIsTitled("Stretch");
+
+        listener.onPaused(new HealthUpgradePaused(upgradeId, userId, OCCURRED_AT));
+
+        verify(notificationService)
+                .create(
+                        eq(userId),
+                        eq(NotificationType.UPGRADE_PAUSED),
+                        eq(NotificationCategory.INFO),
+                        any(),
+                        eq("\"Stretch\" is paused."),
                         eq(upgradeId));
     }
 

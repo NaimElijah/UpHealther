@@ -13,6 +13,7 @@ import com.healthupgrades.user.application.port.in.UserCommand;
 import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User;
+import com.healthupgrades.user.domain.model.UserPage;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -57,11 +58,10 @@ public class AdminUserService implements AdminUserQuery, AdminUserCommand {
     @Override
     @Transactional(readOnly = true)
     public AccountPage list(UUID actingAdminId, int page, int size) {
-        return auditTrail.recording(
-                AuditAction.ADMIN_LIST,
-                actingAdminId,
-                null,
-                () -> new AccountPage(accounts.findAll(page, size), page, size, accounts.count()));
+        return auditTrail.recording(AuditAction.ADMIN_LIST, actingAdminId, null, () -> {
+            UserPage found = accounts.findAll(page, size);
+            return new AccountPage(found.users(), page, size, found.total());
+        });
     }
 
     /**

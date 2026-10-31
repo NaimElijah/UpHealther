@@ -11,8 +11,33 @@ import java.util.UUID;
  */
 public interface AuthSessionRepositoryPort {
 
-    /** Persists a new or updated session and returns the managed instance. */
+    /**
+     * Stores a session that has never been stored, as one INSERT.
+     *
+     * <p>Apart from {@link #save} because the id is assigned rather than generated and the aggregate has
+     * no version, so a general save cannot tell a new session from a stored one and reads the row before
+     * writing it, on every sign-in and registration.
+     *
+     * <p>Must be called inside a transaction.
+     *
+     * @param session a session just opened, whose id no stored session holds
+     * @return the same instance, now managed
+     */
+    AuthSession insert(AuthSession session);
+
+    /** Persists an updated session and returns the managed instance. */
     AuthSession save(AuthSession session);
+
+    /**
+     * Persists a session and writes the change to the database before returning, rather than at commit.
+     *
+     * <p>For a change the caller is about to announce: a revocation for reuse is audited as done before
+     * the commit, and a plain {@link #save} of a session already read issues no statement until the
+     * transaction ends, so the announcement would precede the write it claims.
+     *
+     * <p>Must be called inside a transaction.
+     */
+    AuthSession saveAndFlush(AuthSession session);
 
     /** Looks up a session without locking it — for a read that decides nothing. */
     Optional<AuthSession> findById(UUID id);
@@ -58,7 +83,7 @@ public interface AuthSessionRepositoryPort {
     /**
      * Ends every session an account holds.
      *
-     * @return how many were still active
+     * @return how many had not been revoked, expired ones the cleanup has not yet removed included
      */
     int revokeAllForUser(UUID userId);
 

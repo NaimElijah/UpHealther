@@ -11,7 +11,7 @@ import java.util.UUID;
  * into the body, the third into a {@code Set-Cookie} header.
  *
  * @param token     the access token, for the client to hold in memory
- * @param expiresAt when that token stops being accepted, so the client can renew before it fails
+ * @param expiresAt when that token stops being accepted, which the web adapter returns beside it
  * @param user      the authenticated account
  * @param session   the session and its refresh credential. The raw credential is in this record and
  *                  nowhere else that outlives the request
