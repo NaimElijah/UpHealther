@@ -201,8 +201,14 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
     }
 
     /**
-     * Logs a refused frame and builds the exception that refuses it, for the caller to throw, so the
-     * compiler sees that nothing runs after a refusal.
+     * Logs a refused frame and throws the exception that refuses it. It never returns.
+     *
+     * <p>The return type exists only so a caller can write {@code throw refuse(...)}, which lets the
+     * compiler see that nothing runs after a refusal. It throws itself as well, because javac has no
+     * unused-result check: a later call site that forgot the {@code throw} would otherwise log a refusal
+     * and let the frame through.
+     *
+     * @throws StompFrameRefusedException always, with reason {@code REFUSED}
      */
     private StompFrameRefusedException refuse(String what) {
         // WARN rather than DEBUG, and the opposite call from a rejected CONNECT: a stale token is
@@ -210,6 +216,6 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
         // is deliberately left out of the line - it is text the client chose, and writing it down would
         // copy whatever it contains, newlines included, into the log.
         log.warn("Refused {}", what);
-        return new StompFrameRefusedException(Reason.REFUSED, "Refused " + what);
+        throw new StompFrameRefusedException(Reason.REFUSED, "Refused " + what);
     }
 }
