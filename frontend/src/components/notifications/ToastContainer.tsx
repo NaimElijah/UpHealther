@@ -100,7 +100,12 @@ const Toast: React.FC<ToastProps> = ({ toast, onDismiss }) => {
 };
 
 /**
- * Transient real-time toasts, stacked top-right above everything, an open dialog included.
+ * Transient real-time toasts, stacked bottom-right above everything, an open dialog included.
+ *
+ * Bottom rather than top, so a toast hides no control that keeps its place (WCAG 2.4.11). At the top it
+ * covered the theme switch, the bell and Logout for as long as it stayed, and just below the header it
+ * covered the bell's open panel instead. Measured in Chromium and Firefox at 1280px and 320px; jsdom
+ * has no layout to see it.
  *
  * Reads the toasts and their dismissal from the notification context, and is mounted once beside the
  * routes rather than by any page, so a toast survives navigation. The polite live region they are
@@ -125,7 +130,7 @@ const ToastContainer: React.FC = () => {
       role="status"
       aria-live="polite"
       aria-atomic="false"
-      className="fixed top-4 right-4 z-[60] flex flex-col gap-2 w-80 max-w-[calc(100vw-2rem)]"
+      className="fixed bottom-4 right-4 z-[60] flex flex-col gap-2 w-80 max-w-[calc(100vw-2rem)]"
     >
       {toasts.map((t) => (
         <Toast key={t.id} toast={t} onDismiss={dismissToast} />
