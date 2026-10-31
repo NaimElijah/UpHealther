@@ -17,6 +17,9 @@ import { toApiError, toFormMessage } from '../api/apiError';
 import { isFourDigitYearDate, todayLocal } from '../lib/localDate';
 import { refreshUpgradeViews } from '../lib/upgradeViews';
 
+/** The create form's starting values, and what it returns to once an idea is added. */
+const EMPTY_IDEA: CreateUpgradeRequest = { title: '', type: 'HABIT', difficulty: 'MEDIUM' };
+
 /**
  * The idea backlog: every upgrade still in `IDEA`, and the form that creates new ones.
  *
@@ -27,7 +30,7 @@ import { refreshUpgradeViews } from '../lib/upgradeViews';
 const UpgradeBacklogPage: React.FC = () => {
   const qc = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
-  const [form, setForm] = useState<CreateUpgradeRequest>({ title: '', type: 'HABIT', difficulty: 'MEDIUM' });
+  const [form, setForm] = useState<CreateUpgradeRequest>(EMPTY_IDEA);
   const [formError, setFormError] = useState('');
   const [targetEndError, setTargetEndError] = useState('');
   const [planning, setPlanning] = useState<HealthUpgrade | null>(null);
@@ -46,7 +49,7 @@ const UpgradeBacklogPage: React.FC = () => {
     onSuccess: () => {
       refreshUpgradeViews(qc);
       setIsOpen(false);
-      setForm({ title: '', type: 'HABIT', difficulty: 'MEDIUM' });
+      setForm(EMPTY_IDEA);
     },
   });
 
