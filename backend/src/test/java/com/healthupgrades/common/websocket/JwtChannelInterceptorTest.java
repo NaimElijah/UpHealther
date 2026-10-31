@@ -324,6 +324,23 @@ class JwtChannelInterceptorTest {
                 .isInstanceOfSatisfying(StompFrameRefusedException.class, refusedAs(Reason.REFUSED));
     }
 
+    /**
+     * ADR-079's decision itself: every command but the five the allow-list names is refused. The two
+     * tests above say why each group is refused; this one is the complement of the allow-list, so a
+     * deny-list rewrite that missed a command, or a command a later Spring adds, fails here.
+     */
+    @ParameterizedTest
+    @EnumSource(
+            value = StompCommand.class,
+            mode = EnumSource.Mode.EXCLUDE,
+            names = {"CONNECT", "STOMP", "SUBSCRIBE", "UNSUBSCRIBE", "DISCONNECT"})
+    void GivenAnyCommandOutsideTheAllowList_WhenItArrives_ThenItIsRefused(StompCommand command) {
+        Message<?> frame = frameFrom(command, null, session());
+
+        assertThatThrownBy(() -> interceptor.preSend(frame, channel))
+                .isInstanceOfSatisfying(StompFrameRefusedException.class, refusedAs(Reason.REFUSED));
+    }
+
     @Test
     void GivenACommandOutsideTheAllowList_WhenItIsRefused_ThenTheRefusalNamesTheCommandInAGrammaticalSentence() {
         // The same words go into the WARN line. "a ACK frame" or "a ERROR frame" reads as a typo in the
