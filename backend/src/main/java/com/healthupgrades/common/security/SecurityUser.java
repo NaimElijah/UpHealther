@@ -11,7 +11,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 /**
  * Spring Security principal that carries the essential identity of an authenticated user (id, email,
- * password hash).
+ * password hash) and what authorisation reads off it (the account's role and whether it is enabled).
  *
  * <p>This is the wrapper that keeps Spring Security out of the domain: the {@code User} entity is a plain
  * JPA aggregate, and this adapter type is what implements {@link UserDetails} and is exposed to
@@ -32,11 +32,12 @@ public class SecurityUser implements UserDetails, CredentialsContainer {
     private final boolean enabled; // false once an administrator has switched the account off
 
     /**
-     * Creates a principal from the identity and authorisation fields of an account.
+     * Creates a principal from the identity and authorisation fields of an account. Private, so
+     * {@link #from} stays the one way a principal is built.
      *
      * @param roleName the role's name without the {@code ROLE_} prefix, as {@code hasRole} matches it
      */
-    public SecurityUser(UUID id, String email, String passwordHash, String roleName, boolean enabled) {
+    private SecurityUser(UUID id, String email, String passwordHash, String roleName, boolean enabled) {
         this.id = id;
         this.email = email;
         this.passwordHash = passwordHash;
@@ -49,7 +50,7 @@ public class SecurityUser implements UserDetails, CredentialsContainer {
      * is filled in everywhere at once.
      *
      * @param account the account to authenticate as
-     * @return a principal carrying the account's id, email and password hash
+     * @return a principal carrying the account's id, email, password hash, role and enabled flag
      */
     public static SecurityUser from(AccountCredentials account) {
         return new SecurityUser(
