@@ -474,6 +474,31 @@ describe('DashboardPage focus after a transition', () => {
     },
   );
 
+  // Review finding 2 on #407: the hand-on moved focus without asking where it was, so a user who had
+  // moved on while the change was in flight was thrown back to the top of the page.
+  it('GivenFocusMovedWhileInFlight_WhenTheChangeLands_ThenFocusStaysWhereTheUserPutIt', async () => {
+    const first = anActiveUpgrade('upgrade-1', 'First walk');
+    const second = anActiveUpgrade('upgrade-2', 'Second walk');
+    getDashboard
+      .mockResolvedValueOnce({ ...aDashboard([]), activeUpgrades: [first, second] })
+      .mockResolvedValue({ ...aDashboard([]), activeUpgrades: [second] });
+    let land: (done: HealthUpgrade) => void = () => {};
+    performUpgradeAction.mockReturnValue(new Promise<HealthUpgrade>((resolve) => (land = resolve)));
+    renderPage();
+    const complete = await screen.findByRole('button', { name: 'Complete First walk' });
+    complete.focus();
+    fireEvent.click(complete);
+    await settled();
+
+    const secondWalk = screen.getByRole('link', { name: 'Second walk' });
+    secondWalk.focus();
+    await act(async () => land(first));
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Complete First walk' })).toBeNull());
+    await settled();
+    expect(document.activeElement).toBe(secondWalk);
+  });
+
   it('GivenAChangeInFlight_WhenItsButtonHasFocus_ThenTheButtonKeepsItAndSaysItIsBusy', async () => {
     getDashboard.mockResolvedValue({
       ...aDashboard([]),

@@ -7,7 +7,7 @@ architecture and the ADRs, and has the commands.
 
 `src/` holds `api/` (the axios client, the token store, the error decoder, the notification socket,
 and one module per backend area), `components/` (`ui/` primitives, plus `layout/`, `notifications/`,
-`theme/`, `upgrade/`), `contexts/` and `hooks/`, `lib/` (query client, view refresh, local dates),
+`theme/`, `upgrade/`), `contexts/` and `hooks/`, `lib/` (query client, view refresh, local dates, focus),
 `pages/`, `router/`, `types/`, and `test/` (shared test helpers, and guards that span files, like
 `bootScriptCsp.test.ts`, and `nginxConf.test.ts`, which holds `nginx.conf`'s proxy and header rules).
 
@@ -197,7 +197,9 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
     ignores a caller's `disabled` while `loading`. Disabling the very button the user pressed drops its
     focus in a browser, which jsdom never shows, so the pressed one gets `loading` instead.
   - **An action that removes the control that had focus hands focus on** with `useFocusWhenReady`,
-    usually to `findPageHeading()`.
+    usually to `findPageHeading()`, and passes it the pressed control: focus moves only while nothing,
+    `<body>` or that control holds it (`lib/focusIsFree.ts`), so a user who moved on while the request
+    was in flight keeps their place.
   - **What only navigates is a `ButtonLink`**, not a `Button` that calls `navigate`. A repeated per-item
     button names its item after the word it shows (``aria-label={`Pause ${title}`}``), and a decorative
     emoji is `aria-hidden`.

@@ -52,7 +52,7 @@ const NotificationsPage: React.FC = () => {
    */
   const actThenRefocus = (action: () => void) => () => {
     const pressed = document.activeElement;
-    focusWhenReady(() => (pressed?.isConnected ? undefined : findPageHeading()));
+    focusWhenReady(() => (pressed?.isConnected ? undefined : findPageHeading()), pressed);
     action();
   };
 

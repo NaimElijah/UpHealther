@@ -111,7 +111,7 @@ domain layers reach the kernel in `common.domain` and nowhere else ([ADR-064](..
 | `src/pages/` | One component per route that renders a page |
 | `src/components/` | `ui/` primitives — including `PageContainer`, which decides how wide a page may grow, `Modal`, which every dialog is, `ErrorState`, which shows a failure with its trace id, `PageHeading`, every page's one `h1`, and `ButtonLink`, a link that looks like `Button` — `upgrade/` cards, badges, the fields that describe an upgrade, the actions an upgrade's page offers on it, and the sections of that page (its streak, tracking configuration, reminders, progress and reflections), each rendering the read the page hands it and owning its writes and dialog where it has them, `notifications/` bell, dropdown, items and toasts, `layout/` navbar, sidebar and the phone menu, the last two rendering one shared list of links (`navItems.ts`), `theme/` the light, dark and system switch, and `ErrorBoundary.tsx`, which replaces a tree that threw while rendering with a page offering a reload |
 | `src/types/` | `api.generated.ts`, the request and response shapes and enums rendered from the backend's records, and `index.ts`, which gives them the frontend's names and adds, as intersections, what no record declares: a health area's client-side `upgradeCount`, and the `upgradeId` that `createProgress` moves from a new entry into the URL (see "The frontend's wire types are generated from the backend's records") |
-| `src/lib/` | Helpers shared by several pages. `localDate.ts` turns the API's zone-less `YYYY-MM-DD` dates into the user's own day and back, because JavaScript's shortcuts for both go through UTC; `queryClient.ts` builds the one server-state cache and its thirty-second staleness window, and registers it to be emptied when a session ends; `upgradeViews.ts` marks every cached view of upgrades out of date after a write that changed one ([ADR-029](../ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)) |
+| `src/lib/` | Helpers shared by several pages. `localDate.ts` turns the API's zone-less `YYYY-MM-DD` dates into the user's own day and back, because JavaScript's shortcuts for both go through UTC; `queryClient.ts` builds the one server-state cache and its thirty-second staleness window, and registers it to be emptied when a session ends; `upgradeViews.ts` marks every cached view of upgrades out of date after a write that changed one ([ADR-029](../ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)); `focusIsFree.ts` says whether focus can be moved without taking it from where the user put it |
 
 **The folders are layered, and lint enforces it.** Each imports only from those below it: `types` ←
 `api` ← `lib` ← `contexts` + `hooks` ← `components` ← `pages` ← `router` ← `App.tsx` and `main.tsx`.
@@ -1008,8 +1008,10 @@ reachable by pointer only, because Tab stays inside the dialog. See
   and ignores a caller's `disabled` meanwhile, because a disabled button gives up focus.
 - **An action that removes the control that had focus hands focus on**, through
   `hooks/useFocusWhenReady`: to the page's heading when a card or a header button goes, to the reminder
-  form when a reminder row goes, to the other paging button at either end of the account list. The
-  bell hands focus back to itself when its panel closes or an action in it removes its own button.
+  form when a reminder row goes, to the other paging button at either end of the account list. It moves
+  focus only while nothing, `<body>` or the pressed control holds it (`lib/focusIsFree`), so focus the
+  user moved while the request was in flight stays where they put it. The bell hands focus back to
+  itself when its panel closes or an action in it removes its own button.
 - **A toast waits while it is held.** `ToastContainer` times each toast out after ten seconds counted
   only while the pointer is off it and focus is outside it, and announces it through a polite live
   region mounted before any toast arrives.

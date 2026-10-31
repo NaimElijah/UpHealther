@@ -61,7 +61,7 @@ const ActiveUpgradesPage: React.FC = () => {
     const pressed = document.activeElement;
     statusMutation.mutate(
       { id, status },
-      { onSuccess: () => focusWhenReady(() => (pressed?.isConnected ? undefined : findPageHeading())) },
+      { onSuccess: () => focusWhenReady(() => (pressed?.isConnected ? undefined : findPageHeading()), pressed) },
     );
   };
 

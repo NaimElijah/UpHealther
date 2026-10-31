@@ -70,10 +70,8 @@ const AdminUsersPage: React.FC = () => {
    */
   const turnTo = (target: number) => {
     setPage(target);
-    focusWhenReady(() => {
-      const [pressed, other] = target > page ? [nextButton, previousButton] : [previousButton, nextButton];
-      return pressed.current?.disabled ? other.current : null;
-    });
+    const [pressed, other] = target > page ? [nextButton, previousButton] : [previousButton, nextButton];
+    focusWhenReady(() => (pressed.current?.disabled ? other.current : null), pressed.current);
   };
 
   /**

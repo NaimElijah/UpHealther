@@ -194,7 +194,7 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
                         if (editingReminderId === r.id) stopEditingReminder();
                         // The row goes, and this button with it, so focus goes to the form below, the
                         // stable control of this section, rather than falling to <body>.
-                        focusWhenReady(() => (pressed.isConnected ? undefined : timeField.current));
+                        focusWhenReady(() => (pressed.isConnected ? undefined : timeField.current), pressed);
                       },
                     });
                   }}

@@ -65,7 +65,7 @@ const DashboardPage: React.FC = () => {
     const pressed = document.activeElement;
     statusMutation.mutate(
       { id, status, section },
-      { onSuccess: () => focusWhenReady(() => (pressed?.isConnected ? undefined : findPageHeading())) },
+      { onSuccess: () => focusWhenReady(() => (pressed?.isConnected ? undefined : findPageHeading()), pressed) },
     );
   };
   const refusalFor = (id: string, section: CardSection) =>

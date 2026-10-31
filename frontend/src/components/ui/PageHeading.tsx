@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { claimHeadingFocus, PAGE_HEADING_ATTRIBUTE } from './pageHeadingFocus';
+import { focusIsFree } from '../../lib/focusIsFree';
 
 /**
  * @param children  the heading's text
  * @param className its styling; the heading carries no look of its own
  * @param takeFocus focus it as it mounts, for a view that replaces the control the user had just used,
- *                  such as the check-in's completion replacing its form
+ *                  such as the check-in's completion replacing its form; only if nothing, or `<body>`,
+ *                  has focus then, so focus the user moved meanwhile stays theirs
  */
 interface PageHeadingProps {
   children: React.ReactNode;
@@ -28,8 +30,10 @@ const PageHeading: React.FC<PageHeadingProps> = ({ children, className = '', tak
 
   useEffect(() => {
     if (!ref.current) return;
-    if (focusOnArrival) ref.current.focus();
-    else claimHeadingFocus(ref.current);
+    // The control it hands on from is gone by now, so only nothing or <body> can hold focus it may take.
+    if (focusOnArrival) {
+      if (focusIsFree()) ref.current.focus();
+    } else claimHeadingFocus(ref.current);
   }, [focusOnArrival]);
 
   return (
