@@ -229,8 +229,8 @@ function renderProvider(
  * must deactivate it — a dropped cleanup leaks a connection per mount, and `React.StrictMode`
  * double-invokes effects, so the leak starts in development rather than in production. A frame that
  * will not parse must be dropped rather than thrown into the client, because an exception inside a
- * STOMP callback tears down the subscription and costs every *later* notification too. And an arrival must be de-duplicated
- * by id against the REST fetch, since a notification can genuinely come both ways.
+ * STOMP callback tears down the subscription and costs every *later* notification too. And an arrival
+ * must be de-duplicated by id against the REST fetch, since a notification can genuinely come both ways.
  */
 describe('NotificationProvider', () => {
   beforeEach(() => {
