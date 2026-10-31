@@ -382,6 +382,9 @@ describe('AdminUsersPage focus', () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Previous' })));
   });
 
+  // This passes without the fix it came with: Disable and Enable are one `Button` at one place in
+  // the row, so React keeps the node, and the focus on it, when the label changes. It guards a change
+  // that would remount the button, a key or a wrapper, and so drop focus (review finding 31 on #407).
   it('GivenAnAccountIsDisabled_WhenTheConfirmationCloses_ThenFocusIsOnItsEnable', async () => {
     let enabled = true;
     listAccounts.mockImplementation(() => Promise.resolve(page([MY_ACCOUNT, { ...SOMEBODY, enabled }], 2)));
@@ -416,6 +419,9 @@ describe('AdminUsersPage focus', () => {
     expect(document.activeElement).toBe(enable);
   });
 
+  // This passes without the fix it came with: Disable and Enable are one `Button` at one place in
+  // the row, so React keeps the node, and the focus on it, when the label changes. It guards a change
+  // that would remount the button, a key or a wrapper, and so drop focus (review finding 31 on #407).
   it('GivenADisabledAccount_WhenItIsEnabled_ThenFocusIsOnItsDisable', async () => {
     let enabled = false;
     listAccounts.mockImplementation(() => Promise.resolve(page([MY_ACCOUNT, { ...SOMEBODY, enabled }], 2)));
