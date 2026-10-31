@@ -64,7 +64,8 @@ interface Props {
 /**
  * What can be done to an upgrade as a whole from its own page (#89): edit its descriptive fields, in any
  * state (FR-13), abandon it from any state but COMPLETED and ABANDONED, and reschedule it once it is past being an
- * idea (FR-12). Rescheduling an abandoned upgrade is also the way back from abandoning it (BR-2).
+ * idea, unless it is COMPLETED (FR-12, BR-3). Rescheduling an abandoned upgrade is also the way back from
+ * abandoning it (BR-2).
  * And delete it, in any state, with everything recorded against it (FR-14).
  *
  * Abandoning and deleting ask first. An abandoned upgrade leaves every list, so a slip would look as
