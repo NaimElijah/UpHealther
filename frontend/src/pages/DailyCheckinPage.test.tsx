@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -310,5 +310,53 @@ describe('DailyCheckinPage completion', () => {
 
     const heading = await screen.findByRole('heading', { level: 1, name: 'Check-in Complete!' });
     await waitFor(() => expect(document.activeElement).toBe(heading));
+  });
+});
+
+/**
+ * Every input on the check-in is named, inside a group named by its upgrade, and the unit is read with
+ * the amount. The amount, the note and the optional note had only a placeholder, which is gone once typed
+ * into, and nothing said which upgrade a field belonged to (WCAG 1.3.1, 3.3.2, 4.1.2, finding X9.6).
+ */
+describe('DailyCheckinPage field names', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    getUpgrades.mockResolvedValue([
+      anUpgrade({ id: 'a', title: 'Evening walk' }),
+      anUpgrade({
+        id: 'b',
+        title: 'Drink water',
+        trackingConfig: trackingConfigAsSent({ upgradeId: 'b', trackingType: 'NUMERIC', targetUnit: 'glasses' }),
+      }),
+      anUpgrade({
+        id: 'd',
+        title: 'Journal',
+        trackingConfig: trackingConfigAsSent({ upgradeId: 'd', trackingType: 'TEXT' }),
+      }),
+    ]);
+  });
+
+  it('GivenAYesOrNoUpgrade_WhenTheCheckinRenders_ThenItsFieldsAreNamedInsideItsGroup', async () => {
+    renderPage();
+
+    const group = within(await screen.findByRole('group', { name: 'Evening walk' }));
+    expect(group.getByRole('checkbox', { name: 'Completed today' })).toBeDefined();
+    expect(group.getByRole('textbox', { name: 'Optional note' })).toBeDefined();
+  });
+
+  it('GivenANumericUpgrade_WhenTheCheckinRenders_ThenItsAmountIsNamedAndDescribedByItsUnit', async () => {
+    renderPage();
+
+    const group = within(await screen.findByRole('group', { name: 'Drink water' }));
+    const amount = group.getByRole('spinbutton', { name: 'Amount' });
+    expect(document.getElementById(amount.getAttribute('aria-describedby') ?? '')?.textContent).toBe('glasses');
+    expect(group.getByRole('textbox', { name: 'Optional note' })).toBeDefined();
+  });
+
+  it('GivenATextUpgrade_WhenTheCheckinRenders_ThenItsNoteIsNamed', async () => {
+    renderPage();
+
+    const group = within(await screen.findByRole('group', { name: 'Journal' }));
+    expect(group.getByRole('textbox', { name: 'Note' })).toBeDefined();
   });
 });

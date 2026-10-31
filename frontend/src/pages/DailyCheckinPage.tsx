@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getUpgrades } from '../api/upgrades';
 import { createProgress } from '../api/progress';
@@ -45,6 +45,9 @@ const DailyCheckinPage: React.FC = () => {
   } = useQuery({ queryKey: ['upgrades', 'ACTIVE'], queryFn: () => getUpgrades('ACTIVE') });
   const [progressMap, setProgressMap] = useState<ProgressMap>({});
   const [submitted, setSubmitted] = useState(false);
+  // One prefix for the page; each upgrade's fields add its id, so every label and unit names its own field.
+  const fieldPrefix = useId();
+  const fieldId = (upgradeId: string, part: string) => `${fieldPrefix}-${upgradeId}-${part}`;
 
   const submitAll = useMutation({
     mutationFn: async (entries: CreateProgressRequest[]) => {
@@ -112,70 +115,97 @@ const DailyCheckinPage: React.FC = () => {
         />
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Each upgrade's fields are a group named by its title, so a field read on its own still says which
+              upgrade it belongs to (WCAG 1.3.1). */}
           {upgrades.map((u: HealthUpgrade) => (
-            <Card key={u.id} header={u.title}>
-              {u.description && <p className="text-sm text-fg-subtle mb-3">{u.description}</p>}
+            <div key={u.id} role="group" aria-labelledby={fieldId(u.id, 'title')}>
+              <Card header={<span id={fieldId(u.id, 'title')}>{u.title}</span>}>
+                {u.description && <p className="text-sm text-fg-subtle mb-3">{u.description}</p>}
 
-              {trackingType(u) === 'BOOLEAN' && (
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="w-5 h-5 rounded"
-                    checked={progressMap[u.id]?.completed ?? false}
-                    onChange={(e) => updateProgress(u.id, { completed: e.target.checked })}
-                  />
-                  <span className="text-sm font-medium">Completed today</span>
-                </label>
-              )}
+                {trackingType(u) === 'BOOLEAN' && (
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="w-5 h-5 rounded"
+                      checked={progressMap[u.id]?.completed ?? false}
+                      onChange={(e) => updateProgress(u.id, { completed: e.target.checked })}
+                    />
+                    <span className="text-sm font-medium">Completed today</span>
+                  </label>
+                )}
 
-              {trackingType(u) === 'NUMERIC' && (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    className="rounded-lg border border-line-strong px-3 py-2 text-sm w-28 focus:outline-none focus:ring-2"
-                    placeholder="0"
-                    value={progressMap[u.id]?.numericValue ?? ''}
-                    onChange={(e) => updateProgress(u.id, { numericValue: numOrUndef(e.target.value) })}
-                  />
-                  <span className="text-sm text-fg-subtle">{u.trackingConfig?.targetUnit ?? ''}</span>
-                </div>
-              )}
+                {trackingType(u) === 'NUMERIC' && (
+                  <div className="flex flex-col gap-1">
+                    <label htmlFor={fieldId(u.id, 'amount')} className="text-sm font-medium text-fg-muted">
+                      Amount
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        id={fieldId(u.id, 'amount')}
+                        type="number"
+                        aria-describedby={u.trackingConfig?.targetUnit ? fieldId(u.id, 'unit') : undefined}
+                        className="rounded-lg border border-line-strong px-3 py-2 text-sm w-28 focus:outline-none focus:ring-2"
+                        placeholder="0"
+                        value={progressMap[u.id]?.numericValue ?? ''}
+                        onChange={(e) => updateProgress(u.id, { numericValue: numOrUndef(e.target.value) })}
+                      />
+                      {u.trackingConfig?.targetUnit && (
+                        <span id={fieldId(u.id, 'unit')} className="text-sm text-fg-subtle">
+                          {u.trackingConfig.targetUnit}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
 
-              {trackingType(u) === 'RATING' && (
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => updateProgress(u.id, { rating: n })}
-                      className={`w-10 h-10 rounded-full text-sm font-semibold transition-colors ${progressMap[u.id]?.rating === n ? 'bg-brand text-fg-inverted' : 'bg-muted text-fg-muted hover:bg-muted-strong'}`}
-                    >
-                      {n}
-                    </button>
-                  ))}
-                </div>
-              )}
+                {trackingType(u) === 'RATING' && (
+                  <div className="flex gap-2">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => updateProgress(u.id, { rating: n })}
+                        className={`w-10 h-10 rounded-full text-sm font-semibold transition-colors ${progressMap[u.id]?.rating === n ? 'bg-brand text-fg-inverted' : 'bg-muted text-fg-muted hover:bg-muted-strong'}`}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
-              {trackingType(u) === 'TEXT' && (
-                <textarea
-                  className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2"
-                  rows={2}
-                  placeholder="Add your note..."
-                  value={progressMap[u.id]?.note ?? ''}
-                  onChange={(e) => updateProgress(u.id, { note: e.target.value })}
-                />
-              )}
+                {trackingType(u) === 'TEXT' && (
+                  <div className="flex flex-col gap-1">
+                    <label htmlFor={fieldId(u.id, 'note')} className="text-sm font-medium text-fg-muted">
+                      Note
+                    </label>
+                    <textarea
+                      id={fieldId(u.id, 'note')}
+                      className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                      rows={2}
+                      placeholder="Add your note..."
+                      value={progressMap[u.id]?.note ?? ''}
+                      onChange={(e) => updateProgress(u.id, { note: e.target.value })}
+                    />
+                  </div>
+                )}
 
-              {trackingType(u) !== 'TEXT' && (
-                <input
-                  type="text"
-                  className="mt-3 w-full rounded-lg border border-line px-3 py-2 text-sm text-fg-subtle focus:outline-none focus:ring-1"
-                  placeholder="Optional note..."
-                  value={progressMap[u.id]?.note ?? ''}
-                  onChange={(e) => updateProgress(u.id, { note: e.target.value })}
-                />
-              )}
-            </Card>
+                {trackingType(u) !== 'TEXT' && (
+                  <div className="mt-3 flex flex-col gap-1">
+                    <label htmlFor={fieldId(u.id, 'note')} className="text-sm font-medium text-fg-muted">
+                      Optional note
+                    </label>
+                    <input
+                      id={fieldId(u.id, 'note')}
+                      type="text"
+                      className="w-full rounded-lg border border-line px-3 py-2 text-sm text-fg-subtle focus:outline-none focus:ring-1"
+                      placeholder="Optional note..."
+                      value={progressMap[u.id]?.note ?? ''}
+                      onChange={(e) => updateProgress(u.id, { note: e.target.value })}
+                    />
+                  </div>
+                )}
+              </Card>
+            </div>
           ))}
 
           {submitAll.error && (
