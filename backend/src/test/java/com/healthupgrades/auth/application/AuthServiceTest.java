@@ -41,6 +41,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /**
  * Covers the two ways into an authenticated session and the profile read behind them:
@@ -390,11 +391,12 @@ class AuthServiceTest {
      * <p>The service builds a user with no id, so answering with the bare argument would hand back a
      * null id and every token would be issued for one — a state no live registration reaches, and one
      * that would let a token-issuing assertion pass for the wrong reason. Setting the id on the same
-     * instance is what Hibernate does, so a captured argument is still the user that was saved.
+     * instance, through the field, is what Hibernate does, so a captured argument is still the user that
+     * was saved.
      */
     private static User persisted(InvocationOnMock call) {
         User registered = call.getArgument(0);
-        registered.setId(UUID.randomUUID());
+        ReflectionTestUtils.setField(registered, "id", UUID.randomUUID());
         return registered;
     }
 

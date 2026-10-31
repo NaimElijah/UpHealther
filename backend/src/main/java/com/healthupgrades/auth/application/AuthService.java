@@ -72,11 +72,7 @@ public class AuthService {
             if (userQuery.existsByEmail(email)) {
                 throw new BusinessRuleException(EMAIL_TAKEN);
             }
-            User user = User.builder()
-                    .name(name)
-                    .email(email)
-                    .passwordHash(passwordEncoder.encode(password)) // never store the raw password
-                    .build();
+            User user = User.register(name, email, passwordEncoder.encode(password)); // never the raw password
             try {
                 user = userCommand.register(user);
             } catch (EmailAlreadyRegisteredException lostTheRace) {

@@ -11,16 +11,18 @@ import lombok.*;
  *
  * <p>Authentication and authorization concerns (Spring Security's {@code UserDetails}) live in the
  * security adapter ({@code SecurityUser}), not on this domain model. What lives here is the state
- * those concerns read: the account's {@link Role} and whether it is enabled. Neither has a setter —
- * they change only through {@link #changeRole}, {@link #disable} and {@link #enable}, so the places
- * an account gains a privilege or loses its access are countable.
+ * those concerns read: the account's {@link Role} and whether it is enabled. The aggregate has no
+ * setters: production code creates an account through {@link #register}, which leaves both at their
+ * defaults, and they change afterwards only through {@link #changeRole}, {@link #disable} and
+ * {@link #enable}, so the places an account gains a privilege or loses its access are countable. The
+ * builder exists for persistence and for tests that need an account already in a particular state, as
+ * {@code HealthUpgrade}'s does; production code does not reach for it.
  */
 @Entity
 @Table(name = "users")
 @Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED) // required by JPA, not for general use
+@AllArgsConstructor(access = AccessLevel.PRIVATE) // backs the builder only
 @Builder
 public class User {
 
@@ -44,7 +46,6 @@ public class User {
      */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
-    @Setter(AccessLevel.NONE)
     @Builder.Default
     private Role role = Role.USER;
 
@@ -53,7 +54,6 @@ public class User {
      * the account's records stay exactly as they were.
      */
     @Column(nullable = false)
-    @Setter(AccessLevel.NONE)
     @Builder.Default
     private boolean enabled = true;
 
@@ -64,7 +64,6 @@ public class User {
      * {@link AccountModifiedConcurrentlyException}: answered 409, and audited as a refusal (ADR-073).
      */
     @Version
-    @Setter(AccessLevel.NONE)
     private Long version;
 
     @Column(nullable = false, updatable = false)
@@ -72,6 +71,18 @@ public class User {
 
     @Column(nullable = false)
     private LocalDateTime updatedAt;
+
+    /**
+     * Creates a new, ordinary, enabled account, not yet persisted.
+     *
+     * @param name         display name
+     * @param email        login identity, already normalised
+     * @param passwordHash the encoded password; never the raw one
+     * @return the account, with no id until it is saved
+     */
+    public static User register(String name, String email, String passwordHash) {
+        return User.builder().name(name).email(email).passwordHash(passwordHash).build();
+    }
 
     /**
      * Stamps the creation and update timestamps before the row is first inserted, and normalises the
