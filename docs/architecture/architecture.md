@@ -170,7 +170,7 @@ as it is open; a refusal names nobody, as a refused login does. A CONNECT with n
 an entry, as a refresh with no cookie is not. A refusal reaches the browser as a STOMP ERROR frame,
 after which Spring closes the socket. `StompRefusalErrorHandler`, registered on the STOMP endpoint
 registry, words its `message` from the type of what was thrown, never from its text: `Unauthenticated`
-for a CONNECT without a usable token, `Refused` for a SUBSCRIBE or SEND on a connected socket that the
+for a CONNECT without a usable token, `Refused` for any frame on a connected socket that the
 interceptor turns down, and `Frame not processed` for anything else, an outage while authenticating, a
 frame that could not be decoded, or a SUBSCRIBE or SEND before any CONNECT, which Spring refuses before
 the interceptor runs. The client acts on none of these and keeps its token through one, and retries
@@ -183,18 +183,25 @@ It bounds handshakes, not what one open socket sends, which
 
 The same interceptor authorises the frames that follow, because a session that is merely connected
 can still name any destination it likes. A SUBSCRIBE must come from an authenticated session and
-name `/user/queue/notifications` exactly — the resolved `/queue/notifications-user…` of another
-session, and any `/topic`, are refused — and a SEND is refused outright, the application declaring
-no `@MessageMapping` for one to reach. A socket holds one subscription for its life, kept in its
-session attributes: a second SUBSCRIBE is refused, because each subscription is registered with the
+name `/user/queue/notifications` exactly — another account's `/user/<userId>/…`, the resolved
+`/queue/notifications-user…` of another session, and any `/topic`, are refused. The commands are an
+allow-list: CONNECT, STOMP, SUBSCRIBE, UNSUBSCRIBE and DISCONNECT, and every other is refused. That
+covers a SEND, the application declaring no `@MessageMapping` for one to reach; the frames STOMP
+defines for the server to send, MESSAGE, CONNECTED, RECEIPT and ERROR, which Spring decodes from a
+client all the same and, for a MESSAGE, routes as it would a SEND, so one addressed to another
+account's user queue would reach that account's socket; and ACK, NACK, BEGIN, COMMIT and ABORT, the
+SPA subscribing in the default ack mode and opening no transaction. A socket holds one subscription
+for its life, kept in its session attributes: a second SUBSCRIBE is refused, because each
+subscription is registered with the
 broker and a socket streaming them would grow the heap without limit. An UNSUBSCRIBE frees nothing,
 because the inbound channel's pool runs frames in no fixed order, and one that reached the broker
 before its SUBSCRIBE would leave that subscription held. Heartbeats, UNSUBSCRIBE and DISCONNECT pass:
 they name nothing, and refusing a DISCONNECT would leave sessions to time out rather than close. A
-refused SUBSCRIBE or SEND is a WARN line, not an audit entry: it authorises a frame on a connection that
-is already authenticated. Spring
-adds an ERROR line of its own for a refused SEND, and for a frame it cannot decode, which no interceptor
-can suppress; a refused CONNECT or SUBSCRIBE it logs only at DEBUG.
+refused frame after CONNECT is a WARN line, not an audit entry: it authorises a frame on a connection
+that is already authenticated. Spring
+adds an ERROR line of its own for a refused frame of any command but CONNECT and SUBSCRIBE, and for a
+frame it cannot decode, which no interceptor can suppress; a refused CONNECT or SUBSCRIBE it logs only
+at DEBUG.
 
 A connected socket sends nothing the interceptor could check again, so the server closes it instead
 when its session ends ([ADR-054](../ADRs/ADR-054-a-session-that-ends-closes-its-open-sockets.md)).

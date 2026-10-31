@@ -26,6 +26,8 @@ import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -44,8 +46,9 @@ import org.springframework.messaging.support.MessageBuilder;
  *
  * <p>Authenticating CONNECT is only half of it. A STOMP session can name any destination it likes on a
  * later frame, so the frames after CONNECT are authorised here too: a subscription must be the one
- * destination this application pushes to, and a SEND is refused outright because no {@code @MessageMapping}
- * exists for one to reach.
+ * destination this application pushes to, and every command but CONNECT, STOMP, SUBSCRIBE, UNSUBSCRIBE and
+ * DISCONNECT is refused outright: a SEND because no {@code @MessageMapping} exists for one to reach, the
+ * server's own frames because a client has no business sending them.
  */
 @ExtendWith(MockitoExtension.class)
 class JwtChannelInterceptorTest {
@@ -259,6 +262,38 @@ class JwtChannelInterceptorTest {
         Message<?> send = frameFrom(StompCommand.SEND, "/app/anything", session());
 
         assertThatThrownBy(() -> interceptor.preSend(send, channel))
+                .isInstanceOfSatisfying(StompFrameRefusedException.class, refusedAs(Reason.REFUSED));
+    }
+
+    /**
+     * Finding D1.1: a frame STOMP defines for the server to send, arriving from a client.
+     *
+     * <p>Spring's decoder takes any command from a client, and a client's MESSAGE is routed exactly as a
+     * SEND would be. Passed, one addressed to {@code /user/<anotherUsersId>/queue/notifications} was
+     * delivered into that user's socket as a notification they had never been sent.
+     */
+    @ParameterizedTest
+    @EnumSource(
+            value = StompCommand.class,
+            names = {"MESSAGE", "CONNECTED", "RECEIPT", "ERROR"})
+    void GivenAFrameOnlyTheServerSends_WhenAClientSendsIt_ThenItIsRefused(StompCommand command) {
+        Message<?> frame = frameFrom(command, "/user/" + UUID.randomUUID() + "/queue/notifications", session());
+
+        assertThatThrownBy(() -> interceptor.preSend(frame, channel))
+                .isInstanceOfSatisfying(StompFrameRefusedException.class, refusedAs(Reason.REFUSED));
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = StompCommand.class,
+            names = {"ACK", "NACK", "BEGIN", "COMMIT", "ABORT"})
+    void GivenAnAcknowledgementOrTransactionFrame_WhenItArrives_ThenItIsRefusedBecauseNothingHereUsesOne(
+            StompCommand command) {
+        // The SPA subscribes with the default ack mode and opens no transaction, so a client sending one
+        // of these is not the SPA. Refusing them is the least the socket needs to allow.
+        Message<?> frame = frameFrom(command, null, session());
+
+        assertThatThrownBy(() -> interceptor.preSend(frame, channel))
                 .isInstanceOfSatisfying(StompFrameRefusedException.class, refusedAs(Reason.REFUSED));
     }
 

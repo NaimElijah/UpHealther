@@ -31,24 +31,33 @@ import org.springframework.stereotype.Component;
  * unusable token refuses the connection.
  *
  * <p>Authenticating the connection is not enough on its own. Once a session exists it may name any
- * destination it likes, and the broker destination a user queue resolves to is guessable, so the later
- * frames are authorised too:
+ * destination it likes: another account's queue by its user-prefixed form, {@code /user/<userId>/…},
+ * whose user id is no secret, or a raw broker destination. The resolved queue's suffix is the socket's
+ * session id, a random UUID, so it is not the route an attacker would take, but nothing that names it
+ * should pass either. So the later frames are authorised too, against an allow-list of commands:
  * <ul>
  *   <li>a SUBSCRIBE must come from an authenticated session and name {@link #ALLOWED_SUBSCRIPTION}
- *       exactly — naming the resolved {@code /queue/notifications-user…} of another session, or any
- *       {@code /topic}, is refused;</li>
+ *       exactly — naming {@code /user/<anotherUserId>/…}, the resolved {@code /queue/notifications-user…}
+ *       of another session, or any {@code /topic}, is refused;</li>
  *   <li>a socket holds one subscription for its life: a second SUBSCRIBE is refused, whatever came
  *       between. Each subscription is registered with the broker, so a socket streaming SUBSCRIBE frames
  *       with fresh ids would otherwise grow the heap without limit (S5.A5). An UNSUBSCRIBE frees
  *       nothing, because it could be raced: Spring hands each inbound frame to a pool, and an UNSUBSCRIBE
  *       that reached the broker before its SUBSCRIBE would remove nothing and leave that subscription
  *       held. The SPA subscribes once per socket and never unsubscribes;</li>
- *   <li>a SEND is refused outright: the application declares no {@code @MessageMapping}, so there is
- *       nothing server-side for one to reach and anything sending one is probing;</li>
- *   <li>heartbeats, UNSUBSCRIBE and DISCONNECT pass — they carry no destination to abuse, and refusing
- *       a DISCONNECT would leave sessions to be torn down by timeout instead of closed cleanly. An
- *       UNSUBSCRIBE still reaches the broker, which drops the subscription it names; it only does not
- *       let the socket take another.</li>
+ *   <li>heartbeats, UNSUBSCRIBE and DISCONNECT pass. A heartbeat has no command at all, and refusing one
+ *       would close every idle socket. An UNSUBSCRIBE names only one of the socket's own subscription
+ *       ids; it reaches the broker, which drops that subscription, and only does not let the socket take
+ *       another. Refusing a DISCONNECT would leave sessions to be torn down by timeout instead of closed
+ *       cleanly;</li>
+ *   <li>every other command is refused. A SEND, because the application declares no
+ *       {@code @MessageMapping}, so there is nothing server-side for one to reach. MESSAGE, CONNECTED,
+ *       RECEIPT and ERROR, because STOMP defines them for the server to send: Spring's decoder takes them
+ *       from a client all the same, and routes a client's MESSAGE as it would a SEND, so one addressed to
+ *       {@code /user/<anotherUserId>/queue/notifications} would land in that account's socket (finding
+ *       D1.1). ACK, NACK, BEGIN, COMMIT and ABORT, because the SPA subscribes in the default
+ *       {@code auto} ack mode and opens no transaction, so nothing here needs one, and a command nothing
+ *       needs is a command nobody should be able to send.</li>
  * </ul>
  *
  * <p>Every CONNECT that presents a credential is audited as {@code auth.connect}, allowed or refused,
@@ -116,10 +125,12 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
             // want of a principal, but failing at the door is the honest place to fail.
             case CONNECT, STOMP -> accessor.setUser(authenticate(accessor));
             case SUBSCRIBE -> authoriseSubscription(accessor);
-            case SEND -> refuse("a SEND, which no server-side mapping receives");
-            default -> {
-                /* UNSUBSCRIBE, DISCONNECT, ACK, NACK and the transaction frames name nothing */
+            case UNSUBSCRIBE, DISCONNECT -> {
+                /* name no destination; the class comment says why each passes */
             }
+            // An allow-list, not a deny-list: Spring decodes any command from a client and routes a
+            // client's MESSAGE as it would a SEND (finding D1.1). The command is an enum, never client text.
+            default -> refuse("a " + command + " frame, which this application's client never sends");
         }
         return message;
     }
@@ -132,8 +143,8 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
             // missing header is a client with no session left to offer, an unusable token is a session
             // that ended. Spring turns the exception into a refused connection, and for a CONNECT, as for
             // a SUBSCRIBE, logs nothing above DEBUG itself. That is not true of every frame: a refused
-            // SEND, and a frame it cannot decode, spring-websocket 7.0.9's StompSubProtocolHandler logs
-            // at ERROR, which no interceptor can prevent (S5.C4).
+            // frame of any other command, and a frame it cannot decode, spring-websocket 7.0.9's
+            // StompSubProtocolHandler logs at ERROR, which no interceptor can prevent (S5.C4).
             log.debug("Refused a STOMP CONNECT: no bearer token");
             // Audited only when something was presented. A tab whose session could not be renewed
             // reconnects with no header at all every five seconds, and that is no more an attempt than a

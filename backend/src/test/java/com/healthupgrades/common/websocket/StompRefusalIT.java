@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfigureMetrics;
@@ -41,8 +42,9 @@ import tools.jackson.databind.ObjectMapper;
  * makes of that wrapper. The words are literals here, not the production constants, because they are
  * the wire contract a client codes against.
  *
- * <p>A frame sent before any CONNECT cannot come from Spring's STOMP client, which always connects
- * first, so that case writes the frame to a bare WebSocket.
+ * <p>Two frames cannot come from Spring's STOMP client: one sent before any CONNECT, because the client
+ * always connects first, and a MESSAGE, which it never sends. Those cases write their frames to a bare
+ * WebSocket.
  *
  * <p>Nothing sleeps: each socket completes one future when its ERROR frame arrives and another when its
  * connection drops, and a test waits on them with a bound. The annotations match {@code CorrelationIT}'s
@@ -56,7 +58,7 @@ class StompRefusalIT extends PostgresIT {
     /** The ERROR frame's words for a CONNECT that presented no usable token. */
     private static final String UNAUTHENTICATED = "Unauthenticated";
 
-    /** The ERROR frame's words for a SUBSCRIBE or SEND on a connected socket that the interceptor refuses. */
+    /** The ERROR frame's words for any frame on a connected socket that the interceptor refuses. */
     private static final String REFUSED = "Refused";
 
     /** The ERROR frame's words for any other frame the server did not process. */
@@ -67,6 +69,15 @@ class StompRefusalIT extends PostgresIT {
 
     /** The header line of an ERROR frame that carries its words. */
     private static final String MESSAGE_HEADER = "message:";
+
+    /** The first line of the frame the server answers an accepted CONNECT with. */
+    private static final String CONNECTED_COMMAND = "CONNECTED\n";
+
+    /** The first line of an ERROR frame. */
+    private static final String ERROR_COMMAND = "ERROR\n";
+
+    /** The user-queue suffix the notification push adapter delivers to. */
+    private static final String NOTIFICATIONS = "/queue/notifications";
 
     private static final String PASSWORD = "correct-horse-battery-staple";
 
@@ -125,6 +136,23 @@ class StompRefusalIT extends PostgresIT {
 
         assertThat(errorMessage(socket)).isEqualTo(REFUSED);
         assertClosed(socket);
+    }
+
+    @Test
+    void GivenAConnectedSocket_WhenItSendsAMessageFrame_ThenTheErrorFrameSaysRefused() throws Exception {
+        // Finding D1.1. MESSAGE is the frame the server delivers a subscription in, and Spring routes one
+        // from a client exactly as it would a SEND: passed, one addressed to another account's user queue
+        // reached that account's socket as a notification. Spring's STOMP client cannot send a MESSAGE,
+        // so this writes the frames to a bare WebSocket.
+        BareSocket socket = openBare();
+        socket.session.sendMessage(new TextMessage(connectFrame(registeredAccessToken())));
+        socket.connected.get(WAIT_SECONDS, TimeUnit.SECONDS);
+
+        socket.session.sendMessage(new TextMessage(messageFrameTo("/user/" + UUID.randomUUID() + NOTIFICATIONS)));
+
+        assertThat(messageHeaderOf(socket.error.get(WAIT_SECONDS, TimeUnit.SECONDS)))
+                .containsExactly(MESSAGE_HEADER + REFUSED);
+        assertThat(socket.closed.get(WAIT_SECONDS, TimeUnit.SECONDS)).isNotNull();
     }
 
     @Test
@@ -208,6 +236,58 @@ class StompRefusalIT extends PostgresIT {
     /** The server closes the socket after every ERROR frame, which the client reports as a lost connection. */
     private static void assertClosed(Socket socket) throws Exception {
         assertThat(socket.closed.get(WAIT_SECONDS, TimeUnit.SECONDS)).isInstanceOf(ConnectionLostException.class);
+    }
+
+    /**
+     * A WebSocket with no STOMP client on it, for frames Spring's client will not send: the CONNECTED
+     * frame the server answers a CONNECT with, the first ERROR frame, and the close.
+     */
+    private record BareSocket(
+            WebSocketSession session,
+            CompletableFuture<String> connected,
+            CompletableFuture<String> error,
+            CompletableFuture<CloseStatus> closed) {}
+
+    private BareSocket openBare() throws Exception {
+        CompletableFuture<String> connected = new CompletableFuture<>();
+        CompletableFuture<String> error = new CompletableFuture<>();
+        CompletableFuture<CloseStatus> closed = new CompletableFuture<>();
+        WebSocketSession session = new StandardWebSocketClient()
+                .execute(
+                        new TextWebSocketHandler() {
+                            @Override
+                            protected void handleTextMessage(WebSocketSession webSocket, TextMessage frame) {
+                                String payload = frame.getPayload();
+                                if (payload.startsWith(CONNECTED_COMMAND)) {
+                                    connected.complete(payload);
+                                } else if (payload.startsWith(ERROR_COMMAND)) {
+                                    error.complete(payload);
+                                }
+                            }
+
+                            @Override
+                            public void afterConnectionClosed(WebSocketSession webSocket, CloseStatus status) {
+                                closed.complete(status);
+                            }
+                        },
+                        "ws://localhost:{port}/ws",
+                        port)
+                .get(WAIT_SECONDS, TimeUnit.SECONDS);
+        return new BareSocket(session, connected, error, closed);
+    }
+
+    /** A STOMP 1.2 CONNECT carrying the token, with heartbeats off so nothing else crosses the socket. */
+    private static String connectFrame(String token) {
+        return "CONNECT\naccept-version:1.2\nheart-beat:0,0\nAuthorization:Bearer " + token + "\n\n\u0000";
+    }
+
+    /** The frame a server delivers a subscription's messages in, written by a client instead. */
+    private static String messageFrameTo(String destination) {
+        return "MESSAGE\ndestination:" + destination + "\ncontent-type:text/plain\n\nspoofed\u0000";
+    }
+
+    private static Stream<String> messageHeaderOf(String frame) {
+        return frame.lines().filter(header -> header.startsWith(MESSAGE_HEADER));
     }
 
     private static StompHeaders bearer(String token) {
