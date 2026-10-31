@@ -18,7 +18,11 @@ public class StompFrameRefusedException extends IllegalArgumentException {
         /** A CONNECT with no bearer token, or one that does not authenticate. */
         UNAUTHENTICATED("Unauthenticated"),
 
-        /** A SUBSCRIBE or SEND that an authenticated socket, or a socket that never connected, may not send. */
+        /**
+         * A SUBSCRIBE or SEND on a connected socket that the interceptor turns down. One sent before any
+         * CONNECT never reaches the interceptor: Spring refuses it first, and it reads as
+         * {@code Frame not processed}.
+         */
         REFUSED("Refused");
 
         private final String frameMessage;

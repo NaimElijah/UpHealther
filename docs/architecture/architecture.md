@@ -168,11 +168,13 @@ resolves per session using that principal. Every CONNECT that presents a credent
 as it is open; a refusal names nobody, as a refused login does. A CONNECT with no `Authorization` header
 — what a tab whose session could not be renewed sends every five seconds — presented nothing and is not
 an entry, as a refresh with no cookie is not. A refusal reaches the browser as a STOMP ERROR frame,
-after which Spring closes the socket. `StompRefusalErrorHandler`, registered on the endpoint, words its
-`message` from the type of what was thrown, never from its text: `Unauthenticated` for a CONNECT
-without a usable token, `Refused` for a SUBSCRIBE or SEND the interceptor turns down, and
-`Frame not processed` for anything else, an outage while authenticating or a frame that could not be
-decoded. The client acts on none of these and keeps its token through one, and retries. Spring logs
+after which Spring closes the socket. `StompRefusalErrorHandler`, registered on the STOMP endpoint
+registry, words its `message` from the type of what was thrown, never from its text: `Unauthenticated`
+for a CONNECT without a usable token, `Refused` for a SUBSCRIBE or SEND on a connected socket that the
+interceptor turns down, and `Frame not processed` for anything else, an outage while authenticating, a
+frame that could not be decoded, or a SUBSCRIBE or SEND before any CONNECT, which Spring refuses before
+the interceptor runs. The client acts on none of these and keeps its token through one, and retries
+([ADR-078](../ADRs/ADR-078-a-refused-stomp-frame-is-answered-in-fixed-words.md)). Spring logs
 some refusals at ERROR, so nginx throttles the `/ws` handshake per client address: sixty a minute with
 a burst of twenty, over the limit answered 429.
 It bounds handshakes, not what one open socket sends, which
@@ -1139,6 +1141,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why a notification is deleted ninety days after it was created, by a nightly job in batches of a thousand, at most twenty a night; why not thirty days, the newest fifty, or waiting for the privacy notice | [ADR-075](../ADRs/ADR-075-notifications-are-kept-for-ninety-days.md) |
 | Why `open-in-view` is off, what it held a connection for, and what would bring it back | [ADR-076](../ADRs/ADR-076-open-in-view-is-off.md) |
 | Why the `upgrade` context restates `tracking`'s tracking type and frequency as enums of its own in `domain.model`, held equal by a contract test, rather than importing them, carrying strings, or placing them in `port.out` or `port.in` | [ADR-077](../ADRs/ADR-077-a-context-mirrors-another-contexts-closed-set-in-its-own-model.md) |
+| Why a refused STOMP frame is answered `Unauthenticated`, `Refused` or `Frame not processed`, chosen by the exception's type and never its text, why `Session ended` passes untouched, and why the SPA acts on none of the three | [ADR-078](../ADRs/ADR-078-a-refused-stomp-frame-is-answered-in-fixed-words.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |
