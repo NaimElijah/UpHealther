@@ -176,8 +176,13 @@
     color: rgb(var(--color-fg));
   }
 
-  /* Preflight hard-codes gray-400 here, which is 2.54:1 on white — below AA for text. */
-  ::placeholder {
+  /*
+   * Preflight hard-codes gray-400 here, which is 2.54:1 on white — below AA for text. Its selectors are
+   * `input::placeholder, textarea::placeholder`, specificity (0,0,2), so a bare `::placeholder` (0,0,1)
+   * loses to them and never applied. These match them, and win on source order.
+   */
+  input::placeholder,
+  textarea::placeholder {
     color: rgb(var(--color-fg-faint));
     opacity: 1;
   }
