@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { parseLocalDate, todayLocal } from './localDate';
+import { latestProgressDate, parseLocalDate, todayLocal } from './localDate';
 
 /**
  * FR-18 and FR-19 (#95) — a day is the user's day, not UTC's.
@@ -31,6 +31,32 @@ describe('localDate', () => {
     vi.setSystemTime(new Date('2026-09-30T21:30:00Z'));
 
     expect(todayLocal()).toBe('2026-10-01');
+  });
+
+  it('GivenLateEveningWestOfUtc_WhenLatestProgressDate_ThenItIsUtcsTomorrowTwoDaysPastTheLocalDay', () => {
+    // FR-18: the API's bound is the server's today plus a day, and the server keeps UTC.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    // 22:00 on 11 March in Los Angeles, and already 12 March in UTC.
+    vi.setSystemTime(new Date('2026-03-12T05:00:00Z'));
+
+    expect(latestProgressDate()).toBe('2026-03-13');
+  });
+
+  it('GivenMorningFarEastOfUtc_WhenLatestProgressDate_ThenItIsTheLocalDay', () => {
+    // 08:00 on 13 March at UTC+14, and still 12 March in UTC: the server's tomorrow is the user's today.
+    vi.stubEnv('TZ', 'Pacific/Kiritimati');
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-12T18:00:00Z'));
+
+    expect(latestProgressDate()).toBe('2026-03-13');
+    expect(todayLocal()).toBe('2026-03-13');
+  });
+
+  it('GivenTheLastDayOfTheYearInUtc_WhenLatestProgressDate_ThenItRollsIntoTheNextYear', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-12-31T12:00:00Z'));
+
+    expect(latestProgressDate()).toBe('2027-01-01');
   });
 
   it('GivenADateOnlyString_WhenParsed_ThenItIsThatDayLocally', () => {
