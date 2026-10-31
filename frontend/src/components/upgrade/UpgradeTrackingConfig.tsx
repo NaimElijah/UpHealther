@@ -39,6 +39,7 @@ const FREQUENCY_LABELS: Record<Frequency, string> = {
 };
 
 const TRACKING_TYPE_OPTIONS = optionsOf(TRACKING_TYPE_LABELS);
+const FREQUENCY_OPTIONS = optionsOf(FREQUENCY_LABELS);
 
 /** The one tracking type measured against a target, and so the only one with a target and a unit. */
 const TARGETED_TYPE: TrackingType = 'NUMERIC';
@@ -50,7 +51,6 @@ const TARGETED_TYPE: TrackingType = 'NUMERIC';
  */
 const toRequest = (form: SaveTrackingConfigRequest): SaveTrackingConfigRequest =>
   form.trackingType === TARGETED_TYPE ? form : { ...form, targetNumericValue: null, targetUnit: null };
-const FREQUENCY_OPTIONS = optionsOf(FREQUENCY_LABELS);
 
 /**
  * @param upgradeId      the upgrade the route names
