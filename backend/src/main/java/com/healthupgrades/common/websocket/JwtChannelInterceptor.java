@@ -206,9 +206,9 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
      */
     private StompFrameRefusedException refuse(String what) {
         // WARN rather than DEBUG, and the opposite call from a rejected CONNECT: a stale token is
-        // ordinary, whereas a correct client never sends either of these. The destination is deliberately
-        // left out of the line - it is text the client chose, and writing it down would copy whatever it
-        // contains, newlines included, into the log.
+        // ordinary, whereas a correct client never sends a frame this refuses (ADR-021). The destination
+        // is deliberately left out of the line - it is text the client chose, and writing it down would
+        // copy whatever it contains, newlines included, into the log.
         log.warn("Refused {}", what);
         return new StompFrameRefusedException(Reason.REFUSED, "Refused " + what);
     }
