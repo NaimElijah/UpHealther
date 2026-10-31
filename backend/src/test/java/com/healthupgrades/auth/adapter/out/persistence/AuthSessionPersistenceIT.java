@@ -13,12 +13,15 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import javax.sql.DataSource;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * What the session table actually does, which no in-memory fake can tell us.
@@ -46,6 +49,16 @@ class AuthSessionPersistenceIT extends PostgresIT {
 
     @Autowired
     TestEntityManager entityManager;
+
+    @Autowired
+    DataSource dataSource;
+
+    private JdbcTemplate jdbc;
+
+    @BeforeEach
+    void setUp() {
+        jdbc = new JdbcTemplate(dataSource);
+    }
 
     @Test
     void GivenASessionWithTokenDigests_WhenItIsReadBack_ThenTheBytesAreUnchanged() {
@@ -223,6 +236,22 @@ class AuthSessionPersistenceIT extends PostgresIT {
         flushAndClear();
 
         assertThat(repository.findById(session.getId())).isEmpty();
+    }
+
+    @Test
+    void GivenARevokedSession_WhenItIsSavedAndFlushed_ThenTheTableAlreadySaysSoBeforeCommit() {
+        // D2.3. A reuse is logged and audited as a revocation done, right after this call. The row is
+        // read through JDBC on the transaction's own connection, which Hibernate does not flush for, so
+        // it shows what the database holds, not what the persistence context intends to write.
+        AuthSession session = stored(opened(new RefreshToken(UUID.randomUUID(), "a-secret")));
+        AuthSession locked = repository.findForUpdate(session.getId()).orElseThrow();
+        locked.revoke();
+
+        repository.saveAndFlush(locked);
+
+        assertThat(jdbc.queryForObject(
+                        "SELECT revoked FROM auth_sessions WHERE id = ?", Boolean.class, session.getId()))
+                .isTrue();
     }
 
     /** Counts the spent-credential rows of one session straight from the table, past any port. */

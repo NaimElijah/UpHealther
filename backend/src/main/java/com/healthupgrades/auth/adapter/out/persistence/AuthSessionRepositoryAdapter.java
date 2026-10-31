@@ -36,6 +36,12 @@ class AuthSessionRepositoryAdapter implements AuthSessionRepositoryPort {
 
     /** {@inheritDoc} */
     @Override
+    public AuthSession saveAndFlush(AuthSession session) {
+        return jpa.saveAndFlush(session);
+    }
+
+    /** {@inheritDoc} */
+    @Override
     public Optional<AuthSession> findById(UUID id) {
         return jpa.findById(id);
     }

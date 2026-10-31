@@ -27,6 +27,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -153,6 +154,28 @@ class AuthSessionServiceTest {
         service.refresh(opened.refreshToken());
 
         assertThat(published).containsExactly(new AuthSessionEnded(opened.sessionId(), USER_ID, now()));
+    }
+
+    @Test
+    void GivenACredentialReplayedAfterTheGraceWindow_WhenTheReuseIsAudited_ThenTheRevocationHasAlreadyBeenWritten() {
+        // D2.3. The WARN line and the AUTH_TOKEN_REUSE entry say the session has been revoked. A plain
+        // save of a session already read writes nothing until commit, so they would precede the UPDATE.
+        Map<AuditAction, Boolean> writtenWhenRecorded = new EnumMap<>(AuditAction.class);
+        AuthSessionService observed = new AuthSessionService(
+                sessions,
+                secrets,
+                new AuthSessionProperties(IDLE, ABSOLUTE, GRACE),
+                event -> writtenWhenRecorded.put(event.action(), sessions.revocationWritten()),
+                published::add,
+                users,
+                clock);
+        SessionGrant opened = observed.open(USER_ID);
+        observed.refresh(opened.refreshToken());
+        clock.moveTo(START.plus(GRACE).plusSeconds(1));
+
+        observed.refresh(opened.refreshToken());
+
+        assertThat(writtenWhenRecorded).containsEntry(AuditAction.AUTH_TOKEN_REUSE, true);
     }
 
     @Test
@@ -771,6 +794,8 @@ class AuthSessionServiceTest {
         private final Map<UUID, List<SpentCredential>> spent = new HashMap<>();
         private final List<Read> reads = new ArrayList<>();
         private RuntimeException revokeAllFailure;
+        /** Whether a revoked session has been written out, as only {@code saveAndFlush} does before commit. */
+        private boolean revocationWritten;
 
         /** Makes every later {@code revokeAllForUser} throw, as a deadlock PostgreSQL aborts does. */
         void failRevokeAllWith(RuntimeException failure) {
@@ -781,6 +806,12 @@ class AuthSessionServiceTest {
         public AuthSession save(AuthSession session) {
             rows.put(session.getId(), session);
             return session;
+        }
+
+        @Override
+        public AuthSession saveAndFlush(AuthSession session) {
+            revocationWritten |= session.isRevoked();
+            return save(session);
         }
 
         @Override
@@ -844,6 +875,10 @@ class AuthSessionServiceTest {
         List<Read> reads() {
             return List.copyOf(reads);
         }
+
+        boolean revocationWritten() {
+            return revocationWritten;
+        }
     }
 
     /** A session store that cannot be reached, for the outcome that is a fault rather than a refusal. */
@@ -855,6 +890,11 @@ class AuthSessionServiceTest {
 
         @Override
         public AuthSession save(AuthSession session) {
+            throw down();
+        }
+
+        @Override
+        public AuthSession saveAndFlush(AuthSession session) {
             throw down();
         }
 

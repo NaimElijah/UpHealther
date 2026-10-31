@@ -175,7 +175,9 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
      */
     private void revokeForReuse(AuthSession session) {
         session.revoke();
-        sessions.save(session);
+        // Written out now, not at commit: the line and the entry below say the session has been
+        // revoked, and a plain save of a session already read would issue its UPDATE only after them.
+        sessions.saveAndFlush(session);
         // WARN, and the only line in this class at that level: a spent credential presented after the
         // grace window means two parties hold one session's credentials. Ids only — which session and
         // whose — because that is what an investigation needs and everything else about it is personal

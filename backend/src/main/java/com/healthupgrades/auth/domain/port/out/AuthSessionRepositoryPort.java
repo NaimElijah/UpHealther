@@ -14,6 +14,17 @@ public interface AuthSessionRepositoryPort {
     /** Persists a new or updated session and returns the managed instance. */
     AuthSession save(AuthSession session);
 
+    /**
+     * Persists a session and writes the change to the database before returning, rather than at commit.
+     *
+     * <p>For a change the caller is about to announce: a revocation for reuse is logged and audited as
+     * done, and a plain {@link #save} of a session already read issues no statement until the
+     * transaction ends, so the announcement would precede the write it claims.
+     *
+     * <p>Must be called inside a transaction.
+     */
+    AuthSession saveAndFlush(AuthSession session);
+
     /** Looks up a session without locking it — for a read that decides nothing. */
     Optional<AuthSession> findById(UUID id);
 
