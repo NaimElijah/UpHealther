@@ -76,7 +76,9 @@ const Toast: React.FC<ToastProps> = ({ toast, onDismiss }) => {
         }}
         className="flex items-start gap-3 flex-1 min-w-0 text-left"
       >
-        <span className="text-lg leading-none mt-0.5">{meta.icon}</span>
+        <span className="text-lg leading-none mt-0.5" aria-hidden="true">
+          {meta.icon}
+        </span>
         <span className="flex-1 min-w-0">
           <span id={titleId} className={`block text-sm font-semibold ${meta.text} truncate`}>
             {toast.title}

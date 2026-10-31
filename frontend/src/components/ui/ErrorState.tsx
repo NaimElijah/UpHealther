@@ -55,7 +55,9 @@ const ErrorState: React.FC<ErrorStateProps> = ({ title, error, inline = false, l
     </div>
   ) : (
     <div className="flex flex-col items-center justify-center py-16 text-center" role="alert">
-      <div className="text-5xl mb-4">⚠️</div>
+      <div className="text-5xl mb-4" aria-hidden="true">
+        ⚠️
+      </div>
       <Heading className="text-lg font-semibold text-danger-fg mb-1">{title}</Heading>
       {error?.message && <p className="text-sm text-fg-subtle max-w-sm">{error.message}</p>}
       {error?.traceId && (

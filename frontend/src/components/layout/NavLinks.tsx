@@ -27,7 +27,7 @@ const NavLinks: React.FC = () => {
             }`
           }
         >
-          <span>{item.icon}</span>
+          <span aria-hidden="true">{item.icon}</span>
           <span>{item.label}</span>
         </NavLink>
       ))}

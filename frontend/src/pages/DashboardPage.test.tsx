@@ -526,3 +526,23 @@ describe('DashboardPage headings', () => {
     expect(headingOutlineProblems()).toEqual([]);
   });
 });
+
+/**
+ * The dashboard's decorative emoji are not part of what it says: the greeting's wave, the overdue
+ * warning's sign and the streaks card's flame were read aloud with the text (WCAG 1.1.1, finding X9.24).
+ */
+describe('DashboardPage emoji', () => {
+  beforeEach(() => {
+    getDashboard.mockReset();
+  });
+
+  it('GivenStreaksAndAnOverdueUpgrade_WhenTheDashboardRenders_ThenTheHeadingsAndTheWarningAreNamedWithoutEmoji', async () => {
+    const walk = anActiveUpgrade('upgrade-1', 'Evening walk');
+    getDashboard.mockResolvedValue({ ...aDashboardWithStreaks([walk], { 'upgrade-1': 3 }), overdueUpgrades: [walk] });
+    renderPage();
+
+    expect(await screen.findByRole('heading', { level: 1, name: /^Good \w+, Ada$/ })).toBeDefined();
+    expect(screen.getByRole('heading', { level: 2, name: 'Current Streaks' })).toBeDefined();
+    expect(screen.getByText('⚠️').getAttribute('aria-hidden')).toBe('true');
+  });
+});

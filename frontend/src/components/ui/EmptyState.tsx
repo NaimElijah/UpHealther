@@ -26,7 +26,9 @@ const EmptyState: React.FC<EmptyStateProps> = ({ icon = '📭', title, descripti
   const Heading = level === 2 ? 'h2' : 'h3';
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="text-5xl mb-4">{icon}</div>
+      <div className="text-5xl mb-4" aria-hidden="true">
+        {icon}
+      </div>
       <Heading className="text-lg font-semibold text-fg-muted mb-1">{title}</Heading>
       {description && <p className="text-sm text-fg-subtle mb-4 max-w-sm">{description}</p>}
       {action && <div>{action}</div>}

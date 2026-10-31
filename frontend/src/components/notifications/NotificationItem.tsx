@@ -28,7 +28,9 @@ const NotificationItem: React.FC<Props> = ({ notification, onSelect }) => {
       className={`w-full text-left flex gap-3 p-3 transition-colors hover:bg-sunken ${notification.read ? '' : 'bg-brand-soft/50'}`}
     >
       {!notification.read && <span className="sr-only">Unread:</span>}
-      <span className="text-lg leading-none mt-0.5">{meta.icon}</span>
+      <span className="text-lg leading-none mt-0.5" aria-hidden="true">
+        {meta.icon}
+      </span>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <p className="text-sm font-medium text-fg truncate">{notification.title}</p>

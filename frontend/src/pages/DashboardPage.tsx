@@ -112,7 +112,7 @@ const DashboardPage: React.FC = () => {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0">
           <PageHeading className="text-2xl font-bold text-fg break-words">
-            Good {partOfDay(now.getHours())}, {user?.name?.split(' ')[0]} 👋
+            Good {partOfDay(now.getHours())}, {user?.name?.split(' ')[0]} <span aria-hidden="true">👋</span>
           </PageHeading>
           <p className="text-fg-subtle mt-1">
             {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
@@ -125,7 +125,9 @@ const DashboardPage: React.FC = () => {
 
       {(data?.overdueUpgrades?.length ?? 0) > 0 && (
         <div className="bg-danger-soft border border-danger-line rounded-xl p-4 flex items-center gap-3">
-          <span className="text-2xl">⚠️</span>
+          <span className="text-2xl" aria-hidden="true">
+            ⚠️
+          </span>
           <div>
             <p className="font-medium text-danger-fg">
               {data!.overdueUpgrades.length} overdue upgrade{data!.overdueUpgrades.length > 1 ? 's' : ''}
@@ -237,7 +239,13 @@ const DashboardPage: React.FC = () => {
       )}
 
       {runningStreaks.length > 0 && (
-        <Card header="Current Streaks 🔥">
+        <Card
+          header={
+            <>
+              Current Streaks <span aria-hidden="true">🔥</span>
+            </>
+          }
+        >
           <ul role="list" aria-label="Current streaks" className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {runningStreaks.map(({ upgrade, days }) => (
               <li key={upgrade.id} className="bg-streak-soft rounded-lg p-3 text-center">
