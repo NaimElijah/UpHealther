@@ -24,10 +24,11 @@ const PASSWORD_MIN_LENGTH = 8;
  * email-verification step cannot avoid confirming that much, so it is the server's job to slow down
  * anyone asking at volume.
  *
- * Signs the new account straight in, since registration returns a token.
+ * Signs the new account straight in, since registration returns a token. Refuses to submit until the
+ * page-load restore has settled (`isLoading`), for the reason `LoginPage` gives.
  */
 const RegisterPage: React.FC = () => {
-  const { register, isAuthenticated } = useAuth();
+  const { register, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -42,6 +43,7 @@ const RegisterPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     setError('');
     if (!name || !email || !password) {
       setError('Please fill in all fields.');
@@ -119,7 +121,7 @@ const RegisterPage: React.FC = () => {
             autoComplete="new-password"
           />
           {error && <p className="text-sm text-danger-fg text-center">{error}</p>}
-          <Button type="submit" loading={loading} className="w-full">
+          <Button type="submit" loading={loading || isLoading} className="w-full">
             Create Account
           </Button>
         </form>

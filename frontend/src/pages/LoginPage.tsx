@@ -16,9 +16,14 @@ import { toApiError, toFormMessage } from '../api/apiError';
  *
  * Redirects to the dashboard when already signed in, which is what stops a user with a valid session
  * from landing here by typing the URL.
+ *
+ * Refuses to submit until the page-load restore has settled (`isLoading`). A restore that succeeds
+ * signs the tab in as the account whose refresh cookie the browser holds, and redirects it, before a
+ * sign-in sent meanwhile could land; that sign-in would then put another account's token under the
+ * restored one's socket, or, refused, report nothing on a page already gone.
  */
 const LoginPage: React.FC = () => {
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,6 +36,7 @@ const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     setError('');
     if (!email || !password) {
       setError('Please fill in all fields.');
@@ -83,7 +89,7 @@ const LoginPage: React.FC = () => {
             autoComplete="current-password"
           />
           {error && <p className="text-sm text-danger-fg text-center">{error}</p>}
-          <Button type="submit" loading={loading} className="w-full">
+          <Button type="submit" loading={loading || isLoading} className="w-full">
             Sign In
           </Button>
         </form>

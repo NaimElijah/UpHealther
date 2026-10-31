@@ -1,7 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
+import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './AuthContext';
+import { NotificationProvider } from './NotificationProvider';
+import { ThemeProvider } from './ThemeProvider';
 import { useAuth } from '../hooks/useAuth';
+import { useNotifications } from '../hooks/useNotifications';
+import { createQueryClient } from '../lib/queryClient';
+import LoginPage from '../pages/LoginPage';
+import RegisterPage from '../pages/RegisterPage';
 import { getAccessToken, clearAccessToken } from '../api/tokenStore';
 import type { User } from '../types';
 
@@ -31,6 +40,35 @@ vi.mock('../api/client', async () => {
         if (renewed) tokenStore.setAccessToken('renewed.jwt.token', '2099-01-01T00:00:00Z');
         return renewed;
       });
+    },
+  };
+});
+
+/** The access token each notification-list read and each socket connection went out with, in order. */
+const listedWith: (string | null)[] = [];
+const socketOpenedWith: (string | null)[] = [];
+
+vi.mock('../api/notifications', async () => {
+  const tokenStore = await import('./../api/tokenStore');
+  return {
+    getNotifications: async () => {
+      listedWith.push(tokenStore.getAccessToken());
+      return [];
+    },
+    getUnreadCount: async () => 0,
+    markNotificationRead: async () => {},
+    markAllNotificationsRead: async () => {},
+  };
+});
+
+// The real socket reads the token as it connects, after activate() returns, and the CONNECT frame
+// carries what it read for the life of the connection.
+vi.mock('../api/notificationSocket', async () => {
+  const tokenStore = await import('./../api/tokenStore');
+  return {
+    openNotificationSocket: () => {
+      queueMicrotask(() => socketOpenedWith.push(tokenStore.getAccessToken()));
+      return () => {};
     },
   };
 });
@@ -97,6 +135,8 @@ describe('AuthProvider', () => {
     logoutApi.mockReset();
     renewSession.mockReset();
     renewSession.mockResolvedValue(false);
+    listedWith.length = 0;
+    socketOpenedWith.length = 0;
     clearAccessToken();
     localStorage.clear();
     Object.defineProperty(window, 'location', {
@@ -235,6 +275,109 @@ describe('AuthProvider', () => {
 
       await waitFor(() => expect(screen.getByTestId('authenticated').textContent).toBe('true'));
       expect(getAccessToken()).toBe('issued.jwt.token');
+    });
+
+    // Waiting inside login() was not enough on its own. A restore that succeeds signs the tab in and
+    // redirects it before the waiting sign-in goes out, and the socket opens on the restored token; the
+    // sign-in then installed another account's token under it, or, refused, said nothing on a page that
+    // had already gone. So the forms refuse to submit until the restore has settled.
+    describe('through the sign-in and registration forms', () => {
+      /** Stands in for any page the redirect mounts, showing who the tab says is signed in. */
+      function SignedInPage() {
+        const { user } = useAuth();
+        useNotifications();
+        return <span data-testid="signed-in-as">{user?.email}</span>;
+      }
+
+      function renderForms(path: '/login' | '/register') {
+        return render(
+          <ThemeProvider>
+            <QueryClientProvider client={createQueryClient()}>
+              <AuthProvider>
+                <MemoryRouter initialEntries={[path]}>
+                  <NotificationProvider>
+                    <Routes>
+                      <Route path="/login" element={<LoginPage />} />
+                      <Route path="/register" element={<RegisterPage />} />
+                      <Route path="/dashboard" element={<SignedInPage />} />
+                    </Routes>
+                  </NotificationProvider>
+                </MemoryRouter>
+              </AuthProvider>
+            </QueryClientProvider>
+          </ThemeProvider>,
+        );
+      }
+
+      function fillSignIn(email: string, password: string) {
+        fireEvent.change(screen.getByLabelText('Email'), { target: { value: email } });
+        fireEvent.change(screen.getByLabelText('Password'), { target: { value: password } });
+      }
+
+      /** Fires the form's submit directly, so the handler's own refusal is tested, not only the disabled button. */
+      async function submit(buttonName: string) {
+        await act(async () => {
+          fireEvent.submit(screen.getByRole('button', { name: buttonName }));
+        });
+      }
+
+      function refusedAs(status: number): AxiosError {
+        const config = { headers: new AxiosHeaders() } as InternalAxiosRequestConfig;
+        const response = { data: {}, status, statusText: '', headers: new AxiosHeaders(), config } as AxiosResponse;
+        return new AxiosError('Request failed', String(status), config, {}, response);
+      }
+
+      it('GivenARestoreInFlight_WhenTheSignInFormIsSubmitted_ThenNothingIsSentAndTheTabIsTheRestoredAccountThroughout', async () => {
+        const answerRestore = holdTheRestore();
+        loginApi.mockResolvedValue(SESSION);
+        renderForms('/login');
+
+        expect(screen.getByRole('button', { name: 'Sign In' }).hasAttribute('disabled')).toBe(true);
+        fillSignIn(USER.email, 's3cret!');
+        await submit('Sign In');
+        await answerRestore(true);
+
+        await waitFor(() => expect(screen.getByTestId('signed-in-as').textContent).toBe(PREVIOUS.email));
+        await waitFor(() => expect(socketOpenedWith).toHaveLength(1));
+        await waitFor(() => expect(listedWith).toHaveLength(1));
+        expect(loginApi).not.toHaveBeenCalled();
+        expect(getAccessToken()).toBe('renewed.jwt.token');
+        expect(socketOpenedWith).toEqual(['renewed.jwt.token']);
+        expect(listedWith).toEqual(['renewed.jwt.token']);
+      });
+
+      it('GivenARestoreInFlight_WhenTheRegistrationFormIsSubmitted_ThenNothingIsSent', async () => {
+        const answerRestore = holdTheRestore();
+        registerApi.mockResolvedValue(SESSION);
+        renderForms('/register');
+
+        expect(screen.getByRole('button', { name: 'Create Account' }).hasAttribute('disabled')).toBe(true);
+        fireEvent.change(screen.getByLabelText('Full Name'), { target: { value: USER.name } });
+        fillSignIn(USER.email, 's3cret!-long');
+        fireEvent.change(screen.getByLabelText('Confirm Password'), { target: { value: 's3cret!-long' } });
+        await submit('Create Account');
+        await answerRestore(true);
+
+        await waitFor(() => expect(screen.getByTestId('signed-in-as').textContent).toBe(PREVIOUS.email));
+        expect(registerApi).not.toHaveBeenCalled();
+        expect(getAccessToken()).toBe('renewed.jwt.token');
+      });
+
+      it('GivenASubmitDuringTheRestore_WhenTheRestoreFindsNoSessionAndTheSignInIsThenRefused_ThenTheRefusalIsShown', async () => {
+        const answerRestore = holdTheRestore();
+        loginApi.mockRejectedValue(refusedAs(401));
+        renderForms('/login');
+
+        fillSignIn(USER.email, 'mistyped-1');
+        await submit('Sign In');
+        await answerRestore(false);
+        expect(loginApi).not.toHaveBeenCalled();
+        await submit('Sign In');
+
+        expect(await screen.findByText('Invalid email or password.')).toBeDefined();
+        expect(loginApi).toHaveBeenCalledTimes(1);
+        expect(getAccessToken()).toBeNull();
+      });
     });
   });
 

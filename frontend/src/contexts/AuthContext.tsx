@@ -28,9 +28,13 @@ const LEGACY_KEYS = ['jwt_token', 'user'];
  * A 401 on any later request is handled by the axios interceptor in `api/client.ts`, which renews the
  * token and retries before concluding anything.
  *
- * Sign-in and registration wait for that restore to settle before they start. The browser can hold one
- * account's refresh cookie while somebody else signs in, and a restore landing after the sign-in would
- * replace the new token and user with the previous account's. Waiting makes the latest action win.
+ * The browser can hold one account's refresh cookie while somebody else signs in. `isLoading` stays true
+ * until the restore settles, and `LoginPage` and `RegisterPage` refuse to submit meanwhile, so the forms
+ * cannot race it: a restore that succeeds signs the tab in and redirects it before anybody can sign in.
+ * Sign-in and registration also wait for the restore themselves, a backstop for any other caller, so a
+ * restore landing late cannot replace the new token and user with the previous account's. Neither
+ * covers a restore whose deadline passed while its refresh was still out: that refresh's cookie can
+ * land after a later sign-in's (#403).
  */
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
