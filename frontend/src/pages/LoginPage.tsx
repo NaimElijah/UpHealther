@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import ThemeToggle from '../components/theme/ThemeToggle';
-import { toApiError } from '../api/apiError';
+import { toApiError, toFormMessage } from '../api/apiError';
 
 /**
  * Sign-in page, one of the two routes reachable without a session.
@@ -43,16 +43,11 @@ const LoginPage: React.FC = () => {
     } catch (thrown) {
       const failure = toApiError(thrown);
       // 401 is the only status that means "these credentials are not good", and it keeps the
-      // deliberately vague message. Anything else is ours, so say what the API said and hand over the
-      // trace id — this is the highest-traffic failure path in the application, and it was the one
-      // place a server fault was being reported to the user as their own mistake.
-      setError(
-        failure.status === 401
-          ? 'Invalid email or password.'
-          : failure.traceId
-            ? `${failure.message} (reference ${failure.traceId})`
-            : failure.message,
-      );
+      // deliberately vague message. Anything else is ours, so say what the API said: the field it
+      // refused, or the message and the trace id — this is the highest-traffic failure path in the
+      // application, and it was the one place a server fault was being reported to the user as their
+      // own mistake.
+      setError(failure.status === 401 ? 'Invalid email or password.' : toFormMessage(failure));
     } finally {
       setLoading(false);
     }
