@@ -905,7 +905,7 @@ describe('UpgradeDetailsPage', () => {
     );
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove the 09:00 reminder' }));
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('The reminder was not removed.');
@@ -920,10 +920,10 @@ describe('UpgradeDetailsPage', () => {
     ]);
     deleteReminder.mockReturnValue(new Promise(() => {}));
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove the 09:00 reminder' }));
     await waitFor(() => expect(deleteReminder).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove the 09:00 reminder' }));
 
     // A mutation calls its function a microtask after `mutate`; give a second call its chance first.
     await act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
@@ -939,12 +939,12 @@ describe('UpgradeDetailsPage', () => {
       .mockResolvedValue([]);
     deleteReminder.mockResolvedValue(undefined);
     renderPage();
-    const remove = await screen.findByRole('button', { name: 'Remove' });
+    const remove = await screen.findByRole('button', { name: 'Remove the 09:00 reminder' });
     remove.focus();
 
     fireEvent.click(remove);
 
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Remove the 09:00 reminder' })).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Time')));
   });
 
@@ -1801,6 +1801,24 @@ describe('UpgradeDetailsPage changing a reminder', () => {
     getUpgradeById.mockResolvedValue(anUpgrade());
     getProgressByUpgrade.mockResolvedValue([]);
     getReflectionsByUpgrade.mockResolvedValue([]);
+  });
+
+  // WCAG 2.4.6, 4.1.2, finding X9.17: Remove named no reminder, unlike Edit and Disable beside it.
+  it('GivenAReminder_WhenItsRowRenders_ThenRemoveNamesTheReminder', async () => {
+    serveReminders(aReminder({ reminderTime: '07:30:00' }));
+    renderPage();
+
+    expect(await screen.findByRole('button', { name: 'Remove the 07:30 reminder' })).toBeDefined();
+  });
+
+  // Finding X9.17: Edit turned the form below into the reminder's editor without a word.
+  it('GivenAReminder_WhenEditIsPressed_ThenTheFormsTimeFieldHasFocus', async () => {
+    serveReminders(aReminder());
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit the 09:00 reminder' }));
+
+    expect(document.activeElement).toBe(screen.getByLabelText('Time'));
   });
 
   it('GivenAReminder_WhenItIsRescheduled_ThenItsNewTimeAndDaysAreSentAndItsStateIsLeftAlone', async () => {

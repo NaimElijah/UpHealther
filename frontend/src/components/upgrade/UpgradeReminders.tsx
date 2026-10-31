@@ -116,6 +116,9 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
     rescheduleReminderMut.reset();
     createReminderMut.reset();
     setEditingReminderId(reminder.id);
+    // The form below changes from adding to saving this reminder, and focus goes where the change is, so
+    // the switch is not made silently (finding X9.17).
+    timeField.current?.focus();
   };
 
   /** Puts the form's time and days back to their defaults. */
@@ -197,6 +200,7 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
                   }}
                   // A second DELETE would be answered 404, saying "not removed" while the row disappears.
                   disabled={reminderWriteInFlight}
+                  aria-label={`Remove the ${reminderClock(r)} reminder`}
                   className="text-danger-fg hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Remove
