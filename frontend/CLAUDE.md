@@ -139,8 +139,8 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   on several pages under different keys, and a page opened again within the staleness window renders
   from the cache, so refreshing one key left the others showing a state the upgrade had left (#189).
   Deleting a health area is one too, because the server detaches the upgrades filed under it; creating
-  or renaming one invalidates `['dashboard']` beside `['healthAreas']`, since By Area names every area.
-  ADR-029 lists only the writes to an upgrade itself, and being accepted it is not rewritten.
+  or renaming one invalidates `['dashboard']` beside `['healthAreas']`, since By Area names every area
+  ([ADR-081](../docs/ADRs/ADR-081-a-write-that-changes-upgrades-indirectly-refreshes-their-views-too.md)).
   A new page that shows upgrades under a new key adds that key there
   ([ADR-029](../docs/ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)).
 - **Auth** flows through `contexts/AuthContext.tsx` (the context object lives in `contexts/authContextValue.ts`)

@@ -415,7 +415,8 @@ The browser's half of a read, and of the write that makes it stale:
    ([ADR-029](../ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)).
    Deleting a health area calls it too, because the delete detaches the upgrades filed under the area;
    creating or renaming one invalidates `['healthAreas']` and `['dashboard']`, whose By Area names
-   every area. Other writes invalidate the keys they name, such as a reminder's
+   every area ([ADR-081](../ADRs/ADR-081-a-write-that-changes-upgrades-indirectly-refreshes-their-views-too.md)).
+   Other writes invalidate the keys they name, such as a reminder's
    `['reminders', id]`. A progress entry names too few, and leaves the dashboard and the progress
    history stale for up to thirty seconds ([#192](https://github.com/NaimElijah/UpHealther/issues/192)).
    Invalidation refetches what a mounted page reads; the rest refetch when their page next opens.
@@ -1110,6 +1111,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the dialog traps focus by hand rather than through a native `<dialog>`; why `inert` and not `aria-hidden`; why the overlay is portalled | [ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md) |
 | Why a phone gets the navigation in the shared dialog rather than a drawer or a tab bar; when the menu closes; why the brand leaves the navbar below 360px | [ADR-022](../ADRs/ADR-022-the-phone-navigation-is-the-shared-dialog-not-a-drawer.md) |
 | Why a write to an upgrade refreshes every page's view of upgrades rather than its own, and why not a zero staleness window or patched caches | [ADR-029](../ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md) |
+| Why deleting a health area refreshes every view of upgrades, and creating or renaming one the dashboard | [ADR-081](../ADRs/ADR-081-a-write-that-changes-upgrades-indirectly-refreshes-their-views-too.md) |
 | Why a notification sweep carries on past a failed save, still fails the run, and gives up only when the database cannot be reached | [ADR-023](../ADRs/ADR-023-a-notification-sweep-carries-on-past-a-failed-save-and-fails-the-run.md) |
 | Why a lifecycle notification is stored in its own transaction after the write commits, and why a failed one can be lost but never fails the write | [ADR-028](../ADRs/ADR-028-a-raised-notification-is-stored-in-its-own-transaction-after-the-write-commits.md) |
 | Why the container's error page is let through security by dispatcher type, and how it gets the trace id the request's own dispatch saw | [ADR-024](../ADRs/ADR-024-the-container-error-page-keeps-its-status-and-carries-the-trace-id.md) |
