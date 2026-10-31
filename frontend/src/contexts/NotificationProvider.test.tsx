@@ -351,7 +351,12 @@ describe('NotificationProvider', () => {
 
   it('GivenTheCountCannotBeRead_WhenANotificationIsMarkedRead_ThenTheBadgeStillCountsTheListed', async () => {
     // A drop applied to a count never read would invent a zero and hide the controls again.
-    getNotifications.mockResolvedValue([PUSHED, { ...PUSHED, id: 'n-2' }]);
+    let held: AppNotification[] = [PUSHED, { ...PUSHED, id: 'n-2' }];
+    getNotifications.mockImplementation(async () => held);
+    // The server applies the write, since the list is read again once it lands.
+    markNotificationRead.mockImplementation(async (id: string) => {
+      held = held.map((n) => (n.id === id ? { ...n, read: true } : n));
+    });
     getUnreadCount.mockRejectedValue(new Error('Network Error'));
     renderProvider();
     await waitFor(() => expect(screen.getByTestId('unread').textContent).toBe('2'));
@@ -509,6 +514,38 @@ describe('NotificationProvider', () => {
     await act(settled);
     await answerStaleList([PUSHED]);
 
+    expect(screen.getByTestId('unread-listed').textContent).toBe('0');
+  });
+
+  // Cancelling the list fetch reverts it, and nothing re-ran it: a notification it would have brought,
+  // one missed while the socket was down say, stayed off the list until the next focus or mount.
+
+  it('GivenAListFetchInFlightCarryingAMissedNotification_WhenAnotherIsMarkedRead_ThenTheMissedOneIsListed', async () => {
+    const answerStaleList = await aListFetchInFlight();
+    getNotifications.mockResolvedValue([{ ...PUSHED, read: true }, OTHER]);
+    getUnreadCount.mockResolvedValue(1);
+
+    act(() => screen.getByRole('button', { name: 'Mark read' }).click());
+    await act(settled);
+    await answerStaleList([PUSHED, OTHER]);
+
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('2'));
+    expect(screen.getByTestId('unread-listed').textContent).toBe('1');
+    expect(screen.getByTestId('unread').textContent).toBe('1');
+  });
+
+  it('GivenAListFetchInFlightCarryingAMissedNotification_WhenAllAreMarkedRead_ThenTheMissedOneIsListed', async () => {
+    const answerStaleList = await aListFetchInFlight();
+    getNotifications.mockResolvedValue([
+      { ...PUSHED, read: true },
+      { ...OTHER, read: true },
+    ]);
+
+    act(() => screen.getByRole('button', { name: 'Mark all read' }).click());
+    await act(settled);
+    await answerStaleList([PUSHED, OTHER]);
+
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('2'));
     expect(screen.getByTestId('unread-listed').textContent).toBe('0');
   });
 

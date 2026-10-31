@@ -161,11 +161,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
    *
    * The optimistic write is what makes the badge respond instantly. The count drops only if the
    * notification was unread, since marking a read one again changes nothing on the server. If the call
-   * fails the list and the count are invalidated, so the server's answer replaces the guess rather than
-   * the UI keeping a lie, and the failure is kept as `actionError` for the bell and the page to show.
+   * fails, the failure is kept as `actionError` for the bell and the page to show.
    *
-   * The count is also read again once the call succeeds, because the drop is a guess made from the list,
-   * and the list can be older than the count: a push refreshes the count alone.
+   * Either way the list and the count are then invalidated, so the server's answer replaces the guess.
+   * After a refusal the guess is a lie. After a success it is still a guess, made from the list, and the
+   * list can be older than the count: a push refreshes the count alone. And the list fetch the cancel
+   * reverted is re-run by nothing else, so a notification it would have brought stayed off the list.
    */
   const markRead = useCallback(
     async (id: string) => {
@@ -185,18 +186,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         await markNotificationRead(id);
       } catch (thrown) {
         setActionError(toApiError(thrown));
-        await queryClient.invalidateQueries({ queryKey: NOTIF_KEY });
-        return;
       }
-      await queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
+      await queryClient.invalidateQueries({ queryKey: NOTIF_KEY });
     },
     [queryClient, cancelNotificationFetches],
   );
 
   /**
-   * Marks every notification read, optimistically and with the same rollback-by-invalidation. The count
-   * goes to zero, not merely down by the unread ones listed: the server marks every notification read,
-   * including those past the fifty fetched. It is read again once the call succeeds, as in `markRead`.
+   * Marks every notification read, optimistically, and then invalidates the list and the count whether
+   * the call succeeded or not, as `markRead` does. The count goes to zero, not merely down by the unread
+   * ones listed: the server marks every notification read, including those past the fifty fetched.
    */
   const markAllRead = useCallback(async () => {
     setActionError(undefined);
@@ -207,10 +206,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       await markAllNotificationsRead();
     } catch (thrown) {
       setActionError(toApiError(thrown));
-      await queryClient.invalidateQueries({ queryKey: NOTIF_KEY });
-      return;
     }
-    await queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
+    await queryClient.invalidateQueries({ queryKey: NOTIF_KEY });
   }, [queryClient, cancelNotificationFetches]);
 
   /**

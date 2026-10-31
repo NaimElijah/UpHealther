@@ -424,9 +424,11 @@ The browser's half of a read, and of the write that makes it stale:
 `NotificationProvider` reads `['notifications']` over REST, and `api/notificationSocket.ts` hands it
 each notification the server pushes over STOMP. A pushed one is written into the same list unless
 its id is already there, so one that arrives both ways is listed once, and the unread count,
-`['notifications', 'unread-count']`, is read again from the server. Marking read writes the cache
-first and calls the API after; a refusal invalidates the list, so the server's answer replaces the
-guess.
+`['notifications', 'unread-count']`, is read again from the server. Marking one or all read first
+cancels a list or count fetch in flight, and waits for the cancel, since that fetch was answered
+before the write and would undo it; it then writes the cache and calls the API. Accepted or refused,
+the write is followed by invalidating the list and the count, so the server's answer replaces the
+guess and the cancelled fetch is made again.
 
 ### A session, end to end
 
