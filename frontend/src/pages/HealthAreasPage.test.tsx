@@ -465,6 +465,19 @@ describe('HealthAreasPage form errors', () => {
     await dialog.findByText('Priority must be a whole number.');
     expect(document.activeElement).toBe(dialog.getByLabelText('Priority'));
   });
+
+  // Review finding 19 on #407: the edit dialog's refusal had no focus test of its own.
+  it('GivenAFractionalPriority_WhenAnEditIsSaved_ThenThePriorityIsInvalidAndHasFocus', async () => {
+    renderPage();
+    const dialog = await openEdit();
+    fireEvent.change(dialog.getByLabelText('Priority'), { target: { value: '2.5' } });
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save Changes' }));
+
+    await dialog.findByText('Priority must be a whole number.');
+    expect(dialog.getByLabelText('Priority').getAttribute('aria-invalid')).toBe('true');
+    expect(document.activeElement).toBe(dialog.getByLabelText('Priority'));
+  });
 });
 
 /**

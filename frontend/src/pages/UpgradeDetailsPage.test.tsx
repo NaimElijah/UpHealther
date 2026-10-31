@@ -1266,6 +1266,19 @@ describe('UpgradeDetailsPage editing an upgrade', () => {
     expect(updateUpgrade).not.toHaveBeenCalled();
   });
 
+  // Review finding 19 on #407: the refusal's focus was untested on this branch.
+  it('GivenATargetEndWithAFiveDigitYear_WhenTheEditIsSaved_ThenTheTargetEndHasFocus', async () => {
+    serveUpgrade(described);
+    renderPage();
+    const dialog = await openEdit();
+    fireEvent.change(dialog.getByLabelText('Target End'), { target: { value: '20260-06-30' } });
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+
+    await dialog.findByText('Pick a date with a four-digit year.');
+    expect(document.activeElement).toBe(dialog.getByLabelText('Target End'));
+  });
+
   // Review finding 1 on #407: a date with one part erased reads as `''`, and the dialog sets
   // `noValidate`, so it was sent as "no target end" and the stored one was erased.
   it('GivenAnUnfinishedTargetEnd_WhenTheEditIsSaved_ThenNothingIsSentAndTheTargetEndIsRefusedWithFocus', async () => {
@@ -1650,6 +1663,19 @@ describe('UpgradeDetailsPage rescheduling an upgrade', () => {
     expect(rescheduleUpgrade).not.toHaveBeenCalled();
   });
 
+  // Review finding 19 on #407: the refusal's focus was untested on this branch and the next.
+  it('GivenTheDateIsCleared_WhenTheRescheduleIsSubmitted_ThenTheDateHasFocus', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });
+    renderPage();
+    const dialog = await openReschedule();
+    fireEvent.change(dialog.getByLabelText('New start date'), { target: { value: '' } });
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Reschedule' }));
+
+    await dialog.findByText('Pick a start date.');
+    expect(document.activeElement).toBe(dialog.getByLabelText('New start date'));
+  });
+
   it('GivenAFiveDigitYear_WhenTheRescheduleIsSubmitted_ThenNothingIsSentAndTheDialogAsksForFourDigits', async () => {
     serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });
     renderPage();
@@ -1661,6 +1687,18 @@ describe('UpgradeDetailsPage rescheduling an upgrade', () => {
     expect(await dialog.findByText('Pick a date with a four-digit year.')).toBeDefined();
     await settled();
     expect(rescheduleUpgrade).not.toHaveBeenCalled();
+  });
+
+  it('GivenAFiveDigitYear_WhenTheRescheduleIsSubmitted_ThenTheDateHasFocus', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });
+    renderPage();
+    const dialog = await openReschedule();
+    fireEvent.change(dialog.getByLabelText('New start date'), { target: { value: '20261-11-01' } });
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Reschedule' }));
+
+    await dialog.findByText('Pick a date with a four-digit year.');
+    expect(document.activeElement).toBe(dialog.getByLabelText('New start date'));
   });
 
   it('GivenAnUnfinishedDate_WhenTheRescheduleIsSubmitted_ThenNothingIsSentAndTheDateIsRefusedWithFocus', async () => {

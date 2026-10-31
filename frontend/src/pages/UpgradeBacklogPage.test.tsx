@@ -279,6 +279,18 @@ describe('UpgradeBacklogPage creating an idea', () => {
     expect(createUpgrade).not.toHaveBeenCalled();
   });
 
+  // Review finding 19 on #407: the refusal's focus was untested on this branch.
+  it('GivenATargetEndWithAFiveDigitYear_WhenAnIdeaIsCreated_ThenTheTargetEndHasFocus', async () => {
+    renderPage();
+    const dialog = await openCreate();
+    fireEvent.change(dialog.getByLabelText('Target End'), { target: { value: '20260-12-31' } });
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Add Idea' }));
+
+    await dialog.findByText('Pick a date with a four-digit year.');
+    expect(document.activeElement).toBe(dialog.getByLabelText('Target End'));
+  });
+
   it('GivenATitleTheApiRefuses_WhenAnIdeaIsCreated_ThenTheDialogStaysOpenAndNamesTheReason', async () => {
     // BR-16: the API refuses an over-long title with a 400 naming the field.
     createUpgrade.mockRejectedValue(
