@@ -2,18 +2,18 @@
 
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
-rather than trusted. A hundred and twenty-three of the hundred and thirty-two entries below name a test —
-a hundred and eighty distinct test classes and files between them. Six of the remaining nine name the
+rather than trusted. A hundred and twenty-three of the hundred and thirty-three entries below name a test —
+a hundred and eighty distinct test classes and files between them. Six of the remaining ten name the
 command, workflow, script or setting that *is* the check (NFR-11, NFR-13, NFR-18, NFR-48, NFR-52,
-NFR-53). The last three — FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is
+NFR-53). Three more — FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is
 about a rendered width, a colour or an overflow, and jsdom has no layout engine to observe any of them;
-§6 records what closing that gap would take.
+§6 records what closing that gap would take. The last, NFR-61, names only its known deviations.
 
 **A functional requirement is met in the shipped product, not merely in the API.** There is no public
 API (§5.4), so "a user can" means through the interface. Where the implementation falls short of an
 entry — in the interface or anywhere else — the entry is not weakened to match. Its *Enforced by* cell
 says **Known deviation** and links the issue that tracks the gap; the tests named there enforce the
-part that holds. Ten entries carry one today, and the change that closes an issue takes its
+part that holds. Eleven entries carry one today, and the change that closes an issue takes its
 marker out.
 
 **IDs are permanent.** Tests, code comments, migrations and ADRs cite them, so an ID is never
@@ -142,6 +142,7 @@ only the streaks that are running — a zero is no streak — and names each by 
 | FR-39 | A dialog fits the window at any size: its heading stays put and only its body scrolls | `Modal` — checked by hand, see §6 |
 | FR-40 | A dialog announces itself as a dialog named by its title, takes focus on open, confines Tab to its own controls, restores focus on close, and marks the page behind it inert. A toast is not part of the page behind: it stays above an open dialog and can still be dismissed | `Modal`, `Modal.test.tsx`, `ToastContainer.test.tsx`, `UpgradeDetailsPage.test.tsx` (focus lands on Reschedule once an abandon removes the button that opened its dialog), [ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md), [ADR-019](../ADRs/ADR-019-a-toast-stays-live-above-an-open-dialog.md) |
 | FR-41 | A health area whose stored icon cannot be drawn is shown with the default icon, and editing it does not write the undrawable value back | `areaIconGlyph`, `isIconGlyph`, `areaIcon.test.ts`, `HealthAreasPage.test.tsx` (an undrawable icon is not written back on edit) |
+| NFR-61 | The interface meets WCAG 2.2 at level AA, in both themes and at every window width from 320px: every page and control can be reached and operated with the keyboard alone, is named, states its role and state, and announces what changes, and text and controls meet the contrast the standard sets ([ADR-082](../ADRs/ADR-082-the-interface-targets-wcag-2-2-aa.md)) | **Known deviation:** [#343](https://github.com/NaimElijah/UpHealther/issues/343), scan 09 found twenty-seven failures against it; **Known deviation:** [#404](https://github.com/NaimElijah/UpHealther/issues/404), nothing checks the interface against the standard automatically, so contrast, reflow and a focus hidden behind the header are checked by hand in a browser |
 
 ### 2.8 Account administration
 
@@ -351,10 +352,6 @@ Undecided, and owned by the repository owner.
 - **Whether a failed entry today breaks a streak today.** BR-9 says a day not yet logged does not
   break one, and `StreakCalculatorTest` pins that. The calculator also treats a day logged as *not*
   completed the same way until the day is over, which no test asserts and no requirement states.
-- **There is no accessibility target beyond dialogs and contrast.** FR-40 and NFR-19 are the only
-  accessibility requirements, so the keyboard, labelling and announcement gaps the audit found are not
-  defects against anything. Whether to adopt a target such as WCAG 2.2 AA is undecided
-  ([#104](https://github.com/NaimElijah/UpHealther/issues/104)).
 - **There is no list of supported browsers.** Nothing states one, so the bundler's default target
   decided it. `vite.config.ts` now pins Vite 5's old default to keep things as they were
   ([ADR-036](../ADRs/ADR-036-the-frontend-builds-on-vite-8-and-tests-on-vitest-5.md)). The SPA
@@ -364,7 +361,9 @@ Undecided, and owned by the repository owner.
 
 - **The frontend has no accessibility or visual-regression gate.** Contrast ratios in the theme were
   computed by hand; nothing re-checks them when a colour changes, and jsdom cannot — it has no layout
-  engine. A real browser now runs in CI
+  engine. Nothing checks the interface against NFR-61's WCAG 2.2 AA automatically either; an automated
+  check, axe or similar, is a new dependency and is
+  [#404](https://github.com/NaimElijah/UpHealther/issues/404)'s. A real browser now runs in CI
   ([ADR-052](../ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md)), but
   it drives one flow at one width (NFR-56) and measures nothing on the way. FR-39 and NFR-20 land in
   exactly this gap: no test in the suite observes a width, a wrap or an overflow, so both were verified
