@@ -152,39 +152,20 @@ class StompRefusalIT extends PostgresIT {
 
         assertThat(messageHeaderOf(socket.error.get(WAIT_SECONDS, TimeUnit.SECONDS)))
                 .containsExactly(MESSAGE_HEADER + REFUSED);
-        assertThat(socket.closed.get(WAIT_SECONDS, TimeUnit.SECONDS)).isNotNull();
+        assertClosedAsAProtocolError(socket);
     }
 
     @Test
     void GivenASocketThatNeverConnected_WhenItSendsAFrame_ThenTheErrorFrameSaysFrameNotProcessed() throws Exception {
         // Spring refuses a frame on a session it has no CONNECT for ("Unknown session") before the
         // interceptor runs, so this is a frame not processed, not one the interceptor refused.
-        CompletableFuture<String> error = new CompletableFuture<>();
-        CompletableFuture<CloseStatus> closed = new CompletableFuture<>();
-        WebSocketSession bare = new StandardWebSocketClient()
-                .execute(
-                        new TextWebSocketHandler() {
-                            @Override
-                            protected void handleTextMessage(WebSocketSession session, TextMessage frame) {
-                                error.complete(frame.getPayload());
-                            }
+        BareSocket socket = openBare();
 
-                            @Override
-                            public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-                                closed.complete(status);
-                            }
-                        },
-                        "ws://localhost:{port}/ws",
-                        port)
-                .get(WAIT_SECONDS, TimeUnit.SECONDS);
+        socket.session.sendMessage(new TextMessage(BARE_SEND));
 
-        bare.sendMessage(new TextMessage(BARE_SEND));
-
-        String frame = error.get(WAIT_SECONDS, TimeUnit.SECONDS);
-        assertThat(frame).startsWith("ERROR\n");
-        assertThat(frame.lines().filter(header -> header.startsWith(MESSAGE_HEADER)))
+        assertThat(messageHeaderOf(socket.error.get(WAIT_SECONDS, TimeUnit.SECONDS)))
                 .containsExactly(MESSAGE_HEADER + NOT_PROCESSED);
-        assertThat(closed.get(WAIT_SECONDS, TimeUnit.SECONDS)).isNotNull();
+        assertClosedAsAProtocolError(socket);
     }
 
     // ------------------------------------------------------------------ the socket
@@ -239,8 +220,9 @@ class StompRefusalIT extends PostgresIT {
     }
 
     /**
-     * A WebSocket with no STOMP client on it, for frames Spring's client will not send: the CONNECTED
-     * frame the server answers a CONNECT with, the first ERROR frame, and the close.
+     * A WebSocket with no STOMP client on it, for the frames Spring's client will not send: one before
+     * any CONNECT, and a MESSAGE. Its futures complete with what the server sends back: the CONNECTED
+     * frame it answers a CONNECT with, the first ERROR frame, and the status it closes the socket with.
      */
     private record BareSocket(
             WebSocketSession session,
@@ -274,6 +256,16 @@ class StompRefusalIT extends PostgresIT {
                         port)
                 .get(WAIT_SECONDS, TimeUnit.SECONDS);
         return new BareSocket(session, connected, error, closed);
+    }
+
+    /**
+     * Spring closes the socket after every ERROR frame it sends, with the protocol-error status. The code
+     * alone is compared: the reason phrase is the client library's to fill in.
+     */
+    private static void assertClosedAsAProtocolError(BareSocket socket) throws Exception {
+        assertThat(socket.closed.get(WAIT_SECONDS, TimeUnit.SECONDS))
+                .extracting(CloseStatus::getCode)
+                .isEqualTo(CloseStatus.PROTOCOL_ERROR.getCode());
     }
 
     /** A STOMP 1.2 CONNECT carrying the token, with heartbeats off so nothing else crosses the socket. */
