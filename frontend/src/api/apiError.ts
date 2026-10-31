@@ -23,10 +23,10 @@ export interface ApiError {
  * The sentence to put in front of a user for a failed call, preferring the specific over the general.
  *
  * A validation failure carries its detail in `fieldErrors` and puts only "Validation failed" in
- * `message`, so rendering `message` alone tells somebody that something is wrong and nothing about
- * what — which is what every form here did with the 400s the API started returning for an over-long
- * field or a short password. Field messages come first for that reason, and the trace id is appended
- * only when there is no field detail, because "reference 7f3a..." helps a bug report and not a form.
+ * `message`, so rendering `message` alone would tell somebody that something is wrong and nothing about
+ * what, as with a 400 for an over-long field or a short password. Field messages come first for that
+ * reason, and the trace id is appended only when there is no field detail, because "reference 7f3a..."
+ * helps a bug report and not a form.
  *
  * Field errors are listed sorted by field name, each as `Name: message.`, joined by spaces; when `primary` is
  * among them, its message alone is returned.
