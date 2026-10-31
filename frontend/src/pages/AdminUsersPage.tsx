@@ -76,6 +76,16 @@ const AdminUsersPage: React.FC = () => {
     ...afterChange,
   });
 
+  const confirming = disabling.isPending || changingRole.isPending;
+
+  /**
+   * Closes the confirmation unless its change is in flight: the answer closes it, and closing it first
+   * would let a second change start before the first had landed.
+   */
+  const closeConfirmation = () => {
+    if (!confirming) setPending(null);
+  };
+
   const confirm = () => {
     if (!pending) return;
     if (pending.kind === 'disable') disabling.mutate(pending.account.id);
@@ -144,7 +154,12 @@ const AdminUsersPage: React.FC = () => {
                             Disable
                           </Button>
                         ) : (
-                          <Button variant="ghost" size="sm" onClick={() => enabling.mutate(account.id)}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={enabling.isPending}
+                            onClick={() => enabling.mutate(account.id)}
+                          >
                             Enable
                           </Button>
                         )}
@@ -182,15 +197,15 @@ const AdminUsersPage: React.FC = () => {
         </div>
       )}
 
-      <Modal isOpen={pending !== null} onClose={() => setPending(null)} title={pending ? confirmTitle(pending) : ''}>
+      <Modal isOpen={pending !== null} onClose={closeConfirmation} title={pending ? confirmTitle(pending) : ''}>
         {pending && (
           <div className="flex flex-col gap-4">
             <p className="text-fg-subtle">{confirmBody(pending)}</p>
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setPending(null)}>
+              <Button variant="ghost" onClick={closeConfirmation} disabled={confirming}>
                 Cancel
               </Button>
-              <Button variant="primary" onClick={confirm}>
+              <Button variant="primary" loading={confirming} onClick={confirm}>
                 Confirm
               </Button>
             </div>

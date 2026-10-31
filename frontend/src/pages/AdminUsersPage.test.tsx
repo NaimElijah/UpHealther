@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import AdminUsersPage from './AdminUsersPage';
@@ -76,6 +76,11 @@ async function click(label: string) {
   await act(async () => {
     screen.getByText(label).click();
   });
+}
+
+/** Lets pending promises run, so a mutation started by a click has reached its `mutationFn`. */
+async function settle() {
+  await act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
 }
 
 /**
@@ -200,6 +205,57 @@ describe('AdminUsersPage', () => {
     await click('Enable');
 
     expect(enableAccount).toHaveBeenCalledWith(SOMEBODY.id);
+  });
+
+  // A second click while the first change is in flight would send it twice: a second ADMIN_DISABLE
+  // entry, or a 409 shown as "did not go through" for a change that did. TanStack runs mutationFn a
+  // microtask after mutate, so each check lets pending work run before it counts the calls.
+
+  it('GivenADisableInFlight_WhenConfirmIsClickedAgain_ThenTheAccountIsDisabledOnce', async () => {
+    disableAccount.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Someone Else')).toBeDefined());
+
+    await click('Disable');
+    await click('Confirm');
+    await settle();
+    await click('Confirm');
+    await settle();
+
+    expect(disableAccount).toHaveBeenCalledTimes(1);
+  });
+
+  it('GivenARoleChangeInFlight_WhenTheDialogIsCancelled_ThenItStaysOpenUntilTheAnswer', async () => {
+    let answer: (account: AdminAccount) => void = () => {};
+    changeAccountRole.mockReturnValue(new Promise<AdminAccount>((resolve) => (answer = resolve)));
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Someone Else')).toBeDefined());
+
+    await click('Make admin');
+    await click('Confirm');
+    await settle();
+    await click('Cancel');
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'Escape' });
+    });
+
+    expect(screen.getByText('Make Someone Else an administrator?')).toBeDefined();
+    await act(async () => answer({ ...SOMEBODY, role: 'ADMIN' }));
+    await waitFor(() => expect(screen.queryByText('Make Someone Else an administrator?')).toBeNull());
+  });
+
+  it('GivenAnEnableInFlight_WhenEnableIsClickedAgain_ThenTheAccountIsEnabledOnce', async () => {
+    enableAccount.mockReturnValue(new Promise(() => {}));
+    listAccounts.mockResolvedValue(page([MY_ACCOUNT, { ...SOMEBODY, enabled: false }], 2));
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Enable')).toBeDefined());
+
+    await click('Enable');
+    await settle();
+    await click('Enable');
+    await settle();
+
+    expect(enableAccount).toHaveBeenCalledTimes(1);
   });
 
   it('GivenTheListCannotBeLoaded_WhenThePageRenders_ThenItSaysSoRatherThanShowingNothing', async () => {
