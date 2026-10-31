@@ -1,6 +1,6 @@
-import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import React, { useState } from 'react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Modal from '../ui/Modal';
 import ToastContainer from './ToastContainer';
@@ -116,7 +116,86 @@ describe('ToastContainer', () => {
 
     render(<PageWithDialog dialogOpen={false} toasts={[unknown]} />);
 
-    expect(screen.getByRole('status').className).toContain('bg-info-soft');
+    expect(screen.getByRole('group', { name: '🔥 7-day streak!' }).className).toContain('bg-info-soft');
     expect(screen.getByText('🔥 7-day streak!')).toBeDefined();
+  });
+});
+
+/** How long a toast stays up on its own, ten seconds, while nothing holds it. */
+const TOAST_LIFETIME_MS = 10_000;
+
+/** The toasts, held in state the way the provider holds them, so a dismissal takes one off. */
+const LiveToasts: React.FC<{ initial: ToastData[] }> = ({ initial }) => {
+  const [toasts, setToasts] = useState(initial);
+  return (
+    <MemoryRouter>
+      <NotificationContext.Provider
+        value={withToasts(toasts, (id) => setToasts((shown) => shown.filter((t) => t.id !== id)))}
+      >
+        <ToastContainer />
+      </NotificationContext.Provider>
+    </MemoryRouter>
+  );
+};
+
+/**
+ * A toast can be read before it goes: it stays while the pointer is over it or focus is in it, and counts
+ * down again once neither is, for ten seconds in all. The live region it is announced through is mounted
+ * before any toast arrives, since a region inserted together with its text may not be announced at all
+ * (WCAG 2.2.1, 4.1.3, finding X9.14).
+ */
+describe('ToastContainer timing', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('GivenNoToasts_WhenTheContainerRenders_ThenAnEmptyLiveRegionIsAlreadyMounted', () => {
+    render(<PageWithDialog dialogOpen={false} toasts={[]} />);
+
+    const region = screen.getByRole('status');
+    expect(region.getAttribute('aria-live')).toBe('polite');
+    expect(region.textContent).toBe('');
+  });
+
+  it('GivenAToastShowing_WhenTenSecondsPass_ThenItDismissesItselfAndNotBefore', () => {
+    vi.useFakeTimers();
+    render(<LiveToasts initial={[streakToast]} />);
+
+    act(() => vi.advanceTimersByTime(TOAST_LIFETIME_MS - 1));
+    expect(screen.queryByText('🔥 7-day streak!')).not.toBeNull();
+
+    act(() => vi.advanceTimersByTime(1));
+    expect(screen.queryByText('🔥 7-day streak!')).toBeNull();
+  });
+
+  it('GivenAToastUnderThePointer_WhenItsLifetimePasses_ThenItStaysUntilThePointerLeavesAndTheRestRunsOut', () => {
+    vi.useFakeTimers();
+    render(<LiveToasts initial={[streakToast]} />);
+    const toast = screen.getByRole('group', { name: '🔥 7-day streak!' });
+    act(() => vi.advanceTimersByTime(4_000));
+
+    fireEvent.mouseEnter(toast);
+    act(() => vi.advanceTimersByTime(TOAST_LIFETIME_MS * 2));
+    expect(screen.queryByText('🔥 7-day streak!')).not.toBeNull();
+
+    fireEvent.mouseLeave(toast);
+    act(() => vi.advanceTimersByTime(TOAST_LIFETIME_MS - 4_000 - 1));
+    expect(screen.queryByText('🔥 7-day streak!')).not.toBeNull();
+    act(() => vi.advanceTimersByTime(1));
+    expect(screen.queryByText('🔥 7-day streak!')).toBeNull();
+  });
+
+  it('GivenFocusInAToast_WhenItsLifetimePasses_ThenItStaysUntilFocusLeaves', () => {
+    vi.useFakeTimers();
+    render(<LiveToasts initial={[streakToast]} />);
+    const dismiss = screen.getByRole('button', { name: 'Dismiss notification' });
+
+    act(() => dismiss.focus());
+    act(() => vi.advanceTimersByTime(TOAST_LIFETIME_MS * 2));
+    expect(screen.queryByText('🔥 7-day streak!')).not.toBeNull();
+
+    act(() => dismiss.blur());
+    act(() => vi.advanceTimersByTime(TOAST_LIFETIME_MS));
+    expect(screen.queryByText('🔥 7-day streak!')).toBeNull();
   });
 });

@@ -60,6 +60,12 @@ next scan would find the same kinds of failure again and have nothing to call th
 - **The phrasing of the standard is the reviewer's to read.** Where a criterion leaves room, such as how
   long is long enough for a message that dismisses itself, the record that settles it says so.
 
+**What this changes in earlier records.** A toast now stays ten seconds rather than six, and its count
+pauses while the pointer is over it or focus is in it (2.2.1). Its live region is mounted before any toast
+arrives (4.1.3). [ADR-019](ADR-019-a-toast-stays-live-above-an-open-dialog.md)'s decision, a toast
+portalled above an open dialog and left out of the inert walk, stands; only its "dismisses itself after
+six seconds" no longer holds.
+
 ## Alternatives considered
 
 - **WCAG 2.1 AA.** Rejected. 2.2 is the current W3C Recommendation and adds criteria that bear on

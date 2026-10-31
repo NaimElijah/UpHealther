@@ -20,9 +20,6 @@ const UNREAD_KEY = [...NOTIF_KEY, 'unread-count'];
 /** The most toasts shown at once; a burst of notifications would otherwise cover the page. */
 const MAX_TOASTS = 4;
 
-/** How long a toast stays up before it dismisses itself. */
-const TOAST_LIFETIME_MS = 6000;
-
 /**
  * Owns notification state: the list, the unread count, whether the live connection is up, and the
  * toasts.
@@ -80,21 +77,18 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, []);
 
   /**
-   * Shows a notification as a toast: newest first, at most four at once, each auto-dismissed after six
-   * seconds. The cap matters — a burst of notifications would otherwise cover the page.
+   * Shows a notification as a toast: newest first, at most four at once. The cap matters — a burst of
+   * notifications would otherwise cover the page. Each toast dismisses itself, from `ToastContainer`,
+   * which is what knows when the pointer or focus is holding it (WCAG 2.2.1).
    */
-  const pushToast = useCallback(
-    (n: AppNotification) => {
-      setToasts((prev) =>
-        [
-          { id: n.id, category: n.category, title: n.title, message: n.message, relatedUpgradeId: n.relatedUpgradeId },
-          ...prev,
-        ].slice(0, MAX_TOASTS),
-      );
-      window.setTimeout(() => dismissToast(n.id), TOAST_LIFETIME_MS);
-    },
-    [dismissToast],
-  );
+  const pushToast = useCallback((n: AppNotification) => {
+    setToasts((prev) =>
+      [
+        { id: n.id, category: n.category, title: n.title, message: n.message, relatedUpgradeId: n.relatedUpgradeId },
+        ...prev,
+      ].slice(0, MAX_TOASTS),
+    );
+  }, []);
 
   /**
    * Handles a notification pushed over the socket: writes it into the cache, toasts it, and raises a
