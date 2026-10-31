@@ -10,9 +10,10 @@ import java.util.UUID;
  *
  * <p>Composed rather than stored: every bucket is derived at request time from the user's upgrades,
  * progress entries and health areas. The buckets overlap by design: an ACTIVE upgrade is in
- * {@code activeUpgrades} and also in {@code todayUpgrades} (inside its date window) or
- * {@code overdueUpgrades} (past its target end), never both. Each is serialized from a single mapped
- * instance, so the repeated upgrades are identical rather than merely equal.
+ * {@code activeUpgrades} and, by its dates, may also be in {@code todayUpgrades} (inside its date window)
+ * or {@code overdueUpgrades} (past its target end), never both. One activated with a start date still to
+ * come is in neither. Each is serialized from a single mapped instance, so the repeated upgrades are
+ * identical rather than merely equal.
  *
  * <p>All of it comes in one response, so the home page needs one request (FR-27).
  *
