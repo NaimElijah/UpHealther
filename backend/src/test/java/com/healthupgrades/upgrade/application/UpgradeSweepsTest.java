@@ -7,6 +7,7 @@ import com.healthupgrades.support.AnUpgrade;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -27,11 +28,12 @@ class UpgradeSweepsTest {
     UpgradeSweeps sweeps;
 
     @Test
-    void GivenUpgradesOfSeveralUsers_WhenTheSweepAsksForAStatus_ThenEveryUsersUpgradesInItComeBack() {
-        List<HealthUpgrade> active = List.of(AnUpgrade.active(UUID.randomUUID()), AnUpgrade.active(UUID.randomUUID()));
-        when(repository.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(active);
+    void GivenUpgradesOfSeveralUsers_WhenTheSweepAsksForThoseOverdue_ThenEveryUsersCandidatesComeBack() {
+        LocalDate today = LocalDate.of(2026, 3, 15);
+        List<HealthUpgrade> late = List.of(AnUpgrade.active(UUID.randomUUID()), AnUpgrade.active(UUID.randomUUID()));
+        when(repository.findActivePastTargetDate(today)).thenReturn(late);
 
-        assertThat(sweeps.findByStatus(UpgradeStatus.ACTIVE)).isEqualTo(active);
+        assertThat(sweeps.findActivePastTargetDate(today)).isEqualTo(late);
     }
 
     @Test

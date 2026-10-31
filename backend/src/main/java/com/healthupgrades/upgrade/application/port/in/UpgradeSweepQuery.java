@@ -2,6 +2,7 @@ package com.healthupgrades.upgrade.application.port.in;
 
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -18,12 +19,13 @@ import java.util.UUID;
 public interface UpgradeSweepQuery {
 
     /**
-     * Every upgrade in a status, whoever owns it.
+     * Every ACTIVE upgrade whose target date is before a given day, whoever owns it: the overdue sweep's
+     * candidates, so it never loads the active upgrades that are on time.
      *
-     * @param status the status to match
+     * @param today the day a target date is judged against; an upgrade due on it is not yet late
      * @return the matching upgrades of every user
      */
-    List<HealthUpgrade> findByStatus(UpgradeStatus status);
+    List<HealthUpgrade> findActivePastTargetDate(LocalDate today);
 
     /**
      * How many upgrades in a status each user has, whoever they are, without loading the upgrades.

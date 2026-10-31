@@ -13,6 +13,7 @@ import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import com.healthupgrades.user.domain.model.User;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -287,6 +288,26 @@ class UpgradePersistenceIT extends PostgresIT {
     }
 
     @Test
+    void GivenUpgradesEitherSideOfTheirTargetDate_WhenTheOverdueCandidatesAreRead_ThenOnlyActiveOnesPastItComeBack() {
+        // D3.15: the overdue sweep's query. Other ITs commit upgrades into the shared database, so only
+        // these rows are asserted on.
+        LocalDate today = LocalDate.of(2026, 3, 15);
+        UUID late = persisted(ownerId, UpgradeStatus.ACTIVE, today.minusDays(1));
+        UUID dueToday = persisted(ownerId, UpgradeStatus.ACTIVE, today);
+        UUID ahead = persisted(strangerId, UpgradeStatus.ACTIVE, today.plusDays(1));
+        UUID pausedAndLate = persisted(ownerId, UpgradeStatus.PAUSED, today.minusDays(1));
+        UUID noTarget = persisted(strangerId, UpgradeStatus.ACTIVE, null);
+        UUID strangersLate = persisted(strangerId, UpgradeStatus.ACTIVE, today.minusDays(30));
+        entityManager.clear();
+
+        List<UUID> found = repository.findActivePastTargetDate(today).stream()
+                .map(HealthUpgrade::getId)
+                .toList();
+
+        assertThat(found).contains(late, strangersLate).doesNotContain(dueToday, ahead, pausedAndLate, noTarget);
+    }
+
+    @Test
     void GivenAnUpgradeCompletedAtAMoment_WhenItIsReadBack_ThenTheMomentIsTheOneRecorded() {
         // FR-27, ADR-080: the column V19 adds, mapped, and the stamp surviving the round trip unchanged.
         UUID id = persistedUpgrade().getId();
@@ -406,6 +427,16 @@ class UpgradePersistenceIT extends PostgresIT {
                 .status(status)
                 .plannedStartDate(LocalDate.of(2026, 3, 1))
                 .build();
+    }
+
+    private UUID persisted(UUID userId, UpgradeStatus status, LocalDate targetEndDate) {
+        return entityManager
+                .persistAndFlush(AnUpgrade.ownedBy(userId)
+                        .id(null)
+                        .status(status)
+                        .targetEndDate(targetEndDate)
+                        .build())
+                .getId();
     }
 
     private static HealthUpgrade hardActiveFor(UUID userId) {

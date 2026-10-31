@@ -6,7 +6,6 @@ import com.healthupgrades.common.domain.port.out.DomainEventPublisher;
 import com.healthupgrades.upgrade.application.port.in.UpgradeSweepQuery;
 import com.healthupgrades.upgrade.domain.event.UpgradeOverdueDetected;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
-import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
@@ -41,7 +40,9 @@ public class UpgradeOverdueService {
      *
      * <p>The INFO line is what makes a nightly sweep visible at all: without it, a run that scanned
      * nothing because a query silently stopped matching is indistinguishable from a run with nothing to
-     * find. Counts only — an upgrade's title is the user's own words about their health.
+     * find. Counts only — an upgrade's title is the user's own words about their health. {@code scanned}
+     * counts the candidates the query returned, the active upgrades past their target date, not every
+     * active upgrade; {@code announced} counts those the entity confirmed overdue, which is all of them.
      *
      * @param today      the day an upgrade's target date is judged against
      * @param detectedAt the instant every event of this sweep carries
@@ -50,7 +51,8 @@ public class UpgradeOverdueService {
     public void announceOverdue(LocalDate today, LocalDateTime detectedAt) {
         int scanned = 0;
         int announced = 0;
-        for (HealthUpgrade upgrade : upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)) {
+        // The query narrows to the candidates; the entity still decides, so the rule is stated once.
+        for (HealthUpgrade upgrade : upgradeQuery.findActivePastTargetDate(today)) {
             scanned++;
             if (upgrade.isOverdue(today)) {
                 announced++;

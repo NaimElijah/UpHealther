@@ -4,6 +4,7 @@ import com.healthupgrades.upgrade.application.port.in.UpgradeSweepQuery;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -26,8 +27,8 @@ class UpgradeSweeps implements UpgradeSweepQuery {
 
     /** {@inheritDoc} */
     @Override
-    public List<HealthUpgrade> findByStatus(UpgradeStatus status) {
-        return repository.findByStatus(status);
+    public List<HealthUpgrade> findActivePastTargetDate(LocalDate today) {
+        return repository.findActivePastTargetDate(today);
     }
 
     /** {@inheritDoc} */

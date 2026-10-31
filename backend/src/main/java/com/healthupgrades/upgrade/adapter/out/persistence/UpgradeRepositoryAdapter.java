@@ -6,6 +6,7 @@ import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // domain aggregat
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus; // query filter
 import com.healthupgrades.upgrade.domain.model.UpgradeType; // query filter
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort; // the port implemented here
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -78,8 +79,8 @@ class UpgradeRepositoryAdapter implements UpgradeRepositoryPort {
 
     /** {@inheritDoc} */
     @Override
-    public List<HealthUpgrade> findByStatus(UpgradeStatus status) {
-        return jpa.findByStatus(status);
+    public List<HealthUpgrade> findActivePastTargetDate(LocalDate today) {
+        return jpa.findByStatusAndTargetEndDateBefore(UpgradeStatus.ACTIVE, today);
     }
 
     /** {@inheritDoc} */

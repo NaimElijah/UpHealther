@@ -5,6 +5,7 @@ import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // managed entity
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus; // query filter
 import com.healthupgrades.upgrade.domain.model.UpgradeType; // query filter
 import jakarta.persistence.Tuple;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,7 +26,7 @@ interface UpgradeJpaRepository extends JpaRepository<HealthUpgrade, UUID> {
 
     Optional<HealthUpgrade> findByIdAndUserId(UUID id, UUID userId); // derived query: ownership-scoped lookup
 
-    List<HealthUpgrade> findByStatus(UpgradeStatus status); // derived query: cross-user by status
+    List<HealthUpgrade> findByStatusAndTargetEndDateBefore(UpgradeStatus status, LocalDate date);
 
     List<HealthUpgrade> findByUserIdAndStatus(UUID userId, UpgradeStatus status); // derived query
 

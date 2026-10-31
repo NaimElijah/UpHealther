@@ -5,6 +5,7 @@ import com.healthupgrades.upgrade.domain.model.Difficulty; // difficulty enum us
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // the aggregate this port persists
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus; // lifecycle status used as a query filter
 import com.healthupgrades.upgrade.domain.model.UpgradeType; // type enum used as a query filter
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -42,8 +43,14 @@ public interface UpgradeRepositoryPort {
     /** A user's upgrades filtered by difficulty. */
     List<HealthUpgrade> findByUserIdAndDifficulty(UUID userId, Difficulty difficulty);
 
-    /** All upgrades in a status across every user (used by scheduled jobs). */
-    List<HealthUpgrade> findByStatus(UpgradeStatus status);
+    /**
+     * Every ACTIVE upgrade whose target date is before a given day, across every user (used by scheduled
+     * jobs): the overdue sweep's candidates, read without the rest of the active upgrades.
+     *
+     * @param today the day a target date is judged against; an upgrade due on it is not yet late
+     * @return the matching upgrades of every user
+     */
+    List<HealthUpgrade> findActivePastTargetDate(LocalDate today);
 
     /**
      * How many upgrades in a status each user has, across every user (used by scheduled jobs).
