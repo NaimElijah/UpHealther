@@ -22,9 +22,10 @@ import AdminUsersPage from '../pages/AdminUsersPage';
 /**
  * The route table, and the only place a URL maps to a page.
  *
- * By convention each authenticated page is wrapped in {@link ProtectedRoute} and the shared {@link Layout};
- * every route is written out by hand, so only review enforces it. `/` only redirects, and is wrapped in
- * `ProtectedRoute` alone. The administration page adds {@link RequireRole} on top, which is a courtesy
+ * Each authenticated page is wrapped in {@link ProtectedRoute} and the shared {@link Layout}, route by route.
+ * `index.test.tsx` checks that every path in its `PROTECTED_PATHS` is behind `ProtectedRoute` and that
+ * `/admin/users` is behind `RequireRole`, so a new route belongs in that list too; nothing checks `Layout`.
+ * `/` only redirects, and is wrapped in `ProtectedRoute` alone. The administration page adds {@link RequireRole} on top, which is a courtesy
  * rather than a wall — the API decides. Unknown paths fall through to `/`, which redirects to the dashboard
  * when signed in and to login otherwise.
  *
