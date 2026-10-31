@@ -755,6 +755,28 @@ describe('UpgradeDetailsPage', () => {
     expect(screen.queryByText('Must not be null')).toBeNull();
   });
 
+  it('GivenAReminderAddedAtAnotherTime_WhenItIsAccepted_ThenTheFormStartsAgainFromNineOClockAndNoDays', async () => {
+    createReminder.mockResolvedValue({
+      id: 'r-1',
+      upgradeId: UPGRADE_ID,
+      reminderTime: '07:30:00',
+      daysOfWeek: ['WED'],
+      enabled: true,
+    });
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.change(screen.getByLabelText('Time'), { target: { value: '07:30' } });
+    fireEvent.click(screen.getByTitle('WED'));
+
+    fireEvent.submit(screen.getByRole('button', { name: 'Add reminder' }));
+    await waitFor(() => expect((screen.getByLabelText('Time') as HTMLInputElement).value).toBe('09:00'));
+    fireEvent.submit(screen.getByRole('button', { name: 'Add reminder' }));
+
+    await waitFor(() => expect(createReminder).toHaveBeenCalledTimes(2));
+    expect(createReminder.mock.calls[0][1]).toMatchObject({ reminderTime: '07:30', daysOfWeek: ['WED'] });
+    expect(createReminder.mock.calls[1][1]).toMatchObject({ reminderTime: '09:00', daysOfWeek: [] });
+  });
+
   it('GivenTheUpgradeIsGone_WhenAReminderIsAdded_ThenItSaysWhyWithItsReference', async () => {
     // A refusal that names no field carries the trace id that finds it (NFR-30).
     createReminder.mockRejectedValue(
