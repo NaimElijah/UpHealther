@@ -53,10 +53,15 @@ const NotificationDropdown: React.FC<Props> = ({ id, onClose, onActed }) => {
     if (n.relatedUpgradeId) navigate(`/upgrades/${n.relatedUpgradeId}`);
   };
 
+  // Below `sm` the panel is placed against the viewport, a gutter in from each side and just under the bar.
+  // Anchored to the bell, which sits left of Logout, its right edge stopped short of the window's and its
+  // left edge ran off it: at 320px it spanned -61px to 227px, and the part off screen could not be
+  // scrolled to (WCAG 1.4.10). Fixed, it cannot be scrolled with the page either, so it scrolls itself on a
+  // short window. Measured in a browser.
   return (
     <div
       id={id}
-      className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-surface rounded-xl border border-line shadow-xl z-50 overflow-hidden"
+      className="fixed inset-x-4 top-[4.5rem] max-h-[calc(100vh-5.5rem)] overflow-y-auto sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:mt-2 sm:w-80 sm:max-w-[calc(100vw-2rem)] sm:max-h-none sm:overflow-hidden bg-surface rounded-xl border border-line shadow-xl z-50"
     >
       <div className="flex items-center justify-between px-4 py-3 border-b border-line-subtle">
         <span className="font-semibold text-fg-muted text-sm">
