@@ -35,7 +35,6 @@ interface ProgressEntryJpaRepository extends JpaRepository<ProgressEntry, UUID> 
     @Query("SELECT DISTINCT p.userId FROM ProgressEntry p WHERE p.date = :date")
     Set<UUID> findUserIdsWithEntriesOn(LocalDate date);
 
-    // Explicit JPQL range query for a single upgrade, ordered by date.
     @Query(
             "SELECT p FROM ProgressEntry p WHERE p.upgradeId = :upgradeId AND p.date BETWEEN :start AND :end ORDER BY p.date")
     List<ProgressEntry> findByUpgradeIdAndDateBetween(UUID upgradeId, LocalDate start, LocalDate end);

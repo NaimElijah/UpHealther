@@ -1,11 +1,11 @@
 package com.healthupgrades.upgrade.adapter.out.persistence;
 
 import com.healthupgrades.common.domain.exception.RetryableConflictException;
-import com.healthupgrades.upgrade.domain.model.Difficulty; // query filter
-import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // domain aggregate
-import com.healthupgrades.upgrade.domain.model.UpgradeStatus; // query filter
-import com.healthupgrades.upgrade.domain.model.UpgradeType; // query filter
-import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort; // the port implemented here
+import com.healthupgrades.upgrade.domain.model.Difficulty;
+import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
+import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
+import com.healthupgrades.upgrade.domain.model.UpgradeType;
+import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -27,7 +27,7 @@ class UpgradeRepositoryAdapter implements UpgradeRepositoryPort {
     static final String HARD_LIMIT_CHECK_IN_PROGRESS =
             "Another change to your HARD upgrades is in progress. Please retry.";
 
-    private final UpgradeJpaRepository jpa; // Spring Data proxy injected by constructor
+    private final UpgradeJpaRepository jpa;
 
     /** {@inheritDoc} */
     @Override
