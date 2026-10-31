@@ -54,10 +54,14 @@ const AdminUsersPage: React.FC = () => {
     queryFn: () => listAccounts(page),
   });
 
-  /** Every change re-reads the list rather than patching a row, so what is shown is what was saved. */
+  /**
+   * Every change re-reads the list rather than patching a row, so what is shown is what was saved. The
+   * re-read is awaited, so the mutation stays pending until the row shows the change: until then the
+   * row still offers the control just used, and a second click would send the change again.
+   */
   const afterChange = {
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ACCOUNTS_KEY });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ACCOUNTS_KEY });
       setPending(null);
       setActionError(null);
     },

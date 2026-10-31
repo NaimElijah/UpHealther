@@ -258,6 +258,23 @@ describe('AdminUsersPage', () => {
     expect(enableAccount).toHaveBeenCalledTimes(1);
   });
 
+  it('GivenAnEnableAnsweredButTheListNotYetReRead_WhenEnableIsClickedAgain_ThenTheAccountIsEnabledOnce', async () => {
+    // The row still offers Enable until the list is read again, so the button has to stay busy until then.
+    listAccounts
+      .mockResolvedValueOnce(page([MY_ACCOUNT, { ...SOMEBODY, enabled: false }], 2))
+      .mockReturnValue(new Promise(() => {}));
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Enable')).toBeDefined());
+
+    await click('Enable');
+    await settle();
+    await waitFor(() => expect(listAccounts).toHaveBeenCalledTimes(2));
+    await click('Enable');
+    await settle();
+
+    expect(enableAccount).toHaveBeenCalledTimes(1);
+  });
+
   it('GivenTheListCannotBeLoaded_WhenThePageRenders_ThenItSaysSoRatherThanShowingNothing', async () => {
     listAccounts.mockRejectedValue(new Error('boom'));
 
