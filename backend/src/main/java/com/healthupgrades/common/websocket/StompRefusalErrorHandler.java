@@ -27,10 +27,10 @@ import org.springframework.web.socket.messaging.StompSubProtocolErrorHandler;
  * {@link #handleErrorMessageToClient}, which this class leaves as Spring wrote it: it returns that frame
  * unchanged.
  */
-public class StompRefusalErrorHandler extends StompSubProtocolErrorHandler {
+class StompRefusalErrorHandler extends StompSubProtocolErrorHandler {
 
     /** The ERROR frame's {@code message} for a frame that was not refused but still not processed. */
-    public static final String NOT_PROCESSED = "Frame not processed";
+    static final String NOT_PROCESSED = "Frame not processed";
 
     /** An ERROR frame carries its words in the {@code message} header and needs no body. */
     private static final byte[] NO_PAYLOAD = new byte[0];

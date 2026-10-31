@@ -11,10 +11,10 @@ package com.healthupgrades.common.websocket;
  * <p>An {@link IllegalArgumentException}, as the interceptor's refusals have always been, because the
  * frame is an argument the server will not take.
  */
-public class StompFrameRefusedException extends IllegalArgumentException {
+class StompFrameRefusedException extends IllegalArgumentException {
 
     /** Why a frame was refused, which is all a client is told about it. */
-    public enum Reason {
+    enum Reason {
         /** A CONNECT with no bearer token, or one that does not authenticate. */
         UNAUTHENTICATED("Unauthenticated"),
 
@@ -36,7 +36,7 @@ public class StompFrameRefusedException extends IllegalArgumentException {
          *
          * @return the fixed words a client reads, the same for every refusal of this kind
          */
-        public String frameMessage() {
+        String frameMessage() {
             return frameMessage;
         }
     }
@@ -49,7 +49,7 @@ public class StompFrameRefusedException extends IllegalArgumentException {
      * @param reason what the client is told
      * @param detail what the server knows about the refusal, for its own diagnostics only
      */
-    public StompFrameRefusedException(Reason reason, String detail) {
+    StompFrameRefusedException(Reason reason, String detail) {
         super(detail);
         this.reason = reason;
     }
@@ -59,7 +59,7 @@ public class StompFrameRefusedException extends IllegalArgumentException {
      *
      * @return the reason, whose {@link Reason#frameMessage()} the client reads
      */
-    public Reason reason() {
+    Reason reason() {
         return reason;
     }
 }
