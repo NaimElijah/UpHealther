@@ -7,6 +7,7 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
+import { numOrUndef } from '../components/upgrade/formInput';
 import { useNavigate } from 'react-router-dom';
 import type { HealthUpgrade, CreateProgressRequest } from '../types';
 import PageContainer from '../components/ui/PageContainer';
@@ -16,19 +17,6 @@ import { toApiError } from '../api/apiError';
 
 /** Draft entries being filled in, keyed by upgrade id, until the whole form is submitted. */
 type ProgressMap = Record<string, Partial<CreateProgressRequest>>;
-
-/**
- * Parses a numeric field, treating unparseable input as absent.
- *
- * Clearing a number input yields an empty string, and `parseFloat('')` is NaN. Kept in the draft, a
- * NaN would come back as the controlled input's `value`, since `value ?? ''` lets it through, and React
- * refuses NaN there with a warning. Sent, it would serialise to `null`, which the API reads as no value
- * just as it reads an absent field.
- */
-const numOrUndef = (v: string): number | undefined => {
-  const n = parseFloat(v);
-  return Number.isNaN(n) ? undefined : n;
-};
 
 /**
  * Logs progress for every active upgrade in one pass.
