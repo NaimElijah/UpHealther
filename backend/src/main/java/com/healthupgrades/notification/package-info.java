@@ -28,9 +28,10 @@
  *       the REST list and the push cannot differ. The STOMP adapter importing it is the only
  *       outbound-to-inbound import in the codebase; {@code HexagonalArchitectureTest} forbids only the
  *       other direction, so nothing stops a second one.
- *   <li><strong>Reads of other contexts' rows go through their sweep ports</strong>
- *       ({@code UpgradeSweepQuery}, {@code ProgressSweepQuery}, {@code ReminderSweepQuery}), which only this
- *       context's sweep service may use.
+ *   <li><strong>The sweeps read other contexts' rows through their sweep ports</strong>
+ *       ({@code UpgradeSweepQuery}, {@code ProgressSweepQuery}, {@code ReminderSweepQuery}), which only the
+ *       scheduled jobs' services, {@code NotificationSweepService} and {@code UpgradeOverdueService}, may
+ *       use. The event listener reads an upgrade's title through the user-scoped {@code UpgradeQuery}.
  *   <li><strong>Only the nightly job deletes across accounts.</strong> {@code NotificationRetentionService}
  *       deletes notifications older than ninety days in bounded batches, and only
  *       {@code NotificationRetentionScheduler} may use it (NFR-60, ADR-075).
