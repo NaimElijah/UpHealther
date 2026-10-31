@@ -34,6 +34,17 @@ const FREQUENCY_LABELS: Record<Frequency, string> = {
 };
 
 const TRACKING_TYPE_OPTIONS = optionsOf(TRACKING_TYPE_LABELS);
+
+/** The one tracking type measured against a target, and so the only one with a target and a unit. */
+const TARGETED_TYPE: TrackingType = 'NUMERIC';
+
+/**
+ * The request a save sends: the form as filled in, without the target and unit unless the type is
+ * NUMERIC. Their fields are hidden for any other type, and the save replaces the whole configuration,
+ * so values typed before the type changed would otherwise be stored where nothing shows them.
+ */
+const toRequest = (form: SaveTrackingConfigRequest): SaveTrackingConfigRequest =>
+  form.trackingType === TARGETED_TYPE ? form : { ...form, targetNumericValue: null, targetUnit: null };
 const FREQUENCY_OPTIONS = optionsOf(FREQUENCY_LABELS);
 
 /**
@@ -106,7 +117,7 @@ const UpgradeTrackingConfig: React.FC<Props> = ({ upgradeId, trackingConfig }) =
               <span className="text-fg-subtle">Frequency:</span>{' '}
               <span className="font-medium">{trackingConfig.frequency}</span>
             </div>
-            {trackingConfig.targetNumericValue != null && (
+            {trackingConfig.trackingType === TARGETED_TYPE && trackingConfig.targetNumericValue != null && (
               <div>
                 <span className="text-fg-subtle">Target:</span>{' '}
                 <span className="font-medium">
@@ -126,7 +137,7 @@ const UpgradeTrackingConfig: React.FC<Props> = ({ upgradeId, trackingConfig }) =
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            trackingMutation.mutate(trackingForm, { onSuccess: () => setTrackingOpen(false) });
+            trackingMutation.mutate(toRequest(trackingForm), { onSuccess: () => setTrackingOpen(false) });
           }}
           className="space-y-4"
         >
@@ -143,7 +154,7 @@ const UpgradeTrackingConfig: React.FC<Props> = ({ upgradeId, trackingConfig }) =
             onChange={(e) => setTrackingForm({ ...trackingForm, frequency: e.target.value as Frequency })}
             options={FREQUENCY_OPTIONS}
           />
-          {trackingForm.trackingType === 'NUMERIC' && (
+          {trackingForm.trackingType === TARGETED_TYPE && (
             <div className="grid grid-cols-2 gap-4">
               <Input
                 label="Target value"

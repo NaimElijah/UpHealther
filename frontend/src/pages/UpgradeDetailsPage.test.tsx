@@ -17,7 +17,7 @@ import type {
   StreakSummary,
   UpgradeStatus,
 } from '../types';
-import { healthAreaAsSent, reflectionAsSent, upgradeAsSent } from '../test/wireFixtures';
+import { healthAreaAsSent, reflectionAsSent, trackingConfigAsSent, upgradeAsSent } from '../test/wireFixtures';
 
 const getUpgradeById = vi.fn();
 const updateUpgrade = vi.fn();
@@ -660,6 +660,52 @@ describe('UpgradeDetailsPage', () => {
     expect((within(dialog).getByLabelText('Target value') as HTMLInputElement).value).toBe('10');
     expect((within(dialog).getByLabelText('Unit') as HTMLInputElement).value).toBe('minutes');
     expect((within(dialog).getByLabelText('Required daily') as HTMLInputElement).checked).toBe(false);
+  });
+
+  // The target and unit belong to NUMERIC alone. Changing the type away from it hid their fields but
+  // kept and sent their values, and the card then read "Target: 2 L" for a Yes / No configuration.
+
+  it('GivenASavedNumericConfiguration_WhenTheTypeIsChangedToYesNoAndSaved_ThenNoTargetIsSent', async () => {
+    getUpgradeById.mockResolvedValue({
+      ...anUpgrade(),
+      trackingConfig: trackingConfigAsSent({
+        upgradeId: UPGRADE_ID,
+        trackingType: 'NUMERIC',
+        targetNumericValue: 2,
+        targetUnit: 'L',
+      }),
+    });
+    saveTrackingConfig.mockResolvedValue(anUpgrade());
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'Configure Tracking' }));
+
+    fireEvent.change(dialog.getByLabelText('Tracking type'), { target: { value: 'BOOLEAN' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(saveTrackingConfig).toHaveBeenCalledTimes(1));
+    expect(saveTrackingConfig.mock.calls[0][1]).toMatchObject({
+      trackingType: 'BOOLEAN',
+      targetNumericValue: null,
+      targetUnit: null,
+    });
+  });
+
+  it('GivenAYesNoConfigurationHoldingATarget_WhenItIsShown_ThenNoTargetIsShown', async () => {
+    getUpgradeById.mockResolvedValue({
+      ...anUpgrade(),
+      trackingConfig: trackingConfigAsSent({
+        upgradeId: UPGRADE_ID,
+        trackingType: 'BOOLEAN',
+        targetNumericValue: 2,
+        targetUnit: 'L',
+      }),
+    });
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    expect(screen.queryByText('Target:')).toBeNull();
   });
 
   it('GivenATrackingSaveWasRefused_WhenTheDialogIsReopened_ThenTheRefusalIsGone', async () => {
