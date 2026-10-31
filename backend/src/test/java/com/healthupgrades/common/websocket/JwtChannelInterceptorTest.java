@@ -241,8 +241,8 @@ class JwtChannelInterceptorTest {
 
     @Test
     void GivenASubscribeToATopic_WhenItArrives_ThenItIsRefused() {
-        // /topic is broker-managed and broadcast: nothing here publishes to one, and a subscriber to a
-        // topic would receive whatever a later feature did.
+        // /topic is STOMP's conventional broadcast prefix: nothing here publishes to one, and the broker
+        // does not serve it, but a subscriber to a topic would receive whatever a later feature did.
         Message<?> subscribe = frameFrom(StompCommand.SUBSCRIBE, "/topic/notifications", session());
 
         assertThatThrownBy(() -> interceptor.preSend(subscribe, channel))

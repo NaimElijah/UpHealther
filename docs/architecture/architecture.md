@@ -224,8 +224,10 @@ and the tab sent to `/login`, so a window whose session ended elsewhere stops sh
 ([ADR-066](../ADRs/ADR-066-a-tab-keeps-nothing-of-a-session-that-ended.md));
 `SessionEndedFrameContractTest` holds the two copies of the message together.
 
-The broker is Spring's in-memory simple broker. There is no external broker, so a push reaches only
-clients connected to *this* instance — see "Known constraints" below.
+The broker is Spring's in-memory simple broker, serving `/queue` and nothing else: nothing broadcasts
+on a `/topic`, and with no `@MessageMapping` there is no application destination prefix. There is no
+external broker, so a push reaches only clients connected to *this* instance — see "Known constraints"
+below.
 
 **3. In-process domain events, context to context.** A context that changes state publishes a record
 implementing `DomainEvent` through the `DomainEventPublisher` port. The adapter behind it delegates to
