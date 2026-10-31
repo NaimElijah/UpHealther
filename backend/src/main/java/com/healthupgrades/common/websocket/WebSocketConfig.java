@@ -51,16 +51,18 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     }
 
     /**
-     * Configures destinations: {@code /queue} and {@code /topic} for broker-managed messages,
-     * {@code /app} for inbound frames, and {@code /user} for per-session routing.
+     * Configures destinations: {@code /queue} for broker-managed messages, and {@code /user} for
+     * per-session routing.
      *
      * <p>The user prefix is what makes {@code convertAndSendToUser} deliver to one subscriber only; the
-     * name it routes by is the user id set by {@link JwtChannelInterceptor}.
+     * name it routes by is the user id set by {@link JwtChannelInterceptor}. There is no {@code /topic},
+     * because nothing broadcasts, and no application destination prefix, because no
+     * {@code @MessageMapping} exists for an inbound frame to reach; the interceptor refuses every frame
+     * that could name either.
      */
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        registry.enableSimpleBroker("/queue", "/topic");
-        registry.setApplicationDestinationPrefixes("/app");
+        registry.enableSimpleBroker("/queue");
         registry.setUserDestinationPrefix("/user");
         // The broker channel is the middle hop of convertAndSendToUser; tracing it keeps a push joined
         // to whatever caused it. It hangs off the registry rather than being a configurer method.

@@ -26,6 +26,10 @@ import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -44,8 +48,9 @@ import org.springframework.messaging.support.MessageBuilder;
  *
  * <p>Authenticating CONNECT is only half of it. A STOMP session can name any destination it likes on a
  * later frame, so the frames after CONNECT are authorised here too: a subscription must be the one
- * destination this application pushes to, and a SEND is refused outright because no {@code @MessageMapping}
- * exists for one to reach.
+ * destination this application pushes to, and every command but CONNECT, STOMP, SUBSCRIBE, UNSUBSCRIBE and
+ * DISCONNECT is refused outright: a SEND because no {@code @MessageMapping} exists for one to reach, the
+ * server's own frames because a client has no business sending them.
  */
 @ExtendWith(MockitoExtension.class)
 class JwtChannelInterceptorTest {
@@ -207,13 +212,20 @@ class JwtChannelInterceptorTest {
     }
 
     @Test
-    void GivenARefusedSubscribeOrSend_WhenItArrives_ThenNothingIsAudited() {
+    void GivenARefusedFrameOnAConnectedSocket_WhenItArrives_ThenNothingIsAudited() {
         // These authorise frames on a connection already authenticated; they are not authentication
-        // outcomes, and they stay WARN lines. Pinned because the decision is deliberate.
+        // outcomes, and they stay WARN lines. Pinned because the decision is deliberate, and for a
+        // MESSAGE too, the frame finding D1.1 is about: a frame that only the server should send is
+        // still refused as a frame on a connected socket, not audited as an attempt.
         assertThatThrownBy(() -> interceptor.preSend(
                         frameFrom(StompCommand.SUBSCRIBE, "/topic/notifications", session()), channel))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> interceptor.preSend(frameFrom(StompCommand.SEND, "/app/anything", session()), channel))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> interceptor.preSend(
+                        frameFrom(
+                                StompCommand.MESSAGE, "/user/" + UUID.randomUUID() + "/queue/notifications", session()),
+                        channel))
                 .isInstanceOf(IllegalArgumentException.class);
 
         assertThat(auditTrail.recorded()).isEmpty();
@@ -222,6 +234,31 @@ class JwtChannelInterceptorTest {
     @Test
     void GivenASubscribeToItsOwnUserQueue_WhenItArrives_ThenItPasses() {
         Message<?> subscribe = frameFrom(StompCommand.SUBSCRIBE, "/user/queue/notifications", session());
+
+        assertThat(interceptor.preSend(subscribe, channel)).isSameAs(subscribe);
+    }
+
+    /**
+     * STOMP 1.2 obliges a subscriber in {@code client} or {@code client-individual} mode to acknowledge
+     * each MESSAGE, and an ACK is refused. Accepted, such a subscription would be refused at its first
+     * acknowledgement and reconnect into the same refusal for ever; refused at SUBSCRIBE, it fails once,
+     * where the cause is visible.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"client", "client-individual"})
+    void GivenASubscribeInAnAckModeThatNeedsAnAck_WhenItArrives_ThenItIsRefused(String ack) {
+        Message<?> subscribe = subscribeWithAck(ack);
+
+        assertThatThrownBy(() -> interceptor.preSend(subscribe, channel))
+                .isInstanceOfSatisfying(StompFrameRefusedException.class, refusedAs(Reason.REFUSED));
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = "auto")
+    void GivenASubscribeInAutoAckMode_WhenItArrives_ThenItPasses(String ack) {
+        // A missing ack header is auto mode too, by the spec's default, and is what the SPA sends.
+        Message<?> subscribe = subscribeWithAck(ack);
 
         assertThat(interceptor.preSend(subscribe, channel)).isSameAs(subscribe);
     }
@@ -238,8 +275,8 @@ class JwtChannelInterceptorTest {
 
     @Test
     void GivenASubscribeToATopic_WhenItArrives_ThenItIsRefused() {
-        // /topic is broker-managed and broadcast: nothing here publishes to one, and a subscriber to a
-        // topic would receive whatever a later feature did.
+        // /topic is STOMP's conventional broadcast prefix: nothing here publishes to one, and the broker
+        // does not serve it, but a subscriber to a topic would receive whatever a later feature did.
         Message<?> subscribe = frameFrom(StompCommand.SUBSCRIBE, "/topic/notifications", session());
 
         assertThatThrownBy(() -> interceptor.preSend(subscribe, channel))
@@ -260,6 +297,65 @@ class JwtChannelInterceptorTest {
 
         assertThatThrownBy(() -> interceptor.preSend(send, channel))
                 .isInstanceOfSatisfying(StompFrameRefusedException.class, refusedAs(Reason.REFUSED));
+    }
+
+    /**
+     * Finding D1.1: a frame STOMP defines for the server to send, arriving from a client.
+     *
+     * <p>Spring's decoder takes any command from a client, and a client's MESSAGE is routed exactly as a
+     * SEND would be. Passed, one addressed to {@code /user/<anotherUsersId>/queue/notifications} was
+     * delivered into that user's socket as a notification they had never been sent.
+     */
+    @ParameterizedTest
+    @EnumSource(
+            value = StompCommand.class,
+            names = {"MESSAGE", "CONNECTED", "RECEIPT", "ERROR"})
+    void GivenAFrameOnlyTheServerSends_WhenAClientSendsIt_ThenItIsRefused(StompCommand command) {
+        Message<?> frame = frameFrom(command, "/user/" + UUID.randomUUID() + "/queue/notifications", session());
+
+        assertThatThrownBy(() -> interceptor.preSend(frame, channel))
+                .isInstanceOfSatisfying(StompFrameRefusedException.class, refusedAs(Reason.REFUSED));
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = StompCommand.class,
+            names = {"ACK", "NACK", "BEGIN", "COMMIT", "ABORT"})
+    void GivenAnAcknowledgementOrTransactionFrame_WhenItArrives_ThenItIsRefusedBecauseNothingHereUsesOne(
+            StompCommand command) {
+        // The SPA subscribes with the default ack mode and opens no transaction, so a client sending one
+        // of these is not the SPA. Refusing them is the least the socket needs to allow.
+        Message<?> frame = frameFrom(command, null, session());
+
+        assertThatThrownBy(() -> interceptor.preSend(frame, channel))
+                .isInstanceOfSatisfying(StompFrameRefusedException.class, refusedAs(Reason.REFUSED));
+    }
+
+    /**
+     * ADR-079's decision itself: every command but the five the allow-list names is refused. The two
+     * tests above say why each group is refused; this one is the complement of the allow-list, so a
+     * deny-list rewrite that missed a command, or a command a later Spring adds, fails here.
+     */
+    @ParameterizedTest
+    @EnumSource(
+            value = StompCommand.class,
+            mode = EnumSource.Mode.EXCLUDE,
+            names = {"CONNECT", "STOMP", "SUBSCRIBE", "UNSUBSCRIBE", "DISCONNECT"})
+    void GivenAnyCommandOutsideTheAllowList_WhenItArrives_ThenItIsRefused(StompCommand command) {
+        Message<?> frame = frameFrom(command, null, session());
+
+        assertThatThrownBy(() -> interceptor.preSend(frame, channel))
+                .isInstanceOfSatisfying(StompFrameRefusedException.class, refusedAs(Reason.REFUSED));
+    }
+
+    @Test
+    void GivenACommandOutsideTheAllowList_WhenItIsRefused_ThenTheRefusalNamesTheCommandInAGrammaticalSentence() {
+        // The same words go into the WARN line. "a ACK frame" or "a ERROR frame" reads as a typo in the
+        // log, so the command is named where no article has to agree with it.
+        Message<?> ack = frameFrom(StompCommand.ACK, null, session());
+
+        assertThatThrownBy(() -> interceptor.preSend(ack, channel))
+                .hasMessage("Refused a frame of command ACK, which this application's client never sends");
     }
 
     @Test
@@ -351,6 +447,31 @@ class JwtChannelInterceptorTest {
         assertThat(interceptor.preSend(heartbeat, channel)).isSameAs(heartbeat);
     }
 
+    /**
+     * A heartbeat is the one message without a command that passes. Spring's own senders onto the inbound
+     * channel, a client's decoded frame and the DISCONNECT for a closed socket, each carry STOMP headers
+     * with a command, so anything else is no frame Spring produced and is refused rather than waved
+     * through as a keepalive.
+     */
+    @Test
+    void GivenAMessageWithNoStompHeaders_WhenItArrives_ThenItIsRefused() {
+        Message<byte[]> bare = MessageBuilder.withPayload(new byte[0]).build();
+
+        assertThatThrownBy(() -> interceptor.preSend(bare, channel))
+                .isInstanceOfSatisfying(StompFrameRefusedException.class, refusedAs(Reason.REFUSED));
+    }
+
+    @Test
+    void GivenStompHeadersWithNoCommandThatAreNoHeartbeat_WhenTheyArrive_ThenTheyAreRefused() {
+        StompHeaderAccessor accessor =
+                StompHeaderAccessor.wrap(MessageBuilder.withPayload(new byte[0]).build());
+        accessor.setLeaveMutable(true);
+        Message<byte[]> commandless = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
+
+        assertThatThrownBy(() -> interceptor.preSend(commandless, channel))
+                .isInstanceOfSatisfying(StompFrameRefusedException.class, refusedAs(Reason.REFUSED));
+    }
+
     @Test
     void GivenAnUnsubscribe_WhenItArrives_ThenItPasses() {
         Message<?> unsubscribe = frameFrom(StompCommand.UNSUBSCRIBE, null, session());
@@ -384,6 +505,20 @@ class JwtChannelInterceptorTest {
     /** A SUBSCRIBE to the one allowed destination, on the socket whose attributes are {@code socket}. */
     private static Message<byte[]> subscribeOn(Map<String, Object> socket, String id, Principal user) {
         return frameOn(socket, StompCommand.SUBSCRIBE, JwtChannelInterceptor.ALLOWED_SUBSCRIPTION, id, user);
+    }
+
+    /** A SUBSCRIBE to the one allowed destination naming {@code ack} as its ack mode, or none when null. */
+    private static Message<byte[]> subscribeWithAck(String ack) {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
+        accessor.setDestination(JwtChannelInterceptor.ALLOWED_SUBSCRIPTION);
+        accessor.setSubscriptionId("sub-0");
+        if (ack != null) {
+            accessor.setAck(ack);
+        }
+        accessor.setSessionAttributes(new ConcurrentHashMap<>());
+        accessor.setUser(session());
+        accessor.setLeaveMutable(true);
+        return MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
     }
 
     /** An UNSUBSCRIBE of {@code id}, on the socket whose attributes are {@code socket}. */
