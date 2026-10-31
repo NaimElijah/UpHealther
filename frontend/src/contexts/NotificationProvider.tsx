@@ -127,12 +127,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [isAuthenticated, handleIncoming]);
 
   /**
-   * Cancels a count fetch already in flight, before an optimistic write to the count. That fetch was
-   * answered before the write reached the server, so landing afterwards it would undo the write.
-   * Cancelling also reverts the query to its state before that fetch; callers await it, as TanStack's
-   * optimistic-update guide prescribes, so their write lands after the revert rather than under it.
+   * Cancels a list or count fetch already in flight, before an optimistic write to either. That fetch
+   * was answered before the write reached the server, so landing afterwards it would undo the write.
+   * `NOTIF_KEY` is a prefix, so this covers the count as well as the list. Cancelling also reverts each
+   * query to its state before that fetch; callers await it, as TanStack's optimistic-update guide
+   * prescribes, so their write lands after the revert rather than under it.
    */
-  const cancelCountFetch = useCallback(() => queryClient.cancelQueries({ queryKey: UNREAD_KEY }), [queryClient]);
+  const cancelNotificationFetches = useCallback(
+    () => queryClient.cancelQueries({ queryKey: NOTIF_KEY }),
+    [queryClient],
+  );
 
   /**
    * Marks one notification read, updating the cache first and calling the API after.
@@ -150,12 +154,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       // Cleared when a write starts, not when one succeeds: a later success says nothing about an earlier
       // write that was refused, which is unread again.
       setActionError(undefined);
+      await cancelNotificationFetches();
       const wasUnread = queryClient.getQueryData<AppNotification[]>(NOTIF_KEY)?.some((n) => n.id === id && !n.read);
       queryClient.setQueryData<AppNotification[]>(NOTIF_KEY, (old = []) =>
         old.map((n) => (n.id === id ? { ...n, read: true } : n)),
       );
       if (wasUnread) {
-        await cancelCountFetch();
         // A count never read is left unread rather than turned into an invented zero.
         queryClient.setQueryData<number>(UNREAD_KEY, (old) => (old === undefined ? undefined : Math.max(0, old - 1)));
       }
@@ -168,7 +172,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
       await queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
     },
-    [queryClient, cancelCountFetch],
+    [queryClient, cancelNotificationFetches],
   );
 
   /**
@@ -178,8 +182,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
    */
   const markAllRead = useCallback(async () => {
     setActionError(undefined);
+    await cancelNotificationFetches();
     queryClient.setQueryData<AppNotification[]>(NOTIF_KEY, (old = []) => old.map((n) => ({ ...n, read: true })));
-    await cancelCountFetch();
     queryClient.setQueryData<number>(UNREAD_KEY, 0);
     try {
       await markAllNotificationsRead();
@@ -189,7 +193,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       return;
     }
     await queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
-  }, [queryClient, cancelCountFetch]);
+  }, [queryClient, cancelNotificationFetches]);
 
   /**
    * Asks the browser for desktop-notification permission.

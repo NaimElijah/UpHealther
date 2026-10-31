@@ -179,6 +179,7 @@ function Probe() {
   return (
     <div>
       <span data-testid="count">{notifications.length}</span>
+      <span data-testid="unread-listed">{notifications.filter((n) => !n.read).length}</span>
       <span data-testid="load-error">{loadError ? `${loadError.message} ${loadError.traceId}` : ''}</span>
       <span data-testid="action-error">{actionError ? `${actionError.message} ${actionError.traceId}` : ''}</span>
       <span data-testid="unread">{unreadCount}</span>
@@ -203,8 +204,10 @@ function authenticated(): AuthContextType {
   };
 }
 
-function renderProvider(auth: AuthContextType = authenticated()) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function renderProvider(
+  auth: AuthContextType = authenticated(),
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+) {
   return render(
     <AuthContext.Provider value={auth}>
       <QueryClientProvider client={queryClient}>
@@ -435,6 +438,60 @@ describe('NotificationProvider', () => {
 
     await waitFor(() => expect(getUnreadCount).toHaveBeenCalledTimes(3));
     await waitFor(() => expect(screen.getByTestId('unread').textContent).toBe('72'));
+  });
+
+  // The list is written optimistically too. A list fetch already in flight, a focus refetch say, was
+  // answered before the write reached the server; landing on top of it, it showed the row unread again
+  // while the badge said 0, which hides "Mark all read".
+
+  /**
+   * Renders the provider over a list holding one unread notification, then starts a list refetch the
+   * test answers later, and returns that answer.
+   */
+  async function aListFetchInFlight(): Promise<(list: AppNotification[]) => Promise<void>> {
+    let staleList: (list: AppNotification[]) => void = () => {};
+    getNotifications
+      .mockResolvedValueOnce([PUSHED])
+      .mockImplementationOnce(
+        () =>
+          new Promise<AppNotification[]>((resolve) => {
+            staleList = resolve;
+          }),
+      )
+      .mockResolvedValue([{ ...PUSHED, read: true }]);
+    getUnreadCount.mockResolvedValueOnce(1).mockResolvedValue(0);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderProvider(authenticated(), queryClient);
+    await waitFor(() => expect(screen.getByTestId('unread-listed').textContent).toBe('1'));
+    await waitFor(() => expect(screen.getByTestId('unread').textContent).toBe('1'));
+    act(() => {
+      void queryClient.refetchQueries({ queryKey: ['notifications'], exact: true });
+    });
+    await waitFor(() => expect(getNotifications).toHaveBeenCalledTimes(2));
+    return async (list) => {
+      await act(async () => staleList(list));
+      await act(settled);
+    };
+  }
+
+  it('GivenAListFetchInFlight_WhenANotificationIsMarkedRead_ThenTheStaleListDoesNotStick', async () => {
+    const answerStaleList = await aListFetchInFlight();
+
+    act(() => screen.getByRole('button', { name: 'Mark read' }).click());
+    await act(settled);
+    await answerStaleList([PUSHED]);
+
+    expect(screen.getByTestId('unread-listed').textContent).toBe('0');
+  });
+
+  it('GivenAListFetchInFlight_WhenAllAreMarkedRead_ThenTheStaleListDoesNotStick', async () => {
+    const answerStaleList = await aListFetchInFlight();
+
+    act(() => screen.getByRole('button', { name: 'Mark all read' }).click());
+    await act(settled);
+    await answerStaleList([PUSHED]);
+
+    expect(screen.getByTestId('unread-listed').textContent).toBe('0');
   });
 
   it('GivenTheCountAlreadyExcludesTheNotification_WhenItIsMarkedRead_ThenTheServersCountWins', async () => {
