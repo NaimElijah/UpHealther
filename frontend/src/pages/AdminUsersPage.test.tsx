@@ -225,6 +225,20 @@ describe('AdminUsersPage', () => {
     expect(disableAccount).toHaveBeenCalledTimes(1);
   });
 
+  it('GivenARoleChangeInFlight_WhenConfirmIsClickedAgain_ThenTheRoleIsChangedOnce', async () => {
+    changeAccountRole.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Someone Else')).toBeDefined());
+
+    await click('Make admin');
+    await click('Confirm');
+    await settle();
+    await click('Confirm');
+    await settle();
+
+    expect(changeAccountRole).toHaveBeenCalledTimes(1);
+  });
+
   it('GivenARoleChangeInFlight_WhenTheDialogIsCancelled_ThenItStaysOpenUntilTheAnswer', async () => {
     let answer: (account: AdminAccount) => void = () => {};
     changeAccountRole.mockReturnValue(new Promise<AdminAccount>((resolve) => (answer = resolve)));

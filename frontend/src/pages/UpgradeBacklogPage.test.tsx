@@ -316,6 +316,19 @@ describe('UpgradeBacklogPage creating an idea', () => {
     expect(again.queryByText('Pick a date with a four-digit year.')).toBeNull();
   });
 
+  it('GivenACreateWasRefused_WhenTheDialogIsOpenedFromAddFirstIdea_ThenItStartsWithoutTheOldMessage', async () => {
+    renderPage();
+    const first = await openCreate('');
+    fireEvent.submit(first.getByRole('button', { name: 'Add Idea' }));
+    await first.findByText('Title is required.');
+    fireEvent.click(first.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add First Idea' }));
+
+    const again = within(screen.getByRole('dialog', { name: 'New Upgrade Idea' }));
+    expect(again.queryByText('Title is required.')).toBeNull();
+  });
+
   it('GivenARefusalThatNamesNoField_WhenAnIdeaIsCreated_ThenTheDialogSaysWhyWithTheReference', async () => {
     createUpgrade.mockRejectedValue(
       apiFailure(500, { status: 500, message: 'An unexpected error occurred', traceId: 'trace-create' }),
