@@ -93,4 +93,18 @@ class CorsPolicyTest {
                 .andExpect(header().string(
                                 HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, containsString(HttpHeaders.RETRY_AFTER)));
     }
+
+    @Test
+    void GivenAnAllowedOrigin_WhenAResponseArrives_ThenItsLocationIsReadableByScript() throws Exception {
+        // Location is not CORS-safelisted, so a 201's would be unreadable from another origin unless
+        // exposed. Every response carries the same exposed list, so this one stands for a create's.
+        when(authService.login(anyString(), anyString())).thenThrow(new BadCredentialsException("Bad credentials"));
+
+        mockMvc.perform(post("/api/auth/login")
+                        .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(CREDENTIALS))
+                .andExpect(header().string(
+                                HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, containsString(HttpHeaders.LOCATION)));
+    }
 }
