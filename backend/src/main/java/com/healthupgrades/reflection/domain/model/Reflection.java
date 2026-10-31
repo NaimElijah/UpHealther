@@ -60,8 +60,8 @@ public class Reflection {
     /**
      * Stamps the creation and update timestamps before the row is first inserted.
      *
-     * <p>Reads the JVM's default zone rather than the injected clock: the one place NFR-15 allows it (ADR-020,
-     * #51).
+     * <p>Reads the JVM's default zone rather than the injected clock: a known deviation from NFR-15, tracked by
+     * #51 (ADR-020). {@code ServerTimeArchitectureTest} exempts these callbacks, so it does not catch a new one.
      */
     @PrePersist
     protected void onCreate() {
