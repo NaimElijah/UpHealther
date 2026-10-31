@@ -34,7 +34,15 @@ public interface AdminUserCommand {
     /**
      * Switches an account back on, with everything it owned still in place.
      *
-     * @see #disable for the parameters and the refusals
+     * @param actingAdminId the administrator making the change
+     * @param targetUserId  the account to enable
+     * @return the account as it now stands
+     * @throws com.healthupgrades.common.domain.exception.ResourceNotFoundException if no such account
+     * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if an administrator aims
+     *         at their own account
+     * @throws com.healthupgrades.user.domain.model.AccountModifiedConcurrentlyException if another write
+     *         to the account committed after this change loaded it; answered 409, and nothing is changed
+     *         (ADR-073)
      */
     User enable(UUID actingAdminId, UUID targetUserId);
 
@@ -45,7 +53,12 @@ public interface AdminUserCommand {
      * @param targetUserId  the account whose role is changing
      * @param role          the role it is to hold
      * @return the account as it now stands
-     * @see #disable for the refusals
+     * @throws com.healthupgrades.common.domain.exception.ResourceNotFoundException if no such account
+     * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if an administrator aims
+     *         at their own account
+     * @throws com.healthupgrades.user.domain.model.AccountModifiedConcurrentlyException if another write
+     *         to the account committed after this change loaded it; answered 409, and nothing is changed
+     *         (ADR-073)
      */
     User changeRole(UUID actingAdminId, UUID targetUserId, Role role);
 }

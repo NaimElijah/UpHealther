@@ -28,14 +28,22 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @RequiredArgsConstructor
 public class NotificationService {
 
-    private final NotificationRepositoryPort repository; // outbound persistence port
-    private final NotificationPushPort pushPort; // outbound real-time delivery port
+    private final NotificationRepositoryPort repository;
+    private final NotificationPushPort pushPort;
     private final Clock clock; // stamps a notification's time, which the daily check-in compares with its midnight
 
     /**
-     * Persist a notification for a user, then push it in real time to any connected session. Offline
-     * users pick it up via {@link #listRecent} on their next load. This is the single entry point used
-     * by both the event listener and {@link NotificationSweepService}.
+     * Creates a notification for a user, then pushes it in real time to any connected session once the
+     * surrounding transaction commits. Offline users pick it up via {@link #listRecent} on their next load.
+     * This is the single entry point used by both the event listener and {@link NotificationSweepService}.
+     *
+     * @param userId           the recipient
+     * @param type             what happened
+     * @param category         how it should read
+     * @param title            the headline
+     * @param message          the body
+     * @param relatedUpgradeId the upgrade it concerns, or null for an account-wide notification
+     * @return the stored notification
      */
     @Transactional
     public Notification create(
@@ -103,9 +111,9 @@ public class NotificationService {
      * Push only after the surrounding transaction commits, so a client never receives a real-time
      * notification for a row that then rolls back.
      *
-     * @throws IllegalStateException when no transaction is active. Both callers are
-     *         {@code @Transactional}, so this means one of them stopped being so, and pushing at once
-     *         would announce a row that may never be committed
+     * @throws IllegalStateException when no transaction is active. Its only caller, {@code create}, is
+     *         {@code @Transactional}, so this means it stopped being so, and pushing at once would
+     *         announce a row that may never be committed
      */
     private void pushAfterCommit(UUID userId, Notification notification) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -123,8 +131,9 @@ public class NotificationService {
      * The user's fifty most recent notifications, newest first.
      *
      * <p>Capped rather than paginated: this backs an inbox of recent activity, and older notifications
-     * are not retrievable through the API at all. Any notification older than ninety days is deleted by
-     * {@link NotificationRetentionService} (NFR-60).
+     * are not retrievable through the API at all. The nightly {@link NotificationRetentionService} deletes
+     * notifications older than ninety days in bounded batches, so a large backlog can outlive a night
+     * (NFR-60).
      *
      * @param userId the owner
      * @return up to fifty notifications, read and unread alike

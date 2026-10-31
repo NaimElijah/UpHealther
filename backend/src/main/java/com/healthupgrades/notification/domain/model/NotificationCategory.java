@@ -5,6 +5,9 @@ package com.healthupgrades.notification.domain.model;
  *
  * <p>Orthogonal to {@code NotificationType}: the type says what happened, the category says how to
  * present it. Several types share a category.
+ *
+ * <p>A new constant needs a migration that extends the {@code notifications_category_check} constraint, and
+ * an entry in the frontend's {@code categoryMeta} map.
  */
 public enum NotificationCategory {
 

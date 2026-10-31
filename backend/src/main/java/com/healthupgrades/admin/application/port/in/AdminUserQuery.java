@@ -15,6 +15,8 @@ public interface AdminUserQuery {
     /**
      * Reads one page of accounts, oldest first, and audits who read it.
      *
+     * <p>A page past the last is empty, and its total is still the number of accounts.
+     *
      * @param actingAdminId the administrator reading the page
      * @param page zero-based page number
      * @param size how many accounts per page

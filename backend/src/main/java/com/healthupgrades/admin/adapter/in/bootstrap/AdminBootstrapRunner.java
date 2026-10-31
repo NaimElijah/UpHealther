@@ -28,10 +28,13 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class AdminBootstrapRunner implements ApplicationRunner {
 
-    private final AdminBootstrapService bootstrap; // own application service: the bootstrap use case
+    private final AdminBootstrapService bootstrap;
     private final String bootstrapUserId;
 
     /**
+     * Creates the runner with the use case it triggers and the configured account.
+     *
+     * @param bootstrap the use case that decides whether the account is promoted
      * @param bootstrapUserId the account to promote, or blank — the normal case — to do nothing
      */
     public AdminBootstrapRunner(
@@ -47,10 +50,10 @@ public class AdminBootstrapRunner implements ApplicationRunner {
      * is ever going to. A misconfiguration is logged and the application starts anyway: refusing to boot
      * because an optional bootstrap could not find its account would turn a typo into an outage.
      *
-     * <p>So is a promotion another write overtook. Two instances starting together both find no
-     * administrator and both promote the account; the account's version refuses the second save (ADR-073),
-     * and that instance has nothing left to do. Failing its start would only have it restart and find the
-     * administrator the first one made.
+     * <p>A promotion that another write overtook is also logged, not fatal. Two instances starting together
+     * both find no administrator and both promote the account; the account's version refuses the second
+     * save (ADR-073), and that instance has nothing left to do. Failing its start would only have it
+     * restart and find the administrator the first one made.
      */
     @Override
     public void run(ApplicationArguments args) {

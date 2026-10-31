@@ -28,23 +28,21 @@ public class StompNotificationPushAdapter implements NotificationPushPort {
     /** STOMP user-destination the frontend subscribes to (resolved per-connection via the principal). */
     public static final String USER_QUEUE = "/queue/notifications";
 
-    private final SimpMessagingTemplate messagingTemplate; // Spring STOMP messaging
+    private final SimpMessagingTemplate messagingTemplate;
     private final NotificationWebMapper mapper; // one rendering, shared with the REST transport
 
     /**
      * {@inheritDoc}
      *
-     * <p><b>A failed push is degraded, not fatal, and that is a deliberate change of behaviour.</b>
-     * This runs from an {@code afterCommit} callback, so the notification is already durable and
-     * FR-32 — "readable afterwards regardless" — is already satisfied by the row. Letting the
-     * exception out failed the caller <em>after</em> its transaction had committed, and in
-     * {@code dispatchReminders} that meant one unreachable session cancelled everybody else's
-     * reminders for that minute. Nothing recorded it either way.
+     * <p><b>A failed push is degraded, not fatal.</b> This runs from an {@code afterCommit} callback, so
+     * the notification is already durable and FR-32 — "readable afterwards regardless" — is already
+     * satisfied by the row. An exception escaping it would fail the caller <em>after</em> its transaction
+     * had committed.
      *
-     * <p>So it is caught, narrowly, and reported at WARN with the ids needed to find the notification
-     * that was not delivered, and the failure's type and its root cause's. The catch handles rather
-     * than silences: the fact is stored, the failure is visible, and the user sees the notification on
-     * their next load.
+     * <p>So a {@link MessagingException} is caught, narrowly, and reported at WARN with the ids needed to
+     * find the notification that was not delivered, and the failure's type and its root cause's. The catch
+     * handles rather than silences: the fact is stored, the failure is visible, and the user sees the
+     * notification on their next load.
      */
     @Override
     public void push(UUID userId, Notification notification) {

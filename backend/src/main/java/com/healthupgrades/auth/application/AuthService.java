@@ -40,12 +40,12 @@ public class AuthService {
      */
     static final String EMAIL_TAKEN = "That email is already registered";
 
-    private final UserQuery userQuery; // inbound read port of the user context
-    private final UserCommand userCommand; // inbound write port of the user context
-    private final PasswordEncoder passwordEncoder; // BCrypt encoder
+    private final UserQuery userQuery;
+    private final UserCommand userCommand;
+    private final PasswordEncoder passwordEncoder;
     private final AccessTokenIssuerPort tokenIssuer; // outbound token-signing port
-    private final AuthenticationManager authenticationManager; // verifies credentials on login
-    private final SessionCommand sessions; // opens the server-side session a token belongs to
+    private final AuthenticationManager authenticationManager;
+    private final SessionCommand sessions;
     private final AuditTrail auditTrail; // records who signed in, and who was turned away
 
     /**
@@ -96,7 +96,11 @@ public class AuthService {
      * @param rawEmail login identity as typed; normalised before it is matched
      * @param password raw password, matched against the stored hash by the authentication manager
      * @return the issued JWT together with the authenticated user
-     * @throws org.springframework.security.core.AuthenticationException if the credentials do not match
+     * @throws org.springframework.security.authentication.BadCredentialsException if the email or password does
+     *         not match
+     * @throws org.springframework.security.authentication.AccountStatusException if the account is disabled
+     * @throws org.springframework.security.core.AuthenticationException any other failure of the authentication
+     *         manager, such as a database outage, which is not a rejection of the credentials
      * @throws BusinessRuleException if the credentials matched but the user has since disappeared —
      *         only reachable if the account is deleted mid-request
      */
@@ -104,7 +108,7 @@ public class AuthService {
         String email = EmailAddress.normalise(rawEmail);
         try {
             authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(email, password)); // throws on bad creds
+                    new UsernamePasswordAuthenticationToken(email, password));
             User user = userQuery.findByEmail(email).orElseThrow(() -> new BusinessRuleException("User not found"));
             // As in register: after the token, so a signing failure cannot produce two entries for one
             // sign-in attempt.

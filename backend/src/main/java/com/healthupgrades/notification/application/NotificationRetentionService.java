@@ -39,7 +39,7 @@ public class NotificationRetentionService {
      */
     static final int MAX_BATCHES_PER_RUN = 20;
 
-    private final NotificationRepositoryPort repository; // outbound persistence port
+    private final NotificationRepositoryPort repository;
     private final Clock clock; // the server's clock, in UTC (ADR-020)
 
     /**

@@ -1,7 +1,7 @@
 package com.healthupgrades.user.application.port.in;
 
-import com.healthupgrades.user.domain.model.Role; // the role an existence check asks about
-import com.healthupgrades.user.domain.model.User; // returned domain aggregate
+import com.healthupgrades.user.domain.model.Role;
+import com.healthupgrades.user.domain.model.User;
 import java.util.Optional;
 import java.util.UUID;
 

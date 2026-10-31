@@ -3,9 +3,9 @@ package com.healthupgrades.user.adapter.out.persistence;
 import com.healthupgrades.user.domain.model.AccountModifiedConcurrentlyException;
 import com.healthupgrades.user.domain.model.EmailAlreadyRegisteredException;
 import com.healthupgrades.user.domain.model.Role;
-import com.healthupgrades.user.domain.model.User; // domain aggregate
-import com.healthupgrades.user.domain.model.UserPage; // a page of them, with the total
-import com.healthupgrades.user.domain.port.out.UserRepositoryPort; // the port implemented here
+import com.healthupgrades.user.domain.model.User;
+import com.healthupgrades.user.domain.model.UserPage;
+import com.healthupgrades.user.domain.port.out.UserRepositoryPort;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +21,7 @@ import org.springframework.stereotype.Component;
  * Persistence adapter implementing {@link UserRepositoryPort} by delegating to Spring Data JPA.
  *
  * <p>The adapter exists so the Spring Data interface can stay package-private: the port is the only
- * thing the rest of the application sees, which is what keeps JPA confined to this package.
+ * thing the rest of the application sees, which is what keeps Spring Data confined to this package.
  */
 @Component
 @RequiredArgsConstructor
@@ -30,7 +30,7 @@ class UserRepositoryAdapter implements UserRepositoryPort {
     /** PostgreSQL's name for {@code email ... UNIQUE} in {@code V1__init_schema.sql}. */
     static final String EMAIL_UNIQUE_CONSTRAINT = "users_email_key";
 
-    private final UserJpaRepository jpa; // Spring Data proxy
+    private final UserJpaRepository jpa;
 
     /**
      * {@inheritDoc}

@@ -22,7 +22,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class SessionStatusAdapter implements SessionStatusPort {
 
-    private final SessionQuery sessionQuery; // this context's own inbound read port
+    private final SessionQuery sessionQuery;
 
     /** {@inheritDoc} */
     @Override

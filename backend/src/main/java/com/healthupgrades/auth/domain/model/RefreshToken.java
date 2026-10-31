@@ -32,6 +32,11 @@ public record RefreshToken(UUID sessionId, String secret) {
     /** Separates the two halves. Not a character base64url produces, so the split is unambiguous. */
     private static final char SEPARATOR = '.';
 
+    /**
+     * Checks the components.
+     *
+     * @throws IllegalArgumentException if the session id is null, or the secret is null or blank
+     */
     public RefreshToken {
         if (sessionId == null || secret == null || secret.isBlank()) {
             throw new IllegalArgumentException("a refresh token needs a session id and a secret");

@@ -6,7 +6,8 @@ import java.util.Locale;
  * The single rule for what makes two email addresses the same login identity (FR-4).
  *
  * <p>An address is compared trimmed and lowercased. Applying that in one function, rather than at each
- * call site, is what keeps registration, login and the token filter from disagreeing about whether
+ * call site, is what keeps registration and login (the request records, {@code AuthService} and the
+ * sign-in lookup in {@code AccountCredentialsAdapter}) from disagreeing about whether
  * {@code Someone@Example.com} and {@code someone@example.com} are one account. The database backs it
  * with a check constraint ({@code V7__normalise_user_emails.sql}), so a row written around this class is
  * refused rather than silently becoming a second identity.

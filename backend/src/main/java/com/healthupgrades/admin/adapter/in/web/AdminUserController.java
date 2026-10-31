@@ -28,6 +28,8 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * Inbound web adapter for account administration.
  *
+ * <p>Every endpoint answers 403 to an authenticated caller who does not hold the {@code ADMIN} role.
+ *
  * <p>{@code @PreAuthorize} on the class as well as the {@code /api/admin/**} matcher in
  * {@code SecurityConfig}. The two say the same thing on purpose: the annotation is the rule a reader of
  * this class sees, and the matcher is what closes a path somebody adds here later and forgets to
@@ -83,7 +85,14 @@ public class AdminUserController {
     /**
      * Switches an account off and ends every session it holds.
      *
+     * @param principal the administrator making the change
+     * @param id the account to disable
      * @return 200 with the account as it now stands
+     * @throws com.healthupgrades.common.domain.exception.ResourceNotFoundException if no such account exists (404)
+     * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if {@code id} is the caller's own
+     *         account (422)
+     * @throws com.healthupgrades.user.domain.model.AccountModifiedConcurrentlyException if another write to the
+     *         account committed after this change loaded it (409)
      */
     @PostMapping("/{id}/disable")
     public ResponseEntity<AdminAccountDto> disable(
@@ -91,14 +100,37 @@ public class AdminUserController {
         return ResponseEntity.ok(toAccountDto(adminUserCommand.disable(principal.getId(), id)));
     }
 
-    /** Switches an account back on. */
+    /**
+     * Switches an account back on.
+     *
+     * @param principal the administrator making the change
+     * @param id the account to enable
+     * @return 200 with the account as it now stands
+     * @throws com.healthupgrades.common.domain.exception.ResourceNotFoundException if no such account exists (404)
+     * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if {@code id} is the caller's own
+     *         account (422)
+     * @throws com.healthupgrades.user.domain.model.AccountModifiedConcurrentlyException if another write to the
+     *         account committed after this change loaded it (409)
+     */
     @PostMapping("/{id}/enable")
     public ResponseEntity<AdminAccountDto> enable(
             @AuthenticationPrincipal SecurityUser principal, @PathVariable UUID id) {
         return ResponseEntity.ok(toAccountDto(adminUserCommand.enable(principal.getId(), id)));
     }
 
-    /** Grants or revokes a role. */
+    /**
+     * Grants or revokes a role.
+     *
+     * @param principal the administrator making the change
+     * @param id the account whose role is changing
+     * @param request the role the account is to hold; a missing role is refused as a 400
+     * @return 200 with the account as it now stands
+     * @throws com.healthupgrades.common.domain.exception.ResourceNotFoundException if no such account exists (404)
+     * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if {@code id} is the caller's own
+     *         account (422)
+     * @throws com.healthupgrades.user.domain.model.AccountModifiedConcurrentlyException if another write to the
+     *         account committed after this change loaded it (409)
+     */
     @PutMapping("/{id}/role")
     public ResponseEntity<AdminAccountDto> changeRole(
             @AuthenticationPrincipal SecurityUser principal,

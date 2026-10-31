@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class UserService implements UserQuery, UserCommand {
 
-    private final UserRepositoryPort repository; // outbound persistence port
+    private final UserRepositoryPort repository;
 
     /** {@inheritDoc} */
     @Override
