@@ -167,7 +167,10 @@ export type CreateProgressRequest = Wire.ProgressRequest & { upgradeId: string }
 /** Body for writing a reflection. Every field is optional; an absent date means today. */
 export type CreateReflectionRequest = Wire.ReflectionRequest;
 
-/** What a notification is about. Drives the icon and the destination a click leads to. */
+/**
+ * What a notification is about, as the server classified it. Nothing in the interface reads it: the
+ * icon and colour come from `category`, and where a click leads from `relatedUpgradeId`.
+ */
 export type NotificationType = Wire.NotificationType;
 
 /** How a notification should read, which drives its colour and icon. */
