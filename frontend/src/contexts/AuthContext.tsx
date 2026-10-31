@@ -108,8 +108,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
    *
    * On success the session is ended by `endSession` (`api/session`), the same as when the server refuses
    * a renewal: a full document navigation, so nothing belonging to the previous user can be read by the
-   * next one. The user is cleared first because that navigation is not instant, and until the page
-   * unloads the app should render nobody signed in.
+   * next one. The user is cleared first, but in the application no render shows it: `endSession`
+   * unmounts the application synchronously before React commits that update (ADR-066).
    */
   const logout = useCallback(async () => {
     await logoutApi();
