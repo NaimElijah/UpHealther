@@ -57,6 +57,16 @@ public class User {
     @Builder.Default
     private boolean enabled = true;
 
+    /**
+     * Optimistic-lock version. Every write to an account writes the whole row, so without it two that
+     * overlap undo each other, and an administrator's disable could be switched back on by a role change
+     * loaded before it. With it the overtaken write is refused at its save, which flushes, as
+     * {@link AccountModifiedConcurrentlyException}: answered 409, and audited as a refusal (ADR-073).
+     */
+    @Version
+    @Setter(AccessLevel.NONE)
+    private Long version;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

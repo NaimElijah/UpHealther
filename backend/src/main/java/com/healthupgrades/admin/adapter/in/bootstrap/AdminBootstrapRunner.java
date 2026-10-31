@@ -1,6 +1,9 @@
 package com.healthupgrades.admin.adapter.in.bootstrap;
 
+import static net.logstash.logback.argument.StructuredArguments.keyValue;
+
 import com.healthupgrades.admin.application.AdminBootstrapService;
+import com.healthupgrades.user.domain.model.AccountModifiedConcurrentlyException;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +46,11 @@ public class AdminBootstrapRunner implements ApplicationRunner {
      * <p>Runs after the context is up and migrations have applied, so the account it names exists if it
      * is ever going to. A misconfiguration is logged and the application starts anyway: refusing to boot
      * because an optional bootstrap could not find its account would turn a typo into an outage.
+     *
+     * <p>So is a promotion another write overtook. Two instances starting together both find no
+     * administrator and both promote the account; the account's version refuses the second save (ADR-073),
+     * and that instance has nothing left to do. Failing its start would only have it restart and find the
+     * administrator the first one made.
      */
     @Override
     public void run(ApplicationArguments args) {
@@ -56,7 +64,14 @@ public class AdminBootstrapRunner implements ApplicationRunner {
             return;
         }
 
-        bootstrap.bootstrap(id.get());
+        try {
+            bootstrap.bootstrap(id.get());
+        } catch (AccountModifiedConcurrentlyException overtaken) {
+            log.info(
+                    "Another write to the bootstrap account, most likely another instance's bootstrap, committed"
+                            + " first; this instance did not promote it {}",
+                    keyValue("userId", id.get()));
+        }
     }
 
     private static Optional<UUID> parse(String value) {

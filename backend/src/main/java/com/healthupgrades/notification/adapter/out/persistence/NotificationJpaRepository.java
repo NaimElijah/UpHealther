@@ -11,6 +11,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Spring Data JPA repository backing {@link NotificationRepositoryAdapter}; package-private internal detail.
@@ -35,4 +37,20 @@ interface NotificationJpaRepository extends JpaRepository<Notification, UUID> {
     @Modifying
     @Query("update Notification n set n.read = true where n.userId = :userId and n.read = false")
     void markAllReadForUser(@Param("userId") UUID userId); // bulk mark-as-read
+
+    /**
+     * Deletes a batch of the oldest notifications created before the cutoff, of every user.
+     *
+     * <p>Native, because JPQL's bulk delete takes no limit. {@code REQUIRES_NEW}, so each batch commits on
+     * its own whatever transaction the caller runs in: a long backlog is then deleted in short transactions
+     * rather than one that holds its locks for the whole table, and a caller that wrapped the run in a
+     * transaction of its own cannot turn it back into one (ADR-075).
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+            value = "DELETE FROM notifications WHERE id IN"
+                    + " (SELECT id FROM notifications WHERE created_at < :cutoff ORDER BY created_at LIMIT :limit)",
+            nativeQuery = true)
+    int deleteCreatedBefore(@Param("cutoff") LocalDateTime cutoff, @Param("limit") int limit);
 }

@@ -221,6 +221,9 @@ Spring's `ApplicationEventPublisher`, so consumers can bind to the transaction:
 rolls back. Such a listener stores its notification in a transaction of its own (`REQUIRES_NEW`): the
 committed transaction is still bound to the thread when the listener runs, and an insert that joined it
 would never be committed ([ADR-028](../ADRs/ADR-028-a-raised-notification-is-stored-in-its-own-transaction-after-the-write-commits.md)).
+`open-in-view` is off, so a request holds a pooled connection only while one of its transactions runs, and
+the two a notified write holds at once are held only while its listener runs
+([ADR-076](../ADRs/ADR-076-open-in-view-is-off.md)).
 Events raised outside a transaction — by the scheduled sweeps — use a plain `@EventListener`,
 because there is no commit for a transactional listener to wait for. `auth` raises the two events that
 end a session's sockets, and consumes them itself: `SessionEndSocketListener` writes nothing, so it
@@ -253,13 +256,15 @@ sign-in names, each through a composition adapter
 kernel's third, and the other way round: `auth` calls it and the registry in `common.websocket`
 implements it (mechanism 2).
 
-**5. Scheduled invocation.** Four cron-driven jobs drive the core with no request behind them: the
-overdue sweep, the daily check-in nudge, the per-minute reminder dispatch, and the nightly sweep of
-sessions nothing can use again. Each scheduler is only the trigger: it times the run through
-`JobMetrics`, reads the clock where the sweep needs a date, and calls the application method that
-holds the sweep —
+**5. Scheduled invocation.** Five cron-driven jobs drive the core with no request behind them: the
+overdue sweep, the daily check-in nudge, the per-minute reminder dispatch, the nightly sweep of
+sessions nothing can use again, and the nightly deletion of notifications older than ninety days. Each
+scheduler is only the trigger: it times the run through `JobMetrics`, reads the clock where the sweep needs
+a date, and calls the application method that holds the sweep —
 `UpgradeOverdueService.announceOverdue`, `NotificationSweepService.nudgeDailyCheckin` and
-`dispatchDueReminders`, and `AuthSessionService.deleteUnusableSessions`. The sweeps read every user's
+`dispatchDueReminders`, `AuthSessionService.deleteUnusableSessions`, and
+`NotificationRetentionService.deleteExpired`, a service of its own because a controller holds
+`NotificationService`. The sweeps read every user's
 rows through sweep ports of their own — `UpgradeSweepQuery`, `ProgressSweepQuery` and
 `ReminderSweepQuery` — which ArchUnit lets only the jobs' application services hold. The other query
 ports of the contexts holding a user's own records take the owner's id, so a read a request can
@@ -520,14 +525,16 @@ one and when promoting a running one to HARD.
 |---|---|---|
 | `UpgradeOverdueScheduler` | daily 08:00 | Publishes `UpgradeOverdueDetected` for every active upgrade past its target date. The notification listener creates at most one notification per upgrade per target date it misses, so the repeated detection does not repeat the alert ([ADR-025](../ADRs/ADR-025-an-overdue-upgrade-is-announced-once-per-target-date.md)) |
 | `NotificationScheduler.notifyDailyCheckin` | daily 18:00 | Nudges users who have active upgrades and have logged nothing today, at most once a day. Each of its two guards — who was already nudged since midnight, and who has logged today — is one query for the whole sweep. A nudge that fails to save does not cost the users after it |
-| `NotificationScheduler.dispatchReminders` | every minute | Fires the reminders due this minute whose upgrade is active (BR-23). Due-ness is decided by the `Reminder` aggregate; the upgrades behind the due ones are loaded in one batch, and their status is read there, so a paused upgrade's reminders are silenced without being changed. A reminder that fails to save does not cost the ones after it |
+| `NotificationScheduler.dispatchReminders` | every minute | Fires the reminders due this minute whose upgrade is active (BR-23). It reads only the enabled reminders set within this minute, from its first instant to its last microsecond so that 23:59 does not wrap, through the partial index `idx_reminders_enabled_time`; whether one is due on today's day is decided by the `Reminder` aggregate; the upgrades behind the due ones are loaded in one batch, and their status is read there, so a paused upgrade's reminders are silenced without being changed. A reminder that fails to save does not cost the ones after it |
 | `AuthSessionCleanupScheduler` | daily 03:30 | Deletes revoked and expired sessions. Nothing depends on it running: an expired session is already refused by its own timestamps |
+| `NotificationRetentionScheduler` | daily 03:45 | Deletes every notification created more than ninety days before the run, a thousand at a time, each batch in a transaction of its own whatever the caller's, until a batch comes back short or twenty have run. The cap gives the scheduler's one thread back to the minute-by-minute reminder sweep within seconds; a larger backlog drains over the following nights (NFR-60, [ADR-075](../ADRs/ADR-075-notifications-are-kept-for-ninety-days.md)) |
 
 Each reads the clock through an injected `java.time.Clock`, which is what makes it testable without
-waiting: the three notification and overdue jobs in the scheduler, and the session clean-up in
-`AuthSessionService`, behind its scheduler. The clock and every cron keep time in UTC —
+waiting: the three notification and overdue jobs in the scheduler, the session clean-up in
+`AuthSessionService`, and the retention in `NotificationRetentionService`, each behind its scheduler.
+The clock and every cron keep time in UTC —
 `ServerZone`, which each `@Scheduled` names
-— so the defaults above are 08:00, 18:00, the minute and 03:30 in UTC, whatever the host's zone
+— so the defaults above are 08:00, 18:00, the minute, 03:30 and 03:45 in UTC, whatever the host's zone
 ([ADR-020](../ADRs/ADR-020-the-server-keeps-time-in-utc.md)).
 
 ---
@@ -698,7 +705,7 @@ push service, no analytics, no AI service.
 | Dependency | Used for | How it is reached |
 |---|---|---|
 | **PostgreSQL 15** | All persistent state | JDBC from the backend only. Credentials from `DB_URL` / `DB_USERNAME` / `DB_PASSWORD`, which compose fills from `POSTGRES_APP_USER` and `POSTGRES_APP_PASSWORD` |
-| **Flyway** | Schema ownership and migration on startup | Embedded in the backend; `V1`–`V10` apply in order at boot. An applied migration is never edited — Flyway checksums it, comments included — so a correction is another migration |
+| **Flyway** | Schema ownership and migration on startup | Embedded in the backend; every `V{n}` applies in order at boot. An applied migration is never edited — Flyway checksums it, comments included — so a correction is another migration |
 | **Browser WebSocket** | Real-time notification delivery | The `/ws` STOMP endpoint, proxied by nginx (or Vite in development). nginx throttles its handshake per client address, not what an open socket sends (#382, [ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md)) |
 | **nginx** | Serves the built SPA and proxies `/api` and `/ws` | Also where the security headers live — the content security policy, framing and referrer rules, declared for the whole server so that nginx's own error pages under `/api` and `/ws` carry them too ([ADR-018](../ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)). Absent from `npm run dev`, which serves no headers |
 | **SecLists' common-password list** | The passwords registration refuses as common (BR-17) | Never reached at run time. `scripts/derive_common_passwords.py` derives 10,000 entries from one pinned file, and the result is committed under `backend/src/main/resources/auth/`, beside the MIT notice that ships with it in the jar ([ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md)) |
@@ -805,26 +812,60 @@ orchestrates — load, call the domain method, save, publish — and does not de
 
 The one invariant that cannot live there is the max-concurrent-HARD rule, because it needs a count
 across the user's *other* upgrades, which one aggregate cannot see. It is a pure domain service that
-receives the count as a parameter, and the application layer performs the counting query.
+receives the count as a parameter, and the application layer performs the counting query. Because the
+count reads rows the request does not write, no version check sees two requests that both counted
+below the limit. So the only way to count is
+`UpgradeRepositoryPort.countActiveHardUpgradesForLimitCheck`, which first claims the user's check for the
+transaction with a PostgreSQL advisory try-lock keyed on the user (`pg_try_advisory_xact_lock`), then
+counts. A second request for the same user that finds the claim held is refused at once with a
+`RetryableConflictException`, a 409, and changes nothing. Nothing waits, so no pooled connection is held
+and no deadlock can form. Other users are not affected, and an activation that claims no HARD slot
+neither counts nor claims ([ADR-074](../ADRs/ADR-074-concurrent-writes-beyond-the-version-check.md)).
 
 **Spring Data is confined to the persistence adapters, and its interfaces are package-private.**
 Everything else depends on a repository port. That keeps the queries in one package per context, and
 it does not make the store swappable by rewriting those packages alone. The entities in `domain/model`
 carry the JPA mapping, `GlobalExceptionHandler` maps `jakarta.persistence.OptimisticLockException` to a
 409, and the schema is PostgreSQL's, written in Flyway migrations whose foreign keys carry the
-cross-context deletes (see the next paragraph).
+cross-context deletes (see the next paragraph). BR-5's advisory try-lock is PostgreSQL's too, though only
+the upgrade adapter's query names it.
 
 **Deleting an upgrade reaches other contexts' tables through foreign keys, not through code.**
 Every context's tables are in one PostgreSQL schema, and `tracking_configs`, `progress_entries`,
-`reminders` and `reflections` reference `health_upgrades(id)` with `ON DELETE CASCADE`. That is how
+`reminders` and `reflections` reference `health_upgrades` with `ON DELETE CASCADE`. That is how
 FR-14 is carried out: `UpgradeService.delete` removes one row and publishes no event, and the import
 graph shows no edge from `upgrade` to those contexts. `notifications.related_upgrade_id` and
 `health_upgrades.area_id` use `ON DELETE SET NULL`, which is how a notification outlives its upgrade
-(FR-14) and an upgrade survives its area (FR-8); `users(id)` cascades to every table that
-carries a `user_id`. The entities map these columns as plain ids, so no JPA cascade exists to find. A
-table that references `health_upgrades` or `users` states its `ON DELETE` outright, and moving a
-context's tables out of the database, or giving one a soft delete, would replace the cascade
+(FR-14) and an upgrade survives its area (FR-8). `area_id` has two keys: V1's single-column one, whose
+`SET NULL` detaches every upgrade under a deleted area, and the owner key on `(area_id, user_id)`, which
+refuses a foreign area and whose own action would reach only the area owner's rows
+([ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md)); `users(id)` cascades to every table that
+carries a `user_id`. The entities map these columns as plain ids, so no JPA cascade exists to find.
+Every referencing column leads an index, so a parent's delete finds its children without scanning the
+table, and no index repeats the leading columns of another; `SchemaIndexIT` checks both in the migrated
+catalogue. A table that references `health_upgrades` or `users` states its `ON DELETE` outright, and
+moving a context's tables out of the database, or giving one a soft delete, would replace the cascade
 ([ADR-063](../ADRs/ADR-063-one-schema-with-cross-context-foreign-keys.md)).
+
+**The schema refuses a value the domain has no name for.** The request records refuse a bad value at
+the boundary, and the schema refuses it again for a write that skips them. Every enum column carries a
+`CHECK` listing its enum's constants, BR-19's ratings and BR-20's numeric value carry their bounds, and
+a reminder's time and flag are `NOT NULL`. Each enum's values are therefore written twice, and
+`EnumColumnCheckContractTest` fails the build when a `CHECK` and its enum differ, so a new constant
+arrives with its migration. A child row's owner is its parent's for the same reason: progress entries
+and reflections reference `health_upgrades (id, user_id)`, and an upgrade references
+`health_areas (id, user_id)`, so a row naming another owner than its parent's cannot be stored. The area
+key is left unvalidated, because rows filed before BR-18 may name another user's area
+([ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md)).
+
+**Every migration from `V10` on bounds how long it waits for a lock.** Flyway runs each PostgreSQL
+migration in a transaction of its own, on a connection it borrows from the application's pool, and each
+opens with `SET LOCAL lock_timeout`, which ends with that transaction. A migration that cannot get its
+lock in time fails the start rather than queueing the table's traffic behind it.
+`MigrationLockTimeoutContractTest` fails the build on one that does not. While production holds no data,
+index and constraint changes are plain DDL in that transaction; once it does, an index on a populated
+table is built `CONCURRENTLY`, in a file of its own that Flyway runs outside a transaction
+([ADR-072](../ADRs/ADR-072-every-migration-bounds-its-lock-wait.md)).
 
 **Registration's password rules are constraints on the request record.** BR-17's bounds and its
 common-password list all sit on `AuthController.RegisterRequest.password`, so each refusal is the same
@@ -842,11 +883,34 @@ both directions. A wire-format change therefore cannot reach a use-case signatur
 duplicating `TrackingConfigDto` field for field is the visible cost, and is intentional. One mapper
 also reads: see "Which contexts depend on which".
 
-**Optimistic locking is on one aggregate.** Only `HealthUpgrade` carries `@Version`. Two saves that
-overlap inside the server clash, and the later one is answered 409. No request carries the version back,
-though, so an edit sent from a page opened before another edit replaces that edit instead of being
-refused ([#194](https://github.com/NaimElijah/UpHealther/issues/194)). Nothing else is version-checked,
-because nothing else is edited from two places at once.
+**Optimistic locking is on two aggregates.** `HealthUpgrade` and `User` carry `@Version`. Two saves that
+overlap inside the server clash, and the later one is answered 409. No request carries an upgrade's
+version back, though, so an edit sent from a page opened before another edit replaces that edit instead of
+being refused ([#194](https://github.com/NaimElijah/UpHealther/issues/194)). An account is written whole
+by each of an administrator's disable, enable and role change, so without its version two of them
+overlapping would undo one another, a disable included; the one that was overtaken is refused instead. The
+account save flushes, so the refusal is raised by the save, as the `user` context's
+`AccountModifiedConcurrentlyException`, which the API answers 409 and the audit trail records as a refusal
+([ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md)). Nothing else is version-checked, because nothing else is edited from two places at
+once. One writer of an upgrade is not Hibernate:
+deleting an area detaches its upgrades through `ON DELETE SET NULL`, and a trigger,
+`health_upgrades_area_detach_bumps_version`, moves the version of each, so a request that loaded one
+before the delete is refused at its commit like any other lost race, rather than writing the deleted area
+back ([ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md)).
+
+**A race the version check cannot see is settled in the adapter.** A check-then-insert against a
+unique constraint is the one shape this takes today: two requests can both find no row and both
+insert. The adapter's save flushes, so the constraint refuses the loser inside the call, and the
+adapter translates that one constraint, by name. `UserRepositoryAdapter` translates a duplicate email
+into the `user` context's `EmailAlreadyRegisteredException`, which registration answers as a 422
+(FR-4). `TrackingConfigRepositoryAdapter` throws the API-facing exception itself: a lost race for an
+upgrade's first tracking configuration becomes the kernel's `RetryableConflictException`, a 409, since
+the same `PUT` resent replaces the winner's. The same adapter
+translates the upgrade foreign key, refused when another request deletes the upgrade between the
+ownership check and the insert, into the 404 the ownership check would now give. Any other integrity
+failure is rethrown unchanged and stays a 500. The progress entry's race is not handled this way yet
+([#146](https://github.com/NaimElijah/UpHealther/issues/146))
+([ADR-074](../ADRs/ADR-074-concurrent-writes-beyond-the-version-check.md)).
 
 **Exception to HTTP status is decided in exactly one class.** Controllers and services throw domain
 exceptions and never build a status by hand. The mapping is pinned by a test.
@@ -1061,6 +1125,11 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why the compose backend connects as a role that owns its database rather than as the superuser; why its variables are not `DB_USERNAME` and `DB_PASSWORD`; why one role and not a migrating and a serving one | [ADR-069](../ADRs/ADR-069-the-compose-backend-connects-as-a-role-that-owns-its-database.md) |
 | Why nginx throttles the `/ws` handshake although ADR-017 kept sign-in's limit in the application; why there is no cap on open sockets; what a load balancer would need first | [ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md) |
 | Why registration refuses the 10,000 most common passwords from a pinned SecLists file, rather than asking Have I Been Pwned; how the list is derived and filtered; why the refusal is a constraint beside BR-17's minimum | [ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md) |
+| Why every migration from `V10` opens with `SET LOCAL lock_timeout`, and not `spring.flyway.init-sqls`; when an index change must be `CONCURRENTLY`, in a file of its own | [ADR-072](../ADRs/ADR-072-every-migration-bounds-its-lock-wait.md) |
+| Why every enum column carries a `CHECK` of its constants rather than a PostgreSQL enum type or a lookup table, and which numeric bounds the schema holds; why a child row references its parent by id and owner together, why the area key is left unvalidated, and why the single-column area key stands beside it | [ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md) |
+| How a concurrent write that `@Version` does not cover is handled: a per-user invariant over several rows claimed with an advisory try-lock, refused as a retryable 409 rather than waited for, and a lost check-then-insert race translated in the adapter into a 409; what would make the claim the wrong tool | [ADR-074](../ADRs/ADR-074-concurrent-writes-beyond-the-version-check.md) |
+| Why a notification is deleted ninety days after it was created, by a nightly job in batches of a thousand, at most twenty a night; why not thirty days, the newest fifty, or waiting for the privacy notice | [ADR-075](../ADRs/ADR-075-notifications-are-kept-for-ninety-days.md) |
+| Why `open-in-view` is off, what it held a connection for, and what would bring it back | [ADR-076](../ADRs/ADR-076-open-in-view-is-off.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

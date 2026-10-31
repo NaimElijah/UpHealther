@@ -54,6 +54,11 @@ read/composition model with no domain or outbound side. All three are deliberate
   is enforced separately in `UpgradeSchedulingService.validateWithinHardLimit`, which the service
   applies on **every** route to a running HARD upgrade — before `entity.activate`, and before promoting
   an already-ACTIVE upgrade to HARD in `update`. An upgrade occupies a HARD slot only while ACTIVE.
+  The only count is `UpgradeRepositoryPort.countActiveHardUpgradesForLimitCheck(userId)`, which first
+  claims the user's check with a transaction-scoped advisory try-lock, or two requests could both count
+  two and both commit. A request that finds the claim held gets `RetryableConflictException` (409) and
+  changes nothing. A new route into a running HARD upgrade counts through it too, inside its
+  transaction (ADR-074).
 
 - **Domain events are in-process.** Publish via the injected `DomainEventPublisher` (a thin wrapper
   over Spring's `ApplicationEventPublisher`) after a successful state change. The port itself is
@@ -137,9 +142,10 @@ read/composition model with no domain or outbound side. All three are deliberate
   could hold free text. The same bound applies to metric tags: an action and an outcome are closed sets,
   a user id is not. See `../docs/ADRs/ADR-011-audit-as-a-log-stream.md`.
 
-- **Optimistic locking** via `@Version`, on `HealthUpgrade` only (`AuthSession` deliberately has none;
-  `AuthSessionRepositoryPort` says why) → two saves that overlap inside the server return 409. No
-  request carries the version back yet, so an edit from a stale page is not refused (#194).
+- **Optimistic locking** via `@Version`, on `HealthUpgrade` and `User` (`AuthSession` deliberately has
+  none; `AuthSessionRepositoryPort` says why) → two saves that overlap inside the server return 409. On
+  `User` it stops two administrators' writes undoing each other, a disable included (ADR-073). No
+  request carries an upgrade's version back yet, so an edit from a stale page is not refused (#194).
 
 - **The application layer never imports an adapter.** A service takes a command record from
   `application/port/in` and returns a domain object (or a result record where there is no aggregate,
@@ -250,3 +256,7 @@ that.
 Schema is **owned by Flyway** and Hibernate runs with `ddl-auto: validate`: it will **not** create or
 alter tables, so any entity change that affects the schema needs a **new `V{n}__name.sql` migration**,
 or the app fails to start. Never edit an already-applied migration; add a new one.
+
+A new migration opens with `SET LOCAL lock_timeout = '5s';` before any other statement, or
+`MigrationLockTimeoutContractTest` fails the build. Once production holds data, an index on a populated
+table is built `CONCURRENTLY`, in a file of its own (ADR-072).

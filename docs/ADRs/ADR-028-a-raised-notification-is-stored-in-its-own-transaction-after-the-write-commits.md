@@ -1,6 +1,7 @@
 # ADR-028: A raised notification is stored in its own transaction, after the write commits
 
-- **Status:** Accepted
+- **Status:** Accepted — its open-in-view consequence no longer holds: see
+  [ADR-076](ADR-076-open-in-view-is-off.md)
 - **Date:** 2026-10-11
 - **Scope:** the eight `AFTER_COMMIT` methods of `NotificationEventListener`, and FR-28, FR-32 and
   NFR-49 in `docs/requirements/requirements.md`.

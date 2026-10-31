@@ -299,11 +299,20 @@ def table_body_columns(definitions: list, table: str, relations: list) -> list:
     columns = []
     for line in definitions:
         line = line.strip().rstrip(",")
-        if not line or line.upper().startswith("CONSTRAINT"):
+        upper = line.upper()
+        # A table-level PRIMARY KEY (a, b), named or not. Every column of it is marked PK. Unlike a
+        # composite UNIQUE below, the marks cannot be misread as separate keys: a table has one
+        # primary key, so several PK marks on one table can only be its parts.
+        primary = re.search(r"PRIMARY\s+KEY\s*\(([^)]*)\)", line, re.IGNORECASE)
+        if primary and (upper.startswith("PRIMARY") or upper.startswith("CONSTRAINT")):
+            columns.extend((column.strip(), None, "PK") for column in primary.group(1).split(","))
+            continue
+        if not line or upper.startswith("CONSTRAINT"):
             # A single-column UNIQUE is a property of that column and is marked on it. A
             # composite one is a property of the pair, and Mermaid has no notation for that —
-            # marking each column UK would claim each is independently unique, which is false.
-            # Composite constraints are described in the prose beside the diagram instead.
+            # marking each column UK would claim each is independently unique, which is false,
+            # since a table may have several unique keys. Composite unique constraints are
+            # described in the prose beside the diagram instead.
             inner = re.search(r"UNIQUE\s*\(([^)]*)\)", line, re.IGNORECASE)
             if inner and "," not in inner.group(1):
                 columns.append((inner.group(1).strip(), None, "UK"))
@@ -311,14 +320,17 @@ def table_body_columns(definitions: list, table: str, relations: list) -> list:
         name = line.split()[0]
         if name.upper() in ("PRIMARY", "FOREIGN", "UNIQUE", "CHECK"):
             continue
-        key = "PK" if "PRIMARY KEY" in line.upper() else ("UK" if " UNIQUE" in line.upper() else "")
+        unique = " UNIQUE" in upper
+        key = "PK" if "PRIMARY KEY" in upper else ("UK" if unique else "")
         columns.append((name, sql_type_token(line), key))
 
         reference = re.search(r"REFERENCES\s+(\w+)", line, re.IGNORECASE)
         if reference:
-            optional = "NOT NULL" not in line.upper()
-            cardinality = "||--o{" if not optional else "|o--o{"
-            relations.append(f"    {reference.group(1)} {cardinality} {table} : \"\"")
+            # The parent's side: exactly one when the column is NOT NULL, at most one otherwise. The
+            # child's: at most one per parent when the column is UNIQUE, any number otherwise.
+            parent = "||" if "NOT NULL" in upper else "|o"
+            child = "o|" if unique else "o{"
+            relations.append(f"    {reference.group(1)} {parent}--{child} {table} : \"\"")
     return columns
 
 

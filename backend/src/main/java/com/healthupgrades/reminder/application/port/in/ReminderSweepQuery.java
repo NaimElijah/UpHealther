@@ -1,6 +1,7 @@
 package com.healthupgrades.reminder.application.port.in;
 
 import com.healthupgrades.reminder.domain.model.Reminder; // returned domain aggregate
+import java.time.LocalTime;
 import java.util.List;
 
 /**
@@ -15,9 +16,11 @@ import java.util.List;
 public interface ReminderSweepQuery {
 
     /**
-     * Every enabled reminder, whoever owns it: the dispatch candidates.
+     * Every enabled reminder set for a time within the minute {@code time} falls in, whoever owns it: the
+     * dispatch candidates. Whether one is due on today's day is the reminder's own question.
      *
-     * @return the enabled reminders of every user
+     * @param time a time of day, of which only the hour and minute count
+     * @return the enabled reminders of every user set within that minute
      */
-    List<Reminder> findEnabled();
+    List<Reminder> findEnabledWithinMinute(LocalTime time);
 }
