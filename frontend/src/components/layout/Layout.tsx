@@ -9,8 +9,8 @@ interface LayoutProps {
 
 /**
  * The frame every signed-in page renders inside: a sticky navbar, the sidebar rail, and the content
- * area. Applied by the router rather than by each page, so no authenticated page can be added without
- * it. How wide the page inside it may grow is decided by `PageContainer`, not here.
+ * area. Applied by the router rather than by each page, route by route; nothing checks that a new route
+ * applies it. How wide the page inside it may grow is decided by `PageContainer`, not here.
  *
  * `min-w-0` on the content column is load-bearing. A flex item's `min-width` defaults to `auto`, which
  * resolves to its *min-content* width, so one child that cannot shrink — a long unbroken string, a wide
