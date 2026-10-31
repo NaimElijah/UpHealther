@@ -325,6 +325,16 @@ class JwtChannelInterceptorTest {
     }
 
     @Test
+    void GivenACommandOutsideTheAllowList_WhenItIsRefused_ThenTheRefusalNamesTheCommandInAGrammaticalSentence() {
+        // The same words go into the WARN line. "a ACK frame" or "a ERROR frame" reads as a typo in the
+        // log, so the command is named where no article has to agree with it.
+        Message<?> ack = frameFrom(StompCommand.ACK, null, session());
+
+        assertThatThrownBy(() -> interceptor.preSend(ack, channel))
+                .hasMessage("Refused a frame of command ACK, which this application's client never sends");
+    }
+
+    @Test
     void GivenASocketHoldingASubscription_WhenASecondSubscribeArrives_ThenItIsRefused() {
         // S5.A5: each SUBSCRIBE registers with the broker, so a signed-in socket streaming them with
         // fresh ids would grow the single instance's heap without limit. The client needs one.

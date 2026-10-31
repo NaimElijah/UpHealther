@@ -140,7 +140,7 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
             }
             // An allow-list, not a deny-list: Spring decodes any command from a client and routes a
             // client's MESSAGE as it would a SEND (finding D1.1). The command is an enum, never client text.
-            default -> throw refuse("a " + command + " frame, which this application's client never sends");
+            default -> throw refuse("a frame of command " + command + ", which this application's client never sends");
         }
         return message;
     }
