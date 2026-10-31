@@ -46,8 +46,15 @@ read/composition model with no domain or outbound side. All three are deliberate
   `HealthUpgrade` has **no setters**, so this is enforced by the compiler rather than by convention:
   `status` moves only through the transition methods, descriptive fields only through `updateDetails`,
   and difficulty only through `changeDifficulty`. Create one with `HealthUpgrade.create(...)`, which
-  validates the invariants a new upgrade must satisfy. The Lombok builder remains for JPA and for tests
-  that need an aggregate already in a given state — do not reach for it in production code.
+  validates the invariants a new upgrade must satisfy. The Lombok builder backs `create` and the tests
+  that need an aggregate already in a given state — do not reach for it in production code. Hibernate
+  needs none of it: it builds an entity through the protected no-argument constructor.
+
+  `User` follows the same convention: no setters, created through `User.register(...)`, which leaves the
+  role and the enabled flag at their defaults, and changed only through `changeRole`, `disable` and
+  `enable`. Its builder can set the role, so `HexagonalArchitectureTest` lets no production class but
+  `User` call it. `Reflection` is append-only (BR-13) and has no setters either, but no factory: it is
+  created through its builder, by `ReflectionService`, and never changed afterwards.
 
   Lifecycle: `IDEA → PLANNED → ACTIVE ⇄ PAUSED`; `ACTIVE → COMPLETED`; (most states) `→ ABANDONED`;
   `reschedule` on an `ABANDONED` upgrade reactivates it to `PLANNED`. The max-3-concurrent-HARD rule

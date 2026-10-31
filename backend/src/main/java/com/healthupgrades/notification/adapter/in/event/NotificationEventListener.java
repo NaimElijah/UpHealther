@@ -15,6 +15,7 @@ import com.healthupgrades.upgrade.domain.event.HealthUpgradePlanned;
 import com.healthupgrades.upgrade.domain.event.UpgradeOverdueDetected;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import java.time.LocalDateTime;
+import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.event.EventListener;
@@ -42,6 +43,9 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @RequiredArgsConstructor
 public class NotificationEventListener {
 
+    /** How a message names an upgrade that has gone since its event was raised. */
+    static final String UPGRADE_GONE = "your upgrade";
+
     private final NotificationService notificationService;
     private final UpgradeQuery upgradeQuery;
 
@@ -67,7 +71,8 @@ public class NotificationEventListener {
                 NotificationType.UPGRADE_PLANNED,
                 NotificationCategory.INFO,
                 "Upgrade planned",
-                "\"" + title(e.upgradeId(), e.userId()) + "\" is planned to start " + e.plannedStartDate() + ".",
+                atSentenceStart(quotedTitle(e.upgradeId(), e.userId())) + " is planned to start " + e.plannedStartDate()
+                        + ".",
                 e.upgradeId());
     }
 
@@ -80,7 +85,7 @@ public class NotificationEventListener {
                 NotificationType.UPGRADE_ACTIVATED,
                 NotificationCategory.SUCCESS,
                 "Upgrade activated 💪",
-                "You activated \"" + title(e.upgradeId(), e.userId()) + "\". Let's go!",
+                "You activated " + quotedTitle(e.upgradeId(), e.userId()) + ". Let's go!",
                 e.upgradeId());
     }
 
@@ -93,7 +98,7 @@ public class NotificationEventListener {
                 NotificationType.UPGRADE_PAUSED,
                 NotificationCategory.INFO,
                 "Upgrade paused",
-                "\"" + title(e.upgradeId(), e.userId()) + "\" is paused.",
+                atSentenceStart(quotedTitle(e.upgradeId(), e.userId())) + " is paused.",
                 e.upgradeId());
     }
 
@@ -106,7 +111,7 @@ public class NotificationEventListener {
                 NotificationType.UPGRADE_COMPLETED,
                 NotificationCategory.SUCCESS,
                 "Upgrade completed 🎉",
-                "Congrats! You completed \"" + title(e.upgradeId(), e.userId()) + "\".",
+                "Congrats! You completed " + quotedTitle(e.upgradeId(), e.userId()) + ".",
                 e.upgradeId());
     }
 
@@ -119,7 +124,7 @@ public class NotificationEventListener {
                 NotificationType.UPGRADE_ABANDONED,
                 NotificationCategory.INFO,
                 "Upgrade abandoned",
-                "\"" + title(e.upgradeId(), e.userId()) + "\" was abandoned.",
+                atSentenceStart(quotedTitle(e.upgradeId(), e.userId())) + " was abandoned.",
                 e.upgradeId());
     }
 
@@ -132,7 +137,7 @@ public class NotificationEventListener {
                 NotificationType.STREAK_ACHIEVED,
                 NotificationCategory.SUCCESS,
                 "🔥 " + e.milestoneDays() + "-day streak!",
-                "\"" + title(e.upgradeId(), e.userId()) + "\" — keep the momentum going.",
+                atSentenceStart(quotedTitle(e.upgradeId(), e.userId())) + " — keep the momentum going.",
                 e.upgradeId());
     }
 
@@ -145,7 +150,7 @@ public class NotificationEventListener {
                 NotificationType.REFLECTION_ADDED,
                 NotificationCategory.INFO,
                 "Reflection added",
-                "You reflected on \"" + title(e.upgradeId(), e.userId()) + "\".",
+                "You reflected on " + quotedTitle(e.upgradeId(), e.userId()) + ".",
                 e.upgradeId());
     }
 
@@ -170,22 +175,29 @@ public class NotificationEventListener {
                 NotificationType.UPGRADE_OVERDUE,
                 NotificationCategory.WARNING,
                 "Upgrade overdue ⏰",
-                () -> "\"" + title(e.upgradeId(), e.userId()) + "\" is past its target date.",
+                () -> atSentenceStart(quotedTitle(e.upgradeId(), e.userId())) + " is past its target date.",
                 e.upgradeId(),
                 announcedOnlyFrom);
     }
 
     /**
-     * Resolves an upgrade's title for a message, falling back to a generic phrase.
+     * Names an upgrade in a message: its title in quotes, or a generic phrase without them.
      *
      * <p>The fallback matters: an event can outlive the upgrade it refers to — deletion publishes
      * nothing but does remove the row — and a notification that reads "your upgrade" is better than one
-     * that fails to be created at all.
+     * that fails to be created at all. It is not quoted, because quote marks say "the name you gave it",
+     * and around the fallback they would read as a title somebody chose.
      */
-    private String title(UUID upgradeId, UUID userId) {
+    private String quotedTitle(UUID upgradeId, UUID userId) {
         return upgradeQuery
                 .findOwned(userId, upgradeId)
                 .map(HealthUpgrade::getTitle)
-                .orElse("your upgrade");
+                .map(title -> "\"" + title + "\"")
+                .orElse(UPGRADE_GONE);
+    }
+
+    /** Capitalises a name that opens a sentence; a quoted title opens with its quote mark, and is unchanged. */
+    private static String atSentenceStart(String name) {
+        return name.substring(0, 1).toUpperCase(Locale.ROOT) + name.substring(1);
     }
 }

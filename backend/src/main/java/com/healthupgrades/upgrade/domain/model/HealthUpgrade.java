@@ -25,6 +25,9 @@ import lombok.*;
 @Builder
 public class HealthUpgrade {
 
+    /** Why a retired type is refused, on creation and on an edit that would move to one. */
+    static final String RETIRED_TYPE = "That kind of upgrade is retired; choose another";
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -66,6 +69,12 @@ public class HealthUpgrade {
 
     private String successCriteria;
 
+    /**
+     * When the upgrade was completed; null until it is. Set by {@link #complete} alone, and COMPLETED is
+     * terminal, so an edit afterwards never moves it the way it moves {@code updatedAt} (FR-27, ADR-080).
+     */
+    private LocalDateTime completedAt;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -82,7 +91,7 @@ public class HealthUpgrade {
      * to a database constraint at flush time: an upgrade always belongs to a user, always has a title,
      * always has a type, and always starts as an IDEA.
      *
-     * @throws BusinessRuleException if the owner, title or type is missing
+     * @throws BusinessRuleException if the owner, title or type is missing, or the type is retired
      */
     public static HealthUpgrade create(
             UUID userId,
@@ -98,6 +107,7 @@ public class HealthUpgrade {
         if (userId == null) throw new BusinessRuleException("An upgrade must belong to a user");
         if (title == null || title.isBlank()) throw new BusinessRuleException("An upgrade must have a title");
         if (type == null) throw new BusinessRuleException("An upgrade must have a type");
+        if (type.isRetired()) throw new BusinessRuleException(RETIRED_TYPE);
 
         return HealthUpgrade.builder()
                 .userId(userId)
@@ -120,7 +130,11 @@ public class HealthUpgrade {
      * <p>Deliberately cannot touch status, the start dates or difficulty: those move only through the
      * transition methods, {@link #reschedule} and {@link #changeDifficulty} respectively.
      *
-     * @throws BusinessRuleException if the title is blanked out
+     * <p>A retired type is accepted only when the upgrade already holds it: the SPA sends the type back
+     * unchanged on every edit, and a row that carries one must stay editable, but none may move to it.
+     *
+     * @throws BusinessRuleException if the title is blanked out, the type is missing, or a retired type
+     *         is chosen for an upgrade that does not already hold it
      */
     public void updateDetails(
             UUID areaId,
@@ -132,6 +146,7 @@ public class HealthUpgrade {
             String successCriteria) {
         if (title == null || title.isBlank()) throw new BusinessRuleException("An upgrade must have a title");
         if (type == null) throw new BusinessRuleException("An upgrade must have a type");
+        if (type.isRetired() && type != this.type) throw new BusinessRuleException(RETIRED_TYPE);
 
         this.areaId = areaId;
         this.title = title;
@@ -160,12 +175,13 @@ public class HealthUpgrade {
      *
      * @param plannedStart the date the user intends to start; not required to be in the future, since
      *                     users plan retroactively
-     * @throws BusinessRuleException if the upgrade is not an IDEA
+     * @throws BusinessRuleException if the upgrade is not an IDEA, or no date is given
      */
     public void plan(LocalDate plannedStart) {
         if (status != UpgradeStatus.IDEA) {
             throw new BusinessRuleException("Only IDEA upgrades can be planned");
         }
+        if (plannedStart == null) throw new BusinessRuleException("A planned upgrade must have a start date");
         this.plannedStartDate = plannedStart;
         this.status = UpgradeStatus.PLANNED;
     }
@@ -173,19 +189,34 @@ public class HealthUpgrade {
     /**
      * Starts or resumes an upgrade: PLANNED → ACTIVE, or PAUSED → ACTIVE.
      *
-     * <p>Records the date it actually started, which is what progress and streaks are measured from.
-     * The max-concurrent-HARD rule is <em>not</em> checked here — it needs a count across the user's
-     * other upgrades, which the aggregate cannot see; {@code UpgradeService} applies it first.
+     * <p>Records the date it started running, which opens the window {@link #isActiveOn} puts it on a
+     * day's check-in list for. A resume replaces it, so after a pause it is the latest start, not the
+     * first (#263); progress and streaks do not read it. The max-concurrent-HARD rule is <em>not</em>
+     * checked here — it needs a count across the user's other upgrades, which the aggregate cannot see;
+     * {@code UpgradeService} applies it first.
      *
      * @param startDate the date the upgrade starts running
-     * @throws BusinessRuleException if the upgrade is not PLANNED or PAUSED
+     * @throws BusinessRuleException if the upgrade is not PLANNED or PAUSED, or no date is given
      */
     public void activate(LocalDate startDate) {
-        if (status != UpgradeStatus.PLANNED && status != UpgradeStatus.PAUSED) {
+        if (!canActivate()) {
             throw new BusinessRuleException("Only PLANNED or PAUSED upgrades can be activated");
         }
+        if (startDate == null) throw new BusinessRuleException("An active upgrade must have a start date");
         this.actualStartDate = startDate;
         this.status = UpgradeStatus.ACTIVE;
+    }
+
+    /**
+     * Whether {@link #activate} would accept this upgrade in its current state.
+     *
+     * <p>For the caller that must decide something before the transition, as the service decides whether
+     * an activation would claim a HARD slot: one the transition refuses claims none.
+     *
+     * @return true when the upgrade is PLANNED or PAUSED
+     */
+    public boolean canActivate() {
+        return status == UpgradeStatus.PLANNED || status == UpgradeStatus.PAUSED;
     }
 
     /**
@@ -201,14 +232,17 @@ public class HealthUpgrade {
     }
 
     /**
-     * Finishes a running upgrade successfully: ACTIVE → COMPLETED, which is terminal.
+     * Finishes a running upgrade successfully: ACTIVE → COMPLETED, which is terminal, recording when.
      *
-     * @throws BusinessRuleException if the upgrade is not ACTIVE
+     * @param at the moment it was completed, from the caller's clock
+     * @throws BusinessRuleException if the upgrade is not ACTIVE, or no moment is given
      */
-    public void complete() {
+    public void complete(LocalDateTime at) {
         if (status != UpgradeStatus.ACTIVE) {
             throw new BusinessRuleException("Only ACTIVE upgrades can be completed");
         }
+        if (at == null) throw new BusinessRuleException("A completed upgrade must record when it was completed");
+        this.completedAt = at;
         this.status = UpgradeStatus.COMPLETED;
     }
 
@@ -233,12 +267,14 @@ public class HealthUpgrade {
      * something you had given up on is how you take it back on.
      *
      * @param newDate the new planned start date
-     * @throws BusinessRuleException if the upgrade is COMPLETED
+     * @throws BusinessRuleException if the upgrade is COMPLETED, or no date is given: a reschedule
+     *         cannot clear the date, and a revival without one would be PLANNED for no day at all
      */
     public void reschedule(LocalDate newDate) {
         if (status == UpgradeStatus.COMPLETED) {
             throw new BusinessRuleException("Cannot reschedule a COMPLETED upgrade");
         }
+        if (newDate == null) throw new BusinessRuleException("A rescheduled upgrade must have a start date");
         this.plannedStartDate = newDate;
         if (status == UpgradeStatus.ABANDONED) {
             this.status = UpgradeStatus.PLANNED;
@@ -251,7 +287,7 @@ public class HealthUpgrade {
      * <p>Unguarded here on purpose: promoting an upgrade to HARD may breach the concurrent-HARD limit,
      * and that check needs the user's other upgrades. {@code UpgradeService} validates before calling.
      *
-     * @param difficulty the new difficulty, may be null
+     * @param difficulty the new difficulty
      */
     public void changeDifficulty(Difficulty difficulty) {
         this.difficulty = difficulty;

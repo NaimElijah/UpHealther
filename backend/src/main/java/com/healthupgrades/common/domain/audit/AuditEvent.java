@@ -40,8 +40,8 @@ public record AuditEvent(AuditAction action, UUID actorUserId, UUID resourceId, 
         return new AuditEvent(action, actorUserId, resourceId, AuditOutcome.ALLOWED);
     }
 
-    /** The attempt ended in the exception given, classified by {@link AuditOutcome#of}. */
-    public static AuditEvent from(AuditAction action, UUID actorUserId, UUID resourceId, RuntimeException thrown) {
+    /** The attempt ended in what was thrown, classified by {@link AuditOutcome#of}. */
+    public static AuditEvent from(AuditAction action, UUID actorUserId, UUID resourceId, Throwable thrown) {
         return new AuditEvent(action, actorUserId, resourceId, AuditOutcome.of(thrown));
     }
 

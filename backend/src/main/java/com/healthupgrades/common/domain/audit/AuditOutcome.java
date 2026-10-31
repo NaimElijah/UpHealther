@@ -27,14 +27,15 @@ public enum AuditOutcome {
     FAILED;
 
     /**
-     * Classifies the exception an audited operation threw.
+     * Classifies what an audited operation threw.
      *
      * <p>The exceptions in {@code common.domain.exception} are the vocabulary this application uses
      * for "no", so they are refusals and everything else is a fault. Listing them explicitly rather
      * than testing a package name keeps the classification greppable, and an exception
      * added later and forgotten here is recorded {@link #FAILED} — visibly wrong in a dashboard rather
      * than silently miscounted. A context's own refusal counts by the kernel type it extends: its
-     * conflict is a {@link ConflictException}, so the kernel classifies it without naming it.
+     * conflict is a {@link ConflictException}, so the kernel classifies it without naming it. An
+     * {@link Error} is never a refusal.
      *
      * <p>Note what does <em>not</em> arrive here: a {@code @Version} clash decided at commit. The only
      * repository writes that flush are registration's, the tracking configuration's and the account
@@ -47,7 +48,7 @@ public enum AuditOutcome {
      * @param thrown what the operation threw
      * @return {@link #REFUSED} for a decision, {@link #FAILED} for a fault
      */
-    public static AuditOutcome of(RuntimeException thrown) {
+    public static AuditOutcome of(Throwable thrown) {
         boolean refusal = thrown instanceof BusinessRuleException
                 || thrown instanceof AuthenticationRequiredException
                 || thrown instanceof ResourceNotFoundException

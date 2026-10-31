@@ -32,6 +32,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -40,6 +41,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /**
  * Covers the two ways into an authenticated session and the profile read behind them:
@@ -318,6 +320,35 @@ class AuthServiceTest {
     }
 
     @Test
+    void
+            GivenAnErrorWhileTheSessionStarts_WhenAVisitorRegisters_ThenTheAttemptIsAuditedAsFailedAndTheErrorPropagates() {
+        // D1.4 on registration: an Error is not a RuntimeException, and a catch of only the latter let it
+        // leave no entry at all.
+        when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(false);
+        when(userCommand.register(any())).thenAnswer(AuthServiceTest::persisted);
+        when(tokenIssuer.issue(any(UUID.class), any(UUID.class))).thenThrow(new StackOverflowError());
+
+        assertThatThrownBy(() -> service.register(AUser.NAME, AUser.EMAIL, RAW_PASSWORD))
+                .isInstanceOf(StackOverflowError.class);
+
+        assertThat(auditTrail.only(AuditAction.AUTH_REGISTER))
+                .hasValue(new AuditEvent(AuditAction.AUTH_REGISTER, null, null, AuditOutcome.FAILED));
+    }
+
+    @Test
+    void GivenAnErrorWhileTheSessionStarts_WhenTheUserLogsIn_ThenTheAttemptIsAuditedAsFailedAndTheErrorPropagates() {
+        when(authenticationManager.authenticate(any())).thenReturn(authenticated());
+        when(userQuery.findByEmail(AUser.EMAIL))
+                .thenReturn(Optional.of(AUser.aUser().build()));
+        when(tokenIssuer.issue(any(UUID.class), any(UUID.class))).thenThrow(new StackOverflowError());
+
+        assertThatThrownBy(() -> service.login(AUser.EMAIL, RAW_PASSWORD)).isInstanceOf(StackOverflowError.class);
+
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGIN))
+                .hasValue(new AuditEvent(AuditAction.AUTH_LOGIN, null, null, AuditOutcome.FAILED));
+    }
+
+    @Test
     void GivenAnEmailAlreadyTaken_WhenAVisitorRegisters_ThenTheRefusalIsAuditedWithNoSubject() {
         when(userQuery.existsByEmail(AUser.EMAIL)).thenReturn(true);
 
@@ -366,6 +397,22 @@ class AuthServiceTest {
         assertThatThrownBy(() -> service.getMe(gone)).isInstanceOf(BusinessRuleException.class);
     }
 
+    @Test
+    void GivenARotatedSession_WhenTheAccountCanNoLongerBeRead_ThenTheSessionStillContinuesUnderItsNewCredential() {
+        // D2.1. The rotation has committed by the time the session continues, so a second read of the
+        // account that fails would answer 500 without the new cookie, and the browser's next refresh
+        // would present the spent credential as a replay.
+        User user = AUser.aUser().build();
+        lenient().when(userQuery.findById(user.getId())).thenThrow(new DataAccessResourceFailureException("lost"));
+        when(tokenIssuer.issue(user.getId(), GRANT.sessionId())).thenReturn(ISSUED);
+
+        AuthResult result = service.continueSession(user, GRANT);
+
+        assertThat(result.token()).isEqualTo(ISSUED.value());
+        assertThat(result.user()).isSameAs(user);
+        assertThat(result.session()).isSameAs(GRANT);
+    }
+
     /**
      * What {@code UserCommand.register} answers with: the user that was handed to it, now carrying
      * the id the database assigned on insert.
@@ -373,11 +420,12 @@ class AuthServiceTest {
      * <p>The service builds a user with no id, so answering with the bare argument would hand back a
      * null id and every token would be issued for one — a state no live registration reaches, and one
      * that would let a token-issuing assertion pass for the wrong reason. Setting the id on the same
-     * instance is what Hibernate does, so a captured argument is still the user that was saved.
+     * instance, through the field, is what Hibernate does, so a captured argument is still the user that
+     * was saved.
      */
     private static User persisted(InvocationOnMock call) {
         User registered = call.getArgument(0);
-        registered.setId(UUID.randomUUID());
+        ReflectionTestUtils.setField(registered, "id", UUID.randomUUID());
         return registered;
     }
 

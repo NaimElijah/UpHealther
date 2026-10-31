@@ -26,7 +26,10 @@ interface AuthSessionJpaRepository extends JpaRepository<AuthSession, UUID> {
     @Query("select s from AuthSession s where s.id = :id")
     Optional<AuthSession> findForUpdate(@Param("id") UUID id);
 
-    /** Ends every live session an account holds, in one statement rather than a read-modify-write loop. */
+    /**
+     * Revokes every session an account holds that has not been revoked, expired ones included, in one
+     * statement rather than a read-modify-write loop.
+     */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update AuthSession s set s.revoked = true where s.userId = :userId and s.revoked = false")
     int revokeAllForUser(@Param("userId") UUID userId);

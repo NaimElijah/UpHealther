@@ -2,9 +2,14 @@ package com.healthupgrades.auth.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.healthupgrades.auth.application.port.in.RefreshOutcome;
 import com.healthupgrades.auth.application.port.in.SessionGrant;
 import com.healthupgrades.auth.domain.event.AuthSessionEnded;
@@ -27,6 +32,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +40,11 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * The refresh protocol: one use per credential, a short forgiveness window, and a session that ends
@@ -84,6 +94,14 @@ class AuthSessionServiceTest {
     }
 
     @Test
+    void GivenAnAuthenticatedAccount_WhenASessionIsOpened_ThenItIsInsertedAsANewRow() {
+        // D2.12. Through the port's insert, not save, which would read the row before writing it.
+        SessionGrant grant = service.open(USER_ID);
+
+        assertThat(sessions.inserted()).containsExactly(grant.sessionId());
+    }
+
+    @Test
     void GivenAnAuthenticatedAccount_WhenASessionIsOpened_ThenTheCredentialNamesItAndOnlyItsHashIsStored() {
         SessionGrant grant = service.open(USER_ID);
 
@@ -103,7 +121,9 @@ class AuthSessionServiceTest {
         RefreshOutcome outcome = service.refresh(opened.refreshToken());
 
         assertThat(outcome).isInstanceOfSatisfying(RefreshOutcome.Rotated.class, rotated -> {
-            assertThat(rotated.userId()).isEqualTo(USER_ID);
+            assertThat(rotated.user())
+                    .as("the account as the refresh read it, so continuing needs no second read")
+                    .isSameAs(account);
             assertThat(rotated.grant().sessionId()).isEqualTo(opened.sessionId());
             assertThat(rotated.grant().refreshToken())
                     .as("a credential is good for one exchange and no more")
@@ -150,6 +170,94 @@ class AuthSessionServiceTest {
         service.refresh(opened.refreshToken());
 
         assertThat(published).containsExactly(new AuthSessionEnded(opened.sessionId(), USER_ID, now()));
+    }
+
+    @Test
+    void GivenACredentialReplayedAfterTheGraceWindow_WhenTheReuseIsAudited_ThenTheRevocationHasAlreadyBeenWritten() {
+        // D2.3. The WARN line and the AUTH_TOKEN_REUSE entry say the session has been revoked. A plain
+        // save of a session already read writes nothing until commit, so they would precede the UPDATE.
+        Map<AuditAction, Boolean> writtenWhenRecorded = new EnumMap<>(AuditAction.class);
+        AuthSessionService observed = new AuthSessionService(
+                sessions,
+                secrets,
+                new AuthSessionProperties(IDLE, ABSOLUTE, GRACE),
+                event -> writtenWhenRecorded.put(event.action(), sessions.revocationWritten()),
+                published::add,
+                users,
+                clock);
+        SessionGrant opened = observed.open(USER_ID);
+        observed.refresh(opened.refreshToken());
+        clock.moveTo(START.plus(GRACE).plusSeconds(1));
+
+        observed.refresh(opened.refreshToken());
+
+        assertThat(writtenWhenRecorded).containsEntry(AuditAction.AUTH_TOKEN_REUSE, true);
+    }
+
+    @Test
+    void GivenAReplayInsideATransaction_WhenTheTransactionRollsBack_ThenNoReuseWarningIsWrittenButTheEntryIs() {
+        // The flush runs the UPDATE without committing it. A WARN written then would say "revoked" of a
+        // session a failed COMMIT left live. The audit entry stays immediate: a refusal is the
+        // security-relevant half, and a process that dies before commit must not take it with it.
+        SessionGrant opened = service.open(USER_ID);
+        service.refresh(opened.refreshToken());
+        clock.moveTo(START.plus(GRACE).plusSeconds(1));
+
+        List<ILoggingEvent> logged = logsFromService(() -> inATransactionThat(
+                TransactionSynchronization.STATUS_ROLLED_BACK, () -> service.refresh(opened.refreshToken())));
+
+        assertThat(logged).noneMatch(event -> event.getLevel() == Level.WARN);
+        assertThat(auditTrail.recorded(AuditAction.AUTH_TOKEN_REUSE, AuditOutcome.REFUSED))
+                .isTrue();
+    }
+
+    @Test
+    void GivenAReplayInsideATransaction_WhenTheTransactionCommits_ThenOneReuseWarningNamesTheSessionAndItsOwner() {
+        SessionGrant opened = service.open(USER_ID);
+        service.refresh(opened.refreshToken());
+        clock.moveTo(START.plus(GRACE).plusSeconds(1));
+
+        List<ILoggingEvent> logged = logsFromService(() -> inATransactionThat(
+                TransactionSynchronization.STATUS_COMMITTED, () -> service.refresh(opened.refreshToken())));
+
+        assertThat(logged)
+                .filteredOn(event -> event.getLevel() == Level.WARN)
+                .singleElement()
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .asString()
+                .contains("sessionId=" + opened.sessionId(), "userId=" + USER_ID);
+    }
+
+    /**
+     * Runs a call inside a transaction's synchronization, as its {@code @Transactional} callers do, and then
+     * ends that transaction the way given: what the call deferred to the commit runs only if it commits.
+     */
+    private static void inATransactionThat(int outcome, Runnable call) {
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            call.run();
+            List<TransactionSynchronization> deferred = TransactionSynchronizationManager.getSynchronizations();
+            if (outcome == TransactionSynchronization.STATUS_COMMITTED) {
+                deferred.forEach(TransactionSynchronization::afterCommit);
+            }
+            deferred.forEach(synchronization -> synchronization.afterCompletion(outcome));
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    /** What {@link AuthSessionService} logs while {@code call} runs. */
+    private static List<ILoggingEvent> logsFromService(Runnable call) {
+        Logger logger = (Logger) LoggerFactory.getLogger(AuthSessionService.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            call.run();
+        } finally {
+            logger.detachAppender(appender);
+        }
+        return appender.list;
     }
 
     @Test
@@ -219,6 +327,22 @@ class AuthSessionServiceTest {
         assertThat(auditTrail.recorded())
                 .endsWith(new AuditEvent(
                         AuditAction.AUTH_TOKEN_REUSE, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenADisabledAccountWhoseRevocationDeadlocks_WhenTheSessionIsRefreshed_ThenTheAttemptIsAuditedOnceAsAFault() {
+        // D2.2. Revoking every session of the account can deadlock with a refresh of another of its
+        // sessions. The refusal recorded before it would then stand beside the fault the catch records,
+        // two entries for one attempt, and the refusal would claim a revocation that rolled back.
+        SessionGrant refreshed = service.open(USER_ID);
+        account.disable();
+        sessions.failRevokeAllWith(new CannotAcquireLockException("deadlock detected"));
+
+        assertThatThrownBy(() -> service.refresh(refreshed.refreshToken()))
+                .isInstanceOf(CannotAcquireLockException.class);
+
+        assertThat(auditTrail.recorded())
+                .containsExactly(new AuditEvent(AuditAction.AUTH_REFRESH, null, null, AuditOutcome.FAILED));
     }
 
     @Test
@@ -627,6 +751,47 @@ class AuthSessionServiceTest {
     }
 
     @Test
+    void GivenTheSessionStoreThrowsAnError_WhenARefreshIsAttempted_ThenItIsAuditedAsFailedAndTheErrorPropagates() {
+        // D1.4 on the refresh endpoint: an Error is not a RuntimeException, and a catch of only the latter
+        // let it leave no entry, where the trail matters most.
+        AuthSessionService broken = serviceOver(sessionsThrowing(new StackOverflowError()));
+
+        assertThatThrownBy(() -> broken.refresh(UUID.randomUUID() + ".a-secret"))
+                .isInstanceOf(StackOverflowError.class);
+
+        assertThat(auditTrail.only(AuditAction.AUTH_REFRESH))
+                .hasValue(new AuditEvent(AuditAction.AUTH_REFRESH, null, null, AuditOutcome.FAILED));
+    }
+
+    @Test
+    void GivenTheSessionStoreThrowsAnError_WhenSignOutIsAttempted_ThenItIsAuditedAsFailedAndTheErrorPropagates() {
+        AuthSessionService broken = serviceOver(sessionsThrowing(new StackOverflowError()));
+
+        assertThatThrownBy(() -> broken.revoke(UUID.randomUUID() + ".a-secret")).isInstanceOf(StackOverflowError.class);
+
+        assertThat(auditTrail.only(AuditAction.AUTH_LOGOUT))
+                .hasValue(new AuditEvent(AuditAction.AUTH_LOGOUT, null, null, AuditOutcome.FAILED));
+    }
+
+    /** A session store whose locking read throws what it is given: the first thing a refresh or sign-out asks. */
+    private static AuthSessionRepositoryPort sessionsThrowing(Error error) {
+        AuthSessionRepositoryPort store = mock(AuthSessionRepositoryPort.class);
+        when(store.findForUpdate(any(UUID.class))).thenThrow(error);
+        return store;
+    }
+
+    private AuthSessionService serviceOver(AuthSessionRepositoryPort store) {
+        return new AuthSessionService(
+                store,
+                secrets,
+                new AuthSessionProperties(IDLE, ABSOLUTE, GRACE),
+                auditTrail,
+                published::add,
+                users,
+                clock);
+    }
+
+    @Test
     void GivenTwoSessionsForOneAccount_WhenOneSignsOut_ThenTheOtherIsUntouched() {
         // Sign-out is per device. Ending every session because one browser said goodbye would be a
         // surprise on whatever phone the same account is signed in on.
@@ -751,11 +916,35 @@ class AuthSessionServiceTest {
         private final Map<UUID, AuthSession> rows = new HashMap<>();
         private final Map<UUID, List<SpentCredential>> spent = new HashMap<>();
         private final List<Read> reads = new ArrayList<>();
+        private final List<UUID> inserted = new ArrayList<>();
+        private RuntimeException revokeAllFailure;
+        /** Whether a revoked session has been written out, as only {@code saveAndFlush} does before commit. */
+        private boolean revocationWritten;
+
+        /** Makes every later {@code revokeAllForUser} throw, as a deadlock PostgreSQL aborts does. */
+        void failRevokeAllWith(RuntimeException failure) {
+            revokeAllFailure = failure;
+        }
+
+        @Override
+        public AuthSession insert(AuthSession session) {
+            if (rows.containsKey(session.getId())) {
+                throw new IllegalStateException("session " + session.getId() + " is already stored");
+            }
+            inserted.add(session.getId());
+            return save(session);
+        }
 
         @Override
         public AuthSession save(AuthSession session) {
             rows.put(session.getId(), session);
             return session;
+        }
+
+        @Override
+        public AuthSession saveAndFlush(AuthSession session) {
+            revocationWritten |= session.isRevoked();
+            return save(session);
         }
 
         @Override
@@ -786,6 +975,9 @@ class AuthSessionServiceTest {
 
         @Override
         public int revokeAllForUser(UUID userId) {
+            if (revokeAllFailure != null) {
+                throw revokeAllFailure;
+            }
             List<AuthSession> live = rows.values().stream()
                     .filter(session -> session.getUserId().equals(userId))
                     .filter(session -> !session.isRevoked())
@@ -816,6 +1008,14 @@ class AuthSessionServiceTest {
         List<Read> reads() {
             return List.copyOf(reads);
         }
+
+        List<UUID> inserted() {
+            return List.copyOf(inserted);
+        }
+
+        boolean revocationWritten() {
+            return revocationWritten;
+        }
     }
 
     /** A session store that cannot be reached, for the outcome that is a fault rather than a refusal. */
@@ -826,7 +1026,17 @@ class AuthSessionServiceTest {
         }
 
         @Override
+        public AuthSession insert(AuthSession session) {
+            throw down();
+        }
+
+        @Override
         public AuthSession save(AuthSession session) {
+            throw down();
+        }
+
+        @Override
+        public AuthSession saveAndFlush(AuthSession session) {
             throw down();
         }
 

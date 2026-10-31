@@ -29,6 +29,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Application service for server-side sessions: opening one, rotating its credential, and ending it.
@@ -84,7 +86,7 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
         RefreshToken token = new RefreshToken(sessionId, secrets.generate());
         AuthSession session = AuthSession.opened(
                 sessionId, userId, token.hash(), clock.instant(), properties.idle(), properties.absolute());
-        sessions.save(session);
+        sessions.insert(session);
         return new SessionGrant(sessionId, token.value(), session.getAbsoluteExpiresAt());
     }
 
@@ -100,11 +102,12 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
     public RefreshOutcome refresh(String presentedCredential) {
         try {
             return exchange(presentedCredential);
-        } catch (RuntimeException thrown) {
+        } catch (RuntimeException | Error thrown) {
             // A fault, not a refusal - the distinction AuthService.login draws for a sign-in. Nothing
             // about the attempt is known for certain once the store has failed, so nothing is named.
             // Only a failure inside the transaction gets here: one that stops it from starting is
-            // thrown by the proxy before this method runs, and is not audited (#133).
+            // thrown by the proxy before this method runs, and is not audited (#133). An Error is caught
+            // too, as AuditTrail.recording catches one: it is the attempt that most needs an entry.
             auditTrail.record(AuditEvent.from(AuditAction.AUTH_REFRESH, null, null, thrown));
             throw thrown;
         }
@@ -132,15 +135,20 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
             return new RefreshOutcome.Rejected();
         }
         if (session.matchesCurrent(presentedHash)) {
-            if (!accountIsEnabled(session.getUserId())) {
+            Optional<User> account = enabledAccount(session.getUserId());
+            if (account.isEmpty()) {
                 // Switching an account off ends its sessions, but one opened between a sign-in's
                 // password check and the switch was not there to end (S5.A9). Its next refresh is where
                 // it is seen, so it ends here, and every other session the account holds with it.
-                recordRefusal(AuditAction.AUTH_REFRESH, session, true);
+                //
                 // Holds this session's row lock while it updates every row of the account, so two
                 // refreshes of two of its sessions at once can deadlock: PostgreSQL aborts one with a
-                // 500, and the other still revokes every session. Rare, and safe either way.
+                // 500, and the other still revokes every session. Rare, and safe either way. The
+                // refusal is recorded only once the revocation has run: recorded first, an aborted one
+                // would leave it beside the fault the catch in refresh records, two entries for one
+                // attempt.
                 revokeAllForUser(session.getUserId());
+                recordRefusal(AuditAction.AUTH_REFRESH, session, true);
                 return new RefreshOutcome.Rejected();
             }
             RefreshToken rotated = new RefreshToken(session.getId(), secrets.generate());
@@ -148,8 +156,7 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
             sessions.saveRotation(session, retired);
             auditTrail.record(AuditEvent.allowed(AuditAction.AUTH_REFRESH, session.getUserId(), session.getId()));
             return new RefreshOutcome.Rotated(
-                    session.getUserId(),
-                    new SessionGrant(session.getId(), rotated.value(), session.getAbsoluteExpiresAt()));
+                    account.get(), new SessionGrant(session.getId(), rotated.value(), session.getAbsoluteExpiresAt()));
         }
         Optional<SpentCredential> spent = sessions.findSpent(session.getId(), presentedHash);
         if (spent.isEmpty()) {
@@ -171,18 +178,49 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
      */
     private void revokeForReuse(AuthSession session) {
         session.revoke();
-        sessions.save(session);
-        // WARN, and the only line in this class at that level: a spent credential presented after the
-        // grace window means two parties hold one session's credentials. Ids only — which session and
-        // whose — because that is what an investigation needs and everything else about it is personal
-        // data (NFR-6). The credential is never logged in any form.
+        // Written out now, not at commit: the entry below says the session has been revoked, and a
+        // plain save of a session already read would issue its UPDATE only after it.
+        sessions.saveAndFlush(session);
+        // The entry is written at once, as every refusal is: it is the security-relevant half, and a
+        // process that dies before commit must not take it with it. The line waits for the commit.
+        auditTrail.record(new AuditEvent(
+                AuditAction.AUTH_TOKEN_REUSE, session.getUserId(), session.getId(), AuditOutcome.REFUSED));
+        afterCommit(() -> warnOfReuse(session));
+        publishEnd(session);
+    }
+
+    /**
+     * Writes the reuse line. WARN, and the only line in this class at that level: a spent credential
+     * presented after the grace window means two parties hold one session's credentials. Ids only, which
+     * session and whose, because that is what an investigation needs and everything else about it is
+     * personal data (NFR-6). The credential is never logged in any form.
+     */
+    private static void warnOfReuse(AuthSession session) {
         log.warn(
                 "A superseded refresh credential was replayed; the session has been revoked {} {}",
                 keyValue("sessionId", session.getId()),
                 keyValue("userId", session.getUserId()));
-        auditTrail.record(new AuditEvent(
-                AuditAction.AUTH_TOKEN_REUSE, session.getUserId(), session.getId(), AuditOutcome.REFUSED));
-        publishEnd(session);
+    }
+
+    /**
+     * Runs a step once the surrounding transaction commits, and not at all if it rolls back.
+     *
+     * <p>The flush has run the revocation's UPDATE but not committed it, so a line written then would say
+     * "revoked" of a session that a failed COMMIT leaves live. With no transaction at all there is nothing
+     * to wait for, since each statement commits as it runs, and the step runs at once. Both callers are
+     * {@code @Transactional}, so in the application the step always waits.
+     */
+    private static void afterCommit(Runnable step) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            step.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                step.run();
+            }
+        });
     }
 
     /** {@inheritDoc} */
@@ -191,7 +229,7 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
     public boolean revoke(String presentedCredential) {
         try {
             return end(presentedCredential);
-        } catch (RuntimeException thrown) {
+        } catch (RuntimeException | Error thrown) {
             // As in refresh: a fault, recorded as one, naming nothing it cannot be sure of.
             auditTrail.record(AuditEvent.from(AuditAction.AUTH_LOGOUT, null, null, thrown));
             throw thrown;
@@ -289,9 +327,9 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
         auditTrail.record(new AuditEvent(action, null, null, AuditOutcome.REFUSED));
     }
 
-    /** Whether the account still exists and may sign in; a deleted one may not. */
-    private boolean accountIsEnabled(UUID userId) {
-        return users.findById(userId).map(User::isEnabled).orElse(false);
+    /** The account, if it still exists and may sign in; a deleted one may not. */
+    private Optional<User> enabledAccount(UUID userId) {
+        return users.findById(userId).filter(User::isEnabled);
     }
 
     /** Whether the presented credential is one this session issued, current or spent. */

@@ -50,7 +50,8 @@ public class UpgradeService implements UpgradeQuery {
      * @param userId  the owner
      * @param details the attributes to store
      * @return the persisted aggregate
-     * @throws BusinessRuleException if the title or type is missing, or the area is not the caller's (BR-18)
+     * @throws BusinessRuleException if the title or type is missing, the type is retired (FR-9), or the area
+     *         is not the caller's (BR-18)
      */
     @Transactional
     public HealthUpgrade create(UUID userId, UpgradeDetails details) {
@@ -112,8 +113,9 @@ public class UpgradeService implements UpgradeQuery {
      * @param details the replacement attributes
      * @return the saved aggregate
      * @throws ResourceNotFoundException if the upgrade does not exist or belongs to somebody else
-     * @throws BusinessRuleException if the title or type is missing, the change would exceed the
-     *         concurrent-HARD limit, or the upgrade is moved to an area that is not the caller's (BR-18)
+     * @throws BusinessRuleException if the title or type is missing, the type would change to a retired
+     *         one (FR-9), the change would exceed the concurrent-HARD limit, or the upgrade is moved to an
+     *         area that is not the caller's (BR-18)
      * @throws RetryableConflictException if the promotion to HARD needs the limit checked while another
      *         of the user's requests is checking it; nothing is changed, and the same request may be resent
      */
@@ -149,9 +151,9 @@ public class UpgradeService implements UpgradeQuery {
      * Applies the max-concurrent-HARD invariant to an upgrade that would run at {@code difficulty}.
      *
      * <p>An upgrade occupies a HARD slot only while ACTIVE, so {@code willRunActive} says whether this
-     * upgrade would hold one once the operation completes — true when activating, and true when
-     * promoting an already-ACTIVE upgrade. Otherwise, and for uncapped difficulties, the count query is
-     * skipped entirely, and so is the claim on the user's check.
+     * upgrade would hold one once the operation completes — true when activating one the transition
+     * accepts, and true when promoting an already-ACTIVE upgrade. Otherwise, and for uncapped
+     * difficulties, the count query is skipped entirely, and so is the claim on the user's check.
      */
     private void validateHardLimit(UUID userId, Difficulty difficulty, boolean willRunActive) {
         // The count claims the user's check for this transaction, so a concurrent check for the same user is
@@ -205,7 +207,8 @@ public class UpgradeService implements UpgradeQuery {
      * Starts or resumes an owned upgrade: PLANNED or PAUSED to ACTIVE.
      *
      * <p>The HARD limit is checked before the transition, so a rejected activation leaves the aggregate
-     * as it was.
+     * as it was, and only when the transition would accept the upgrade: one it refuses claims no slot, so
+     * it is refused for its state, not for the limit.
      *
      * @param userId    the owner
      * @param id        the upgrade's identifier
@@ -221,7 +224,7 @@ public class UpgradeService implements UpgradeQuery {
     public HealthUpgrade activate(UUID userId, UUID id, LocalDate startDate) {
         return auditTrail.recording(AuditAction.UPGRADE_ACTIVATE, userId, id, () -> {
             HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
-            validateHardLimit(userId, upgrade.getDifficulty(), true); // activation always claims a slot
+            validateHardLimit(userId, upgrade.getDifficulty(), upgrade.canActivate());
             upgrade.activate(startDate != null ? startDate : LocalDate.now(clock));
             HealthUpgrade saved = repository.save(upgrade);
             eventPublisher.publish(new HealthUpgradeActivated(
@@ -263,9 +266,10 @@ public class UpgradeService implements UpgradeQuery {
     public HealthUpgrade complete(UUID userId, UUID id) {
         return auditTrail.recording(AuditAction.UPGRADE_COMPLETE, userId, id, () -> {
             HealthUpgrade upgrade = getOwnedUpgrade(userId, id);
-            upgrade.complete();
+            LocalDateTime now = LocalDateTime.now(clock);
+            upgrade.complete(now);
             HealthUpgrade saved = repository.save(upgrade);
-            eventPublisher.publish(new HealthUpgradeCompleted(saved.getId(), userId, LocalDateTime.now(clock)));
+            eventPublisher.publish(new HealthUpgradeCompleted(saved.getId(), userId, now));
             return saved;
         });
     }

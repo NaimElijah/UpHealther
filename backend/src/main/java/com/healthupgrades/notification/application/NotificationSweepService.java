@@ -87,8 +87,9 @@ public class NotificationSweepService {
      * @throws RuntimeException the first nudge that failed to save, after every other nudge was attempted
      */
     public void nudgeDailyCheckin(LocalDate today) {
-        Map<UUID, List<HealthUpgrade>> activeByUser = upgradeQuery.findByStatus(UpgradeStatus.ACTIVE).stream()
-                .collect(Collectors.groupingBy(HealthUpgrade::getUserId));
+        // Counts, not the upgrades: the nudge says how many are running, and loading every running
+        // upgrade of every user, text columns and all, to count them would cost the sweep the table.
+        Map<UUID, Long> activeByUser = upgradeQuery.countByOwner(UpgradeStatus.ACTIVE);
 
         // With nobody to nudge, the guards are not worth reading.
         Deliveries nudges = activeByUser.isEmpty() ? new Deliveries(CHECKIN_JOB) : nudge(activeByUser, today);
@@ -107,13 +108,14 @@ public class NotificationSweepService {
      * Nudges each of the given users who has neither been nudged since midnight nor logged anything today.
      *
      * <p>Each guard is read once for the whole sweep rather than once per user (NFR-14), which keeps the
-     * sweep at two queries however many users have something running.
+     * sweep at the grouped count of who has something running and these two guards, however many users
+     * that is.
      *
-     * @param activeByUser each user with running upgrades, and those upgrades
+     * @param activeByUser each user with running upgrades, and how many they have
      * @param today        the day the guards are read for
      * @return how the nudges went: sent, failed, and left unattempted after an outage
      */
-    private Deliveries nudge(Map<UUID, List<HealthUpgrade>> activeByUser, LocalDate today) {
+    private Deliveries nudge(Map<UUID, Long> activeByUser, LocalDate today) {
         Set<UUID> alreadyNudged = notificationRepository.findUserIdsNotifiedAfter(
                 NotificationType.CHECKIN_REMINDER, today.atStartOfDay());
         Set<UUID> loggedToday = progressQuery.findUserIdsWithEntriesOn(today);
@@ -121,9 +123,9 @@ public class NotificationSweepService {
         // Counts, not lists of user ids: the point is whether the nudge went out at a plausible volume,
         // and who was nudged is in their own notification list.
         Deliveries nudges = new Deliveries(CHECKIN_JOB);
-        for (Map.Entry<UUID, List<HealthUpgrade>> nudgeable : activeByUser.entrySet()) {
+        for (Map.Entry<UUID, Long> nudgeable : activeByUser.entrySet()) {
             UUID userId = nudgeable.getKey();
-            int upgrades = nudgeable.getValue().size();
+            long upgrades = nudgeable.getValue();
             if (!alreadyNudged.contains(userId) && !loggedToday.contains(userId)) {
                 nudges.attempt(
                         () -> notificationService.create(

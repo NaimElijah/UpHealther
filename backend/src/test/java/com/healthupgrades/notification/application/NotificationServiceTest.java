@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -70,13 +71,13 @@ class NotificationServiceTest {
     void GivenANewNotification_WhenItIsCreated_ThenItIsPersistedAndPushedToItsOwner() {
         when(repository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Notification created = service.create(
+        Notification created = committed(() -> service.create(
                 userId,
                 NotificationType.UPGRADE_COMPLETED,
                 NotificationCategory.SUCCESS,
                 "Upgrade completed 🎉",
                 "Congrats!",
-                upgradeId);
+                upgradeId));
 
         assertThat(created.getType()).isEqualTo(NotificationType.UPGRADE_COMPLETED);
         assertThat(created.isRead()).isFalse();
@@ -91,13 +92,13 @@ class NotificationServiceTest {
         // The row is what the inbox shows later (FR-32), so a field dropped here is lost for good.
         when(repository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        service.create(
+        committed(() -> service.create(
                 userId,
                 NotificationType.UPGRADE_COMPLETED,
                 NotificationCategory.SUCCESS,
                 "Upgrade completed",
                 "Congrats!",
-                upgradeId);
+                upgradeId));
 
         ArgumentCaptor<Notification> saved = ArgumentCaptor.forClass(Notification.class);
         verify(repository).save(saved.capture());
@@ -126,13 +127,13 @@ class NotificationServiceTest {
         // midnight, so a stamp taken in the host's zone skips users on any host east of UTC+6.
         when(repository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Notification created = service.create(
+        Notification created = committed(() -> service.create(
                 userId,
                 NotificationType.CHECKIN_REMINDER,
                 NotificationCategory.REMINDER,
                 "Daily check-in",
                 "One active upgrade to track today.",
-                null);
+                null));
 
         assertThat(created.getCreatedAt()).isEqualTo(LocalDateTime.now(fixedClock));
     }
@@ -167,14 +168,14 @@ class NotificationServiceTest {
                 .thenReturn(false);
         when(repository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Optional<Notification> created = service.createUnlessNotifiedSince(
+        Optional<Notification> created = committed(() -> service.createUnlessNotifiedSince(
                 userId,
                 NotificationType.UPGRADE_OVERDUE,
                 NotificationCategory.WARNING,
                 "Upgrade overdue ⏰",
                 () -> "Past its target date.",
                 upgradeId,
-                SINCE);
+                SINCE));
 
         assertThat(created).isPresent();
         verify(repository).save(any(Notification.class));
@@ -273,6 +274,24 @@ class NotificationServiceTest {
     }
 
     @Test
+    void GivenNoTransaction_WhenANotificationIsCreated_ThenItFailsLoudlyAndNothingIsPushed() {
+        // D2.15. Both callers are @Transactional, so a create outside a transaction means one of them has
+        // stopped being so, and an immediate push would announce a row that may never be committed.
+        when(repository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        assertThatThrownBy(() -> service.create(
+                        userId,
+                        NotificationType.UPGRADE_COMPLETED,
+                        NotificationCategory.SUCCESS,
+                        "Upgrade completed",
+                        "Congrats!",
+                        upgradeId))
+                .isInstanceOf(IllegalStateException.class);
+
+        verify(pushPort, never()).push(any(), any());
+    }
+
+    @Test
     void GivenATransactionIsOpen_WhenANotificationIsCreated_ThenItIsPushedOnlyAfterTheCommit() {
         // Pushing inside the transaction would let a client receive a notification whose row then rolls
         // back — visible in the UI, absent on reload, and impossible to reproduce afterwards.
@@ -292,6 +311,21 @@ class NotificationServiceTest {
             TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
 
             verify(pushPort).push(eq(userId), any(Notification.class));
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    /**
+     * Runs a call as its {@code @Transactional} callers do: inside a transaction's synchronization, which
+     * then commits, so whatever the call deferred to the commit has happened by the time it returns.
+     */
+    private static <T> T committed(Supplier<T> call) {
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            T result = call.get();
+            TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+            return result;
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }

@@ -33,6 +33,29 @@ export function todayLocal(): string {
 }
 
 /**
+ * How many days past the server's today a progress entry may be dated: the backend's
+ * `NoLaterThanTomorrow.DAYS_AHEAD`, restated because nothing generates it.
+ */
+const PROGRESS_DAYS_AHEAD_OF_SERVER = 1;
+
+/**
+ * The last date the API accepts for a progress entry (FR-18), as `YYYY-MM-DD`: the server's today plus a
+ * day. The server keeps UTC (ADR-020), so this is read from the UTC fields, unlike {@link todayLocal},
+ * and it falls anywhere from the user's own today, far east of UTC, to two days past it, late in the
+ * evening west of it: exactly the dates the API accepts.
+ *
+ * Read afresh on every call, like {@link todayLocal}, and computed from the browser's clock, so a clock
+ * that is wrong offers a bound the server then corrects with its own refusal.
+ *
+ * @returns the server's tomorrow, by the browser's clock
+ */
+export function latestProgressDate(): string {
+  const day = new Date();
+  day.setUTCDate(day.getUTCDate() + PROGRESS_DAYS_AHEAD_OF_SERVER);
+  return `${day.getUTCFullYear()}-${twoDigits(day.getUTCMonth() + 1)}-${twoDigits(day.getUTCDate())}`;
+}
+
+/**
  * Parses a date from the API as local midnight of that day, so formatting it shows the same day in
  * every time zone.
  *

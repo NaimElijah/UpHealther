@@ -59,6 +59,38 @@ class AuditTrailTest {
     }
 
     @Test
+    void GivenAnOperationThatThrowsAnError_WhenItIsRecorded_ThenTheAttemptIsRecordedAsFailedAndTheErrorRethrown() {
+        // D1.4, NFR-23. An Error is no RuntimeException, so a catch of only that let the attempt pass
+        // unrecorded: the one entry that says something broke was the one missing.
+        StackOverflowError broke = new StackOverflowError();
+
+        assertThatThrownBy(() -> trail.recording(AuditAction.UPGRADE_UPDATE, actor, resource, () -> {
+                    throw broke;
+                }))
+                .isSameAs(broke);
+
+        assertThat(trail.only(AuditAction.UPGRADE_UPDATE))
+                .hasValue(new AuditEvent(AuditAction.UPGRADE_UPDATE, actor, resource, AuditOutcome.FAILED));
+    }
+
+    @Test
+    void GivenACreationThatThrowsAnError_WhenItIsRecorded_ThenTheAttemptIsRecordedAsFailedAndTheErrorRethrown() {
+        StackOverflowError broke = new StackOverflowError();
+
+        assertThatThrownBy(() -> trail.recordingCreation(
+                        AuditAction.UPGRADE_CREATE,
+                        actor,
+                        () -> {
+                            throw broke;
+                        },
+                        created -> resource))
+                .isSameAs(broke);
+
+        assertThat(trail.only(AuditAction.UPGRADE_CREATE))
+                .hasValue(new AuditEvent(AuditAction.UPGRADE_CREATE, actor, null, AuditOutcome.FAILED));
+    }
+
+    @Test
     void GivenAnOperationThatReturnsNothing_WhenItIsRecorded_ThenItStillRunsAndIsRecorded() {
         StringBuilder ran = new StringBuilder();
 

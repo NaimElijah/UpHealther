@@ -44,9 +44,24 @@ public enum UpgradeType {
      * selectable in the UI, but a deployed database may hold rows carrying it — and Hibernate would fail
      * to read those back if the constant were removed.
      *
+     * <p>No new row can carry it: {@code HealthUpgrade} refuses it on creation, and on an edit unless the
+     * upgrade already holds it, so the removal condition below can be met.
+     *
      * @deprecated not one of the documented upgrade kinds. Existing rows keep it and still render; new
      *             code should choose from the eight above. Remove once no stored row carries it.
      */
     @Deprecated
-    PROTOCOL
+    PROTOCOL;
+
+    /**
+     * Whether this kind is retired: kept so stored rows still read back, but never chosen anew.
+     *
+     * <p>Asked here rather than by comparing with {@link #PROTOCOL} at the call site, so the deprecated
+     * constant is named in one place.
+     *
+     * @return true for {@link #PROTOCOL}
+     */
+    public boolean isRetired() {
+        return this == PROTOCOL;
+    }
 }

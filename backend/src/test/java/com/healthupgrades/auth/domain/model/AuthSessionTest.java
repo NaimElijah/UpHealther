@@ -1,9 +1,11 @@
 package com.healthupgrades.auth.domain.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -25,6 +27,8 @@ class AuthSessionTest {
     private static final Duration IDLE = Duration.ofDays(7);
     private static final Duration ABSOLUTE = Duration.ofDays(30);
     private static final Duration GRACE = Duration.ofSeconds(10);
+    /** A refresh this many days apart always lands inside the idle window. */
+    private static final int IDLE_DAYS_LESS_ONE = (int) IDLE.toDays() - 1;
 
     private static final byte[] FIRST = digest("first");
     private static final byte[] SECOND = digest("second");
@@ -72,7 +76,7 @@ class AuthSessionTest {
     @Test
     void GivenASessionRefreshedUpToItsAbsoluteCap_WhenTheCapPasses_ThenItIsNoLongerUsable() {
         // The cap is the reason a stolen session cannot be kept alive forever by refreshing it.
-        AuthSession session = opened();
+        AuthSession session = refreshedWeeklyUntilDay(28);
 
         session.rotate(SECOND, OPENED_AT.plus(Duration.ofDays(29)), IDLE);
 
@@ -81,7 +85,7 @@ class AuthSessionTest {
 
     @Test
     void GivenARotationNearTheAbsoluteCap_WhenTheIdleWindowIsSlid_ThenItIsNotPushedPastTheCap() {
-        AuthSession session = opened();
+        AuthSession session = refreshedWeeklyUntilDay(28);
 
         session.rotate(SECOND, OPENED_AT.plus(Duration.ofDays(29)), IDLE);
 
@@ -91,12 +95,44 @@ class AuthSessionTest {
     }
 
     @Test
+    void GivenASessionThatIdledOut_WhenItIsRotated_ThenItIsRefusedAndStaysUnusable() {
+        // D2.5. A rotation slides the idle window from now, so rotating a session that had already lapsed
+        // would bring it back to life.
+        AuthSession session = opened();
+        Instant afterItLapsed = OPENED_AT.plus(IDLE).plusSeconds(1);
+
+        assertThatThrownBy(() -> session.rotate(SECOND, afterItLapsed, IDLE)).isInstanceOf(IllegalStateException.class);
+
+        assertThat(session.isActive(afterItLapsed)).isFalse();
+        assertThat(session.matchesCurrent(FIRST)).isTrue();
+    }
+
+    @Test
+    void GivenARevokedSession_WhenItIsRotated_ThenItIsRefused() {
+        AuthSession session = opened();
+        session.revoke();
+
+        assertThatThrownBy(() -> session.rotate(SECOND, OPENED_AT, IDLE)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
     void GivenARevokedSession_WhenItIsJudged_ThenItIsNotUsableHoweverFreshItIs() {
         AuthSession session = opened();
 
         session.revoke();
 
         assertThat(session.isActive(OPENED_AT)).isFalse();
+    }
+
+    @Test
+    void GivenTheDigestReadOffASession_WhenTheCallerOverwritesIt_ThenTheSessionStillAcceptsItsCredential() {
+        // D2.6. The getter must hand out a copy: the array itself would let any reader change which
+        // credential the session accepts.
+        AuthSession session = opened();
+
+        Arrays.fill(session.getRefreshTokenHash(), (byte) 0);
+
+        assertThat(session.matchesCurrent(FIRST)).isTrue();
     }
 
     @Test
@@ -166,6 +202,18 @@ class AuthSessionTest {
 
     private static AuthSession opened() {
         return AuthSession.opened(UUID.randomUUID(), UUID.randomUUID(), FIRST, OPENED_AT, IDLE, ABSOLUTE);
+    }
+
+    /**
+     * A session kept alive by a refresh every week, inside its idle window, up to {@code lastDay}: the
+     * only way a session reaches the end of its absolute cap, since a rotation refuses one that lapsed.
+     */
+    private static AuthSession refreshedWeeklyUntilDay(int lastDay) {
+        AuthSession session = opened();
+        for (int day = IDLE_DAYS_LESS_ONE; day <= lastDay; day += IDLE_DAYS_LESS_ONE) {
+            session.rotate(digest("day-" + day), OPENED_AT.plus(Duration.ofDays(day)), IDLE);
+        }
+        return session;
     }
 
     /** A stand-in digest. Its bytes are irrelevant; only whether two of them are equal matters here. */

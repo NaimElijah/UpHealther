@@ -53,7 +53,8 @@ public interface SessionCommand {
      * account holds, whichever session opened it (ADR-054).
      *
      * @param userId the account
-     * @return how many sessions were still live
+     * @return how many sessions had not been revoked, expired ones the cleanup has not yet removed
+     *         included
      */
     int revokeAllForUser(UUID userId);
 }

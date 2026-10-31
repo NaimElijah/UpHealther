@@ -32,6 +32,18 @@ class UserTest {
     }
 
     @Test
+    void GivenANameAnEmailAndAHash_WhenAnAccountIsRegistered_ThenItIsAnOrdinaryEnabledAccountWithNoIdYet() {
+        User user = User.register("Someone", "someone@example.com", "a-hash");
+
+        assertThat(user.getName()).isEqualTo("Someone");
+        assertThat(user.getEmail()).isEqualTo("someone@example.com");
+        assertThat(user.getPasswordHash()).isEqualTo("a-hash");
+        assertThat(user.getRole()).isEqualTo(Role.USER);
+        assertThat(user.isEnabled()).isTrue();
+        assertThat(user.getId()).as("the database assigns it on insert").isNull();
+    }
+
+    @Test
     void GivenAnEnabledAccount_WhenItIsDisabled_ThenItCannotAuthenticateAndKeepsItsRole() {
         User user = aUser();
         user.changeRole(Role.ADMIN);
