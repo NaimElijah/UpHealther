@@ -230,6 +230,8 @@ describe('RegisterPage form errors', () => {
     for (const label of ['Full Name', 'Email', 'Password', 'Confirm Password']) {
       expect(screen.getByLabelText(label).getAttribute('aria-required')).toBe('true');
     }
+    // Review finding 24 on #407: nothing said what the asterisk meant.
+    expect(screen.getByText('Required').closest('form')).toBe(screen.getByLabelText('Email').closest('form'));
   });
 
   it('GivenAConfirmationThatDiffers_WhenTheFormIsSubmitted_ThenTheMessageIsAnnouncedAndTheConfirmationHasFocus', async () => {

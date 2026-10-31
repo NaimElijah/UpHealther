@@ -1263,6 +1263,16 @@ describe('UpgradeDetailsPage editing an upgrade', () => {
     expect(dialog.getByLabelText('Title').closest('form')?.noValidate).toBe(true);
   });
 
+  // Review finding 24 on #407: nothing said what the asterisk meant.
+  it('GivenTheEditDialog_WhenItOpens_ThenItSaysWhatTheAsteriskMeans', async () => {
+    serveUpgrade(described);
+    renderPage();
+
+    const dialog = await openEdit();
+
+    expect(dialog.getByText('Required')).toBeDefined();
+  });
+
   it('GivenTheTitleIsCleared_WhenTheEditIsSaved_ThenNothingIsSentAndTheTitleIsAskedFor', async () => {
     serveUpgrade(described);
     renderPage();
@@ -1685,6 +1695,15 @@ describe('UpgradeDetailsPage rescheduling an upgrade', () => {
     const dialog = await openReschedule();
 
     expect(dialog.getByLabelText('New start date').closest('form')?.noValidate).toBe(true);
+  });
+
+  it('GivenTheRescheduleDialog_WhenItOpens_ThenItSaysWhatTheAsteriskMeans', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });
+    renderPage();
+
+    const dialog = await openReschedule();
+
+    expect(dialog.getByText('Required')).toBeDefined();
   });
 
   it('GivenTheDateIsCleared_WhenTheRescheduleIsSubmitted_ThenNothingIsSentAndADateIsAskedFor', async () => {

@@ -238,6 +238,8 @@ describe('LoginPage form errors', () => {
 
     expect(screen.getByLabelText('Email').getAttribute('aria-required')).toBe('true');
     expect(screen.getByLabelText('Password').getAttribute('aria-required')).toBe('true');
+    // Review finding 24 on #407: nothing said what the asterisk meant.
+    expect(screen.getByText('Required').closest('form')).toBe(screen.getByLabelText('Email').closest('form'));
   });
 
   it('GivenAnEmptyEmail_WhenTheFormIsSubmitted_ThenTheMessageIsAnnouncedAndTheEmailFieldHasFocus', async () => {

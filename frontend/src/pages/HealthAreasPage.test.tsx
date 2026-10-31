@@ -441,6 +441,8 @@ describe('HealthAreasPage form errors', () => {
     const dialog = await openCreate();
 
     expect(dialog.getByLabelText('Name').getAttribute('aria-required')).toBe('true');
+    // Review finding 24 on #407: nothing said what the asterisk meant.
+    expect(dialog.getByText('Required')).toBeDefined();
   });
 
   it('GivenABlankName_WhenANewAreaIsSubmitted_ThenTheNameIsInvalidAndHasFocus', async () => {

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
+import { RequiredFieldsNote } from '../components/ui/FieldParts';
 import PageHeading from '../components/ui/PageHeading';
 import ThemeToggle from '../components/theme/ThemeToggle';
 import { toApiError, toFormMessage } from '../api/apiError';
@@ -129,6 +130,7 @@ const RegisterPage: React.FC = () => {
         {/* noValidate: the form checks its own fields, so each message is the field's own, tied to it and
               announced, and focus goes to the field to fix, rather than a browser's bubble. */}
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
+          <RequiredFieldsNote />
           <Input
             ref={nameField}
             label="Full Name"

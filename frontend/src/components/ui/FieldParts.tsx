@@ -30,6 +30,18 @@ export const FieldLabel: React.FC<FieldLabelProps> = ({ htmlFor, label, required
 );
 
 /**
+ * Says what the asterisk beside a caption means, at the top of a form with a required field (WCAG 3.3.2).
+ *
+ * Hidden from assistive technology, like the asterisk itself: a screen reader already hears "required"
+ * on each such field, and "star, Required" would only be noise before it.
+ */
+export const RequiredFieldsNote: React.FC = () => (
+  <p aria-hidden="true" className="text-xs text-fg-subtle">
+    <span className="text-danger-fg">*</span> Required
+  </p>
+);
+
+/**
  * @param id      the id the control's `aria-describedby` names
  * @param message what is wrong, or nothing when the field is fine
  */

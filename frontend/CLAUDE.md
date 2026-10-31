@@ -185,14 +185,15 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
     `EmptyState` and `ErrorState` take the same `level`. `src/test/headingOutline.ts`'s
     `headingOutlineProblems()` is what a page test asserts empty.
   - **A field is an `Input` or a `Select`**, which tie its label, its error and its required state to
-    it through `useId`. A form with a `required` field sets `noValidate`, checks itself, and sends focus
-    to the field a check refuses. It also checks each of its number and date fields'
-    `validity.badInput` at submit time, through the field's ref (`components/ui/unreadableInput.ts`):
-    the browser no longer refuses text it cannot read, `3e` or a half-typed date, and the field reports
-    it as `''`, which a full-replacement update stores as "none". Such a date field is uncontrolled
-    (`defaultValue`): React rewrites a controlled field's `value` attribute on every change, and Firefox
-    then clears an unfinished date, `badInput` with it, as focus leaves for the submit button. jsdom
-    never sets `badInput`, so a test stubs it with `src/test/unreadableInput.ts`.
+    it through `useId`. A form with a `required` field starts with `RequiredFieldsNote`, which says what
+    the asterisk means, sets `noValidate`, checks itself, and sends focus to the field a check refuses.
+    It also checks each of its number and date fields' `validity.badInput` at submit time, through the
+    field's ref (`components/ui/unreadableInput.ts`): the browser no longer refuses text it cannot read,
+    `3e` or a half-typed date, and the field reports it as `''`, which a full-replacement update stores
+    as "none". Such a date field is uncontrolled (`defaultValue`): React rewrites a controlled field's
+    `value` attribute on every change, and Firefox then clears an unfinished date, `badInput` with it,
+    as focus leaves for the submit button. jsdom never sets `badInput`, so a test stubs it with
+    `src/test/unreadableInput.ts`.
   - **A loading `Button` keeps focus**: it uses `aria-disabled` and `aria-busy`, not `disabled`, and
     ignores a caller's `disabled` while `loading`. Disabling the very button the user pressed drops its
     focus in a browser, which jsdom never shows, so the pressed one gets `loading` instead.

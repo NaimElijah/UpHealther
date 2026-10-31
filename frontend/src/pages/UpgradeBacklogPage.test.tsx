@@ -430,6 +430,8 @@ describe('UpgradeBacklogPage form errors', () => {
     renderPage();
     const dialog = await openCreate('');
     expect(dialog.getByLabelText('Title').getAttribute('aria-required')).toBe('true');
+    // Review finding 24 on #407: nothing said what the asterisk meant.
+    expect(dialog.getByText('Required')).toBeDefined();
 
     fireEvent.submit(dialog.getByRole('button', { name: 'Add Idea' }));
 
@@ -442,6 +444,8 @@ describe('UpgradeBacklogPage form errors', () => {
     renderPage();
     const dialog = await openPlan();
     expect(dialog.getByLabelText('Start date').getAttribute('aria-required')).toBe('true');
+    // Review finding 24 on #407: nothing said what the asterisk meant.
+    expect(dialog.getByText('Required')).toBeDefined();
 
     fireEvent.change(dialog.getByLabelText('Start date'), { target: { value: '' } });
     fireEvent.submit(dialog.getByRole('button', { name: 'Plan' }));

@@ -9,6 +9,7 @@ import { refreshUpgradeViews } from '../../lib/upgradeViews';
 import Button from '../ui/Button';
 import Modal from '../ui/Modal';
 import Input from '../ui/Input';
+import { RequiredFieldsNote } from '../ui/FieldParts';
 import ErrorState from '../ui/ErrorState';
 import { holdsUnreadableText, UNFINISHED_DATE, UNFINISHED_OPTIONAL_DATE } from '../ui/unreadableInput';
 import UpgradeFormFields from './UpgradeFormFields';
@@ -251,6 +252,7 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
 
       <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Edit Upgrade">
         <form onSubmit={submitEdit} noValidate className="space-y-4">
+          <RequiredFieldsNote />
           {/* Without it the picker offers "No area" alone, as though the upgrade had none (NFR-30). The
               area the upgrade has is still sent back unchanged. */}
           {areasError && (
@@ -278,6 +280,7 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
 
       <Modal isOpen={rescheduleOpen} onClose={() => setRescheduleOpen(false)} title="Reschedule Upgrade">
         <form onSubmit={submitReschedule} noValidate className="space-y-4">
+          <RequiredFieldsNote />
           <p className="text-fg-subtle">{rescheduleQuestion(upgrade.status)}</p>
           {/* Uncontrolled, for the reason UpgradeFormFields gives its target end: the dialog mounts afresh
               on every open, so it starts from the date openReschedule set, and the submit reads what the

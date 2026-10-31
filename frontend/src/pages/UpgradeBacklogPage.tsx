@@ -6,6 +6,7 @@ import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
+import { RequiredFieldsNote } from '../components/ui/FieldParts';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import UpgradeCard from '../components/upgrade/UpgradeCard';
@@ -202,6 +203,7 @@ const UpgradeBacklogPage: React.FC = () => {
 
       <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="New Upgrade Idea">
         <form onSubmit={handleCreate} noValidate className="space-y-4">
+          <RequiredFieldsNote />
           <UpgradeFormFields
             value={form}
             onChange={setForm}
@@ -224,6 +226,7 @@ const UpgradeBacklogPage: React.FC = () => {
 
       <Modal isOpen={!!planning} onClose={closePlan} title="Plan Upgrade">
         <form onSubmit={handlePlan} noValidate className="space-y-4">
+          <RequiredFieldsNote />
           <p className="text-fg-subtle">
             When do you want to start <span className="font-medium text-fg">{planning?.title}</span>?
           </p>

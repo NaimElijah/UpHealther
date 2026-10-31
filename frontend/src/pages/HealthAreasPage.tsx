@@ -6,6 +6,7 @@ import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
+import { RequiredFieldsNote } from '../components/ui/FieldParts';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import type { CreateHealthAreaRequest, HealthArea } from '../types';
@@ -282,6 +283,7 @@ const HealthAreasPage: React.FC = () => {
 
       <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="New Health Area">
         <form onSubmit={handleCreate} noValidate className="space-y-4">
+          <RequiredFieldsNote />
           <Input
             ref={nameField}
             label="Name"
@@ -331,6 +333,7 @@ const HealthAreasPage: React.FC = () => {
 
       <Modal isOpen={!!editArea} onClose={() => setEditArea(null)} title="Edit Health Area">
         <form onSubmit={handleUpdate} noValidate className="space-y-4">
+          <RequiredFieldsNote />
           <Input
             ref={nameField}
             label="Name"
