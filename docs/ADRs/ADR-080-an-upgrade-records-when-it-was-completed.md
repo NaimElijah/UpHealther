@@ -72,6 +72,15 @@ transition into COMPLETED, from the injected clock, and the dashboard orders rec
   still held: harmless with no production data yet
   ([#206](https://github.com/NaimElijah/UpHealther/issues/206)), but a later change to the rule on a
   populated table validates in a migration of its own (ADR-072).
+- **V19's backfill runs under the lock `ADD COLUMN` takes.** The `UPDATE` shares the migration's
+  transaction, so it rewrites every completed row while `health_upgrades` is held ACCESS EXCLUSIVE,
+  blocking every read and write of the table until it ends. Harmless on a table with no production
+  data (#206); on a populated one the backfill belongs in a migration of its own, in batches, after the
+  column is added.
+- **Two time zones meet in the column.** A backfilled row copies `updated_at`, which a persistence hook
+  stamps in the JVM's zone ([#51](https://github.com/NaimElijah/UpHealther/issues/51)), while a new row
+  is stamped from the injected clock, in UTC. On a host whose zone is not UTC, the order across V19 is
+  off by the offset: an upgrade completed just before V19 can sort after one completed just after it.
 
 ## Alternatives considered
 
@@ -81,6 +90,11 @@ transition into COMPLETED, from the injected clock, and the dashboard orders rec
   and is much larger, and FR-27 is wrong today. One column costs little to supersede later.
 - **Stamp `completed_at` in a persistence hook.** Rejected: the transition is where the domain knows the
   upgrade became COMPLETED, and a hook would read the JVM's clock, which tests cannot inject.
+- **A `TIMESTAMPTZ` column held as an `Instant`.** It would name an instant rather than a wall-clock
+  reading, so no zone could skew it, as the session tables' columns already are (V9, V10). Rejected
+  for now: the upgrade's own `created_at` and `updated_at` are `TIMESTAMP` held as a `LocalDateTime`,
+  the backfill copies one of them, and how those entity timestamps keep time is #51's decision, to make
+  for all of them at once rather than for this column alone.
 
 ## When to revisit
 
@@ -88,3 +102,5 @@ transition into COMPLETED, from the injected clock, and the dashboard orders rec
   and supersede this ADR with that decision.
 - **A screen or an API needs the completion time.** Exposing it on `UpgradeDto` is then a wire change of
   its own, with `npm run generate:wire-types`.
+- **#51 decides how entity timestamps keep time.** Revisit the column's type with it: `TIMESTAMPTZ` and
+  an `Instant`, if the other timestamps move to them.
