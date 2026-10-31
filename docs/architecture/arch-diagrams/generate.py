@@ -115,7 +115,12 @@ def stereotype_for(relative_package: str, kind: str, name: str) -> str:
 
 
 def discover_types() -> dict:
-    """Every type in the backend's main sources, keyed by simple name."""
+    """Every type in the backend's main sources, keyed by simple name.
+
+    Two sources with one simple name stop the run: the second would silently replace the first, and its
+    relations with it. That is also what makes `--check` fail if `java_sources` stops leaving out the
+    package-info.java files, which share one name.
+    """
     types = {}
     for path in java_sources():
         relative = path.relative_to(JAVA_ROOT)
@@ -123,6 +128,8 @@ def discover_types() -> dict:
         context = parts[0]
         package = "/".join(parts[1:-1])
         name = path.stem
+        if name in types:
+            raise SystemExit(f"two sources declare a type named {name}; the second is {path}")
         source = path.read_text(encoding="utf-8")
         body = code_only(source)
 
