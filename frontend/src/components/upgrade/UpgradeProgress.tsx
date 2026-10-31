@@ -103,7 +103,11 @@ const UpgradeProgress: React.FC<Props> = ({ upgradeId, read, trackingConfig }) =
                       {p.numericValue} {p.unit}
                     </span>
                   )}
-                  {p.rating != null && <span>⭐ {p.rating}/5</span>}
+                  {p.rating != null && (
+                    <span>
+                      <span aria-hidden="true">⭐</span> {p.rating}/5
+                    </span>
+                  )}
                   {p.note && <span className="text-fg-subtle italic truncate max-w-32">{p.note}</span>}
                 </div>
               </div>

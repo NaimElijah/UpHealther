@@ -201,6 +201,8 @@ describe('DailyCheckinPage', () => {
     fireEvent.submit(screen.getByRole('button', { name: /submit check-in/i }));
 
     await waitFor(() => expect(screen.getByText('Check-in Complete!')).toBeDefined());
+    // Review finding 22 on #407: the celebration was read as "party popper" before the heading.
+    expect(screen.getByText('🎉').getAttribute('aria-hidden')).toBe('true');
     expect(screen.queryByRole('button', { name: /submit check-in/i })).toBeNull();
   });
 

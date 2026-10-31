@@ -257,11 +257,19 @@ const DashboardPage: React.FC = () => {
       )}
 
       {(data?.recentlyCompleted?.length ?? 0) > 0 && (
-        <Card header="Recently Completed 🎉">
+        <Card
+          header={
+            <>
+              Recently Completed <span aria-hidden="true">🎉</span>
+            </>
+          }
+        >
           <div className="space-y-2">
             {data!.recentlyCompleted.map((u) => (
               <div key={u.id} className="flex items-center gap-3 p-2 rounded-lg bg-sunken">
-                <span className="text-success-fg text-lg">✓</span>
+                <span className="text-success-fg text-lg" aria-hidden="true">
+                  ✓
+                </span>
                 <span className="text-sm font-medium text-fg-muted">{u.title}</span>
               </div>
             ))}

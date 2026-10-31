@@ -570,6 +570,17 @@ describe('DashboardPage emoji', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Current Streaks' })).toBeDefined();
     expect(screen.getByText('⚠️').getAttribute('aria-hidden')).toBe('true');
   });
+
+  // Review finding 22 on #407: the section was named "Recently Completed party popper", and each row's
+  // tick was read as "check mark" before the title.
+  it('GivenARecentlyCompletedUpgrade_WhenTheDashboardRenders_ThenItsSectionIsNamedWithoutEmojiAndItsTickIsHidden', async () => {
+    const done = { ...anActiveUpgrade('upgrade-1', 'Evening walk'), status: 'COMPLETED' as const };
+    getDashboard.mockResolvedValue({ ...aDashboard([]), recentlyCompleted: [done] });
+    renderPage();
+
+    expect(await screen.findByRole('heading', { level: 2, name: 'Recently Completed' })).toBeDefined();
+    expect(screen.getByText('✓').getAttribute('aria-hidden')).toBe('true');
+  });
 });
 
 /**

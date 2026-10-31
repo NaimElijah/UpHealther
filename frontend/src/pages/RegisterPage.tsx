@@ -120,7 +120,9 @@ const RegisterPage: React.FC = () => {
       {/* The main landmark: this page renders outside Layout, whose <main> the signed-in pages share. */}
       <main className="bg-surface rounded-2xl shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="text-5xl mb-3">💪</div>
+          <div className="text-5xl mb-3" aria-hidden="true">
+            💪
+          </div>
           <PageHeading className="text-2xl font-bold text-fg">Create Account</PageHeading>
           <p className="text-fg-subtle mt-1">Start your health journey today</p>
         </div>

@@ -71,6 +71,18 @@ describe('ProgressHistoryPage', () => {
     expect(screen.queryByText(/Done/)).toBeNull();
   });
 
+  // Review finding 22 on #407: "Done" and "Missed" were read after "check mark" and "ballot X".
+  it.each([
+    ['Done', true, '✓'],
+    ['Missed', false, '✗'],
+  ])('GivenAnEntryMarked%s_WhenTheWeekIsListed_ThenItsTickOrCrossIsHidden', async (_, completed, symbol) => {
+    getWeekProgress.mockResolvedValue([anEntry({ completed })]);
+
+    renderPage();
+
+    expect((await screen.findByText(symbol)).getAttribute('aria-hidden')).toBe('true');
+  });
+
   it('GivenARatedEntry_WhenTheWeekIsListed_ThenItShowsOneStarPerPoint', async () => {
     getWeekProgress.mockResolvedValue([anEntry({ completed: true, rating: 3 })]);
 

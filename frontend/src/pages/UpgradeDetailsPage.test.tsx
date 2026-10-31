@@ -1101,7 +1101,8 @@ describe('UpgradeDetailsPage', () => {
 
     renderPage();
 
-    expect(await screen.findByText('⭐ 4/5')).toBeDefined();
+    // The star is hidden from assistive technology (review finding 22 on #407), so the rating is its own text.
+    expect(await screen.findByText('4/5')).toBeDefined();
   });
 
   it('GivenANumericEntryOfZero_WhenTheDetailsPageRenders_ThenTheZeroIsShown', async () => {

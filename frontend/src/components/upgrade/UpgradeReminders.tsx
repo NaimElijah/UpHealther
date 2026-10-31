@@ -175,7 +175,9 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
           {reminders.map((r) => (
             <div key={r.id} className="flex items-center justify-between p-2 bg-sunken rounded-lg text-sm">
               <div className="flex items-center gap-2">
-                <span className="font-medium">⏰ {r.reminderTime.slice(0, 5)}</span>
+                <span className="font-medium">
+                  <span aria-hidden="true">⏰</span> {r.reminderTime.slice(0, 5)}
+                </span>
                 <span className="text-fg-subtle">{r.daysOfWeek.length ? r.daysOfWeek.join(', ') : 'Every day'}</span>
                 {!r.enabled && <Badge variant="gray">disabled</Badge>}
               </div>

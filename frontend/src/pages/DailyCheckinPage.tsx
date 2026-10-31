@@ -93,7 +93,9 @@ const DailyCheckinPage: React.FC = () => {
   if (submitted) {
     return (
       <PageContainer width="narrow" className="text-center py-20">
-        <div className="text-6xl mb-4">🎉</div>
+        <div className="text-6xl mb-4" aria-hidden="true">
+          🎉
+        </div>
         {/* The page's heading now, and it takes focus: the form, and the submit button that had focus, are
             gone, and focus would otherwise fall to <body>. */}
         <PageHeading takeFocus className="text-2xl font-bold text-fg mb-2">

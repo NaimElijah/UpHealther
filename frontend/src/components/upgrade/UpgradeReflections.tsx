@@ -78,17 +78,26 @@ const UpgradeReflections: React.FC<Props> = ({ upgradeId, read }) => {
                 <p className="text-fg-faint">{parseLocalDate(r.date).toLocaleDateString()}</p>
                 {r.whatWorked && (
                   <p>
-                    <strong>✅ What worked:</strong> {r.whatWorked}
+                    <strong>
+                      <span aria-hidden="true">✅</span> What worked:
+                    </strong>{' '}
+                    {r.whatWorked}
                   </p>
                 )}
                 {r.whatDidNotWork && (
                   <p>
-                    <strong>❌ What didn't:</strong> {r.whatDidNotWork}
+                    <strong>
+                      <span aria-hidden="true">❌</span> What didn't:
+                    </strong>{' '}
+                    {r.whatDidNotWork}
                   </p>
                 )}
                 {r.nextAdjustment && (
                   <p>
-                    <strong>🔄 Next:</strong> {r.nextAdjustment}
+                    <strong>
+                      <span aria-hidden="true">🔄</span> Next:
+                    </strong>{' '}
+                    {r.nextAdjustment}
                   </p>
                 )}
                 <div className="flex gap-4">

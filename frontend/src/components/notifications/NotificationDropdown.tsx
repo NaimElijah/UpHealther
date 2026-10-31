@@ -90,7 +90,7 @@ const NotificationDropdown: React.FC<Props> = ({ id, onClose, onActed }) => {
           }}
           className="w-full text-left px-4 py-2 text-xs text-brand-fg bg-brand-soft hover:bg-brand-soft-hover border-b border-line-subtle"
         >
-          🔔 Enable desktop notifications
+          <span aria-hidden="true">🔔</span> Enable desktop notifications
         </button>
       )}
 

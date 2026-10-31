@@ -96,7 +96,8 @@ const ProgressHistoryPage: React.FC = () => {
                   <div className="flex flex-wrap items-center gap-2 min-w-0">
                     {entry.completed != null && (
                       <Badge variant={entry.completed ? 'green' : 'red'}>
-                        {entry.completed ? '✓ Done' : '✗ Missed'}
+                        <span aria-hidden="true">{entry.completed ? '✓' : '✗'}</span>{' '}
+                        {entry.completed ? 'Done' : 'Missed'}
                       </Badge>
                     )}
                     {entry.numericValue != null && (
