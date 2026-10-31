@@ -117,11 +117,17 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
-        StompCommand command = accessor == null ? null : accessor.getCommand();
-        if (command == null) {
+        if (accessor != null && accessor.isHeartbeat()) {
             // A heartbeat carries no command: nothing to authenticate, nothing to authorise. Reading one
             // as an unauthorised frame would close every idle socket on its first keepalive.
             return message;
+        }
+        StompCommand command = accessor == null ? null : accessor.getCommand();
+        if (command == null) {
+            // Every message Spring puts on this channel, a client's decoded frame or the DISCONNECT for a
+            // closed socket, carries STOMP headers and a command. Anything else is refused rather than
+            // passed as a heartbeat it is not: the allow-list fails closed here too.
+            throw refuse("a message that is neither a STOMP frame nor a heartbeat");
         }
         switch (command) {
             // STOMP is the 1.2 spec's alias for CONNECT. Without it here a client could open a session

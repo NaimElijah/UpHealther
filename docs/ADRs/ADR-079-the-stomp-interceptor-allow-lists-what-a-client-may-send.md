@@ -52,7 +52,9 @@ refused.**
 - **UNSUBSCRIBE and DISCONNECT pass.** An UNSUBSCRIBE names only one of the socket's own subscription ids
   and frees nothing the limit counts. Refusing a DISCONNECT would leave sessions to time out instead of
   closing cleanly.
-- **A heartbeat passes.** It carries no command, and refusing one would close every idle socket.
+- **A heartbeat passes.** It carries no command, and refusing one would close every idle socket. It is
+  the only message without a command that passes: one Spring has not marked as a heartbeat, or one with
+  no STOMP headers at all, is no frame Spring's own senders produce, and is refused.
 - **Every other command is refused** with ADR-078's `Refused`: SEND; MESSAGE, CONNECTED, RECEIPT and
   ERROR, which only the server sends; and ACK, NACK, BEGIN, COMMIT and ABORT, which nothing here needs.
   The refusal is logged by naming the command, an enum and never client text.

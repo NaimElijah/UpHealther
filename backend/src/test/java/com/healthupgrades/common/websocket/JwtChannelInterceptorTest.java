@@ -413,6 +413,31 @@ class JwtChannelInterceptorTest {
         assertThat(interceptor.preSend(heartbeat, channel)).isSameAs(heartbeat);
     }
 
+    /**
+     * A heartbeat is the one message without a command that passes. Spring's own senders onto the inbound
+     * channel, a client's decoded frame and the DISCONNECT for a closed socket, each carry STOMP headers
+     * with a command, so anything else is no frame Spring produced and is refused rather than waved
+     * through as a keepalive.
+     */
+    @Test
+    void GivenAMessageWithNoStompHeaders_WhenItArrives_ThenItIsRefused() {
+        Message<byte[]> bare = MessageBuilder.withPayload(new byte[0]).build();
+
+        assertThatThrownBy(() -> interceptor.preSend(bare, channel))
+                .isInstanceOfSatisfying(StompFrameRefusedException.class, refusedAs(Reason.REFUSED));
+    }
+
+    @Test
+    void GivenStompHeadersWithNoCommandThatAreNoHeartbeat_WhenTheyArrive_ThenTheyAreRefused() {
+        StompHeaderAccessor accessor =
+                StompHeaderAccessor.wrap(MessageBuilder.withPayload(new byte[0]).build());
+        accessor.setLeaveMutable(true);
+        Message<byte[]> commandless = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
+
+        assertThatThrownBy(() -> interceptor.preSend(commandless, channel))
+                .isInstanceOfSatisfying(StompFrameRefusedException.class, refusedAs(Reason.REFUSED));
+    }
+
     @Test
     void GivenAnUnsubscribe_WhenItArrives_ThenItPasses() {
         Message<?> unsubscribe = frameFrom(StompCommand.UNSUBSCRIBE, null, session());

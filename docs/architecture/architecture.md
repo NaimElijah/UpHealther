@@ -197,7 +197,7 @@ subscription is registered with the
 broker and a socket streaming them would grow the heap without limit. An UNSUBSCRIBE frees nothing,
 because the inbound channel's pool runs frames in no fixed order, and one that reached the broker
 before its SUBSCRIBE would leave that subscription held. Heartbeats, UNSUBSCRIBE and DISCONNECT pass:
-they name nothing, and refusing a DISCONNECT would leave sessions to time out rather than close. A
+they name nothing, and refusing a DISCONNECT would leave sessions to time out rather than close. Any other message without a command is refused. A
 refused frame after CONNECT is a WARN line, not an audit entry: it authorises a frame on a connection
 that is already authenticated. Spring
 adds an ERROR line of its own for a refused frame of any command but CONNECT and SUBSCRIBE, and for a
