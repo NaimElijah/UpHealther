@@ -101,20 +101,22 @@ public class NotificationService {
 
     /**
      * Push only after the surrounding transaction commits, so a client never receives a real-time
-     * notification for a row that then rolls back. When there is no active transaction (defensive),
-     * push immediately.
+     * notification for a row that then rolls back.
+     *
+     * @throws IllegalStateException when no transaction is active. Both callers are
+     *         {@code @Transactional}, so this means one of them stopped being so, and pushing at once
+     *         would announce a row that may never be committed
      */
     private void pushAfterCommit(UUID userId, Notification notification) {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    pushPort.push(userId, notification);
-                }
-            });
-        } else {
-            pushPort.push(userId, notification);
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            throw new IllegalStateException("A notification is pushed only after its transaction commits");
         }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                pushPort.push(userId, notification);
+            }
+        });
     }
 
     /**
