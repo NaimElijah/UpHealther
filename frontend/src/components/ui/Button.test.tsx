@@ -83,4 +83,22 @@ describe('Button', () => {
 
     expect(onClick).toHaveBeenCalledTimes(1);
   });
+
+  // Review finding 13 on #407: the button wrote its own aria-disabled after the caller's, so a caller's was
+  // silently dropped. The two are merged: either one makes the button unavailable.
+  it('GivenACallersOwnAriaDisabled_WhenTheButtonIsNotLoading_ThenItIsKept', () => {
+    render(<Button aria-disabled="true">Save</Button>);
+
+    expect(screen.getByRole('button', { name: 'Save' }).getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('GivenACallerSaysItIsAvailable_WhenTheButtonIsLoading_ThenItIsStillUnavailable', () => {
+    render(
+      <Button aria-disabled={false} loading>
+        Save
+      </Button>,
+    );
+
+    expect(screen.getByRole('button', { name: 'Save' }).getAttribute('aria-disabled')).toBe('true');
+  });
 });

@@ -28,21 +28,33 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
  * and it covers Enter in one of the form's fields too, which a browser turns into a click on the submit
  * button. `aria-busy` says why the button is unavailable, so its spinner announces nothing of its own.
  * A caller's own `disabled` is ignored while loading for the same reason as `disabled` is not used:
- * several pages also disable the button while their write is in flight.
+ * several pages also disable the button while their write is in flight. A caller's own `aria-disabled`
+ * is kept, and loading adds to it: either one makes the button unavailable.
  *
  * Forwards its ref to the `<button>`, so a caller can move focus to it when the control that had focus
  * is gone. Something that only goes to another page is a `ButtonLink`, which looks the same.
  */
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
-    { variant = 'primary', size = 'md', loading = false, children, disabled, onClick, className = '', ...rest },
+    {
+      variant = 'primary',
+      size = 'md',
+      loading = false,
+      children,
+      disabled,
+      onClick,
+      className = '',
+      'aria-disabled': callerSaysUnavailable,
+      ...rest
+    },
     ref,
   ) => (
     <button
       {...rest}
       ref={ref}
       disabled={disabled && !loading}
-      aria-disabled={loading || undefined}
+      // Merged with the caller's own, which would otherwise be overwritten: either makes it unavailable.
+      aria-disabled={loading || callerSaysUnavailable === true || callerSaysUnavailable === 'true' || undefined}
       aria-busy={loading || undefined}
       onClick={(e) => {
         if (loading) {
