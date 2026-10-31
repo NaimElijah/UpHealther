@@ -72,7 +72,8 @@ public class AuthSession {
     private Instant absoluteExpiresAt;
 
     /**
-     * Set by {@link #revoke()} and never cleared. A revoked row stays until the cleanup sweep deletes it
+     * Set by {@link #revoke()}, and in bulk by {@code AuthSessionRepositoryPort#revokeAllForUser}, which
+     * does not call it; never cleared. A revoked row stays until the cleanup sweep deletes it
      * ({@code AuthSessionRepositoryPort#deleteUnusableAsOf}).
      */
     @Column(nullable = false)
