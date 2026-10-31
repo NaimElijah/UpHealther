@@ -24,7 +24,8 @@ import lombok.RequiredArgsConstructor;
  * <p><strong>The map is bounded.</strong> It is keyed by something the caller chooses, so an unbounded
  * one is its own denial of service: addresses that appear once and never again would accumulate until
  * the heap ran out. At the cap, expired windows are swept first — they are dead weight and there are
- * usually plenty — and only if that frees nothing is the oldest live window evicted. Eviction means
+ * usually plenty — and only if that frees nothing is an arbitrary live window evicted: the one the
+ * iterator reaches first, because finding the oldest would cost a scan per request. Eviction means
  * somebody's count is forgotten, which is a weaker limit rather than a broken process, and that is the
  * right way round.
  *
@@ -93,13 +94,13 @@ public class FixedWindowRateLimiter {
      * <p>Only runs when the map is full and the key is new, so the ordinary path — an address already
      * being tracked — costs one lookup and nothing else.
      *
-     * <p><strong>Both steps are bounded, and that is the point.</strong> An earlier version swept the
-     * whole map and then took a {@code min()} over it on every request once the map was full — which
-     * an attacker reaches deliberately by spraying fresh keys, turning a defence against a denial of
-     * service into a way to spend the server's CPU. The sweep is now throttled to once per window, and
-     * the overflow eviction drops whichever entry the iterator reaches first rather than searching for
-     * the oldest. Evicting an arbitrary window instead of the oldest is a slightly weaker limit for one
-     * client; scanning ten thousand entries per request is a worse problem than the one being solved.
+     * <p><strong>Both steps are bounded, and that is the point.</strong> A full map is one an attacker
+     * reaches deliberately by spraying fresh keys, so sweeping the whole map, or taking a {@code min()}
+     * over it, on every request would turn a defence against a denial of service into a way to spend
+     * the server's CPU. The sweep is therefore throttled to once per window, and the overflow eviction
+     * drops whichever entry the iterator reaches first rather than searching for the oldest. Evicting
+     * an arbitrary window instead of the oldest is a slightly weaker limit for one client; scanning ten
+     * thousand entries per request is a worse problem than the one being solved.
      */
     private void evictIfFull(Instant now, String clientKey) {
         if (windows.size() < properties.maxTrackedClients() || windows.containsKey(clientKey)) {
@@ -150,7 +151,7 @@ public class FixedWindowRateLimiter {
      * What the limiter decided.
      *
      * @param allowed    whether the attempt may proceed
-     * @param retryAfter how long until the window resets; meaningless when allowed
+     * @param retryAfter how long until the window resets; zero when allowed
      */
     public record Decision(boolean allowed, Duration retryAfter) {
 

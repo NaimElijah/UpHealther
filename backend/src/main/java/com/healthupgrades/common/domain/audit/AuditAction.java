@@ -7,7 +7,7 @@ package com.healthupgrades.common.domain.audit;
  * bounded; a typo cannot reach production; and reading this file is how somebody finds out what the
  * audit trail does and does not cover, which a scattering of string literals would never tell them.
  *
- * <p>It lives in {@code common} because the audit trail is one trail, not nine. That does mean a
+ * <p>It lives in {@code common} because the audit trail is one trail, not one per context. That does mean a
  * context adding an operation edits a file outside itself — the same trade-off the shared kernel makes
  * everywhere else, and the reason it is worth paying here is that the alternative is a per-context
  * vocabulary nobody can enumerate.
@@ -63,9 +63,11 @@ public enum AuditAction {
     /**
      * An administrator switched an account off, ending every session it held.
      *
-     * <p>The three below are the only actions in this enum where the actor and the resource are
-     * different people. That is exactly why they are audited: everything else records somebody
-     * acting on their own records, and these record somebody acting on another's.
+     * <p>This and the next two are the only actions in this enum where the actor and the resource are
+     * different people; the administrator service refuses an administrator acting on their own account.
+     * That is exactly why they are audited: everything else records somebody acting on their own records
+     * or, for the bootstrap and the list below, has no actor or no resource, and these record somebody
+     * acting on another's.
      */
     ADMIN_DISABLE("admin.disable", AuditedResource.USER),
 
@@ -84,7 +86,7 @@ public enum AuditAction {
     ADMIN_BOOTSTRAP("admin.bootstrap", AuditedResource.USER),
 
     /**
-     * An administrator read a page of every account on the installation (S5.A12).
+     * An administrator read a page of every account on the installation (S5.A12, ADR-065).
      *
      * <p>The one read in this enum. It is the only read that crosses accounts, and the only one whose
      * result is other people's names and addresses, so who looked is worth a line. It names the
@@ -92,26 +94,39 @@ public enum AuditAction {
      */
     ADMIN_LIST("admin.list", AuditedResource.USER),
 
+    /** A user created a health upgrade. */
     UPGRADE_CREATE("upgrade.create", AuditedResource.HEALTH_UPGRADE),
+    /** A user updated a health upgrade. */
     UPGRADE_UPDATE("upgrade.update", AuditedResource.HEALTH_UPGRADE),
+    /** A user deleted a health upgrade. */
     UPGRADE_DELETE("upgrade.delete", AuditedResource.HEALTH_UPGRADE),
+    /** A user planned an upgrade, giving it a start date. */
     UPGRADE_PLAN("upgrade.plan", AuditedResource.HEALTH_UPGRADE),
+    /** A user started an upgrade; a HARD one is first checked against the limit on running HARD upgrades. */
     UPGRADE_ACTIVATE("upgrade.activate", AuditedResource.HEALTH_UPGRADE),
+    /** A user paused an upgrade. */
     UPGRADE_PAUSE("upgrade.pause", AuditedResource.HEALTH_UPGRADE),
+    /** A user completed an upgrade. */
     UPGRADE_COMPLETE("upgrade.complete", AuditedResource.HEALTH_UPGRADE),
+    /** A user abandoned an upgrade. */
     UPGRADE_ABANDON("upgrade.abandon", AuditedResource.HEALTH_UPGRADE),
+    /** A user rescheduled an upgrade to a new date. */
     UPGRADE_RESCHEDULE("upgrade.reschedule", AuditedResource.HEALTH_UPGRADE),
 
+    /** A user created a health area. */
     AREA_CREATE("area.create", AuditedResource.HEALTH_AREA),
+    /** A user updated a health area. */
     AREA_UPDATE("area.update", AuditedResource.HEALTH_AREA),
+    /** A user deleted a health area. */
     AREA_DELETE("area.delete", AuditedResource.HEALTH_AREA),
 
     /**
-     * Changing how an upgrade is measured changes what its past progress means.
+     * A tracking configuration was set, or replaced, for an upgrade. Changing how an upgrade is measured
+     * changes what its past progress means.
      *
      * <p>This and the next three record a child record's creation, and name the upgrade it belongs to,
      * not the child: a refusal has no child to name, and the upgrade is the record that was probed, which
-     * BR-15 leaves no other trace of. The label says so, so the id is never read as the child's (S5.C6).
+     * BR-15 leaves no other trace of. The label says so, so the id is never read as the child's (S5.C6, ADR-065).
      */
     TRACKING_CONFIGURE("tracking.configure", AuditedResource.HEALTH_UPGRADE),
 
@@ -126,7 +141,9 @@ public enum AuditAction {
 
     /** A reminder attached to an upgrade, named by the upgrade. */
     REMINDER_CREATE("reminder.create", AuditedResource.HEALTH_UPGRADE),
+    /** A user changed a reminder, named by the reminder itself. */
     REMINDER_UPDATE("reminder.update", AuditedResource.REMINDER),
+    /** A user deleted a reminder, named by the reminder itself. */
     REMINDER_DELETE("reminder.delete", AuditedResource.REMINDER);
 
     private final String key;

@@ -21,7 +21,8 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
  *
  * <p>The endpoint is left unauthenticated in {@code SecurityConfig} on purpose: the JWT cannot travel on
  * a browser's WebSocket handshake, so {@link JwtChannelInterceptor} authenticates the STOMP CONNECT
- * frame instead. A frame it refuses is answered by {@link StompRefusalErrorHandler}, in fixed words.
+ * frame instead. A frame it refuses is answered by {@link StompRefusalErrorHandler}, in fixed words
+ * (ADR-078).
  */
 @Configuration
 @EnableWebSocketMessageBroker
@@ -58,7 +59,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      * name it routes by is the user id set by {@link JwtChannelInterceptor}. There is no {@code /topic},
      * because nothing broadcasts, and no application destination prefix, because no
      * {@code @MessageMapping} exists for an inbound frame to reach; the interceptor refuses every frame
-     * that could name either.
+     * that could name either (ADR-079).
      */
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {

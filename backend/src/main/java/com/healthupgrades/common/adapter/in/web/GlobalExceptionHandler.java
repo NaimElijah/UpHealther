@@ -299,8 +299,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
-     * The single exit for every exception Spring itself maps: keeps the status the parent chose and
-     * replaces its {@code ProblemDetail} body with this API's {@link ErrorResponse}.
+     * The exit for every exception Spring itself maps whose {@code handleXxx} hook this class does not
+     * override: keeps the status the parent chose and replaces its {@code ProblemDetail} body with this
+     * API's {@link ErrorResponse}. The three hooks it does override go straight to {@code respond}. The
+     * {@code body} argument is ignored.
      *
      * <p>The message is the status' own reason phrase — accurate, and incapable of leaking the
      * exception's detail. A 4xx here is the caller's mistake and is logged at DEBUG; a 5xx is ours and
@@ -394,34 +396,42 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             this.timestamp = timestamp;
         }
 
+        /** The HTTP status code, repeated in the body for clients that only read the payload. */
         public int getStatus() {
             return status;
         }
 
+        /** The user-facing description of the failure. */
         public String getMessage() {
             return message;
         }
 
+        /** The request URI that failed, for correlating a report with a log line. */
         public String getPath() {
             return path;
         }
 
+        /** When the request failed, by the injected clock (UTC, NFR-15). */
         public LocalDateTime getTimestamp() {
             return timestamp;
         }
 
+        /** Field name to message for a validation failure; null, and so omitted from the JSON, otherwise. */
         public Map<String, String> getFieldErrors() {
             return fieldErrors;
         }
 
+        /** Sets the messages by field name; only a validation failure sets them. */
         public void setFieldErrors(Map<String, String> fieldErrors) {
             this.fieldErrors = fieldErrors;
         }
 
+        /** The trace id of the request; null, and so omitted from the JSON, when it was not traced. */
         public String getTraceId() {
             return traceId;
         }
 
+        /** Sets the trace id; {@code body} sets it when the request has one. */
         public void setTraceId(String traceId) {
             this.traceId = traceId;
         }

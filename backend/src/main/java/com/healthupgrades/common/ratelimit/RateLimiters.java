@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 /**
  * The two rate limiters, each with its own map, so spending one allowance never spends the other.
  *
- * <p>Sign-in and registration share one; refresh and sign-out share the other (S5.A11). Kept apart from
+ * <p>Sign-in and registration share one; refresh and sign-out share the other (S5.A11, ADR-065). Kept apart from
  * {@link RateLimitConfig}, which registers them, because a {@code WebMvcConfigurer} that injected beans
  * it also declared would depend on itself. A web slice supplies both under the same names from
  * {@code WebSliceSupport}, with a clock that stands still.

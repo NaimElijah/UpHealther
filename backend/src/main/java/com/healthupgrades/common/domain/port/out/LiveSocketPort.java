@@ -11,8 +11,11 @@ import java.util.UUID;
  * context ends sessions and calls this; the STOMP adapter in {@code common.websocket} knows the sockets
  * and implements it (ADR-054).
  *
- * <p>Both calls are best effort and never throw: they run after the session's end has committed, when a
- * failure could no longer undo it, and a socket that cannot be reached is one that is already closing.
+ * <p>Both calls are best effort: they run after the session's end has committed, when a failure could no
+ * longer undo it, and a socket that cannot be reached is one that is already closing. A close the client
+ * outbound channel refuses, by throwing a {@code MessagingException} (logged) or by answering false,
+ * does not stop the other sockets from being closed and leaves that socket recorded for the next end
+ * that names it. No other exception is caught.
  */
 public interface LiveSocketPort {
 

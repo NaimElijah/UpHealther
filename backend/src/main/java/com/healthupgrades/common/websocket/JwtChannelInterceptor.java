@@ -44,21 +44,20 @@ import org.springframework.stereotype.Component;
  *       mode, named or left to the default: the other modes need the ACK frames this refuses;</li>
  *   <li>a socket holds one subscription for its life: a second SUBSCRIBE is refused, whatever came
  *       between. Each subscription is registered with the broker, so a socket streaming SUBSCRIBE frames
- *       with fresh ids would otherwise grow the heap without limit (S5.A5). An UNSUBSCRIBE frees
+ *       with fresh ids would otherwise grow the heap without limit (S5.A5, ADR-065). An UNSUBSCRIBE frees
  *       nothing, because it could be raced: Spring hands each inbound frame to a pool, and an UNSUBSCRIBE
  *       that reached the broker before its SUBSCRIBE would remove nothing and leave that subscription
  *       held. The SPA subscribes once per socket and never unsubscribes;</li>
  *   <li>heartbeats, UNSUBSCRIBE and DISCONNECT pass. A heartbeat has no command at all, and refusing one
- *       would close every idle socket. An UNSUBSCRIBE names only one of the socket's own subscription
- *       ids; it reaches the broker, which drops that subscription, and only does not let the socket take
- *       another. Refusing a DISCONNECT would leave sessions to be torn down by timeout instead of closed
- *       cleanly;</li>
+ *       would close every idle socket. An UNSUBSCRIBE reaches the broker, which drops that subscription,
+ *       but the socket's one-subscription allowance stays spent. Refusing a DISCONNECT would leave
+ *       sessions to be torn down by timeout instead of closed cleanly;</li>
  *   <li>every other command is refused. A SEND, because the application declares no
  *       {@code @MessageMapping}, so there is nothing server-side for one to reach. MESSAGE, CONNECTED,
  *       RECEIPT and ERROR, because STOMP defines them for the server to send: Spring's decoder takes them
  *       from a client all the same, and routes a client's MESSAGE as it would a SEND, so one addressed to
  *       {@code /user/<anotherUserId>/queue/notifications} would land in that account's socket (finding
- *       D1.1). ACK, NACK, BEGIN, COMMIT and ABORT, because the SPA subscribes in the default
+ *       D1.1, ADR-079). ACK, NACK, BEGIN, COMMIT and ABORT, because the SPA subscribes in the default
  *       {@code auto} ack mode and opens no transaction, so nothing here needs one, and a command nothing
  *       needs is a command nobody should be able to send.</li>
  * </ul>
@@ -68,6 +67,8 @@ import org.springframework.stereotype.Component;
  * for as long as it is open. One that presents none is not an attempt, as a refresh with no cookie is not.
  * The frames after it are not: refusing one is an authorisation decision on a connection already
  * authenticated, so it stays a WARN line rather than an audit entry.
+ *
+ * <p>See ADR-079 for the allow-list and ADR-078 for the fixed words a refusal is answered in.
  */
 @Component
 @RequiredArgsConstructor
@@ -142,7 +143,7 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
                 /* name no destination; the class comment says why each passes */
             }
             // An allow-list, not a deny-list: Spring decodes any command from a client and routes a
-            // client's MESSAGE as it would a SEND (finding D1.1). The command is an enum, never client text.
+            // client's MESSAGE as it would a SEND (finding D1.1, ADR-079). The command is an enum, never client text.
             default -> throw refuse("a frame of command " + command + ", which this application's client never sends");
         }
         return message;
@@ -158,7 +159,7 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
             // a SUBSCRIBE, logs nothing above DEBUG itself. That is not true of every frame: a refused
             // frame of any command but CONNECT, STOMP and SUBSCRIBE, and a frame it cannot decode,
             // spring-websocket 7.0.9's StompSubProtocolHandler logs at ERROR, which no interceptor can
-            // prevent (S5.C4).
+            // prevent (S5.C4, ADR-079).
             log.debug("Refused a STOMP CONNECT: no bearer token");
             // Audited only when something was presented. A tab whose session could not be renewed
             // reconnects with no header at all every five seconds, and that is no more an attempt than a
