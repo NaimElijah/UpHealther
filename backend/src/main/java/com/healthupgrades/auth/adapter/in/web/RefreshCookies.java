@@ -117,7 +117,6 @@ public class RefreshCookies {
         return values.size() == 1 ? Optional.of(values.getFirst()) : Optional.empty();
     }
 
-
     private ResponseCookie.ResponseCookieBuilder base(String value) {
         return ResponseCookie.from(properties.name(), value)
                 .httpOnly(true)
