@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useNotifications } from '../../hooks/useNotifications';
 import NotificationItem from './NotificationItem';
 import ErrorState from '../ui/ErrorState';
@@ -124,16 +124,14 @@ const NotificationDropdown: React.FC<Props> = ({ id, onClose, onActed }) => {
         ))}
       </div>
 
-      <button
-        type="button"
-        onClick={() => {
-          onClose();
-          navigate('/notifications');
-        }}
-        className="w-full text-center px-4 py-2.5 text-sm font-medium text-brand-fg hover:bg-sunken border-t border-line-subtle"
+      {/* A link, since it only goes to another page: it is announced as one, and can open in a new tab. */}
+      <Link
+        to="/notifications"
+        onClick={onClose}
+        className="block w-full text-center px-4 py-2.5 text-sm font-medium text-brand-fg hover:bg-sunken border-t border-line-subtle"
       >
         View all notifications
-      </button>
+      </Link>
     </div>
   );
 };

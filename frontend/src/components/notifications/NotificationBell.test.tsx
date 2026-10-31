@@ -109,11 +109,11 @@ describe('NotificationBell disclosure', () => {
 
   it('GivenThePanelIsOpen_WhenEscapeIsPressed_ThenItClosesAndTheBellHasFocus', () => {
     const bell = openPanel();
-    screen.getByRole('button', { name: 'View all notifications' }).focus();
+    screen.getByRole('link', { name: 'View all notifications' }).focus();
 
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
 
-    expect(screen.queryByRole('button', { name: 'View all notifications' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'View all notifications' })).toBeNull();
     expect(bell.getAttribute('aria-expanded')).toBe('false');
     expect(document.activeElement).toBe(bell);
   });
