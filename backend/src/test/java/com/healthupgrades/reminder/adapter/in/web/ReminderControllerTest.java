@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -34,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -76,6 +78,19 @@ class ReminderControllerTest {
         upgradeScoped = "/api/upgrades/" + upgradeId + "/reminders";
         reminderScoped = "/api/reminders/" + reminderId;
         WebSliceSupport.authenticateAs(authenticator, userId);
+    }
+
+    @Test
+    void GivenATimeAndDays_WhenAReminderIsAttached_ThenLocationNamesTheReminderItself() throws Exception {
+        // RFC 9110 section 15.3.2: Location names the created resource. A reminder is addressed by its own
+        // id once it exists (PUT and DELETE /api/reminders/{id}), not by the upgrade it was attached to.
+        when(service.create(eq(userId), eq(upgradeId), any())).thenReturn(aReminder(true));
+
+        mockMvc.perform(bearer(post(upgradeScoped))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reminderTime\":\"09:00\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(header().string(HttpHeaders.LOCATION, reminderScoped));
     }
 
     @Test

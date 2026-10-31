@@ -18,7 +18,7 @@ and the `*ControllerTest` named against each area pins the status codes.
 | Tracking config | `GET PUT /api/upgrades/{id}/tracking-config` — a `PUT` answers `201` when it creates the upgrade's configuration and `200` when it replaces one |
 | Progress | `GET POST /api/upgrades/{id}/progress` · `GET /api/upgrades/{id}/streak` · `GET /api/progress/today` · `GET /api/progress/week` — a `POST` answers `201` without `Location`: an entry has no route that reads it back |
 | Reflections | `GET POST /api/upgrades/{id}/reflections` — a `POST` answers `201` without `Location`: a reflection has no route that reads it back |
-| Reminders | `GET POST /api/upgrades/{id}/reminders` · `PUT DELETE /api/reminders/{id}` — a `POST` answers `201` without `Location`: a reminder has no route that reads it back |
+| Reminders | `GET POST /api/upgrades/{id}/reminders` · `PUT DELETE /api/reminders/{id}` — a `POST` answers `201` with `Location: /api/reminders/{id}`, the reminder's own route, which its `PUT` and `DELETE` take |
 | Notifications | `GET /api/notifications` · `GET /api/notifications/unread-count` · `POST /api/notifications/{id}/read` · `POST /api/notifications/read-all` |
 | Dashboard | `GET /api/dashboard` |
 | Sessions | `POST /api/auth/refresh` · `POST /api/auth/logout` — both act on the refresh cookie, `__Host-refresh_token` on `Path=/` (`HttpOnly`, `Secure`, `SameSite=Strict`, no `Domain`), and both require an `X-Requested-With` header. A request carrying two of the cookie is answered as one carrying none |
