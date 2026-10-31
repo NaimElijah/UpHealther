@@ -26,6 +26,10 @@ interface Props {
  * The chosen score is told apart by a ring as well as by its fill, because the brand fill against the
  * unselected one is 2.53:1 in the dark theme, below the 3:1 a state needs (1.4.11), and colour alone
  * would not carry it anyway (1.4.1). The ring is `fg`, far above 3:1 on the surface in both themes.
+ *
+ * Enter chooses the score it is pressed on, as it did when the scores were buttons, and does not submit
+ * the form around it. A browser submits a form on Enter in a radio, and in the daily check-in that posted
+ * every active upgrade at once, the untouched ones included, which cannot be corrected that day (BR-6).
  */
 const RatingPicker: React.FC<Props> = ({ legend, value, onChange }) => {
   const name = useId();
@@ -41,6 +45,11 @@ const RatingPicker: React.FC<Props> = ({ legend, value, onChange }) => {
               value={score}
               checked={value === score}
               onChange={() => onChange(score)}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                onChange(score);
+              }}
               aria-label={`Rate ${score} of ${RATING_MAX}`}
               className="peer sr-only"
             />
