@@ -32,6 +32,10 @@ optional one, with one exception: a null `difficulty` keeps the current difficul
 clear one. `plannedStartDate` is read on creation only; afterwards it moves through `plan` and
 `reschedule`.
 
+`POST /api/upgrades/{id}/progress` refuses a `date` later than the server's tomorrow with `400` and the
+reason under `fieldErrors.date`. The server keeps UTC, and a day ahead of it covers every user's own
+today ([#100](https://github.com/NaimElijah/UpHealther/issues/100)). A past date is accepted.
+
 An upgrade's `type` is one of FR-9's eight kinds. `PROTOCOL` is retired: the API still returns it for a
 row that already carries it, and a `PUT` may send it back unchanged, but a `POST` with it, or a `PUT`
 that would move another kind to it, is refused with `422`, so no new row can carry it.

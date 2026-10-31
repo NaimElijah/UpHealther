@@ -3,7 +3,7 @@
 What UpHealther must do. This document records the requirements the project **currently meets** —
 each one is implemented, and the **test** that enforces it is named, so a claim here can be checked
 rather than trusted. A hundred and twenty-three of the hundred and thirty-two entries below name a test —
-a hundred and eighty-one distinct test classes and files between them. Six of the remaining nine name the
+a hundred and eighty-two distinct test classes and files between them. Six of the remaining nine name the
 command, workflow, script or setting that *is* the check (NFR-11, NFR-13, NFR-18, NFR-48, NFR-52,
 NFR-53). The last three — FR-39, NFR-19 and NFR-20 — are verified by hand and say so, because each is
 about a rendered width, a colour or an overflow, and jsdom has no layout engine to observe any of them;
@@ -92,7 +92,7 @@ no way at all — to read another person's health records
 |---|---|---|
 | FR-16 | A user can configure how an upgrade is measured: boolean, numeric, rating or free text. An upgrade has at most one configuration, and saving another replaces it | `TrackingServiceTest`, `TrackingConfigControllerTest`, `TrackingConfigPersistenceIT` (the unique `upgrade_id`), `TrackingConfigRaceIT` (a first configuration that lost a race replaces the winner's when resent) |
 | FR-17 | A numeric configuration can carry a target value and a unit | `TrackingServiceTest`, `TrackingConfigControllerTest` |
-| FR-18 | A user can log progress for an upgrade on a given day | `TrackingServiceTest`, `ProgressControllerTest`, `UpgradeDetailsPage.test.tsx`, `localDate.test.ts` |
+| FR-18 | A user can log progress for an upgrade on a given day, past or present, but no later than the server's tomorrow: a day ahead of the server's UTC covers every user's own today ([#100](https://github.com/NaimElijah/UpHealther/issues/100)), and a later date is refused with 400 | `TrackingServiceTest`, `ProgressControllerTest` (a date years ahead is refused), `NoLaterThanTomorrowTest` (the bound), `UpgradeDetailsPage.test.tsx`, `localDate.test.ts` |
 | FR-19 | A user can log progress for every active upgrade in one pass | `DailyCheckinPage.test.tsx` — but see §6 — **Known deviation:** [#55](https://github.com/NaimElijah/UpHealther/issues/55), untouched upgrades are logged too |
 | FR-20 | A user can read an upgrade's progress history, newest first | `TrackingServiceTest`, `ProgressEntryPersistenceIT`, `UpgradeDetailsPage.test.tsx` |
 | FR-21 | A user can read today's and the last seven days' progress across all upgrades | `TrackingServiceTest`, `ProgressEntryPersistenceIT`, `ProgressHistoryPage.test.tsx`, `NavMenu.test.tsx` (the phone menu offers it; that the menu is what shows below 768px is checked by hand, see §6) |
