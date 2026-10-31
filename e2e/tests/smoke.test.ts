@@ -154,7 +154,8 @@ test('GivenANewVisitor_WhenTheyActivateAnUpgradeAndLogToday_ThenTheDashboardCoun
     await main.getByRole('heading', { level: 3, name: UPGRADE_TITLE }).getByRole('link').click();
     await expect(page.getByRole('heading', { level: 1, name: UPGRADE_TITLE })).toBeVisible();
     // A toast can still cover this button. The click waits until it is the button that would receive
-    // it, and a toast closes itself after ten seconds.
+    // it, and a toast closes itself after ten seconds while nothing holds it: the pointer over it or focus
+    // in it would keep it up, and nothing in this test puts either there.
     await page.getByRole('button', { name: '+ Log Progress' }).click();
     const log = page.getByRole('dialog', { name: 'Log Progress' });
     await log.getByLabel('Completed').check();
