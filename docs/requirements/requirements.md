@@ -90,8 +90,8 @@ no way at all — to read another person's health records
 
 | ID | Requirement | Enforced by |
 |---|---|---|
-| FR-16 | A user can configure how an upgrade is measured: boolean, numeric, rating or free text. An upgrade has at most one configuration, and saving another replaces it | `TrackingServiceTest`, `TrackingConfigControllerTest`, `TrackingConfigPersistenceIT` (the unique `upgrade_id`), `TrackingConfigRaceIT` (a first configuration that lost a race replaces the winner's when resent), `UpgradeDetailsPage.test.tsx` (a target and unit are sent and shown for a numeric configuration only) |
-| FR-17 | A numeric configuration can carry a target value and a unit | `TrackingServiceTest`, `TrackingConfigControllerTest` |
+| FR-16 | A user can configure how an upgrade is measured: boolean, numeric, rating or free text. An upgrade has at most one configuration, and saving another replaces it | `TrackingServiceTest`, `TrackingConfigControllerTest`, `TrackingConfigPersistenceIT` (the unique `upgrade_id`), `TrackingConfigRaceIT` (a first configuration that lost a race replaces the winner's when resent) |
+| FR-17 | A numeric configuration can carry a target value and a unit | `TrackingServiceTest`, `TrackingConfigControllerTest`, `UpgradeDetailsPage.test.tsx` (a target and unit are sent and shown for a numeric configuration only) |
 | FR-18 | A user can log progress for an upgrade on a given day | `TrackingServiceTest`, `ProgressControllerTest`, `UpgradeDetailsPage.test.tsx`, `localDate.test.ts` |
 | FR-19 | A user can log progress for every active upgrade in one pass | `DailyCheckinPage.test.tsx` — but see §6 — **Known deviation:** [#55](https://github.com/NaimElijah/UpHealther/issues/55), untouched upgrades are logged too |
 | FR-20 | A user can read an upgrade's progress history, newest first | `TrackingServiceTest`, `ProgressEntryPersistenceIT`, `UpgradeDetailsPage.test.tsx` |

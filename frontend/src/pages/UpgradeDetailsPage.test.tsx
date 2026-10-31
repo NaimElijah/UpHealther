@@ -708,6 +708,35 @@ describe('UpgradeDetailsPage', () => {
     expect(screen.queryByText('Target:')).toBeNull();
   });
 
+  it('GivenANumericConfiguration_WhenItIsSavedWithATargetAndUnit_ThenBothAreSentAndShown', async () => {
+    const saved = trackingConfigAsSent({
+      upgradeId: UPGRADE_ID,
+      trackingType: 'NUMERIC',
+      targetNumericValue: 8,
+      targetUnit: 'glasses',
+    });
+    getUpgradeById.mockResolvedValueOnce(anUpgrade()).mockResolvedValue({ ...anUpgrade(), trackingConfig: saved });
+    saveTrackingConfig.mockResolvedValue({ ...anUpgrade(), trackingConfig: saved });
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'Configure Tracking' }));
+
+    fireEvent.change(dialog.getByLabelText('Tracking type'), { target: { value: 'NUMERIC' } });
+    fireEvent.change(dialog.getByLabelText('Target value'), { target: { value: '8' } });
+    fireEvent.change(dialog.getByLabelText('Unit'), { target: { value: 'glasses' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(saveTrackingConfig).toHaveBeenCalledTimes(1));
+    expect(saveTrackingConfig.mock.calls[0][1]).toMatchObject({
+      trackingType: 'NUMERIC',
+      targetNumericValue: 8,
+      targetUnit: 'glasses',
+    });
+    expect(await screen.findByText('Target:')).toBeDefined();
+    expect(screen.getByText('8 glasses')).toBeDefined();
+  });
+
   // The difficulty pill names the difficulty as the form and the upgrade card do. It showed the raw
   // value, "MEDIUM" in capitals beside "Active" and "Habit", and an empty pill for none.
 
