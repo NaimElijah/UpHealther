@@ -34,6 +34,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataAccessResourceFailureException;
 
 /**
@@ -221,6 +222,22 @@ class AuthSessionServiceTest {
         assertThat(auditTrail.recorded())
                 .endsWith(new AuditEvent(
                         AuditAction.AUTH_TOKEN_REUSE, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenADisabledAccountWhoseRevocationDeadlocks_WhenTheSessionIsRefreshed_ThenTheAttemptIsAuditedOnceAsAFault() {
+        // D2.2. Revoking every session of the account can deadlock with a refresh of another of its
+        // sessions. The refusal recorded before it would then stand beside the fault the catch records,
+        // two entries for one attempt, and the refusal would claim a revocation that rolled back.
+        SessionGrant refreshed = service.open(USER_ID);
+        account.disable();
+        sessions.failRevokeAllWith(new CannotAcquireLockException("deadlock detected"));
+
+        assertThatThrownBy(() -> service.refresh(refreshed.refreshToken()))
+                .isInstanceOf(CannotAcquireLockException.class);
+
+        assertThat(auditTrail.recorded())
+                .containsExactly(new AuditEvent(AuditAction.AUTH_REFRESH, null, null, AuditOutcome.FAILED));
     }
 
     @Test
@@ -753,6 +770,12 @@ class AuthSessionServiceTest {
         private final Map<UUID, AuthSession> rows = new HashMap<>();
         private final Map<UUID, List<SpentCredential>> spent = new HashMap<>();
         private final List<Read> reads = new ArrayList<>();
+        private RuntimeException revokeAllFailure;
+
+        /** Makes every later {@code revokeAllForUser} throw, as a deadlock PostgreSQL aborts does. */
+        void failRevokeAllWith(RuntimeException failure) {
+            revokeAllFailure = failure;
+        }
 
         @Override
         public AuthSession save(AuthSession session) {
@@ -788,6 +811,9 @@ class AuthSessionServiceTest {
 
         @Override
         public int revokeAllForUser(UUID userId) {
+            if (revokeAllFailure != null) {
+                throw revokeAllFailure;
+            }
             List<AuthSession> live = rows.values().stream()
                     .filter(session -> session.getUserId().equals(userId))
                     .filter(session -> !session.isRevoked())
