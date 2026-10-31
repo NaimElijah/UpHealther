@@ -72,7 +72,7 @@ no way at all — to read another person's health records
 |---|---|---|
 | FR-6 | A user can create, read, update and delete their own health areas | `HealthAreaServiceTest`, `HealthAreaControllerTest`, `NavMenu.test.tsx` (the phone menu offers it; that the menu is what shows below 768px is checked by hand, see §6) |
 | FR-7 | An area carries a name and optional description, priority, icon and colour | `HealthAreaServiceTest`, `HealthAreaControllerTest`, `HealthAreasPage.test.tsx` |
-| FR-8 | Deleting an area leaves upgrades filed under it intact | `HealthAreaServiceTest`, `HealthAreaPersistenceIT` |
+| FR-8 | Deleting an area leaves upgrades filed under it intact | `HealthAreaServiceTest`, `HealthAreaPersistenceIT`, `upgradeViews.test.tsx` (an upgrade filed under a deleted area is edited without sending the area back) |
 
 ### 2.3 Upgrades
 
@@ -91,7 +91,7 @@ no way at all — to read another person's health records
 | ID | Requirement | Enforced by |
 |---|---|---|
 | FR-16 | A user can configure how an upgrade is measured: boolean, numeric, rating or free text. An upgrade has at most one configuration, and saving another replaces it | `TrackingServiceTest`, `TrackingConfigControllerTest`, `TrackingConfigPersistenceIT` (the unique `upgrade_id`), `TrackingConfigRaceIT` (a first configuration that lost a race replaces the winner's when resent) |
-| FR-17 | A numeric configuration can carry a target value and a unit | `TrackingServiceTest`, `TrackingConfigControllerTest` |
+| FR-17 | A numeric configuration can carry a target value and a unit | `TrackingServiceTest`, `TrackingConfigControllerTest`, `UpgradeDetailsPage.test.tsx` (a target and unit are sent and shown for a numeric configuration only) |
 | FR-18 | A user can log progress for an upgrade on a given day | `TrackingServiceTest`, `ProgressControllerTest`, `UpgradeDetailsPage.test.tsx`, `localDate.test.ts` |
 | FR-19 | A user can log progress for every active upgrade in one pass | `DailyCheckinPage.test.tsx` — but see §6 — **Known deviation:** [#55](https://github.com/NaimElijah/UpHealther/issues/55), untouched upgrades are logged too |
 | FR-20 | A user can read an upgrade's progress history, newest first | `TrackingServiceTest`, `ProgressEntryPersistenceIT`, `UpgradeDetailsPage.test.tsx` |
@@ -273,7 +273,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-27 | Liveness and readiness are answerable separately, so "restart the process" and "stop routing to it" are distinguishable, and both images declare a health-check | `ActuatorEndpointsIT`, `backend/Dockerfile`, `frontend/Dockerfile`, `docker-compose.yml` ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) |
 | NFR-28 | Latency, error rate, saturation, connection-pool depth and the domain's own counters are readable from one scrape endpoint, and no metric tag is unbounded | `ActuatorEndpointsIT`, `LoggingAuditTrailTest`, `JobMetricsTest`, `RateLimitInterceptorTest` ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) |
 | NFR-29 | The actuator surface is closed by name: only health, info and the metrics scrape answer, and an endpoint that would expose configuration or process memory does not | `ActuatorEndpointsIT` (the exposed set is exactly health, info and the metrics scrape; env, heapdump, loggers, beans, mappings, configprops and threaddump are refused) ([ADR-012](../ADRs/ADR-012-metrics-through-a-prometheus-scrape-endpoint.md)) |
-| NFR-30 | A request that fails shows the user the trace id that finds it in the log, from the error body or the response header, and offers none when the request never reached the server | `apiError.test.ts`, `ErrorState.test.tsx`, `UpgradeDetailsPage.test.tsx` (its four forms, for a refusal that names no field, and a refused reminder removal; see §6), `ActiveUpgradesPage.test.tsx`, `PlannedUpgradesPage.test.tsx`, `DashboardPage.test.tsx` (a refused status change), `HealthAreasPage.test.tsx` (a refused delete), `UpgradeBacklogPage.test.tsx` (a refused plan or create), `DailyCheckinPage.test.tsx` (a failed load or submit), `NotificationProvider.test.tsx`, `NotificationDropdown.test.tsx`, `NotificationsPage.test.tsx` (a failed fetch or mark-read) — **Known deviation:** [#148](https://github.com/NaimElijah/UpHealther/issues/148), the upgrade details page's progress, reflections, streak and reminders reads, and the backlog's area picker, render as empty when they fail, and a failed sign-out shows no trace id |
+| NFR-30 | A request that fails shows the user the trace id that finds it in the log, from the error body or the response header, and offers none when the request never reached the server | `apiError.test.ts`, `ErrorState.test.tsx`, `UpgradeDetailsPage.test.tsx` (its four forms, for a refusal that names no field, and a refused reminder removal; see §6), `ActiveUpgradesPage.test.tsx`, `PlannedUpgradesPage.test.tsx`, `DashboardPage.test.tsx` (a refused status change), `HealthAreasPage.test.tsx` (a refused delete), `UpgradeBacklogPage.test.tsx` (a refused plan or create), `DailyCheckinPage.test.tsx` (a failed load or submit), `NotificationProvider.test.tsx`, `NotificationDropdown.test.tsx`, `NotificationsPage.test.tsx` (a failed fetch or mark-read, and a failed refetch over a list already shown) — **Known deviation:** [#148](https://github.com/NaimElijah/UpHealther/issues/148), the upgrade details page's progress, reflections, streak and reminders reads, and the backlog's area picker, render as empty when they fail, and a failed sign-out shows no trace id |
 | NFR-55 | A running backend names the version it was built from: `/actuator/info` answers it as `build.version`, the version `backend/pom.xml` declares | `ActuatorEndpointsIT` ([ADR-050](../ADRs/ADR-050-one-version-names-the-whole-repository.md)) |
 
 ### 4.5 Interface
@@ -330,12 +330,11 @@ These are deliberate. Re-proposing one needs a reason that has changed.
 Undecided, and owned by the repository owner.
 
 - **The daily check-in logs every active upgrade, including the ones left untouched.**
-  `DailyCheckinPage`'s own documentation says an untouched upgrade is "left unlogged rather than
-  recorded as missed", but `handleSubmit` posts an entry for each one. With BR-6 allowing a single
-  entry per upgrade per day, an upgrade nobody filled in is therefore recorded as a failure that
-  cannot be corrected until tomorrow. `DailyCheckinPage.test.tsx` asserts the behaviour and flags the
-  disagreement; which of the two is right — submit-everything or submit-what-was-touched — is a
-  product decision, and FR-19 does not settle it
+  `handleSubmit` posts an entry for each one, as `DailyCheckinPage`'s own documentation says. With
+  BR-6 allowing a single entry per upgrade per day, an upgrade nobody filled in is therefore
+  recorded as a failure that cannot be corrected until tomorrow. `DailyCheckinPage.test.tsx` asserts
+  the behaviour and marks it as undecided; whether it is right — submit-everything or
+  submit-what-was-touched — is a product decision, and FR-19 does not settle it
   ([#55](https://github.com/NaimElijah/UpHealther/issues/55)). The page makes the conflict likelier than
   it needs to be: it never loads today's entries, so it offers an upgrade already logged elsewhere, and
   it posts every entry at once, so one refusal can leave the rest saved. The page now says so — "not

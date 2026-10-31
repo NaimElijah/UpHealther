@@ -1,6 +1,6 @@
 import React from 'react';
 import type { AppNotification } from '../../types';
-import { categoryMeta, relativeTime } from './notificationMeta';
+import { categoryStyle, relativeTime } from './notificationMeta';
 
 /**
  * @param notification the notification to render
@@ -19,7 +19,7 @@ interface Props {
  * would not convey the state.
  */
 const NotificationItem: React.FC<Props> = ({ notification, onSelect }) => {
-  const meta = categoryMeta[notification.category];
+  const meta = categoryStyle(notification.category);
   return (
     <button
       onClick={() => onSelect(notification)}

@@ -15,8 +15,9 @@ import ErrorState from '../components/ui/ErrorState';
  * Reads from the notification context rather than fetching, so it shows the same list the bell does and
  * updates live while open. Selecting one marks it read and follows it to the upgrade it concerns.
  *
- * A list that could not be fetched says so instead of "No notifications yet", and a refused mark-read
- * is shown above the list, both with the trace id (NFR-30).
+ * A list that could not be fetched says so instead of "No notifications yet"; one that could not be
+ * refetched keeps the cached list and says so above it, so the list does not read as current. A refused
+ * mark-read is shown above the list too, each with the trace id (NFR-30).
  */
 const NotificationsPage: React.FC = () => {
   const {
@@ -78,6 +79,16 @@ const NotificationsPage: React.FC = () => {
       {actionError && (
         <div className="mb-4">
           <ErrorState inline title="Could not mark your notifications as read." error={actionError} />
+        </div>
+      )}
+
+      {notifications.length > 0 && loadError && (
+        <div className="mb-4">
+          <ErrorState
+            inline
+            title="Your notifications could not be refreshed. What is shown may be out of date."
+            error={loadError}
+          />
         </div>
       )}
 

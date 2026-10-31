@@ -47,12 +47,11 @@ function renderPage(queryClient = new QueryClient({ defaultOptions: { queries: {
  * upgrade configured NUMERIC but rendered with a checkbox produces an entry the server scores against a
  * target that was never compared.
  *
- * <strong>One assertion below records behaviour that does not match its own documentation.</strong> The
- * component's doc comment says an untouched upgrade is "left unlogged rather than recorded as missed",
- * but `handleSubmit` maps over every active upgrade and posts an entry for each. Because at most one
- * entry may exist per upgrade per day (BR-6), an untouched upgrade is therefore logged as a failure
- * that cannot be corrected later the same day. Asserted as it behaves, not as the comment claims;
- * which of the two is right is a product decision rather than a test's to make.
+ * <strong>One assertion below records behaviour that is still a product question.</strong>
+ * `handleSubmit` maps over every active upgrade and posts an entry for each, touched or not. Because at
+ * most one entry may exist per upgrade per day (BR-6), an untouched upgrade is therefore logged as a
+ * failure that cannot be corrected later the same day. Asserted as it behaves; whether an untouched
+ * upgrade should be sent at all is #55's decision rather than a test's to make.
  */
 describe('DailyCheckinPage', () => {
   beforeEach(() => {
@@ -100,8 +99,8 @@ describe('DailyCheckinPage', () => {
   });
 
   it('GivenAnUpgradeNobodyFilledIn_WhenTheFormIsSubmitted_ThenAnEntryIsStillPostedForIt', async () => {
-    // Contradicts the component's own doc comment — see the note on this describe block. Recorded so
-    // the disagreement is visible rather than discovered again from a support question.
+    // #55 decides whether this is right — see the note on this describe block. Recorded so the
+    // behaviour is visible rather than discovered again from a support question.
     getUpgrades.mockResolvedValue([anUpgrade({ id: 'untouched' })]);
     renderPage();
     await waitFor(() => expect(screen.getByText('Cold showers')).toBeDefined());

@@ -1,6 +1,7 @@
 import React from 'react';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
+import { DIFFICULTY_LABELS } from './upgradeMeta';
 import type { CreateUpgradeRequest, Difficulty, HealthArea, UpgradeType } from '../../types';
 
 /**
@@ -21,11 +22,9 @@ const typeOptions: { value: UpgradeType; label: string }[] = [
 ];
 
 /** Difficulty choices. HARD is capped at three concurrently active, and the API enforces that. */
-const difficultyOptions: { value: Difficulty; label: string }[] = [
-  { value: 'EASY', label: 'Easy' },
-  { value: 'MEDIUM', label: 'Medium' },
-  { value: 'HARD', label: 'Hard' },
-];
+const difficultyOptions: { value: Difficulty; label: string }[] = (Object.keys(DIFFICULTY_LABELS) as Difficulty[]).map(
+  (value) => ({ value, label: DIFFICULTY_LABELS[value] }),
+);
 
 /** The select's value for an upgrade that has no difficulty, which the API stores as null. */
 const NO_DIFFICULTY = '';

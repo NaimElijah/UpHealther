@@ -3,6 +3,8 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import NotificationsPage from './NotificationsPage';
 import { NotificationContext, type NotificationContextType } from '../contexts/notificationContextValue';
+import { notificationAsSent } from '../test/wireFixtures';
+import type { AppNotification } from '../types';
 
 /** The context the page reads, with nothing in it unless a test says otherwise. */
 function aContext(overrides: Partial<NotificationContextType> = {}): NotificationContextType {
@@ -50,5 +52,27 @@ describe('NotificationsPage', () => {
     const alert = screen.getByRole('alert');
     expect(alert.textContent).toContain('Could not mark your notifications as read.');
     expect(alert.textContent).toContain('trace-122');
+  });
+
+  it('GivenAListIsCachedAndARefetchFailed_WhenThePageShows_ThenItSaysSoAboveTheList', () => {
+    // The cached list stays, since it is still the best there is, but without the failure it read as
+    // current, under "You are all caught up".
+    const cached = notificationAsSent({ id: 'n-1', title: 'Streak kept', read: true });
+    renderPage(
+      aContext({ notifications: [cached], loadError: { message: 'Internal server error', traceId: 'trace-123' } }),
+    );
+
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toContain('trace-123');
+    expect(screen.getByText('Streak kept')).toBeDefined();
+  });
+
+  it('GivenANotificationOfACategoryThisBuildDoesNotKnow_WhenThePageShows_ThenItIsListed', () => {
+    // Read without a fallback, its icon threw during render, and the error boundary blanked the app.
+    const unknown = { ...notificationAsSent({ id: 'n-1', title: 'Something new' }), category: 'URGENT' };
+
+    renderPage(aContext({ notifications: [unknown as unknown as AppNotification] }));
+
+    expect(screen.getByText('Something new')).toBeDefined();
   });
 });

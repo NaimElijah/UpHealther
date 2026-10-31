@@ -17,8 +17,11 @@ import { parseLocalDate } from '../lib/localDate';
  * The last seven days of progress across every upgrade, newest first.
  *
  * Two queries rather than one: entries carry an upgrade id but no title, so the upgrades are fetched
- * alongside and indexed by id. An entry whose upgrade has since been deleted still renders, labelled
- * as unknown, rather than disappearing or breaking the list.
+ * alongside and indexed by id. The server never returns an entry whose upgrade is gone, because
+ * deleting an upgrade deletes its entries (FR-14). An entry can still miss its upgrade here when the
+ * `['allProgress']` cache is older than `['allUpgrades']`: a delete refreshes the views of upgrades and
+ * not the cached progress (#192). Such an entry renders labelled as unknown, rather than disappearing
+ * or breaking the list.
  */
 const ProgressHistoryPage: React.FC = () => {
   const {

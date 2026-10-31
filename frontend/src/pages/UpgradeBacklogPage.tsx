@@ -17,6 +17,9 @@ import { toApiError, toFormMessage } from '../api/apiError';
 import { isFourDigitYearDate, todayLocal } from '../lib/localDate';
 import { refreshUpgradeViews } from '../lib/upgradeViews';
 
+/** The create form's starting values, and what it returns to once an idea is added. */
+const EMPTY_IDEA: CreateUpgradeRequest = { title: '', type: 'HABIT', difficulty: 'MEDIUM' };
+
 /**
  * The idea backlog: every upgrade still in `IDEA`, and the form that creates new ones.
  *
@@ -27,7 +30,7 @@ import { refreshUpgradeViews } from '../lib/upgradeViews';
 const UpgradeBacklogPage: React.FC = () => {
   const qc = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
-  const [form, setForm] = useState<CreateUpgradeRequest>({ title: '', type: 'HABIT', difficulty: 'MEDIUM' });
+  const [form, setForm] = useState<CreateUpgradeRequest>(EMPTY_IDEA);
   const [formError, setFormError] = useState('');
   const [targetEndError, setTargetEndError] = useState('');
   const [planning, setPlanning] = useState<HealthUpgrade | null>(null);
@@ -46,7 +49,7 @@ const UpgradeBacklogPage: React.FC = () => {
     onSuccess: () => {
       refreshUpgradeViews(qc);
       setIsOpen(false);
-      setForm({ title: '', type: 'HABIT', difficulty: 'MEDIUM' });
+      setForm(EMPTY_IDEA);
     },
   });
 
@@ -59,6 +62,16 @@ const UpgradeBacklogPage: React.FC = () => {
       setPlanning(null);
     },
   });
+
+  /**
+   * Opens the create dialog without a refusal left over from an attempt that was cancelled. The draft
+   * itself is kept, so a dialog closed by mistake loses nothing.
+   */
+  const openCreate = () => {
+    setFormError('');
+    setTargetEndError('');
+    setIsOpen(true);
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,14 +142,14 @@ const UpgradeBacklogPage: React.FC = () => {
       <PageHeader
         title="Idea Backlog"
         subtitle="Health upgrade ideas waiting to be planned"
-        action={<Button onClick={() => setIsOpen(true)}>+ New Idea</Button>}
+        action={<Button onClick={openCreate}>+ New Idea</Button>}
       />
       {upgrades.length === 0 ? (
         <EmptyState
           icon="💡"
           title="No ideas yet"
           description="Capture your health upgrade ideas here before planning them."
-          action={<Button onClick={() => setIsOpen(true)}>Add First Idea</Button>}
+          action={<Button onClick={openCreate}>Add First Idea</Button>}
         />
       ) : (
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">

@@ -12,7 +12,7 @@ import Modal from '../components/ui/Modal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import ErrorState from '../components/ui/ErrorState';
-import type { AdminAccount } from '../types';
+import type { AdminAccount, UserRole } from '../types';
 
 /** The query key for the account list, so every mutation invalidates the same thing. */
 const ACCOUNTS_KEY = ['adminAccounts'];
@@ -54,10 +54,14 @@ const AdminUsersPage: React.FC = () => {
     queryFn: () => listAccounts(page),
   });
 
-  /** Every change re-reads the list rather than patching a row, so what is shown is what was saved. */
+  /**
+   * Every change re-reads the list rather than patching a row, so what is shown is what was saved. The
+   * re-read is awaited, so the mutation stays pending until the row shows the change: until then the
+   * row still offers the control just used, and a second click would send the change again.
+   */
   const afterChange = {
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ACCOUNTS_KEY });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ACCOUNTS_KEY });
       setPending(null);
       setActionError(null);
     },
@@ -72,9 +76,19 @@ const AdminUsersPage: React.FC = () => {
   const disabling = useMutation({ mutationFn: (id: string) => disableAccount(id), ...afterChange });
   const enabling = useMutation({ mutationFn: (id: string) => enableAccount(id), ...afterChange });
   const changingRole = useMutation({
-    mutationFn: ({ id, role }: { id: string; role: 'USER' | 'ADMIN' }) => changeAccountRole(id, role),
+    mutationFn: ({ id, role }: { id: string; role: UserRole }) => changeAccountRole(id, role),
     ...afterChange,
   });
+
+  const confirming = disabling.isPending || changingRole.isPending;
+
+  /**
+   * Closes the confirmation unless its change is in flight: the answer closes it, and closing it first
+   * would let a second change start before the first had landed.
+   */
+  const closeConfirmation = () => {
+    if (!confirming) setPending(null);
+  };
 
   const confirm = () => {
     if (!pending) return;
@@ -144,7 +158,12 @@ const AdminUsersPage: React.FC = () => {
                             Disable
                           </Button>
                         ) : (
-                          <Button variant="ghost" size="sm" onClick={() => enabling.mutate(account.id)}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={enabling.isPending}
+                            onClick={() => enabling.mutate(account.id)}
+                          >
                             Enable
                           </Button>
                         )}
@@ -182,15 +201,15 @@ const AdminUsersPage: React.FC = () => {
         </div>
       )}
 
-      <Modal isOpen={pending !== null} onClose={() => setPending(null)} title={pending ? confirmTitle(pending) : ''}>
+      <Modal isOpen={pending !== null} onClose={closeConfirmation} title={pending ? confirmTitle(pending) : ''}>
         {pending && (
           <div className="flex flex-col gap-4">
             <p className="text-fg-subtle">{confirmBody(pending)}</p>
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setPending(null)}>
+              <Button variant="ghost" onClick={closeConfirmation} disabled={confirming}>
                 Cancel
               </Button>
-              <Button variant="primary" onClick={confirm}>
+              <Button variant="primary" loading={confirming} onClick={confirm}>
                 Confirm
               </Button>
             </div>

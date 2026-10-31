@@ -5,6 +5,9 @@ import NotificationItem from './NotificationItem';
 import ErrorState from '../ui/ErrorState';
 import type { AppNotification } from '../../types';
 
+/** How many of the most recent notifications the panel lists; the full page lists the rest. */
+const PANEL_SIZE = 8;
+
 /** @param onClose called after selecting a notification, and by the bell's outside-click handler */
 interface Props {
   onClose: () => void;
@@ -17,8 +20,9 @@ interface Props {
  * (the daily check-in nudge) just close the panel. The desktop-permission prompt appears only while the
  * browser's answer is still `default`, so a user who has decided either way is not asked again.
  *
- * A list that could not be fetched says so instead of "No notifications yet", and a refused mark-read is
- * shown at the top, both with the trace id (NFR-30). Selecting one closes the panel, so its refusal is
+ * A list that could not be fetched says so instead of "No notifications yet"; one that could not be
+ * refetched keeps the cached rows and says so above them, so they do not read as current. A refused
+ * mark-read is shown at the top, each with the trace id (NFR-30). Selecting one closes the panel, so its refusal is
  * seen the next time the panel opens.
  */
 const NotificationDropdown: React.FC<Props> = ({ onClose }) => {
@@ -33,7 +37,7 @@ const NotificationDropdown: React.FC<Props> = ({ onClose }) => {
     requestDesktopPermission,
   } = useNotifications();
   const navigate = useNavigate();
-  const recent = notifications.slice(0, 8);
+  const recent = notifications.slice(0, PANEL_SIZE);
 
   const select = (n: AppNotification) => {
     if (!n.read) markRead(n.id);
@@ -66,6 +70,16 @@ const NotificationDropdown: React.FC<Props> = ({ onClose }) => {
       {actionError && (
         <div className="px-4 py-2 border-b border-line-subtle">
           <ErrorState inline title="Could not mark your notifications as read." error={actionError} />
+        </div>
+      )}
+
+      {recent.length > 0 && loadError && (
+        <div className="px-4 py-2 border-b border-line-subtle">
+          <ErrorState
+            inline
+            title="Your notifications could not be refreshed. What is shown may be out of date."
+            error={loadError}
+          />
         </div>
       )}
 

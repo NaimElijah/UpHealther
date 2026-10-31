@@ -22,7 +22,8 @@ export interface ToastData extends Pick<AppNotification, 'category' | 'title' | 
  * `connected` reflects the STOMP socket only. A disconnected client still shows notifications — it
  * fetches them over REST instead — so this is an indicator, not a gate.
  *
- * `loadError` is why the list could not be fetched; an empty list is then not "no notifications".
+ * `loadError` is why the last fetch of the list failed. An empty list is then not "no notifications",
+ * and a list already shown is what an earlier fetch returned, so it may be out of date.
  * `actionError` is why the last mark-read or mark-all-read was refused, and the next one clears it as it
  * starts. Both carry the trace id (NFR-30).
  */

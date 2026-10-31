@@ -15,6 +15,14 @@ import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
 import { refreshUpgradeViews } from '../lib/upgradeViews';
 
+/** The local hours at which the greeting turns from morning to afternoon, and from afternoon to evening. */
+const AFTERNOON_FROM_HOUR = 12;
+const EVENING_FROM_HOUR = 18;
+
+/** The part of the day the greeting names, for an hour of the local clock. */
+const partOfDay = (hour: number): string =>
+  hour < AFTERNOON_FROM_HOUR ? 'morning' : hour < EVENING_FROM_HOUR ? 'afternoon' : 'evening';
+
 /** The dashboard sections that list upgrade cards; one upgrade can appear in both. */
 type CardSection = 'today' | 'active';
 
@@ -72,17 +80,18 @@ const DashboardPage: React.FC = () => {
   // Sorted here because the server's area query has no ORDER BY: without it the rows could shuffle
   // between refreshes.
   const areaSummary = [...(data?.areaSummary ?? [])].sort((a, b) => a.areaName.localeCompare(b.areaName));
+  // Read once, so the greeting and the date below it cannot straddle an hour or midnight.
+  const now = new Date();
 
   return (
     <PageContainer className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-fg break-words">
-            Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'},{' '}
-            {user?.name?.split(' ')[0]} 👋
+            Good {partOfDay(now.getHours())}, {user?.name?.split(' ')[0]} 👋
           </h1>
           <p className="text-fg-subtle mt-1">
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
         </div>
         <Button className="shrink-0" onClick={() => navigate('/upgrades/backlog')}>

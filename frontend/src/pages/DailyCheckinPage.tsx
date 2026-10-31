@@ -7,6 +7,7 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
+import { numOrUndef } from '../components/upgrade/formInput';
 import { useNavigate } from 'react-router-dom';
 import type { HealthUpgrade, CreateProgressRequest } from '../types';
 import PageContainer from '../components/ui/PageContainer';
@@ -18,22 +19,13 @@ import { toApiError } from '../api/apiError';
 type ProgressMap = Record<string, Partial<CreateProgressRequest>>;
 
 /**
- * Parses a numeric field, treating unparseable input as absent.
- *
- * Clearing a number input yields an empty string, and `parseFloat('')` is NaN — which serialises to
- * `null` and would be read as a logged value of nothing rather than as no value at all.
- */
-const numOrUndef = (v: string): number | undefined => {
-  const n = parseFloat(v);
-  return Number.isNaN(n) ? undefined : n;
-};
-
-/**
  * Logs progress for every active upgrade in one pass.
  *
  * The entries are gathered locally and submitted together, so the user fills the form once rather than
- * saving each upgrade separately. Only upgrades with something entered are sent; an untouched one is
- * left unlogged rather than recorded as missed.
+ * saving each upgrade separately. Every active upgrade is sent, touched or not: an untouched one is
+ * posted with nothing but its upgrade and the day, and since an upgrade takes one entry a day (BR-6), it
+ * then counts as missed and cannot be corrected later that day. Whether an untouched upgrade should be
+ * sent at all is #55's decision.
  *
  * A failed load or submit is shown with its trace id (NFR-30). A failed load is not the empty state, and
  * a failed submit keeps the form, saying the check-in was not *fully* saved: one refusal rejects the
