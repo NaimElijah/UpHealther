@@ -189,9 +189,11 @@ public class HealthUpgrade {
     /**
      * Starts or resumes an upgrade: PLANNED → ACTIVE, or PAUSED → ACTIVE.
      *
-     * <p>Records the date it actually started, which is what progress and streaks are measured from.
-     * The max-concurrent-HARD rule is <em>not</em> checked here — it needs a count across the user's
-     * other upgrades, which the aggregate cannot see; {@code UpgradeService} applies it first.
+     * <p>Records the date it started running, which opens the window {@link #isActiveOn} puts it on a
+     * day's check-in list for. A resume replaces it, so after a pause it is the latest start, not the
+     * first (#263); progress and streaks do not read it. The max-concurrent-HARD rule is <em>not</em>
+     * checked here — it needs a count across the user's other upgrades, which the aggregate cannot see;
+     * {@code UpgradeService} applies it first.
      *
      * @param startDate the date the upgrade starts running
      * @throws BusinessRuleException if the upgrade is not PLANNED or PAUSED, or no date is given

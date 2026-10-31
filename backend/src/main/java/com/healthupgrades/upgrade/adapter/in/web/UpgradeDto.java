@@ -29,7 +29,8 @@ import org.jspecify.annotations.Nullable;
  * @param status           where it stands in its lifecycle
  * @param difficulty       how demanding it is, may be null
  * @param plannedStartDate the intended start date, may be null
- * @param actualStartDate  when it actually started, null until activated
+ * @param actualStartDate  when it last started running, null until activated: the start of the window it
+ *                         is due on a day's check-in in, replaced by every resume (#263)
  * @param targetEndDate    the date it should be done by, may be null
  * @param motivation       why the user wants it, may be null
  * @param successCriteria  how the user will know it worked, may be null
