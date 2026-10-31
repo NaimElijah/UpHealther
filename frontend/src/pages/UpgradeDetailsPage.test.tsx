@@ -748,12 +748,12 @@ describe('UpgradeDetailsPage', () => {
     expect(screen.queryByText('MEDIUM')).toBeNull();
   });
 
-  it('GivenNoDifficulty_WhenTheDetailsPageIsShown_ThenThePillSaysItIsNotSet', async () => {
+  it('GivenNoDifficulty_WhenTheDetailsPageIsShown_ThenThePillSaysTheDifficultyIsNotSet', async () => {
     getUpgradeById.mockResolvedValue({ ...anUpgrade(), difficulty: null });
     renderPage();
     await screen.findByText('Cold showers');
 
-    expect(screen.getByText('Not set')).toBeDefined();
+    expect(screen.getByText('Difficulty not set')).toBeDefined();
   });
 
   it('GivenASavedConfiguration_WhenItIsShown_ThenItsTypeAndFrequencyAreNamedAsTheFormNamesThem', async () => {

@@ -41,7 +41,10 @@ export function difficultyBadgeVariant(difficulty: Difficulty | null | undefined
   return difficultyVariant[difficulty] ?? UNKNOWN_DIFFICULTY_VARIANT;
 }
 
-/** What a field the upgrade leaves empty reads as, wherever its value would be named. */
+/**
+ * What a field the upgrade leaves empty reads as where its own label stands beside it, as on the
+ * tracking card's rows. The difficulty badge has none, and reads {@link DIFFICULTY_NOT_SET_LABEL}.
+ */
 export const NOT_SET_LABEL = 'Not set';
 
 /**
@@ -63,3 +66,20 @@ export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
   MEDIUM: 'Medium',
   HARD: 'Hard',
 };
+
+/**
+ * What the difficulty badge reads when the upgrade has none. The badge stands among others with no
+ * label beside it, so a bare {@link NOT_SET_LABEL} would not say what is unset, to a screen reader
+ * least of all: "Active, Habit, Not set".
+ */
+export const DIFFICULTY_NOT_SET_LABEL = 'Difficulty not set';
+
+/**
+ * The difficulty badge's text, on the upgrade card and the details page: the difficulty's label,
+ * {@link DIFFICULTY_NOT_SET_LABEL} for none, and the raw value for one this build does not know.
+ *
+ * @param difficulty the value from the API, typed but not validated as a `Difficulty`
+ */
+export function difficultyLabel(difficulty: Difficulty | null | undefined): string {
+  return difficulty == null ? DIFFICULTY_NOT_SET_LABEL : labelFor(DIFFICULTY_LABELS, difficulty);
+}

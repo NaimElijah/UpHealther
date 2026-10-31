@@ -29,9 +29,10 @@ describe('UpgradeCard', () => {
     expect(screen.queryByText(difficulty)).toBeNull();
   });
 
-  it('GivenNoDifficulty_WhenTheCardIsShown_ThenThePillSaysItIsNotSet', () => {
+  // A bare "Not set" beside "Idea" and "Habit" does not say what is not set, read aloud least of all.
+  it('GivenNoDifficulty_WhenTheCardIsShown_ThenThePillSaysTheDifficultyIsNotSet', () => {
     renderCard(null);
 
-    expect(screen.getByText('Not set')).toBeDefined();
+    expect(screen.getByText('Difficulty not set')).toBeDefined();
   });
 });
