@@ -8,6 +8,15 @@ import NotificationItem from '../components/notifications/NotificationItem';
 import type { AppNotification } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
+import { useFocusWhenReady } from '../hooks/useFocusWhenReady';
+import { findPageHeading } from '../components/ui/pageHeadingFocus';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
+
+/**
+ * What each filter button says. Written in the case it is read in, rather than capitalised by CSS, which
+ * a screen reader does not see.
+ */
+const FILTER_LABELS = { all: 'All', unread: 'Unread' } as const;
 
 /**
  * The full notification list, with an all/unread filter.
@@ -20,6 +29,7 @@ import ErrorState from '../components/ui/ErrorState';
  * mark-read is shown above the list too, each with the trace id (NFR-30).
  */
 const NotificationsPage: React.FC = () => {
+  useDocumentTitle('Notifications');
   const {
     notifications,
     unreadCount,
@@ -35,6 +45,17 @@ const NotificationsPage: React.FC = () => {
 
   const shown = filter === 'unread' ? notifications.filter((n) => !n.read) : notifications;
 
+  const focusWhenReady = useFocusWhenReady();
+  /**
+   * Runs one of the header's actions, each of which removes its own button once it has acted, and sends
+   * focus to the page's heading when it goes rather than letting it fall to `<body>`.
+   */
+  const actThenRefocus = (action: () => void) => () => {
+    const pressed = document.activeElement;
+    focusWhenReady(() => (pressed?.isConnected ? undefined : findPageHeading()), pressed);
+    action();
+  };
+
   const select = (n: AppNotification) => {
     if (!n.read) markRead(n.id);
     if (n.relatedUpgradeId) navigate(`/upgrades/${n.relatedUpgradeId}`);
@@ -48,12 +69,12 @@ const NotificationsPage: React.FC = () => {
         action={
           <div className="flex gap-2">
             {desktopPermission === 'default' && (
-              <Button variant="secondary" size="sm" onClick={requestDesktopPermission}>
+              <Button variant="secondary" size="sm" onClick={actThenRefocus(requestDesktopPermission)}>
                 Enable desktop alerts
               </Button>
             )}
             {unreadCount > 0 && (
-              <Button size="sm" onClick={markAllRead}>
+              <Button size="sm" onClick={actThenRefocus(markAllRead)}>
                 Mark all read
               </Button>
             )}
@@ -61,16 +82,22 @@ const NotificationsPage: React.FC = () => {
         }
       />
 
-      <div className="flex gap-2 mb-4">
+      {/* Toggle buttons that say which is on: the ring beside the fill is the cue that is not colour alone,
+          and is far above 3:1 in both themes where the fill against the other is not (WCAG 1.4.1, 1.4.11). */}
+      <div role="group" aria-label="Show" className="flex gap-2 mb-4">
         {(['all', 'unread'] as const).map((f) => (
           <button
             key={f}
+            type="button"
+            aria-pressed={filter === f}
             onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors ${
-              filter === f ? 'bg-brand text-fg-inverted' : 'bg-muted text-fg-muted hover:bg-muted-strong'
+            className={`px-3 py-1.5 rounded-lg border-2 text-sm font-medium transition-colors ${
+              filter === f
+                ? 'bg-brand text-fg-inverted border-fg'
+                : 'bg-muted text-fg-muted border-transparent hover:bg-muted-strong'
             }`}
           >
-            {f}
+            {FILTER_LABELS[f]}
             {f === 'unread' && unreadCount > 0 ? ` (${unreadCount})` : ''}
           </button>
         ))}

@@ -8,6 +8,7 @@ import Input from '../ui/Input';
 import Modal from '../ui/Modal';
 import Badge from '../ui/Badge';
 import { numOrUndef, refusalMessage } from './formInput';
+import RatingPicker from './RatingPicker';
 import { progressQuery, streakQuery, type SectionRead } from './upgradeDetailsQueries';
 import type { CreateProgressRequest, HealthUpgrade, ProgressEntry } from '../../types';
 
@@ -81,19 +82,19 @@ const UpgradeProgress: React.FC<Props> = ({ upgradeId, read, trackingConfig }) =
   return (
     <>
       <Card
-        header={
-          <div className="flex items-center justify-between">
-            <span>Progress History ({progress.length})</span>
-            <Button size="sm" onClick={openProgress}>
-              + Log Progress
-            </Button>
-          </div>
+        header={`Progress History (${progress.length})`}
+        headerAction={
+          <Button size="sm" onClick={openProgress}>
+            + Log Progress
+          </Button>
         }
       >
         {progress.length === 0 ? (
           <p className="text-fg-subtle text-sm text-center py-4">No progress logged yet.</p>
         ) : (
-          <div className="space-y-2 max-h-64 overflow-y-auto">
+          // A box that scrolls on its own is a tab stop, so the keyboard can scroll it in every browser,
+          // Safari included, and a named region, so what the stop is gets said (WCAG 2.1.1, 4.1.2).
+          <div tabIndex={0} role="region" aria-label="Progress entries" className="space-y-2 max-h-64 overflow-y-auto">
             {progress.map((p) => (
               <div key={p.id} className="flex items-center justify-between p-3 bg-sunken rounded-lg text-sm">
                 <span className="text-fg-subtle">{parseLocalDate(p.date).toLocaleDateString()}</span>
@@ -106,7 +107,11 @@ const UpgradeProgress: React.FC<Props> = ({ upgradeId, read, trackingConfig }) =
                       {p.numericValue} {p.unit}
                     </span>
                   )}
-                  {p.rating != null && <span>⭐ {p.rating}/5</span>}
+                  {p.rating != null && (
+                    <span>
+                      <span aria-hidden="true">⭐</span> {p.rating}/5
+                    </span>
+                  )}
                   {p.note && <span className="text-fg-subtle italic truncate max-w-32">{p.note}</span>}
                 </div>
               </div>
@@ -144,28 +149,19 @@ const UpgradeProgress: React.FC<Props> = ({ upgradeId, read, trackingConfig }) =
           )}
           {trackingConfig?.trackingType === 'NUMERIC' && (
             <Input
-              label={`Value (${trackingConfig.targetUnit ?? ''})`}
+              // A configuration may have no unit, and "Value ()" would say there was one, blank.
+              label={trackingConfig.targetUnit ? `Value (${trackingConfig.targetUnit})` : 'Value'}
               type="number"
               value={progressForm.numericValue ?? ''}
               onChange={(e) => setProgressForm({ ...progressForm, numericValue: numOrUndef(e.target.value) })}
             />
           )}
           {trackingConfig?.trackingType === 'RATING' && (
-            <div>
-              <label className="text-sm font-medium text-fg-muted">Rating (1-5)</label>
-              <div className="flex gap-2 mt-2">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setProgressForm({ ...progressForm, rating: n })}
-                    className={`w-10 h-10 rounded-full text-sm font-semibold transition-colors ${progressForm.rating === n ? 'bg-brand text-fg-inverted' : 'bg-muted text-fg-muted hover:bg-muted-strong'}`}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <RatingPicker
+              legend="Rating (1-5)"
+              value={progressForm.rating ?? undefined}
+              onChange={(rating) => setProgressForm({ ...progressForm, rating })}
+            />
           )}
           <Input
             label="Note"

@@ -1,8 +1,9 @@
-import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import React, { useState } from 'react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Modal from '../ui/Modal';
+import PageHeading from '../ui/PageHeading';
 import ToastContainer from './ToastContainer';
 import {
   NotificationContext,
@@ -116,7 +117,208 @@ describe('ToastContainer', () => {
 
     render(<PageWithDialog dialogOpen={false} toasts={[unknown]} />);
 
-    expect(screen.getByRole('status').className).toContain('bg-info-soft');
+    expect(screen.getByRole('group', { name: '🔥 7-day streak!' }).className).toContain('bg-info-soft');
     expect(screen.getByText('🔥 7-day streak!')).toBeDefined();
+  });
+});
+
+/** How long a toast stays up on its own, ten seconds, while nothing holds it. */
+const TOAST_LIFETIME_MS = 10_000;
+
+/** The toasts, held in state the way the provider holds them, so a dismissal takes one off. */
+const LiveToasts: React.FC<{ initial: ToastData[] }> = ({ initial }) => {
+  const [toasts, setToasts] = useState(initial);
+  return (
+    <MemoryRouter>
+      <NotificationContext.Provider
+        value={withToasts(toasts, (id) => setToasts((shown) => shown.filter((t) => t.id !== id)))}
+      >
+        <ToastContainer />
+      </NotificationContext.Provider>
+    </MemoryRouter>
+  );
+};
+
+/**
+ * A toast can be read before it goes: it stays while the pointer is over it or focus is in it, and counts
+ * down again once neither is, for ten seconds in all. The live region it is announced through is mounted
+ * before any toast arrives, since a region inserted together with its text may not be announced at all
+ * (WCAG 2.2.1, 4.1.3, finding X9.14).
+ */
+describe('ToastContainer timing', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('GivenNoToasts_WhenTheContainerRenders_ThenAnEmptyLiveRegionIsAlreadyMounted', () => {
+    render(<PageWithDialog dialogOpen={false} toasts={[]} />);
+
+    const region = screen.getByRole('status');
+    expect(region.getAttribute('aria-live')).toBe('polite');
+    expect(region.textContent).toBe('');
+  });
+
+  // `role="status"` implies `aria-atomic="true"`, so with a toast already showing, a new one could have a
+  // screen reader read the whole region again, every earlier toast included (review finding 10 on #407).
+  it('GivenTheLiveRegion_WhenItRenders_ThenItAnnouncesEachToastOnItsOwn', () => {
+    render(<PageWithDialog dialogOpen={false} toasts={[]} />);
+
+    expect(screen.getByRole('status').getAttribute('aria-atomic')).toBe('false');
+  });
+
+  it('GivenAToastShowing_WhenTenSecondsPass_ThenItDismissesItselfAndNotBefore', () => {
+    vi.useFakeTimers();
+    render(<LiveToasts initial={[streakToast]} />);
+
+    act(() => vi.advanceTimersByTime(TOAST_LIFETIME_MS - 1));
+    expect(screen.queryByText('🔥 7-day streak!')).not.toBeNull();
+
+    act(() => vi.advanceTimersByTime(1));
+    expect(screen.queryByText('🔥 7-day streak!')).toBeNull();
+  });
+
+  it('GivenAToastUnderThePointer_WhenItsLifetimePasses_ThenItStaysUntilThePointerLeavesAndTheRestRunsOut', () => {
+    vi.useFakeTimers();
+    render(<LiveToasts initial={[streakToast]} />);
+    const toast = screen.getByRole('group', { name: '🔥 7-day streak!' });
+    act(() => vi.advanceTimersByTime(4_000));
+
+    fireEvent.mouseEnter(toast);
+    act(() => vi.advanceTimersByTime(TOAST_LIFETIME_MS * 2));
+    expect(screen.queryByText('🔥 7-day streak!')).not.toBeNull();
+
+    fireEvent.mouseLeave(toast);
+    act(() => vi.advanceTimersByTime(TOAST_LIFETIME_MS - 4_000 - 1));
+    expect(screen.queryByText('🔥 7-day streak!')).not.toBeNull();
+    act(() => vi.advanceTimersByTime(1));
+    expect(screen.queryByText('🔥 7-day streak!')).toBeNull();
+  });
+
+  // Review finding 33 on #407: focus moving from one of the toast's buttons to the other was untested. This
+  // pins the behaviour, not onBlur's relatedTarget check: without the check the toast is let go on the blur
+  // and held again on the focus that follows at once, so no time is lost and the test cannot tell.
+  it('GivenFocusMovesBetweenAToastsButtons_WhenItsLifetimePasses_ThenItStays', () => {
+    vi.useFakeTimers();
+    render(<LiveToasts initial={[streakToast]} />);
+    const toast = within(screen.getByRole('group', { name: '🔥 7-day streak!' }));
+    act(() => toast.getByRole('button', { name: /7-day streak/ }).focus());
+
+    act(() => toast.getByRole('button', { name: 'Dismiss notification' }).focus());
+    act(() => vi.advanceTimersByTime(TOAST_LIFETIME_MS * 2));
+
+    expect(screen.queryByText('🔥 7-day streak!')).not.toBeNull();
+  });
+
+  // Review finding 29 on #407: elapsed time was read from the wall clock, which can jump while a toast is
+  // up, and a jump forward used up the whole lifetime at once.
+  it('GivenTheWallClockJumpsAnHourAhead_WhenTheToastIsHeldAndLetGo_ThenItKeepsTheTimeItHadLeft', () => {
+    vi.useFakeTimers();
+    render(<LiveToasts initial={[streakToast]} />);
+    const toast = screen.getByRole('group', { name: '🔥 7-day streak!' });
+    act(() => vi.advanceTimersByTime(1_000));
+    vi.setSystemTime(Date.now() + 60 * 60 * 1_000);
+
+    fireEvent.mouseEnter(toast);
+    fireEvent.mouseLeave(toast);
+    act(() => vi.advanceTimersByTime(TOAST_LIFETIME_MS - 1_000 - 1));
+
+    expect(screen.queryByText('🔥 7-day streak!')).not.toBeNull();
+  });
+
+  it('GivenFocusInAToast_WhenItsLifetimePasses_ThenItStaysUntilFocusLeaves', () => {
+    vi.useFakeTimers();
+    render(<LiveToasts initial={[streakToast]} />);
+    const dismiss = screen.getByRole('button', { name: 'Dismiss notification' });
+
+    act(() => dismiss.focus());
+    act(() => vi.advanceTimersByTime(TOAST_LIFETIME_MS * 2));
+    expect(screen.queryByText('🔥 7-day streak!')).not.toBeNull();
+
+    act(() => dismiss.blur());
+    act(() => vi.advanceTimersByTime(TOAST_LIFETIME_MS));
+    expect(screen.queryByText('🔥 7-day streak!')).toBeNull();
+  });
+});
+
+const waterToast: ToastData = {
+  id: 'toast-2',
+  category: 'INFO',
+  title: 'Time to drink water',
+  message: null,
+  relatedUpgradeId: null,
+};
+
+/** The toasts over a page that has its heading and one other control, as every page has. */
+const ToastsOverAPage: React.FC<{ initial: ToastData[] }> = ({ initial }) => (
+  <>
+    <PageHeading>Dashboard</PageHeading>
+    <button type="button">Somewhere on the page</button>
+    <LiveToasts initial={initial} />
+  </>
+);
+
+/** The Dismiss button of the toast titled `title`. */
+const dismissOf = (title: string) =>
+  within(screen.getByRole('group', { name: title })).getByRole('button', { name: 'Dismiss notification' });
+
+/**
+ * A toast pressed from the keyboard goes, and the button that had focus with it, so focus fell to
+ * `<body>` (WCAG 2.4.3, review finding 15 on #407). It moves to the same button of the next toast, or of
+ * the one before when it was the last, and to the page's heading when no toast is left. A pointer press
+ * never gave a toast focus, so it leaves focus where it was.
+ */
+describe('ToastContainer focus after a dismissal', () => {
+  it('GivenTwoToastsAndFocusOnTheFirstsDismiss_WhenItIsPressed_ThenTheNextToastsDismissHasFocus', () => {
+    render(<ToastsOverAPage initial={[streakToast, waterToast]} />);
+    const dismiss = dismissOf('🔥 7-day streak!');
+    dismiss.focus();
+
+    fireEvent.click(dismiss);
+
+    expect(screen.queryByRole('group', { name: '🔥 7-day streak!' })).toBeNull();
+    expect(document.activeElement).toBe(dismissOf('Time to drink water'));
+  });
+
+  it('GivenTwoToastsAndFocusOnTheLastsDismiss_WhenItIsPressed_ThenTheToastBeforeItsDismissHasFocus', () => {
+    render(<ToastsOverAPage initial={[streakToast, waterToast]} />);
+    const dismiss = dismissOf('Time to drink water');
+    dismiss.focus();
+
+    fireEvent.click(dismiss);
+
+    expect(document.activeElement).toBe(dismissOf('🔥 7-day streak!'));
+  });
+
+  it('GivenOneToastAndFocusOnItsDismiss_WhenItIsPressed_ThenThePageHeadingHasFocus', () => {
+    render(<ToastsOverAPage initial={[streakToast]} />);
+    const dismiss = dismissOf('🔥 7-day streak!');
+    dismiss.focus();
+
+    fireEvent.click(dismiss);
+
+    expect(screen.queryByRole('group')).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1, name: 'Dashboard' }));
+  });
+
+  it('GivenOneToastWithNoUpgradeAndFocusOnIt_WhenItIsPressed_ThenThePageHeadingHasFocus', () => {
+    render(<ToastsOverAPage initial={[streakToast]} />);
+    const open = within(screen.getByRole('group', { name: '🔥 7-day streak!' })).getByRole('button', {
+      name: /7-day streak/,
+    });
+    open.focus();
+
+    fireEvent.click(open);
+
+    expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1, name: 'Dashboard' }));
+  });
+
+  it('GivenFocusOnThePage_WhenAToastIsDismissedWithThePointer_ThenFocusStaysWhereItWas', () => {
+    render(<ToastsOverAPage initial={[streakToast, waterToast]} />);
+    const elsewhere = screen.getByRole('button', { name: 'Somewhere on the page' });
+    elsewhere.focus();
+
+    fireEvent.click(dismissOf('🔥 7-day streak!'));
+
+    expect(document.activeElement).toBe(elsewhere);
   });
 });

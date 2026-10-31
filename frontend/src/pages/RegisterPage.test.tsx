@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { AxiosError, AxiosHeaders } from 'axios';
 import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import RegisterPage from './RegisterPage';
 import { AuthContext, type AuthContextType } from '../contexts/authContextValue';
@@ -41,6 +41,13 @@ function renderRegister(ctx: AuthContextType = contextWith()) {
       </AuthContext.Provider>
     </ThemeProvider>,
   );
+}
+
+/** What a field's error says, read the way a screen reader reaches it: through `aria-describedby`. */
+function errorOf(label: string): string | null | undefined {
+  const field = screen.getByLabelText(label);
+  if (field.getAttribute('aria-invalid') !== 'true') return null;
+  return document.getElementById(field.getAttribute('aria-describedby') ?? '')?.textContent;
 }
 
 /** Fills every field and submits, the way a user would. */
@@ -92,12 +99,12 @@ describe('RegisterPage', () => {
   it.each([
     ['Name', { name: '' }],
     ['Email', { email: '' }],
-  ])('GivenAnEmpty%s_WhenTheFormIsSubmitted_ThenItIsRefusedWithoutCallingTheApi', async (_field, blank) => {
+  ])('GivenAnEmpty%s_WhenTheFormIsSubmitted_ThenItIsRefusedWithoutCallingTheApi', async (field, blank) => {
     renderRegister();
 
     fillAndSubmit(blank);
 
-    await waitFor(() => expect(screen.getByText('Please fill in all fields.')).toBeDefined());
+    await waitFor(() => expect(screen.getByText(`${field} is required.`)).toBeDefined());
     expect(register).not.toHaveBeenCalled();
   });
 
@@ -185,5 +192,120 @@ describe('RegisterPage', () => {
     renderRegister(contextWith({ isAuthenticated: true }));
 
     await waitFor(() => expect(screen.getByText('the dashboard')).toBeDefined());
+  });
+});
+
+/**
+ * The document is titled after the page, from its first render, so a tab, the history list and a screen
+ * reader opening the page all say which page it is. Every route was titled "UpHealther" alone (WCAG
+ * 2.4.2, finding X9.2).
+ */
+describe('RegisterPage title', () => {
+  it('GivenThePage_WhenItOpens_ThenTheDocumentIsTitledAfterIt', () => {
+    document.title = '';
+
+    renderRegister();
+
+    expect(document.title).toBe('Create account – UpHealther');
+  });
+});
+
+/**
+ * The registration form marks its fields required, announces its message, and sends focus to the field
+ * to fix (WCAG 3.3.1, 3.3.2, 4.1.3, finding X9.5).
+ */
+describe('RegisterPage form errors', () => {
+  // `fireEvent.submit` skips the browser's own validation, so without this a form that lost `noValidate`
+  // passed every test, while in a browser the native bubble took the place of the form's message and focus
+  // (review finding 16 on #407).
+  it('GivenTheRegistrationForm_WhenItRenders_ThenItChecksItselfRatherThanTheBrowser', () => {
+    renderRegister();
+
+    expect(screen.getByLabelText('Email').closest('form')?.noValidate).toBe(true);
+  });
+
+  it('GivenTheRegistrationForm_WhenItRenders_ThenEveryFieldIsMarkedRequired', () => {
+    renderRegister();
+
+    for (const label of ['Full Name', 'Email', 'Password', 'Confirm Password']) {
+      expect(screen.getByLabelText(label).getAttribute('aria-required')).toBe('true');
+    }
+    // Review finding 24 on #407: nothing said what the asterisk meant.
+    expect(screen.getByText('Required').closest('form')).toBe(screen.getByLabelText('Email').closest('form'));
+  });
+
+  it('GivenAConfirmationThatDiffers_WhenTheFormIsSubmitted_ThenTheMessageIsAnnouncedAndTheConfirmationHasFocus', async () => {
+    renderRegister();
+
+    fillAndSubmit({ password: 'eight-ch', confirm: 'nine-chr' });
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Passwords do not match.');
+    expect(document.activeElement).toBe(screen.getByLabelText('Confirm Password'));
+  });
+
+  it('GivenAShortPassword_WhenTheFormIsSubmitted_ThenThePasswordHasFocus', async () => {
+    renderRegister();
+
+    fillAndSubmit({ password: 'short' });
+
+    await screen.findByRole('alert');
+    expect(document.activeElement).toBe(screen.getByLabelText('Password'));
+  });
+
+  // Review finding 12 on #407: one page-wide message named no field, and none was marked invalid, so a
+  // screen reader on the field to fix never heard what was wrong with it (WCAG 3.3.1).
+  it('GivenAnEmptyForm_WhenItIsSubmitted_ThenEachMissingFieldIsInvalidAndSaysSo', async () => {
+    renderRegister();
+
+    fillAndSubmit({ name: '', email: '', password: '', confirm: '' });
+
+    expect(await screen.findByText('Name is required.')).toBeDefined();
+    expect(errorOf('Full Name')).toBe('Name is required.');
+    expect(errorOf('Email')).toBe('Email is required.');
+    expect(errorOf('Password')).toBe('Password is required.');
+    expect(document.activeElement).toBe(screen.getByLabelText('Full Name'));
+  });
+
+  it('GivenAConfirmationThatDiffers_WhenTheFormIsSubmitted_ThenTheConfirmationIsInvalidAndSaysSo', async () => {
+    renderRegister();
+
+    fillAndSubmit({ password: 'eight-ch', confirm: 'nine-chr' });
+
+    await screen.findByText('Passwords do not match.');
+    expect(errorOf('Confirm Password')).toBe('Passwords do not match.');
+    expect(errorOf('Password')).toBeNull();
+  });
+
+  it('GivenAShortPassword_WhenTheFormIsSubmitted_ThenThePasswordIsInvalidAndSaysSo', async () => {
+    renderRegister();
+
+    fillAndSubmit({ password: 'short' });
+
+    await screen.findByText('Password must be at least 8 characters.');
+    expect(errorOf('Password')).toBe('Password must be at least 8 characters.');
+  });
+
+  it('GivenAnEmptyName_WhenTheFormIsSubmitted_ThenTheNameHasFocus', async () => {
+    renderRegister();
+
+    fillAndSubmit({ name: '' });
+
+    await screen.findByRole('alert');
+    expect(document.activeElement).toBe(screen.getByLabelText('Full Name'));
+  });
+});
+
+/**
+ * The page has a main landmark around its form, as every signed-in page has through the shell. It renders
+ * outside the shell, so it had none, and a screen reader's landmark list was empty (WCAG 1.3.1, 2.4.1,
+ * finding X9.18).
+ */
+describe('RegisterPage landmark', () => {
+  it('GivenThePage_WhenItRenders_ThenItsHeadingAndFormAreInsideTheMainLandmark', () => {
+    renderRegister();
+
+    const main = within(screen.getByRole('main'));
+    expect(main.getByRole('heading', { level: 1, name: 'Create Account' })).toBeDefined();
+    expect(main.getByLabelText('Email')).toBeDefined();
   });
 });

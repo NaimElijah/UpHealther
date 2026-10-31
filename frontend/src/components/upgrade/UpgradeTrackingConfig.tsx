@@ -103,13 +103,11 @@ const UpgradeTrackingConfig: React.FC<Props> = ({ upgradeId, trackingConfig }) =
   return (
     <>
       <Card
-        header={
-          <div className="flex items-center justify-between">
-            <span>Tracking Configuration</span>
-            <Button size="sm" variant="secondary" onClick={() => openTracking(trackingConfig)}>
-              {trackingConfig ? 'Edit' : 'Configure'}
-            </Button>
-          </div>
+        header="Tracking Configuration"
+        headerAction={
+          <Button size="sm" variant="secondary" onClick={() => openTracking(trackingConfig)}>
+            {trackingConfig ? 'Edit' : 'Configure'}
+          </Button>
         }
       >
         {trackingConfig ? (

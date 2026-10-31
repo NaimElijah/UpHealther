@@ -18,7 +18,9 @@ const UpgradeStreak: React.FC<Props> = ({ read }) => {
 
   return streak.current > 0 ? (
     <div className="bg-streak-soft border border-streak-line rounded-xl p-4 flex items-center gap-3">
-      <span className="text-3xl">🔥</span>
+      <span className="text-3xl" aria-hidden="true">
+        🔥
+      </span>
       <div>
         <p className="font-semibold text-streak-fg">{streak.current}-day streak!</p>
         <p className="text-sm text-streak-fg">

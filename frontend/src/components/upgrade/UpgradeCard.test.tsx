@@ -14,6 +14,25 @@ function renderCard(difficulty: Difficulty | null) {
 }
 
 /**
+ * The card's title is the one way from a list to an upgrade's page. It was a heading with a click
+ * handler, which no keyboard can reach, so every edit, reminder and reflection was pointer-only (WCAG
+ * 2.1.1, finding X9.1).
+ */
+describe('UpgradeCard title', () => {
+  it('GivenAnUpgrade_WhenTheCardIsShown_ThenItsTitleIsALinkToItsPageInsideTheHeading', () => {
+    render(
+      <MemoryRouter>
+        <UpgradeCard upgrade={upgradeAsSent({ id: 'u-42', title: 'Cold showers' })} />
+      </MemoryRouter>,
+    );
+
+    const link = screen.getByRole('link', { name: 'Cold showers' });
+    expect(link.getAttribute('href')).toBe('/upgrades/u-42');
+    expect(screen.getByRole('heading', { name: 'Cold showers' }).contains(link)).toBe(true);
+  });
+});
+
+/**
  * The card's difficulty pill names the difficulty as the form does. It showed the raw value, so an
  * upgrade read "EASY" in capitals beside "Idea" and "Habit", and one with no difficulty an empty pill.
  */
@@ -34,5 +53,37 @@ describe('UpgradeCard', () => {
     renderCard(null);
 
     expect(screen.getByText('Difficulty not set')).toBeDefined();
+  });
+});
+
+/**
+ * Each of a card's actions names the upgrade it acts on, after the word it shows, so a list of cards does
+ * not read "Pause, Complete, Pause, Complete" (WCAG 2.4.6, 4.1.2, 2.5.3, finding X9.20).
+ */
+describe('UpgradeCard actions', () => {
+  const onStatusChange = () => {};
+
+  it.each([
+    ['ACTIVE', ['Pause Evening walk', 'Complete Evening walk']],
+    ['PLANNED', ['Activate Evening walk']],
+    ['PAUSED', ['Resume Evening walk']],
+  ] as const)('GivenAnUpgradeThatIs%s_WhenItsCardRenders_ThenEachActionNamesIt', (status, names) => {
+    render(
+      <MemoryRouter>
+        <UpgradeCard upgrade={upgradeAsSent({ title: 'Evening walk', status })} onStatusChange={onStatusChange} />
+      </MemoryRouter>,
+    );
+
+    for (const name of names) expect(screen.getByRole('button', { name })).toBeDefined();
+  });
+
+  it('GivenAnIdea_WhenItsCardRenders_ThenPlanNamesIt', () => {
+    render(
+      <MemoryRouter>
+        <UpgradeCard upgrade={upgradeAsSent({ title: 'Cold showers', status: 'IDEA' })} onPlan={() => {}} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('button', { name: 'Plan Cold showers' })).toBeDefined();
   });
 });

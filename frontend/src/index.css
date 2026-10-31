@@ -9,9 +9,12 @@
  * see the `<alpha-value>` pattern in `tailwind.config.js`.
  *
  * Every foreground/background pair used in the app was checked against WCAG AA: 4.5:1 for text, 3:1 for
- * control boundaries and graphical state. The worst text pair is 4.63:1 and the worst non-text pair is
- * 3.29:1. `line` and `line-subtle` are deliberate exceptions — a card's outline and a list's divider
- * identify no component or state, and forcing 3:1 there would put a mid-grey box round every panel.
+ * control boundaries and graphical state. The worst text pair is 4.63:1 and the worst non-text pair that
+ * carries a boundary or a state is 3.29:1. `line` and `line-subtle` are deliberate exceptions — a card's
+ * outline and a list's divider identify no component or state, and forcing 3:1 there would put a mid-grey
+ * box round every panel. So is a chosen toggle's `brand` fill against the `muted` around it, 2.53:1 in the
+ * dark theme: the toggles mark their choice with an `fg` ring as well, 11.87:1 or more in both themes
+ * (measured in a browser), so the fill is not what carries the state.
  *
  * `.dark` is put on `<html>` by the boot script in `index.html` before first paint, and kept in step
  * afterwards by `ThemeProvider`.
@@ -172,12 +175,32 @@
     background-color: rgb(var(--color-canvas));
   }
 
+  /*
+   * The navbar is sticky and 4rem tall, so a control the browser scrolls to as it takes focus would land
+   * under it, hidden (WCAG 2.4.11). This keeps a scrolled-to control clear of the bar, with a margin.
+   * While the sign-out failure strip shows below the bar the header is taller, 101px on one line and more
+   * once the message wraps on a phone, so the padding grows with it. Measured in a browser; nothing in
+   * jsdom can see it.
+   */
+  html {
+    scroll-padding-top: 5rem;
+  }
+
+  html:has(header > [role='alert']) {
+    scroll-padding-top: 9rem;
+  }
+
   body {
     color: rgb(var(--color-fg));
   }
 
-  /* Preflight hard-codes gray-400 here, which is 2.54:1 on white — below AA for text. */
-  ::placeholder {
+  /*
+   * Preflight hard-codes gray-400 here, which is 2.54:1 on white — below AA for text. Its selectors are
+   * `input::placeholder, textarea::placeholder`, specificity (0,0,2), so a bare `::placeholder` (0,0,1)
+   * loses to them and never applied. These match them, and win on source order.
+   */
+  input::placeholder,
+  textarea::placeholder {
     color: rgb(var(--color-fg-faint));
     opacity: 1;
   }

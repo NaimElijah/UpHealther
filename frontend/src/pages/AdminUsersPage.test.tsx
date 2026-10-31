@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import AdminUsersPage from './AdminUsersPage';
@@ -327,4 +327,164 @@ describe('AdminUsersPage', () => {
     expect(screen.queryByText('Next')).toBeNull();
     expect(screen.queryByText('Previous')).toBeNull();
   });
+});
+
+/**
+ * The document is titled after the page, from its first render, so a tab, the history list and a screen
+ * reader opening the page all say which page it is. Every route was titled "UpHealther" alone (WCAG
+ * 2.4.2, finding X9.2).
+ */
+describe('AdminUsersPage title', () => {
+  it('GivenThePage_WhenItOpens_ThenTheDocumentIsTitledAfterIt', () => {
+    document.title = '';
+    listAccounts.mockResolvedValue(page([]));
+
+    renderPage();
+
+    expect(document.title).toBe('Accounts – UpHealther');
+  });
+});
+
+/**
+ * The controls an administrator was using must keep focus, or hand it on, when the list changes under
+ * them. Paging replaced the whole page with a spinner, and Disable and Enable replace each other, so
+ * focus fell to `<body>` after each (WCAG 2.4.3, finding X9.4).
+ */
+describe('AdminUsersPage focus', () => {
+  beforeEach(() => {
+    listAccounts.mockReset();
+    disableAccount.mockReset();
+    enableAccount.mockReset();
+    changeAccountRole.mockReset();
+  });
+
+  it('GivenAnotherPageIsLoading_WhenNextWasPressed_ThenTheListAndThePagingControlsStay', async () => {
+    listAccounts.mockResolvedValueOnce(page([MY_ACCOUNT, SOMEBODY], 60)).mockReturnValue(new Promise(() => {}));
+    renderPage();
+    const next = await screen.findByRole('button', { name: 'Next' });
+    next.focus();
+
+    fireEvent.click(next);
+    await settle();
+
+    expect(screen.getByText('Someone Else')).toBeDefined();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Next' }));
+  });
+
+  it('GivenTheLastPageIsReached_WhenNextWasPressed_ThenFocusMovesToPrevious', async () => {
+    listAccounts.mockImplementation((pageNumber: number) => Promise.resolve(page([SOMEBODY], 26, pageNumber)));
+    renderPage();
+    const next = await screen.findByRole('button', { name: 'Next' });
+    next.focus();
+
+    fireEvent.click(next);
+
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Previous' })));
+  });
+
+  // This passes without the fix it came with: Disable and Enable are one `Button` at one place in
+  // the row, so React keeps the node, and the focus on it, when the label changes. It guards a change
+  // that would remount the button, a key or a wrapper, and so drop focus (review finding 31 on #407).
+  it('GivenAnAccountIsDisabled_WhenTheConfirmationCloses_ThenFocusIsOnItsEnable', async () => {
+    let enabled = true;
+    listAccounts.mockImplementation(() => Promise.resolve(page([MY_ACCOUNT, { ...SOMEBODY, enabled }], 2)));
+    disableAccount.mockImplementation(() => {
+      enabled = false;
+      return Promise.resolve({ ...SOMEBODY, enabled: false });
+    });
+    renderPage();
+    const disable = await screen.findByRole('button', { name: /^Disable / });
+    disable.focus();
+    fireEvent.click(disable);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: /^Enable / })));
+  });
+
+  // Enable was disabled while its request ran, and a disabled button gives up focus in a browser.
+  it('GivenAnEnableInFlight_WhenItsButtonHasFocus_ThenTheButtonKeepsItAndSaysItIsBusy', async () => {
+    listAccounts.mockResolvedValue(page([MY_ACCOUNT, { ...SOMEBODY, enabled: false }], 2));
+    enableAccount.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    const enable = await screen.findByRole('button', { name: /^Enable / });
+    enable.focus();
+
+    fireEvent.click(enable);
+    await settle();
+
+    expect(enable.hasAttribute('disabled')).toBe(false);
+    expect(enable.getAttribute('aria-busy')).toBe('true');
+    expect(document.activeElement).toBe(enable);
+  });
+
+  // This passes without the fix it came with: Disable and Enable are one `Button` at one place in
+  // the row, so React keeps the node, and the focus on it, when the label changes. It guards a change
+  // that would remount the button, a key or a wrapper, and so drop focus (review finding 31 on #407).
+  it('GivenADisabledAccount_WhenItIsEnabled_ThenFocusIsOnItsDisable', async () => {
+    let enabled = false;
+    listAccounts.mockImplementation(() => Promise.resolve(page([MY_ACCOUNT, { ...SOMEBODY, enabled }], 2)));
+    enableAccount.mockImplementation(() => {
+      enabled = true;
+      return Promise.resolve(SOMEBODY);
+    });
+    renderPage();
+    const enable = await screen.findByRole('button', { name: /^Enable / });
+    enable.focus();
+
+    fireEvent.click(enable);
+
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: /^Disable / })));
+  });
+});
+
+/**
+ * An account's buttons name the account they act on, after the word they show (WCAG 2.4.6, 4.1.2, 2.5.3,
+ * finding X9.20).
+ */
+describe('AdminUsersPage per-account names', () => {
+  beforeEach(() => {
+    listAccounts.mockReset();
+  });
+
+  it('GivenAnEnabledAccount_WhenItsRowRenders_ThenItsButtonsNameIt', async () => {
+    listAccounts.mockResolvedValue(page([MY_ACCOUNT, SOMEBODY], 2));
+    renderPage();
+
+    expect(await screen.findByRole('button', { name: 'Disable Someone Else' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Make admin for Someone Else' })).toBeDefined();
+  });
+
+  it('GivenADisabledAdministrator_WhenTheirRowRenders_ThenItsButtonsNameThem', async () => {
+    listAccounts.mockResolvedValue(page([MY_ACCOUNT, { ...SOMEBODY, enabled: false, role: 'ADMIN' }], 2));
+    renderPage();
+
+    expect(await screen.findByRole('button', { name: 'Enable Someone Else' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Revoke admin for Someone Else' })).toBeDefined();
+  });
+});
+
+/**
+ * A confirmation says whose account it changes in its body, not only in its title, which a narrow window
+ * cut short (WCAG 1.4.10, finding X9.21).
+ */
+describe('AdminUsersPage confirmations', () => {
+  beforeEach(() => {
+    listAccounts.mockReset();
+    listAccounts.mockResolvedValue(page([MY_ACCOUNT, SOMEBODY], 2));
+  });
+
+  it.each([/^Disable /, /^Make admin /])(
+    'GivenAnAccount_When%sIsPressed_ThenTheConfirmationsBodyNamesIt',
+    async (name) => {
+      renderPage();
+
+      fireEvent.click(await screen.findByRole('button', { name }));
+
+      const body = within(screen.getByRole('dialog')).getByText(/will/);
+      expect(body.textContent).toContain('Someone Else');
+      expect(body.textContent).toContain('someone@example.com');
+    },
+  );
 });

@@ -33,9 +33,13 @@ const Navbar: React.FC = () => {
   // The failure is a strip under the bar rather than an item in it: the bar is a fixed h-16 row with no
   // room left at 320px, and a message that only fits on a wide screen goes unsaid exactly where a
   // shared device is likeliest.
+  //
+  // The bar is a plain div inside the header's banner landmark, not a <nav>: it holds the theme switch,
+  // the bell and Logout, and the one navigation is NavLinks' "Main", in the sidebar or the phone menu.
+  // An unnamed <nav> here listed a second, nameless navigation beside it (WCAG 1.3.1).
   return (
     <header className="sticky top-0 z-30">
-      <nav className="bg-surface border-b border-line h-16 flex items-center gap-4 px-4 sm:px-6 justify-between">
+      <div className="bg-surface border-b border-line h-16 flex items-center gap-4 px-4 sm:px-6 justify-between">
         <div className="flex items-center gap-2 min-w-0">
           <NavMenu />
           {/* The brand gives way to the controls. Below 360px the menu, theme switch, bell and Logout
@@ -63,7 +67,7 @@ const Navbar: React.FC = () => {
             Logout
           </Button>
         </div>
-      </nav>
+      </div>
       {signOutFailed && (
         <p role="alert" className="bg-danger-soft border-b border-danger-line px-4 sm:px-6 py-2 text-sm text-danger-fg">
           Could not sign out — you are still signed in.

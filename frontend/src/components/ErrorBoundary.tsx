@@ -54,7 +54,9 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
         className="min-h-screen flex flex-col items-center justify-center gap-4 bg-canvas px-6 text-center"
         role="alert"
       >
-        <div className="text-5xl">⚠️</div>
+        <div className="text-5xl" aria-hidden="true">
+          ⚠️
+        </div>
         <h1 className="text-xl font-semibold text-fg">This page stopped working.</h1>
         <p className="max-w-md text-sm text-fg-subtle">
           Nothing you have saved is affected. Reloading usually fixes it.

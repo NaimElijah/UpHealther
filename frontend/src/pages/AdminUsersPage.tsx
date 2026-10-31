@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import React, { useRef, useState } from 'react';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ACCOUNTS_PAGE_SIZE, changeAccountRole, disableAccount, enableAccount, listAccounts } from '../api/admin';
 import { toApiError } from '../api/apiError';
 import { useAuth } from '../hooks/useAuth';
@@ -13,6 +13,8 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import ErrorState from '../components/ui/ErrorState';
 import type { AdminAccount, UserRole } from '../types';
+import { useFocusWhenReady } from '../hooks/useFocusWhenReady';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /** The query key for the account list, so every mutation invalidates the same thing. */
 const ACCOUNTS_KEY = ['adminAccounts'];
@@ -43,16 +45,34 @@ type PendingChange =
  * swallowed into a silent no-op — the change did not happen, and the person needs to know that.
  */
 const AdminUsersPage: React.FC = () => {
+  useDocumentTitle('Accounts');
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [page, setPage] = useState(0);
   const [pending, setPending] = useState<PendingChange | null>(null);
   const [actionError, setActionError] = useState<unknown>(null);
 
+  // The page being left stays on screen while the next one loads. Without it the whole page became a
+  // spinner, Previous and Next went with it, and focus fell to <body> on every page turn.
   const { data, isLoading, error } = useQuery({
     queryKey: [...ACCOUNTS_KEY, page],
     queryFn: () => listAccounts(page),
+    placeholderData: keepPreviousData,
   });
+
+  const previousButton = useRef<HTMLButtonElement>(null);
+  const nextButton = useRef<HTMLButtonElement>(null);
+  const focusWhenReady = useFocusWhenReady();
+
+  /**
+   * Turns the page. Reaching the first or the last page disables the button just pressed, and a disabled
+   * button drops focus, so focus moves to the other one.
+   */
+  const turnTo = (target: number) => {
+    setPage(target);
+    const [pressed, other] = target > page ? [nextButton, previousButton] : [previousButton, nextButton];
+    focusWhenReady(() => (pressed.current?.disabled ? other.current : null), pressed.current);
+  };
 
   /**
    * Every change re-reads the list rather than patching a row, so what is shown is what was saved. The
@@ -140,9 +160,11 @@ const AdminUsersPage: React.FC = () => {
             return (
               <Card key={account.id}>
                 <div className="flex flex-wrap items-center gap-3 justify-between">
+                  {/* Wrapped, not truncated: at 320px an address cut to an ellipsis is no longer one an
+                      administrator can tell from another (WCAG 1.4.10). */}
                   <div className="min-w-0">
-                    <p className="font-medium text-fg truncate">{account.name}</p>
-                    <p className="text-sm text-fg-subtle truncate">{account.email}</p>
+                    <p className="font-medium text-fg break-words">{account.name}</p>
+                    <p className="text-sm text-fg-subtle break-all">{account.email}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {account.role === 'ADMIN' && <Badge variant="purple">Administrator</Badge>}
@@ -154,22 +176,34 @@ const AdminUsersPage: React.FC = () => {
                     ) : (
                       <>
                         {account.enabled ? (
-                          <Button variant="ghost" size="sm" onClick={() => setPending({ kind: 'disable', account })}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`Disable ${account.name}`}
+                            onClick={() => setPending({ kind: 'disable', account })}
+                          >
                             Disable
                           </Button>
                         ) : (
+                          // Loading rather than disabled, so it keeps focus: the row then turns it into
+                          // Disable, the same button, and focus stays on it.
                           <Button
                             variant="ghost"
                             size="sm"
                             disabled={enabling.isPending}
+                            loading={enabling.isPending && enabling.variables === account.id}
+                            aria-label={`Enable ${account.name}`}
                             onClick={() => enabling.mutate(account.id)}
                           >
                             Enable
                           </Button>
                         )}
+                        {/* Each of the row's buttons adds the account to the word it shows, so a list of
+                            rows does not read "Disable, Make admin" over and over (WCAG 2.4.6, 2.5.3). */}
                         <Button
                           variant="ghost"
                           size="sm"
+                          aria-label={`${account.role === 'ADMIN' ? 'Revoke admin' : 'Make admin'} for ${account.name}`}
                           onClick={() =>
                             setPending({
                               kind: account.role === 'ADMIN' ? 'demote' : 'promote',
@@ -191,11 +225,11 @@ const AdminUsersPage: React.FC = () => {
 
       {(page > 0 || hasMore) && (
         <div className="flex items-center justify-between mt-6">
-          <Button variant="ghost" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
+          <Button ref={previousButton} variant="ghost" size="sm" disabled={page === 0} onClick={() => turnTo(page - 1)}>
             Previous
           </Button>
           <span className="text-sm text-fg-subtle">Page {page + 1}</span>
-          <Button variant="ghost" size="sm" disabled={!hasMore} onClick={() => setPage(page + 1)}>
+          <Button ref={nextButton} variant="ghost" size="sm" disabled={!hasMore} onClick={() => turnTo(page + 1)}>
             Next
           </Button>
         </div>
@@ -204,7 +238,7 @@ const AdminUsersPage: React.FC = () => {
       <Modal isOpen={pending !== null} onClose={closeConfirmation} title={pending ? confirmTitle(pending) : ''}>
         {pending && (
           <div className="flex flex-col gap-4">
-            <p className="text-fg-subtle">{confirmBody(pending)}</p>
+            <p className="text-fg-subtle break-words">{confirmBody(pending)}</p>
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={closeConfirmation} disabled={confirming}>
                 Cancel
@@ -226,20 +260,25 @@ function confirmTitle(pending: PendingChange): string {
   return `Revoke ${pending.account.name}'s administrator role?`;
 }
 
+/**
+ * What a change does, said of the account by name and address. The title names the account too, but the
+ * body is what is read in full, whatever the window's width, and two accounts can share a name.
+ */
 function confirmBody(pending: PendingChange): string {
+  const whose = `${pending.account.name} (${pending.account.email})`;
   if (pending.kind === 'disable') {
     return (
-      'They will be signed out everywhere and will not be able to sign in again. Nothing they ' +
+      `${whose} will be signed out everywhere and will not be able to sign in again. Nothing they ` +
       'have recorded is deleted, and enabling the account restores it exactly as it was.'
     );
   }
   if (pending.kind === 'promote') {
     return (
-      'They will be able to list every account here, switch accounts off, and grant this role to ' +
+      `${whose} will be able to list every account here, switch accounts off, and grant this role to ` +
       'anybody else. They still will not be able to read anyone else’s records.'
     );
   }
-  return 'They will keep their own account and everything in it, and lose access to this page.';
+  return `${whose} will keep their own account and everything in it, and lose access to this page.`;
 }
 
 export default AdminUsersPage;

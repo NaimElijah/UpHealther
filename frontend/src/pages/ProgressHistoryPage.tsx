@@ -12,6 +12,8 @@ import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
 import { parseLocalDate } from '../lib/localDate';
+import { RATING_MAX } from '../components/upgrade/RatingPicker';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
  * The last seven days of progress across every upgrade, newest first.
@@ -24,6 +26,7 @@ import { parseLocalDate } from '../lib/localDate';
  * or breaking the list.
  */
 const ProgressHistoryPage: React.FC = () => {
+  useDocumentTitle('Progress History');
   const {
     data: progress = [],
     isLoading: pLoading,
@@ -50,7 +53,12 @@ const ProgressHistoryPage: React.FC = () => {
       </div>
     );
   if (pError || uError)
-    return <ErrorState title="Could not load this progress history." error={toApiError(pError ?? uError)} />;
+    return (
+      <PageContainer>
+        <PageHeader title="Progress History" />
+        <ErrorState title="Could not load this progress history." error={toApiError(pError ?? uError)} />
+      </PageContainer>
+    );
 
   return (
     <PageContainer>
@@ -63,13 +71,22 @@ const ProgressHistoryPage: React.FC = () => {
         />
       ) : (
         <Card>
-          <div className="space-y-3">
+          {/* A list, so a screen reader says how many entries there are and moves between them. The role is
+              explicit because Tailwind's preflight strips list-style, and WebKit then stops exposing a <ul>
+              as a list. */}
+          <ul role="list" className="space-y-3">
             {sorted.map((entry) => {
               const upgrade = upgradeMap[entry.upgradeId];
               return (
-                <div key={entry.id} className="flex items-center justify-between p-3 bg-sunken rounded-lg text-sm">
+                // Wraps rather than truncating, and the details drop below the title on a narrow window:
+                // a note cut at 8rem, or a title squeezed to nothing beside it, lost what was written
+                // (WCAG 1.4.10).
+                <li
+                  key={entry.id}
+                  className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 p-3 bg-sunken rounded-lg text-sm"
+                >
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-fg truncate">{upgrade?.title ?? 'Unknown Upgrade'}</p>
+                    <p className="font-medium text-fg break-words">{upgrade?.title ?? 'Unknown Upgrade'}</p>
                     <p className="text-fg-faint text-xs">
                       {parseLocalDate(entry.date).toLocaleDateString('en-US', {
                         weekday: 'short',
@@ -78,10 +95,11 @@ const ProgressHistoryPage: React.FC = () => {
                       })}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 ml-4">
+                  <div className="flex flex-wrap items-center gap-2 min-w-0">
                     {entry.completed != null && (
                       <Badge variant={entry.completed ? 'green' : 'red'}>
-                        {entry.completed ? '✓ Done' : '✗ Missed'}
+                        <span aria-hidden="true">{entry.completed ? '✓' : '✗'}</span>{' '}
+                        {entry.completed ? 'Done' : 'Missed'}
                       </Badge>
                     )}
                     {entry.numericValue != null && (
@@ -89,13 +107,21 @@ const ProgressHistoryPage: React.FC = () => {
                         {entry.numericValue} {entry.unit}
                       </span>
                     )}
-                    {entry.rating != null && <span>{'⭐'.repeat(entry.rating)}</span>}
-                    {entry.note && <span className="text-fg-faint italic truncate max-w-32">{entry.note}</span>}
+                    {/* The stars are read as a score on its scale; read aloud one by one they gave no scale. */}
+                    {entry.rating != null && (
+                      <span>
+                        <span aria-hidden="true">{'⭐'.repeat(entry.rating)}</span>
+                        <span className="sr-only">
+                          Rating {entry.rating} of {RATING_MAX}
+                        </span>
+                      </span>
+                    )}
+                    {entry.note && <span className="text-fg-faint italic break-words min-w-0">{entry.note}</span>}
                   </div>
-                </div>
+                </li>
               );
             })}
-          </div>
+          </ul>
         </Card>
       )}
     </PageContainer>

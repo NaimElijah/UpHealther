@@ -1,6 +1,9 @@
 # ADR-005: One page width, and a shell that cannot be pushed wider than the window
 
-- **Status:** Accepted — superseded in part by [ADR-013](ADR-013-trapping-focus-without-a-native-dialog.md)
+- **Status:** Accepted — superseded in part by [ADR-013](ADR-013-trapping-focus-without-a-native-dialog.md).
+  Its *Note*'s follow-up is done: the decorative emoji are hidden from assistive technology
+  ([#343](https://github.com/NaimElijah/UpHealther/issues/343), under
+  [ADR-082](ADR-082-the-interface-targets-wcag-2-2-aa.md)), and `decorativeEmoji.test.tsx` checks them
 - **Date:** 2026-08-20
 - **Scope:** `frontend/` layout, plus one data-only backend migration. No new dependency, no runtime
   behaviour outside the browser.

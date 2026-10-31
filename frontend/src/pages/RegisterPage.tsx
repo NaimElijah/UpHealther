@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
+import { RequiredFieldsNote } from '../components/ui/FieldParts';
+import PageHeading from '../components/ui/PageHeading';
 import ThemeToggle from '../components/theme/ThemeToggle';
 import { toApiError, toFormMessage } from '../api/apiError';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
  * Must match `AuthController.PASSWORD_MIN`. Nothing keeps the two in step automatically. The generated
@@ -13,6 +16,10 @@ import { toApiError, toFormMessage } from '../api/apiError';
  * The server is the enforcer; this only decides when the message appears without a round trip.
  */
 const PASSWORD_MIN_LENGTH = 8;
+
+/** The form's fields, in the order they are shown, which is the order a refusal sends focus by. */
+const REGISTRATION_FIELDS = ['name', 'email', 'password', 'confirm'] as const;
+type RegistrationField = (typeof REGISTRATION_FIELDS)[number];
 
 /**
  * Account creation page, and the other route reachable without a session.
@@ -28,14 +35,38 @@ const PASSWORD_MIN_LENGTH = 8;
  * page-load restore has settled (`isLoading`), for the reason `LoginPage` gives.
  */
 const RegisterPage: React.FC = () => {
+  useDocumentTitle('Create account');
   const { register, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  // The server's answer, shown for the form as a whole; the form's own checks are each field's.
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<RegistrationField, string>>>({});
   const [loading, setLoading] = useState(false);
+  const nameField = useRef<HTMLInputElement>(null);
+  const emailField = useRef<HTMLInputElement>(null);
+  const passwordField = useRef<HTMLInputElement>(null);
+  const confirmField = useRef<HTMLInputElement>(null);
+
+  const fieldRefs: Record<RegistrationField, React.RefObject<HTMLInputElement | null>> = {
+    name: nameField,
+    email: emailField,
+    password: passwordField,
+    confirm: confirmField,
+  };
+
+  /**
+   * Ties each message to its field, where it is read with the field and announced, and sends focus to
+   * the first field that has to change.
+   */
+  const refuse = (problems: Partial<Record<RegistrationField, string>>) => {
+    setFieldErrors(problems);
+    const first = REGISTRATION_FIELDS.find((field) => problems[field]);
+    if (first) fieldRefs[first].current?.focus();
+  };
 
   React.useEffect(() => {
     if (isAuthenticated) navigate('/dashboard', { replace: true });
@@ -45,16 +76,22 @@ const RegisterPage: React.FC = () => {
     e.preventDefault();
     if (isLoading) return;
     setError('');
+    setFieldErrors({});
+    // Every missing field is named at once, so one submit reports them all.
     if (!name || !email || !password) {
-      setError('Please fill in all fields.');
+      refuse({
+        name: name ? undefined : 'Name is required.',
+        email: email ? undefined : 'Email is required.',
+        password: password ? undefined : 'Password is required.',
+      });
       return;
     }
     if (password !== confirm) {
-      setError('Passwords do not match.');
+      refuse({ confirm: 'Passwords do not match.' });
       return;
     }
     if (password.length < PASSWORD_MIN_LENGTH) {
-      setError(`Password must be at least ${PASSWORD_MIN_LENGTH} characters.`);
+      refuse({ password: `Password must be at least ${PASSWORD_MIN_LENGTH} characters.` });
       return;
     }
     setLoading(true);
@@ -81,57 +118,79 @@ const RegisterPage: React.FC = () => {
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
-      <div className="bg-surface rounded-2xl shadow-xl p-8 w-full max-w-md">
+      {/* The main landmark: this page renders outside Layout, whose <main> the signed-in pages share. */}
+      <main className="bg-surface rounded-2xl shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="text-5xl mb-3">💪</div>
-          <h1 className="text-2xl font-bold text-fg">Create Account</h1>
+          <div className="text-5xl mb-3" aria-hidden="true">
+            💪
+          </div>
+          <PageHeading className="text-2xl font-bold text-fg">Create Account</PageHeading>
           <p className="text-fg-subtle mt-1">Start your health journey today</p>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* noValidate: the form checks its own fields, so each message is the field's own, tied to it and
+              announced, and focus goes to the field to fix, rather than a browser's bubble. */}
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+          <RequiredFieldsNote />
           <Input
+            ref={nameField}
             label="Full Name"
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="John Doe"
             autoComplete="name"
+            error={fieldErrors.name}
+            required
           />
           <Input
+            ref={emailField}
             label="Email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
             autoComplete="email"
+            error={fieldErrors.email}
+            required
           />
           <Input
+            ref={passwordField}
             label="Password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
             autoComplete="new-password"
+            error={fieldErrors.password}
+            required
           />
           <Input
+            ref={confirmField}
             label="Confirm Password"
             type="password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             placeholder="••••••••"
             autoComplete="new-password"
+            error={fieldErrors.confirm}
+            required
           />
-          {error && <p className="text-sm text-danger-fg text-center">{error}</p>}
+          {error && (
+            <p role="alert" className="text-sm text-danger-fg text-center">
+              {error}
+            </p>
+          )}
           <Button type="submit" loading={loading || isLoading} className="w-full">
             Create Account
           </Button>
         </form>
         <p className="text-center text-sm text-fg-subtle mt-6">
           Already have an account?{' '}
-          <Link to="/login" className="text-brand-fg hover:underline font-medium">
+          <Link to="/login" className="text-brand-fg underline font-medium">
             Sign In
           </Link>
         </p>
-      </div>
+      </main>
     </div>
   );
 };

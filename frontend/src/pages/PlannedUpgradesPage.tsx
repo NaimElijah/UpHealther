@@ -5,14 +5,16 @@ import PageHeader from '../components/ui/PageHeader';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import UpgradeCard from '../components/upgrade/UpgradeCard';
-import Button from '../components/ui/Button';
-import { useNavigate } from 'react-router-dom';
+import ButtonLink from '../components/ui/ButtonLink';
 import type { ActionTarget } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
 import { parseLocalDate } from '../lib/localDate';
 import { refreshUpgradeViews } from '../lib/upgradeViews';
+import { useFocusWhenReady } from '../hooks/useFocusWhenReady';
+import { findPageHeading } from '../components/ui/pageHeadingFocus';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
  * Upgrades committed to a start date but not yet running, soonest first.
@@ -22,8 +24,8 @@ import { refreshUpgradeViews } from '../lib/upgradeViews';
  * activation is shown on its card with the trace id (NFR-30).
  */
 const PlannedUpgradesPage: React.FC = () => {
+  useDocumentTitle('Planned Upgrades');
   const qc = useQueryClient();
-  const navigate = useNavigate();
   const {
     data: upgrades = [],
     isLoading,
@@ -39,6 +41,17 @@ const PlannedUpgradesPage: React.FC = () => {
   const refusalFor = (id: string) =>
     statusMutation.error && statusMutation.variables?.id === id ? toApiError(statusMutation.error) : undefined;
 
+  const focusWhenReady = useFocusWhenReady();
+  // An activated upgrade leaves this list, and its Activate with it; focus then goes to the page's
+  // heading rather than falling to <body>.
+  const changeStatus = (id: string, status: ActionTarget) => {
+    const pressed = document.activeElement;
+    statusMutation.mutate(
+      { id, status },
+      { onSuccess: () => focusWhenReady(() => (pressed?.isConnected ? undefined : findPageHeading()), pressed) },
+    );
+  };
+
   const sorted = [...upgrades].sort((a, b) => {
     if (!a.plannedStartDate) return 1;
     if (!b.plannedStartDate) return -1;
@@ -52,40 +65,57 @@ const PlannedUpgradesPage: React.FC = () => {
         <LoadingSpinner size="lg" />
       </div>
     );
-  if (error) return <ErrorState title="Could not load your upgrades." error={toApiError(error)} />;
+  if (error)
+    return (
+      <PageContainer>
+        <PageHeader title="Planned Upgrades" />
+        <ErrorState title="Could not load your upgrades." error={toApiError(error)} />
+      </PageContainer>
+    );
 
   return (
     <PageContainer>
       <PageHeader
         title="Planned Upgrades"
         subtitle="Upgrades scheduled to start soon"
-        action={<Button onClick={() => navigate('/upgrades/backlog')}>Browse Backlog</Button>}
+        action={<ButtonLink to="/upgrades/backlog">Browse Backlog</ButtonLink>}
       />
       {sorted.length === 0 ? (
         <EmptyState
           icon="📅"
           title="No planned upgrades"
           description="Move ideas from backlog to plan, or create a new upgrade."
-          action={<Button onClick={() => navigate('/upgrades/backlog')}>Go to Backlog</Button>}
+          action={<ButtonLink to="/upgrades/backlog">Go to Backlog</ButtonLink>}
         />
       ) : (
-        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {sorted.map((u) => (
-            <div key={u.id}>
-              {u.plannedStartDate && (
-                <p className="text-xs text-fg-faint mb-1 ml-1">
-                  Starts: {parseLocalDate(u.plannedStartDate).toLocaleDateString()}
-                </p>
-              )}
-              <UpgradeCard
-                upgrade={u}
-                onStatusChange={(id, status) => statusMutation.mutate({ id, status })}
-                refusal={refusalFor(u.id)}
-                busy={statusMutation.isPending}
-              />
-            </div>
-          ))}
-        </div>
+        <section aria-labelledby="planned-list-heading">
+          {/* Named for the outline only: the cards' titles are h3s, so they need a section heading above them. */}
+          <h2 id="planned-list-heading" className="sr-only">
+            Soonest first
+          </h2>
+          <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            {sorted.map((u) => (
+              <div key={u.id}>
+                {u.plannedStartDate && (
+                  <p className="text-xs text-fg-faint mb-1 ml-1">
+                    Starts: {parseLocalDate(u.plannedStartDate).toLocaleDateString()}
+                  </p>
+                )}
+                <UpgradeCard
+                  upgrade={u}
+                  onStatusChange={changeStatus}
+                  refusal={refusalFor(u.id)}
+                  busy={statusMutation.isPending}
+                  pendingTransition={
+                    statusMutation.isPending && statusMutation.variables?.id === u.id
+                      ? statusMutation.variables.status
+                      : undefined
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        </section>
       )}
     </PageContainer>
   );
