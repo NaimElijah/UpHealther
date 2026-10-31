@@ -19,6 +19,7 @@ import { refreshUpgradeViews } from '../lib/upgradeViews';
 import { useFocusWhenReady } from '../hooks/useFocusWhenReady';
 import { findPageHeading } from '../components/ui/pageHeadingFocus';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { holdsUnreadableText, UNFINISHED_DATE, UNFINISHED_OPTIONAL_DATE } from '../components/ui/unreadableInput';
 
 /** The create form's starting values, and what it returns to once an idea is added. */
 const EMPTY_IDEA: CreateUpgradeRequest = { title: '', type: 'HABIT', difficulty: 'MEDIUM' };
@@ -38,7 +39,8 @@ const UpgradeBacklogPage: React.FC = () => {
   const [formError, setFormError] = useState('');
   const [targetEndError, setTargetEndError] = useState('');
   const [planning, setPlanning] = useState<HealthUpgrade | null>(null);
-  const [planDate, setPlanDate] = useState('');
+  // The date the plan dialog opens on. What the user picks is read from the field when they submit.
+  const [planOpensOn, setPlanOpensOn] = useState('');
   const [planError, setPlanError] = useState('');
   const titleField = useRef<HTMLInputElement>(null);
   const targetEndField = useRef<HTMLInputElement>(null);
@@ -93,6 +95,11 @@ const UpgradeBacklogPage: React.FC = () => {
       titleField.current?.focus();
       return;
     }
+    if (holdsUnreadableText(targetEndField.current)) {
+      setTargetEndError(UNFINISHED_OPTIONAL_DATE);
+      targetEndField.current?.focus();
+      return;
+    }
     if (form.targetEndDate && !isFourDigitYearDate(form.targetEndDate)) {
       setTargetEndError('Pick a date with a four-digit year.');
       targetEndField.current?.focus();
@@ -109,7 +116,7 @@ const UpgradeBacklogPage: React.FC = () => {
 
   /** Opens the plan dialog on today's date, without a message left over from an earlier attempt. */
   const openPlan = (upgrade: HealthUpgrade) => {
-    setPlanDate(todayLocal());
+    setPlanOpensOn(todayLocal());
     setPlanError('');
     setPlanning(upgrade);
   };
@@ -127,6 +134,13 @@ const UpgradeBacklogPage: React.FC = () => {
     e.preventDefault();
     if (!planning) return;
     setPlanError('');
+    const planDate = planDateField.current?.value ?? '';
+    // Before the empty check, which an unfinished date would otherwise meet as "no date picked".
+    if (holdsUnreadableText(planDateField.current)) {
+      setPlanError(UNFINISHED_DATE);
+      planDateField.current?.focus();
+      return;
+    }
     if (!planDate) {
       setPlanError('Pick a start date.');
       planDateField.current?.focus();
@@ -213,12 +227,14 @@ const UpgradeBacklogPage: React.FC = () => {
           <p className="text-fg-subtle">
             When do you want to start <span className="font-medium text-fg">{planning?.title}</span>?
           </p>
+          {/* Uncontrolled, for the reason UpgradeFormFields gives its target end: the dialog mounts afresh
+              on every open, so it starts from the date openPlan set, and the submit reads what the user
+              picked from the field. */}
           <Input
             ref={planDateField}
             label="Start date"
             type="date"
-            value={planDate}
-            onChange={(e) => setPlanDate(e.target.value)}
+            defaultValue={planOpensOn}
             error={planError}
             required
           />

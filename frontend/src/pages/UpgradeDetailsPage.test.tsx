@@ -19,6 +19,7 @@ import type {
 } from '../types';
 import { healthAreaAsSent, reflectionAsSent, trackingConfigAsSent, upgradeAsSent } from '../test/wireFixtures';
 import { headingOutlineProblems } from '../test/headingOutline';
+import { enterUnreadableText } from '../test/unreadableInput';
 
 const getUpgradeById = vi.fn();
 const updateUpgrade = vi.fn();
@@ -1253,6 +1254,22 @@ describe('UpgradeDetailsPage editing an upgrade', () => {
     expect(updateUpgrade).not.toHaveBeenCalled();
   });
 
+  // Review finding 1 on #407: a date with one part erased reads as `''`, and the dialog sets
+  // `noValidate`, so it was sent as "no target end" and the stored one was erased.
+  it('GivenAnUnfinishedTargetEnd_WhenTheEditIsSaved_ThenNothingIsSentAndTheTargetEndIsRefusedWithFocus', async () => {
+    serveUpgrade(described);
+    renderPage();
+    const dialog = await openEdit();
+    enterUnreadableText(dialog.getByLabelText('Target End'));
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+
+    expect(await dialog.findByText('Finish the date, or clear it.')).toBeDefined();
+    expect(document.activeElement).toBe(dialog.getByLabelText('Target End'));
+    await settled();
+    expect(updateUpgrade).not.toHaveBeenCalled();
+  });
+
   it('GivenTheAreasCannotBeRead_WhenTheEditOpens_ThenTheDialogSaysSoWithItsReference', async () => {
     // NFR-30: without this the picker offers "No area" alone, as though the upgrade had none.
     serveUpgrade(described);
@@ -1622,6 +1639,33 @@ describe('UpgradeDetailsPage rescheduling an upgrade', () => {
     expect(await dialog.findByText('Pick a date with a four-digit year.')).toBeDefined();
     await settled();
     expect(rescheduleUpgrade).not.toHaveBeenCalled();
+  });
+
+  it('GivenAnUnfinishedDate_WhenTheRescheduleIsSubmitted_ThenNothingIsSentAndTheDateIsRefusedWithFocus', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });
+    renderPage();
+    const dialog = await openReschedule();
+    enterUnreadableText(dialog.getByLabelText('New start date'));
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Reschedule' }));
+
+    expect(await dialog.findByText('Finish the date.')).toBeDefined();
+    expect(document.activeElement).toBe(dialog.getByLabelText('New start date'));
+    await settled();
+    expect(rescheduleUpgrade).not.toHaveBeenCalled();
+  });
+
+  // Firefox clears an unfinished date, `badInput` and all, as focus leaves a field whose `value` attribute
+  // changed since the user began editing, and React rewrites it on every change of a controlled field.
+  it('GivenTheNewStartDate_WhenItIsEdited_ThenItsValueAttributeStaysAsTheDialogOpened', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'PLANNED', plannedStartDate: '2026-10-20' });
+    renderPage();
+    const dialog = await openReschedule();
+    const newDate = dialog.getByLabelText('New start date');
+
+    fireEvent.change(newDate, { target: { value: '' } });
+
+    expect(newDate.getAttribute('value')).toBe('2026-10-20');
   });
 
   it('GivenARescheduleTheApiRefuses_WhenItIsSubmitted_ThenTheDialogSaysWhyWithItsReference', async () => {

@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import HealthAreasPage from './HealthAreasPage';
 import type { HealthArea } from '../types';
 import { healthAreaAsSent } from '../test/wireFixtures';
 import { headingOutlineProblems } from '../test/headingOutline';
+import { enterUnreadableText } from '../test/unreadableInput';
 
 const getHealthAreas = vi.fn();
 const createHealthArea = vi.fn();
@@ -50,6 +51,12 @@ function renderPage() {
     </QueryClientProvider>,
   );
 }
+
+/**
+ * Lets every promise already started run on: a mutation calls its function a microtask after `mutate`,
+ * so a check that nothing was sent is only meaningful once that has had its chance.
+ */
+const settled = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
 
 /** Opens the edit dialog for the only area listed, and returns queries scoped to it. */
 async function openEdit() {
@@ -443,6 +450,49 @@ describe('HealthAreasPage form errors', () => {
 
     await dialog.findByText('Priority must be a whole number.');
     expect(document.activeElement).toBe(dialog.getByLabelText('Priority'));
+  });
+});
+
+/**
+ * Text the priority field cannot read as a number, `3e` say, reaches the form as `''`, the value that
+ * means "no priority". The dialogs set `noValidate`, so the browser no longer refuses it; sent, it would
+ * erase the stored priority, because an update replaces every field (review finding 1 on #407).
+ */
+describe('HealthAreasPage unreadable priority', () => {
+  beforeEach(() => {
+    getHealthAreas.mockReset();
+    createHealthArea.mockReset();
+    updateHealthArea.mockReset();
+    getHealthAreas.mockResolvedValue([anArea({ priority: 5 })]);
+    createHealthArea.mockResolvedValue(anArea());
+    updateHealthArea.mockResolvedValue(anArea());
+  });
+
+  it('GivenUnreadablePriorityText_WhenAnEditIsSaved_ThenNothingIsSentAndThePriorityIsRefusedWithFocus', async () => {
+    renderPage();
+    const dialog = await openEdit();
+    enterUnreadableText(dialog.getByLabelText('Priority'));
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save Changes' }));
+
+    expect(await dialog.findByText('Priority must be a whole number.')).toBeDefined();
+    expect(document.activeElement).toBe(dialog.getByLabelText('Priority'));
+    await settled();
+    expect(updateHealthArea).not.toHaveBeenCalled();
+  });
+
+  it('GivenUnreadablePriorityText_WhenANewAreaIsSubmitted_ThenNothingIsSentAndThePriorityIsRefusedWithFocus', async () => {
+    renderPage();
+    const dialog = await openCreate();
+    fireEvent.change(dialog.getByLabelText('Name'), { target: { value: 'Nutrition' } });
+    enterUnreadableText(dialog.getByLabelText('Priority'));
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Create' }));
+
+    expect(await dialog.findByText('Priority must be a whole number.')).toBeDefined();
+    expect(document.activeElement).toBe(dialog.getByLabelText('Priority'));
+    await settled();
+    expect(createHealthArea).not.toHaveBeenCalled();
   });
 });
 

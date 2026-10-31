@@ -998,7 +998,11 @@ reachable by pointer only, because Tab stays inside the dialog. See
   takes its ids from `useId`, marks the control `aria-invalid` and describes it by its error while
   there is one, announces the error as an alert, and passes `required` through with `aria-required`
   and a visible marker. Forms with required fields set `noValidate` and check themselves, and a refused
-  check sends focus to the field it names.
+  check sends focus to the field it names. Their number and date fields are checked for
+  `validity.badInput` at submit time, through each field's ref (`components/ui/unreadableInput`),
+  because text the browser cannot read reaches the form as `''`, the value of an empty field. Those date
+  fields are uncontrolled, since Firefox clears an unfinished date on blur once React has rewritten the
+  field's `value` attribute.
 - **A loading `Button` keeps focus.** It refuses presses with `aria-disabled` and a click that cancels
   its default, which stops a submit button sending its form again, says it is busy with `aria-busy`,
   and ignores a caller's `disabled` meanwhile, because a disabled button gives up focus.

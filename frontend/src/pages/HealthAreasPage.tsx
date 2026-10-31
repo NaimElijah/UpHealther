@@ -15,6 +15,7 @@ import ErrorState from '../components/ui/ErrorState';
 import { toApiError, toFormMessage } from '../api/apiError';
 import { refreshUpgradeViews } from '../lib/upgradeViews';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { holdsUnreadableText } from '../components/ui/unreadableInput';
 
 /**
  * The area dialogs' fields as typed.
@@ -126,12 +127,21 @@ const HealthAreasPage: React.FC = () => {
     setIsCreateOpen(true);
   };
 
+  /**
+   * The priority as the dialog's field holds it now. Text the field cannot read as a number reaches the
+   * form as `''`, which would otherwise mean "no priority" and, on an edit, erase the stored one.
+   */
+  const readPriority = (): ParsedPriority =>
+    holdsUnreadableText(priorityField.current)
+      ? { valid: false, problem: PRIORITY_NOT_WHOLE }
+      : parsePriority(form.priority);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     clearErrors();
     // Both fields are checked before either refusal returns, so one submit reports every problem.
     const nameMissing = !form.name.trim();
-    const parsed = parsePriority(form.priority);
+    const parsed = readPriority();
     if (nameMissing) setFormError('Name is required.');
     if (!parsed.valid) setPriorityError(parsed.problem);
     if (nameMissing || !parsed.valid) {
@@ -151,7 +161,7 @@ const HealthAreasPage: React.FC = () => {
     e.preventDefault();
     if (!editArea) return;
     clearErrors();
-    const parsed = parsePriority(form.priority);
+    const parsed = readPriority();
     if (!parsed.valid) {
       setPriorityError(parsed.problem);
       priorityField.current?.focus();

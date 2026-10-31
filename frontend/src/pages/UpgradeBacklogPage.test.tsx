@@ -7,6 +7,7 @@ import UpgradeBacklogPage from './UpgradeBacklogPage';
 import type { HealthUpgrade } from '../types';
 import { upgradeAsSent } from '../test/wireFixtures';
 import { headingOutlineProblems } from '../test/headingOutline';
+import { enterUnreadableText } from '../test/unreadableInput';
 
 const getUpgrades = vi.fn();
 const planUpgrade = vi.fn();
@@ -421,6 +422,62 @@ describe('UpgradeBacklogPage form errors', () => {
 
     await dialog.findByText('Pick a start date.');
     expect(document.activeElement).toBe(dialog.getByLabelText('Start date'));
+  });
+});
+
+/**
+ * A date with a part erased or never typed reaches the form as `''`, the value an empty field has. The
+ * dialogs set `noValidate`, so the browser no longer refuses it, and the new idea would be saved without
+ * the target end the user can see (review finding 1 on #407).
+ */
+describe('UpgradeBacklogPage unreadable dates', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    planUpgrade.mockReset();
+    createUpgrade.mockReset();
+    getUpgrades.mockResolvedValue([anIdea()]);
+    createUpgrade.mockResolvedValue(anIdea());
+    planUpgrade.mockResolvedValue(anIdea({ status: 'PLANNED' }));
+  });
+
+  it('GivenAnUnfinishedTargetEnd_WhenAnIdeaIsCreated_ThenNothingIsSentAndTheTargetEndIsRefusedWithFocus', async () => {
+    renderPage();
+    const dialog = await openCreate();
+    enterUnreadableText(dialog.getByLabelText('Target End'));
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Add Idea' }));
+
+    expect(await dialog.findByText('Finish the date, or clear it.')).toBeDefined();
+    expect(document.activeElement).toBe(dialog.getByLabelText('Target End'));
+    await settled();
+    expect(createUpgrade).not.toHaveBeenCalled();
+  });
+
+  it('GivenAnUnfinishedStartDate_WhenThePlanIsSubmitted_ThenNothingIsSentAndTheDateIsRefusedWithFocus', async () => {
+    renderPage();
+    const dialog = await openPlan();
+    enterUnreadableText(dialog.getByLabelText('Start date'));
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Plan' }));
+
+    expect(await dialog.findByText('Finish the date.')).toBeDefined();
+    expect(document.activeElement).toBe(dialog.getByLabelText('Start date'));
+    await settled();
+    expect(planUpgrade).not.toHaveBeenCalled();
+  });
+
+  // Firefox clears an unfinished date, `badInput` and all, as focus leaves a field whose `value` attribute
+  // changed since the user began editing, and React rewrites it on every change of a controlled field.
+  it('GivenTheStartDate_WhenItIsEdited_ThenItsValueAttributeStaysAsTheDialogOpened', async () => {
+    renderPage();
+    const dialog = await openPlan();
+    const startDate = dialog.getByLabelText<HTMLInputElement>('Start date');
+    const opened = startDate.value;
+
+    fireEvent.change(startDate, { target: { value: '' } });
+
+    expect(opened).not.toBe('');
+    expect(startDate.getAttribute('value')).toBe(opened);
   });
 });
 
