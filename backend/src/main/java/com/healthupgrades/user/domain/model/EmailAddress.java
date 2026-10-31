@@ -8,9 +8,10 @@ import java.util.Locale;
  * <p>An address is compared trimmed and lowercased. Applying that in one function, rather than at each
  * call site, is what keeps registration and login (the request records, {@code AuthService} and the
  * sign-in lookup in {@code AccountCredentialsAdapter}) from disagreeing about whether
- * {@code Someone@Example.com} and {@code someone@example.com} are one account. The database backs it
- * with a check constraint ({@code V7__normalise_user_emails.sql}), so a row written around this class is
- * refused rather than silently becoming a second identity.
+ * {@code Someone@Example.com} and {@code someone@example.com} are one account. The database backs the
+ * part of the rule every collation agrees on, no surrounding spaces and no ASCII capitals, with a check
+ * constraint ({@code V7__normalise_user_emails.sql}). A row written around this class with other
+ * whitespace or a non-ASCII capital is not refused.
  *
  * <p>The local part is lowercased too, although RFC 5321 lets a server treat it case-sensitively. No
  * mainstream provider does, and a user who types their address differently on two visits expects one

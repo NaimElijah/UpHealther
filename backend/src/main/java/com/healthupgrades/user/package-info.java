@@ -14,8 +14,10 @@
  *       which leaves the role at {@code USER} and the account enabled, and changes afterwards only through
  *       {@code changeRole}, {@code disable} and {@code enable}.
  *   <li><strong>Emails are stored trimmed and lowercased.</strong> Callers normalise with
- *       {@code EmailAddress.normalise}, the lookups compare exactly, and the database refuses any other form
- *       (FR-4). {@code saveAndFlush} turns a duplicate address into {@code EmailAlreadyRegisteredException}.
+ *       {@code EmailAddress.normalise}, and the lookups compare exactly (FR-4). The database refuses
+ *       surrounding spaces and ASCII capitals (V7), the part of that rule every collation agrees on; it does
+ *       not see other whitespace or non-ASCII capitals. {@code saveAndFlush} turns a duplicate address into
+ *       {@code EmailAlreadyRegisteredException}.
  *   <li><strong>A write that was overtaken is refused.</strong> {@code User} carries {@code @Version}, and
  *       {@code save} flushes so the clash is raised inside the call as
  *       {@code AccountModifiedConcurrentlyException}, a 409 and an audited refusal (NFR-34, ADR-073).
