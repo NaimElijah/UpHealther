@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { getNotifications, getUnreadCount, markNotificationRead, markAllNotificationsRead } from '../api/notifications';
 import { openNotificationSocket } from '../api/notificationSocket';
@@ -28,13 +29,21 @@ const UNREAD_KEY = [...NOTIF_KEY, 'unread-count'];
  * recent, and the count covers every notification (FR-33, #94).
  *
  * It holds the toasts and does not draw them: `ToastContainer` reads them from this context, mounted
- * beside the routes inside this provider and inside the router, because a toast can navigate. Mounted
+ * beside the routes inside this provider and inside the router, because a toast can navigate. So can a
+ * desktop notification this provider raises, which is why the provider sits inside the router too. Mounted
  * inside the auth provider because the socket is opened only while signed in. The connection follows
  * the session: it opens when signed in and closes on logout or unmount.
  */
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
+  // Held in a ref because the router's navigate changes identity on every move: a dependency of
+  // handleIncoming, it would tear the socket down and open another on each one.
+  const navigate = useNavigate();
+  const navigateRef = useRef(navigate);
+  useEffect(() => {
+    navigateRef.current = navigate;
+  }, [navigate]);
   const [connected, setConnected] = useState(false);
   const [toasts, setToasts] = useState<ToastData[]>([]);
   const [desktopPermission, setDesktopPermission] = useState<NotificationPermission>(
@@ -102,7 +111,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const desktop = new Notification(n.title, { body: n.message ?? '' });
         desktop.onclick = () => {
           window.focus();
-          if (n.relatedUpgradeId) window.location.assign(`/upgrades/${n.relatedUpgradeId}`);
+          // Through the router, as the toast and the dropdown open it: a document navigation would
+          // drop the cache and the in-memory token, and spend a refresh from the per-address allowance
+          // (NFR-59) to get them back.
+          if (n.relatedUpgradeId) navigateRef.current(`/upgrades/${n.relatedUpgradeId}`);
           desktop.close();
         };
       }

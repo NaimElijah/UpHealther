@@ -756,12 +756,15 @@ describe('NotificationProvider', () => {
 class FakeDesktopNotification {
   static permission: NotificationPermission = 'default';
   static raised: Array<{ title: string; body?: string }> = [];
+  /** Every one raised, so a test can click it as the user would in the operating system's tray. */
+  static instances: FakeDesktopNotification[] = [];
   /** The user says yes: the path FR-49's opt-in exists for. */
   static requestPermission = () => Promise.resolve<NotificationPermission>('granted');
   onclick: (() => void) | null = null;
 
   constructor(title: string, options?: { body?: string }) {
     FakeDesktopNotification.raised.push({ title, body: options?.body });
+    FakeDesktopNotification.instances.push(this);
   }
 
   close() {}
@@ -783,6 +786,7 @@ describe('NotificationProvider desktop notifications', () => {
     resetNotificationApi();
     FakeDesktopNotification.permission = 'default';
     FakeDesktopNotification.raised = [];
+    FakeDesktopNotification.instances = [];
     vi.stubGlobal('Notification', FakeDesktopNotification);
   });
 
@@ -791,6 +795,27 @@ describe('NotificationProvider desktop notifications', () => {
     // Removes the own property setTabHidden defined, so jsdom's own getter shows through again.
     Reflect.deleteProperty(document, 'hidden');
   });
+
+  /** Mounts the provider beside a page for each upgrade, so a test can read where a click navigated to. */
+  async function renderBesideRoutes() {
+    // jsdom implements no window focus, and says so on stderr; the click focuses the tab first.
+    vi.spyOn(window, 'focus').mockImplementation(() => {});
+    render(
+      <AuthContext.Provider value={authenticated()}>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={['/dashboard']}>
+            <NotificationProvider>
+              <Routes>
+                <Route path="/dashboard" element={<p>the dashboard</p>} />
+                <Route path="/upgrades/:id" element={<UpgradePage />} />
+              </Routes>
+            </NotificationProvider>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </AuthContext.Provider>,
+    );
+    await waitFor(() => expect(lastClient).toBeDefined());
+  }
 
   async function deliverWhileConnected(notification: AppNotification) {
     renderProvider();
@@ -827,6 +852,40 @@ describe('NotificationProvider desktop notifications', () => {
 
     await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('1'));
     expect(FakeDesktopNotification.raised).toEqual([]);
+  });
+
+  // A document navigation here dropped the cache and the in-memory token, and spent a refresh against
+  // the per-address allowance (NFR-59) to get them back.
+  it('GivenADesktopNotificationAboutAnUpgrade_WhenItIsClicked_ThenThatUpgradeOpensWithoutReloadingThePage', async () => {
+    FakeDesktopNotification.permission = 'granted';
+    setTabHidden(true);
+    const assign = vi.fn();
+    vi.stubGlobal('location', { ...window.location, assign });
+    await renderBesideRoutes();
+    act(() => lastClient?.connect());
+    act(() => lastClient?.deliver(JSON.stringify({ ...PUSHED, relatedUpgradeId: 'upgrade-7' })));
+
+    act(() => FakeDesktopNotification.instances[0].onclick?.());
+
+    expect(await screen.findByText('the page of upgrade-7')).toBeDefined();
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('GivenAnOpenSocket_WhenTheUserMovesToAnotherPage_ThenTheSocketIsKept', async () => {
+    // The router's navigate changes identity on every move; held where the socket's handler depends on
+    // it, each move would tear the socket down and open another, losing what arrived in between.
+    FakeDesktopNotification.permission = 'granted';
+    setTabHidden(true);
+    await renderBesideRoutes();
+    const opened = lastClient;
+    act(() => opened?.connect());
+    act(() => opened?.deliver(JSON.stringify({ ...PUSHED, relatedUpgradeId: 'upgrade-7' })));
+
+    act(() => FakeDesktopNotification.instances[0].onclick?.());
+    await screen.findByText('the page of upgrade-7');
+
+    expect(lastClient).toBe(opened);
+    expect(opened?.deactivated).toBe(0);
   });
 
   it('GivenPermissionWasNeverGranted_WhenANotificationArrivesInAHiddenTab_ThenNoDesktopNotificationIsRaised', async () => {
