@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import NotificationsPage from './NotificationsPage';
 import { NotificationContext, type NotificationContextType } from '../contexts/notificationContextValue';
 import { notificationAsSent } from '../test/wireFixtures';
+import type { AppNotification } from '../types';
 
 /** The context the page reads, with nothing in it unless a test says otherwise. */
 function aContext(overrides: Partial<NotificationContextType> = {}): NotificationContextType {
@@ -64,5 +65,14 @@ describe('NotificationsPage', () => {
     const alert = screen.getByRole('alert');
     expect(alert.textContent).toContain('trace-123');
     expect(screen.getByText('Streak kept')).toBeDefined();
+  });
+
+  it('GivenANotificationOfACategoryThisBuildDoesNotKnow_WhenThePageShows_ThenItIsListed', () => {
+    // Read without a fallback, its icon threw during render, and the error boundary blanked the app.
+    const unknown = { ...notificationAsSent({ id: 'n-1', title: 'Something new' }), category: 'URGENT' };
+
+    renderPage(aContext({ notifications: [unknown as unknown as AppNotification] }));
+
+    expect(screen.getByText('Something new')).toBeDefined();
   });
 });
