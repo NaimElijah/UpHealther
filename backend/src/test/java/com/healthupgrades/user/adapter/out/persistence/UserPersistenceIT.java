@@ -11,7 +11,10 @@ import com.healthupgrades.user.domain.model.User;
 import com.healthupgrades.user.domain.model.UserPage;
 import com.healthupgrades.user.domain.port.out.UserRepositoryPort;
 import jakarta.persistence.PersistenceException;
+import java.util.Arrays;
 import java.util.UUID;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -30,12 +33,13 @@ import org.springframework.dao.DataIntegrityViolationException;
  * <p>Also FR-42's order: the administration list is oldest first, and the sort is applied by this
  * adapter, so only a real database can show it. The rows are inserted natively because
  * {@code @PrePersist} stamps the current time, and they are dated 2020 so they sort ahead of the
- * seeded demo account.
+ * seeded demo account. And D2.13's one count per page at most, which only the statements Hibernate ran
+ * can show, so this class switches its statistics on.
  *
  * <p>And FR-45's "only while no <em>enabled</em> administrator exists", which is a derived query no
  * mocked port can run.
  */
-@DataJpaTest
+@DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true") // to count statements
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(UserRepositoryAdapter.class)
 class UserPersistenceIT extends PostgresIT {
@@ -46,6 +50,12 @@ class UserPersistenceIT extends PostgresIT {
     private static final UUID B = UUID.fromString("00000000-0000-0000-0000-00000000000b");
     private static final UUID C = UUID.fromString("00000000-0000-0000-0000-00000000000c");
     private static final UUID D = UUID.fromString("00000000-0000-0000-0000-00000000000d");
+
+    /**
+     * What every count Hibernate runs over the accounts starts with, Spring Data's page count and
+     * {@code count()} alike: the statistics key each query by the SQL it ran.
+     */
+    private static final String COUNT_STATEMENT = "select count(";
 
     @Autowired
     UserRepositoryPort repository;
@@ -152,6 +162,50 @@ class UserPersistenceIT extends PostgresIT {
 
         assertThat(firstPage.users()).hasSize(2);
         assertThat(firstPage.total()).isEqualTo(accountsInTheTable());
+    }
+
+    @Test
+    void GivenMoreAccountsThanOnePage_WhenAFullPageIsRead_ThenItsTotalCostsOneCountStatement() {
+        // D2.13. The total above is right with a second count beside the page's own too, so only the
+        // statements that ran can tell the fix from its revert.
+        insertUser(A, "2020-01-01T00:00:00");
+        insertUser(B, "2020-01-02T00:00:00");
+        insertUser(C, "2020-01-03T00:00:00");
+        statistics().clear();
+
+        repository.findAll(0, 2);
+
+        assertThat(countStatementsRun()).isEqualTo(1);
+    }
+
+    @Test
+    void GivenFewerAccountsThanOnePage_WhenTheFirstPageIsRead_ThenNoCountRunsAndTheTotalIsStillRight() {
+        // A short first page holds every account, so it is its own total.
+        long accounts = accountsInTheTable();
+        statistics().clear();
+
+        UserPage onlyPage = repository.findAll(0, Math.toIntExact(accounts + 1));
+
+        assertThat(countStatementsRun()).isZero();
+        assertThat(onlyPage.total()).isEqualTo(accounts);
+    }
+
+    /** The session factory's statistics, which this class's properties switch on. */
+    private Statistics statistics() {
+        return entityManager
+                .getEntityManager()
+                .getEntityManagerFactory()
+                .unwrap(SessionFactory.class)
+                .getStatistics();
+    }
+
+    /** How many {@code count} statements ran since the statistics were last cleared, whichever query ran them. */
+    private long countStatementsRun() {
+        Statistics statistics = statistics();
+        return Arrays.stream(statistics.getQueries())
+                .filter(query -> query.contains(COUNT_STATEMENT))
+                .mapToLong(query -> statistics.getQueryStatistics(query).getExecutionCount())
+                .sum();
     }
 
     private long accountsInTheTable() {
