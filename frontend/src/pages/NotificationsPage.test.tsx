@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import NotificationsPage from './NotificationsPage';
 import { NotificationContext, type NotificationContextType } from '../contexts/notificationContextValue';
@@ -74,5 +75,78 @@ describe('NotificationsPage', () => {
     renderPage(aContext({ notifications: [unknown as unknown as AppNotification] }));
 
     expect(screen.getByText('Something new')).toBeDefined();
+  });
+});
+
+/**
+ * The document is titled after the page, from its first render, so a tab, the history list and a screen
+ * reader opening the page all say which page it is. Every route was titled "UpHealther" alone (WCAG
+ * 2.4.2, finding X9.2).
+ */
+describe('NotificationsPage title', () => {
+  it('GivenThePage_WhenItOpens_ThenTheDocumentIsTitledAfterIt', () => {
+    document.title = '';
+
+    renderPage(aContext());
+
+    expect(document.title).toBe('Notifications – UpHealther');
+  });
+});
+
+/**
+ * "Mark all read" and "Enable desktop alerts" each disappear once used, so the button that had focus
+ * went with them, and focus fell to `<body>`. It goes to the page's heading instead (WCAG 2.4.3,
+ * finding X9.4).
+ */
+describe('NotificationsPage focus', () => {
+  /** A context whose actions change what it holds, as the provider's do. */
+  function StatefulPage() {
+    const [unread, setUnread] = useState(2);
+    const [permission, setPermission] = useState<NotificationPermission>('default');
+    return (
+      <NotificationContext.Provider
+        value={aContext({
+          unreadCount: unread,
+          desktopPermission: permission,
+          markAllRead: () => setUnread(0),
+          requestDesktopPermission: () => setPermission('granted'),
+        })}
+      >
+        <MemoryRouter>
+          <NotificationsPage />
+        </MemoryRouter>
+      </NotificationContext.Provider>
+    );
+  }
+
+  it.each(['Mark all read', 'Enable desktop alerts'])(
+    'GivenFocusOn%s_WhenItIsUsedAndGoes_ThenFocusMovesToThePageHeading',
+    async (action) => {
+      render(<StatefulPage />);
+      const button = screen.getByRole('button', { name: action });
+      button.focus();
+
+      fireEvent.click(button);
+
+      expect(screen.queryByRole('button', { name: action })).toBeNull();
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 })));
+    },
+  );
+});
+
+/**
+ * The All and Unread filter says which one is on. The choice was a change of colour and nothing else
+ * (WCAG 4.1.2, 1.4.1, finding X9.7).
+ */
+describe('NotificationsPage filter', () => {
+  it('GivenTheFilter_WhenUnreadIsChosen_ThenUnreadIsPressedAndAllIsNot', () => {
+    renderPage(aContext());
+    const filter = within(screen.getByRole('group', { name: 'Show' }));
+    expect(filter.getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('true');
+
+    fireEvent.click(filter.getByRole('button', { name: /Unread/ }));
+
+    expect(filter.getByRole('button', { name: /Unread/ }).getAttribute('aria-pressed')).toBe('true');
+    expect(filter.getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('false');
   });
 });

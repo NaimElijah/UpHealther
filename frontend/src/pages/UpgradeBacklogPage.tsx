@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getUpgrades, createUpgrade, planUpgrade } from '../api/upgrades';
 import { getHealthAreas } from '../api/healthAreas';
@@ -6,6 +6,7 @@ import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
+import { RequiredFieldsNote } from '../components/ui/FieldParts';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import UpgradeCard from '../components/upgrade/UpgradeCard';
@@ -16,6 +17,10 @@ import ErrorState from '../components/ui/ErrorState';
 import { toApiError, toFormMessage } from '../api/apiError';
 import { isFourDigitYearDate, todayLocal } from '../lib/localDate';
 import { refreshUpgradeViews } from '../lib/upgradeViews';
+import { useFocusWhenReady } from '../hooks/useFocusWhenReady';
+import { findPageHeading } from '../components/ui/pageHeadingFocus';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { holdsUnreadableText, UNFINISHED_DATE, UNFINISHED_OPTIONAL_DATE } from '../components/ui/unreadableInput';
 
 /** The create form's starting values, and what it returns to once an idea is added. */
 const EMPTY_IDEA: CreateUpgradeRequest = { title: '', type: 'HABIT', difficulty: 'MEDIUM' };
@@ -28,14 +33,19 @@ const EMPTY_IDEA: CreateUpgradeRequest = { title: '', type: 'HABIT', difficulty:
  * moves it off this list.
  */
 const UpgradeBacklogPage: React.FC = () => {
+  useDocumentTitle('Idea Backlog');
   const qc = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState<CreateUpgradeRequest>(EMPTY_IDEA);
   const [formError, setFormError] = useState('');
   const [targetEndError, setTargetEndError] = useState('');
   const [planning, setPlanning] = useState<HealthUpgrade | null>(null);
-  const [planDate, setPlanDate] = useState('');
+  // The date the plan dialog opens on. What the user picks is read from the field when they submit.
+  const [planOpensOn, setPlanOpensOn] = useState('');
   const [planError, setPlanError] = useState('');
+  const titleField = useRef<HTMLInputElement>(null);
+  const targetEndField = useRef<HTMLInputElement>(null);
+  const planDateField = useRef<HTMLInputElement>(null);
 
   const {
     data: upgrades = [],
@@ -53,12 +63,16 @@ const UpgradeBacklogPage: React.FC = () => {
     },
   });
 
+  const focusWhenReady = useFocusWhenReady();
   const planMutation = useMutation({
     mutationFn: ({ id, date }: { id: string; date: string }) => planUpgrade(id, date),
     // Awaited, so the dialog stays pending until the backlog no longer lists the idea; closed sooner it
     // would uncover a Plan button whose second press earns a 422.
+    // The planned idea's Plan button, which opened the dialog, has gone with it, so focus goes to the
+    // page's heading rather than falling to <body>.
     onSuccess: async () => {
       await refreshUpgradeViews(qc);
+      focusWhenReady(findPageHeading);
       setPlanning(null);
     },
   });
@@ -79,10 +93,17 @@ const UpgradeBacklogPage: React.FC = () => {
     setTargetEndError('');
     if (!form.title.trim()) {
       setFormError('Title is required.');
+      titleField.current?.focus();
+      return;
+    }
+    if (holdsUnreadableText(targetEndField.current)) {
+      setTargetEndError(UNFINISHED_OPTIONAL_DATE);
+      targetEndField.current?.focus();
       return;
     }
     if (form.targetEndDate && !isFourDigitYearDate(form.targetEndDate)) {
       setTargetEndError('Pick a date with a four-digit year.');
+      targetEndField.current?.focus();
       return;
     }
     try {
@@ -96,7 +117,7 @@ const UpgradeBacklogPage: React.FC = () => {
 
   /** Opens the plan dialog on today's date, without a message left over from an earlier attempt. */
   const openPlan = (upgrade: HealthUpgrade) => {
-    setPlanDate(todayLocal());
+    setPlanOpensOn(todayLocal());
     setPlanError('');
     setPlanning(upgrade);
   };
@@ -114,12 +135,21 @@ const UpgradeBacklogPage: React.FC = () => {
     e.preventDefault();
     if (!planning) return;
     setPlanError('');
+    const planDate = planDateField.current?.value ?? '';
+    // Before the empty check, which an unfinished date would otherwise meet as "no date picked".
+    if (holdsUnreadableText(planDateField.current)) {
+      setPlanError(UNFINISHED_DATE);
+      planDateField.current?.focus();
+      return;
+    }
     if (!planDate) {
       setPlanError('Pick a start date.');
+      planDateField.current?.focus();
       return;
     }
     if (!isFourDigitYearDate(planDate)) {
       setPlanError('Pick a date with a four-digit year.');
+      planDateField.current?.focus();
       return;
     }
     try {
@@ -135,7 +165,13 @@ const UpgradeBacklogPage: React.FC = () => {
         <LoadingSpinner size="lg" />
       </div>
     );
-  if (error) return <ErrorState title="Could not load your backlog." error={toApiError(error)} />;
+  if (error)
+    return (
+      <PageContainer>
+        <PageHeader title="Idea Backlog" />
+        <ErrorState title="Could not load your backlog." error={toApiError(error)} />
+      </PageContainer>
+    );
 
   return (
     <PageContainer>
@@ -152,21 +188,30 @@ const UpgradeBacklogPage: React.FC = () => {
           action={<Button onClick={openCreate}>Add First Idea</Button>}
         />
       ) : (
-        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {upgrades.map((u) => (
-            <UpgradeCard key={u.id} upgrade={u} onPlan={openPlan} />
-          ))}
-        </div>
+        <section aria-labelledby="backlog-list-heading">
+          {/* Named for the outline only: the cards' titles are h3s, so they need a section heading above them. */}
+          <h2 id="backlog-list-heading" className="sr-only">
+            Your ideas
+          </h2>
+          <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            {upgrades.map((u) => (
+              <UpgradeCard key={u.id} upgrade={u} onPlan={openPlan} />
+            ))}
+          </div>
+        </section>
       )}
 
       <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="New Upgrade Idea">
-        <form onSubmit={handleCreate} className="space-y-4">
+        <form onSubmit={handleCreate} noValidate className="space-y-4">
+          <RequiredFieldsNote />
           <UpgradeFormFields
             value={form}
             onChange={setForm}
             areas={areas}
             titleError={formError}
             targetEndError={targetEndError}
+            titleRef={titleField}
+            targetEndRef={targetEndField}
           />
           <div className="flex gap-2 justify-end">
             <Button variant="secondary" type="button" onClick={() => setIsOpen(false)}>
@@ -180,16 +225,21 @@ const UpgradeBacklogPage: React.FC = () => {
       </Modal>
 
       <Modal isOpen={!!planning} onClose={closePlan} title="Plan Upgrade">
-        <form onSubmit={handlePlan} className="space-y-4">
+        <form onSubmit={handlePlan} noValidate className="space-y-4">
+          <RequiredFieldsNote />
           <p className="text-fg-subtle">
             When do you want to start <span className="font-medium text-fg">{planning?.title}</span>?
           </p>
+          {/* Uncontrolled, for the reason UpgradeFormFields gives its target end: the dialog mounts afresh
+              on every open, so it starts from the date openPlan set, and the submit reads what the user
+              picked from the field. */}
           <Input
+            ref={planDateField}
             label="Start date"
             type="date"
-            value={planDate}
-            onChange={(e) => setPlanDate(e.target.value)}
+            defaultValue={planOpensOn}
             error={planError}
+            required
           />
           <div className="flex gap-2 justify-end">
             <Button variant="secondary" type="button" onClick={closePlan} disabled={planMutation.isPending}>

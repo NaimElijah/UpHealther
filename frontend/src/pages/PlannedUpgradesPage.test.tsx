@@ -6,6 +6,7 @@ import { MemoryRouter } from 'react-router-dom';
 import PlannedUpgradesPage from './PlannedUpgradesPage';
 import type { HealthUpgrade } from '../types';
 import { upgradeAsSent } from '../test/wireFixtures';
+import { headingOutlineProblems } from '../test/headingOutline';
 
 const getUpgrades = vi.fn();
 const performUpgradeAction = vi.fn();
@@ -71,7 +72,7 @@ describe('PlannedUpgradesPage', () => {
     );
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Activate' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Activate / }));
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('That change did not go through.');
@@ -86,10 +87,10 @@ describe('PlannedUpgradesPage', () => {
   it('GivenAnActivationInFlight_WhenActivateIsPressedAgain_ThenNothingMoreIsSent', async () => {
     performUpgradeAction.mockReturnValue(new Promise(() => {}));
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: 'Activate' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Activate / }));
     await waitFor(() => expect(performUpgradeAction).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Activate' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Activate / }));
 
     await settled();
     expect(performUpgradeAction).toHaveBeenCalledTimes(1);
@@ -100,6 +101,31 @@ describe('PlannedUpgradesPage', () => {
  * The planned list reads as a timeline: soonest start first, and an upgrade with no start date last
  * rather than first. The API returns the list unordered, so this order is the page's alone.
  */
+/**
+ * Activating an upgrade takes its card off this page, and the pressed button with it, so focus fell to
+ * `<body>`. It goes to the page's heading instead (WCAG 2.4.3, finding X9.4; untested until review
+ * finding 4 on #407).
+ */
+describe('PlannedUpgradesPage focus after activating', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    performUpgradeAction.mockReset();
+  });
+
+  it('GivenFocusOnActivate_WhenTheChangeLands_ThenFocusMovesToThePageHeading', async () => {
+    getUpgrades.mockResolvedValueOnce([aPlannedHardUpgrade()]).mockResolvedValue([]);
+    performUpgradeAction.mockResolvedValue({ ...aPlannedHardUpgrade(), status: 'ACTIVE' });
+    renderPage();
+    const activate = await screen.findByRole('button', { name: 'Activate Run a half marathon' });
+    activate.focus();
+
+    fireEvent.click(activate);
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Activate Run a half marathon' })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 })));
+  });
+});
+
 describe('PlannedUpgradesPage order', () => {
   beforeEach(() => {
     getUpgrades.mockReset();
@@ -121,5 +147,70 @@ describe('PlannedUpgradesPage order', () => {
       'Starts on the tenth',
       'Not scheduled',
     ]);
+  });
+});
+
+/**
+ * The document is titled after the page, from its first render, so a tab, the history list and a screen
+ * reader opening the page all say which page it is. Every route was titled "UpHealther" alone (WCAG
+ * 2.4.2, finding X9.2).
+ */
+describe('PlannedUpgradesPage title', () => {
+  it('GivenThePage_WhenItOpens_ThenTheDocumentIsTitledAfterIt', () => {
+    document.title = '';
+    getUpgrades.mockResolvedValue([]);
+
+    renderPage();
+
+    expect(document.title).toBe('Planned Upgrades – UpHealther');
+  });
+});
+
+/**
+ * The page's headings form an outline: one `h1`, and no level skipped below it, a failed load included.
+ * Section titles were plain text, cards were `h3`s straight under the `h1`, and a page that failed to load
+ * had no `h1` at all (WCAG 1.3.1, 2.4.6, finding X9.11).
+ */
+describe('PlannedUpgradesPage headings', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+  });
+
+  it('GivenThePageHasLoaded_WhenItRenders_ThenItsHeadingsFormAnOutlineWithoutGaps', async () => {
+    getUpgrades.mockResolvedValue([aPlannedHardUpgrade()]);
+
+    renderPage();
+    await screen.findByText('Run a half marathon');
+
+    expect(headingOutlineProblems()).toEqual([]);
+  });
+
+  it('GivenTheLoadFails_WhenThePageRenders_ThenTheFailureSitsUnderThePagesHeading', async () => {
+    getUpgrades.mockRejectedValue(new Error('down'));
+
+    renderPage();
+    await screen.findByRole('alert');
+
+    expect(screen.getByRole('heading', { level: 1 })).toBeDefined();
+    expect(headingOutlineProblems()).toEqual([]);
+  });
+});
+
+/**
+ * What only takes the user to another page is a link, styled as a button: announced as a link, and
+ * openable in a new tab. These were buttons that called `navigate` (WCAG 4.1.2, finding X9.25).
+ */
+describe('PlannedUpgradesPage links', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    getUpgrades.mockResolvedValue([]);
+  });
+
+  it('GivenNothingPlanned_WhenThePageRenders_ThenItsWaysToTheBacklogAreLinks', async () => {
+    renderPage();
+    await screen.findByText('No planned upgrades');
+
+    expect(screen.getByRole('link', { name: 'Browse Backlog' }).getAttribute('href')).toBe('/upgrades/backlog');
+    expect(screen.getByRole('link', { name: 'Go to Backlog' }).getAttribute('href')).toBe('/upgrades/backlog');
   });
 });

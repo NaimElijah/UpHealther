@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
+import { RequiredFieldsNote } from '../components/ui/FieldParts';
+import PageHeading from '../components/ui/PageHeading';
 import ThemeToggle from '../components/theme/ThemeToggle';
 import { toApiError, toFormMessage } from '../api/apiError';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
  * Sign-in page, one of the two routes reachable without a session.
@@ -23,12 +26,17 @@ import { toApiError, toFormMessage } from '../api/apiError';
  * restored one's socket, or, refused, report nothing on a page already gone.
  */
 const LoginPage: React.FC = () => {
+  useDocumentTitle('Sign in');
   const { login, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  // The server's answer, shown for the form as a whole; the form's own checks are each field's.
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const [loading, setLoading] = useState(false);
+  const emailField = useRef<HTMLInputElement>(null);
+  const passwordField = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     if (isAuthenticated) navigate('/dashboard', { replace: true });
@@ -38,8 +46,14 @@ const LoginPage: React.FC = () => {
     e.preventDefault();
     if (isLoading) return;
     setError('');
-    if (!email || !password) {
-      setError('Please fill in all fields.');
+    // Both are checked before either refusal returns, so one submit names every missing field.
+    const missing = {
+      email: email ? undefined : 'Email is required.',
+      password: password ? undefined : 'Password is required.',
+    };
+    setFieldErrors(missing);
+    if (missing.email || missing.password) {
+      (missing.email ? emailField : passwordField).current?.focus();
       return;
     }
     setLoading(true);
@@ -65,41 +79,57 @@ const LoginPage: React.FC = () => {
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
-      <div className="bg-surface rounded-2xl shadow-xl p-8 w-full max-w-md">
+      {/* The main landmark: this page renders outside Layout, whose <main> the signed-in pages share. */}
+      <main className="bg-surface rounded-2xl shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="text-5xl mb-3">💪</div>
-          <h1 className="text-2xl font-bold text-fg">UpHealther</h1>
+          <div className="text-5xl mb-3" aria-hidden="true">
+            💪
+          </div>
+          <PageHeading className="text-2xl font-bold text-fg">UpHealther</PageHeading>
           <p className="text-fg-subtle mt-1">Sign in to your account</p>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* noValidate: the form checks its own fields, so each message is the field's own, tied to it and
+              announced, and focus goes to the field to fix, rather than a browser's bubble. */}
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+          <RequiredFieldsNote />
           <Input
+            ref={emailField}
             label="Email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
             autoComplete="email"
+            error={fieldErrors.email}
+            required
           />
           <Input
+            ref={passwordField}
             label="Password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
             autoComplete="current-password"
+            error={fieldErrors.password}
+            required
           />
-          {error && <p className="text-sm text-danger-fg text-center">{error}</p>}
+          {error && (
+            <p role="alert" className="text-sm text-danger-fg text-center">
+              {error}
+            </p>
+          )}
           <Button type="submit" loading={loading || isLoading} className="w-full">
             Sign In
           </Button>
         </form>
         <p className="text-center text-sm text-fg-subtle mt-6">
           Don't have an account?{' '}
-          <Link to="/register" className="text-brand-fg hover:underline font-medium">
+          <Link to="/register" className="text-brand-fg underline font-medium">
             Register
           </Link>
         </p>
-      </div>
+      </main>
     </div>
   );
 };

@@ -25,7 +25,7 @@ function renderPanel(context: NotificationContextType) {
   return render(
     <NotificationContext.Provider value={context}>
       <MemoryRouter>
-        <NotificationDropdown onClose={vi.fn()} />
+        <NotificationDropdown id="panel" onClose={vi.fn()} onActed={vi.fn()} />
       </MemoryRouter>
     </NotificationContext.Provider>,
   );
@@ -65,5 +65,17 @@ describe('NotificationDropdown', () => {
     const alert = screen.getByRole('alert');
     expect(alert.textContent).toContain('trace-113');
     expect(screen.getByText('Streak kept')).toBeDefined();
+  });
+});
+
+/**
+ * "View all notifications" only goes to another page, so it is a link, which can be opened in a new tab
+ * and is announced as one; it was a button that navigated (review finding 30 on #407).
+ */
+describe('NotificationDropdown View all', () => {
+  it('GivenThePanel_WhenItRenders_ThenViewAllIsALinkToTheNotificationsPage', () => {
+    renderPanel(aContext());
+
+    expect(screen.getByRole('link', { name: 'View all notifications' }).getAttribute('href')).toBe('/notifications');
   });
 });

@@ -6,11 +6,15 @@ import type { ApiError } from '../../api/apiError';
  * @param error  the normalised failure, whose trace id is shown when there is one
  * @param inline compact, for an action that failed beside the control that took it — a dialog, a card,
  *               the bell's panel — rather than in place of a page that could not load
+ * @param level  the title's heading level, when not inline: 2 below the page's heading, the default, and 3
+ *               inside a section that has a heading of its own. A page that could not load still renders
+ *               its heading above this, so it keeps its `h1`
  */
 interface ErrorStateProps {
   title: string;
   error?: ApiError;
   inline?: boolean;
+  level?: 2 | 3;
 }
 
 /** The trace id, selectable on its own so a double-click grabs the id and nothing around it. */
@@ -37,8 +41,9 @@ const Reference: React.FC<{ traceId: string }> = ({ traceId }) => (
  * The inline form takes the colours of the sign-out alert in the navbar, a pairing already checked for
  * contrast in both themes.
  */
-const ErrorState: React.FC<ErrorStateProps> = ({ title, error, inline = false }) =>
-  inline ? (
+const ErrorState: React.FC<ErrorStateProps> = ({ title, error, inline = false, level = 2 }) => {
+  const Heading = level === 2 ? 'h2' : 'h3';
+  return inline ? (
     <div className="rounded-lg border border-danger-line bg-danger-soft px-3 py-2 text-sm text-danger-fg" role="alert">
       <p className="font-medium">{title}</p>
       {error?.message && <p className="break-words">{error.message}</p>}
@@ -50,8 +55,10 @@ const ErrorState: React.FC<ErrorStateProps> = ({ title, error, inline = false })
     </div>
   ) : (
     <div className="flex flex-col items-center justify-center py-16 text-center" role="alert">
-      <div className="text-5xl mb-4">⚠️</div>
-      <h3 className="text-lg font-semibold text-danger-fg mb-1">{title}</h3>
+      <div className="text-5xl mb-4" aria-hidden="true">
+        ⚠️
+      </div>
+      <Heading className="text-lg font-semibold text-danger-fg mb-1">{title}</Heading>
       {error?.message && <p className="text-sm text-fg-subtle max-w-sm">{error.message}</p>}
       {error?.traceId && (
         <p className="mt-4 text-xs text-fg-faint">
@@ -60,5 +67,6 @@ const ErrorState: React.FC<ErrorStateProps> = ({ title, error, inline = false })
       )}
     </div>
   );
+};
 
 export default ErrorState;

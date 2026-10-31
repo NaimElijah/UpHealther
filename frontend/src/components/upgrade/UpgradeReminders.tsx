@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createReminder, deleteReminder, updateReminder } from '../../api/reminders';
 import { toApiError } from '../../api/apiError';
@@ -10,6 +10,7 @@ import ErrorState from '../ui/ErrorState';
 import { refusalMessage } from './formInput';
 import { remindersQuery, type SectionRead } from './upgradeDetailsQueries';
 import type { CreateReminderRequest, Reminder } from '../../types';
+import { useFocusWhenReady } from '../../hooks/useFocusWhenReady';
 
 /**
  * Day tokens for the reminder day picker, in week order.
@@ -18,6 +19,20 @@ import type { CreateReminderRequest, Reminder } from '../../types';
  * reminder fires every day.
  */
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+
+/**
+ * Each day's name in full, which is its button's name: the button shows one letter, and "T" and "S"
+ * each stand for two days. The letter is the name's first, so the visible label is inside it (2.5.3).
+ */
+const DAY_NAMES: Record<string, string> = {
+  MON: 'Monday',
+  TUE: 'Tuesday',
+  WED: 'Wednesday',
+  THU: 'Thursday',
+  FRI: 'Friday',
+  SAT: 'Saturday',
+  SUN: 'Sunday',
+};
 
 /** Where the reminder form's time starts, and returns to once a reminder is added or rescheduled. */
 const DEFAULT_REMINDER_TIME = '09:00';
@@ -56,6 +71,9 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
   const [reminderDays, setReminderDays] = useState<string[]>([]);
   // The reminder the form below is rescheduling, or none while it adds a new one.
   const [editingReminderId, setEditingReminderId] = useState<string | null>(null);
+  const timeField = useRef<HTMLInputElement>(null);
+  const daysLabel = useId();
+  const focusWhenReady = useFocusWhenReady();
   const toggleDay = (d: string) =>
     setReminderDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
 
@@ -98,6 +116,9 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
     rescheduleReminderMut.reset();
     createReminderMut.reset();
     setEditingReminderId(reminder.id);
+    // The form below changes from adding to saving this reminder, and focus goes where the change is, so
+    // the switch is not made silently (finding X9.17).
+    timeField.current?.focus();
   };
 
   /** Puts the form's time and days back to their defaults. */
@@ -112,16 +133,29 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
     resetReminderForm();
   };
 
+  /** Abandons the edit, and sends focus to the form's time, since Cancel goes with the edit. */
+  const cancelEditingReminder = () => {
+    stopEditingReminder();
+    timeField.current?.focus();
+  };
+
   const submitReminder = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingReminderId) {
       createReminderMut.mutate(undefined, { onSuccess: resetReminderForm });
       return;
     }
+    const pressed = document.activeElement;
     // `enabled` is left out, so a disabled reminder stays disabled when its schedule moves.
     rescheduleReminderMut.mutate(
       { reminderId: editingReminderId, req: { reminderTime, daysOfWeek: reminderDays } },
-      { onSuccess: stopEditingReminder },
+      {
+        onSuccess: () => {
+          stopEditingReminder();
+          // The form goes back to adding, and focus goes to where it starts, as Edit sent it there.
+          focusWhenReady(() => timeField.current, pressed);
+        },
+      },
     );
   };
 
@@ -133,7 +167,7 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
     });
 
   return (
-    <Card header={<span>Reminders ({reminders.length})</span>}>
+    <Card header={`Reminders (${reminders.length})`}>
       {reminders.length === 0 ? (
         <p className="text-fg-subtle text-sm mb-4">No reminders yet. Add one to get notified.</p>
       ) : (
@@ -141,43 +175,56 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
           {reminders.map((r) => (
             <div key={r.id} className="flex items-center justify-between p-2 bg-sunken rounded-lg text-sm">
               <div className="flex items-center gap-2">
-                <span className="font-medium">⏰ {r.reminderTime.slice(0, 5)}</span>
+                <span className="font-medium">
+                  <span aria-hidden="true">⏰</span> {r.reminderTime.slice(0, 5)}
+                </span>
                 <span className="text-fg-subtle">{r.daysOfWeek.length ? r.daysOfWeek.join(', ') : 'Every day'}</span>
                 {!r.enabled && <Badge variant="gray">disabled</Badge>}
               </div>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
+              {/* Ghost buttons, like the account list's row actions. While a write runs the pressed one is
+                  busy rather than disabled, because a disabled button drops its focus to <body>, and the
+                  others are disabled, because one write runs at a time (review finding 3 on #407). */}
+              <div className="flex flex-wrap items-center justify-end gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => editReminder(r)}
                   disabled={reminderWriteInFlight}
                   aria-label={`Edit the ${reminderClock(r)} reminder`}
-                  className="text-brand-fg hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Edit
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => switchReminder(r)}
                   disabled={reminderWriteInFlight}
+                  loading={switchReminderMut.isPending && switchReminderMut.variables?.reminderId === r.id}
                   aria-label={`${r.enabled ? 'Disable' : 'Enable'} the ${reminderClock(r)} reminder`}
-                  className="text-fg-subtle hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {r.enabled ? 'Disable' : 'Enable'}
-                </button>
-                <button
-                  onClick={() =>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    const pressed = e.currentTarget;
                     deleteReminderMut.mutate(r.id, {
                       onSuccess: () => {
                         if (editingReminderId === r.id) stopEditingReminder();
+                        // The row goes, and this button with it, so focus goes to the form below, the
+                        // stable control of this section, rather than falling to <body>.
+                        focusWhenReady(() => (pressed.isConnected ? undefined : timeField.current), pressed);
                       },
-                    })
-                  }
+                    });
+                  }}
                   // A second DELETE would be answered 404, saying "not removed" while the row disappears.
                   disabled={reminderWriteInFlight}
-                  className="text-danger-fg hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  loading={deleteReminderMut.isPending && deleteReminderMut.variables === r.id}
+                  aria-label={`Remove the ${reminderClock(r)} reminder`}
                 >
                   Remove
-                </button>
+                </Button>
               </div>
             </div>
           ))}
@@ -195,6 +242,7 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
       )}
       <form onSubmit={submitReminder} className="flex flex-wrap items-end gap-3 border-t border-line-subtle pt-3">
         <Input
+          ref={timeField}
           label="Time"
           type="time"
           value={reminderTime}
@@ -205,35 +253,40 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
           )}
         />
         <div>
-          <label className="text-sm font-medium text-fg-muted block mb-1">
+          <span id={daysLabel} className="text-sm font-medium text-fg-muted block mb-1">
             Days <span className="text-fg-faint">(none = every day)</span>
-          </label>
-          <div className="flex gap-1">
+          </span>
+          {/* Toggle buttons in a named group. A chosen day has a ring as well as its fill, so the choice is
+              not told by colour alone, and the ring is far above 3:1 in both themes (WCAG 1.4.1, 1.4.11).
+              An unchosen day's letter is fg-muted, as the other toggles' are: fg-subtle on the hover fill
+              was 4.08:1 in the dark theme (1.4.3). */}
+          <div role="group" aria-labelledby={daysLabel} className="flex gap-1">
             {DAYS.map((d) => (
               <button
                 key={d}
                 type="button"
-                title={d}
+                aria-label={DAY_NAMES[d]}
+                aria-pressed={reminderDays.includes(d)}
                 onClick={() => toggleDay(d)}
-                className={`w-9 h-9 rounded-lg text-xs font-medium transition-colors ${reminderDays.includes(d) ? 'bg-brand text-fg-inverted' : 'bg-muted text-fg-subtle hover:bg-muted-strong'}`}
+                className={`w-9 h-9 rounded-lg border-2 text-xs font-medium transition-colors ${reminderDays.includes(d) ? 'bg-brand text-fg-inverted border-fg' : 'bg-muted text-fg-muted border-transparent hover:bg-muted-strong'}`}
               >
                 {d[0]}
               </button>
             ))}
           </div>
         </div>
-        {editingReminderId ? (
-          <>
-            <Button type="submit" loading={rescheduleReminderMut.isPending} disabled={reminderWriteInFlight}>
-              Save reminder
-            </Button>
-            <Button type="button" variant="secondary" onClick={stopEditingReminder} disabled={reminderWriteInFlight}>
-              Cancel
-            </Button>
-          </>
-        ) : (
-          <Button type="submit" loading={createReminderMut.isPending} disabled={reminderWriteInFlight}>
-            Add reminder
+        {/* One submit button whose label follows the form's mode, so the node, and the focus on it, survive
+            the switch between adding and saving. */}
+        <Button
+          type="submit"
+          loading={editingReminderId ? rescheduleReminderMut.isPending : createReminderMut.isPending}
+          disabled={reminderWriteInFlight}
+        >
+          {editingReminderId ? 'Save reminder' : 'Add reminder'}
+        </Button>
+        {editingReminderId && (
+          <Button type="button" variant="secondary" onClick={cancelEditingReminder} disabled={reminderWriteInFlight}>
+            Cancel
           </Button>
         )}
       </form>

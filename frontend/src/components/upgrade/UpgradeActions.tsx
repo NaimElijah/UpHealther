@@ -9,7 +9,9 @@ import { refreshUpgradeViews } from '../../lib/upgradeViews';
 import Button from '../ui/Button';
 import Modal from '../ui/Modal';
 import Input from '../ui/Input';
+import { RequiredFieldsNote } from '../ui/FieldParts';
 import ErrorState from '../ui/ErrorState';
+import { holdsUnreadableText, UNFINISHED_DATE, UNFINISHED_OPTIONAL_DATE } from '../ui/unreadableInput';
 import UpgradeFormFields from './UpgradeFormFields';
 import type { CreateUpgradeRequest, HealthUpgrade, UpgradeStatus } from '../../types';
 
@@ -80,6 +82,8 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState<CreateUpgradeRequest>(() => editableFields(upgrade));
   const [editCheck, setEditCheck] = useState<FormCheck>({});
+  const titleField = useRef<HTMLInputElement>(null);
+  const targetEndField = useRef<HTMLInputElement>(null);
 
   // Closing the dialog is passed to each `mutate` call rather than set here, for the reason
   // `UpgradeProgress` gives for its dialog: only a call's own callbacks stop when the opener resets the
@@ -123,8 +127,10 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
   };
 
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
-  const [newDate, setNewDate] = useState('');
+  // The date the reschedule dialog opens on. What the user picks is read from the field when they submit.
+  const [rescheduleOpensOn, setRescheduleOpensOn] = useState('');
   const [dateCheck, setDateCheck] = useState('');
+  const newDateField = useRef<HTMLInputElement>(null);
   const rescheduleMutation = useMutation({
     mutationFn: (date: string) => rescheduleUpgrade(upgrade.id, date),
     onSuccess: () => refreshUpgradeViews(qc),
@@ -132,7 +138,7 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
 
   /** Opens on the planned start, or on the user's today when there is none. */
   const openReschedule = () => {
-    setNewDate(upgrade.plannedStartDate ?? todayLocal());
+    setRescheduleOpensOn(upgrade.plannedStartDate ?? todayLocal());
     setDateCheck('');
     rescheduleMutation.reset();
     setRescheduleOpen(true);
@@ -140,12 +146,21 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
 
   const submitReschedule = (e: React.FormEvent) => {
     e.preventDefault();
+    const newDate = newDateField.current?.value ?? '';
+    // Before the empty check, which an unfinished date would otherwise meet as "no date picked".
+    if (holdsUnreadableText(newDateField.current)) {
+      setDateCheck(UNFINISHED_DATE);
+      newDateField.current?.focus();
+      return;
+    }
     if (!newDate) {
       setDateCheck('Pick a start date.');
+      newDateField.current?.focus();
       return;
     }
     if (!isFourDigitYearDate(newDate)) {
       setDateCheck('Pick a date with a four-digit year.');
+      newDateField.current?.focus();
       return;
     }
     setDateCheck('');
@@ -191,12 +206,21 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
 
   const submitEdit = (e: React.FormEvent) => {
     e.preventDefault();
+    // A refused check sends focus to the field it names, where its message is read with it.
     if (!editForm.title.trim()) {
       setEditCheck({ title: 'Title is required.' });
+      titleField.current?.focus();
+      return;
+    }
+    // An unfinished date reads as no date, and sent as one it would erase the stored target end.
+    if (holdsUnreadableText(targetEndField.current)) {
+      setEditCheck({ targetEnd: UNFINISHED_OPTIONAL_DATE });
+      targetEndField.current?.focus();
       return;
     }
     if (editForm.targetEndDate && !isFourDigitYearDate(editForm.targetEndDate)) {
       setEditCheck({ targetEnd: 'Pick a date with a four-digit year.' });
+      targetEndField.current?.focus();
       return;
     }
     setEditCheck({});
@@ -227,7 +251,8 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
       </div>
 
       <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Edit Upgrade">
-        <form onSubmit={submitEdit} className="space-y-4">
+        <form onSubmit={submitEdit} noValidate className="space-y-4">
+          <RequiredFieldsNote />
           {/* Without it the picker offers "No area" alone, as though the upgrade had none (NFR-30). The
               area the upgrade has is still sent back unchanged. */}
           {areasError && (
@@ -239,6 +264,8 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
             areas={areas}
             titleError={editCheck.title ?? editRefusal}
             targetEndError={editCheck.targetEnd}
+            titleRef={titleField}
+            targetEndRef={targetEndField}
           />
           <div className="flex gap-2 justify-end">
             <Button variant="secondary" type="button" onClick={() => setEditOpen(false)}>
@@ -252,14 +279,19 @@ const UpgradeActions: React.FC<Props> = ({ upgrade }) => {
       </Modal>
 
       <Modal isOpen={rescheduleOpen} onClose={() => setRescheduleOpen(false)} title="Reschedule Upgrade">
-        <form onSubmit={submitReschedule} className="space-y-4">
+        <form onSubmit={submitReschedule} noValidate className="space-y-4">
+          <RequiredFieldsNote />
           <p className="text-fg-subtle">{rescheduleQuestion(upgrade.status)}</p>
+          {/* Uncontrolled, for the reason UpgradeFormFields gives its target end: the dialog mounts afresh
+              on every open, so it starts from the date openReschedule set, and the submit reads what the
+              user picked from the field. */}
           <Input
+            ref={newDateField}
             label="New start date"
             type="date"
-            value={newDate}
-            onChange={(e) => setNewDate(e.target.value)}
+            defaultValue={rescheduleOpensOn}
             error={dateCheck || rescheduleRefusal}
+            required
           />
           <div className="flex gap-2 justify-end">
             <Button variant="secondary" type="button" onClick={() => setRescheduleOpen(false)}>

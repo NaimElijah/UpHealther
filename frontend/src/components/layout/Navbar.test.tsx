@@ -100,3 +100,17 @@ describe('Navbar', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 });
+
+/**
+ * The top bar is not a navigation landmark. It was an unnamed `<nav>` holding the theme switch, the bell
+ * and Logout, so a screen reader's landmark list offered a second, nameless "navigation" beside the named
+ * "Main" one that holds the links (WCAG 1.3.1, finding X9.27).
+ */
+describe('Navbar landmark', () => {
+  it('GivenTheNavbar_WhenItRenders_ThenItIsNotANavigationLandmark', () => {
+    renderNavbar(async () => {});
+
+    expect(screen.getByRole('banner')).toBeDefined();
+    expect(screen.queryByRole('navigation')).toBeNull();
+  });
+});

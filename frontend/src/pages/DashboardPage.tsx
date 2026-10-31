@@ -1,19 +1,23 @@
 import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import { getDashboard } from '../api/dashboard';
 import { useAuth } from '../hooks/useAuth';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Card from '../components/ui/Card';
-import Button from '../components/ui/Button';
+import PageHeading from '../components/ui/PageHeading';
+import ButtonLink from '../components/ui/ButtonLink';
 import UpgradeCard from '../components/upgrade/UpgradeCard';
 import EmptyState from '../components/ui/EmptyState';
 import { performUpgradeAction } from '../api/upgrades';
 import type { ActionTarget } from '../types';
 import PageContainer from '../components/ui/PageContainer';
+import PageHeader from '../components/ui/PageHeader';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
 import { refreshUpgradeViews } from '../lib/upgradeViews';
+import { useFocusWhenReady } from '../hooks/useFocusWhenReady';
+import { findPageHeading } from '../components/ui/pageHeadingFocus';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /** The local hours at which the greeting turns from morning to afternoon, and from afternoon to evening. */
 const AFTERNOON_FROM_HOUR = 12;
@@ -35,8 +39,8 @@ type CardSection = 'today' | 'active';
  * at once, and marks the other pages' views of upgrades out of date with it (#189).
  */
 const DashboardPage: React.FC = () => {
+  useDocumentTitle('Dashboard');
   const { user } = useAuth();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard'],
@@ -54,11 +58,23 @@ const DashboardPage: React.FC = () => {
       performUpgradeAction(id, status),
     onSuccess: () => refreshUpgradeViews(queryClient),
   });
-  const changeStatusFrom = (section: CardSection) => (id: string, status: ActionTarget) =>
-    statusMutation.mutate({ id, status, section });
+  const focusWhenReady = useFocusWhenReady();
+  // Every transition offered here takes the card off the dashboard, and the pressed button with it, so
+  // focus goes to the page's heading once the card has gone rather than falling to <body>.
+  const changeStatusFrom = (section: CardSection) => (id: string, status: ActionTarget) => {
+    const pressed = document.activeElement;
+    statusMutation.mutate(
+      { id, status, section },
+      { onSuccess: () => focusWhenReady(() => (pressed?.isConnected ? undefined : findPageHeading()), pressed) },
+    );
+  };
   const refusalFor = (id: string, section: CardSection) =>
     statusMutation.error && statusMutation.variables?.id === id && statusMutation.variables.section === section
       ? toApiError(statusMutation.error)
+      : undefined;
+  const pendingFor = (id: string, section: CardSection) =>
+    statusMutation.isPending && statusMutation.variables?.id === id && statusMutation.variables.section === section
+      ? statusMutation.variables.status
       : undefined;
 
   if (isLoading)
@@ -67,7 +83,13 @@ const DashboardPage: React.FC = () => {
         <LoadingSpinner size="lg" />
       </div>
     );
-  if (error) return <ErrorState title="Could not load your dashboard." error={toApiError(error)} />;
+  if (error)
+    return (
+      <PageContainer>
+        <PageHeader title="Dashboard" />
+        <ErrorState title="Could not load your dashboard." error={toApiError(error)} />
+      </PageContainer>
+    );
 
   // Rounded, not scaled: the API sends a percentage already (see DashboardDto.weeklyCompletionRate).
   const completionPct = Math.round(data?.weeklyCompletionRate ?? 0);
@@ -87,21 +109,23 @@ const DashboardPage: React.FC = () => {
     <PageContainer className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-fg break-words">
-            Good {partOfDay(now.getHours())}, {user?.name?.split(' ')[0]} 👋
-          </h1>
+          <PageHeading className="text-2xl font-bold text-fg break-words">
+            Good {partOfDay(now.getHours())}, {user?.name?.split(' ')[0]} <span aria-hidden="true">👋</span>
+          </PageHeading>
           <p className="text-fg-subtle mt-1">
             {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        <Button className="shrink-0" onClick={() => navigate('/upgrades/backlog')}>
+        <ButtonLink to="/upgrades/backlog" className="shrink-0">
           + Add Upgrade
-        </Button>
+        </ButtonLink>
       </div>
 
       {(data?.overdueUpgrades?.length ?? 0) > 0 && (
         <div className="bg-danger-soft border border-danger-line rounded-xl p-4 flex items-center gap-3">
-          <span className="text-2xl">⚠️</span>
+          <span className="text-2xl" aria-hidden="true">
+            ⚠️
+          </span>
           <div>
             <p className="font-medium text-danger-fg">
               {data!.overdueUpgrades.length} overdue upgrade{data!.overdueUpgrades.length > 1 ? 's' : ''}
@@ -144,7 +168,12 @@ const DashboardPage: React.FC = () => {
 
       <Card header="Today's Health Moves">
         {(data?.todayUpgrades?.length ?? 0) === 0 ? (
-          <EmptyState icon="✅" title="All done for today!" description="No active upgrades to track today." />
+          <EmptyState
+            icon="✅"
+            title="All done for today!"
+            description="No active upgrades to track today."
+            level={3}
+          />
         ) : (
           <div className="space-y-3">
             {data!.todayUpgrades.map((u) => (
@@ -154,11 +183,12 @@ const DashboardPage: React.FC = () => {
                 onStatusChange={changeStatusFrom('today')}
                 refusal={refusalFor(u.id, 'today')}
                 busy={statusMutation.isPending}
+                pendingTransition={pendingFor(u.id, 'today')}
               />
             ))}
-            <Button variant="secondary" onClick={() => navigate('/daily-checkin')} className="w-full mt-2">
+            <ButtonLink to="/daily-checkin" variant="secondary" className="w-full mt-2">
               Go to Daily Check-in
-            </Button>
+            </ButtonLink>
           </div>
         )}
       </Card>
@@ -169,7 +199,8 @@ const DashboardPage: React.FC = () => {
             icon="🔥"
             title="No active upgrades"
             description="Activate a planned upgrade to get started."
-            action={<Button onClick={() => navigate('/upgrades/planned')}>View Planned</Button>}
+            level={3}
+            action={<ButtonLink to="/upgrades/planned">View Planned</ButtonLink>}
           />
         ) : (
           <div className="grid sm:grid-cols-2 gap-4">
@@ -180,6 +211,7 @@ const DashboardPage: React.FC = () => {
                 onStatusChange={changeStatusFrom('active')}
                 refusal={refusalFor(u.id, 'active')}
                 busy={statusMutation.isPending}
+                pendingTransition={pendingFor(u.id, 'active')}
               />
             ))}
           </div>
@@ -205,7 +237,13 @@ const DashboardPage: React.FC = () => {
       )}
 
       {runningStreaks.length > 0 && (
-        <Card header="Current Streaks 🔥">
+        <Card
+          header={
+            <>
+              Current Streaks <span aria-hidden="true">🔥</span>
+            </>
+          }
+        >
           <ul role="list" aria-label="Current streaks" className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {runningStreaks.map(({ upgrade, days }) => (
               <li key={upgrade.id} className="bg-streak-soft rounded-lg p-3 text-center">
@@ -219,11 +257,19 @@ const DashboardPage: React.FC = () => {
       )}
 
       {(data?.recentlyCompleted?.length ?? 0) > 0 && (
-        <Card header="Recently Completed 🎉">
+        <Card
+          header={
+            <>
+              Recently Completed <span aria-hidden="true">🎉</span>
+            </>
+          }
+        >
           <div className="space-y-2">
             {data!.recentlyCompleted.map((u) => (
               <div key={u.id} className="flex items-center gap-3 p-2 rounded-lg bg-sunken">
-                <span className="text-success-fg text-lg">✓</span>
+                <span className="text-success-fg text-lg" aria-hidden="true">
+                  ✓
+                </span>
                 <span className="text-sm font-medium text-fg-muted">{u.title}</span>
               </div>
             ))}

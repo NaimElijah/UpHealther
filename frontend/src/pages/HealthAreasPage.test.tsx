@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import HealthAreasPage from './HealthAreasPage';
 import type { HealthArea } from '../types';
 import { healthAreaAsSent } from '../test/wireFixtures';
+import { headingOutlineProblems } from '../test/headingOutline';
+import { enterUnreadableText } from '../test/unreadableInput';
 
 const getHealthAreas = vi.fn();
 const createHealthArea = vi.fn();
@@ -50,17 +52,23 @@ function renderPage() {
   );
 }
 
+/**
+ * Lets every promise already started run on: a mutation calls its function a microtask after `mutate`,
+ * so a check that nothing was sent is only meaningful once that has had its chance.
+ */
+const settled = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+
 /** Opens the edit dialog for the only area listed, and returns queries scoped to it. */
 async function openEdit() {
   await screen.findByText('Sleep');
-  fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Edit Sleep' }));
   return within(screen.getByRole('dialog', { name: 'Edit Health Area' }));
 }
 
 /** Opens the delete confirmation for the only area listed, and returns queries scoped to it. */
 async function openDelete() {
   await screen.findByText('Sleep');
-  fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Delete Sleep' }));
   return within(screen.getByRole('dialog', { name: 'Delete Health Area' }));
 }
 
@@ -376,7 +384,7 @@ describe('HealthAreasPage', () => {
     renderPage();
     await screen.findByText('Nutrition');
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Delete' })[1]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Delete / })[1]);
     const dialog = within(screen.getByRole('dialog', { name: 'Delete Health Area' }));
     fireEvent.click(dialog.getByRole('button', { name: 'Delete' }));
 
@@ -384,5 +392,194 @@ describe('HealthAreasPage', () => {
     expect(deleteHealthArea.mock.calls.map((call) => call[0])).toEqual(['area-2']);
     await waitFor(() => expect(screen.queryByText('Nutrition')).toBeNull());
     expect(screen.getByText('Sleep')).toBeDefined();
+  });
+});
+
+/**
+ * The document is titled after the page, from its first render, so a tab, the history list and a screen
+ * reader opening the page all say which page it is. Every route was titled "UpHealther" alone (WCAG
+ * 2.4.2, finding X9.2).
+ */
+describe('HealthAreasPage title', () => {
+  it('GivenThePage_WhenItOpens_ThenTheDocumentIsTitledAfterIt', () => {
+    document.title = '';
+    getHealthAreas.mockResolvedValue([]);
+
+    renderPage();
+
+    expect(document.title).toBe('Health Areas – UpHealther');
+  });
+});
+
+/**
+ * The area dialogs mark the name required, and a refused submit sends focus to the first field to fix
+ * (WCAG 3.3.1, 3.3.2, finding X9.5).
+ */
+describe('HealthAreasPage form errors', () => {
+  beforeEach(() => {
+    getHealthAreas.mockReset();
+    createHealthArea.mockReset();
+    getHealthAreas.mockResolvedValue([anArea()]);
+  });
+
+  // `fireEvent.submit` skips the browser's own validation, so without this a form that lost `noValidate`
+  // passed every test, while in a browser the native bubble took the place of the form's message and focus
+  // (review finding 16 on #407).
+  it('GivenEitherAreaDialog_WhenItOpens_ThenItsFormChecksItselfRatherThanTheBrowser', async () => {
+    renderPage();
+    const create = await openCreate();
+    expect(create.getByLabelText('Name').closest('form')?.noValidate).toBe(true);
+    fireEvent.click(create.getByRole('button', { name: 'Cancel' }));
+
+    const edit = await openEdit();
+
+    expect(edit.getByLabelText('Name').closest('form')?.noValidate).toBe(true);
+  });
+
+  it('GivenTheNewAreaDialog_WhenItOpens_ThenTheNameIsMarkedRequired', async () => {
+    renderPage();
+    const dialog = await openCreate();
+
+    expect(dialog.getByLabelText('Name').getAttribute('aria-required')).toBe('true');
+    // Review finding 24 on #407: nothing said what the asterisk meant.
+    expect(dialog.getByText('Required')).toBeDefined();
+  });
+
+  it('GivenABlankName_WhenANewAreaIsSubmitted_ThenTheNameIsInvalidAndHasFocus', async () => {
+    renderPage();
+    const dialog = await openCreate();
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Create' }));
+
+    await dialog.findByText('Name is required.');
+    expect(dialog.getByLabelText('Name').getAttribute('aria-invalid')).toBe('true');
+    expect(document.activeElement).toBe(dialog.getByLabelText('Name'));
+  });
+
+  it('GivenAValidNameAndAFractionalPriority_WhenANewAreaIsSubmitted_ThenThePriorityHasFocus', async () => {
+    renderPage();
+    const dialog = await openCreate();
+    fireEvent.change(dialog.getByLabelText('Name'), { target: { value: 'Sleep' } });
+    fireEvent.change(dialog.getByLabelText('Priority'), { target: { value: '1.5' } });
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Create' }));
+
+    await dialog.findByText('Priority must be a whole number.');
+    expect(document.activeElement).toBe(dialog.getByLabelText('Priority'));
+  });
+
+  // Review finding 19 on #407: the edit dialog's refusal had no focus test of its own.
+  it('GivenAFractionalPriority_WhenAnEditIsSaved_ThenThePriorityIsInvalidAndHasFocus', async () => {
+    renderPage();
+    const dialog = await openEdit();
+    fireEvent.change(dialog.getByLabelText('Priority'), { target: { value: '2.5' } });
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save Changes' }));
+
+    await dialog.findByText('Priority must be a whole number.');
+    expect(dialog.getByLabelText('Priority').getAttribute('aria-invalid')).toBe('true');
+    expect(document.activeElement).toBe(dialog.getByLabelText('Priority'));
+  });
+});
+
+/**
+ * Text the priority field cannot read as a number, `3e` say, reaches the form as `''`, the value that
+ * means "no priority". The dialogs set `noValidate`, so the browser no longer refuses it; sent, it would
+ * erase the stored priority, because an update replaces every field (review finding 1 on #407).
+ */
+describe('HealthAreasPage unreadable priority', () => {
+  beforeEach(() => {
+    getHealthAreas.mockReset();
+    createHealthArea.mockReset();
+    updateHealthArea.mockReset();
+    getHealthAreas.mockResolvedValue([anArea({ priority: 5 })]);
+    createHealthArea.mockResolvedValue(anArea());
+    updateHealthArea.mockResolvedValue(anArea());
+  });
+
+  it('GivenUnreadablePriorityText_WhenAnEditIsSaved_ThenNothingIsSentAndThePriorityIsRefusedWithFocus', async () => {
+    renderPage();
+    const dialog = await openEdit();
+    enterUnreadableText(dialog.getByLabelText('Priority'));
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save Changes' }));
+
+    expect(await dialog.findByText('Priority must be a whole number.')).toBeDefined();
+    expect(document.activeElement).toBe(dialog.getByLabelText('Priority'));
+    await settled();
+    expect(updateHealthArea).not.toHaveBeenCalled();
+  });
+
+  it('GivenUnreadablePriorityText_WhenANewAreaIsSubmitted_ThenNothingIsSentAndThePriorityIsRefusedWithFocus', async () => {
+    renderPage();
+    const dialog = await openCreate();
+    fireEvent.change(dialog.getByLabelText('Name'), { target: { value: 'Nutrition' } });
+    enterUnreadableText(dialog.getByLabelText('Priority'));
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Create' }));
+
+    expect(await dialog.findByText('Priority must be a whole number.')).toBeDefined();
+    expect(document.activeElement).toBe(dialog.getByLabelText('Priority'));
+    await settled();
+    expect(createHealthArea).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The page's headings form an outline: one `h1`, and no level skipped below it, a failed load included.
+ * Section titles were plain text, cards were `h3`s straight under the `h1`, and a page that failed to load
+ * had no `h1` at all (WCAG 1.3.1, 2.4.6, finding X9.11).
+ */
+describe('HealthAreasPage headings', () => {
+  beforeEach(() => {
+    getHealthAreas.mockReset();
+  });
+
+  it('GivenThePageHasLoaded_WhenItRenders_ThenItsHeadingsFormAnOutlineWithoutGaps', async () => {
+    getHealthAreas.mockResolvedValue([anArea()]);
+
+    renderPage();
+    await screen.findByText('Sleep');
+
+    expect(headingOutlineProblems()).toEqual([]);
+  });
+
+  it('GivenTheLoadFails_WhenThePageRenders_ThenTheFailureSitsUnderThePagesHeading', async () => {
+    getHealthAreas.mockRejectedValue(new Error('down'));
+
+    renderPage();
+    await screen.findByRole('alert');
+
+    expect(screen.getByRole('heading', { level: 1 })).toBeDefined();
+    expect(headingOutlineProblems()).toEqual([]);
+  });
+});
+
+/**
+ * An area's Edit and Delete name the area, and the delete confirmation says which area it deletes. Every
+ * card offered "Edit" and "Delete" alike, and the confirmation said only "this health area" (WCAG 2.4.6,
+ * 4.1.2, finding X9.20).
+ */
+describe('HealthAreasPage per-area names', () => {
+  beforeEach(() => {
+    getHealthAreas.mockReset();
+    getHealthAreas.mockResolvedValue([anArea({ id: 'a1', name: 'Sleep' }), anArea({ id: 'a2', name: 'Nutrition' })]);
+  });
+
+  it('GivenTwoAreas_WhenThePageRenders_ThenEachAreasButtonsNameIt', async () => {
+    renderPage();
+
+    for (const name of ['Edit Sleep', 'Delete Sleep', 'Edit Nutrition', 'Delete Nutrition']) {
+      expect(await screen.findByRole('button', { name })).toBeDefined();
+    }
+  });
+
+  it('GivenAnArea_WhenItsDeleteIsPressed_ThenTheConfirmationNamesIt', async () => {
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Nutrition' }));
+
+    const dialog = within(screen.getByRole('dialog', { name: 'Delete Health Area' }));
+    expect(dialog.getByText(/Nutrition/)).toBeDefined();
   });
 });

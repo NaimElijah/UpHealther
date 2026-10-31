@@ -212,7 +212,9 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
         className="relative z-10 flex max-h-full w-full min-w-0 max-w-lg flex-col overflow-hidden rounded-xl bg-surface border border-line-strong shadow-xl focus:outline-none"
       >
         <div className="flex shrink-0 items-center justify-between gap-4 px-6 py-4 border-b border-line">
-          <h2 id={titleId} className="min-w-0 truncate text-lg font-semibold text-fg-muted">
+          {/* Wrapped, not truncated: a title naming an account or an upgrade was cut short on a phone,
+              and it is the dialog's name (WCAG 1.4.10). */}
+          <h2 id={titleId} className="min-w-0 break-words text-lg font-semibold text-fg-muted">
             {title}
           </h2>
           <button

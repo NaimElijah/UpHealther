@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './ProtectedRoute';
 import RequireRole from './RequireRole';
+import RouteFocus from './RouteFocus';
 import Layout from '../components/layout/Layout';
 import ToastContainer from '../components/notifications/ToastContainer';
 import { NotificationProvider } from '../contexts/NotificationProvider';
@@ -29,6 +30,7 @@ import AdminUsersPage from '../pages/AdminUsersPage';
 // NotificationProvider lives inside the Router so toasts/items can navigate, and inside the existing
 // QueryClientProvider + AuthProvider (mounted in App.tsx) for query + auth access. ToastContainer sits
 // beside Routes, not in any page or Layout, so it is mounted signed in or out and survives navigation.
+// RouteFocus comes after Routes so that its effect runs after the new page's (ADR-083).
 const AppRouter: React.FC = () => (
   <BrowserRouter>
     <NotificationProvider>
@@ -150,6 +152,7 @@ const AppRouter: React.FC = () => (
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <RouteFocus />
       <ToastContainer />
     </NotificationProvider>
   </BrowserRouter>

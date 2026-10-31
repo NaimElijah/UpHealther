@@ -18,6 +18,8 @@ import type {
   UpgradeStatus,
 } from '../types';
 import { healthAreaAsSent, reflectionAsSent, trackingConfigAsSent, upgradeAsSent } from '../test/wireFixtures';
+import { headingOutlineProblems } from '../test/headingOutline';
+import { enterUnreadableText } from '../test/unreadableInput';
 
 const getUpgradeById = vi.fn();
 const updateUpgrade = vi.fn();
@@ -218,6 +220,53 @@ describe('UpgradeDetailsPage', () => {
     vi.useRealTimers();
   });
 
+  // WCAG 2.4.2, finding X9.2: the document is titled after the upgrade the page shows.
+
+  // WCAG 1.3.1, 2.4.6, finding X9.11: the sections are headings under the upgrade's h1, and a failed load
+  // still has the page's h1 above it.
+  it('GivenTheUpgradeHasLoaded_WhenItsPageRenders_ThenItsHeadingsFormAnOutlineWithoutGaps', async () => {
+    renderPage();
+    await screen.findByRole('heading', { level: 1, name: 'Cold showers' });
+
+    expect(screen.getByRole('heading', { level: 2, name: /Reminders/ })).toBeDefined();
+    expect(headingOutlineProblems()).toEqual([]);
+  });
+
+  it('GivenTheUpgradeCannotBeLoaded_WhenItsPageRenders_ThenTheFailureSitsUnderThePagesHeading', async () => {
+    getUpgradeById.mockRejectedValue(new Error('down'));
+    renderPage();
+    await screen.findByRole('alert');
+
+    expect(screen.getByRole('heading', { level: 1 })).toBeDefined();
+    expect(headingOutlineProblems()).toEqual([]);
+  });
+  // Review finding 33 on #407: the titles before the upgrade's own were untested.
+  it('GivenTheUpgradeIsStillLoading_WhenItsPageRenders_ThenTheDocumentIsTitledUpgrade', () => {
+    document.title = '';
+    getUpgradeById.mockReturnValue(new Promise(() => {}));
+
+    renderPage();
+
+    expect(document.title).toBe('Upgrade – UpHealther');
+  });
+
+  it('GivenTheUpgradeCannotBeLoaded_WhenItsPageRenders_ThenTheDocumentIsTitledUpgrade', async () => {
+    document.title = '';
+    getUpgradeById.mockRejectedValue(new Error('down'));
+
+    renderPage();
+    await screen.findByRole('alert');
+
+    expect(document.title).toBe('Upgrade – UpHealther');
+  });
+
+  it('GivenAnUpgrade_WhenItsPageLoads_ThenTheDocumentIsTitledAfterIt', async () => {
+    document.title = '';
+
+    renderPage();
+
+    await waitFor(() => expect(document.title).toBe('Cold showers – UpHealther'));
+  });
   it('GivenProgressReturnedNewestFirst_WhenTheDetailsPageRenders_ThenTheNewestEntryIsListedFirst', async () => {
     getProgressByUpgrade.mockResolvedValue([
       anEntry('p-3', '2026-03-12', 'third day'),
@@ -232,6 +281,18 @@ describe('UpgradeDetailsPage', () => {
     const oldest = screen.getByText('first day');
     expect(isBefore(newest, middle)).toBe(true);
     expect(isBefore(middle, oldest)).toBe(true);
+  });
+
+  // Review finding 14 on #407: the history scrolls inside a box of its own, with no name, role or tab stop,
+  // so a keyboard user in a browser that does not focus scrollable boxes could not scroll it (WCAG 2.1.1).
+  it('GivenLoggedProgress_WhenTheDetailsPageRenders_ThenItsScrollingHistoryIsANamedRegionTheKeyboardReaches', async () => {
+    getProgressByUpgrade.mockResolvedValue([anEntry('p-1', '2026-03-10', 'first day')]);
+
+    renderPage();
+
+    const history = await screen.findByRole('region', { name: 'Progress entries' });
+    expect(history.tabIndex).toBe(0);
+    expect(within(history).getByText('first day')).toBeDefined();
   });
 
   it('GivenReflectionsReturnedNewestFirst_WhenTheDetailsPageRenders_ThenTheNewestReflectionIsListedFirst', async () => {
@@ -853,7 +914,7 @@ describe('UpgradeDetailsPage', () => {
     renderPage();
     await screen.findByText('Cold showers');
     fireEvent.change(screen.getByLabelText('Time'), { target: { value: '07:30' } });
-    fireEvent.click(screen.getByTitle('WED'));
+    fireEvent.click(screen.getByRole('button', { name: 'Wednesday' }));
 
     fireEvent.submit(screen.getByRole('button', { name: 'Add reminder' }));
     await waitFor(() => expect((screen.getByLabelText('Time') as HTMLInputElement).value).toBe('09:00'));
@@ -892,7 +953,7 @@ describe('UpgradeDetailsPage', () => {
     );
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove the 09:00 reminder' }));
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('The reminder was not removed.');
@@ -907,14 +968,85 @@ describe('UpgradeDetailsPage', () => {
     ]);
     deleteReminder.mockReturnValue(new Promise(() => {}));
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove the 09:00 reminder' }));
     await waitFor(() => expect(deleteReminder).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove the 09:00 reminder' }));
 
     // A mutation calls its function a microtask after `mutate`; give a second call its chance first.
     await act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
     expect(deleteReminder).toHaveBeenCalledTimes(1);
+  });
+
+  // WCAG 2.4.3, finding X9.4: the removed row took the focused Remove with it, and focus fell to <body>.
+  it('GivenFocusOnRemove_WhenTheReminderIsRemoved_ThenFocusMovesToTheReminderFormsTime', async () => {
+    getReminders
+      .mockResolvedValueOnce([
+        { id: 'reminder-1', upgradeId: UPGRADE_ID, reminderTime: '09:00:00', daysOfWeek: [], enabled: true },
+      ])
+      .mockResolvedValue([]);
+    deleteReminder.mockResolvedValue(undefined);
+    renderPage();
+    const remove = await screen.findByRole('button', { name: 'Remove the 09:00 reminder' });
+    remove.focus();
+
+    fireEvent.click(remove);
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Remove the 09:00 reminder' })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Time')));
+  });
+
+  // Review finding 23 on #407: with no unit the field was labelled "Value ()".
+  it.each([
+    [null, 'Value'],
+    ['km', 'Value (km)'],
+  ])('GivenANumericConfigurationWithUnit %s_WhenLogProgressOpens_ThenTheValueIsLabelled %s', async (unit, label) => {
+    getUpgradeById.mockResolvedValue({
+      ...anUpgrade(),
+      trackingConfig: trackingConfigAsSent({ upgradeId: UPGRADE_ID, trackingType: 'NUMERIC', targetUnit: unit }),
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: '+ Log Progress' }));
+
+    const dialog = within(screen.getByRole('dialog', { name: 'Log Progress' }));
+    expect(dialog.getByRole('spinbutton', { name: label })).toBeDefined();
+  });
+
+  // Review finding 23 on #407: the arrow was read aloud, "leftwards arrow, Back".
+  it('GivenAnUpgradesPage_WhenItRenders_ThenBackIsNamedBackAlone', async () => {
+    renderPage();
+
+    expect(await screen.findByRole('button', { name: 'Back' })).toBeDefined();
+  });
+
+  // WCAG 4.1.2, finding X9.7: the rating is a named radio group, not five buttons told apart by colour.
+  it('GivenARatedUpgrade_WhenLogProgressOpens_ThenItsRatingIsANamedRadioGroup', async () => {
+    getUpgradeById.mockResolvedValue({
+      ...anUpgrade(),
+      trackingConfig: trackingConfigAsSent({ upgradeId: UPGRADE_ID, trackingType: 'RATING' }),
+    });
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: '+ Log Progress' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'Log Progress' }));
+
+    const rating = within(dialog.getByRole('group', { name: 'Rating (1-5)' }));
+    fireEvent.click(rating.getByRole('radio', { name: 'Rate 4 of 5' }));
+
+    expect((rating.getByRole('radio', { name: 'Rate 4 of 5' }) as HTMLInputElement).checked).toBe(true);
+  });
+
+  // WCAG 4.1.2, 1.3.1, finding X9.7: the days were "M T W T F S S", told apart from each other by colour.
+  it('GivenTheReminderForm_WhenADayIsChosen_ThenTheDayIsNamedInFullAndPressed', async () => {
+    renderPage();
+    const days = within(await screen.findByRole('group', { name: /Days/ }));
+    const names = days.getAllByRole('button').map((b) => b.getAttribute('aria-label'));
+    expect(names).toEqual(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']);
+
+    fireEvent.click(days.getByRole('button', { name: 'Wednesday' }));
+
+    expect(days.getByRole('button', { name: 'Wednesday' }).getAttribute('aria-pressed')).toBe('true');
+    expect(days.getByRole('button', { name: 'Thursday' }).getAttribute('aria-pressed')).toBe('false');
   });
 
   it('GivenAProgressEntryWasRefused_WhenLogProgressIsOpenedAgain_ThenTheRefusalIsGone', async () => {
@@ -1028,7 +1160,8 @@ describe('UpgradeDetailsPage', () => {
 
     renderPage();
 
-    expect(await screen.findByText('⭐ 4/5')).toBeDefined();
+    // The star is hidden from assistive technology (review finding 22 on #407), so the rating is its own text.
+    expect(await screen.findByText('4/5')).toBeDefined();
   });
 
   it('GivenANumericEntryOfZero_WhenTheDetailsPageRenders_ThenTheZeroIsShown', async () => {
@@ -1153,6 +1286,28 @@ describe('UpgradeDetailsPage editing an upgrade', () => {
     expect(updateUpgrade.mock.calls[0][1].type).toBe('PROTOCOL');
   });
 
+  // `fireEvent.submit` skips the browser's own validation, so without this a form that lost `noValidate`
+  // passed every test, while in a browser the native bubble took the place of the form's message and focus
+  // (review finding 16 on #407).
+  it('GivenTheEditDialog_WhenItOpens_ThenItsFormChecksItselfRatherThanTheBrowser', async () => {
+    serveUpgrade(described);
+    renderPage();
+
+    const dialog = await openEdit();
+
+    expect(dialog.getByLabelText('Title').closest('form')?.noValidate).toBe(true);
+  });
+
+  // Review finding 24 on #407: nothing said what the asterisk meant.
+  it('GivenTheEditDialog_WhenItOpens_ThenItSaysWhatTheAsteriskMeans', async () => {
+    serveUpgrade(described);
+    renderPage();
+
+    const dialog = await openEdit();
+
+    expect(dialog.getByText('Required')).toBeDefined();
+  });
+
   it('GivenTheTitleIsCleared_WhenTheEditIsSaved_ThenNothingIsSentAndTheTitleIsAskedFor', async () => {
     serveUpgrade(described);
     renderPage();
@@ -1166,6 +1321,20 @@ describe('UpgradeDetailsPage editing an upgrade', () => {
     expect(updateUpgrade).not.toHaveBeenCalled();
   });
 
+  // WCAG 3.3.1, finding X9.5: the refused field is tied to its message and takes focus.
+  it('GivenTheTitleIsCleared_WhenTheEditIsSaved_ThenTheTitleIsInvalidAndHasFocus', async () => {
+    serveUpgrade(described);
+    renderPage();
+    const dialog = await openEdit();
+
+    fireEvent.change(dialog.getByLabelText('Title'), { target: { value: '  ' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+
+    await dialog.findByText('Title is required.');
+    expect(dialog.getByLabelText('Title').getAttribute('aria-invalid')).toBe('true');
+    expect(document.activeElement).toBe(dialog.getByLabelText('Title'));
+  });
+
   it('GivenATargetEndWithAFiveDigitYear_WhenTheEditIsSaved_ThenNothingIsSentAndTheFieldAsksForFourDigits', async () => {
     serveUpgrade(described);
     renderPage();
@@ -1175,6 +1344,35 @@ describe('UpgradeDetailsPage editing an upgrade', () => {
     fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
 
     expect(await dialog.findByText('Pick a date with a four-digit year.')).toBeDefined();
+    await settled();
+    expect(updateUpgrade).not.toHaveBeenCalled();
+  });
+
+  // Review finding 19 on #407: the refusal's focus was untested on this branch.
+  it('GivenATargetEndWithAFiveDigitYear_WhenTheEditIsSaved_ThenTheTargetEndHasFocus', async () => {
+    serveUpgrade(described);
+    renderPage();
+    const dialog = await openEdit();
+    fireEvent.change(dialog.getByLabelText('Target End'), { target: { value: '20260-06-30' } });
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+
+    await dialog.findByText('Pick a date with a four-digit year.');
+    expect(document.activeElement).toBe(dialog.getByLabelText('Target End'));
+  });
+
+  // Review finding 1 on #407: a date with one part erased reads as `''`, and the dialog sets
+  // `noValidate`, so it was sent as "no target end" and the stored one was erased.
+  it('GivenAnUnfinishedTargetEnd_WhenTheEditIsSaved_ThenNothingIsSentAndTheTargetEndIsRefusedWithFocus', async () => {
+    serveUpgrade(described);
+    renderPage();
+    const dialog = await openEdit();
+    enterUnreadableText(dialog.getByLabelText('Target End'));
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+
+    expect(await dialog.findByText('Finish the date, or clear it.')).toBeDefined();
+    expect(document.activeElement).toBe(dialog.getByLabelText('Target End'));
     await settled();
     expect(updateUpgrade).not.toHaveBeenCalled();
   });
@@ -1524,6 +1722,25 @@ describe('UpgradeDetailsPage rescheduling an upgrade', () => {
     },
   );
 
+  // Review finding 16 on #407, as for the edit dialog above.
+  it('GivenTheRescheduleDialog_WhenItOpens_ThenItsFormChecksItselfRatherThanTheBrowser', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });
+    renderPage();
+
+    const dialog = await openReschedule();
+
+    expect(dialog.getByLabelText('New start date').closest('form')?.noValidate).toBe(true);
+  });
+
+  it('GivenTheRescheduleDialog_WhenItOpens_ThenItSaysWhatTheAsteriskMeans', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });
+    renderPage();
+
+    const dialog = await openReschedule();
+
+    expect(dialog.getByText('Required')).toBeDefined();
+  });
+
   it('GivenTheDateIsCleared_WhenTheRescheduleIsSubmitted_ThenNothingIsSentAndADateIsAskedFor', async () => {
     serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });
     renderPage();
@@ -1537,6 +1754,19 @@ describe('UpgradeDetailsPage rescheduling an upgrade', () => {
     expect(rescheduleUpgrade).not.toHaveBeenCalled();
   });
 
+  // Review finding 19 on #407: the refusal's focus was untested on this branch and the next.
+  it('GivenTheDateIsCleared_WhenTheRescheduleIsSubmitted_ThenTheDateHasFocus', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });
+    renderPage();
+    const dialog = await openReschedule();
+    fireEvent.change(dialog.getByLabelText('New start date'), { target: { value: '' } });
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Reschedule' }));
+
+    await dialog.findByText('Pick a start date.');
+    expect(document.activeElement).toBe(dialog.getByLabelText('New start date'));
+  });
+
   it('GivenAFiveDigitYear_WhenTheRescheduleIsSubmitted_ThenNothingIsSentAndTheDialogAsksForFourDigits', async () => {
     serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });
     renderPage();
@@ -1548,6 +1778,45 @@ describe('UpgradeDetailsPage rescheduling an upgrade', () => {
     expect(await dialog.findByText('Pick a date with a four-digit year.')).toBeDefined();
     await settled();
     expect(rescheduleUpgrade).not.toHaveBeenCalled();
+  });
+
+  it('GivenAFiveDigitYear_WhenTheRescheduleIsSubmitted_ThenTheDateHasFocus', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });
+    renderPage();
+    const dialog = await openReschedule();
+    fireEvent.change(dialog.getByLabelText('New start date'), { target: { value: '20261-11-01' } });
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Reschedule' }));
+
+    await dialog.findByText('Pick a date with a four-digit year.');
+    expect(document.activeElement).toBe(dialog.getByLabelText('New start date'));
+  });
+
+  it('GivenAnUnfinishedDate_WhenTheRescheduleIsSubmitted_ThenNothingIsSentAndTheDateIsRefusedWithFocus', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'ABANDONED' });
+    renderPage();
+    const dialog = await openReschedule();
+    enterUnreadableText(dialog.getByLabelText('New start date'));
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Reschedule' }));
+
+    expect(await dialog.findByText('Finish the date.')).toBeDefined();
+    expect(document.activeElement).toBe(dialog.getByLabelText('New start date'));
+    await settled();
+    expect(rescheduleUpgrade).not.toHaveBeenCalled();
+  });
+
+  // Firefox clears an unfinished date, `badInput` and all, as focus leaves a field whose `value` attribute
+  // changed since the user began editing, and React rewrites it on every change of a controlled field.
+  it('GivenTheNewStartDate_WhenItIsEdited_ThenItsValueAttributeStaysAsTheDialogOpened', async () => {
+    serveUpgrade({ ...anUpgrade(), status: 'PLANNED', plannedStartDate: '2026-10-20' });
+    renderPage();
+    const dialog = await openReschedule();
+    const newDate = dialog.getByLabelText('New start date');
+
+    fireEvent.change(newDate, { target: { value: '' } });
+
+    expect(newDate.getAttribute('value')).toBe('2026-10-20');
   });
 
   it('GivenARescheduleTheApiRefuses_WhenItIsSubmitted_ThenTheDialogSaysWhyWithItsReference', async () => {
@@ -1729,6 +1998,86 @@ describe('UpgradeDetailsPage changing a reminder', () => {
     getReflectionsByUpgrade.mockResolvedValue([]);
   });
 
+  // WCAG 2.4.6, 4.1.2, finding X9.17: Remove named no reminder, unlike Edit and Disable beside it.
+  it('GivenAReminder_WhenItsRowRenders_ThenRemoveNamesTheReminder', async () => {
+    serveReminders(aReminder({ reminderTime: '07:30:00' }));
+    renderPage();
+
+    expect(await screen.findByRole('button', { name: 'Remove the 07:30 reminder' })).toBeDefined();
+  });
+
+  // Finding X9.17: Edit turned the form below into the reminder's editor without a word.
+  it('GivenAReminder_WhenEditIsPressed_ThenTheFormsTimeFieldHasFocus', async () => {
+    serveReminders(aReminder());
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit the 09:00 reminder' }));
+
+    expect(document.activeElement).toBe(screen.getByLabelText('Time'));
+  });
+
+  // Review finding 3 on #407: the row's buttons were disabled while a write ran, and a disabled button
+  // drops its focus to <body> in a browser, which jsdom never shows; so the pressed one is busy instead.
+  it('GivenFocusOnDisable_WhenTheSwitchIsInFlight_ThenDisableKeepsFocusAndSaysItIsBusy', async () => {
+    serveReminders(aReminder());
+    renderPage();
+    const disable = await screen.findByRole('button', { name: 'Disable the 09:00 reminder' });
+    let land: (reminder: Reminder) => void = () => {};
+    updateReminder.mockImplementationOnce(() => new Promise<Reminder>((resolve) => (land = resolve)));
+    disable.focus();
+
+    fireEvent.click(disable);
+    await settled();
+
+    expect(document.activeElement).toBe(disable);
+    expect(disable.hasAttribute('disabled')).toBe(false);
+    expect(disable.getAttribute('aria-busy')).toBe('true');
+    getReminders.mockResolvedValue([aReminder({ enabled: false })]);
+    await act(async () => land(aReminder({ enabled: false })));
+    expect(await screen.findByRole('button', { name: 'Enable the 09:00 reminder' })).toBe(document.activeElement);
+  });
+
+  it('GivenFocusOnRemove_WhenTheRemovalIsInFlight_ThenRemoveKeepsFocusAndSaysItIsBusy', async () => {
+    serveReminders(aReminder());
+    deleteReminder.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    const remove = await screen.findByRole('button', { name: 'Remove the 09:00 reminder' });
+    remove.focus();
+
+    fireEvent.click(remove);
+    await settled();
+
+    expect(document.activeElement).toBe(remove);
+    expect(remove.hasAttribute('disabled')).toBe(false);
+    expect(remove.getAttribute('aria-busy')).toBe('true');
+  });
+
+  it('GivenFocusOnSaveReminder_WhenTheRescheduleLands_ThenFocusMovesToTheTime', async () => {
+    serveReminders(aReminder());
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit the 09:00 reminder' }));
+    const save = screen.getByRole('button', { name: 'Save reminder' });
+    save.focus();
+
+    fireEvent.click(save);
+
+    await screen.findByRole('button', { name: 'Add reminder' });
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Time')));
+  });
+
+  it('GivenAReminderBeingRescheduled_WhenCancelIsPressed_ThenFocusMovesToTheTime', async () => {
+    serveReminders(aReminder());
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit the 09:00 reminder' }));
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    cancel.focus();
+
+    fireEvent.click(cancel);
+
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByLabelText('Time'));
+  });
+
   it('GivenAReminder_WhenItIsRescheduled_ThenItsNewTimeAndDaysAreSentAndItsStateIsLeftAlone', async () => {
     serveReminders(aReminder({ enabled: false }));
     renderPage();
@@ -1736,7 +2085,7 @@ describe('UpgradeDetailsPage changing a reminder', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Edit the 09:00 reminder' }));
     expect((screen.getByLabelText('Time') as HTMLInputElement).value).toBe('09:00');
     fireEvent.change(screen.getByLabelText('Time'), { target: { value: '07:30' } });
-    fireEvent.click(screen.getByTitle('WED'));
+    fireEvent.click(screen.getByRole('button', { name: 'Wednesday' }));
     fireEvent.submit(screen.getByRole('button', { name: 'Save reminder' }));
 
     expect(await screen.findByRole('button', { name: 'Edit the 07:30 reminder' })).toBeDefined();

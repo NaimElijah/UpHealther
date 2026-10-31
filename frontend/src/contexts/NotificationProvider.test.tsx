@@ -936,17 +936,16 @@ describe('NotificationProvider desktop notifications', () => {
   });
 });
 
-/** How long a toast stays up on its own: the provider dismisses each one after six seconds. */
-const TOAST_LIFETIME_MS = 6000;
+/** How long a toast stays up on its own: `ToastContainer` dismisses each one after ten seconds. */
+const TOAST_LIFETIME_MS = 10_000;
 
 /**
  * The provider's toasts: a live notification is shown as a toast, at most four at once, each gone after
- * six seconds, and one that names an upgrade opens it.
+ * ten seconds, and one that names an upgrade opens it.
  *
- * The cap is what keeps a burst of notifications from covering the page, and the timer is what clears
- * them without a click; neither is visible to `ToastContainer.test.tsx`, which is handed its toasts. The
- * provider holds them and `ToastContainer` draws them, so it is mounted here beside the routes, as
- * `router/index.tsx` mounts it.
+ * The cap is what keeps a burst of notifications from covering the page; `ToastContainer.test.tsx`, which
+ * is handed its toasts, cannot see it. The provider holds them and `ToastContainer` draws them and times
+ * them out, so it is mounted here beside the routes, as `router/index.tsx` mounts it.
  */
 describe('NotificationProvider toasts', () => {
   beforeEach(() => {
@@ -985,7 +984,10 @@ describe('NotificationProvider toasts', () => {
   }
 
   /** What each toast on screen reads, newest first; its icon and close glyph are part of the text. */
-  const toastTexts = () => screen.queryAllByRole('status').map((toast) => toast.textContent);
+  const toastTexts = () =>
+    within(screen.getByRole('status'))
+      .queryAllByRole('group')
+      .map((toast) => toast.textContent);
 
   /** Matches the toasts showing exactly these titles, in this order. */
   const showing = (...titles: string[]) => titles.map((title) => expect.stringContaining(title));
@@ -998,7 +1000,7 @@ describe('NotificationProvider toasts', () => {
     expect(toastTexts()).toEqual(showing('Toast 5', 'Toast 4', 'Toast 3', 'Toast 2'));
   });
 
-  it('GivenAToastShowing_WhenSixSecondsPass_ThenItDismissesItselfAndNotBefore', async () => {
+  it('GivenAToastShowing_WhenTenSecondsPass_ThenItDismissesItselfAndNotBefore', async () => {
     await renderConnected();
     vi.useFakeTimers();
     deliver(notificationAsSent({ title: 'Upgrade created' }));

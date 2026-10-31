@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getUpgradeById } from '../api/upgrades';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Card from '../components/ui/Card';
+import PageHeading from '../components/ui/PageHeading';
 import UpgradeStatusBadge from '../components/upgrade/UpgradeStatusBadge';
 import UpgradeTypeBadge from '../components/upgrade/UpgradeTypeBadge';
 import UpgradeActions from '../components/upgrade/UpgradeActions';
@@ -21,9 +22,11 @@ import {
 import Badge from '../components/ui/Badge';
 import { difficultyBadgeVariant, difficultyLabel } from '../components/upgrade/upgradeMeta';
 import PageContainer from '../components/ui/PageContainer';
+import PageHeader from '../components/ui/PageHeader';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
 import { parseLocalDate } from '../lib/localDate';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
  * Everything about one upgrade: its details, and below them its streak, tracking configuration,
@@ -49,6 +52,7 @@ const UpgradeDetails: React.FC = () => {
   const reflectionsRead = useQuery(reflectionsQuery(id));
   const streakRead = useQuery(streakQuery(id));
   const remindersRead = useQuery(remindersQuery(id));
+  useDocumentTitle(upgrade?.title ?? 'Upgrade');
 
   if (isLoading)
     return (
@@ -60,12 +64,17 @@ const UpgradeDetails: React.FC = () => {
   // read in the cache, so the page and its sections stay mounted, with any open dialog and its draft,
   // and the failure is shown above them.
   if (!upgrade)
-    return <ErrorState title="Could not load this upgrade." error={error ? toApiError(error) : undefined} />;
+    return (
+      <PageContainer width="narrow">
+        <PageHeader title="Upgrade" />
+        <ErrorState title="Could not load this upgrade." error={error ? toApiError(error) : undefined} />
+      </PageContainer>
+    );
 
   return (
     <PageContainer width="narrow" className="space-y-6">
       <button onClick={() => navigate(-1)} className="text-sm text-brand-fg hover:underline">
-        ← Back
+        <span aria-hidden="true">←</span> Back
       </button>
 
       {error && (
@@ -82,7 +91,7 @@ const UpgradeDetails: React.FC = () => {
           <UpgradeTypeBadge type={upgrade.type} />
           <Badge variant={difficultyBadgeVariant(upgrade.difficulty)}>{difficultyLabel(upgrade.difficulty)}</Badge>
         </div>
-        <h1 className="text-2xl font-bold text-fg break-words">{upgrade.title}</h1>
+        <PageHeading className="text-2xl font-bold text-fg break-words">{upgrade.title}</PageHeading>
         {upgrade.description && <p className="text-fg-subtle mt-2 break-words">{upgrade.description}</p>}
         {upgrade.motivation && (
           <div className="mt-4 bg-brand-soft rounded-lg p-3">

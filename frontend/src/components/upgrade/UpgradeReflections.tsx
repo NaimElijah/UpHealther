@@ -62,13 +62,11 @@ const UpgradeReflections: React.FC<Props> = ({ upgradeId, read }) => {
   return (
     <>
       <Card
-        header={
-          <div className="flex items-center justify-between">
-            <span>Reflections ({reflections.length})</span>
-            <Button size="sm" variant="secondary" onClick={openReflection}>
-              + Add Reflection
-            </Button>
-          </div>
+        header={`Reflections (${reflections.length})`}
+        headerAction={
+          <Button size="sm" variant="secondary" onClick={openReflection}>
+            + Add Reflection
+          </Button>
         }
       >
         {reflections.length === 0 ? (
@@ -80,17 +78,26 @@ const UpgradeReflections: React.FC<Props> = ({ upgradeId, read }) => {
                 <p className="text-fg-faint">{parseLocalDate(r.date).toLocaleDateString()}</p>
                 {r.whatWorked && (
                   <p>
-                    <strong>✅ What worked:</strong> {r.whatWorked}
+                    <strong>
+                      <span aria-hidden="true">✅</span> What worked:
+                    </strong>{' '}
+                    {r.whatWorked}
                   </p>
                 )}
                 {r.whatDidNotWork && (
                   <p>
-                    <strong>❌ What didn't:</strong> {r.whatDidNotWork}
+                    <strong>
+                      <span aria-hidden="true">❌</span> What didn't:
+                    </strong>{' '}
+                    {r.whatDidNotWork}
                   </p>
                 )}
                 {r.nextAdjustment && (
                   <p>
-                    <strong>🔄 Next:</strong> {r.nextAdjustment}
+                    <strong>
+                      <span aria-hidden="true">🔄</span> Next:
+                    </strong>{' '}
+                    {r.nextAdjustment}
                   </p>
                 )}
                 <div className="flex gap-4">
@@ -124,7 +131,7 @@ const UpgradeReflections: React.FC<Props> = ({ upgradeId, read }) => {
             </label>
             <textarea
               id="reflection-what-worked"
-              className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2"
+              className="w-full mt-1 rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2"
               rows={2}
               value={reflectionForm.whatWorked ?? ''}
               onChange={(e) => setReflectionForm({ ...reflectionForm, whatWorked: e.target.value })}
@@ -136,7 +143,7 @@ const UpgradeReflections: React.FC<Props> = ({ upgradeId, read }) => {
             </label>
             <textarea
               id="reflection-what-did-not-work"
-              className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2"
+              className="w-full mt-1 rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2"
               rows={2}
               value={reflectionForm.whatDidNotWork ?? ''}
               onChange={(e) => setReflectionForm({ ...reflectionForm, whatDidNotWork: e.target.value })}
@@ -148,7 +155,7 @@ const UpgradeReflections: React.FC<Props> = ({ upgradeId, read }) => {
             </label>
             <textarea
               id="reflection-next-adjustment"
-              className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2"
+              className="w-full mt-1 rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2"
               rows={2}
               value={reflectionForm.nextAdjustment ?? ''}
               onChange={(e) => setReflectionForm({ ...reflectionForm, nextAdjustment: e.target.value })}

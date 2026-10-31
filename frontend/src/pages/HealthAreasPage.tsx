@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getHealthAreas, createHealthArea, updateHealthArea, deleteHealthArea } from '../api/healthAreas';
 import PageHeader from '../components/ui/PageHeader';
@@ -6,6 +6,7 @@ import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
+import { RequiredFieldsNote } from '../components/ui/FieldParts';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import type { CreateHealthAreaRequest, HealthArea } from '../types';
@@ -14,6 +15,8 @@ import { areaIconGlyph, DEFAULT_AREA_ICON, isIconGlyph } from '../components/ui/
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError, toFormMessage } from '../api/apiError';
 import { refreshUpgradeViews } from '../lib/upgradeViews';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { holdsUnreadableText } from '../components/ui/unreadableInput';
 
 /**
  * The area dialogs' fields as typed.
@@ -62,6 +65,7 @@ const parsePriority = (text: string): ParsedPriority => {
  * can retry or cancel.
  */
 const HealthAreasPage: React.FC = () => {
+  useDocumentTitle('Health Areas');
   const qc = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editArea, setEditArea] = useState<HealthArea | null>(null);
@@ -69,6 +73,9 @@ const HealthAreasPage: React.FC = () => {
   const [form, setForm] = useState<AreaForm>(EMPTY_FORM);
   const [formError, setFormError] = useState('');
   const [priorityError, setPriorityError] = useState('');
+  // Shared by both dialogs: only one is open at a time, and a closed one renders nothing.
+  const nameField = useRef<HTMLInputElement>(null);
+  const priorityField = useRef<HTMLInputElement>(null);
 
   const { data: areas = [], isLoading, error } = useQuery({ queryKey: ['healthAreas'], queryFn: getHealthAreas });
 
@@ -121,15 +128,27 @@ const HealthAreasPage: React.FC = () => {
     setIsCreateOpen(true);
   };
 
+  /**
+   * The priority as the dialog's field holds it now. Text the field cannot read as a number reaches the
+   * form as `''`, which would otherwise mean "no priority" and, on an edit, erase the stored one.
+   */
+  const readPriority = (): ParsedPriority =>
+    holdsUnreadableText(priorityField.current)
+      ? { valid: false, problem: PRIORITY_NOT_WHOLE }
+      : parsePriority(form.priority);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     clearErrors();
     // Both fields are checked before either refusal returns, so one submit reports every problem.
     const nameMissing = !form.name.trim();
-    const parsed = parsePriority(form.priority);
+    const parsed = readPriority();
     if (nameMissing) setFormError('Name is required.');
     if (!parsed.valid) setPriorityError(parsed.problem);
-    if (nameMissing || !parsed.valid) return;
+    if (nameMissing || !parsed.valid) {
+      (nameMissing ? nameField : priorityField).current?.focus();
+      return;
+    }
     try {
       await createMutation.mutateAsync({ ...form, priority: parsed.priority });
     } catch (thrown) {
@@ -143,9 +162,10 @@ const HealthAreasPage: React.FC = () => {
     e.preventDefault();
     if (!editArea) return;
     clearErrors();
-    const parsed = parsePriority(form.priority);
+    const parsed = readPriority();
     if (!parsed.valid) {
       setPriorityError(parsed.problem);
+      priorityField.current?.focus();
       return;
     }
     try {
@@ -191,7 +211,13 @@ const HealthAreasPage: React.FC = () => {
         <LoadingSpinner size="lg" />
       </div>
     );
-  if (error) return <ErrorState title="Could not load your health areas." error={toApiError(error)} />;
+  if (error)
+    return (
+      <PageContainer>
+        <PageHeader title="Health Areas" />
+        <ErrorState title="Could not load your health areas." error={toApiError(error)} />
+      </PageContainer>
+    );
 
   return (
     <PageContainer>
@@ -209,47 +235,63 @@ const HealthAreasPage: React.FC = () => {
           action={<Button onClick={openCreate}>Create Your First Area</Button>}
         />
       ) : (
-        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {areas.map((area) => (
-            <Card key={area.id}>
-              <div className="flex items-start gap-2">
-                <span
-                  className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden text-2xl leading-none"
-                  aria-hidden="true"
-                >
-                  {areaIconGlyph(area.icon)}
-                </span>
-                <div className="min-w-0">
-                  <h3 className="font-semibold text-fg break-words">{area.name}</h3>
-                  {area.upgradeCount !== undefined && (
-                    <p className="text-xs text-fg-subtle">
-                      {area.upgradeCount} upgrade{area.upgradeCount !== 1 ? 's' : ''}
-                    </p>
-                  )}
+        <section aria-labelledby="health-areas-list-heading">
+          {/* Named for the outline only: the areas' names are h3s, and a section heading above them keeps
+              them from sitting straight under the page's h1. */}
+          <h2 id="health-areas-list-heading" className="sr-only">
+            Your areas
+          </h2>
+          <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            {areas.map((area) => (
+              <Card key={area.id}>
+                <div className="flex items-start gap-2">
+                  <span
+                    className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden text-2xl leading-none"
+                    aria-hidden="true"
+                  >
+                    {areaIconGlyph(area.icon)}
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-fg break-words">{area.name}</h3>
+                    {area.upgradeCount !== undefined && (
+                      <p className="text-xs text-fg-subtle">
+                        {area.upgradeCount} upgrade{area.upgradeCount !== 1 ? 's' : ''}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-              {area.description && <p className="text-sm text-fg-subtle mt-2 break-words">{area.description}</p>}
-              <div className="flex flex-wrap gap-2 mt-4">
-                <Button size="sm" variant="secondary" onClick={() => openEdit(area)}>
-                  Edit
-                </Button>
-                <Button size="sm" variant="danger" onClick={() => openDelete(area.id)}>
-                  Delete
-                </Button>
-              </div>
-            </Card>
-          ))}
-        </div>
+                {area.description && <p className="text-sm text-fg-subtle mt-2 break-words">{area.description}</p>}
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {/* Each names its area after the word it shows, so the cards do not all read "Edit, Delete". */}
+                  <Button size="sm" variant="secondary" aria-label={`Edit ${area.name}`} onClick={() => openEdit(area)}>
+                    Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    aria-label={`Delete ${area.name}`}
+                    onClick={() => openDelete(area.id)}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
       )}
 
       <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="New Health Area">
-        <form onSubmit={handleCreate} className="space-y-4">
+        <form onSubmit={handleCreate} noValidate className="space-y-4">
+          <RequiredFieldsNote />
           <Input
+            ref={nameField}
             label="Name"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             placeholder="e.g. Sleep, Nutrition"
             error={formError}
+            required
           />
           <Input
             label="Description"
@@ -258,6 +300,7 @@ const HealthAreasPage: React.FC = () => {
             placeholder="Optional description"
           />
           <Input
+            ref={priorityField}
             label="Priority"
             type="number"
             value={form.priority}
@@ -289,12 +332,15 @@ const HealthAreasPage: React.FC = () => {
       </Modal>
 
       <Modal isOpen={!!editArea} onClose={() => setEditArea(null)} title="Edit Health Area">
-        <form onSubmit={handleUpdate} className="space-y-4">
+        <form onSubmit={handleUpdate} noValidate className="space-y-4">
+          <RequiredFieldsNote />
           <Input
+            ref={nameField}
             label="Name"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             error={formError}
+            required
           />
           <Input
             label="Description"
@@ -302,6 +348,7 @@ const HealthAreasPage: React.FC = () => {
             onChange={(e) => setForm({ ...form, description: e.target.value })}
           />
           <Input
+            ref={priorityField}
             label="Priority"
             type="number"
             value={form.priority}
@@ -331,7 +378,9 @@ const HealthAreasPage: React.FC = () => {
 
       <Modal isOpen={!!deleteId} onClose={() => setDeleteId(null)} title="Delete Health Area">
         <p className="text-fg-subtle mb-4">
-          Are you sure you want to delete this health area? This action cannot be undone.
+          Are you sure you want to delete{' '}
+          <span className="font-medium text-fg break-words">{areas.find((a) => a.id === deleteId)?.name}</span>? This
+          action cannot be undone.
         </p>
         {deleteMutation.error && (
           <div className="mb-4">

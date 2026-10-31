@@ -84,8 +84,12 @@ const ThemeToggle: React.FC = () => {
             its inverted text on hover anyway — but that is an ordering internal to Tailwind, not a
             guarantee, and if it ever changed the only symptom would be dark-on-blue text nobody thought
             to test. Stating the combination pins it.
+
+            The chosen option has an `fg` ring as well as its fill. The brand fill on the muted track is
+            2.53:1 in the dark theme, below the 3:1 a state needs (WCAG 1.4.11), and a fill alone is a
+            cue by colour only (1.4.1); the ring is far above 3:1 in both themes.
           */}
-          <span className="flex w-8 h-8 items-center justify-center rounded-full text-fg-subtle transition-colors group-hover:text-fg peer-checked:bg-brand peer-checked:text-fg-inverted peer-checked:group-hover:text-fg-inverted peer-focus-visible:ring-2 peer-focus-visible:ring-focus peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-muted">
+          <span className="flex w-8 h-8 items-center justify-center rounded-full border-2 border-transparent text-fg-subtle transition-colors group-hover:text-fg peer-checked:bg-brand peer-checked:border-fg peer-checked:text-fg-inverted peer-checked:group-hover:text-fg-inverted peer-focus-visible:ring-2 peer-focus-visible:ring-focus peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-muted">
             {option.icon}
             <span className="sr-only">
               {option.value === 'system' ? `${option.label} (currently ${resolvedTheme})` : option.label}

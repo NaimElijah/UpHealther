@@ -6,6 +6,7 @@ import { MemoryRouter } from 'react-router-dom';
 import DashboardPage from './DashboardPage';
 import type { AreaSummary, DashboardDto, HealthUpgrade } from '../types';
 import { upgradeAsSent } from '../test/wireFixtures';
+import { headingOutlineProblems } from '../test/headingOutline';
 
 const getDashboard = vi.fn();
 const performUpgradeAction = vi.fn();
@@ -238,7 +239,7 @@ describe('DashboardPage', () => {
     );
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Pause' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Pause / }));
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('That change did not go through.');
@@ -257,9 +258,9 @@ describe('DashboardPage', () => {
     renderPage();
     await screen.findByText('Evening walk');
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Pause' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Pause / })[0]);
     await waitFor(() => expect(performUpgradeAction).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getAllByRole('button', { name: 'Pause' })[1]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Pause / })[1]);
 
     await settled();
     expect(performUpgradeAction).toHaveBeenCalledTimes(1);
@@ -281,7 +282,7 @@ describe('DashboardPage', () => {
     await screen.findByText('Active Upgrades');
     const [, inActiveSection] = screen.getAllByText('Cold showers');
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Pause' })[1]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Pause / })[1]);
 
     const alert = await screen.findByRole('alert');
     expect(screen.getAllByRole('alert')).toHaveLength(1);
@@ -289,11 +290,12 @@ describe('DashboardPage', () => {
   });
 });
 
-/** The card headed by `heading`, once the dashboard has loaded. */
+/** The card headed by `heading`, once the dashboard has loaded: the heading sits in the card's header row. */
 async function findCard(heading: string | RegExp): Promise<HTMLElement> {
-  const header = await screen.findByText(heading);
-  if (!header.parentElement) throw new Error(`No card around the heading "${String(heading)}"`);
-  return header.parentElement;
+  const header = await screen.findByRole('heading', { level: 2, name: heading });
+  const card = header.parentElement?.parentElement;
+  if (!card) throw new Error(`No card around the heading "${String(heading)}"`);
+  return card;
 }
 
 /**
@@ -342,7 +344,7 @@ describe('DashboardPage sections', () => {
 
     const today = await findCard("Today's Health Moves");
     expect(within(today).getByText('Drink water')).toBeDefined();
-    expect(within(today).getByRole('button', { name: 'Go to Daily Check-in' })).toBeDefined();
+    expect(within(today).getByRole('link', { name: 'Go to Daily Check-in' })).toBeDefined();
     expect(within(today).queryByText('All done for today!')).toBeNull();
   });
 
@@ -424,4 +426,187 @@ describe('DashboardPage greeting', () => {
       );
     },
   );
+});
+
+/**
+ * The document is titled after the page, from its first render, so a tab, the history list and a screen
+ * reader opening the page all say which page it is. Every route was titled "UpHealther" alone (WCAG
+ * 2.4.2, finding X9.2).
+ */
+describe('DashboardPage title', () => {
+  it('GivenThePage_WhenItOpens_ThenTheDocumentIsTitledAfterIt', () => {
+    document.title = '';
+    getDashboard.mockResolvedValue(aDashboard([]));
+
+    renderPage();
+
+    expect(document.title).toBe('Dashboard – UpHealther');
+  });
+});
+
+/**
+ * Completing or pausing an upgrade takes its card off the dashboard, and with it the button that had
+ * focus, so focus fell to `<body>`. It goes to the page's heading instead, and the pressed button keeps
+ * it while the change is in flight (WCAG 2.4.3, finding X9.4).
+ */
+describe('DashboardPage focus after a transition', () => {
+  beforeEach(() => {
+    getDashboard.mockReset();
+    performUpgradeAction.mockReset();
+  });
+
+  it.each(['Complete', 'Pause'])(
+    'GivenFocusOn%sOfAnActiveUpgrade_WhenTheChangeLands_ThenFocusMovesToThePageHeading',
+    async (action) => {
+      const walk = anActiveUpgrade('upgrade-1', 'Evening walk');
+      getDashboard
+        .mockResolvedValueOnce({ ...aDashboard([]), activeUpgrades: [walk] })
+        .mockResolvedValue(aDashboard([]));
+      performUpgradeAction.mockResolvedValue(walk);
+      renderPage();
+      const button = await screen.findByRole('button', { name: new RegExp(`^${action} `) });
+      button.focus();
+
+      fireEvent.click(button);
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: new RegExp(`^${action} `) })).toBeNull());
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 })));
+    },
+  );
+
+  // Review finding 2 on #407: the hand-on moved focus without asking where it was, so a user who had
+  // moved on while the change was in flight was thrown back to the top of the page.
+  it('GivenFocusMovedWhileInFlight_WhenTheChangeLands_ThenFocusStaysWhereTheUserPutIt', async () => {
+    const first = anActiveUpgrade('upgrade-1', 'First walk');
+    const second = anActiveUpgrade('upgrade-2', 'Second walk');
+    getDashboard
+      .mockResolvedValueOnce({ ...aDashboard([]), activeUpgrades: [first, second] })
+      .mockResolvedValue({ ...aDashboard([]), activeUpgrades: [second] });
+    let land: (done: HealthUpgrade) => void = () => {};
+    performUpgradeAction.mockReturnValue(new Promise<HealthUpgrade>((resolve) => (land = resolve)));
+    renderPage();
+    const complete = await screen.findByRole('button', { name: 'Complete First walk' });
+    complete.focus();
+    fireEvent.click(complete);
+    await settled();
+
+    const secondWalk = screen.getByRole('link', { name: 'Second walk' });
+    secondWalk.focus();
+    await act(async () => land(first));
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Complete First walk' })).toBeNull());
+    await settled();
+    expect(document.activeElement).toBe(secondWalk);
+  });
+
+  it('GivenAChangeInFlight_WhenItsButtonHasFocus_ThenTheButtonKeepsItAndSaysItIsBusy', async () => {
+    getDashboard.mockResolvedValue({
+      ...aDashboard([]),
+      activeUpgrades: [anActiveUpgrade('upgrade-1', 'Evening walk')],
+    });
+    performUpgradeAction.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    const complete = await screen.findByRole('button', { name: /^Complete / });
+    complete.focus();
+
+    fireEvent.click(complete);
+    await settled();
+
+    expect(document.activeElement).toBe(complete);
+    expect(complete.hasAttribute('disabled')).toBe(false);
+    expect(complete.getAttribute('aria-busy')).toBe('true');
+  });
+});
+
+/**
+ * The page's headings form an outline: one `h1`, and no level skipped below it, a failed load included.
+ * Section titles were plain text, cards were `h3`s straight under the `h1`, and a page that failed to load
+ * had no `h1` at all (WCAG 1.3.1, 2.4.6, finding X9.11).
+ */
+describe('DashboardPage headings', () => {
+  beforeEach(() => {
+    getDashboard.mockReset();
+  });
+
+  it('GivenThePageHasLoaded_WhenItRenders_ThenItsHeadingsFormAnOutlineWithoutGaps', async () => {
+    getDashboard.mockResolvedValue({
+      ...aDashboardWithStreaks([anActiveUpgrade('upgrade-1', 'Evening walk')], { 'upgrade-1': 3 }),
+      todayUpgrades: [anActiveUpgrade('upgrade-1', 'Evening walk')],
+      areaSummary: [{ areaId: 'area-1', areaName: 'Sleep', totalUpgrades: 1, activeCount: 1, completedCount: 0 }],
+    });
+
+    renderPage();
+    await screen.findAllByText('Evening walk');
+
+    expect(headingOutlineProblems()).toEqual([]);
+  });
+
+  it('GivenTheLoadFails_WhenThePageRenders_ThenTheFailureSitsUnderThePagesHeading', async () => {
+    getDashboard.mockRejectedValue(new Error('down'));
+
+    renderPage();
+    await screen.findByRole('alert');
+
+    expect(screen.getByRole('heading', { level: 1 })).toBeDefined();
+    expect(headingOutlineProblems()).toEqual([]);
+  });
+});
+
+/**
+ * The dashboard's decorative emoji are not part of what it says: the greeting's wave, the overdue
+ * warning's sign and the streaks card's flame were read aloud with the text (WCAG 1.1.1, finding X9.24).
+ */
+describe('DashboardPage emoji', () => {
+  beforeEach(() => {
+    getDashboard.mockReset();
+  });
+
+  it('GivenStreaksAndAnOverdueUpgrade_WhenTheDashboardRenders_ThenTheHeadingsAndTheWarningAreNamedWithoutEmoji', async () => {
+    const walk = anActiveUpgrade('upgrade-1', 'Evening walk');
+    getDashboard.mockResolvedValue({ ...aDashboardWithStreaks([walk], { 'upgrade-1': 3 }), overdueUpgrades: [walk] });
+    renderPage();
+
+    expect(await screen.findByRole('heading', { level: 1, name: /^Good \w+, Ada$/ })).toBeDefined();
+    expect(screen.getByRole('heading', { level: 2, name: 'Current Streaks' })).toBeDefined();
+    expect(screen.getByText('⚠️').getAttribute('aria-hidden')).toBe('true');
+  });
+
+  // Review finding 22 on #407: the section was named "Recently Completed party popper", and each row's
+  // tick was read as "check mark" before the title.
+  it('GivenARecentlyCompletedUpgrade_WhenTheDashboardRenders_ThenItsSectionIsNamedWithoutEmojiAndItsTickIsHidden', async () => {
+    const done = { ...anActiveUpgrade('upgrade-1', 'Evening walk'), status: 'COMPLETED' as const };
+    getDashboard.mockResolvedValue({ ...aDashboard([]), recentlyCompleted: [done] });
+    renderPage();
+
+    expect(await screen.findByRole('heading', { level: 2, name: 'Recently Completed' })).toBeDefined();
+    expect(screen.getByText('✓').getAttribute('aria-hidden')).toBe('true');
+  });
+});
+
+/**
+ * What only takes the user to another page is a link, styled as a button: announced as a link, and
+ * openable in a new tab. These were buttons that called `navigate` (WCAG 4.1.2, finding X9.25).
+ */
+describe('DashboardPage links', () => {
+  beforeEach(() => {
+    getDashboard.mockReset();
+  });
+
+  it('GivenUpgradesDueToday_WhenTheDashboardRenders_ThenItsWaysToOtherPagesAreLinks', async () => {
+    const walk = anActiveUpgrade('upgrade-1', 'Evening walk');
+    getDashboard.mockResolvedValue({ ...aDashboard([]), activeUpgrades: [walk], todayUpgrades: [walk] });
+    renderPage();
+    await screen.findAllByText('Evening walk');
+
+    expect(screen.getByRole('link', { name: '+ Add Upgrade' }).getAttribute('href')).toBe('/upgrades/backlog');
+    expect(screen.getByRole('link', { name: 'Go to Daily Check-in' }).getAttribute('href')).toBe('/daily-checkin');
+  });
+
+  it('GivenNoActiveUpgrades_WhenTheDashboardRenders_ThenViewPlannedIsALink', async () => {
+    getDashboard.mockResolvedValue(aDashboard([]));
+    renderPage();
+    await screen.findByText('No active upgrades');
+
+    expect(screen.getByRole('link', { name: 'View Planned' }).getAttribute('href')).toBe('/upgrades/planned');
+  });
 });

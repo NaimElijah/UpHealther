@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import type { ActionTarget, HealthUpgrade } from '../../types';
 import UpgradeStatusBadge from './UpgradeStatusBadge';
 import UpgradeTypeBadge from './UpgradeTypeBadge';
@@ -21,6 +21,8 @@ import type { ApiError } from '../../api/apiError';
  *                       trace id (NFR-30). The page owns the mutation, so the page says which card it was
  * @param busy           a transition is in flight on the page, so the transition buttons are disabled: a
  *                       second press would be refused, and one on another card would hide the first's answer
+ * @param pendingTransition the transition in flight from this card, if one is. Its button shows it and keeps
+ *                       focus meanwhile, where a disabled one would drop focus to `<body>` (WCAG 2.4.3)
  */
 interface Props {
   upgrade: HealthUpgrade;
@@ -29,6 +31,7 @@ interface Props {
   showActions?: boolean;
   refusal?: ApiError;
   busy?: boolean;
+  pendingTransition?: ActionTarget;
 }
 
 /**
@@ -37,6 +40,9 @@ interface Props {
  * The buttons shown mirror the server's state machine — plan an idea, activate a planned one, pause or
  * complete a running one, resume a paused one. Offering only the legal moves is what keeps a user from
  * meeting a 422 they could not have predicted.
+ *
+ * Each button's name adds the upgrade to the word it shows, so a list of cards does not read "Pause,
+ * Complete, Pause, Complete"; the visible word stays first in the name (WCAG 2.4.6, 2.5.3).
  */
 const UpgradeCard: React.FC<Props> = ({
   upgrade,
@@ -45,18 +51,24 @@ const UpgradeCard: React.FC<Props> = ({
   showActions = true,
   refusal,
   busy = false,
+  pendingTransition,
 }) => {
-  const navigate = useNavigate();
-
+  const named = (verb: string) => `${verb} ${upgrade.title}`;
   return (
     <div className="bg-surface rounded-xl border border-line p-4 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <h3
-            className="font-semibold text-fg truncate cursor-pointer hover:text-brand-fg"
-            onClick={() => navigate(`/upgrades/${upgrade.id}`)}
-          >
-            {upgrade.title}
+          {/* A link inside the heading, not a heading that is clicked: it is the only way from a list to the
+              upgrade's page, so it has to be reachable by keyboard and openable in a new tab (WCAG 2.1.1). Its
+              focus ring is inset: `truncate` clips the heading's overflow, and the browser's own outline,
+              drawn outside the link, with it (2.4.7). */}
+          <h3 className="font-semibold text-fg truncate">
+            <Link
+              to={`/upgrades/${upgrade.id}`}
+              className="rounded hover:text-brand-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
+            >
+              {upgrade.title}
+            </Link>
           </h3>
           {upgrade.description && <p className="text-sm text-fg-subtle mt-1 line-clamp-2">{upgrade.description}</p>}
         </div>
@@ -68,7 +80,7 @@ const UpgradeCard: React.FC<Props> = ({
       </div>
       {showActions && upgrade.status === 'IDEA' && onPlan && (
         <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-line-subtle">
-          <Button size="sm" variant="secondary" onClick={() => onPlan(upgrade)}>
+          <Button size="sm" variant="secondary" aria-label={named('Plan')} onClick={() => onPlan(upgrade)}>
             Plan
           </Button>
         </div>
@@ -76,7 +88,13 @@ const UpgradeCard: React.FC<Props> = ({
       {showActions && upgrade.status !== 'IDEA' && onStatusChange && (
         <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-line-subtle">
           {upgrade.status === 'PLANNED' && (
-            <Button size="sm" disabled={busy} onClick={() => onStatusChange(upgrade.id, 'ACTIVE')}>
+            <Button
+              size="sm"
+              disabled={busy}
+              loading={pendingTransition === 'ACTIVE'}
+              aria-label={named('Activate')}
+              onClick={() => onStatusChange(upgrade.id, 'ACTIVE')}
+            >
               Activate
             </Button>
           )}
@@ -86,17 +104,32 @@ const UpgradeCard: React.FC<Props> = ({
                 size="sm"
                 variant="secondary"
                 disabled={busy}
+                loading={pendingTransition === 'PAUSED'}
+                aria-label={named('Pause')}
                 onClick={() => onStatusChange(upgrade.id, 'PAUSED')}
               >
                 Pause
               </Button>
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => onStatusChange(upgrade.id, 'COMPLETED')}>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                loading={pendingTransition === 'COMPLETED'}
+                aria-label={named('Complete')}
+                onClick={() => onStatusChange(upgrade.id, 'COMPLETED')}
+              >
                 Complete
               </Button>
             </>
           )}
           {upgrade.status === 'PAUSED' && (
-            <Button size="sm" disabled={busy} onClick={() => onStatusChange(upgrade.id, 'ACTIVE')}>
+            <Button
+              size="sm"
+              disabled={busy}
+              loading={pendingTransition === 'ACTIVE'}
+              aria-label={named('Resume')}
+              onClick={() => onStatusChange(upgrade.id, 'ACTIVE')}
+            >
               Resume
             </Button>
           )}

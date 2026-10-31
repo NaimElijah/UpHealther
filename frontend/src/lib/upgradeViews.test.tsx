@@ -292,32 +292,32 @@ describe('a change to an upgrade', () => {
   it('GivenAnUpgradePausedOnTheDashboard_WhenTheActivePageOpensAgain_ThenItIsListedUnderPaused', async () => {
     serve(anUpgrade('ACTIVE'));
     renderApp('/upgrades/active');
-    await screen.findByRole('button', { name: 'Pause' });
+    await screen.findByRole('button', { name: /^Pause / });
 
     goTo('/');
-    fireEvent.click(await screen.findByRole('button', { name: 'Pause' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Pause / }));
     await screen.findByText('No active upgrades');
 
     goTo('/upgrades/active');
 
     const paused = await screen.findByRole('region', { name: 'Paused' });
     expect(paused.textContent).toContain(TITLE);
-    expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Pause / })).toBeNull();
   });
 
   it('GivenAnUpgradePausedOnTheActivePage_WhenTheDashboardOpensAgain_ThenItShowsTheChange', async () => {
     serve(anUpgrade('ACTIVE'));
     renderApp('/');
-    await screen.findByRole('button', { name: 'Pause' });
+    await screen.findByRole('button', { name: /^Pause / });
 
     goTo('/upgrades/active');
-    fireEvent.click(await screen.findByRole('button', { name: 'Pause' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Pause / }));
     await screen.findByRole('region', { name: 'Paused' });
 
     goTo('/');
 
     expect(await screen.findByText('No active upgrades')).toBeDefined();
-    expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Pause / })).toBeNull();
   });
 
   it('GivenAnUpgradeActivatedOnThePlannedPage_WhenItsDetailsPageOpens_ThenItShowsActive', async () => {
@@ -326,7 +326,7 @@ describe('a change to an upgrade', () => {
     await screen.findByText('Planned');
 
     goTo('/upgrades/planned');
-    fireEvent.click(await screen.findByRole('button', { name: 'Activate' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Activate / }));
     await screen.findByText('No planned upgrades');
 
     goTo(`/upgrades/${UPGRADE_ID}`);
@@ -341,7 +341,7 @@ describe('a change to an upgrade', () => {
     expect(await tileFigure('Planned')).toBe('0');
 
     goTo('/upgrades/backlog');
-    fireEvent.click(await screen.findByRole('button', { name: 'Plan' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Plan / }));
     const dialog = within(screen.getByRole('dialog', { name: 'Plan Upgrade' }));
     fireEvent.submit(dialog.getByRole('button', { name: 'Plan' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Plan Upgrade' })).toBeNull());
@@ -396,7 +396,7 @@ describe('a change to an upgrade', () => {
   it('GivenAnUpgradeAbandonedOnItsPage_WhenTheActivePageOpensAgain_ThenItIsNoLongerListed', async () => {
     serve(anUpgrade('ACTIVE'));
     renderApp('/upgrades/active');
-    await screen.findByRole('button', { name: 'Pause' });
+    await screen.findByRole('button', { name: /^Pause / });
 
     goTo(`/upgrades/${UPGRADE_ID}`);
     fireEvent.click(await screen.findByRole('button', { name: 'Abandon' }));
@@ -488,7 +488,7 @@ describe('a change to an upgrade', () => {
     await screen.findByRole('button', { name: 'Edit Upgrade' });
 
     goTo('/health-areas');
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Delete / }));
     fireEvent.click(
       within(screen.getByRole('dialog', { name: 'Delete Health Area' })).getByRole('button', { name: 'Delete' }),
     );
@@ -515,7 +515,7 @@ describe('a change to an upgrade', () => {
     expect(await areaRow()).toContain(AREA.name);
 
     goTo('/health-areas');
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Delete / }));
     fireEvent.click(
       within(screen.getByRole('dialog', { name: 'Delete Health Area' })).getByRole('button', { name: 'Delete' }),
     );
@@ -533,7 +533,7 @@ describe('a change to an upgrade', () => {
     expect(await areaRow()).toContain(AREA.name);
 
     goTo('/health-areas');
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Edit / }));
     const dialog = within(screen.getByRole('dialog', { name: 'Edit Health Area' }));
     fireEvent.change(dialog.getByLabelText('Name'), { target: { value: 'Mobility' } });
     fireEvent.submit(dialog.getByRole('button', { name: 'Save Changes' }));

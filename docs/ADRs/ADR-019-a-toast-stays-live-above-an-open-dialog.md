@@ -1,6 +1,9 @@
 # ADR-019: A toast stays live above an open dialog
 
-- **Status:** Accepted
+- **Status:** Accepted — superseded in part by
+  [ADR-082](ADR-082-the-interface-targets-wcag-2-2-aa.md): a toast now stays ten seconds, counted only
+  while the pointer is off it and focus is outside it, so "dismisses itself after six seconds" no
+  longer holds
 - **Date:** 2026-10-02
 - **Supersedes in part:** [ADR-013](ADR-013-trapping-focus-without-a-native-dialog.md). Its *What this
   makes hard* paragraph records a toast going inert under an open dialog; that is no longer true. Its

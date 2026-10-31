@@ -7,8 +7,8 @@ import { navItemsFor } from './navItems';
  * The signed-in user's navigation entries as links, with the current route highlighted. Rendered by
  * the sidebar on a wide window and by the phone menu on a narrow one, so the two cannot drift apart.
  *
- * The landmark is named because the navbar is a `<nav>` as well: two unnamed ones read as
- * "navigation, navigation" in a screen reader's landmark list.
+ * The landmark is named "Main", so a screen reader's landmark list says which navigation it is. It is the
+ * app's only one: the navbar around the phone menu's button is not a `<nav>`.
  */
 const NavLinks: React.FC = () => {
   const { user } = useAuth();
@@ -27,7 +27,7 @@ const NavLinks: React.FC = () => {
             }`
           }
         >
-          <span>{item.icon}</span>
+          <span aria-hidden="true">{item.icon}</span>
           <span>{item.label}</span>
         </NavLink>
       ))}

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { AxiosError, AxiosHeaders } from 'axios';
 import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import LoginPage from './LoginPage';
 import { AuthContext, type AuthContextType } from '../contexts/authContextValue';
@@ -53,6 +53,13 @@ function renderLogin(ctx: AuthContextType = contextWith()) {
       </AuthContext.Provider>
     </ThemeProvider>,
   );
+}
+
+/** What a field's error says, read the way a screen reader reaches it: through `aria-describedby`. */
+function errorOf(label: string): string | null | undefined {
+  const field = screen.getByLabelText(label);
+  if (field.getAttribute('aria-invalid') !== 'true') return null;
+  return document.getElementById(field.getAttribute('aria-describedby') ?? '')?.textContent;
 }
 
 /** Fills both fields and submits, the way a user would. */
@@ -184,7 +191,7 @@ describe('LoginPage', () => {
 
     fireEvent.submit(screen.getByRole('button', { name: 'Sign In' }));
 
-    await waitFor(() => expect(screen.getByText('Please fill in all fields.')).toBeDefined());
+    await waitFor(() => expect(screen.getByText('Email is required.')).toBeDefined());
     expect(login).not.toHaveBeenCalled();
   });
 
@@ -193,5 +200,100 @@ describe('LoginPage', () => {
     renderLogin(contextWith({ isAuthenticated: true }));
 
     await waitFor(() => expect(screen.getByText('the dashboard')).toBeDefined());
+  });
+});
+
+/**
+ * The document is titled after the page, from its first render, so a tab, the history list and a screen
+ * reader opening the page all say which page it is. Every route was titled "UpHealther" alone (WCAG
+ * 2.4.2, finding X9.2).
+ */
+describe('LoginPage title', () => {
+  it('GivenThePage_WhenItOpens_ThenTheDocumentIsTitledAfterIt', () => {
+    document.title = '';
+
+    renderLogin();
+
+    expect(document.title).toBe('Sign in – UpHealther');
+  });
+});
+
+/**
+ * The sign-in form marks its fields required, announces its message, and sends focus to the field to fix.
+ * The message was a bare paragraph a screen reader never announced, and focus stayed on the button
+ * (WCAG 3.3.1, 3.3.2, 4.1.3, finding X9.5).
+ */
+describe('LoginPage form errors', () => {
+  // `fireEvent.submit` skips the browser's own validation, so without this a form that lost `noValidate`
+  // passed every test, while in a browser the native bubble took the place of the form's message and focus
+  // (review finding 16 on #407).
+  it('GivenTheSignInForm_WhenItRenders_ThenItChecksItselfRatherThanTheBrowser', () => {
+    renderLogin();
+
+    expect(screen.getByLabelText('Email').closest('form')?.noValidate).toBe(true);
+  });
+
+  it('GivenTheSignInForm_WhenItRenders_ThenBothFieldsAreMarkedRequired', () => {
+    renderLogin();
+
+    expect(screen.getByLabelText('Email').getAttribute('aria-required')).toBe('true');
+    expect(screen.getByLabelText('Password').getAttribute('aria-required')).toBe('true');
+    // Review finding 24 on #407: nothing said what the asterisk meant.
+    expect(screen.getByText('Required').closest('form')).toBe(screen.getByLabelText('Email').closest('form'));
+  });
+
+  it('GivenAnEmptyEmail_WhenTheFormIsSubmitted_ThenTheMessageIsAnnouncedAndTheEmailFieldHasFocus', async () => {
+    renderLogin();
+
+    await signIn('', 's3cret!');
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Email is required.');
+    expect(document.activeElement).toBe(screen.getByLabelText('Email'));
+  });
+
+  it('GivenAnEmptyPassword_WhenTheFormIsSubmitted_ThenThePasswordFieldHasFocus', async () => {
+    renderLogin();
+
+    await signIn('someone@example.com', '');
+
+    await screen.findByRole('alert');
+    expect(document.activeElement).toBe(screen.getByLabelText('Password'));
+  });
+
+  // Review finding 12 on #407: one page-wide message named neither field, and neither was marked
+  // invalid, so a screen reader on Password never heard what was wrong with it (WCAG 3.3.1).
+  it('GivenAnEmptyForm_WhenItIsSubmitted_ThenEachFieldIsInvalidAndSaysWhatIsMissing', async () => {
+    renderLogin();
+
+    await signIn('', '');
+
+    expect(await screen.findByText('Email is required.')).toBeDefined();
+    expect(errorOf('Email')).toBe('Email is required.');
+    expect(errorOf('Password')).toBe('Password is required.');
+    expect(document.activeElement).toBe(screen.getByLabelText('Email'));
+  });
+
+  it('GivenCredentialsTheServerRejects_WhenTheFormIsSubmitted_ThenTheRefusalIsAnnounced', async () => {
+    login.mockRejectedValue(apiFailure(401));
+    renderLogin();
+
+    await signIn();
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Invalid email or password.');
+  });
+});
+
+/**
+ * The page has a main landmark around its form, as every signed-in page has through the shell. It renders
+ * outside the shell, so it had none, and a screen reader's landmark list was empty (WCAG 1.3.1, 2.4.1,
+ * finding X9.18).
+ */
+describe('LoginPage landmark', () => {
+  it('GivenThePage_WhenItRenders_ThenItsHeadingAndFormAreInsideTheMainLandmark', () => {
+    renderLogin();
+
+    const main = within(screen.getByRole('main'));
+    expect(main.getByRole('heading', { level: 1, name: 'UpHealther' })).toBeDefined();
+    expect(main.getByLabelText('Email')).toBeDefined();
   });
 });

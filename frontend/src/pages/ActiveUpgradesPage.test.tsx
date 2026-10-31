@@ -6,6 +6,7 @@ import { MemoryRouter } from 'react-router-dom';
 import ActiveUpgradesPage from './ActiveUpgradesPage';
 import type { ActionTarget, HealthUpgrade, UpgradeStatus } from '../types';
 import { upgradeAsSent } from '../test/wireFixtures';
+import { headingOutlineProblems } from '../test/headingOutline';
 
 const getUpgrades = vi.fn();
 const performUpgradeAction = vi.fn();
@@ -89,7 +90,7 @@ describe('ActiveUpgradesPage', () => {
     );
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Pause' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Pause / }));
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('That change did not go through.');
@@ -112,7 +113,7 @@ describe('ActiveUpgradesPage', () => {
     renderPage();
     await screen.findByText('Cold showers');
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Pause' })[1]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Pause / })[1]);
 
     const alert = await screen.findByRole('alert');
     expect(screen.getAllByRole('alert')).toHaveLength(1);
@@ -129,10 +130,10 @@ describe('ActiveUpgradesPage', () => {
     renderPage();
     await screen.findByText('Cold showers');
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Pause' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Pause / })[0]);
     await waitFor(() => expect(performUpgradeAction).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getAllByRole('button', { name: 'Pause' })[0]);
-    fireEvent.click(screen.getAllByRole('button', { name: 'Complete' })[1]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Pause / })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Complete / })[1]);
 
     await settled();
     expect(performUpgradeAction).toHaveBeenCalledTimes(1);
@@ -149,10 +150,10 @@ describe('ActiveUpgradesPage', () => {
       )
       .mockResolvedValueOnce({ ...anActiveUpgrade(), status: 'PAUSED' });
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: 'Pause' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Pause / }));
     await screen.findByRole('alert');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Pause / }));
 
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
   });
@@ -178,7 +179,7 @@ describe('ActiveUpgradesPage, paused upgrades', () => {
     const paused = await screen.findByRole('region', { name: 'Paused' });
 
     expect(within(paused).getByText('Morning stretch')).toBeDefined();
-    expect(within(paused).getByRole('button', { name: 'Resume' })).toBeDefined();
+    expect(within(paused).getByRole('button', { name: /^Resume / })).toBeDefined();
     expect(within(paused).queryByText('Evening walk')).toBeNull();
   });
 
@@ -197,7 +198,7 @@ describe('ActiveUpgradesPage, paused upgrades', () => {
     performUpgradeAction.mockResolvedValue({ ...aPausedUpgrade('upgrade-9'), status: 'ACTIVE' });
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Resume' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Resume / }));
 
     await waitFor(() => expect(performUpgradeAction).toHaveBeenCalledWith('upgrade-9', 'ACTIVE'));
   });
@@ -215,12 +216,12 @@ describe('ActiveUpgradesPage, paused upgrades', () => {
     });
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Pause' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Pause / }));
 
     const paused = await screen.findByRole('region', { name: 'Paused' });
     expect(within(paused).getByText('Evening walk')).toBeDefined();
-    expect(within(paused).getByRole('button', { name: 'Resume' })).toBeDefined();
-    expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
+    expect(within(paused).getByRole('button', { name: /^Resume / })).toBeDefined();
+    expect(screen.queryByRole('button', { name: /^Pause / })).toBeNull();
   });
 
   it('GivenNoActiveOrPausedUpgrades_WhenTheActivePageRenders_ThenNoActiveUpgradesIsShown', async () => {
@@ -255,9 +256,9 @@ describe('ActiveUpgradesPage, paused upgrades', () => {
     });
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Resume' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Resume / }));
 
-    expect(await screen.findByRole('button', { name: 'Pause' })).toBeDefined();
+    expect(await screen.findByRole('button', { name: /^Pause / })).toBeDefined();
     expect(screen.queryByRole('region', { name: 'Paused' })).toBeNull();
   });
 
@@ -274,7 +275,7 @@ describe('ActiveUpgradesPage, paused upgrades', () => {
     renderPage();
     const paused = await screen.findByRole('region', { name: 'Paused' });
 
-    fireEvent.click(within(paused).getByRole('button', { name: 'Resume' }));
+    fireEvent.click(within(paused).getByRole('button', { name: /^Resume / }));
 
     const alert = await within(paused).findByRole('alert');
     expect(alert.textContent).toContain('Cannot run more than 3 HARD upgrades simultaneously');
@@ -323,10 +324,114 @@ describe('ActiveUpgradesPage, completing an upgrade', () => {
     });
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Complete' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Complete / }));
 
     expect(await screen.findByText('No active upgrades')).toBeDefined();
     expect(performUpgradeAction.mock.calls).toEqual([['upgrade-1', 'COMPLETED']]);
     expect(screen.queryByRole('region', { name: 'Paused' })).toBeNull();
+  });
+});
+
+/**
+ * The document is titled after the page, from its first render, so a tab, the history list and a screen
+ * reader opening the page all say which page it is. Every route was titled "UpHealther" alone (WCAG
+ * 2.4.2, finding X9.2).
+ */
+describe('ActiveUpgradesPage title', () => {
+  it('GivenThePage_WhenItOpens_ThenTheDocumentIsTitledAfterIt', () => {
+    document.title = '';
+    getUpgrades.mockResolvedValue([]);
+
+    renderPage();
+
+    expect(document.title).toBe('Active Upgrades – UpHealther');
+  });
+});
+
+/**
+ * Completing an upgrade takes its card off the page, and pausing or resuming one moves it to the other
+ * list, so the pressed button goes in each case and focus fell to `<body>`. It goes to the page's heading
+ * instead (WCAG 2.4.3, finding X9.4; untested until review finding 4 on #407).
+ */
+describe('ActiveUpgradesPage focus after a transition', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    performUpgradeAction.mockReset();
+  });
+
+  it.each([
+    ['Complete', anActiveUpgrade(), 'COMPLETED'],
+    ['Pause', anActiveUpgrade(), 'PAUSED'],
+    ['Resume', aPausedUpgrade(), 'ACTIVE'],
+  ] as const)(
+    'GivenFocusOn%s_WhenTheChangeLands_ThenFocusMovesToThePageHeading',
+    async (action, upgrade, next: UpgradeStatus) => {
+      let current = upgrade;
+      getUpgrades.mockImplementation((status: UpgradeStatus) =>
+        Promise.resolve(current.status === status ? [current] : []),
+      );
+      performUpgradeAction.mockImplementation((_id: string, status: ActionTarget) => {
+        current = { ...current, status };
+        return Promise.resolve(current);
+      });
+      renderPage();
+      const button = await screen.findByRole('button', { name: `${action} ${upgrade.title}` });
+      button.focus();
+
+      fireEvent.click(button);
+
+      await waitFor(() => expect(current.status).toBe(next));
+      await waitFor(() => expect(screen.queryByRole('button', { name: `${action} ${upgrade.title}` })).toBeNull());
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 })));
+    },
+  );
+});
+
+/**
+ * The page's headings form an outline: one `h1`, and no level skipped below it, a failed load included.
+ * Section titles were plain text, cards were `h3`s straight under the `h1`, and a page that failed to load
+ * had no `h1` at all (WCAG 1.3.1, 2.4.6, finding X9.11).
+ */
+describe('ActiveUpgradesPage headings', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+  });
+
+  it('GivenThePageHasLoaded_WhenItRenders_ThenItsHeadingsFormAnOutlineWithoutGaps', async () => {
+    answerByStatus({ ACTIVE: [anActiveUpgrade()], PAUSED: [aPausedUpgrade()] });
+
+    renderPage();
+    await screen.findByText('Morning stretch');
+
+    expect(headingOutlineProblems()).toEqual([]);
+  });
+
+  it('GivenTheLoadFails_WhenThePageRenders_ThenTheFailureSitsUnderThePagesHeading', async () => {
+    getUpgrades.mockRejectedValue(new Error('down'));
+
+    renderPage();
+    await screen.findByRole('alert');
+
+    expect(screen.getByRole('heading', { level: 1 })).toBeDefined();
+    expect(headingOutlineProblems()).toEqual([]);
+  });
+});
+
+/**
+ * What only takes the user to another page is a link, styled as a button: announced as a link, and
+ * openable in a new tab. These were buttons that called `navigate` (WCAG 4.1.2, finding X9.25).
+ */
+describe('ActiveUpgradesPage links', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    answerByStatus({});
+  });
+
+  it('GivenNothingRunning_WhenThePageRenders_ThenItsWaysToOtherPagesAreLinks', async () => {
+    renderPage();
+    await screen.findByText('No active upgrades');
+
+    expect(screen.getByRole('link', { name: 'Daily Check-in' }).getAttribute('href')).toBe('/daily-checkin');
+    expect(screen.getByRole('link', { name: 'View Planned' }).getAttribute('href')).toBe('/upgrades/planned');
   });
 });

@@ -6,6 +6,8 @@ import { MemoryRouter } from 'react-router-dom';
 import UpgradeBacklogPage from './UpgradeBacklogPage';
 import type { HealthUpgrade } from '../types';
 import { upgradeAsSent } from '../test/wireFixtures';
+import { headingOutlineProblems } from '../test/headingOutline';
+import { enterUnreadableText } from '../test/unreadableInput';
 
 const getUpgrades = vi.fn();
 const planUpgrade = vi.fn();
@@ -72,7 +74,7 @@ async function openCreate(title = 'Run a 5k') {
 /** Presses Plan on the only idea listed, and returns queries scoped to the dialog it opens. */
 async function openPlan() {
   await screen.findByText('Cold showers');
-  fireEvent.click(screen.getByRole('button', { name: 'Plan' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Plan Cold showers' }));
   return within(screen.getByRole('dialog', { name: 'Plan Upgrade' }));
 }
 
@@ -277,6 +279,18 @@ describe('UpgradeBacklogPage creating an idea', () => {
     expect(createUpgrade).not.toHaveBeenCalled();
   });
 
+  // Review finding 19 on #407: the refusal's focus was untested on this branch.
+  it('GivenATargetEndWithAFiveDigitYear_WhenAnIdeaIsCreated_ThenTheTargetEndHasFocus', async () => {
+    renderPage();
+    const dialog = await openCreate();
+    fireEvent.change(dialog.getByLabelText('Target End'), { target: { value: '20260-12-31' } });
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Add Idea' }));
+
+    await dialog.findByText('Pick a date with a four-digit year.');
+    expect(document.activeElement).toBe(dialog.getByLabelText('Target End'));
+  });
+
   it('GivenATitleTheApiRefuses_WhenAnIdeaIsCreated_ThenTheDialogStaysOpenAndNamesTheReason', async () => {
     // BR-16: the API refuses an over-long title with a 400 naming the field.
     createUpgrade.mockRejectedValue(
@@ -339,5 +353,190 @@ describe('UpgradeBacklogPage creating an idea', () => {
     fireEvent.submit(dialog.getByRole('button', { name: 'Add Idea' }));
 
     expect(await dialog.findByText('An unexpected error occurred (reference trace-create)')).toBeDefined();
+  });
+});
+
+/**
+ * The document is titled after the page, from its first render, so a tab, the history list and a screen
+ * reader opening the page all say which page it is. Every route was titled "UpHealther" alone (WCAG
+ * 2.4.2, finding X9.2).
+ */
+describe('UpgradeBacklogPage title', () => {
+  it('GivenThePage_WhenItOpens_ThenTheDocumentIsTitledAfterIt', () => {
+    document.title = '';
+    getUpgrades.mockResolvedValue([]);
+
+    renderPage();
+
+    expect(document.title).toBe('Idea Backlog – UpHealther');
+  });
+});
+
+/**
+ * Planning an idea takes it off the backlog, and its Plan button with it, so the dialog had nothing to
+ * hand focus back to and it fell to `<body>`. It goes to the page's heading instead (WCAG 2.4.3,
+ * finding X9.4).
+ */
+describe('UpgradeBacklogPage focus after planning', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    planUpgrade.mockReset();
+  });
+
+  it('GivenAnIdea_WhenItIsPlanned_ThenFocusMovesToThePageHeading', async () => {
+    getUpgrades.mockResolvedValueOnce([anIdea()]).mockResolvedValue([]);
+    planUpgrade.mockResolvedValue(anIdea({ status: 'PLANNED' }));
+    renderPage();
+    await screen.findByText('Cold showers');
+    const plan = screen.getByRole('button', { name: 'Plan Cold showers' });
+    plan.focus();
+    fireEvent.click(plan);
+    const dialog = within(screen.getByRole('dialog', { name: 'Plan Upgrade' }));
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Plan' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 })));
+  });
+});
+
+/**
+ * The backlog's dialogs mark their required fields, and a refused submit sends focus to the field to fix
+ * (WCAG 3.3.1, 3.3.2, finding X9.5).
+ */
+describe('UpgradeBacklogPage form errors', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    planUpgrade.mockReset();
+    createUpgrade.mockReset();
+    getUpgrades.mockResolvedValue([anIdea()]);
+  });
+
+  // `fireEvent.submit` skips the browser's own validation, so without this a form that lost `noValidate`
+  // passed every test, while in a browser the native bubble took the place of the form's message and focus
+  // (review finding 16 on #407).
+  it('GivenEitherBacklogDialog_WhenItOpens_ThenItsFormChecksItselfRatherThanTheBrowser', async () => {
+    renderPage();
+    const create = await openCreate();
+    expect(create.getByLabelText('Title').closest('form')?.noValidate).toBe(true);
+    fireEvent.click(create.getByRole('button', { name: 'Cancel' }));
+
+    const plan = await openPlan();
+
+    expect(plan.getByLabelText('Start date').closest('form')?.noValidate).toBe(true);
+  });
+
+  it('GivenTheNewIdeaDialog_WhenItIsSubmittedWithoutATitle_ThenTheTitleIsRequiredInvalidAndHasFocus', async () => {
+    renderPage();
+    const dialog = await openCreate('');
+    expect(dialog.getByLabelText('Title').getAttribute('aria-required')).toBe('true');
+    // Review finding 24 on #407: nothing said what the asterisk meant.
+    expect(dialog.getByText('Required')).toBeDefined();
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Add Idea' }));
+
+    await dialog.findByText('Title is required.');
+    expect(dialog.getByLabelText('Title').getAttribute('aria-invalid')).toBe('true');
+    expect(document.activeElement).toBe(dialog.getByLabelText('Title'));
+  });
+
+  it('GivenThePlanDialog_WhenItIsSubmittedWithoutADate_ThenTheDateIsRequiredAndHasFocus', async () => {
+    renderPage();
+    const dialog = await openPlan();
+    expect(dialog.getByLabelText('Start date').getAttribute('aria-required')).toBe('true');
+    // Review finding 24 on #407: nothing said what the asterisk meant.
+    expect(dialog.getByText('Required')).toBeDefined();
+
+    fireEvent.change(dialog.getByLabelText('Start date'), { target: { value: '' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Plan' }));
+
+    await dialog.findByText('Pick a start date.');
+    expect(document.activeElement).toBe(dialog.getByLabelText('Start date'));
+  });
+});
+
+/**
+ * A date with a part erased or never typed reaches the form as `''`, the value an empty field has. The
+ * dialogs set `noValidate`, so the browser no longer refuses it, and the new idea would be saved without
+ * the target end the user can see (review finding 1 on #407).
+ */
+describe('UpgradeBacklogPage unreadable dates', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    planUpgrade.mockReset();
+    createUpgrade.mockReset();
+    getUpgrades.mockResolvedValue([anIdea()]);
+    createUpgrade.mockResolvedValue(anIdea());
+    planUpgrade.mockResolvedValue(anIdea({ status: 'PLANNED' }));
+  });
+
+  it('GivenAnUnfinishedTargetEnd_WhenAnIdeaIsCreated_ThenNothingIsSentAndTheTargetEndIsRefusedWithFocus', async () => {
+    renderPage();
+    const dialog = await openCreate();
+    enterUnreadableText(dialog.getByLabelText('Target End'));
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Add Idea' }));
+
+    expect(await dialog.findByText('Finish the date, or clear it.')).toBeDefined();
+    expect(document.activeElement).toBe(dialog.getByLabelText('Target End'));
+    await settled();
+    expect(createUpgrade).not.toHaveBeenCalled();
+  });
+
+  it('GivenAnUnfinishedStartDate_WhenThePlanIsSubmitted_ThenNothingIsSentAndTheDateIsRefusedWithFocus', async () => {
+    renderPage();
+    const dialog = await openPlan();
+    enterUnreadableText(dialog.getByLabelText('Start date'));
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Plan' }));
+
+    expect(await dialog.findByText('Finish the date.')).toBeDefined();
+    expect(document.activeElement).toBe(dialog.getByLabelText('Start date'));
+    await settled();
+    expect(planUpgrade).not.toHaveBeenCalled();
+  });
+
+  // Firefox clears an unfinished date, `badInput` and all, as focus leaves a field whose `value` attribute
+  // changed since the user began editing, and React rewrites it on every change of a controlled field.
+  it('GivenTheStartDate_WhenItIsEdited_ThenItsValueAttributeStaysAsTheDialogOpened', async () => {
+    renderPage();
+    const dialog = await openPlan();
+    const startDate = dialog.getByLabelText<HTMLInputElement>('Start date');
+    const opened = startDate.value;
+
+    fireEvent.change(startDate, { target: { value: '' } });
+
+    expect(opened).not.toBe('');
+    expect(startDate.getAttribute('value')).toBe(opened);
+  });
+});
+
+/**
+ * The page's headings form an outline: one `h1`, and no level skipped below it, a failed load included.
+ * Section titles were plain text, cards were `h3`s straight under the `h1`, and a page that failed to load
+ * had no `h1` at all (WCAG 1.3.1, 2.4.6, finding X9.11).
+ */
+describe('UpgradeBacklogPage headings', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+  });
+
+  it('GivenThePageHasLoaded_WhenItRenders_ThenItsHeadingsFormAnOutlineWithoutGaps', async () => {
+    getUpgrades.mockResolvedValue([anIdea()]);
+
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    expect(headingOutlineProblems()).toEqual([]);
+  });
+
+  it('GivenTheLoadFails_WhenThePageRenders_ThenTheFailureSitsUnderThePagesHeading', async () => {
+    getUpgrades.mockRejectedValue(new Error('down'));
+
+    renderPage();
+    await screen.findByRole('alert');
+
+    expect(screen.getByRole('heading', { level: 1 })).toBeDefined();
+    expect(headingOutlineProblems()).toEqual([]);
   });
 });
