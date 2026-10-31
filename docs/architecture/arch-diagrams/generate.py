@@ -8,7 +8,7 @@ already states and would otherwise drift the moment anyone adds an import, a fie
     class-diagram  one bounded context's types and their relations, from the package layout
     er-diagram     the database schema, from the Flyway migrations
 
-The other three are conceptual, do not rot, and are written by hand in the README.
+The other four are conceptual, do not rot, and are written by hand in the README.
 
 Usage:
     python generate.py            rewrite the generated regions of README.md
@@ -79,8 +79,9 @@ STRING_LITERAL = re.compile(r'"(?:\\.|[^"\\])*"')
 def java_sources() -> list[Path]:
     """Every Java source in the backend's main tree that declares a type.
 
-    A package-info.java declares none: it holds its package's Javadoc. Read as a type, it would be
-    drawn as a class named `package-info`, and every package's copy would collide on that one name.
+    A package-info.java declares none: it holds its package's Javadoc, and no import a dependency could
+    come from. Read as a type, every package's copy would share the one name `package-info`, which
+    `discover_types` refuses.
     """
     return [path for path in sorted(JAVA_ROOT.rglob("*.java")) if path.name != "package-info.java"]
 
