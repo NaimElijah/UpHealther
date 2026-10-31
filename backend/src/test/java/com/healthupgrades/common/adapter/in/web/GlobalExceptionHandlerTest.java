@@ -182,6 +182,17 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void GivenARefusedSignIn_WhenItIsHandled_ThenThe401CarriesABareBearerChallenge() {
+        // RFC 9110 section 15.5.2: every 401 names the scheme that would succeed. A sign-in's refusal is
+        // about credentials, not a bearer token, so there is no invalid_token to report, only the scheme.
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
+                handler.handleBadCredentials(new BadCredentialsException("Bad credentials"), request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getHeaders().getFirst(HttpHeaders.WWW_AUTHENTICATE)).isEqualTo("Bearer");
+    }
+
+    @Test
     void GivenTheUserStoreIsUnreachable_WhenLoginFails_ThenItIsAServerFaultAndNotACredentialError() {
         // The reason the handler names two subtypes instead of AuthenticationException. Spring wraps a
         // database outage during login in InternalAuthenticationServiceException, which is an

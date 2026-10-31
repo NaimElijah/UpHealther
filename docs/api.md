@@ -12,18 +12,18 @@ and the `*ControllerTest` named against each area pins the status codes.
 | Area | Endpoints |
 |---|---|
 | Auth | `POST /api/auth/register` · `POST /api/auth/login` · `GET /api/auth/me` |
-| Health areas | `GET POST /api/health-areas` · `GET PUT DELETE /api/health-areas/{id}` |
-| Upgrades | `GET POST /api/upgrades` · `GET PUT DELETE /api/upgrades/{id}` |
+| Health areas | `GET POST /api/health-areas` · `GET PUT DELETE /api/health-areas/{id}` — a `POST` answers `201` with `Location: /api/health-areas/{id}` |
+| Upgrades | `GET POST /api/upgrades` · `GET PUT DELETE /api/upgrades/{id}` — a `POST` answers `201` with `Location: /api/upgrades/{id}` |
 | Transitions | `POST /api/upgrades/{id}/…` — `plan` · `activate` · `pause` · `complete` · `abandon` · `reschedule` |
-| Tracking config | `GET PUT /api/upgrades/{id}/tracking-config` |
-| Progress | `GET POST /api/upgrades/{id}/progress` · `GET /api/upgrades/{id}/streak` · `GET /api/progress/today` · `GET /api/progress/week` |
-| Reflections | `GET POST /api/upgrades/{id}/reflections` |
-| Reminders | `GET POST /api/upgrades/{id}/reminders` · `PUT DELETE /api/reminders/{id}` |
+| Tracking config | `GET PUT /api/upgrades/{id}/tracking-config` — a `PUT` answers `201` when it creates the upgrade's configuration and `200` when it replaces one |
+| Progress | `GET POST /api/upgrades/{id}/progress` · `GET /api/upgrades/{id}/streak` · `GET /api/progress/today` · `GET /api/progress/week` — a `POST` answers `201` without `Location`: an entry has no route that reads it back |
+| Reflections | `GET POST /api/upgrades/{id}/reflections` — a `POST` answers `201` without `Location`: a reflection has no route that reads it back |
+| Reminders | `GET POST /api/upgrades/{id}/reminders` · `PUT DELETE /api/reminders/{id}` — a `POST` answers `201` with `Location: /api/reminders/{id}`, the reminder's own route, which its `PUT` and `DELETE` take |
 | Notifications | `GET /api/notifications` · `GET /api/notifications/unread-count` · `POST /api/notifications/{id}/read` · `POST /api/notifications/read-all` |
 | Dashboard | `GET /api/dashboard` |
 | Sessions | `POST /api/auth/refresh` · `POST /api/auth/logout` — both act on the refresh cookie, `__Host-refresh_token` on `Path=/` (`HttpOnly`, `Secure`, `SameSite=Strict`, no `Domain`), and both require an `X-Requested-With` header. A request carrying two of the cookie is answered as one carrying none |
 | Administration | `GET /api/admin/users` · `POST /api/admin/users/{id}/disable` · `POST /api/admin/users/{id}/enable` · `PUT /api/admin/users/{id}/role` — `ADMIN` only, answered 403 for anyone else. An administrator manages accounts and can read nothing an account owns. A disable, enable or role change overtaken by another write to the same account is answered 409, and can be resent after reloading ([ADR-073](ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md)) |
-| Real-time | STOMP over `/ws`. The CONNECT frame carries `Authorization: Bearer <token>`; the client may subscribe to `/user/queue/notifications` and to nothing else, once for the socket's life (a second SUBSCRIBE is refused, after an UNSUBSCRIBE too), and a SEND is refused. The handshake is throttled per client address by the proxy and answered 429 over the limit. When the session the token was issued within ends — signed out, revoked for a replayed credential, or its account switched off — the server sends the socket an ERROR frame with `message: Session ended` and closes it; the SPA then ends the session in that tab and goes to the sign-in page (ADR-066) |
+| Real-time | STOMP over `/ws`. The CONNECT frame carries `Authorization: Bearer <token>`; the client may subscribe to `/user/queue/notifications` and to nothing else, once for the socket's life (a second SUBSCRIBE is refused, after an UNSUBSCRIBE too), and a SEND is refused. A refused frame is answered with an ERROR frame and a closed socket, whose `message` is `Unauthenticated` for a CONNECT without a usable token, `Refused` for a SUBSCRIBE or SEND on a connected socket that the interceptor turns down, and `Frame not processed` for any other failure: an outage, a frame that could not be decoded, or a SUBSCRIBE or SEND sent before any CONNECT ([ADR-078](ADRs/ADR-078-a-refused-stomp-frame-is-answered-in-fixed-words.md)). The handshake is throttled per client address by the proxy and answered 429 over the limit. When the session the token was issued within ends — signed out, revoked for a replayed credential, or its account switched off — the server sends the socket an ERROR frame with `message: Session ended` and closes it; the SPA then ends the session in that tab and goes to the sign-in page (ADR-066) |
 
 `GET /api/upgrades` filters on `status`, `type`, `areaId` and `difficulty`.
 
@@ -46,7 +46,7 @@ every host ([#51](https://github.com/NaimElijah/UpHealther/issues/51)).
 
 ## A created upgrade, in full
 
-`POST /api/upgrades` returns `201`. Nulls are serialised rather than omitted, so the body always
+`POST /api/upgrades` returns `201`, with `Location: /api/upgrades/{id}`. Nulls are serialised rather than omitted, so the body always
 carries all eighteen fields — a client can rely on the key being present.
 
 ```bash
@@ -94,7 +94,7 @@ and `GlobalExceptionHandler` decides how it surfaces
 | Status | Raised when |
 |---|---|
 | `400` | Failed validation, an unbindable body, or a parameter that will not convert. A fraction sent for an integer field, such as a rating of `3.7`, is an unbindable body: it is refused, never truncated ([ADR-033](ADRs/ADR-033-refuse-a-fractional-number-for-an-integer-field.md)). So is a body with U+0000 in any string, answered `Malformed request body` before it reaches a use case ([ADR-065](ADRs/ADR-065-the-backend-hardened-after-scan-05.md)) |
-| `401` | Credentials rejected — the response never says which half was wrong — or a protected endpoint called without a token the server accepts, a token that names no expiry included. The latter carries `WWW-Authenticate: Bearer`, with `error="invalid_token"` when a token was sent; expired, forged and revoked are not told apart |
+| `401` | Credentials rejected — the response never says which half was wrong — or a protected endpoint called without a token the server accepts, a token that names no expiry included. Both carry `WWW-Authenticate: Bearer`. A refused protected request adds `error="invalid_token"` when it sent a token, and expired, forged and revoked are not told apart; a refused sign-in carries the bare challenge, whatever token came with it |
 | `403` | The caller is authenticated and not allowed |
 | `404` | Not found, **including** a record belonging to another user: ownership is enforced by the query being user-scoped, so a foreign row is indistinguishable from a missing one |
 | `409` | A duplicate progress entry for the same upgrade and date, a stale optimistic-lock `version`, an upgrade's first tracking configuration `PUT` by two requests at once, where the loser can be resent unchanged and replaces the winner's, an activation or promotion to `HARD` sent while another of the caller's is checking the concurrent-`HARD` limit, which changes nothing and can be resent unchanged ([ADR-074](ADRs/ADR-074-concurrent-writes-beyond-the-version-check.md)), or an administrator's disable, enable or role change overtaken by another write to the same account, which changes nothing and can be resent after reloading ([ADR-073](ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md)) |

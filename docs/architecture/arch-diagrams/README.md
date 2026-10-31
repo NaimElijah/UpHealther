@@ -211,6 +211,12 @@ classDiagram
     class UpgradeStatus {
         <<domain model · enum>>
     }
+    class UpgradeTrackingFrequency {
+        <<domain model · enum>>
+    }
+    class UpgradeTrackingType {
+        <<domain model · enum>>
+    }
     class UpgradeType {
         <<domain model · enum>>
     }
@@ -347,6 +353,10 @@ classDiagram
     UpgradeService ..|> UpgradeQuery : implements
     UpgradeSweeps --> UpgradeRepositoryPort
     UpgradeSweeps ..|> UpgradeSweepQuery : implements
+    UpgradeTrackingConfigDto --> UpgradeTrackingFrequency
+    UpgradeTrackingConfigDto --> UpgradeTrackingType
+    UpgradeTrackingSummary --> UpgradeTrackingFrequency
+    UpgradeTrackingSummary --> UpgradeTrackingType
     UpgradeWebMapper --> UpgradeTrackingSummaryPort
 ```
 <!-- /generated:class-diagram -->

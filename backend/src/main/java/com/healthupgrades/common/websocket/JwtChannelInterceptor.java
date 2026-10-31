@@ -6,6 +6,7 @@ import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.domain.port.out.AuditTrail;
 import com.healthupgrades.common.security.BearerAuthentication;
 import com.healthupgrades.common.security.BearerTokenAuthenticator;
+import com.healthupgrades.common.websocket.StompFrameRefusedException.Reason;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -93,10 +94,12 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
      * @param message the inbound STOMP message
      * @param channel the client inbound channel
      * @return the same message, with the session principal attached on CONNECT
-     * @throws IllegalArgumentException if a connecting frame carries no bearer token or an unusable one,
-     *                                  or if a later frame is not one this application accepts. Spring
-     *                                  turns this into a refused connection, which is the only way to
-     *                                  reject a STOMP frame from an interceptor
+     * @throws StompFrameRefusedException if a connecting frame carries no bearer token or an unusable
+     *                                    one ({@code UNAUTHENTICATED}), or if a later frame is not one this
+     *                                    application accepts ({@code REFUSED}). Spring turns this into an
+     *                                    ERROR frame and a closed socket, which is the only way to reject a
+     *                                    STOMP frame from an interceptor; {@link StompRefusalErrorHandler}
+     *                                    chooses the frame's words from the reason
      */
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -138,13 +141,14 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
             if (authorization != null) {
                 auditTrail.record(REFUSED_CONNECT);
             }
-            throw new IllegalArgumentException("Missing or malformed Authorization header on STOMP CONNECT");
+            throw new StompFrameRefusedException(
+                    Reason.UNAUTHENTICATED, "Missing or malformed Authorization header on STOMP CONNECT");
         }
         BearerAuthentication authenticated = authenticateBearer(authorization.substring(BEARER_PREFIX.length()))
                 .orElseThrow(() -> {
                     log.debug("Refused a STOMP CONNECT: the token is not usable");
                     auditTrail.record(REFUSED_CONNECT);
-                    return new IllegalArgumentException("Unusable token on STOMP CONNECT");
+                    return new StompFrameRefusedException(Reason.UNAUTHENTICATED, "Unusable token on STOMP CONNECT");
                 });
         UUID userId = authenticated.user().getId();
         auditTrail.record(AuditEvent.allowed(AuditAction.AUTH_CONNECT, userId, userId));
@@ -191,6 +195,6 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
         // left out of the line - it is text the client chose, and writing it down would copy whatever it
         // contains, newlines included, into the log.
         log.warn("Refused {}", what);
-        throw new IllegalArgumentException("Refused " + what);
+        throw new StompFrameRefusedException(Reason.REFUSED, "Refused " + what);
     }
 }

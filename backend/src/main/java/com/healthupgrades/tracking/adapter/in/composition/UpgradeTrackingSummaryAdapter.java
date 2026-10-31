@@ -4,6 +4,8 @@ import com.healthupgrades.tracking.application.port.in.TrackingConfigQuery;
 import com.healthupgrades.tracking.domain.model.TrackingConfig;
 import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummary;
 import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort;
+import com.healthupgrades.upgrade.domain.model.UpgradeTrackingFrequency;
+import com.healthupgrades.upgrade.domain.model.UpgradeTrackingType;
 import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
@@ -37,13 +39,20 @@ public class UpgradeTrackingSummaryAdapter implements UpgradeTrackingSummaryPort
                 .collect(Collectors.toMap(TrackingConfig::getUpgradeId, this::toSummary));
     }
 
-    /** Enum values cross as their names, keeping this context's types out of the upgrade contract. */
+    /**
+     * Enum values cross by name into the upgrade context's mirrors, keeping this context's types out of
+     * the upgrade contract. {@code UpgradeTrackingEnumMirrorContractTest} keeps every name convertible.
+     */
     private UpgradeTrackingSummary toSummary(TrackingConfig config) {
         return new UpgradeTrackingSummary(
                 config.getId(),
                 config.getUpgradeId(),
-                config.getTrackingType() != null ? config.getTrackingType().name() : null,
-                config.getFrequency() != null ? config.getFrequency().name() : null,
+                config.getTrackingType() != null
+                        ? UpgradeTrackingType.valueOf(config.getTrackingType().name())
+                        : null,
+                config.getFrequency() != null
+                        ? UpgradeTrackingFrequency.valueOf(config.getFrequency().name())
+                        : null,
                 config.getTargetNumericValue(),
                 config.getTargetUnit(),
                 config.getRequiredDaily());

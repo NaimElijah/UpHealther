@@ -1,6 +1,7 @@
 # ADR-066: A tab keeps nothing of a session that ended, after Back or when the server ended it
 
-- **Status:** Accepted
+- **Status:** Accepted — amended by [ADR-078](ADR-078-a-refused-stomp-frame-is-answered-in-fixed-words.md),
+  which answers each refused frame in fixed words rather than Spring's one generic message
 - **Date:** 2026-10-30
 - **Scope:**
   - `frontend/` — `api/session.ts` (a `pageshow` listener, and `onSessionEnd`), `lib/queryClient.ts`

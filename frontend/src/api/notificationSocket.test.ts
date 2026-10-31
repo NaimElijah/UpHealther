@@ -255,7 +255,7 @@ describe('openNotificationSocket', () => {
       setAccessToken('live.jwt.token', '2099-01-01T00:00:00Z');
       const { client, onConnectionChange } = openConnected();
 
-      client.config.onStompError?.({ headers: { message: 'Failed to send message to ExecutorSubscribableChannel' } });
+      client.config.onStompError?.({ headers: { message: 'Unauthenticated' } });
 
       expect(getAccessToken()).toBe('live.jwt.token');
       expect(onConnectionChange).toHaveBeenLastCalledWith(false);
@@ -298,14 +298,14 @@ describe('openNotificationSocket', () => {
     });
 
     it('GivenAnErrorFrameForAnyOtherReason_WhenItArrives_ThenTheTabStaysWhereItIsWithItsData', () => {
-      // Spring sends one generic ERROR for every refused frame, an outage included; and a renewal that
-      // failed is #377's, not this frame's. Neither says the session is over.
+      // A frame the server refused or could not process, an outage included, is answered in words of its
+      // own; and a renewal that failed is #377's, not this frame's. Neither says the session is over.
       const queryClient = createQueryClient();
       queryClient.setQueryData(['upgrades'], [{ id: 'u-1' }]);
       setAccessToken('live.jwt.token', '2099-01-01T00:00:00Z');
       const { client } = openConnected();
 
-      client.config.onStompError?.({ headers: { message: 'Failed to send message to ExecutorSubscribableChannel' } });
+      client.config.onStompError?.({ headers: { message: 'Refused' } });
 
       expect(window.location.href).toBe('');
       expect(queryClient.getQueryCache().getAll()).toHaveLength(1);

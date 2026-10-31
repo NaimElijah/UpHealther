@@ -16,8 +16,8 @@ const optionsOf = <T extends string>(labels: Record<T, string>): { value: T; lab
 
 /**
  * What the configuration form calls each tracking type. Keyed by the generated union, so a type the API
- * adds is a compile error here rather than an option the form lacks: `offered` would then read a saved
- * one as the default, and a save would overwrite it.
+ * adds is a compile error here rather than an option the form lacks. The upgrade's saved type is the
+ * upgrade context's mirror of that union (ADR-077), so the form can open on it as it is.
  */
 const TRACKING_TYPE_LABELS: Record<TrackingType, string> = {
   BOOLEAN: 'Yes / No (did it)',
@@ -35,16 +35,6 @@ const FREQUENCY_LABELS: Record<Frequency, string> = {
 
 const TRACKING_TYPE_OPTIONS = optionsOf(TRACKING_TYPE_LABELS);
 const FREQUENCY_OPTIONS = optionsOf(FREQUENCY_LABELS);
-
-/**
- * The option a saved value names, or nothing when it names none of them.
- *
- * The upgrade carries its tracking configuration with the type and frequency as plain strings, since
- * the upgrade context restates them rather than borrowing the tracking context's enums. So a value is
- * matched against what the form offers rather than cast to it.
- */
-const offered = <T extends string>(options: { value: T }[], saved: string | null | undefined): T | undefined =>
-  options.find((option) => option.value === saved)?.value;
 
 /**
  * @param upgradeId      the upgrade the route names
@@ -84,8 +74,8 @@ const UpgradeTrackingConfig: React.FC<Props> = ({ upgradeId, trackingConfig }) =
    */
   const openTracking = (saved: HealthUpgrade['trackingConfig']) => {
     setTrackingForm({
-      trackingType: offered(TRACKING_TYPE_OPTIONS, saved?.trackingType) ?? 'BOOLEAN',
-      frequency: offered(FREQUENCY_OPTIONS, saved?.frequency) ?? 'DAILY',
+      trackingType: saved?.trackingType ?? 'BOOLEAN',
+      frequency: saved?.frequency ?? 'DAILY',
       targetNumericValue: saved?.targetNumericValue,
       targetUnit: saved?.targetUnit,
       requiredDaily: saved?.requiredDaily ?? true,

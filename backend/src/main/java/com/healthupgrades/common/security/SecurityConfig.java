@@ -215,7 +215,11 @@ public class SecurityConfig {
         // it renders the 429's message and does not read the header. Exposing it anyway is right for a
         // header the HTTP spec defines for exactly this - but nothing here shows a countdown, and a
         // comment claiming otherwise would send the next reader looking for code that does not exist.
-        config.setExposedHeaders(List.of(TraceIdResponseHeaderFilter.TRACE_ID_HEADER, HttpHeaders.RETRY_AFTER));
+        //
+        // Location is exposed for the same kind of client: a create's 201 names the new resource there, and
+        // the header is not CORS-safelisted. The SPA reads the created resource from the body instead.
+        config.setExposedHeaders(
+                List.of(TraceIdResponseHeaderFilter.TRACE_ID_HEADER, HttpHeaders.RETRY_AFTER, HttpHeaders.LOCATION));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
