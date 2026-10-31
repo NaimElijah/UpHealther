@@ -117,10 +117,6 @@ public class RefreshCookies {
         return values.size() == 1 ? Optional.of(values.getFirst()) : Optional.empty();
     }
 
-    /** The name the cookie is stored under, for a caller that has to name it on a response. */
-    public String name() {
-        return properties.name();
-    }
 
     private ResponseCookie.ResponseCookieBuilder base(String value) {
         return ResponseCookie.from(properties.name(), value)
