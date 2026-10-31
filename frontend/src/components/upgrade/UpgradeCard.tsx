@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import type { ActionTarget, HealthUpgrade } from '../../types';
 import UpgradeStatusBadge from './UpgradeStatusBadge';
 import UpgradeTypeBadge from './UpgradeTypeBadge';
@@ -46,17 +46,16 @@ const UpgradeCard: React.FC<Props> = ({
   refusal,
   busy = false,
 }) => {
-  const navigate = useNavigate();
-
   return (
     <div className="bg-surface rounded-xl border border-line p-4 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <h3
-            className="font-semibold text-fg truncate cursor-pointer hover:text-brand-fg"
-            onClick={() => navigate(`/upgrades/${upgrade.id}`)}
-          >
-            {upgrade.title}
+          {/* A link inside the heading, not a heading that is clicked: it is the only way from a list to the
+              upgrade's page, so it has to be reachable by keyboard and openable in a new tab (WCAG 2.1.1). */}
+          <h3 className="font-semibold text-fg truncate">
+            <Link to={`/upgrades/${upgrade.id}`} className="hover:text-brand-fg">
+              {upgrade.title}
+            </Link>
           </h3>
           {upgrade.description && <p className="text-sm text-fg-subtle mt-1 line-clamp-2">{upgrade.description}</p>}
         </div>

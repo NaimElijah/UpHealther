@@ -151,7 +151,7 @@ test('GivenANewVisitor_WhenTheyActivateAnUpgradeAndLogToday_ThenTheDashboardCoun
 
   await test.step("open the upgrade and log today's progress", async () => {
     await sidebarLink(page, 'Active').click();
-    await main.getByRole('heading', { level: 3, name: UPGRADE_TITLE }).click();
+    await main.getByRole('heading', { level: 3, name: UPGRADE_TITLE }).getByRole('link').click();
     await expect(page.getByRole('heading', { level: 1, name: UPGRADE_TITLE })).toBeVisible();
     // A toast can still cover this button. The click waits until it is the button that would receive
     // it, and a toast closes itself after six seconds.
