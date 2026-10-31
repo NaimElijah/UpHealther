@@ -74,9 +74,15 @@ const ProgressHistoryPage: React.FC = () => {
             {sorted.map((entry) => {
               const upgrade = upgradeMap[entry.upgradeId];
               return (
-                <div key={entry.id} className="flex items-center justify-between p-3 bg-sunken rounded-lg text-sm">
+                // Wraps rather than truncating, and the details drop below the title on a narrow window:
+                // a note cut at 8rem, or a title squeezed to nothing beside it, lost what was written
+                // (WCAG 1.4.10).
+                <div
+                  key={entry.id}
+                  className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 p-3 bg-sunken rounded-lg text-sm"
+                >
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-fg truncate">{upgrade?.title ?? 'Unknown Upgrade'}</p>
+                    <p className="font-medium text-fg break-words">{upgrade?.title ?? 'Unknown Upgrade'}</p>
                     <p className="text-fg-faint text-xs">
                       {parseLocalDate(entry.date).toLocaleDateString('en-US', {
                         weekday: 'short',
@@ -85,7 +91,7 @@ const ProgressHistoryPage: React.FC = () => {
                       })}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 ml-4">
+                  <div className="flex flex-wrap items-center gap-2 min-w-0">
                     {entry.completed != null && (
                       <Badge variant={entry.completed ? 'green' : 'red'}>
                         {entry.completed ? '✓ Done' : '✗ Missed'}
@@ -97,7 +103,7 @@ const ProgressHistoryPage: React.FC = () => {
                       </span>
                     )}
                     {entry.rating != null && <span>{'⭐'.repeat(entry.rating)}</span>}
-                    {entry.note && <span className="text-fg-faint italic truncate max-w-32">{entry.note}</span>}
+                    {entry.note && <span className="text-fg-faint italic break-words min-w-0">{entry.note}</span>}
                   </div>
                 </div>
               );

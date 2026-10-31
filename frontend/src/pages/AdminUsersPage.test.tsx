@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import AdminUsersPage from './AdminUsersPage';
@@ -457,4 +457,28 @@ describe('AdminUsersPage per-account names', () => {
     expect(await screen.findByRole('button', { name: 'Enable Someone Else' })).toBeDefined();
     expect(screen.getByRole('button', { name: 'Revoke admin for Someone Else' })).toBeDefined();
   });
+});
+
+/**
+ * A confirmation says whose account it changes in its body, not only in its title, which a narrow window
+ * cut short (WCAG 1.4.10, finding X9.21).
+ */
+describe('AdminUsersPage confirmations', () => {
+  beforeEach(() => {
+    listAccounts.mockReset();
+    listAccounts.mockResolvedValue(page([MY_ACCOUNT, SOMEBODY], 2));
+  });
+
+  it.each([/^Disable /, /^Make admin /])(
+    'GivenAnAccount_When%sIsPressed_ThenTheConfirmationsBodyNamesIt',
+    async (name) => {
+      renderPage();
+
+      fireEvent.click(await screen.findByRole('button', { name }));
+
+      const body = within(screen.getByRole('dialog')).getByText(/will/);
+      expect(body.textContent).toContain('Someone Else');
+      expect(body.textContent).toContain('someone@example.com');
+    },
+  );
 });

@@ -162,9 +162,11 @@ const AdminUsersPage: React.FC = () => {
             return (
               <Card key={account.id}>
                 <div className="flex flex-wrap items-center gap-3 justify-between">
+                  {/* Wrapped, not truncated: at 320px an address cut to an ellipsis is no longer one an
+                      administrator can tell from another (WCAG 1.4.10). */}
                   <div className="min-w-0">
-                    <p className="font-medium text-fg truncate">{account.name}</p>
-                    <p className="text-sm text-fg-subtle truncate">{account.email}</p>
+                    <p className="font-medium text-fg break-words">{account.name}</p>
+                    <p className="text-sm text-fg-subtle break-all">{account.email}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {account.role === 'ADMIN' && <Badge variant="purple">Administrator</Badge>}
@@ -238,7 +240,7 @@ const AdminUsersPage: React.FC = () => {
       <Modal isOpen={pending !== null} onClose={closeConfirmation} title={pending ? confirmTitle(pending) : ''}>
         {pending && (
           <div className="flex flex-col gap-4">
-            <p className="text-fg-subtle">{confirmBody(pending)}</p>
+            <p className="text-fg-subtle break-words">{confirmBody(pending)}</p>
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={closeConfirmation} disabled={confirming}>
                 Cancel
@@ -260,20 +262,25 @@ function confirmTitle(pending: PendingChange): string {
   return `Revoke ${pending.account.name}'s administrator role?`;
 }
 
+/**
+ * What a change does, said of the account by name and address. The title names the account too, but the
+ * body is what is read in full, whatever the window's width, and two accounts can share a name.
+ */
 function confirmBody(pending: PendingChange): string {
+  const whose = `${pending.account.name} (${pending.account.email})`;
   if (pending.kind === 'disable') {
     return (
-      'They will be signed out everywhere and will not be able to sign in again. Nothing they ' +
+      `${whose} will be signed out everywhere and will not be able to sign in again. Nothing they ` +
       'have recorded is deleted, and enabling the account restores it exactly as it was.'
     );
   }
   if (pending.kind === 'promote') {
     return (
-      'They will be able to list every account here, switch accounts off, and grant this role to ' +
+      `${whose} will be able to list every account here, switch accounts off, and grant this role to ` +
       'anybody else. They still will not be able to read anyone else’s records.'
     );
   }
-  return 'They will keep their own account and everything in it, and lose access to this page.';
+  return `${whose} will keep their own account and everything in it, and lose access to this page.`;
 }
 
 export default AdminUsersPage;
