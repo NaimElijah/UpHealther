@@ -22,7 +22,7 @@ const widthClasses: Record<NonNullable<PageContainerProps['width']>, string> = {
  * The one place a page's width is decided.
  *
  * A page fills whatever the shell gives it and stops only where a line of text stops being comfortable to
- * read, so no page caps itself.
+ * read, so no page inside the shell caps itself.
  *
  * So the cap is on the measure, not on the layout. At the 16px body size a proportional character
  * averages roughly 8px, which puts `wide` (1280px) near 160 characters and `narrow` (768px) near 95 —
