@@ -169,12 +169,13 @@ public class HealthUpgrade {
      *
      * @param plannedStart the date the user intends to start; not required to be in the future, since
      *                     users plan retroactively
-     * @throws BusinessRuleException if the upgrade is not an IDEA
+     * @throws BusinessRuleException if the upgrade is not an IDEA, or no date is given
      */
     public void plan(LocalDate plannedStart) {
         if (status != UpgradeStatus.IDEA) {
             throw new BusinessRuleException("Only IDEA upgrades can be planned");
         }
+        if (plannedStart == null) throw new BusinessRuleException("A planned upgrade must have a start date");
         this.plannedStartDate = plannedStart;
         this.status = UpgradeStatus.PLANNED;
     }
@@ -187,12 +188,13 @@ public class HealthUpgrade {
      * other upgrades, which the aggregate cannot see; {@code UpgradeService} applies it first.
      *
      * @param startDate the date the upgrade starts running
-     * @throws BusinessRuleException if the upgrade is not PLANNED or PAUSED
+     * @throws BusinessRuleException if the upgrade is not PLANNED or PAUSED, or no date is given
      */
     public void activate(LocalDate startDate) {
         if (!canActivate()) {
             throw new BusinessRuleException("Only PLANNED or PAUSED upgrades can be activated");
         }
+        if (startDate == null) throw new BusinessRuleException("An active upgrade must have a start date");
         this.actualStartDate = startDate;
         this.status = UpgradeStatus.ACTIVE;
     }
@@ -254,12 +256,14 @@ public class HealthUpgrade {
      * something you had given up on is how you take it back on.
      *
      * @param newDate the new planned start date
-     * @throws BusinessRuleException if the upgrade is COMPLETED
+     * @throws BusinessRuleException if the upgrade is COMPLETED, or no date is given: a reschedule
+     *         cannot clear the date, and a revival without one would be PLANNED for no day at all
      */
     public void reschedule(LocalDate newDate) {
         if (status == UpgradeStatus.COMPLETED) {
             throw new BusinessRuleException("Cannot reschedule a COMPLETED upgrade");
         }
+        if (newDate == null) throw new BusinessRuleException("A rescheduled upgrade must have a start date");
         this.plannedStartDate = newDate;
         if (status == UpgradeStatus.ABANDONED) {
             this.status = UpgradeStatus.PLANNED;

@@ -1,5 +1,6 @@
 package com.healthupgrades.reminder.domain.model;
 
+import com.healthupgrades.common.domain.exception.BusinessRuleException;
 import jakarta.persistence.*;
 import java.time.DayOfWeek;
 import java.time.LocalDateTime;
@@ -52,8 +53,10 @@ public class Reminder {
      * @param days         the days it fires on; an empty filter means every day
      * @param enabled      whether it starts switched on
      * @return the new reminder
+     * @throws BusinessRuleException if no time is given
      */
     public static Reminder create(UUID upgradeId, LocalTime reminderTime, ReminderDays days, boolean enabled) {
+        requireTime(reminderTime);
         return Reminder.builder()
                 .upgradeId(upgradeId)
                 .reminderTime(reminderTime)
@@ -67,10 +70,17 @@ public class Reminder {
      *
      * @param reminderTime the new local time
      * @param days         the new day filter; empty means every day
+     * @throws BusinessRuleException if no time is given
      */
     public void reschedule(LocalTime reminderTime, ReminderDays days) {
+        requireTime(reminderTime);
         this.reminderTime = reminderTime;
         this.daysOfWeek = days.toStorageValue();
+    }
+
+    /** Refuses a reminder with no time, which the column cannot hold and nothing could fire. */
+    private static void requireTime(LocalTime reminderTime) {
+        if (reminderTime == null) throw new BusinessRuleException("A reminder must have a time");
     }
 
     /**

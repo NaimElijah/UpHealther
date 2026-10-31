@@ -287,6 +287,46 @@ class HealthUpgradeTest {
         assertTransition(from, outcome, upgrade -> upgrade.activate(REFERENCE_DAY));
     }
 
+    // D3.9: each of these values is what its state is defined by, so none of them may be null.
+
+    @Test
+    void GivenAnIdea_WhenItIsPlannedWithNoDate_ThenItIsRefusedAndStaysAnIdea() {
+        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.IDEA);
+
+        assertThatThrownBy(() -> upgrade.plan(null)).isInstanceOf(BusinessRuleException.class);
+
+        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.IDEA);
+    }
+
+    @Test
+    void GivenAPlannedUpgrade_WhenItIsActivatedWithNoStartDate_ThenItIsRefusedAndStaysPlanned() {
+        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.PLANNED);
+
+        assertThatThrownBy(() -> upgrade.activate(null)).isInstanceOf(BusinessRuleException.class);
+
+        assertThat(upgrade.getStatus()).isEqualTo(UpgradeStatus.PLANNED);
+        assertThat(upgrade.getActualStartDate()).isNull();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(
+            value = UpgradeStatus.class,
+            names = {"PLANNED", "ABANDONED"})
+    void GivenAnUpgrade_WhenItIsRescheduledToNoDate_ThenItIsRefusedAndKeepsItsStateAndDate(UpgradeStatus status) {
+        // An ABANDONED upgrade would otherwise be revived to PLANNED with no planned date at all.
+        HealthUpgrade upgrade = HealthUpgrade.builder()
+                .title("Test Upgrade")
+                .type(UpgradeType.HABIT)
+                .status(status)
+                .plannedStartDate(REFERENCE_DAY)
+                .build();
+
+        assertThatThrownBy(() -> upgrade.reschedule(null)).isInstanceOf(BusinessRuleException.class);
+
+        assertThat(upgrade.getStatus()).isEqualTo(status);
+        assertThat(upgrade.getPlannedStartDate()).isEqualTo(REFERENCE_DAY);
+    }
+
     @ParameterizedTest(name = "{0}")
     @EnumSource(UpgradeStatus.class)
     void GivenAnUpgradeInEachState_WhenAskedWhetherItCanBeActivated_ThenItAnswersAsTheTransitionWould(
