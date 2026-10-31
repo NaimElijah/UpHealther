@@ -107,8 +107,8 @@ export type SaveTrackingConfigRequest = Wire.TrackingConfigRequest;
  *
  * `overdue` is derived server-side, and `version` is the optimistic-lock counter. No request sends it
  * back yet, so an edit cannot be refused as stale (#194). `trackingConfig` is `null` when tracking is
- * not set up; its type and frequency arrive as plain strings, because the upgrade context restates them
- * in its own terms rather than borrowing the tracking context's enums.
+ * not set up; its type and frequency arrive as `UpgradeTrackingType` and `UpgradeTrackingFrequency`, the
+ * unions of the upgrade context's mirrors of the tracking context's enums (ADR-077).
  */
 export type HealthUpgrade = Wire.UpgradeDto;
 

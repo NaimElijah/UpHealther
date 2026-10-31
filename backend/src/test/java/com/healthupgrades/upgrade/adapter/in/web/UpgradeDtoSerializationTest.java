@@ -2,10 +2,10 @@ package com.healthupgrades.upgrade.adapter.in.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.healthupgrades.upgrade.application.port.in.UpgradeTrackingFrequency;
-import com.healthupgrades.upgrade.application.port.in.UpgradeTrackingType;
 import com.healthupgrades.upgrade.domain.model.Difficulty;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
+import com.healthupgrades.upgrade.domain.model.UpgradeTrackingFrequency;
+import com.healthupgrades.upgrade.domain.model.UpgradeTrackingType;
 import com.healthupgrades.upgrade.domain.model.UpgradeType;
 import java.time.LocalDate;
 import java.time.LocalDateTime;

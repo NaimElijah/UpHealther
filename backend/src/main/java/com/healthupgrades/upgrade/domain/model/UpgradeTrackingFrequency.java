@@ -1,4 +1,4 @@
-package com.healthupgrades.upgrade.application.port.in;
+package com.healthupgrades.upgrade.domain.model;
 
 /**
  * How often an upgrade is expected to be acted on, in this context's own terms: the mirror of

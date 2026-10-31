@@ -2,7 +2,9 @@
 
 - **Status:** Accepted — superseded in part by
   [ADR-047](ADR-047-the-backend-audits-its-dependencies-with-osv-scanner.md), which closes its known gap
-  "The backend has no vulnerability audit yet" with a scanner that needs no key
+  "The backend has no vulnerability audit yet" with a scanner that needs no key; and superseded in part
+  by [ADR-077](ADR-077-a-context-mirrors-another-contexts-closed-set-in-its-own-model.md), which types
+  the enum values the `upgrade`/`tracking` seam carries
 - **Date:** 2026-08-17
 - **Supersedes in part:** ADR-001 (the pragmatic DTO exception, the claim of a uniform layout, and the
   enforced-rules list)

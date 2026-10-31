@@ -39,9 +39,10 @@ const FREQUENCY_OPTIONS = optionsOf(FREQUENCY_LABELS);
 /**
  * The option a saved value names, or nothing when it names none of them.
  *
- * The upgrade carries its tracking configuration with the type and frequency as plain strings, since
- * the upgrade context restates them rather than borrowing the tracking context's enums. So a value is
- * matched against what the form offers rather than cast to it.
+ * The upgrade carries its tracking configuration's type and frequency as the unions of the upgrade
+ * context's mirrors (ADR-077), which a backend contract test holds equal to the tracking context's. A
+ * saved value is still matched against what the form offers rather than cast to it, so a value the form
+ * lacks reads as none rather than as one the select cannot show.
  */
 const offered = <T extends string>(options: { value: T }[], saved: string | null | undefined): T | undefined =>
   options.find((option) => option.value === saved)?.value;

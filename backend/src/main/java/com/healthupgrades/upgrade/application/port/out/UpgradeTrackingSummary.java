@@ -1,7 +1,7 @@
 package com.healthupgrades.upgrade.application.port.out;
 
-import com.healthupgrades.upgrade.application.port.in.UpgradeTrackingFrequency;
-import com.healthupgrades.upgrade.application.port.in.UpgradeTrackingType;
+import com.healthupgrades.upgrade.domain.model.UpgradeTrackingFrequency;
+import com.healthupgrades.upgrade.domain.model.UpgradeTrackingType;
 import java.util.UUID;
 
 /**

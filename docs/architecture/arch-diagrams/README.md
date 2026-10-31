@@ -211,6 +211,12 @@ classDiagram
     class UpgradeStatus {
         <<domain model · enum>>
     }
+    class UpgradeTrackingFrequency {
+        <<domain model · enum>>
+    }
+    class UpgradeTrackingType {
+        <<domain model · enum>>
+    }
     class UpgradeType {
         <<domain model · enum>>
     }
@@ -283,12 +289,6 @@ classDiagram
     %% ---- use-case record ----
     class UpgradeDetails {
         <<use-case record>>
-    }
-    class UpgradeTrackingFrequency {
-        <<use-case record · enum>>
-    }
-    class UpgradeTrackingType {
-        <<use-case record · enum>>
     }
 
     %% ---- web adapter ----

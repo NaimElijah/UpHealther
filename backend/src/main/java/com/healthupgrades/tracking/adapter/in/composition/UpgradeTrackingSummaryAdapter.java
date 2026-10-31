@@ -2,10 +2,10 @@ package com.healthupgrades.tracking.adapter.in.composition;
 
 import com.healthupgrades.tracking.application.port.in.TrackingConfigQuery;
 import com.healthupgrades.tracking.domain.model.TrackingConfig;
-import com.healthupgrades.upgrade.application.port.in.UpgradeTrackingFrequency;
-import com.healthupgrades.upgrade.application.port.in.UpgradeTrackingType;
 import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummary;
 import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort;
+import com.healthupgrades.upgrade.domain.model.UpgradeTrackingFrequency;
+import com.healthupgrades.upgrade.domain.model.UpgradeTrackingType;
 import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;

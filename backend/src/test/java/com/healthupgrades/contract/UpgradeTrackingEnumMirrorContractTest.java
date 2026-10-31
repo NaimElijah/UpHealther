@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.healthupgrades.tracking.domain.model.Frequency;
 import com.healthupgrades.tracking.domain.model.TrackingType;
-import com.healthupgrades.upgrade.application.port.in.UpgradeTrackingFrequency;
-import com.healthupgrades.upgrade.application.port.in.UpgradeTrackingType;
+import com.healthupgrades.upgrade.domain.model.UpgradeTrackingFrequency;
+import com.healthupgrades.upgrade.domain.model.UpgradeTrackingType;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;

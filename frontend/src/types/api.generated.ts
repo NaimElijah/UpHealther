@@ -23,10 +23,10 @@ export type TrackingType = 'BOOLEAN' | 'NUMERIC' | 'RATING' | 'TEXT';
 /** com.healthupgrades.upgrade.domain.model.UpgradeStatus */
 export type UpgradeStatus = 'IDEA' | 'PLANNED' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ABANDONED';
 
-/** com.healthupgrades.upgrade.application.port.in.UpgradeTrackingFrequency */
+/** com.healthupgrades.upgrade.domain.model.UpgradeTrackingFrequency */
 export type UpgradeTrackingFrequency = 'DAILY' | 'WEEKLY' | 'MONTHLY';
 
-/** com.healthupgrades.upgrade.application.port.in.UpgradeTrackingType */
+/** com.healthupgrades.upgrade.domain.model.UpgradeTrackingType */
 export type UpgradeTrackingType = 'BOOLEAN' | 'NUMERIC' | 'RATING' | 'TEXT';
 
 /** com.healthupgrades.upgrade.domain.model.UpgradeType */
