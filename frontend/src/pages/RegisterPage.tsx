@@ -99,8 +99,9 @@ const RegisterPage: React.FC = () => {
       await register(name, email, password);
       navigate('/dashboard', { replace: true });
     } catch (thrown) {
-      // The API says what went wrong, so no failure, a 500 and a network outage included, is passed off as a
-      // taken email; the trace id is appended so a report about the ones it cannot explain is worth acting on.
+      // Each failure is shown as toApiError decodes it, so none, a 500 and a network outage included, is passed
+      // off as a taken email; the trace id is appended so a report about the ones it cannot explain is worth
+      // acting on.
       // toFormMessage prefers the field detail: a 400 puts only "Validation failed" in `message` and
       // the reason in `fieldErrors`, so rendering `message` would leave somebody who pasted a passphrase past
       // BCrypt's 72-byte limit with nothing to act on.
