@@ -235,6 +235,12 @@ function renderApp(path: string) {
   );
 }
 
+/**
+ * Lets every read the page started be answered and rendered, whichever reads they are: the doubles
+ * answer at once, so one turn of the event loop is enough.
+ */
+const pageSettled = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+
 const goTo = (path: string) =>
   act(() => {
     navigate(path);
@@ -489,10 +495,12 @@ describe('a change to an upgrade', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete Health Area' })).toBeNull());
 
     goTo(`/upgrades/${UPGRADE_ID}`);
-    // The page renders the cached upgrade at once and refetches it behind (ADR-029's one round trip).
-    await waitFor(() => expect(getUpgradeById).toHaveBeenCalledTimes(2));
-    await act(() => getUpgradeById.mock.results[1].value);
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit Upgrade' }));
+    // Nothing on the page shows the upgrade's area, and the picker reads "No area" for an area that is
+    // gone either way, so the user's cue is only that the page has finished loading. The page renders
+    // the cached upgrade at once, so the edit is opened once it has settled.
+    await screen.findByRole('button', { name: 'Edit Upgrade' });
+    await pageSettled();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Upgrade' }));
     fireEvent.submit(
       within(screen.getByRole('dialog', { name: 'Edit Upgrade' })).getByRole('button', { name: 'Save' }),
     );
