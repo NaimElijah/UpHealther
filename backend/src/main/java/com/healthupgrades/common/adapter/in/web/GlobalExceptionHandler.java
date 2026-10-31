@@ -58,9 +58,10 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
  *   <tr><td>anything else</td><td>500 Internal Server Error, message withheld</td></tr>
  * </table>
  *
- * <p>The last two rows are why this class extends {@link ResponseEntityExceptionHandler}. An advice is
- * consulted before Spring's own {@code DefaultHandlerExceptionResolver}, so the catch-all below claims
- * every framework exception that has no more specific handler — which silently turned a bad path
+ * <p>The rows "every other Spring MVC exception" and "anything else" are why this class extends
+ * {@link ResponseEntityExceptionHandler}. An advice is consulted before Spring's own
+ * {@code DefaultHandlerExceptionResolver}, so the catch-all below claims every framework exception
+ * that has no more specific handler — which silently turned a bad path
  * variable, an unsupported method and an unsupported media type into 500s. Inheriting Spring's list of
  * handlers restores each one's proper status; {@link #handleExceptionInternal} then re-clothes it in
  * this API's {@link ErrorResponse} body, so the wire format stays the same whoever produced the status.
