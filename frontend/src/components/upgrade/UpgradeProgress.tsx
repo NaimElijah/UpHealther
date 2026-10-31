@@ -8,6 +8,7 @@ import Input from '../ui/Input';
 import Modal from '../ui/Modal';
 import Badge from '../ui/Badge';
 import { numOrUndef, refusalMessage } from './formInput';
+import RatingPicker from './RatingPicker';
 import { progressQuery, streakQuery, type SectionRead } from './upgradeDetailsQueries';
 import type { CreateProgressRequest, HealthUpgrade, ProgressEntry } from '../../types';
 
@@ -146,21 +147,11 @@ const UpgradeProgress: React.FC<Props> = ({ upgradeId, read, trackingConfig }) =
             />
           )}
           {trackingConfig?.trackingType === 'RATING' && (
-            <div>
-              <label className="text-sm font-medium text-fg-muted">Rating (1-5)</label>
-              <div className="flex gap-2 mt-2">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setProgressForm({ ...progressForm, rating: n })}
-                    className={`w-10 h-10 rounded-full text-sm font-semibold transition-colors ${progressForm.rating === n ? 'bg-brand text-fg-inverted' : 'bg-muted text-fg-muted hover:bg-muted-strong'}`}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <RatingPicker
+              legend="Rating (1-5)"
+              value={progressForm.rating ?? undefined}
+              onChange={(rating) => setProgressForm({ ...progressForm, rating })}
+            />
           )}
           <Input
             label="Note"

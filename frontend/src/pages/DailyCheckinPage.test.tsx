@@ -168,9 +168,9 @@ describe('DailyCheckinPage', () => {
       }),
     ]);
     renderPage();
-    await waitFor(() => expect(screen.getByRole('button', { name: '4' })).toBeDefined());
+    await waitFor(() => expect(screen.getByRole('radio', { name: 'Rate 4 of 5' })).toBeDefined());
 
-    fireEvent.click(screen.getByRole('button', { name: '4' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Rate 4 of 5' }));
     fireEvent.submit(screen.getByRole('button', { name: /submit check-in/i }));
 
     await waitFor(() => expect(createProgress).toHaveBeenCalled());
@@ -358,5 +358,41 @@ describe('DailyCheckinPage field names', () => {
 
     const group = within(await screen.findByRole('group', { name: 'Journal' }));
     expect(group.getByRole('textbox', { name: 'Note' })).toBeDefined();
+  });
+});
+
+/**
+ * A rating is a group of five radios, each named for its place on the scale, so a screen reader says
+ * which score is chosen and out of how many. They were five buttons whose choice was a change of colour
+ * (WCAG 4.1.2, 1.4.1, finding X9.7).
+ */
+describe('DailyCheckinPage rating', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    getUpgrades.mockResolvedValue([
+      anUpgrade({
+        id: 'c',
+        title: 'Mood',
+        trackingConfig: trackingConfigAsSent({ upgradeId: 'c', trackingType: 'RATING' }),
+      }),
+    ]);
+  });
+
+  it('GivenARatingUpgrade_WhenTheCheckinRenders_ThenItsRatingIsANamedGroupOfFiveRadios', async () => {
+    renderPage();
+
+    const rating = within(await screen.findByRole('group', { name: 'Rating' }));
+    expect(rating.getAllByRole('radio')).toHaveLength(5);
+    for (const n of [1, 2, 3, 4, 5]) expect(rating.getByRole('radio', { name: `Rate ${n} of 5` })).toBeDefined();
+  });
+
+  it('GivenARatingUpgrade_WhenAScoreIsChosen_ThenThatRadioIsCheckedAndNoOther', async () => {
+    renderPage();
+    const rating = within(await screen.findByRole('group', { name: 'Rating' }));
+
+    fireEvent.click(rating.getByRole('radio', { name: 'Rate 3 of 5' }));
+
+    expect((rating.getByRole('radio', { name: 'Rate 3 of 5' }) as HTMLInputElement).checked).toBe(true);
+    expect(rating.getAllByRole('radio').filter((r) => (r as HTMLInputElement).checked)).toHaveLength(1);
   });
 });

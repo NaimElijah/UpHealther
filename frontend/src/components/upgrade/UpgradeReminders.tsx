@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createReminder, deleteReminder, updateReminder } from '../../api/reminders';
 import { toApiError } from '../../api/apiError';
@@ -19,6 +19,20 @@ import { useFocusWhenReady } from '../../hooks/useFocusWhenReady';
  * reminder fires every day.
  */
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+
+/**
+ * Each day's name in full, which is its button's name: the button shows one letter, and "T" and "S"
+ * each stand for two days. The letter is the name's first, so the visible label is inside it (2.5.3).
+ */
+const DAY_NAMES: Record<string, string> = {
+  MON: 'Monday',
+  TUE: 'Tuesday',
+  WED: 'Wednesday',
+  THU: 'Thursday',
+  FRI: 'Friday',
+  SAT: 'Saturday',
+  SUN: 'Sunday',
+};
 
 /** Where the reminder form's time starts, and returns to once a reminder is added or rescheduled. */
 const DEFAULT_REMINDER_TIME = '09:00';
@@ -58,6 +72,7 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
   // The reminder the form below is rescheduling, or none while it adds a new one.
   const [editingReminderId, setEditingReminderId] = useState<string | null>(null);
   const timeField = useRef<HTMLInputElement>(null);
+  const daysLabel = useId();
   const focusWhenReady = useFocusWhenReady();
   const toggleDay = (d: string) =>
     setReminderDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
@@ -214,17 +229,20 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
           )}
         />
         <div>
-          <label className="text-sm font-medium text-fg-muted block mb-1">
+          <span id={daysLabel} className="text-sm font-medium text-fg-muted block mb-1">
             Days <span className="text-fg-faint">(none = every day)</span>
-          </label>
-          <div className="flex gap-1">
+          </span>
+          {/* Toggle buttons in a named group. A chosen day has a ring as well as its fill, so the choice is
+              not told by colour alone, and the ring is far above 3:1 in both themes (WCAG 1.4.1, 1.4.11). */}
+          <div role="group" aria-labelledby={daysLabel} className="flex gap-1">
             {DAYS.map((d) => (
               <button
                 key={d}
                 type="button"
-                title={d}
+                aria-label={DAY_NAMES[d]}
+                aria-pressed={reminderDays.includes(d)}
                 onClick={() => toggleDay(d)}
-                className={`w-9 h-9 rounded-lg text-xs font-medium transition-colors ${reminderDays.includes(d) ? 'bg-brand text-fg-inverted' : 'bg-muted text-fg-subtle hover:bg-muted-strong'}`}
+                className={`w-9 h-9 rounded-lg border-2 text-xs font-medium transition-colors ${reminderDays.includes(d) ? 'bg-brand text-fg-inverted border-fg' : 'bg-muted text-fg-subtle border-transparent hover:bg-muted-strong'}`}
               >
                 {d[0]}
               </button>

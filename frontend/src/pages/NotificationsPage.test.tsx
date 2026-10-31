@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import NotificationsPage from './NotificationsPage';
 import { NotificationContext, type NotificationContextType } from '../contexts/notificationContextValue';
@@ -132,4 +132,21 @@ describe('NotificationsPage focus', () => {
       await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 })));
     },
   );
+});
+
+/**
+ * The All and Unread filter says which one is on. The choice was a change of colour and nothing else
+ * (WCAG 4.1.2, 1.4.1, finding X9.7).
+ */
+describe('NotificationsPage filter', () => {
+  it('GivenTheFilter_WhenUnreadIsChosen_ThenUnreadIsPressedAndAllIsNot', () => {
+    renderPage(aContext());
+    const filter = within(screen.getByRole('group', { name: 'Show' }));
+    expect(filter.getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('true');
+
+    fireEvent.click(filter.getByRole('button', { name: /Unread/ }));
+
+    expect(filter.getByRole('button', { name: /Unread/ }).getAttribute('aria-pressed')).toBe('true');
+    expect(filter.getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('false');
+  });
 });

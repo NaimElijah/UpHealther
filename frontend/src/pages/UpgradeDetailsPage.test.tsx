@@ -846,7 +846,7 @@ describe('UpgradeDetailsPage', () => {
     renderPage();
     await screen.findByText('Cold showers');
     fireEvent.change(screen.getByLabelText('Time'), { target: { value: '07:30' } });
-    fireEvent.click(screen.getByTitle('WED'));
+    fireEvent.click(screen.getByRole('button', { name: 'Wednesday' }));
 
     fireEvent.submit(screen.getByRole('button', { name: 'Add reminder' }));
     await waitFor(() => expect((screen.getByLabelText('Time') as HTMLInputElement).value).toBe('09:00'));
@@ -926,6 +926,35 @@ describe('UpgradeDetailsPage', () => {
 
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Time')));
+  });
+
+  // WCAG 4.1.2, finding X9.7: the rating is a named radio group, not five buttons told apart by colour.
+  it('GivenARatedUpgrade_WhenLogProgressOpens_ThenItsRatingIsANamedRadioGroup', async () => {
+    getUpgradeById.mockResolvedValue({
+      ...anUpgrade(),
+      trackingConfig: trackingConfigAsSent({ upgradeId: UPGRADE_ID, trackingType: 'RATING' }),
+    });
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: '+ Log Progress' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'Log Progress' }));
+
+    const rating = within(dialog.getByRole('group', { name: 'Rating (1-5)' }));
+    fireEvent.click(rating.getByRole('radio', { name: 'Rate 4 of 5' }));
+
+    expect((rating.getByRole('radio', { name: 'Rate 4 of 5' }) as HTMLInputElement).checked).toBe(true);
+  });
+
+  // WCAG 4.1.2, 1.3.1, finding X9.7: the days were "M T W T F S S", told apart from each other by colour.
+  it('GivenTheReminderForm_WhenADayIsChosen_ThenTheDayIsNamedInFullAndPressed', async () => {
+    renderPage();
+    const days = within(await screen.findByRole('group', { name: /Days/ }));
+    const names = days.getAllByRole('button').map((b) => b.getAttribute('aria-label'));
+    expect(names).toEqual(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']);
+
+    fireEvent.click(days.getByRole('button', { name: 'Wednesday' }));
+
+    expect(days.getByRole('button', { name: 'Wednesday' }).getAttribute('aria-pressed')).toBe('true');
+    expect(days.getByRole('button', { name: 'Thursday' }).getAttribute('aria-pressed')).toBe('false');
   });
 
   it('GivenAProgressEntryWasRefused_WhenLogProgressIsOpenedAgain_ThenTheRefusalIsGone', async () => {
@@ -1761,7 +1790,7 @@ describe('UpgradeDetailsPage changing a reminder', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Edit the 09:00 reminder' }));
     expect((screen.getByLabelText('Time') as HTMLInputElement).value).toBe('09:00');
     fireEvent.change(screen.getByLabelText('Time'), { target: { value: '07:30' } });
-    fireEvent.click(screen.getByTitle('WED'));
+    fireEvent.click(screen.getByRole('button', { name: 'Wednesday' }));
     fireEvent.submit(screen.getByRole('button', { name: 'Save reminder' }));
 
     expect(await screen.findByRole('button', { name: 'Edit the 07:30 reminder' })).toBeDefined();

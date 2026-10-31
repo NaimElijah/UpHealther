@@ -8,6 +8,7 @@ import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import { numOrUndef } from '../components/upgrade/formInput';
+import RatingPicker from '../components/upgrade/RatingPicker';
 import { useNavigate } from 'react-router-dom';
 import type { HealthUpgrade, CreateProgressRequest } from '../types';
 import PageContainer from '../components/ui/PageContainer';
@@ -159,18 +160,11 @@ const DailyCheckinPage: React.FC = () => {
                 )}
 
                 {trackingType(u) === 'RATING' && (
-                  <div className="flex gap-2">
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => updateProgress(u.id, { rating: n })}
-                        className={`w-10 h-10 rounded-full text-sm font-semibold transition-colors ${progressMap[u.id]?.rating === n ? 'bg-brand text-fg-inverted' : 'bg-muted text-fg-muted hover:bg-muted-strong'}`}
-                      >
-                        {n}
-                      </button>
-                    ))}
-                  </div>
+                  <RatingPicker
+                    legend="Rating"
+                    value={progressMap[u.id]?.rating ?? undefined}
+                    onChange={(rating) => updateProgress(u.id, { rating })}
+                  />
                 )}
 
                 {trackingType(u) === 'TEXT' && (
