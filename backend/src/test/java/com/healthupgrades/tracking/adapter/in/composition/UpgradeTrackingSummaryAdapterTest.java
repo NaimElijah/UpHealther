@@ -7,6 +7,8 @@ import com.healthupgrades.tracking.application.port.in.TrackingConfigQuery;
 import com.healthupgrades.tracking.domain.model.Frequency;
 import com.healthupgrades.tracking.domain.model.TrackingConfig;
 import com.healthupgrades.tracking.domain.model.TrackingType;
+import com.healthupgrades.upgrade.application.port.in.UpgradeTrackingFrequency;
+import com.healthupgrades.upgrade.application.port.in.UpgradeTrackingType;
 import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummary;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +48,12 @@ class UpgradeTrackingSummaryAdapterTest {
                 .containsExactly(Map.entry(
                         configured,
                         new UpgradeTrackingSummary(
-                                config.getId(), configured, "NUMERIC", "WEEKLY", 10_000.0, "steps", true)));
+                                config.getId(),
+                                configured,
+                                UpgradeTrackingType.NUMERIC,
+                                UpgradeTrackingFrequency.WEEKLY,
+                                10_000.0,
+                                "steps",
+                                true)));
     }
 }

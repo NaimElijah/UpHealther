@@ -311,7 +311,11 @@ The one edge that is not obvious is the absent one. An upgrade's response carrie
 configuration, which would mean `upgrade → tracking` — and `tracking → upgrade` already exists for
 ownership checks. Instead `upgrade` declares `UpgradeTrackingSummaryPort` describing what it needs, in
 a record it owns, and `tracking` supplies it through a composition adapter. Both arrows run the same
-way. ADR-002 records why.
+way. ADR-002 records why. The record carries tracking's two closed sets as `upgrade`'s own mirrors,
+`UpgradeTrackingType` and `UpgradeTrackingFrequency` in `upgrade.application.port.in`, so the upgrade
+response's generated type names the values rather than `string`; `UpgradeTrackingEnumMirrorContractTest`
+holds each equal to the original
+([ADR-077](../ADRs/ADR-077-a-context-mirrors-another-contexts-closed-set-in-its-own-port.md)).
 
 **The reader of that port is a web mapper, not a use case.** `UpgradeWebMapper` holds
 `UpgradeTrackingSummaryPort` and, as it maps upgrades to `UpgradeDto`s, asks it for the configurations
@@ -1134,6 +1138,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | How a concurrent write that `@Version` does not cover is handled: a per-user invariant over several rows claimed with an advisory try-lock, refused as a retryable 409 rather than waited for, and a lost check-then-insert race translated in the adapter into a 409; what would make the claim the wrong tool | [ADR-074](../ADRs/ADR-074-concurrent-writes-beyond-the-version-check.md) |
 | Why a notification is deleted ninety days after it was created, by a nightly job in batches of a thousand, at most twenty a night; why not thirty days, the newest fifty, or waiting for the privacy notice | [ADR-075](../ADRs/ADR-075-notifications-are-kept-for-ninety-days.md) |
 | Why `open-in-view` is off, what it held a connection for, and what would bring it back | [ADR-076](../ADRs/ADR-076-open-in-view-is-off.md) |
+| Why the `upgrade` context restates `tracking`'s tracking type and frequency as enums of its own in `port.in`, held equal by a contract test, rather than importing them, carrying strings, or placing them beside the summary in `port.out` | [ADR-077](../ADRs/ADR-077-a-context-mirrors-another-contexts-closed-set-in-its-own-port.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
 | How to run, test and deploy it | [`README.md`](../../README.md) |

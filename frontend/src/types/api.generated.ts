@@ -23,6 +23,12 @@ export type TrackingType = 'BOOLEAN' | 'NUMERIC' | 'RATING' | 'TEXT';
 /** com.healthupgrades.upgrade.domain.model.UpgradeStatus */
 export type UpgradeStatus = 'IDEA' | 'PLANNED' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ABANDONED';
 
+/** com.healthupgrades.upgrade.application.port.in.UpgradeTrackingFrequency */
+export type UpgradeTrackingFrequency = 'DAILY' | 'WEEKLY' | 'MONTHLY';
+
+/** com.healthupgrades.upgrade.application.port.in.UpgradeTrackingType */
+export type UpgradeTrackingType = 'BOOLEAN' | 'NUMERIC' | 'RATING' | 'TEXT';
+
 /** com.healthupgrades.upgrade.domain.model.UpgradeType */
 export type UpgradeType = 'HABIT' | 'ONE_TIME_ACTION' | 'PRODUCT_REPLACEMENT' | 'ROUTINE' | 'GOAL' | 'EXPERIMENT' | 'LEARNING_TASK' | 'MEDICAL_PREVENTIVE' | 'PROTOCOL';
 
@@ -273,8 +279,8 @@ export interface UpgradeRequest {
 export interface UpgradeTrackingConfigDto {
   id: string;
   upgradeId: string;
-  trackingType: string;
-  frequency: string | null;
+  trackingType: UpgradeTrackingType;
+  frequency: UpgradeTrackingFrequency | null;
   targetNumericValue: number | null;
   targetUnit: string | null;
   requiredDaily: boolean | null;

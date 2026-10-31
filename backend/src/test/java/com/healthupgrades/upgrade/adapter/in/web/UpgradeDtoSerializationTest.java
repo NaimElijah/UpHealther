@@ -2,6 +2,8 @@ package com.healthupgrades.upgrade.adapter.in.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.healthupgrades.upgrade.application.port.in.UpgradeTrackingFrequency;
+import com.healthupgrades.upgrade.application.port.in.UpgradeTrackingType;
 import com.healthupgrades.upgrade.domain.model.Difficulty;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.model.UpgradeType;
@@ -59,7 +61,13 @@ class UpgradeDtoSerializationTest {
     void GivenAnUpgradeWithTrackingConfig_WhenTheResponseIsSerialised_ThenTheFieldNamesAreTheOnesTheFrontendReads()
             throws Exception {
         UpgradeTrackingConfigDto config = new UpgradeTrackingConfigDto(
-                UUID.randomUUID(), UUID.randomUUID(), "NUMERIC", "DAILY", 30.0, "minutes", true);
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UpgradeTrackingType.NUMERIC,
+                UpgradeTrackingFrequency.DAILY,
+                30.0,
+                "minutes",
+                true);
 
         JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(sampleDto(config)));
         JsonNode node = json.get("trackingConfig");
@@ -79,10 +87,16 @@ class UpgradeDtoSerializationTest {
     @Test
     void GivenTrackingConfigWithEnumValuedFields_WhenTheResponseIsSerialised_ThenTheyRenderAsTheirNames()
             throws Exception {
-        // These were tracking's TrackingType and Frequency enums; Jackson wrote their names, and the
-        // upgrade-owned record carries the same names as strings. The JSON must not change.
+        // These were tracking's TrackingType and Frequency enums, then their names as strings, and are now
+        // the upgrade context's mirrors of them. Jackson writes each by name, so the JSON must not change.
         UpgradeTrackingConfigDto config = new UpgradeTrackingConfigDto(
-                UUID.randomUUID(), UUID.randomUUID(), "NUMERIC", "WEEKLY", 5.0, "km", false);
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UpgradeTrackingType.NUMERIC,
+                UpgradeTrackingFrequency.WEEKLY,
+                5.0,
+                "km",
+                false);
 
         JsonNode node = objectMapper
                 .readTree(objectMapper.writeValueAsString(sampleDto(config)))

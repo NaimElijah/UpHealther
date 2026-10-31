@@ -27,6 +27,8 @@ import com.healthupgrades.support.AnUpgrade;
 import com.healthupgrades.support.WebSliceSupport;
 import com.healthupgrades.upgrade.application.UpgradeService;
 import com.healthupgrades.upgrade.application.port.in.UpgradeDetails;
+import com.healthupgrades.upgrade.application.port.in.UpgradeTrackingFrequency;
+import com.healthupgrades.upgrade.application.port.in.UpgradeTrackingType;
 import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummary;
 import com.healthupgrades.upgrade.application.port.out.UpgradeTrackingSummaryPort;
 import com.healthupgrades.upgrade.domain.model.Difficulty;
@@ -279,7 +281,14 @@ class UpgradeControllerTest {
         when(trackingSummaries.findByUpgradeIds(List.of(upgradeId)))
                 .thenReturn(Map.of(
                         upgradeId,
-                        new UpgradeTrackingSummary(configId, upgradeId, "NUMERIC", "WEEKLY", 10_000.0, "steps", true)));
+                        new UpgradeTrackingSummary(
+                                configId,
+                                upgradeId,
+                                UpgradeTrackingType.NUMERIC,
+                                UpgradeTrackingFrequency.WEEKLY,
+                                10_000.0,
+                                "steps",
+                                true)));
 
         mockMvc.perform(bearer(get(BASE + "/" + upgradeId)))
                 .andExpect(status().isOk())

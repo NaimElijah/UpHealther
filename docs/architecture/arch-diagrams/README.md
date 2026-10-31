@@ -284,6 +284,12 @@ classDiagram
     class UpgradeDetails {
         <<use-case record>>
     }
+    class UpgradeTrackingFrequency {
+        <<use-case record · enum>>
+    }
+    class UpgradeTrackingType {
+        <<use-case record · enum>>
+    }
 
     %% ---- web adapter ----
     class ActivateRequest {
@@ -347,6 +353,10 @@ classDiagram
     UpgradeService ..|> UpgradeQuery : implements
     UpgradeSweeps --> UpgradeRepositoryPort
     UpgradeSweeps ..|> UpgradeSweepQuery : implements
+    UpgradeTrackingConfigDto --> UpgradeTrackingFrequency
+    UpgradeTrackingConfigDto --> UpgradeTrackingType
+    UpgradeTrackingSummary --> UpgradeTrackingFrequency
+    UpgradeTrackingSummary --> UpgradeTrackingType
     UpgradeWebMapper --> UpgradeTrackingSummaryPort
 ```
 <!-- /generated:class-diagram -->
