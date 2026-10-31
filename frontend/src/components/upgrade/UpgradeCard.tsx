@@ -21,6 +21,8 @@ import type { ApiError } from '../../api/apiError';
  *                       trace id (NFR-30). The page owns the mutation, so the page says which card it was
  * @param busy           a transition is in flight on the page, so the transition buttons are disabled: a
  *                       second press would be refused, and one on another card would hide the first's answer
+ * @param pendingTransition the transition in flight from this card, if one is. Its button shows it and keeps
+ *                       focus meanwhile, where a disabled one would drop focus to `<body>` (WCAG 2.4.3)
  */
 interface Props {
   upgrade: HealthUpgrade;
@@ -29,6 +31,7 @@ interface Props {
   showActions?: boolean;
   refusal?: ApiError;
   busy?: boolean;
+  pendingTransition?: ActionTarget;
 }
 
 /**
@@ -45,6 +48,7 @@ const UpgradeCard: React.FC<Props> = ({
   showActions = true,
   refusal,
   busy = false,
+  pendingTransition,
 }) => {
   return (
     <div className="bg-surface rounded-xl border border-line p-4 shadow-sm hover:shadow-md transition-shadow">
@@ -75,7 +79,12 @@ const UpgradeCard: React.FC<Props> = ({
       {showActions && upgrade.status !== 'IDEA' && onStatusChange && (
         <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-line-subtle">
           {upgrade.status === 'PLANNED' && (
-            <Button size="sm" disabled={busy} onClick={() => onStatusChange(upgrade.id, 'ACTIVE')}>
+            <Button
+              size="sm"
+              disabled={busy}
+              loading={pendingTransition === 'ACTIVE'}
+              onClick={() => onStatusChange(upgrade.id, 'ACTIVE')}
+            >
               Activate
             </Button>
           )}
@@ -85,17 +94,29 @@ const UpgradeCard: React.FC<Props> = ({
                 size="sm"
                 variant="secondary"
                 disabled={busy}
+                loading={pendingTransition === 'PAUSED'}
                 onClick={() => onStatusChange(upgrade.id, 'PAUSED')}
               >
                 Pause
               </Button>
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => onStatusChange(upgrade.id, 'COMPLETED')}>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                loading={pendingTransition === 'COMPLETED'}
+                onClick={() => onStatusChange(upgrade.id, 'COMPLETED')}
+              >
                 Complete
               </Button>
             </>
           )}
           {upgrade.status === 'PAUSED' && (
-            <Button size="sm" disabled={busy} onClick={() => onStatusChange(upgrade.id, 'ACTIVE')}>
+            <Button
+              size="sm"
+              disabled={busy}
+              loading={pendingTransition === 'ACTIVE'}
+              onClick={() => onStatusChange(upgrade.id, 'ACTIVE')}
+            >
               Resume
             </Button>
           )}

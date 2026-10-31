@@ -344,3 +344,91 @@ describe('AdminUsersPage title', () => {
     expect(document.title).toBe('Accounts – UpHealther');
   });
 });
+
+/**
+ * The controls an administrator was using must keep focus, or hand it on, when the list changes under
+ * them. Paging replaced the whole page with a spinner, and Disable and Enable replace each other, so
+ * focus fell to `<body>` after each (WCAG 2.4.3, finding X9.4).
+ */
+describe('AdminUsersPage focus', () => {
+  beforeEach(() => {
+    listAccounts.mockReset();
+    disableAccount.mockReset();
+    enableAccount.mockReset();
+    changeAccountRole.mockReset();
+  });
+
+  it('GivenAnotherPageIsLoading_WhenNextWasPressed_ThenTheListAndThePagingControlsStay', async () => {
+    listAccounts.mockResolvedValueOnce(page([MY_ACCOUNT, SOMEBODY], 60)).mockReturnValue(new Promise(() => {}));
+    renderPage();
+    const next = await screen.findByRole('button', { name: 'Next' });
+    next.focus();
+
+    fireEvent.click(next);
+    await settle();
+
+    expect(screen.getByText('Someone Else')).toBeDefined();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Next' }));
+  });
+
+  it('GivenTheLastPageIsReached_WhenNextWasPressed_ThenFocusMovesToPrevious', async () => {
+    listAccounts.mockImplementation((pageNumber: number) => Promise.resolve(page([SOMEBODY], 26, pageNumber)));
+    renderPage();
+    const next = await screen.findByRole('button', { name: 'Next' });
+    next.focus();
+
+    fireEvent.click(next);
+
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Previous' })));
+  });
+
+  it('GivenAnAccountIsDisabled_WhenTheConfirmationCloses_ThenFocusIsOnItsEnable', async () => {
+    let enabled = true;
+    listAccounts.mockImplementation(() => Promise.resolve(page([MY_ACCOUNT, { ...SOMEBODY, enabled }], 2)));
+    disableAccount.mockImplementation(() => {
+      enabled = false;
+      return Promise.resolve({ ...SOMEBODY, enabled: false });
+    });
+    renderPage();
+    const disable = await screen.findByRole('button', { name: 'Disable' });
+    disable.focus();
+    fireEvent.click(disable);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Enable' })));
+  });
+
+  // Enable was disabled while its request ran, and a disabled button gives up focus in a browser.
+  it('GivenAnEnableInFlight_WhenItsButtonHasFocus_ThenTheButtonKeepsItAndSaysItIsBusy', async () => {
+    listAccounts.mockResolvedValue(page([MY_ACCOUNT, { ...SOMEBODY, enabled: false }], 2));
+    enableAccount.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    const enable = await screen.findByRole('button', { name: 'Enable' });
+    enable.focus();
+
+    fireEvent.click(enable);
+    await settle();
+
+    expect(enable.hasAttribute('disabled')).toBe(false);
+    expect(enable.getAttribute('aria-busy')).toBe('true');
+    expect(document.activeElement).toBe(enable);
+  });
+
+  it('GivenADisabledAccount_WhenItIsEnabled_ThenFocusIsOnItsDisable', async () => {
+    let enabled = false;
+    listAccounts.mockImplementation(() => Promise.resolve(page([MY_ACCOUNT, { ...SOMEBODY, enabled }], 2)));
+    enableAccount.mockImplementation(() => {
+      enabled = true;
+      return Promise.resolve(SOMEBODY);
+    });
+    renderPage();
+    const enable = await screen.findByRole('button', { name: 'Enable' });
+    enable.focus();
+
+    fireEvent.click(enable);
+
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Disable' })));
+  });
+});

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createReminder, deleteReminder, updateReminder } from '../../api/reminders';
 import { toApiError } from '../../api/apiError';
@@ -10,6 +10,7 @@ import ErrorState from '../ui/ErrorState';
 import { refusalMessage } from './formInput';
 import { remindersQuery, type SectionRead } from './upgradeDetailsQueries';
 import type { CreateReminderRequest, Reminder } from '../../types';
+import { useFocusWhenReady } from '../../hooks/useFocusWhenReady';
 
 /**
  * Day tokens for the reminder day picker, in week order.
@@ -56,6 +57,8 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
   const [reminderDays, setReminderDays] = useState<string[]>([]);
   // The reminder the form below is rescheduling, or none while it adds a new one.
   const [editingReminderId, setEditingReminderId] = useState<string | null>(null);
+  const timeField = useRef<HTMLInputElement>(null);
+  const focusWhenReady = useFocusWhenReady();
   const toggleDay = (d: string) =>
     setReminderDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
 
@@ -165,13 +168,18 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
                   {r.enabled ? 'Disable' : 'Enable'}
                 </button>
                 <button
-                  onClick={() =>
+                  type="button"
+                  onClick={(e) => {
+                    const pressed = e.currentTarget;
                     deleteReminderMut.mutate(r.id, {
                       onSuccess: () => {
                         if (editingReminderId === r.id) stopEditingReminder();
+                        // The row goes, and this button with it, so focus goes to the form below, the
+                        // stable control of this section, rather than falling to <body>.
+                        focusWhenReady(() => (pressed.isConnected ? undefined : timeField.current));
                       },
-                    })
-                  }
+                    });
+                  }}
                   // A second DELETE would be answered 404, saying "not removed" while the row disappears.
                   disabled={reminderWriteInFlight}
                   className="text-danger-fg hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
@@ -195,6 +203,7 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
       )}
       <form onSubmit={submitReminder} className="flex flex-wrap items-end gap-3 border-t border-line-subtle pt-3">
         <Input
+          ref={timeField}
           label="Time"
           type="time"
           value={reminderTime}

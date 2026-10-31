@@ -16,6 +16,8 @@ import ErrorState from '../components/ui/ErrorState';
 import { toApiError, toFormMessage } from '../api/apiError';
 import { isFourDigitYearDate, todayLocal } from '../lib/localDate';
 import { refreshUpgradeViews } from '../lib/upgradeViews';
+import { useFocusWhenReady } from '../hooks/useFocusWhenReady';
+import { findPageHeading } from '../components/ui/pageHeadingFocus';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /** The create form's starting values, and what it returns to once an idea is added. */
@@ -55,12 +57,16 @@ const UpgradeBacklogPage: React.FC = () => {
     },
   });
 
+  const focusWhenReady = useFocusWhenReady();
   const planMutation = useMutation({
     mutationFn: ({ id, date }: { id: string; date: string }) => planUpgrade(id, date),
     // Awaited, so the dialog stays pending until the backlog no longer lists the idea; closed sooner it
     // would uncover a Plan button whose second press earns a 422.
+    // The planned idea's Plan button, which opened the dialog, has gone with it, so focus goes to the
+    // page's heading rather than falling to <body>.
     onSuccess: async () => {
       await refreshUpgradeViews(qc);
+      focusWhenReady(findPageHeading);
       setPlanning(null);
     },
   });

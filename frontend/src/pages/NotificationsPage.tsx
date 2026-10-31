@@ -8,6 +8,8 @@ import NotificationItem from '../components/notifications/NotificationItem';
 import type { AppNotification } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
+import { useFocusWhenReady } from '../hooks/useFocusWhenReady';
+import { findPageHeading } from '../components/ui/pageHeadingFocus';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
@@ -37,6 +39,17 @@ const NotificationsPage: React.FC = () => {
 
   const shown = filter === 'unread' ? notifications.filter((n) => !n.read) : notifications;
 
+  const focusWhenReady = useFocusWhenReady();
+  /**
+   * Runs one of the header's actions, each of which removes its own button once it has acted, and sends
+   * focus to the page's heading when it goes rather than letting it fall to `<body>`.
+   */
+  const actThenRefocus = (action: () => void) => () => {
+    const pressed = document.activeElement;
+    focusWhenReady(() => (pressed?.isConnected ? undefined : findPageHeading()));
+    action();
+  };
+
   const select = (n: AppNotification) => {
     if (!n.read) markRead(n.id);
     if (n.relatedUpgradeId) navigate(`/upgrades/${n.relatedUpgradeId}`);
@@ -50,12 +63,12 @@ const NotificationsPage: React.FC = () => {
         action={
           <div className="flex gap-2">
             {desktopPermission === 'default' && (
-              <Button variant="secondary" size="sm" onClick={requestDesktopPermission}>
+              <Button variant="secondary" size="sm" onClick={actThenRefocus(requestDesktopPermission)}>
                 Enable desktop alerts
               </Button>
             )}
             {unreadCount > 0 && (
-              <Button size="sm" onClick={markAllRead}>
+              <Button size="sm" onClick={actThenRefocus(markAllRead)}>
                 Mark all read
               </Button>
             )}

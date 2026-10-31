@@ -287,3 +287,28 @@ describe('DailyCheckinPage title', () => {
     expect(document.title).toBe('Daily Check-in – UpHealther');
   });
 });
+
+/**
+ * A submitted check-in replaces the form with its completion view, and the submit button that had focus
+ * with it, so focus fell to `<body>`. The view's heading is now the page's `h1`, and takes focus
+ * (WCAG 2.4.3, finding X9.4).
+ */
+describe('DailyCheckinPage completion', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    createProgress.mockReset();
+    createProgress.mockResolvedValue({});
+  });
+
+  it('GivenAFilledCheckin_WhenItIsSubmitted_ThenTheCompletionHeadingHasFocus', async () => {
+    getUpgrades.mockResolvedValue([anUpgrade()]);
+    renderPage();
+    const submit = await screen.findByRole('button', { name: 'Submit Check-in' });
+    submit.focus();
+
+    fireEvent.click(submit);
+
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Check-in Complete!' });
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+  });
+});

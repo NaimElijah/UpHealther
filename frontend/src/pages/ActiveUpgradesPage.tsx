@@ -12,6 +12,8 @@ import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
 import { refreshUpgradeViews } from '../lib/upgradeViews';
+import { useFocusWhenReady } from '../hooks/useFocusWhenReady';
+import { findPageHeading } from '../components/ui/pageHeadingFocus';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
@@ -54,14 +56,28 @@ const ActiveUpgradesPage: React.FC = () => {
   const refusalFor = (id: string) =>
     statusMutation.error && statusMutation.variables?.id === id ? toApiError(statusMutation.error) : undefined;
 
+  const focusWhenReady = useFocusWhenReady();
+  // A transition moves the card to the other list, or off the page, so the pressed button goes; focus
+  // then goes to the page's heading rather than falling to <body>.
+  const changeStatus = (id: string, status: ActionTarget) => {
+    const pressed = document.activeElement;
+    statusMutation.mutate(
+      { id, status },
+      { onSuccess: () => focusWhenReady(() => (pressed?.isConnected ? undefined : findPageHeading())) },
+    );
+  };
+
   /** One card, in either list: both share the page's single mutation, so one change is in flight at a time. */
   const cardFor = (u: HealthUpgrade) => (
     <UpgradeCard
       key={u.id}
       upgrade={u}
-      onStatusChange={(id, status) => statusMutation.mutate({ id, status })}
+      onStatusChange={changeStatus}
       refusal={refusalFor(u.id)}
       busy={statusMutation.isPending}
+      pendingTransition={
+        statusMutation.isPending && statusMutation.variables?.id === u.id ? statusMutation.variables.status : undefined
+      }
     />
   );
 

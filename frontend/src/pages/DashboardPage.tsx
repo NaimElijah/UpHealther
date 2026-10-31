@@ -15,6 +15,8 @@ import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
 import { refreshUpgradeViews } from '../lib/upgradeViews';
+import { useFocusWhenReady } from '../hooks/useFocusWhenReady';
+import { findPageHeading } from '../components/ui/pageHeadingFocus';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /** The local hours at which the greeting turns from morning to afternoon, and from afternoon to evening. */
@@ -57,11 +59,23 @@ const DashboardPage: React.FC = () => {
       performUpgradeAction(id, status),
     onSuccess: () => refreshUpgradeViews(queryClient),
   });
-  const changeStatusFrom = (section: CardSection) => (id: string, status: ActionTarget) =>
-    statusMutation.mutate({ id, status, section });
+  const focusWhenReady = useFocusWhenReady();
+  // Every transition offered here takes the card off the dashboard, and the pressed button with it, so
+  // focus goes to the page's heading once the card has gone rather than falling to <body>.
+  const changeStatusFrom = (section: CardSection) => (id: string, status: ActionTarget) => {
+    const pressed = document.activeElement;
+    statusMutation.mutate(
+      { id, status, section },
+      { onSuccess: () => focusWhenReady(() => (pressed?.isConnected ? undefined : findPageHeading())) },
+    );
+  };
   const refusalFor = (id: string, section: CardSection) =>
     statusMutation.error && statusMutation.variables?.id === id && statusMutation.variables.section === section
       ? toApiError(statusMutation.error)
+      : undefined;
+  const pendingFor = (id: string, section: CardSection) =>
+    statusMutation.isPending && statusMutation.variables?.id === id && statusMutation.variables.section === section
+      ? statusMutation.variables.status
       : undefined;
 
   if (isLoading)
@@ -157,6 +171,7 @@ const DashboardPage: React.FC = () => {
                 onStatusChange={changeStatusFrom('today')}
                 refusal={refusalFor(u.id, 'today')}
                 busy={statusMutation.isPending}
+                pendingTransition={pendingFor(u.id, 'today')}
               />
             ))}
             <Button variant="secondary" onClick={() => navigate('/daily-checkin')} className="w-full mt-2">
@@ -183,6 +198,7 @@ const DashboardPage: React.FC = () => {
                 onStatusChange={changeStatusFrom('active')}
                 refusal={refusalFor(u.id, 'active')}
                 busy={statusMutation.isPending}
+                pendingTransition={pendingFor(u.id, 'active')}
               />
             ))}
           </div>

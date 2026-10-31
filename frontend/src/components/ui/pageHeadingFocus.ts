@@ -17,6 +17,14 @@ export const PAGE_HEADING_ATTRIBUTE = 'data-page-heading';
 let waiting: { focusedAtNavigation: Element | null } | null = null;
 
 /**
+ * The current page's heading, or `null` while the page has not rendered one. Also the stable place a
+ * page sends focus to when an action removes the control that had it.
+ */
+export function findPageHeading(): HTMLElement | null {
+  return document.querySelector<HTMLElement>(`[${PAGE_HEADING_ATTRIBUTE}]`);
+}
+
+/**
  * Focuses the current page's heading, or, when the page has not rendered one yet, leaves the move for
  * the heading to make once it mounts (`claimHeadingFocus`).
  *
@@ -24,7 +32,7 @@ let waiting: { focusedAtNavigation: Element | null } | null = null;
  * browser's own starting point, the top of the document, is already right.
  */
 export function moveFocusToPageHeading(): void {
-  const heading = document.querySelector<HTMLElement>(`[${PAGE_HEADING_ATTRIBUTE}]`);
+  const heading = findPageHeading();
   if (heading) {
     waiting = null;
     heading.focus();

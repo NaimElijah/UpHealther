@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import React, { useRef, useState } from 'react';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ACCOUNTS_PAGE_SIZE, changeAccountRole, disableAccount, enableAccount, listAccounts } from '../api/admin';
 import { toApiError } from '../api/apiError';
 import { useAuth } from '../hooks/useAuth';
@@ -13,6 +13,7 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import ErrorState from '../components/ui/ErrorState';
 import type { AdminAccount, UserRole } from '../types';
+import { useFocusWhenReady } from '../hooks/useFocusWhenReady';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /** The query key for the account list, so every mutation invalidates the same thing. */
@@ -51,10 +52,29 @@ const AdminUsersPage: React.FC = () => {
   const [pending, setPending] = useState<PendingChange | null>(null);
   const [actionError, setActionError] = useState<unknown>(null);
 
+  // The page being left stays on screen while the next one loads. Without it the whole page became a
+  // spinner, Previous and Next went with it, and focus fell to <body> on every page turn.
   const { data, isLoading, error } = useQuery({
     queryKey: [...ACCOUNTS_KEY, page],
     queryFn: () => listAccounts(page),
+    placeholderData: keepPreviousData,
   });
+
+  const previousButton = useRef<HTMLButtonElement>(null);
+  const nextButton = useRef<HTMLButtonElement>(null);
+  const focusWhenReady = useFocusWhenReady();
+
+  /**
+   * Turns the page. Reaching the first or the last page disables the button just pressed, and a disabled
+   * button drops focus, so focus moves to the other one.
+   */
+  const turnTo = (target: number) => {
+    setPage(target);
+    focusWhenReady(() => {
+      const [pressed, other] = target > page ? [nextButton, previousButton] : [previousButton, nextButton];
+      return pressed.current?.disabled ? other.current : null;
+    });
+  };
 
   /**
    * Every change re-reads the list rather than patching a row, so what is shown is what was saved. The
@@ -160,10 +180,13 @@ const AdminUsersPage: React.FC = () => {
                             Disable
                           </Button>
                         ) : (
+                          // Loading rather than disabled, so it keeps focus: the row then turns it into
+                          // Disable, the same button, and focus stays on it.
                           <Button
                             variant="ghost"
                             size="sm"
                             disabled={enabling.isPending}
+                            loading={enabling.isPending && enabling.variables === account.id}
                             onClick={() => enabling.mutate(account.id)}
                           >
                             Enable
@@ -193,11 +216,11 @@ const AdminUsersPage: React.FC = () => {
 
       {(page > 0 || hasMore) && (
         <div className="flex items-center justify-between mt-6">
-          <Button variant="ghost" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
+          <Button ref={previousButton} variant="ghost" size="sm" disabled={page === 0} onClick={() => turnTo(page - 1)}>
             Previous
           </Button>
           <span className="text-sm text-fg-subtle">Page {page + 1}</span>
-          <Button variant="ghost" size="sm" disabled={!hasMore} onClick={() => setPage(page + 1)}>
+          <Button ref={nextButton} variant="ghost" size="sm" disabled={!hasMore} onClick={() => turnTo(page + 1)}>
             Next
           </Button>
         </div>

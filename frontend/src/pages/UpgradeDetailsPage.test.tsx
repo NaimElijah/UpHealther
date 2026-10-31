@@ -910,6 +910,24 @@ describe('UpgradeDetailsPage', () => {
     expect(deleteReminder).toHaveBeenCalledTimes(1);
   });
 
+  // WCAG 2.4.3, finding X9.4: the removed row took the focused Remove with it, and focus fell to <body>.
+  it('GivenFocusOnRemove_WhenTheReminderIsRemoved_ThenFocusMovesToTheReminderFormsTime', async () => {
+    getReminders
+      .mockResolvedValueOnce([
+        { id: 'reminder-1', upgradeId: UPGRADE_ID, reminderTime: '09:00:00', daysOfWeek: [], enabled: true },
+      ])
+      .mockResolvedValue([]);
+    deleteReminder.mockResolvedValue(undefined);
+    renderPage();
+    const remove = await screen.findByRole('button', { name: 'Remove' });
+    remove.focus();
+
+    fireEvent.click(remove);
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Time')));
+  });
+
   it('GivenAProgressEntryWasRefused_WhenLogProgressIsOpenedAgain_ThenTheRefusalIsGone', async () => {
     createProgress.mockRejectedValue(DAY_ALREADY_LOGGED);
     renderPage();

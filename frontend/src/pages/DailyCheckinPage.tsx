@@ -11,6 +11,7 @@ import { numOrUndef } from '../components/upgrade/formInput';
 import { useNavigate } from 'react-router-dom';
 import type { HealthUpgrade, CreateProgressRequest } from '../types';
 import PageContainer from '../components/ui/PageContainer';
+import PageHeading from '../components/ui/PageHeading';
 import { todayLocal } from '../lib/localDate';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
@@ -84,7 +85,11 @@ const DailyCheckinPage: React.FC = () => {
     return (
       <PageContainer width="narrow" className="text-center py-20">
         <div className="text-6xl mb-4">🎉</div>
-        <h2 className="text-2xl font-bold text-fg mb-2">Check-in Complete!</h2>
+        {/* The page's heading now, and it takes focus: the form, and the submit button that had focus, are
+            gone, and focus would otherwise fall to <body>. */}
+        <PageHeading takeFocus className="text-2xl font-bold text-fg mb-2">
+          Check-in Complete!
+        </PageHeading>
         <p className="text-fg-subtle mb-6">Great job tracking your upgrades today.</p>
         <Button onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>
       </PageContainer>

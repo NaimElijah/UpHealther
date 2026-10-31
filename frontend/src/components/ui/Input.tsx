@@ -18,8 +18,10 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
  * When no `id` is supplied one is derived from the label, which is what keeps the `htmlFor` association
  * intact — without it, clicking the label would not focus the field and screen readers would not
  * announce it.
+ *
+ * Forwards its ref to the `<input>`, so a caller can move focus to the field.
  */
-const Input: React.FC<InputProps> = ({ label, error, id, className = '', ...rest }) => {
+const Input = React.forwardRef<HTMLInputElement, InputProps>(({ label, error, id, className = '', ...rest }, ref) => {
   const inputId = id ?? label?.toLowerCase().replace(/\s+/g, '-');
   return (
     <div className="flex flex-col gap-1">
@@ -29,6 +31,7 @@ const Input: React.FC<InputProps> = ({ label, error, id, className = '', ...rest
         </label>
       )}
       <input
+        ref={ref}
         id={inputId}
         className={`rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
           error ? 'border-danger focus:ring-danger' : 'border-line-strong'
@@ -38,6 +41,7 @@ const Input: React.FC<InputProps> = ({ label, error, id, className = '', ...rest
       {error && <p className="text-xs text-danger-fg">{error}</p>}
     </div>
   );
-};
+});
+Input.displayName = 'Input';
 
 export default Input;

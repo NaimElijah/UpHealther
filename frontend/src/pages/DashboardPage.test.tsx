@@ -441,3 +441,52 @@ describe('DashboardPage title', () => {
     expect(document.title).toBe('Dashboard – UpHealther');
   });
 });
+
+/**
+ * Completing or pausing an upgrade takes its card off the dashboard, and with it the button that had
+ * focus, so focus fell to `<body>`. It goes to the page's heading instead, and the pressed button keeps
+ * it while the change is in flight (WCAG 2.4.3, finding X9.4).
+ */
+describe('DashboardPage focus after a transition', () => {
+  beforeEach(() => {
+    getDashboard.mockReset();
+    performUpgradeAction.mockReset();
+  });
+
+  it.each(['Complete', 'Pause'])(
+    'GivenFocusOn%sOfAnActiveUpgrade_WhenTheChangeLands_ThenFocusMovesToThePageHeading',
+    async (action) => {
+      const walk = anActiveUpgrade('upgrade-1', 'Evening walk');
+      getDashboard
+        .mockResolvedValueOnce({ ...aDashboard([]), activeUpgrades: [walk] })
+        .mockResolvedValue(aDashboard([]));
+      performUpgradeAction.mockResolvedValue(walk);
+      renderPage();
+      const button = await screen.findByRole('button', { name: action });
+      button.focus();
+
+      fireEvent.click(button);
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: action })).toBeNull());
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 })));
+    },
+  );
+
+  it('GivenAChangeInFlight_WhenItsButtonHasFocus_ThenTheButtonKeepsItAndSaysItIsBusy', async () => {
+    getDashboard.mockResolvedValue({
+      ...aDashboard([]),
+      activeUpgrades: [anActiveUpgrade('upgrade-1', 'Evening walk')],
+    });
+    performUpgradeAction.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    const complete = await screen.findByRole('button', { name: 'Complete' });
+    complete.focus();
+
+    fireEvent.click(complete);
+    await settled();
+
+    expect(document.activeElement).toBe(complete);
+    expect(complete.hasAttribute('disabled')).toBe(false);
+    expect(complete.getAttribute('aria-busy')).toBe('true');
+  });
+});

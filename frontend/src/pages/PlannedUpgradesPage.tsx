@@ -13,6 +13,8 @@ import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
 import { parseLocalDate } from '../lib/localDate';
 import { refreshUpgradeViews } from '../lib/upgradeViews';
+import { useFocusWhenReady } from '../hooks/useFocusWhenReady';
+import { findPageHeading } from '../components/ui/pageHeadingFocus';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
@@ -40,6 +42,17 @@ const PlannedUpgradesPage: React.FC = () => {
   /** The refusal of the last change, for the card it was pressed on: above a long grid it would be out of view. */
   const refusalFor = (id: string) =>
     statusMutation.error && statusMutation.variables?.id === id ? toApiError(statusMutation.error) : undefined;
+
+  const focusWhenReady = useFocusWhenReady();
+  // An activated upgrade leaves this list, and its Activate with it; focus then goes to the page's
+  // heading rather than falling to <body>.
+  const changeStatus = (id: string, status: ActionTarget) => {
+    const pressed = document.activeElement;
+    statusMutation.mutate(
+      { id, status },
+      { onSuccess: () => focusWhenReady(() => (pressed?.isConnected ? undefined : findPageHeading())) },
+    );
+  };
 
   const sorted = [...upgrades].sort((a, b) => {
     if (!a.plannedStartDate) return 1;
@@ -81,9 +94,14 @@ const PlannedUpgradesPage: React.FC = () => {
               )}
               <UpgradeCard
                 upgrade={u}
-                onStatusChange={(id, status) => statusMutation.mutate({ id, status })}
+                onStatusChange={changeStatus}
                 refusal={refusalFor(u.id)}
                 busy={statusMutation.isPending}
+                pendingTransition={
+                  statusMutation.isPending && statusMutation.variables?.id === u.id
+                    ? statusMutation.variables.status
+                    : undefined
+                }
               />
             </div>
           ))}

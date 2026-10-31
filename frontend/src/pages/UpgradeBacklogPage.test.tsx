@@ -357,3 +357,31 @@ describe('UpgradeBacklogPage title', () => {
     expect(document.title).toBe('Idea Backlog – UpHealther');
   });
 });
+
+/**
+ * Planning an idea takes it off the backlog, and its Plan button with it, so the dialog had nothing to
+ * hand focus back to and it fell to `<body>`. It goes to the page's heading instead (WCAG 2.4.3,
+ * finding X9.4).
+ */
+describe('UpgradeBacklogPage focus after planning', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    planUpgrade.mockReset();
+  });
+
+  it('GivenAnIdea_WhenItIsPlanned_ThenFocusMovesToThePageHeading', async () => {
+    getUpgrades.mockResolvedValueOnce([anIdea()]).mockResolvedValue([]);
+    planUpgrade.mockResolvedValue(anIdea({ status: 'PLANNED' }));
+    renderPage();
+    await screen.findByText('Cold showers');
+    const plan = screen.getByRole('button', { name: 'Plan' });
+    plan.focus();
+    fireEvent.click(plan);
+    const dialog = within(screen.getByRole('dialog', { name: 'Plan Upgrade' }));
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Plan' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 })));
+  });
+});

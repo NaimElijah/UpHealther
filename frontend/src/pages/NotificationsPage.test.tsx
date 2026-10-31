@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import NotificationsPage from './NotificationsPage';
 import { NotificationContext, type NotificationContextType } from '../contexts/notificationContextValue';
@@ -90,4 +91,45 @@ describe('NotificationsPage title', () => {
 
     expect(document.title).toBe('Notifications – UpHealther');
   });
+});
+
+/**
+ * "Mark all read" and "Enable desktop alerts" each disappear once used, so the button that had focus
+ * went with them, and focus fell to `<body>`. It goes to the page's heading instead (WCAG 2.4.3,
+ * finding X9.4).
+ */
+describe('NotificationsPage focus', () => {
+  /** A context whose actions change what it holds, as the provider's do. */
+  function StatefulPage() {
+    const [unread, setUnread] = useState(2);
+    const [permission, setPermission] = useState<NotificationPermission>('default');
+    return (
+      <NotificationContext.Provider
+        value={aContext({
+          unreadCount: unread,
+          desktopPermission: permission,
+          markAllRead: () => setUnread(0),
+          requestDesktopPermission: () => setPermission('granted'),
+        })}
+      >
+        <MemoryRouter>
+          <NotificationsPage />
+        </MemoryRouter>
+      </NotificationContext.Provider>
+    );
+  }
+
+  it.each(['Mark all read', 'Enable desktop alerts'])(
+    'GivenFocusOn%s_WhenItIsUsedAndGoes_ThenFocusMovesToThePageHeading',
+    async (action) => {
+      render(<StatefulPage />);
+      const button = screen.getByRole('button', { name: action });
+      button.focus();
+
+      fireEvent.click(button);
+
+      expect(screen.queryByRole('button', { name: action })).toBeNull();
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 })));
+    },
+  );
 });
