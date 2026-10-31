@@ -178,6 +178,11 @@ read/composition model with no domain or outbound side. All three are deliberate
   carries, and `tracking` implements it, so the graph stays acyclic (ADR-002). The shared kernel does
   the same: `common` depends on no context, so it declares `SessionStatusPort` and
   `AccountCredentialsPort` in `common.domain.port.out`, and `auth` and `user` supply them (ADR-062).
+  When what crosses such a port includes the other context's closed set, the asking context restates
+  it as an enum of its own in its `domain/model`, prefixed with its name because the wire-type
+  generator keys by simple name, and a contract test in `com.healthupgrades.contract` beside
+  `UpgradeTrackingEnumMirrorContractTest` holds the two equal. Not `port.in`, which is for use-case
+  contracts, and not `port.out`, which inbound adapters may not name (ADR-077).
 
 ## Lint
 
