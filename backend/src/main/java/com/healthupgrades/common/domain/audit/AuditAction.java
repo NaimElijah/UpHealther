@@ -102,7 +102,10 @@ public enum AuditAction {
     UPGRADE_DELETE("upgrade.delete", AuditedResource.HEALTH_UPGRADE),
     /** A user planned an upgrade, giving it a start date. */
     UPGRADE_PLAN("upgrade.plan", AuditedResource.HEALTH_UPGRADE),
-    /** A user started an upgrade; a HARD one is first checked against the limit on running HARD upgrades. */
+    /**
+     * A user started or resumed an upgrade; a HARD one is first checked against the limit on running HARD
+     * upgrades.
+     */
     UPGRADE_ACTIVATE("upgrade.activate", AuditedResource.HEALTH_UPGRADE),
     /** A user paused an upgrade. */
     UPGRADE_PAUSE("upgrade.pause", AuditedResource.HEALTH_UPGRADE),
