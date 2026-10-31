@@ -76,6 +76,15 @@ LINE_COMMENT = re.compile(r"//[^\n]*")
 STRING_LITERAL = re.compile(r'"(?:\\.|[^"\\])*"')
 
 
+def java_sources() -> list[Path]:
+    """Every Java source in the backend's main tree that declares a type.
+
+    A package-info.java declares none: it holds its package's Javadoc. Read as a type, it would be
+    drawn as a class named `package-info`, and every package's copy would collide on that one name.
+    """
+    return [path for path in sorted(JAVA_ROOT.rglob("*.java")) if path.name != "package-info.java"]
+
+
 def code_only(source: str) -> str:
     """Strips comments and string literals, so documentation references are not read as dependencies.
 
@@ -108,7 +117,7 @@ def stereotype_for(relative_package: str, kind: str, name: str) -> str:
 def discover_types() -> dict:
     """Every type in the backend's main sources, keyed by simple name."""
     types = {}
-    for path in sorted(JAVA_ROOT.rglob("*.java")):
+    for path in java_sources():
         relative = path.relative_to(JAVA_ROOT)
         parts = relative.parts
         context = parts[0]
@@ -139,7 +148,7 @@ def discover_types() -> dict:
 def context_map() -> str:
     """The cross-context dependency graph, read off the imports rather than off intent."""
     edges = {}
-    for path in sorted(JAVA_ROOT.rglob("*.java")):
+    for path in java_sources():
         source_context = path.relative_to(JAVA_ROOT).parts[0]
         if source_context not in CONTEXTS:
             continue
