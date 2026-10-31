@@ -59,9 +59,14 @@ const UpgradeCard: React.FC<Props> = ({
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           {/* A link inside the heading, not a heading that is clicked: it is the only way from a list to the
-              upgrade's page, so it has to be reachable by keyboard and openable in a new tab (WCAG 2.1.1). */}
+              upgrade's page, so it has to be reachable by keyboard and openable in a new tab (WCAG 2.1.1). Its
+              focus ring is inset: `truncate` clips the heading's overflow, and the browser's own outline,
+              drawn outside the link, with it (2.4.7). */}
           <h3 className="font-semibold text-fg truncate">
-            <Link to={`/upgrades/${upgrade.id}`} className="hover:text-brand-fg">
+            <Link
+              to={`/upgrades/${upgrade.id}`}
+              className="rounded hover:text-brand-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
+            >
               {upgrade.title}
             </Link>
           </h3>
