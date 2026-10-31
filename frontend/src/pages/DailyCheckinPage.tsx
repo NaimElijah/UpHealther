@@ -30,9 +30,6 @@ const numOrUndef = (v: string): number | undefined => {
   return Number.isNaN(n) ? undefined : n;
 };
 
-/** Shown under a numeric field holding text the input cannot read as a number. */
-const NUMBER_UNREADABLE = 'Enter a number.';
-
 /**
  * Logs progress for every active upgrade in one pass.
  *
@@ -57,11 +54,6 @@ const DailyCheckinPage: React.FC = () => {
   } = useQuery({ queryKey: ['upgrades', 'ACTIVE'], queryFn: () => getUpgrades('ACTIVE') });
   const [progressMap, setProgressMap] = useState<ProgressMap>({});
   const [submitted, setSubmitted] = useState(false);
-  /**
-   * The numeric fields, by upgrade id, holding text the input cannot parse ("12000e"). The input reports
-   * that as `''`, a cleared field, and posting it as no value would spend the day's one entry (BR-6).
-   */
-  const [unreadable, setUnreadable] = useState<Record<string, boolean>>({});
 
   const submitAll = useMutation({
     mutationFn: async (entries: CreateProgressRequest[]) => {
@@ -78,14 +70,8 @@ const DailyCheckinPage: React.FC = () => {
     setProgressMap((prev) => ({ ...prev, [id]: { ...prev[id], ...partial } }));
   };
 
-  const changeNumericValue = (id: string, field: HTMLInputElement) => {
-    setUnreadable((prev) => ({ ...prev, [id]: field.validity.badInput }));
-    updateProgress(id, { numericValue: numOrUndef(field.value) });
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (Object.values(unreadable).some(Boolean)) return;
     const entries: CreateProgressRequest[] = upgrades.map((u: HealthUpgrade) => ({
       upgradeId: u.id,
       date: todayLocal(),
@@ -154,13 +140,10 @@ const DailyCheckinPage: React.FC = () => {
                     className="rounded-lg border border-line-strong px-3 py-2 text-sm w-28 focus:outline-none focus:ring-2"
                     placeholder="0"
                     value={progressMap[u.id]?.numericValue ?? ''}
-                    onChange={(e) => changeNumericValue(u.id, e.target)}
+                    onChange={(e) => updateProgress(u.id, { numericValue: numOrUndef(e.target.value) })}
                   />
                   <span className="text-sm text-fg-subtle">{u.trackingConfig?.targetUnit ?? ''}</span>
                 </div>
-              )}
-              {trackingType(u) === 'NUMERIC' && unreadable[u.id] && (
-                <p className="mt-1 text-xs text-danger-fg">{NUMBER_UNREADABLE}</p>
               )}
 
               {trackingType(u) === 'RATING' && (

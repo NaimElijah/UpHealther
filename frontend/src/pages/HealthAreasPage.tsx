@@ -42,13 +42,8 @@ type ParsedPriority = { valid: true; priority: number | undefined } | { valid: f
  * Both are checked here because the API's answer to either names no field. It refuses `1.5`, and a
  * number past the column, as a malformed body (ADR-033), so only this form can tell the user which
  * field is wrong.
- *
- * @param text       the field's value
- * @param unreadable the field's `validity.badInput`: a number input reports text it cannot parse
- *                   ("3e") as `''`, which would otherwise read as blank and clear the stored priority
  */
-const parsePriority = (text: string, unreadable: boolean): ParsedPriority => {
-  if (unreadable) return { valid: false, problem: PRIORITY_NOT_WHOLE };
+const parsePriority = (text: string): ParsedPriority => {
   const trimmed = text.trim();
   if (trimmed === '') return { valid: true, priority: undefined };
   const value = Number(trimmed);
@@ -74,7 +69,6 @@ const HealthAreasPage: React.FC = () => {
   const [form, setForm] = useState<AreaForm>(EMPTY_FORM);
   const [formError, setFormError] = useState('');
   const [priorityError, setPriorityError] = useState('');
-  const [priorityUnreadable, setPriorityUnreadable] = useState(false);
 
   const { data: areas = [], isLoading, error } = useQuery({ queryKey: ['healthAreas'], queryFn: getHealthAreas });
 
@@ -123,14 +117,8 @@ const HealthAreasPage: React.FC = () => {
   /** Opens create on an empty form, so it inherits neither an edited area's values nor its messages. */
   const openCreate = () => {
     setForm(EMPTY_FORM);
-    setPriorityUnreadable(false);
     clearErrors();
     setIsCreateOpen(true);
-  };
-
-  const changePriority = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({ ...form, priority: e.target.value });
-    setPriorityUnreadable(e.target.validity.badInput);
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -138,7 +126,7 @@ const HealthAreasPage: React.FC = () => {
     clearErrors();
     // Both fields are checked before either refusal returns, so one submit reports every problem.
     const nameMissing = !form.name.trim();
-    const parsed = parsePriority(form.priority, priorityUnreadable);
+    const parsed = parsePriority(form.priority);
     if (nameMissing) setFormError('Name is required.');
     if (!parsed.valid) setPriorityError(parsed.problem);
     if (nameMissing || !parsed.valid) return;
@@ -155,7 +143,7 @@ const HealthAreasPage: React.FC = () => {
     e.preventDefault();
     if (!editArea) return;
     clearErrors();
-    const parsed = parsePriority(form.priority, priorityUnreadable);
+    const parsed = parsePriority(form.priority);
     if (!parsed.valid) {
       setPriorityError(parsed.problem);
       return;
@@ -187,7 +175,6 @@ const HealthAreasPage: React.FC = () => {
    */
   const openEdit = (area: HealthArea) => {
     setEditArea(area);
-    setPriorityUnreadable(false);
     clearErrors();
     setForm({
       name: area.name,
@@ -274,7 +261,7 @@ const HealthAreasPage: React.FC = () => {
             label="Priority"
             type="number"
             value={form.priority}
-            onChange={changePriority}
+            onChange={(e) => setForm({ ...form, priority: e.target.value })}
             placeholder="Optional, e.g. 1"
             error={priorityError}
           />
@@ -314,7 +301,13 @@ const HealthAreasPage: React.FC = () => {
             value={form.description ?? ''}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
           />
-          <Input label="Priority" type="number" value={form.priority} onChange={changePriority} error={priorityError} />
+          <Input
+            label="Priority"
+            type="number"
+            value={form.priority}
+            onChange={(e) => setForm({ ...form, priority: e.target.value })}
+            error={priorityError}
+          />
           <Input
             label="Icon (emoji)"
             value={form.icon ?? ''}

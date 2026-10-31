@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { act, render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -28,15 +28,6 @@ function apiFailure(status: number, body: unknown): AxiosError {
   const config = { headers: new AxiosHeaders() } as InternalAxiosRequestConfig;
   const response = { data: body, status, statusText: '', headers: new AxiosHeaders(), config } as AxiosResponse;
   return new AxiosError('Request failed', String(status), config, {}, response);
-}
-
-/**
- * Types text a number input cannot parse, as a browser reports it: the value reads '' and
- * `validity.badInput` is set. jsdom never sets `badInput`, so the field's validity is stubbed.
- */
-function typeUnreadable(input: HTMLElement) {
-  Object.defineProperty(input, 'validity', { configurable: true, value: { badInput: true } });
-  fireEvent.change(input, { target: { value: '' } });
 }
 
 function renderPage(queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
@@ -167,51 +158,6 @@ describe('DailyCheckinPage', () => {
 
     await waitFor(() => expect(createProgress).toHaveBeenCalled());
     expect(createProgress.mock.calls[0][0].numericValue).toBeUndefined();
-  });
-
-  // A number input reads text it cannot parse ("12000e") as '', the value of a cleared field. Posted
-  // as no value, the check-in said "Complete!" and BR-6 then refused the correction.
-
-  it('GivenANumericValueTheInputCannotRead_WhenTheCheckinIsSubmitted_ThenNothingIsPostedAndTheFieldSaysWhy', async () => {
-    getUpgrades.mockResolvedValue([
-      anUpgrade({
-        id: 'a',
-        trackingConfig: trackingConfigAsSent({ upgradeId: 'a', trackingType: 'NUMERIC', targetUnit: 'steps' }),
-      }),
-    ]);
-    renderPage();
-    await waitFor(() => expect(screen.getByText('steps')).toBeDefined());
-
-    fireEvent.change(screen.getByPlaceholderText('0'), { target: { value: '12000' } });
-    typeUnreadable(screen.getByPlaceholderText('0'));
-    fireEvent.submit(screen.getByRole('button', { name: /submit check-in/i }));
-
-    expect(await screen.findByText('Enter a number.')).toBeDefined();
-    await act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
-    expect(createProgress).not.toHaveBeenCalled();
-    expect(screen.queryByText('Check-in Complete!')).toBeNull();
-  });
-
-  it('GivenANumericValueTheInputCouldNotRead_WhenANumberIsTypedInstead_ThenItIsPosted', async () => {
-    getUpgrades.mockResolvedValue([
-      anUpgrade({
-        id: 'a',
-        trackingConfig: trackingConfigAsSent({ upgradeId: 'a', trackingType: 'NUMERIC', targetUnit: 'steps' }),
-      }),
-    ]);
-    renderPage();
-    await waitFor(() => expect(screen.getByText('steps')).toBeDefined());
-    const field = screen.getByPlaceholderText('0');
-
-    fireEvent.change(field, { target: { value: '12000' } });
-    typeUnreadable(field);
-    Reflect.deleteProperty(field, 'validity');
-    fireEvent.change(field, { target: { value: '9000' } });
-    fireEvent.submit(screen.getByRole('button', { name: /submit check-in/i }));
-
-    await waitFor(() => expect(createProgress).toHaveBeenCalled());
-    expect(createProgress.mock.calls[0][0]).toMatchObject({ numericValue: 9000 });
-    expect(screen.queryByText('Enter a number.')).toBeNull();
   });
 
   it('GivenARatingUpgrade_WhenAScoreIsChosen_ThenTheEntryCarriesIt', async () => {
