@@ -184,7 +184,8 @@ It bounds handshakes, not what one open socket sends, which
 The same interceptor authorises the frames that follow, because a session that is merely connected
 can still name any destination it likes. A SUBSCRIBE must come from an authenticated session and
 name `/user/queue/notifications` exactly — another account's `/user/<userId>/…`, the resolved
-`/queue/notifications-user…` of another session, and any `/topic`, are refused. The commands are an
+`/queue/notifications-user…` of another session, and any `/topic`, are refused. It must be in `auto`
+ack mode, named or left to the default, because the other modes need the ACK this refuses. The commands are an
 allow-list: CONNECT, STOMP, SUBSCRIBE, UNSUBSCRIBE and DISCONNECT, and every other is refused. That
 covers a SEND, the application declaring no `@MessageMapping` for one to reach; the frames STOMP
 defines for the server to send, MESSAGE, CONNECTED, RECEIPT and ERROR, which Spring decodes from a

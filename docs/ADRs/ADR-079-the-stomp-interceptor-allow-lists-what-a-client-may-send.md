@@ -44,7 +44,11 @@ refused.**
 
 - **CONNECT and STOMP authenticate.** STOMP is the 1.2 spec's alias for CONNECT, and is handled alike.
 - **SUBSCRIBE is authorised:** it must come from an authenticated session, name
-  `/user/queue/notifications` exactly, and be the socket's first, as before.
+  `/user/queue/notifications` exactly, and be the socket's first, as before. It must also be in `auto`
+  ack mode, named or left to the default: STOMP 1.2 obliges a subscriber in `client` or
+  `client-individual` mode to ACK each MESSAGE, and an ACK is refused, so such a subscription would be
+  refused at its first acknowledgement and reconnect into the same refusal for ever. It is refused at
+  SUBSCRIBE instead, once.
 - **UNSUBSCRIBE and DISCONNECT pass.** An UNSUBSCRIBE names only one of the socket's own subscription ids
   and frees nothing the limit counts. Refusing a DISCONNECT would leave sessions to time out instead of
   closing cleanly.
@@ -76,7 +80,7 @@ which no interceptor can suppress; that volume is S5.C4, tracked in #382.
 **What this makes hard**
 
 - **A feature that needs a new command has to open it deliberately.** A client that must send (a
-  `@MessageMapping`), an `ACK` in `client` ack mode or a transaction fails with `Refused` until the
+  `@MessageMapping`), a subscription in `client` ack mode or a transaction fails with `Refused` until the
   interceptor names it, which is the point, but it is a step a developer will meet as a surprise.
 - **An unexpected command from a stray client now closes its socket.** Every ERROR frame closes the
   socket, so a client library that sends an ACK on its own fails its connection rather than being ignored.
@@ -97,8 +101,8 @@ which no interceptor can suppress; that volume is S5.C4, tracked in #382.
 
 - **A feature needs a client to send.** A `@MessageMapping` reopens SEND, and the interceptor then needs
   to authorise its destinations as it does a subscription's.
-- **A subscription in `client` ack mode, or STOMP transactions.** ACK and NACK, or BEGIN, COMMIT and
-  ABORT, would then be named in the allow-list.
+- **A subscription in `client` ack mode, or STOMP transactions.** The SUBSCRIBE check would then accept
+  that mode and ACK and NACK be named in the allow-list, or BEGIN, COMMIT and ABORT would.
 - **A Spring release whose handler refuses the server-only commands from a client itself.** The
   interceptor's refusal of MESSAGE, CONNECTED, RECEIPT and ERROR would then be a second line of defence
   rather than the only one, and might be dropped.

@@ -28,6 +28,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -229,6 +231,31 @@ class JwtChannelInterceptorTest {
         assertThat(interceptor.preSend(subscribe, channel)).isSameAs(subscribe);
     }
 
+    /**
+     * STOMP 1.2 obliges a subscriber in {@code client} or {@code client-individual} mode to acknowledge
+     * each MESSAGE, and an ACK is refused. Accepted, such a subscription would be refused at its first
+     * acknowledgement and reconnect into the same refusal for ever; refused at SUBSCRIBE, it fails once,
+     * where the cause is visible.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"client", "client-individual"})
+    void GivenASubscribeInAnAckModeThatNeedsAnAck_WhenItArrives_ThenItIsRefused(String ack) {
+        Message<?> subscribe = subscribeWithAck(ack);
+
+        assertThatThrownBy(() -> interceptor.preSend(subscribe, channel))
+                .isInstanceOfSatisfying(StompFrameRefusedException.class, refusedAs(Reason.REFUSED));
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = "auto")
+    void GivenASubscribeInAutoAckMode_WhenItArrives_ThenItPasses(String ack) {
+        // A missing ack header is auto mode too, by the spec's default, and is what the SPA sends.
+        Message<?> subscribe = subscribeWithAck(ack);
+
+        assertThat(interceptor.preSend(subscribe, channel)).isSameAs(subscribe);
+    }
+
     @Test
     void GivenASubscribeToAnotherSessionsResolvedQueue_WhenItArrives_ThenItIsRefused() {
         // The destination the broker resolves /user/queue/notifications into. A client that names it
@@ -419,6 +446,20 @@ class JwtChannelInterceptorTest {
     /** A SUBSCRIBE to the one allowed destination, on the socket whose attributes are {@code socket}. */
     private static Message<byte[]> subscribeOn(Map<String, Object> socket, String id, Principal user) {
         return frameOn(socket, StompCommand.SUBSCRIBE, JwtChannelInterceptor.ALLOWED_SUBSCRIPTION, id, user);
+    }
+
+    /** A SUBSCRIBE to the one allowed destination naming {@code ack} as its ack mode, or none when null. */
+    private static Message<byte[]> subscribeWithAck(String ack) {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
+        accessor.setDestination(JwtChannelInterceptor.ALLOWED_SUBSCRIPTION);
+        accessor.setSubscriptionId("sub-0");
+        if (ack != null) {
+            accessor.setAck(ack);
+        }
+        accessor.setSessionAttributes(new ConcurrentHashMap<>());
+        accessor.setUser(session());
+        accessor.setLeaveMutable(true);
+        return MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
     }
 
     /** An UNSUBSCRIBE of {@code id}, on the socket whose attributes are {@code socket}. */

@@ -38,7 +38,8 @@ import org.springframework.stereotype.Component;
  * <ul>
  *   <li>a SUBSCRIBE must come from an authenticated session and name {@link #ALLOWED_SUBSCRIPTION}
  *       exactly — naming {@code /user/<anotherUserId>/…}, the resolved {@code /queue/notifications-user…}
- *       of another session, or any {@code /topic}, is refused;</li>
+ *       of another session, or any {@code /topic}, is refused. It must also be in the {@code auto} ack
+ *       mode, named or left to the default: the other modes need the ACK frames this refuses;</li>
  *   <li>a socket holds one subscription for its life: a second SUBSCRIBE is refused, whatever came
  *       between. Each subscription is registered with the broker, so a socket streaming SUBSCRIBE frames
  *       with fresh ids would otherwise grow the heap without limit (S5.A5). An UNSUBSCRIBE frees
@@ -86,6 +87,9 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
      * bounded context; {@code StompNotificationPushAdapterTest} asserts the two have not drifted apart.
      */
     public static final String ALLOWED_SUBSCRIPTION = "/user/queue/notifications";
+
+    /** The one ack mode a subscription may name, and STOMP's default when it names none. */
+    private static final String AUTO_ACK = "auto";
 
     /**
      * The session attribute that holds the id of the subscription a socket has taken, for the rest of its
@@ -187,6 +191,13 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
         }
         if (!ALLOWED_SUBSCRIPTION.equals(accessor.getDestination())) {
             throw refuse("a SUBSCRIBE to a destination this application does not publish to");
+        }
+        String ack = accessor.getAck();
+        if (ack != null && !AUTO_ACK.equals(ack)) {
+            // Any other mode obliges the client to ACK each MESSAGE, and an ACK is refused: accepted
+            // here, the subscription would fail at its first acknowledgement and reconnect into the same
+            // refusal for ever. The mode is not logged, for the reason refuse gives about destinations.
+            throw refuse("a SUBSCRIBE in an ack mode other than auto");
         }
         Map<String, Object> socket = accessor.getSessionAttributes();
         String id = accessor.getSubscriptionId();
