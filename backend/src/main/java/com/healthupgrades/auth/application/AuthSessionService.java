@@ -29,6 +29,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Application service for server-side sessions: opening one, rotating its credential, and ending it.
@@ -176,20 +178,49 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
      */
     private void revokeForReuse(AuthSession session) {
         session.revoke();
-        // Written out now, not at commit: the line and the entry below say the session has been
-        // revoked, and a plain save of a session already read would issue its UPDATE only after them.
+        // Written out now, not at commit: the entry below says the session has been revoked, and a
+        // plain save of a session already read would issue its UPDATE only after it.
         sessions.saveAndFlush(session);
-        // WARN, and the only line in this class at that level: a spent credential presented after the
-        // grace window means two parties hold one session's credentials. Ids only — which session and
-        // whose — because that is what an investigation needs and everything else about it is personal
-        // data (NFR-6). The credential is never logged in any form.
+        // The entry is written at once, as every refusal is: it is the security-relevant half, and a
+        // process that dies before commit must not take it with it. The line waits for the commit.
+        auditTrail.record(new AuditEvent(
+                AuditAction.AUTH_TOKEN_REUSE, session.getUserId(), session.getId(), AuditOutcome.REFUSED));
+        afterCommit(() -> warnOfReuse(session));
+        publishEnd(session);
+    }
+
+    /**
+     * Writes the reuse line. WARN, and the only line in this class at that level: a spent credential
+     * presented after the grace window means two parties hold one session's credentials. Ids only, which
+     * session and whose, because that is what an investigation needs and everything else about it is
+     * personal data (NFR-6). The credential is never logged in any form.
+     */
+    private static void warnOfReuse(AuthSession session) {
         log.warn(
                 "A superseded refresh credential was replayed; the session has been revoked {} {}",
                 keyValue("sessionId", session.getId()),
                 keyValue("userId", session.getUserId()));
-        auditTrail.record(new AuditEvent(
-                AuditAction.AUTH_TOKEN_REUSE, session.getUserId(), session.getId(), AuditOutcome.REFUSED));
-        publishEnd(session);
+    }
+
+    /**
+     * Runs a step once the surrounding transaction commits, and not at all if it rolls back.
+     *
+     * <p>The flush has run the revocation's UPDATE but not committed it, so a line written then would say
+     * "revoked" of a session that a failed COMMIT leaves live. With no transaction at all there is nothing
+     * to wait for, since each statement commits as it runs, and the step runs at once. Both callers are
+     * {@code @Transactional}, so in the application the step always waits.
+     */
+    private static void afterCommit(Runnable step) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            step.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                step.run();
+            }
+        });
     }
 
     /** {@inheritDoc} */

@@ -6,6 +6,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.healthupgrades.auth.application.port.in.RefreshOutcome;
 import com.healthupgrades.auth.application.port.in.SessionGrant;
 import com.healthupgrades.auth.domain.event.AuthSessionEnded;
@@ -36,8 +40,11 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * The refresh protocol: one use per credential, a short forgiveness window, and a session that ends
@@ -185,6 +192,72 @@ class AuthSessionServiceTest {
         observed.refresh(opened.refreshToken());
 
         assertThat(writtenWhenRecorded).containsEntry(AuditAction.AUTH_TOKEN_REUSE, true);
+    }
+
+    @Test
+    void GivenAReplayInsideATransaction_WhenTheTransactionRollsBack_ThenNoReuseWarningIsWrittenButTheEntryIs() {
+        // The flush runs the UPDATE without committing it. A WARN written then would say "revoked" of a
+        // session a failed COMMIT left live. The audit entry stays immediate: a refusal is the
+        // security-relevant half, and a process that dies before commit must not take it with it.
+        SessionGrant opened = service.open(USER_ID);
+        service.refresh(opened.refreshToken());
+        clock.moveTo(START.plus(GRACE).plusSeconds(1));
+
+        List<ILoggingEvent> logged = logsFromService(() -> inATransactionThat(
+                TransactionSynchronization.STATUS_ROLLED_BACK, () -> service.refresh(opened.refreshToken())));
+
+        assertThat(logged).noneMatch(event -> event.getLevel() == Level.WARN);
+        assertThat(auditTrail.recorded(AuditAction.AUTH_TOKEN_REUSE, AuditOutcome.REFUSED))
+                .isTrue();
+    }
+
+    @Test
+    void GivenAReplayInsideATransaction_WhenTheTransactionCommits_ThenOneReuseWarningNamesTheSessionAndItsOwner() {
+        SessionGrant opened = service.open(USER_ID);
+        service.refresh(opened.refreshToken());
+        clock.moveTo(START.plus(GRACE).plusSeconds(1));
+
+        List<ILoggingEvent> logged = logsFromService(() -> inATransactionThat(
+                TransactionSynchronization.STATUS_COMMITTED, () -> service.refresh(opened.refreshToken())));
+
+        assertThat(logged)
+                .filteredOn(event -> event.getLevel() == Level.WARN)
+                .singleElement()
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .asString()
+                .contains("sessionId=" + opened.sessionId(), "userId=" + USER_ID);
+    }
+
+    /**
+     * Runs a call inside a transaction's synchronization, as its {@code @Transactional} callers do, and then
+     * ends that transaction the way given: what the call deferred to the commit runs only if it commits.
+     */
+    private static void inATransactionThat(int outcome, Runnable call) {
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            call.run();
+            List<TransactionSynchronization> deferred = TransactionSynchronizationManager.getSynchronizations();
+            if (outcome == TransactionSynchronization.STATUS_COMMITTED) {
+                deferred.forEach(TransactionSynchronization::afterCommit);
+            }
+            deferred.forEach(synchronization -> synchronization.afterCompletion(outcome));
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    /** What {@link AuthSessionService} logs while {@code call} runs. */
+    private static List<ILoggingEvent> logsFromService(Runnable call) {
+        Logger logger = (Logger) LoggerFactory.getLogger(AuthSessionService.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            call.run();
+        } finally {
+            logger.detachAppender(appender);
+        }
+        return appender.list;
     }
 
     @Test
