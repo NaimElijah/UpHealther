@@ -55,3 +55,35 @@ describe('UpgradeCard', () => {
     expect(screen.getByText('Difficulty not set')).toBeDefined();
   });
 });
+
+/**
+ * Each of a card's actions names the upgrade it acts on, after the word it shows, so a list of cards does
+ * not read "Pause, Complete, Pause, Complete" (WCAG 2.4.6, 4.1.2, 2.5.3, finding X9.20).
+ */
+describe('UpgradeCard actions', () => {
+  const onStatusChange = () => {};
+
+  it.each([
+    ['ACTIVE', ['Pause Evening walk', 'Complete Evening walk']],
+    ['PLANNED', ['Activate Evening walk']],
+    ['PAUSED', ['Resume Evening walk']],
+  ] as const)('GivenAnUpgradeThatIs%s_WhenItsCardRenders_ThenEachActionNamesIt', (status, names) => {
+    render(
+      <MemoryRouter>
+        <UpgradeCard upgrade={upgradeAsSent({ title: 'Evening walk', status })} onStatusChange={onStatusChange} />
+      </MemoryRouter>,
+    );
+
+    for (const name of names) expect(screen.getByRole('button', { name })).toBeDefined();
+  });
+
+  it('GivenAnIdea_WhenItsCardRenders_ThenPlanNamesIt', () => {
+    render(
+      <MemoryRouter>
+        <UpgradeCard upgrade={upgradeAsSent({ title: 'Cold showers', status: 'IDEA' })} onPlan={() => {}} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('button', { name: 'Plan Cold showers' })).toBeDefined();
+  });
+});

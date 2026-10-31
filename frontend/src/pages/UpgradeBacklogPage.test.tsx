@@ -73,7 +73,7 @@ async function openCreate(title = 'Run a 5k') {
 /** Presses Plan on the only idea listed, and returns queries scoped to the dialog it opens. */
 async function openPlan() {
   await screen.findByText('Cold showers');
-  fireEvent.click(screen.getByRole('button', { name: 'Plan' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Plan Cold showers' }));
   return within(screen.getByRole('dialog', { name: 'Plan Upgrade' }));
 }
 
@@ -375,7 +375,7 @@ describe('UpgradeBacklogPage focus after planning', () => {
     planUpgrade.mockResolvedValue(anIdea({ status: 'PLANNED' }));
     renderPage();
     await screen.findByText('Cold showers');
-    const plan = screen.getByRole('button', { name: 'Plan' });
+    const plan = screen.getByRole('button', { name: 'Plan Cold showers' });
     plan.focus();
     fireEvent.click(plan);
     const dialog = within(screen.getByRole('dialog', { name: 'Plan Upgrade' }));

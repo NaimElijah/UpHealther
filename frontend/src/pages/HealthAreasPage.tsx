@@ -251,10 +251,16 @@ const HealthAreasPage: React.FC = () => {
                 </div>
                 {area.description && <p className="text-sm text-fg-subtle mt-2 break-words">{area.description}</p>}
                 <div className="flex flex-wrap gap-2 mt-4">
-                  <Button size="sm" variant="secondary" onClick={() => openEdit(area)}>
+                  {/* Each names its area after the word it shows, so the cards do not all read "Edit, Delete". */}
+                  <Button size="sm" variant="secondary" aria-label={`Edit ${area.name}`} onClick={() => openEdit(area)}>
                     Edit
                   </Button>
-                  <Button size="sm" variant="danger" onClick={() => openDelete(area.id)}>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    aria-label={`Delete ${area.name}`}
+                    onClick={() => openDelete(area.id)}
+                  >
                     Delete
                   </Button>
                 </div>
@@ -359,7 +365,9 @@ const HealthAreasPage: React.FC = () => {
 
       <Modal isOpen={!!deleteId} onClose={() => setDeleteId(null)} title="Delete Health Area">
         <p className="text-fg-subtle mb-4">
-          Are you sure you want to delete this health area? This action cannot be undone.
+          Are you sure you want to delete{' '}
+          <span className="font-medium text-fg break-words">{areas.find((a) => a.id === deleteId)?.name}</span>? This
+          action cannot be undone.
         </p>
         {deleteMutation.error && (
           <div className="mb-4">

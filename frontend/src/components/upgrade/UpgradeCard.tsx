@@ -40,6 +40,9 @@ interface Props {
  * The buttons shown mirror the server's state machine — plan an idea, activate a planned one, pause or
  * complete a running one, resume a paused one. Offering only the legal moves is what keeps a user from
  * meeting a 422 they could not have predicted.
+ *
+ * Each button's name adds the upgrade to the word it shows, so a list of cards does not read "Pause,
+ * Complete, Pause, Complete"; the visible word stays first in the name (WCAG 2.4.6, 2.5.3).
  */
 const UpgradeCard: React.FC<Props> = ({
   upgrade,
@@ -50,6 +53,7 @@ const UpgradeCard: React.FC<Props> = ({
   busy = false,
   pendingTransition,
 }) => {
+  const named = (verb: string) => `${verb} ${upgrade.title}`;
   return (
     <div className="bg-surface rounded-xl border border-line p-4 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between gap-2">
@@ -71,7 +75,7 @@ const UpgradeCard: React.FC<Props> = ({
       </div>
       {showActions && upgrade.status === 'IDEA' && onPlan && (
         <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-line-subtle">
-          <Button size="sm" variant="secondary" onClick={() => onPlan(upgrade)}>
+          <Button size="sm" variant="secondary" aria-label={named('Plan')} onClick={() => onPlan(upgrade)}>
             Plan
           </Button>
         </div>
@@ -83,6 +87,7 @@ const UpgradeCard: React.FC<Props> = ({
               size="sm"
               disabled={busy}
               loading={pendingTransition === 'ACTIVE'}
+              aria-label={named('Activate')}
               onClick={() => onStatusChange(upgrade.id, 'ACTIVE')}
             >
               Activate
@@ -95,6 +100,7 @@ const UpgradeCard: React.FC<Props> = ({
                 variant="secondary"
                 disabled={busy}
                 loading={pendingTransition === 'PAUSED'}
+                aria-label={named('Pause')}
                 onClick={() => onStatusChange(upgrade.id, 'PAUSED')}
               >
                 Pause
@@ -104,6 +110,7 @@ const UpgradeCard: React.FC<Props> = ({
                 variant="ghost"
                 disabled={busy}
                 loading={pendingTransition === 'COMPLETED'}
+                aria-label={named('Complete')}
                 onClick={() => onStatusChange(upgrade.id, 'COMPLETED')}
               >
                 Complete
@@ -115,6 +122,7 @@ const UpgradeCard: React.FC<Props> = ({
               size="sm"
               disabled={busy}
               loading={pendingTransition === 'ACTIVE'}
+              aria-label={named('Resume')}
               onClick={() => onStatusChange(upgrade.id, 'ACTIVE')}
             >
               Resume

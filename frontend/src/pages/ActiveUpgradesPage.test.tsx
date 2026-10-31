@@ -90,7 +90,7 @@ describe('ActiveUpgradesPage', () => {
     );
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Pause' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Pause / }));
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('That change did not go through.');
@@ -113,7 +113,7 @@ describe('ActiveUpgradesPage', () => {
     renderPage();
     await screen.findByText('Cold showers');
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Pause' })[1]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Pause / })[1]);
 
     const alert = await screen.findByRole('alert');
     expect(screen.getAllByRole('alert')).toHaveLength(1);
@@ -130,10 +130,10 @@ describe('ActiveUpgradesPage', () => {
     renderPage();
     await screen.findByText('Cold showers');
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Pause' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Pause / })[0]);
     await waitFor(() => expect(performUpgradeAction).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getAllByRole('button', { name: 'Pause' })[0]);
-    fireEvent.click(screen.getAllByRole('button', { name: 'Complete' })[1]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Pause / })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Complete / })[1]);
 
     await settled();
     expect(performUpgradeAction).toHaveBeenCalledTimes(1);
@@ -150,10 +150,10 @@ describe('ActiveUpgradesPage', () => {
       )
       .mockResolvedValueOnce({ ...anActiveUpgrade(), status: 'PAUSED' });
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: 'Pause' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Pause / }));
     await screen.findByRole('alert');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Pause / }));
 
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
   });
@@ -179,7 +179,7 @@ describe('ActiveUpgradesPage, paused upgrades', () => {
     const paused = await screen.findByRole('region', { name: 'Paused' });
 
     expect(within(paused).getByText('Morning stretch')).toBeDefined();
-    expect(within(paused).getByRole('button', { name: 'Resume' })).toBeDefined();
+    expect(within(paused).getByRole('button', { name: /^Resume / })).toBeDefined();
     expect(within(paused).queryByText('Evening walk')).toBeNull();
   });
 
@@ -198,7 +198,7 @@ describe('ActiveUpgradesPage, paused upgrades', () => {
     performUpgradeAction.mockResolvedValue({ ...aPausedUpgrade('upgrade-9'), status: 'ACTIVE' });
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Resume' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Resume / }));
 
     await waitFor(() => expect(performUpgradeAction).toHaveBeenCalledWith('upgrade-9', 'ACTIVE'));
   });
@@ -216,12 +216,12 @@ describe('ActiveUpgradesPage, paused upgrades', () => {
     });
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Pause' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Pause / }));
 
     const paused = await screen.findByRole('region', { name: 'Paused' });
     expect(within(paused).getByText('Evening walk')).toBeDefined();
-    expect(within(paused).getByRole('button', { name: 'Resume' })).toBeDefined();
-    expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
+    expect(within(paused).getByRole('button', { name: /^Resume / })).toBeDefined();
+    expect(screen.queryByRole('button', { name: /^Pause / })).toBeNull();
   });
 
   it('GivenNoActiveOrPausedUpgrades_WhenTheActivePageRenders_ThenNoActiveUpgradesIsShown', async () => {
@@ -256,9 +256,9 @@ describe('ActiveUpgradesPage, paused upgrades', () => {
     });
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Resume' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Resume / }));
 
-    expect(await screen.findByRole('button', { name: 'Pause' })).toBeDefined();
+    expect(await screen.findByRole('button', { name: /^Pause / })).toBeDefined();
     expect(screen.queryByRole('region', { name: 'Paused' })).toBeNull();
   });
 
@@ -275,7 +275,7 @@ describe('ActiveUpgradesPage, paused upgrades', () => {
     renderPage();
     const paused = await screen.findByRole('region', { name: 'Paused' });
 
-    fireEvent.click(within(paused).getByRole('button', { name: 'Resume' }));
+    fireEvent.click(within(paused).getByRole('button', { name: /^Resume / }));
 
     const alert = await within(paused).findByRole('alert');
     expect(alert.textContent).toContain('Cannot run more than 3 HARD upgrades simultaneously');
@@ -324,7 +324,7 @@ describe('ActiveUpgradesPage, completing an upgrade', () => {
     });
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Complete' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Complete / }));
 
     expect(await screen.findByText('No active upgrades')).toBeDefined();
     expect(performUpgradeAction.mock.calls).toEqual([['upgrade-1', 'COMPLETED']]);

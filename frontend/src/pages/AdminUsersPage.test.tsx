@@ -390,14 +390,14 @@ describe('AdminUsersPage focus', () => {
       return Promise.resolve({ ...SOMEBODY, enabled: false });
     });
     renderPage();
-    const disable = await screen.findByRole('button', { name: 'Disable' });
+    const disable = await screen.findByRole('button', { name: /^Disable / });
     disable.focus();
     fireEvent.click(disable);
 
     fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Enable' })));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: /^Enable / })));
   });
 
   // Enable was disabled while its request ran, and a disabled button gives up focus in a browser.
@@ -405,7 +405,7 @@ describe('AdminUsersPage focus', () => {
     listAccounts.mockResolvedValue(page([MY_ACCOUNT, { ...SOMEBODY, enabled: false }], 2));
     enableAccount.mockReturnValue(new Promise(() => {}));
     renderPage();
-    const enable = await screen.findByRole('button', { name: 'Enable' });
+    const enable = await screen.findByRole('button', { name: /^Enable / });
     enable.focus();
 
     fireEvent.click(enable);
@@ -424,11 +424,37 @@ describe('AdminUsersPage focus', () => {
       return Promise.resolve(SOMEBODY);
     });
     renderPage();
-    const enable = await screen.findByRole('button', { name: 'Enable' });
+    const enable = await screen.findByRole('button', { name: /^Enable / });
     enable.focus();
 
     fireEvent.click(enable);
 
-    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Disable' })));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: /^Disable / })));
+  });
+});
+
+/**
+ * An account's buttons name the account they act on, after the word they show (WCAG 2.4.6, 4.1.2, 2.5.3,
+ * finding X9.20).
+ */
+describe('AdminUsersPage per-account names', () => {
+  beforeEach(() => {
+    listAccounts.mockReset();
+  });
+
+  it('GivenAnEnabledAccount_WhenItsRowRenders_ThenItsButtonsNameIt', async () => {
+    listAccounts.mockResolvedValue(page([MY_ACCOUNT, SOMEBODY], 2));
+    renderPage();
+
+    expect(await screen.findByRole('button', { name: 'Disable Someone Else' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Make admin for Someone Else' })).toBeDefined();
+  });
+
+  it('GivenADisabledAdministrator_WhenTheirRowRenders_ThenItsButtonsNameThem', async () => {
+    listAccounts.mockResolvedValue(page([MY_ACCOUNT, { ...SOMEBODY, enabled: false, role: 'ADMIN' }], 2));
+    renderPage();
+
+    expect(await screen.findByRole('button', { name: 'Enable Someone Else' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Revoke admin for Someone Else' })).toBeDefined();
   });
 });

@@ -54,14 +54,14 @@ function renderPage() {
 /** Opens the edit dialog for the only area listed, and returns queries scoped to it. */
 async function openEdit() {
   await screen.findByText('Sleep');
-  fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Edit Sleep' }));
   return within(screen.getByRole('dialog', { name: 'Edit Health Area' }));
 }
 
 /** Opens the delete confirmation for the only area listed, and returns queries scoped to it. */
 async function openDelete() {
   await screen.findByText('Sleep');
-  fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Delete Sleep' }));
   return within(screen.getByRole('dialog', { name: 'Delete Health Area' }));
 }
 
@@ -377,7 +377,7 @@ describe('HealthAreasPage', () => {
     renderPage();
     await screen.findByText('Nutrition');
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Delete' })[1]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Delete / })[1]);
     const dialog = within(screen.getByRole('dialog', { name: 'Delete Health Area' }));
     fireEvent.click(dialog.getByRole('button', { name: 'Delete' }));
 
@@ -473,5 +473,34 @@ describe('HealthAreasPage headings', () => {
 
     expect(screen.getByRole('heading', { level: 1 })).toBeDefined();
     expect(headingOutlineProblems()).toEqual([]);
+  });
+});
+
+/**
+ * An area's Edit and Delete name the area, and the delete confirmation says which area it deletes. Every
+ * card offered "Edit" and "Delete" alike, and the confirmation said only "this health area" (WCAG 2.4.6,
+ * 4.1.2, finding X9.20).
+ */
+describe('HealthAreasPage per-area names', () => {
+  beforeEach(() => {
+    getHealthAreas.mockReset();
+    getHealthAreas.mockResolvedValue([anArea({ id: 'a1', name: 'Sleep' }), anArea({ id: 'a2', name: 'Nutrition' })]);
+  });
+
+  it('GivenTwoAreas_WhenThePageRenders_ThenEachAreasButtonsNameIt', async () => {
+    renderPage();
+
+    for (const name of ['Edit Sleep', 'Delete Sleep', 'Edit Nutrition', 'Delete Nutrition']) {
+      expect(await screen.findByRole('button', { name })).toBeDefined();
+    }
+  });
+
+  it('GivenAnArea_WhenItsDeleteIsPressed_ThenTheConfirmationNamesIt', async () => {
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Nutrition' }));
+
+    const dialog = within(screen.getByRole('dialog', { name: 'Delete Health Area' }));
+    expect(dialog.getByText(/Nutrition/)).toBeDefined();
   });
 });

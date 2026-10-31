@@ -72,7 +72,7 @@ describe('PlannedUpgradesPage', () => {
     );
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Activate' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Activate / }));
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('That change did not go through.');
@@ -87,10 +87,10 @@ describe('PlannedUpgradesPage', () => {
   it('GivenAnActivationInFlight_WhenActivateIsPressedAgain_ThenNothingMoreIsSent', async () => {
     performUpgradeAction.mockReturnValue(new Promise(() => {}));
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: 'Activate' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Activate / }));
     await waitFor(() => expect(performUpgradeAction).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Activate' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Activate / }));
 
     await settled();
     expect(performUpgradeAction).toHaveBeenCalledTimes(1);

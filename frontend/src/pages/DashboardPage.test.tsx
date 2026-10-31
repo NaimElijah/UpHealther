@@ -239,7 +239,7 @@ describe('DashboardPage', () => {
     );
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Pause' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Pause / }));
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('That change did not go through.');
@@ -258,9 +258,9 @@ describe('DashboardPage', () => {
     renderPage();
     await screen.findByText('Evening walk');
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Pause' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Pause / })[0]);
     await waitFor(() => expect(performUpgradeAction).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getAllByRole('button', { name: 'Pause' })[1]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Pause / })[1]);
 
     await settled();
     expect(performUpgradeAction).toHaveBeenCalledTimes(1);
@@ -282,7 +282,7 @@ describe('DashboardPage', () => {
     await screen.findByText('Active Upgrades');
     const [, inActiveSection] = screen.getAllByText('Cold showers');
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Pause' })[1]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Pause / })[1]);
 
     const alert = await screen.findByRole('alert');
     expect(screen.getAllByRole('alert')).toHaveLength(1);
@@ -464,12 +464,12 @@ describe('DashboardPage focus after a transition', () => {
         .mockResolvedValue(aDashboard([]));
       performUpgradeAction.mockResolvedValue(walk);
       renderPage();
-      const button = await screen.findByRole('button', { name: action });
+      const button = await screen.findByRole('button', { name: new RegExp(`^${action} `) });
       button.focus();
 
       fireEvent.click(button);
 
-      await waitFor(() => expect(screen.queryByRole('button', { name: action })).toBeNull());
+      await waitFor(() => expect(screen.queryByRole('button', { name: new RegExp(`^${action} `) })).toBeNull());
       await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 })));
     },
   );
@@ -481,7 +481,7 @@ describe('DashboardPage focus after a transition', () => {
     });
     performUpgradeAction.mockReturnValue(new Promise(() => {}));
     renderPage();
-    const complete = await screen.findByRole('button', { name: 'Complete' });
+    const complete = await screen.findByRole('button', { name: /^Complete / });
     complete.focus();
 
     fireEvent.click(complete);

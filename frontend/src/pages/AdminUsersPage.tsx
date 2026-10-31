@@ -176,7 +176,12 @@ const AdminUsersPage: React.FC = () => {
                     ) : (
                       <>
                         {account.enabled ? (
-                          <Button variant="ghost" size="sm" onClick={() => setPending({ kind: 'disable', account })}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`Disable ${account.name}`}
+                            onClick={() => setPending({ kind: 'disable', account })}
+                          >
                             Disable
                           </Button>
                         ) : (
@@ -187,14 +192,18 @@ const AdminUsersPage: React.FC = () => {
                             size="sm"
                             disabled={enabling.isPending}
                             loading={enabling.isPending && enabling.variables === account.id}
+                            aria-label={`Enable ${account.name}`}
                             onClick={() => enabling.mutate(account.id)}
                           >
                             Enable
                           </Button>
                         )}
+                        {/* Each of the row's buttons adds the account to the word it shows, so a list of
+                            rows does not read "Disable, Make admin" over and over (WCAG 2.4.6, 2.5.3). */}
                         <Button
                           variant="ghost"
                           size="sm"
+                          aria-label={`${account.role === 'ADMIN' ? 'Revoke admin' : 'Make admin'} for ${account.name}`}
                           onClick={() =>
                             setPending({
                               kind: account.role === 'ADMIN' ? 'demote' : 'promote',

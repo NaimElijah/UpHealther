@@ -134,16 +134,16 @@ test('GivenANewVisitor_WhenTheyActivateAnUpgradeAndLogToday_ThenTheDashboardCoun
     await newIdea.getByRole('button', { name: 'Add Idea' }).click();
     await expect(newIdea).toBeHidden();
 
-    // The card's Plan and the dialog's Plan share a name, and toasts render outside <main>.
+    // The card's Plan names its upgrade, the dialog's does not, and toasts render outside <main>.
     await expect(main.getByRole('heading', { level: 3, name: UPGRADE_TITLE })).toBeVisible();
-    await main.getByRole('button', { name: 'Plan', exact: true }).click();
+    await main.getByRole('button', { name: `Plan ${UPGRADE_TITLE}`, exact: true }).click();
     const plan = page.getByRole('dialog', { name: 'Plan Upgrade' });
     await plan.getByRole('button', { name: 'Plan', exact: true }).click();
     // The dialog closes only once the backlog no longer lists the idea, so the plan was accepted.
     await expect(plan).toBeHidden();
 
     await sidebarLink(page, 'Planned').click();
-    await main.getByRole('button', { name: 'Activate', exact: true }).click();
+    await main.getByRole('button', { name: `Activate ${UPGRADE_TITLE}`, exact: true }).click();
     // Pushed over the socket: nginx's /ws upgrade, the socket's origin check and STOMP authentication.
     await expect(page.getByRole('status').filter({ hasText: 'Upgrade activated' })).toBeVisible();
     await expect(main.getByRole('heading', { level: 3, name: UPGRADE_TITLE })).toBeHidden();
