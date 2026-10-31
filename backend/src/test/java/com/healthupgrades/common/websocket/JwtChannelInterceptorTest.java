@@ -212,13 +212,20 @@ class JwtChannelInterceptorTest {
     }
 
     @Test
-    void GivenARefusedSubscribeOrSend_WhenItArrives_ThenNothingIsAudited() {
+    void GivenARefusedFrameOnAConnectedSocket_WhenItArrives_ThenNothingIsAudited() {
         // These authorise frames on a connection already authenticated; they are not authentication
-        // outcomes, and they stay WARN lines. Pinned because the decision is deliberate.
+        // outcomes, and they stay WARN lines. Pinned because the decision is deliberate, and for a
+        // MESSAGE too, the frame finding D1.1 is about: a frame that only the server should send is
+        // still refused as a frame on a connected socket, not audited as an attempt.
         assertThatThrownBy(() -> interceptor.preSend(
                         frameFrom(StompCommand.SUBSCRIBE, "/topic/notifications", session()), channel))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> interceptor.preSend(frameFrom(StompCommand.SEND, "/app/anything", session()), channel))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> interceptor.preSend(
+                        frameFrom(
+                                StompCommand.MESSAGE, "/user/" + UUID.randomUUID() + "/queue/notifications", session()),
+                        channel))
                 .isInstanceOf(IllegalArgumentException.class);
 
         assertThat(auditTrail.recorded()).isEmpty();
