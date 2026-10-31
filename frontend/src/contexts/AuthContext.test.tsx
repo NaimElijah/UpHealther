@@ -314,7 +314,7 @@ describe('AuthProvider', () => {
         fireEvent.change(screen.getByLabelText('Password'), { target: { value: password } });
       }
 
-      /** Fires the form's submit directly, so the handler's own refusal is tested, not only the disabled button. */
+      /** Fires the form's submit directly, so the handler's own refusal is tested, not only the refusing button. */
       async function submit(buttonName: string) {
         await act(async () => {
           fireEvent.submit(screen.getByRole('button', { name: buttonName }));
@@ -332,7 +332,7 @@ describe('AuthProvider', () => {
         loginApi.mockResolvedValue(SESSION);
         renderForms('/login');
 
-        expect(screen.getByRole('button', { name: 'Sign In' }).hasAttribute('disabled')).toBe(true);
+        expect(screen.getByRole('button', { name: 'Sign In' }).getAttribute('aria-disabled')).toBe('true');
         fillSignIn(USER.email, 's3cret!');
         await submit('Sign In');
         await answerRestore(true);
@@ -351,7 +351,7 @@ describe('AuthProvider', () => {
         registerApi.mockResolvedValue(SESSION);
         renderForms('/register');
 
-        expect(screen.getByRole('button', { name: 'Create Account' }).hasAttribute('disabled')).toBe(true);
+        expect(screen.getByRole('button', { name: 'Create Account' }).getAttribute('aria-disabled')).toBe('true');
         fireEvent.change(screen.getByLabelText('Full Name'), { target: { value: USER.name } });
         fillSignIn(USER.email, 's3cret!-long');
         fireEvent.change(screen.getByLabelText('Confirm Password'), { target: { value: 's3cret!-long' } });

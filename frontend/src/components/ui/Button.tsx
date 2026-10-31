@@ -7,7 +7,8 @@ import LoadingSpinner from './LoadingSpinner';
  *
  * @param variant visual weight: primary for the main action, danger for destructive ones
  * @param size    padding and text scale
- * @param loading shows a spinner and disables the button, so a slow request cannot be double-submitted
+ * @param loading shows a spinner and refuses presses, so a slow request cannot be double-submitted; the
+ *                button stays focusable meanwhile, and `disabled` is ignored while it is set
  */
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
@@ -30,18 +31,38 @@ const sizeClasses: Record<string, string> = {
 };
 
 /**
- * The app's button. Disabled while `loading`, which is what prevents duplicate submissions.
+ * The app's button. While `loading` it refuses every press, which is what prevents duplicate
+ * submissions.
+ *
+ * It refuses them with `aria-disabled` and a click that does nothing, not with `disabled`, because a
+ * disabled button gives up focus: pressing Save dropped focus to `<body>` for as long as the save took
+ * (WCAG 2.4.3). Cancelling the click's default is what stops a submit button sending its form again,
+ * and it covers Enter in one of the form's fields too, which a browser turns into a click on the submit
+ * button. `aria-busy` says why the button is unavailable. A caller's own `disabled` is ignored while
+ * loading for the same reason: several pages also disable the button while their write is in flight.
  *
  * Forwards its ref to the `<button>`, so a caller can move focus to it when the control that had focus
  * is gone.
  */
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant = 'primary', size = 'md', loading = false, children, disabled, className = '', ...rest }, ref) => (
+  (
+    { variant = 'primary', size = 'md', loading = false, children, disabled, onClick, className = '', ...rest },
+    ref,
+  ) => (
     <button
-      ref={ref}
-      disabled={disabled || loading}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
       {...rest}
+      ref={ref}
+      disabled={disabled && !loading}
+      aria-disabled={loading || undefined}
+      aria-busy={loading || undefined}
+      onClick={(e) => {
+        if (loading) {
+          e.preventDefault();
+          return;
+        }
+        onClick?.(e);
+      }}
+      className={`inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:cursor-not-allowed ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
     >
       {loading && <LoadingSpinner size="sm" />}
       {children}
