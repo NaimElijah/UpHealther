@@ -172,6 +172,21 @@
     background-color: rgb(var(--color-canvas));
   }
 
+  /*
+   * The navbar is sticky and 4rem tall, so a control the browser scrolls to as it takes focus would land
+   * under it, hidden (WCAG 2.4.11). This keeps a scrolled-to control clear of the bar, with a margin.
+   * While the sign-out failure strip shows below the bar the header is taller, 101px on one line and more
+   * once the message wraps on a phone, so the padding grows with it. Measured in a browser; nothing in
+   * jsdom can see it.
+   */
+  html {
+    scroll-padding-top: 5rem;
+  }
+
+  html:has(header > [role='alert']) {
+    scroll-padding-top: 9rem;
+  }
+
   body {
     color: rgb(var(--color-fg));
   }
