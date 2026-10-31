@@ -22,7 +22,7 @@ describe('UpgradeCard', () => {
     ['EASY', 'Easy'],
     ['MEDIUM', 'Medium'],
     ['HARD', 'Hard'],
-  ] as const)('GivenADifficulty %s_WhenTheCardIsShown_ThenItIsNamed %s', (difficulty, label) => {
+  ] as const)('GivenADifficulty%s_WhenTheCardIsShown_ThenItIsNamed%s', (difficulty, label) => {
     renderCard(difficulty);
 
     expect(screen.getByText(label)).toBeDefined();

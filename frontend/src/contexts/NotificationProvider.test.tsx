@@ -295,7 +295,7 @@ describe('NotificationProvider', () => {
     expect(screen.getByTestId('count').textContent).toBe('1');
   });
 
-  it('GivenAFrameThatWillNotParse_WhenItArrives_ThenItIsDroppedAndLaterOnesStillArrive', async () => {
+  it('GivenAFrameThatWillNotParse_WhenItArrives_ThenItIsDroppedAndReportedAndLaterOnesStillArrive', async () => {
     // The reason the handler catches: throwing here propagates into the STOMP client and tears down
     // the subscription, so the cost is every notification after this one, not just this one. The parse
     // error is reported on a microtask instead, caught here so it does not fail the run as uncaught.
