@@ -149,6 +149,13 @@ public class HealthUpgrade {
      * <p>A retired type is accepted only when the upgrade already holds it: the SPA sends the type back
      * unchanged on every edit, and a row that carries one must stay editable, but none may move to it.
      *
+     * @param areaId          the health area to file it under; null takes it out of every area
+     * @param title           short name; required and non-blank
+     * @param description     longer explanation; may be null
+     * @param type            what kind of change this is; required
+     * @param targetEndDate   the date it should be done by; may be null
+     * @param motivation      why the user wants it; may be null
+     * @param successCriteria how the user will know it worked; may be null
      * @throws BusinessRuleException if the title is blanked out, the type is missing, or a retired type
      *         is chosen for an upgrade that does not already hold it
      */

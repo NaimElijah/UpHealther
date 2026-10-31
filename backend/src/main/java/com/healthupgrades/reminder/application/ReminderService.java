@@ -41,7 +41,7 @@ public class ReminderService {
      * @return the persisted reminder
      * @throws ResourceNotFoundException if the upgrade does not exist or belongs to somebody else
      * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if a day token is not a
-     *         recognisable day
+     *         recognisable day, or the time is null
      */
     @Transactional
     public Reminder create(UUID userId, UUID upgradeId, ReminderSchedule schedule) {
@@ -80,7 +80,7 @@ public class ReminderService {
      * @return the saved reminder
      * @throws ResourceNotFoundException if the reminder does not exist, or its upgrade is not the user's
      * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if a day token is not a
-     *         recognisable day
+     *         recognisable day, or the time is null
      */
     @Transactional
     public Reminder update(UUID userId, UUID reminderId, ReminderSchedule schedule) {
