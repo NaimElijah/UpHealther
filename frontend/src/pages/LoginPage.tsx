@@ -30,7 +30,9 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  // The server's answer, shown for the form as a whole; the form's own checks are each field's.
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const [loading, setLoading] = useState(false);
   const emailField = useRef<HTMLInputElement>(null);
   const passwordField = useRef<HTMLInputElement>(null);
@@ -43,9 +45,14 @@ const LoginPage: React.FC = () => {
     e.preventDefault();
     if (isLoading) return;
     setError('');
-    if (!email || !password) {
-      setError('Please fill in all fields.');
-      (email ? passwordField : emailField).current?.focus();
+    // Both are checked before either refusal returns, so one submit names every missing field.
+    const missing = {
+      email: email ? undefined : 'Email is required.',
+      password: password ? undefined : 'Password is required.',
+    };
+    setFieldErrors(missing);
+    if (missing.email || missing.password) {
+      (missing.email ? emailField : passwordField).current?.focus();
       return;
     }
     setLoading(true);
@@ -78,7 +85,7 @@ const LoginPage: React.FC = () => {
           <PageHeading className="text-2xl font-bold text-fg">UpHealther</PageHeading>
           <p className="text-fg-subtle mt-1">Sign in to your account</p>
         </div>
-        {/* noValidate: the form checks its own fields, so the message is the page's, tied to the field and
+        {/* noValidate: the form checks its own fields, so each message is the field's own, tied to it and
               announced, and focus goes to the field to fix, rather than a browser's bubble. */}
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <Input
@@ -89,6 +96,7 @@ const LoginPage: React.FC = () => {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
             autoComplete="email"
+            error={fieldErrors.email}
             required
           />
           <Input
@@ -99,6 +107,7 @@ const LoginPage: React.FC = () => {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
             autoComplete="current-password"
+            error={fieldErrors.password}
             required
           />
           {error && (

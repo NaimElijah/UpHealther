@@ -55,6 +55,13 @@ function renderLogin(ctx: AuthContextType = contextWith()) {
   );
 }
 
+/** What a field's error says, read the way a screen reader reaches it: through `aria-describedby`. */
+function errorOf(label: string): string | null | undefined {
+  const field = screen.getByLabelText(label);
+  if (field.getAttribute('aria-invalid') !== 'true') return null;
+  return document.getElementById(field.getAttribute('aria-describedby') ?? '')?.textContent;
+}
+
 /** Fills both fields and submits, the way a user would. */
 async function signIn(email = 'someone@example.com', password = 's3cret!') {
   const { fireEvent } = await import('@testing-library/react');
@@ -184,7 +191,7 @@ describe('LoginPage', () => {
 
     fireEvent.submit(screen.getByRole('button', { name: 'Sign In' }));
 
-    await waitFor(() => expect(screen.getByText('Please fill in all fields.')).toBeDefined());
+    await waitFor(() => expect(screen.getByText('Email is required.')).toBeDefined());
     expect(login).not.toHaveBeenCalled();
   });
 
@@ -238,7 +245,7 @@ describe('LoginPage form errors', () => {
 
     await signIn('', 's3cret!');
 
-    expect((await screen.findByRole('alert')).textContent).toBe('Please fill in all fields.');
+    expect((await screen.findByRole('alert')).textContent).toBe('Email is required.');
     expect(document.activeElement).toBe(screen.getByLabelText('Email'));
   });
 
@@ -249,6 +256,19 @@ describe('LoginPage form errors', () => {
 
     await screen.findByRole('alert');
     expect(document.activeElement).toBe(screen.getByLabelText('Password'));
+  });
+
+  // Review finding 12 on #407: one page-wide message named neither field, and neither was marked
+  // invalid, so a screen reader on Password never heard what was wrong with it (WCAG 3.3.1).
+  it('GivenAnEmptyForm_WhenItIsSubmitted_ThenEachFieldIsInvalidAndSaysWhatIsMissing', async () => {
+    renderLogin();
+
+    await signIn('', '');
+
+    expect(await screen.findByText('Email is required.')).toBeDefined();
+    expect(errorOf('Email')).toBe('Email is required.');
+    expect(errorOf('Password')).toBe('Password is required.');
+    expect(document.activeElement).toBe(screen.getByLabelText('Email'));
   });
 
   it('GivenCredentialsTheServerRejects_WhenTheFormIsSubmitted_ThenTheRefusalIsAnnounced', async () => {

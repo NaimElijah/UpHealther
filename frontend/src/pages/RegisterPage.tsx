@@ -16,6 +16,10 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle';
  */
 const PASSWORD_MIN_LENGTH = 8;
 
+/** The form's fields, in the order they are shown, which is the order a refusal sends focus by. */
+const REGISTRATION_FIELDS = ['name', 'email', 'password', 'confirm'] as const;
+type RegistrationField = (typeof REGISTRATION_FIELDS)[number];
+
 /**
  * Account creation page, and the other route reachable without a session.
  *
@@ -37,17 +41,30 @@ const RegisterPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  // The server's answer, shown for the form as a whole; the form's own checks are each field's.
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<RegistrationField, string>>>({});
   const [loading, setLoading] = useState(false);
   const nameField = useRef<HTMLInputElement>(null);
   const emailField = useRef<HTMLInputElement>(null);
   const passwordField = useRef<HTMLInputElement>(null);
   const confirmField = useRef<HTMLInputElement>(null);
 
-  /** Says what is wrong and sends focus to the field that has to change. */
-  const refuse = (message: string, field: React.RefObject<HTMLInputElement | null>) => {
-    setError(message);
-    field.current?.focus();
+  const fieldRefs: Record<RegistrationField, React.RefObject<HTMLInputElement | null>> = {
+    name: nameField,
+    email: emailField,
+    password: passwordField,
+    confirm: confirmField,
+  };
+
+  /**
+   * Ties each message to its field, where it is read with the field and announced, and sends focus to
+   * the first field that has to change.
+   */
+  const refuse = (problems: Partial<Record<RegistrationField, string>>) => {
+    setFieldErrors(problems);
+    const first = REGISTRATION_FIELDS.find((field) => problems[field]);
+    if (first) fieldRefs[first].current?.focus();
   };
 
   React.useEffect(() => {
@@ -58,16 +75,22 @@ const RegisterPage: React.FC = () => {
     e.preventDefault();
     if (isLoading) return;
     setError('');
+    setFieldErrors({});
+    // Every missing field is named at once, so one submit reports them all.
     if (!name || !email || !password) {
-      refuse('Please fill in all fields.', !name ? nameField : !email ? emailField : passwordField);
+      refuse({
+        name: name ? undefined : 'Name is required.',
+        email: email ? undefined : 'Email is required.',
+        password: password ? undefined : 'Password is required.',
+      });
       return;
     }
     if (password !== confirm) {
-      refuse('Passwords do not match.', confirmField);
+      refuse({ confirm: 'Passwords do not match.' });
       return;
     }
     if (password.length < PASSWORD_MIN_LENGTH) {
-      refuse(`Password must be at least ${PASSWORD_MIN_LENGTH} characters.`, passwordField);
+      refuse({ password: `Password must be at least ${PASSWORD_MIN_LENGTH} characters.` });
       return;
     }
     setLoading(true);
@@ -101,7 +124,7 @@ const RegisterPage: React.FC = () => {
           <PageHeading className="text-2xl font-bold text-fg">Create Account</PageHeading>
           <p className="text-fg-subtle mt-1">Start your health journey today</p>
         </div>
-        {/* noValidate: the form checks its own fields, so the message is the page's, tied to the field and
+        {/* noValidate: the form checks its own fields, so each message is the field's own, tied to it and
               announced, and focus goes to the field to fix, rather than a browser's bubble. */}
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <Input
@@ -112,6 +135,7 @@ const RegisterPage: React.FC = () => {
             onChange={(e) => setName(e.target.value)}
             placeholder="John Doe"
             autoComplete="name"
+            error={fieldErrors.name}
             required
           />
           <Input
@@ -122,6 +146,7 @@ const RegisterPage: React.FC = () => {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
             autoComplete="email"
+            error={fieldErrors.email}
             required
           />
           <Input
@@ -132,6 +157,7 @@ const RegisterPage: React.FC = () => {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
             autoComplete="new-password"
+            error={fieldErrors.password}
             required
           />
           <Input
@@ -142,6 +168,7 @@ const RegisterPage: React.FC = () => {
             onChange={(e) => setConfirm(e.target.value)}
             placeholder="••••••••"
             autoComplete="new-password"
+            error={fieldErrors.confirm}
             required
           />
           {error && (

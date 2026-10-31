@@ -43,6 +43,13 @@ function renderRegister(ctx: AuthContextType = contextWith()) {
   );
 }
 
+/** What a field's error says, read the way a screen reader reaches it: through `aria-describedby`. */
+function errorOf(label: string): string | null | undefined {
+  const field = screen.getByLabelText(label);
+  if (field.getAttribute('aria-invalid') !== 'true') return null;
+  return document.getElementById(field.getAttribute('aria-describedby') ?? '')?.textContent;
+}
+
 /** Fills every field and submits, the way a user would. */
 function fillAndSubmit({
   name = 'Dana Walker',
@@ -92,12 +99,12 @@ describe('RegisterPage', () => {
   it.each([
     ['Name', { name: '' }],
     ['Email', { email: '' }],
-  ])('GivenAnEmpty%s_WhenTheFormIsSubmitted_ThenItIsRefusedWithoutCallingTheApi', async (_field, blank) => {
+  ])('GivenAnEmpty%s_WhenTheFormIsSubmitted_ThenItIsRefusedWithoutCallingTheApi', async (field, blank) => {
     renderRegister();
 
     fillAndSubmit(blank);
 
-    await waitFor(() => expect(screen.getByText('Please fill in all fields.')).toBeDefined());
+    await waitFor(() => expect(screen.getByText(`${field} is required.`)).toBeDefined());
     expect(register).not.toHaveBeenCalled();
   });
 
@@ -241,6 +248,39 @@ describe('RegisterPage form errors', () => {
 
     await screen.findByRole('alert');
     expect(document.activeElement).toBe(screen.getByLabelText('Password'));
+  });
+
+  // Review finding 12 on #407: one page-wide message named no field, and none was marked invalid, so a
+  // screen reader on the field to fix never heard what was wrong with it (WCAG 3.3.1).
+  it('GivenAnEmptyForm_WhenItIsSubmitted_ThenEachMissingFieldIsInvalidAndSaysSo', async () => {
+    renderRegister();
+
+    fillAndSubmit({ name: '', email: '', password: '', confirm: '' });
+
+    expect(await screen.findByText('Name is required.')).toBeDefined();
+    expect(errorOf('Full Name')).toBe('Name is required.');
+    expect(errorOf('Email')).toBe('Email is required.');
+    expect(errorOf('Password')).toBe('Password is required.');
+    expect(document.activeElement).toBe(screen.getByLabelText('Full Name'));
+  });
+
+  it('GivenAConfirmationThatDiffers_WhenTheFormIsSubmitted_ThenTheConfirmationIsInvalidAndSaysSo', async () => {
+    renderRegister();
+
+    fillAndSubmit({ password: 'eight-ch', confirm: 'nine-chr' });
+
+    await screen.findByText('Passwords do not match.');
+    expect(errorOf('Confirm Password')).toBe('Passwords do not match.');
+    expect(errorOf('Password')).toBeNull();
+  });
+
+  it('GivenAShortPassword_WhenTheFormIsSubmitted_ThenThePasswordIsInvalidAndSaysSo', async () => {
+    renderRegister();
+
+    fillAndSubmit({ password: 'short' });
+
+    await screen.findByText('Password must be at least 8 characters.');
+    expect(errorOf('Password')).toBe('Password must be at least 8 characters.');
   });
 
   it('GivenAnEmptyName_WhenTheFormIsSubmitted_ThenTheNameHasFocus', async () => {
