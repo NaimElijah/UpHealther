@@ -135,8 +135,13 @@ public class AuthSession {
      * @param idle         how long the session survives without being used again
      * @return the credential this exchange retired, which the caller must store beside the session: it is
      *         how a later replay of it is recognised
+     * @throws IllegalStateException if the session is no longer usable at {@code now}: sliding the idle
+     *         window from {@code now} would bring a lapsed or revoked session back to life
      */
     public SpentCredential rotate(byte[] newTokenHash, Instant now, Duration idle) {
+        if (!isActive(now)) {
+            throw new IllegalStateException("Only an active session can be rotated");
+        }
         SpentCredential retired = new SpentCredential(refreshTokenHash, now);
         this.refreshTokenHash = newTokenHash.clone();
         this.lastUsedAt = now;
