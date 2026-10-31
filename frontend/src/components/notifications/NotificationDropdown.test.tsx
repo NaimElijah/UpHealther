@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import NotificationDropdown from './NotificationDropdown';
 import { NotificationContext, type NotificationContextType } from '../../contexts/notificationContextValue';
+import { notificationAsSent } from '../../test/wireFixtures';
 
 /** The context the panel reads, with nothing in it unless a test says otherwise. */
 function aContext(overrides: Partial<NotificationContextType> = {}): NotificationContextType {
@@ -51,5 +52,18 @@ describe('NotificationDropdown', () => {
     const alert = screen.getByRole('alert');
     expect(alert.textContent).toContain('Could not mark your notifications as read.');
     expect(alert.textContent).toContain('trace-112');
+  });
+
+  it('GivenAListIsCachedAndARefetchFailed_WhenThePanelOpens_ThenItSaysSoAboveTheList', () => {
+    // The cached rows stay, since they are still the best there is, but without the failure they read
+    // as current.
+    const cached = notificationAsSent({ id: 'n-1', title: 'Streak kept', read: true });
+    renderPanel(
+      aContext({ notifications: [cached], loadError: { message: 'Internal server error', traceId: 'trace-113' } }),
+    );
+
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toContain('trace-113');
+    expect(screen.getByText('Streak kept')).toBeDefined();
   });
 });
