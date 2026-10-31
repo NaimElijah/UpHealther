@@ -22,7 +22,8 @@
  *       (ADR-002, ADR-077).
  *   <li>Where an upgrade has a configuration, the server decides {@code completed}; without one the entry
  *       keeps what the caller sent (BR-7). Changing a configuration does not rescore past entries.
- *   <li>A milestone is announced ({@code StreakAchieved}) only on every seventh day of a streak (BR-10).
+ *   <li>A milestone ({@code StreakAchieved}) is announced once per multiple of seven a streak reaches or jumps
+ *       past, naming the highest one crossed (BR-10).
  *   <li>A progress date may be at most the server's tomorrow ({@code NoLaterThanTomorrow}, FR-18, ADR-020).
  *   <li>{@code TrackingConfigQuery} is not scoped by owner; ArchUnit restricts it and the hops after it
  *       (BR-15). Do not add a caller or pass it a request-supplied id.
