@@ -12,6 +12,7 @@ import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import com.healthupgrades.user.domain.model.User;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -267,6 +268,21 @@ class UpgradePersistenceIT extends PostgresIT {
 
         assertThat(repository.findByUserIdAndStatus(ownerId, UpgradeStatus.ACTIVE))
                 .hasSize(1);
+    }
+
+    @Test
+    void GivenUpgradesOfTwoUsersInSeveralStates_WhenOneStatusIsCountedByOwner_ThenEachOwnerGetsOnlyTheirOwn() {
+        // The check-in nudge's read (D2.14): a count per owner, not the upgrades themselves. Other ITs
+        // commit upgrades into the shared database, so only these two owners' counts are asserted.
+        entityManager.persistAndFlush(anUpgradeFor(ownerId, UpgradeStatus.ACTIVE));
+        entityManager.persistAndFlush(anUpgradeFor(ownerId, UpgradeStatus.ACTIVE));
+        entityManager.persistAndFlush(anUpgradeFor(ownerId, UpgradeStatus.PLANNED));
+        entityManager.persistAndFlush(anUpgradeFor(strangerId, UpgradeStatus.ACTIVE));
+        entityManager.clear();
+
+        Map<UUID, Long> active = repository.countByOwner(UpgradeStatus.ACTIVE);
+
+        assertThat(active).containsEntry(ownerId, 2L).containsEntry(strangerId, 1L);
     }
 
     @Test

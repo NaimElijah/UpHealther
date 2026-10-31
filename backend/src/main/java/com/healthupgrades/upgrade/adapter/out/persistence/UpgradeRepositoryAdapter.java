@@ -7,8 +7,10 @@ import com.healthupgrades.upgrade.domain.model.UpgradeStatus; // query filter
 import com.healthupgrades.upgrade.domain.model.UpgradeType; // query filter
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort; // the port implemented here
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -78,6 +80,14 @@ class UpgradeRepositoryAdapter implements UpgradeRepositoryPort {
     @Override
     public List<HealthUpgrade> findByStatus(UpgradeStatus status) {
         return jpa.findByStatus(status);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public Map<UUID, Long> countByOwner(UpgradeStatus status) {
+        return jpa.countByOwnerInStatus(status).stream()
+                .collect(Collectors.toUnmodifiableMap(
+                        row -> row.get("userId", UUID.class), row -> row.get("upgrades", Long.class)));
     }
 
     /** {@inheritDoc} */

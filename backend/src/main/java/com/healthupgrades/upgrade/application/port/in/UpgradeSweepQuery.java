@@ -3,6 +3,7 @@ package com.healthupgrades.upgrade.application.port.in;
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -23,6 +24,14 @@ public interface UpgradeSweepQuery {
      * @return the matching upgrades of every user
      */
     List<HealthUpgrade> findByStatus(UpgradeStatus status);
+
+    /**
+     * How many upgrades in a status each user has, whoever they are, without loading the upgrades.
+     *
+     * @param status the status to count
+     * @return each user with at least one upgrade in it, and how many; a user with none is absent
+     */
+    Map<UUID, Long> countByOwner(UpgradeStatus status);
 
     /**
      * The upgrades with the given ids, whoever owns them.

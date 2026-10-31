@@ -4,6 +4,7 @@ import com.healthupgrades.upgrade.domain.model.Difficulty; // query filter
 import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // managed entity
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus; // query filter
 import com.healthupgrades.upgrade.domain.model.UpgradeType; // query filter
+import jakarta.persistence.Tuple;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -35,6 +36,16 @@ interface UpgradeJpaRepository extends JpaRepository<HealthUpgrade, UUID> {
     List<HealthUpgrade> findByUserIdAndDifficulty(UUID userId, Difficulty difficulty); // derived query
 
     long countByUserIdAndStatusAndDifficulty(UUID userId, UpgradeStatus status, Difficulty difficulty); // derived count
+
+    /**
+     * How many upgrades in a status each user has, across every user: one row per owner that has any.
+     *
+     * @param status the status to count
+     * @return each owner's id under {@code userId} and their count under {@code upgrades}
+     */
+    @Query("SELECT u.userId AS userId, COUNT(u) AS upgrades FROM HealthUpgrade u "
+            + "WHERE u.status = :status GROUP BY u.userId")
+    List<Tuple> countByOwnerInStatus(@Param("status") UpgradeStatus status);
 
     /**
      * Tries to claim the user's HARD-limit check: takes the user's advisory lock if no other transaction

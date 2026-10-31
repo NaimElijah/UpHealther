@@ -8,6 +8,7 @@ import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,6 +32,14 @@ class UpgradeSweepsTest {
         when(repository.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(active);
 
         assertThat(sweeps.findByStatus(UpgradeStatus.ACTIVE)).isEqualTo(active);
+    }
+
+    @Test
+    void GivenUpgradesOfSeveralUsers_WhenTheSweepCountsAStatusByOwner_ThenEveryUsersCountComesBack() {
+        Map<UUID, Long> counts = Map.of(UUID.randomUUID(), 2L, UUID.randomUUID(), 1L);
+        when(repository.countByOwner(UpgradeStatus.ACTIVE)).thenReturn(counts);
+
+        assertThat(sweeps.countByOwner(UpgradeStatus.ACTIVE)).isEqualTo(counts);
     }
 
     @Test

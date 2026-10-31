@@ -6,6 +6,7 @@ import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // the aggregate t
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus; // lifecycle status used as a query filter
 import com.healthupgrades.upgrade.domain.model.UpgradeType; // type enum used as a query filter
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -43,6 +44,14 @@ public interface UpgradeRepositoryPort {
 
     /** All upgrades in a status across every user (used by scheduled jobs). */
     List<HealthUpgrade> findByStatus(UpgradeStatus status);
+
+    /**
+     * How many upgrades in a status each user has, across every user (used by scheduled jobs).
+     *
+     * @param status the status to count
+     * @return each user with at least one upgrade in it, and how many; a user with none is absent
+     */
+    Map<UUID, Long> countByOwner(UpgradeStatus status);
 
     /** Batch lookup of upgrades by id (used to resolve reminders in bulk). */
     List<HealthUpgrade> findAllById(Iterable<UUID> ids);

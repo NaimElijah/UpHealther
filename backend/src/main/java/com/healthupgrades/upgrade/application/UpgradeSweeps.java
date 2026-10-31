@@ -5,6 +5,7 @@ import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,12 @@ class UpgradeSweeps implements UpgradeSweepQuery {
     @Override
     public List<HealthUpgrade> findByStatus(UpgradeStatus status) {
         return repository.findByStatus(status);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public Map<UUID, Long> countByOwner(UpgradeStatus status) {
+        return repository.countByOwner(status);
     }
 
     /** {@inheritDoc} */
