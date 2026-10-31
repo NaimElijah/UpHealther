@@ -78,7 +78,7 @@ no way at all — to read another person's health records
 
 | ID | Requirement | Enforced by |
 |---|---|---|
-| FR-9 | A user can create an upgrade of any of the eight kinds: habit, one-time action, product replacement, routine, goal, experiment, learning task, medical/preventive | `FrontendWireTypesContractTest`, `UpgradeControllerTest` |
+| FR-9 | A user can create an upgrade of any of the eight kinds: habit, one-time action, product replacement, routine, goal, experiment, learning task, medical/preventive. The retired `PROTOCOL` is none of them: no new upgrade can carry it, and an edit can keep it on an upgrade that already does but cannot choose it | `FrontendWireTypesContractTest`, `UpgradeControllerTest`, `HealthUpgradeTest` (`PROTOCOL` refused on creation and on a change to it) |
 | FR-10 | An upgrade carries a title and type, and optionally an area, description, difficulty, planned start, target end, motivation and success criteria | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeBacklogPage.test.tsx` (a new idea's success criteria and target end), `UpgradeDetailsPage.test.tsx` (the planned start moved by rescheduling), `UpgradeFormFields.test.tsx` (an upgrade without a difficulty is not shown as having one) |
 | FR-11 | A user can list their upgrades, narrowed by one of status, type, area or difficulty | `UpgradeServiceTest`, `UpgradeControllerTest` — **Known deviation:** [#90](https://github.com/NaimElijah/UpHealther/issues/90), the interface filters by status only |
 | FR-12 | A user can move an upgrade through its lifecycle: plan, activate, pause, complete, abandon, reschedule | `HealthUpgradeTest`, `UpgradeServiceTest`, `UpgradeControllerTest`, `UpgradeBacklogPage.test.tsx`, `ActiveUpgradesPage.test.tsx` (a paused upgrade is listed and can be resumed, and an active one completed), `upgradeViews.test.tsx` (a change made on one page reaches every page that shows the upgrade), `UpgradeDetailsPage.test.tsx` (an upgrade's page abandons it from any state that is not final, and reschedules it from PLANNED, ACTIVE, PAUSED or ABANDONED; an idea is planned instead), `upgrades.test.ts` |
@@ -400,8 +400,9 @@ Undecided, and owned by the repository owner.
   races past the duplicate check is still untranslated, and still a 500
   ([#146](https://github.com/NaimElijah/UpHealther/issues/146)). The central question stands for
   everything else.
-- **`UpgradeType.PROTOCOL` is deprecated but retained** for rows that may already carry it. Removing it
-  needs confirmation that no stored row uses it.
+- **`UpgradeType.PROTOCOL` is deprecated but retained** for rows that may already carry it. No new row
+  can carry it (FR-9), so the set that does only shrinks. Removing it needs confirmation that no stored
+  row uses it.
 - **No governing jurisdiction is named in the licence** — ADR-003 flags this as the first thing to add
   if the project ever becomes commercially significant.
 - **Requirement priorities and delivery order are not recorded here.** Everything above is already

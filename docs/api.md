@@ -27,6 +27,10 @@ and the `*ControllerTest` named against each area pins the status codes.
 
 `GET /api/upgrades` filters on `status`, `type`, `areaId` and `difficulty`.
 
+An upgrade's `type` is one of FR-9's eight kinds. `PROTOCOL` is retired: the API still returns it for a
+row that already carries it, and a `PUT` may send it back unchanged, but a `POST` with it, or a `PUT`
+that would move another kind to it, is refused with `422`, so no new row can carry it.
+
 An email is one identity however it is typed: the API trims and lowercases it before comparing or
 storing it. `POST /api/auth/register` refuses an address already held with `422` and the message
 `That email is already registered`, which does not repeat the address.

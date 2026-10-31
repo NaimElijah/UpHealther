@@ -96,6 +96,25 @@ class HealthUpgradeTest {
                 .isInstanceOf(BusinessRuleException.class);
     }
 
+    @Test
+    @SuppressWarnings("deprecation") // the retired kind is what this test is about
+    void GivenTheRetiredProtocolKind_WhenAnUpgradeIsCreated_ThenItIsRejected() {
+        // D3.7. While a new upgrade could still be PROTOCOL, the deprecation's removal condition, that no
+        // stored row carries it, could never be met.
+        assertThatThrownBy(() -> HealthUpgrade.create(
+                        UUID.randomUUID(),
+                        null,
+                        "Cold showers",
+                        null,
+                        UpgradeType.PROTOCOL,
+                        Difficulty.MEDIUM,
+                        null,
+                        null,
+                        null,
+                        null))
+                .isInstanceOf(BusinessRuleException.class);
+    }
+
     // ---- editing details ----
 
     @Test
@@ -127,6 +146,35 @@ class HealthUpgradeTest {
 
         assertThat(upgrade.getTitle()).isEqualTo("New title");
         assertThat(upgrade.getStatus()).isEqualTo(status);
+    }
+
+    @Test
+    @SuppressWarnings("deprecation") // the retired kind is what this test is about
+    void GivenAnUpgradeOfAnotherKind_WhenItsDetailsChooseTheRetiredProtocolKind_ThenTheEditIsRejected() {
+        HealthUpgrade upgrade = upgradeIn(UpgradeStatus.ACTIVE);
+
+        assertThatThrownBy(() -> upgrade.updateDetails(null, "New title", null, UpgradeType.PROTOCOL, null, null, null))
+                .isInstanceOf(BusinessRuleException.class);
+
+        assertThat(upgrade.getType()).isEqualTo(UpgradeType.HABIT);
+        assertThat(upgrade.getTitle()).isEqualTo("Test Upgrade");
+    }
+
+    @Test
+    @SuppressWarnings("deprecation") // the retired kind is what this test is about
+    void GivenAnUpgradeAlreadyOfTheRetiredProtocolKind_WhenItsDetailsAreEditedKeepingIt_ThenTheEditLands() {
+        // The SPA sends the type back unchanged on every edit, so a row that already carries PROTOCOL
+        // must stay editable.
+        HealthUpgrade upgrade = HealthUpgrade.builder()
+                .title("Old protocol")
+                .type(UpgradeType.PROTOCOL)
+                .status(UpgradeStatus.ACTIVE)
+                .build();
+
+        upgrade.updateDetails(null, "New title", null, UpgradeType.PROTOCOL, null, null, null);
+
+        assertThat(upgrade.getTitle()).isEqualTo("New title");
+        assertThat(upgrade.getType()).isEqualTo(UpgradeType.PROTOCOL);
     }
 
     @Test

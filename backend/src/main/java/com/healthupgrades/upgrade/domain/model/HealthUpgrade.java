@@ -25,6 +25,9 @@ import lombok.*;
 @Builder
 public class HealthUpgrade {
 
+    /** Why a retired type is refused, on creation and on an edit that would move to one. */
+    static final String RETIRED_TYPE = "That kind of upgrade is retired; choose another";
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -82,7 +85,7 @@ public class HealthUpgrade {
      * to a database constraint at flush time: an upgrade always belongs to a user, always has a title,
      * always has a type, and always starts as an IDEA.
      *
-     * @throws BusinessRuleException if the owner, title or type is missing
+     * @throws BusinessRuleException if the owner, title or type is missing, or the type is retired
      */
     public static HealthUpgrade create(
             UUID userId,
@@ -98,6 +101,7 @@ public class HealthUpgrade {
         if (userId == null) throw new BusinessRuleException("An upgrade must belong to a user");
         if (title == null || title.isBlank()) throw new BusinessRuleException("An upgrade must have a title");
         if (type == null) throw new BusinessRuleException("An upgrade must have a type");
+        if (type.isRetired()) throw new BusinessRuleException(RETIRED_TYPE);
 
         return HealthUpgrade.builder()
                 .userId(userId)
@@ -120,7 +124,11 @@ public class HealthUpgrade {
      * <p>Deliberately cannot touch status, the start dates or difficulty: those move only through the
      * transition methods, {@link #reschedule} and {@link #changeDifficulty} respectively.
      *
-     * @throws BusinessRuleException if the title is blanked out
+     * <p>A retired type is accepted only when the upgrade already holds it: the SPA sends the type back
+     * unchanged on every edit, and a row that carries one must stay editable, but none may move to it.
+     *
+     * @throws BusinessRuleException if the title is blanked out, the type is missing, or a retired type
+     *         is chosen for an upgrade that does not already hold it
      */
     public void updateDetails(
             UUID areaId,
@@ -132,6 +140,7 @@ public class HealthUpgrade {
             String successCriteria) {
         if (title == null || title.isBlank()) throw new BusinessRuleException("An upgrade must have a title");
         if (type == null) throw new BusinessRuleException("An upgrade must have a type");
+        if (type.isRetired() && type != this.type) throw new BusinessRuleException(RETIRED_TYPE);
 
         this.areaId = areaId;
         this.title = title;
