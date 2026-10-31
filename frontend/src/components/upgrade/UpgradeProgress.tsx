@@ -144,7 +144,8 @@ const UpgradeProgress: React.FC<Props> = ({ upgradeId, read, trackingConfig }) =
           )}
           {trackingConfig?.trackingType === 'NUMERIC' && (
             <Input
-              label={`Value (${trackingConfig.targetUnit ?? ''})`}
+              // A configuration may have no unit, and "Value ()" would say there was one, blank.
+              label={trackingConfig.targetUnit ? `Value (${trackingConfig.targetUnit})` : 'Value'}
               type="number"
               value={progressForm.numericValue ?? ''}
               onChange={(e) => setProgressForm({ ...progressForm, numericValue: numOrUndef(e.target.value) })}

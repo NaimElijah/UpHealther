@@ -961,6 +961,30 @@ describe('UpgradeDetailsPage', () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Time')));
   });
 
+  // Review finding 23 on #407: with no unit the field was labelled "Value ()".
+  it.each([
+    [null, 'Value'],
+    ['km', 'Value (km)'],
+  ])('GivenANumericConfigurationWithUnit %s_WhenLogProgressOpens_ThenTheValueIsLabelled %s', async (unit, label) => {
+    getUpgradeById.mockResolvedValue({
+      ...anUpgrade(),
+      trackingConfig: trackingConfigAsSent({ upgradeId: UPGRADE_ID, trackingType: 'NUMERIC', targetUnit: unit }),
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: '+ Log Progress' }));
+
+    const dialog = within(screen.getByRole('dialog', { name: 'Log Progress' }));
+    expect(dialog.getByRole('spinbutton', { name: label })).toBeDefined();
+  });
+
+  // Review finding 23 on #407: the arrow was read aloud, "leftwards arrow, Back".
+  it('GivenAnUpgradesPage_WhenItRenders_ThenBackIsNamedBackAlone', async () => {
+    renderPage();
+
+    expect(await screen.findByRole('button', { name: 'Back' })).toBeDefined();
+  });
+
   // WCAG 4.1.2, finding X9.7: the rating is a named radio group, not five buttons told apart by colour.
   it('GivenARatedUpgrade_WhenLogProgressOpens_ThenItsRatingIsANamedRadioGroup', async () => {
     getUpgradeById.mockResolvedValue({

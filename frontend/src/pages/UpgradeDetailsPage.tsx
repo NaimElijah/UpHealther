@@ -74,7 +74,7 @@ const UpgradeDetails: React.FC = () => {
   return (
     <PageContainer width="narrow" className="space-y-6">
       <button onClick={() => navigate(-1)} className="text-sm text-brand-fg hover:underline">
-        ← Back
+        <span aria-hidden="true">←</span> Back
       </button>
 
       {error && (
