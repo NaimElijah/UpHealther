@@ -12,7 +12,7 @@ import Modal from '../components/ui/Modal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import ErrorState from '../components/ui/ErrorState';
-import type { AdminAccount } from '../types';
+import type { AdminAccount, UserRole } from '../types';
 
 /** The query key for the account list, so every mutation invalidates the same thing. */
 const ACCOUNTS_KEY = ['adminAccounts'];
@@ -72,7 +72,7 @@ const AdminUsersPage: React.FC = () => {
   const disabling = useMutation({ mutationFn: (id: string) => disableAccount(id), ...afterChange });
   const enabling = useMutation({ mutationFn: (id: string) => enableAccount(id), ...afterChange });
   const changingRole = useMutation({
-    mutationFn: ({ id, role }: { id: string; role: 'USER' | 'ADMIN' }) => changeAccountRole(id, role),
+    mutationFn: ({ id, role }: { id: string; role: UserRole }) => changeAccountRole(id, role),
     ...afterChange,
   });
 
