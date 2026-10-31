@@ -1,5 +1,7 @@
 package com.healthupgrades.common.websocket;
 
+import java.util.Objects;
+
 /**
  * A STOMP frame the server refused, and the fixed words the client is told it with.
  *
@@ -48,10 +50,13 @@ class StompFrameRefusedException extends IllegalArgumentException {
      *
      * @param reason what the client is told
      * @param detail what the server knows about the refusal, for its own diagnostics only
+     * @throws NullPointerException if {@code reason} is null
      */
     StompFrameRefusedException(Reason reason, String detail) {
         super(detail);
-        this.reason = reason;
+        // Fail at the throw site: a null reason would surface only inside Spring's error handling, as an
+        // NPE that leaves the client with no ERROR frame at all.
+        this.reason = Objects.requireNonNull(reason, "reason");
     }
 
     /**

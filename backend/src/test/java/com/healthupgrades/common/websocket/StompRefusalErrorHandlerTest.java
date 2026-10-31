@@ -1,6 +1,7 @@
 package com.healthupgrades.common.websocket;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.healthupgrades.common.websocket.StompFrameRefusedException.Reason;
 import org.junit.jupiter.api.Test;
@@ -91,6 +92,15 @@ class StompRefusalErrorHandlerTest {
 
         assertThat(errorMessage(handler.handleErrorMessageToClient(frame)))
                 .isEqualTo(StompSessionRegistry.SESSION_ENDED);
+    }
+
+    @Test
+    void GivenNoReason_WhenARefusalIsBuilt_ThenItFailsThereRatherThanInsideSpring() {
+        // Accepted, a null reason would throw inside Spring's error handling instead, and the client
+        // would get no ERROR frame at all.
+        assertThatThrownBy(() -> new StompFrameRefusedException(null, "detail"))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("reason");
     }
 
     private static Message<byte[]> clientFrame(StompCommand command) {
