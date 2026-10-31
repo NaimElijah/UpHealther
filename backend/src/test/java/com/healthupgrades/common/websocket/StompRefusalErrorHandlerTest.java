@@ -19,6 +19,11 @@ import org.springframework.messaging.support.MessageHeaderAccessor;
  * {@code StompRefusalIT} cannot provoke over a socket: an outage while authenticating, and a frame that
  * could not be decoded. And the one ERROR frame the server sends on its own, which must pass through as
  * it was written, because the browser ends the session on exactly those words (ADR-066).
+ *
+ * <p>Every frame the handler builds is read through {@link MessageHeaderAccessor#getAccessor}, never
+ * re-wrapped, because that is how spring-websocket 7.0.9's {@code StompSubProtocolHandler} reads it, and
+ * it asserts the accessor is there. The words are literals, as in {@code StompRefusalIT}: they are the wire
+ * contract.
  */
 class StompRefusalErrorHandlerTest {
 
@@ -58,8 +63,12 @@ class StompRefusalErrorHandlerTest {
         Throwable wrapped = new MessageDeliveryException(
                 connect, CHANNEL_WRAPPER, new DataAccessResourceFailureException("Connection to db:5432 refused"));
 
-        assertThat(errorMessage(handler.handleClientMessageProcessingError(connect, wrapped)))
-                .isEqualTo(StompRefusalErrorHandler.NOT_PROCESSED);
+        Message<byte[]> error = handler.handleClientMessageProcessingError(connect, wrapped);
+
+        assertThat(errorMessage(error)).isEqualTo("Frame not processed");
+        assertThat(error.getPayload())
+                .as("the body carries nothing, the exception's text least of all")
+                .isEmpty();
     }
 
     @Test
@@ -68,7 +77,8 @@ class StompRefusalErrorHandlerTest {
         Message<byte[]> error = handler.handleClientMessageProcessingError(
                 null, new StompConversionException("Illegal header: 'evil\\c'"));
 
-        assertThat(errorMessage(error)).isEqualTo(StompRefusalErrorHandler.NOT_PROCESSED);
+        assertThat(errorMessage(error)).isEqualTo("Frame not processed");
+        assertThat(error.getPayload()).isEmpty();
     }
 
     @Test
@@ -81,7 +91,8 @@ class StompRefusalErrorHandlerTest {
         Message<byte[]> error = handler.handleClientMessageProcessingError(
                 frame, new StompFrameRefusedException(Reason.REFUSED, "Refused a SUBSCRIBE"));
 
-        assertThat(accessor(error).getReceiptId()).isEqualTo("r-7");
+        assertThat(liveAccessor(error).getReceiptId()).isEqualTo("r-7");
+        assertThat(error.getPayload()).isEmpty();
     }
 
     @Test
@@ -90,8 +101,11 @@ class StompRefusalErrorHandlerTest {
         sessionEnded.setMessage(StompSessionRegistry.SESSION_ENDED);
         Message<byte[]> frame = MessageBuilder.createMessage(NO_PAYLOAD, sessionEnded.getMessageHeaders());
 
-        assertThat(errorMessage(handler.handleErrorMessageToClient(frame)))
-                .isEqualTo(StompSessionRegistry.SESSION_ENDED);
+        // The hand-built input carries no live accessor, so this one frame is read by wrapping it.
+        StompHeaderAccessor sent = StompHeaderAccessor.wrap(handler.handleErrorMessageToClient(frame));
+
+        assertThat(sent.getCommand()).isEqualTo(StompCommand.ERROR);
+        assertThat(sent.getMessage()).isEqualTo(StompSessionRegistry.SESSION_ENDED);
     }
 
     @Test
@@ -109,13 +123,18 @@ class StompRefusalErrorHandlerTest {
     }
 
     private static String errorMessage(Message<byte[]> error) {
-        StompHeaderAccessor accessor = accessor(error);
+        StompHeaderAccessor accessor = liveAccessor(error);
         assertThat(accessor.getCommand()).isEqualTo(StompCommand.ERROR);
         return accessor.getMessage();
     }
 
-    private static StompHeaderAccessor accessor(Message<byte[]> message) {
-        StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
-        return accessor != null ? accessor : StompHeaderAccessor.wrap(message);
+    /** The accessor Spring will look for on a frame the handler built; without it Spring sends nothing. */
+    private static StompHeaderAccessor liveAccessor(Message<byte[]> error) {
+        StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(error, StompHeaderAccessor.class);
+        assertThat(accessor)
+                .as(
+                        "StompSubProtocolHandler asserts an accessor on the frame it sends, so one without it is never sent")
+                .isNotNull();
+        return accessor;
     }
 }

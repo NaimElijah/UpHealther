@@ -13,6 +13,7 @@ import com.healthupgrades.common.domain.audit.AuditEvent;
 import com.healthupgrades.common.domain.audit.AuditOutcome;
 import com.healthupgrades.common.security.BearerAuthentication;
 import com.healthupgrades.common.security.BearerTokenAuthenticator;
+import com.healthupgrades.common.websocket.StompFrameRefusedException.Reason;
 import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.RecordingAuditTrail;
 import java.security.Principal;
@@ -21,6 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -99,13 +101,13 @@ class JwtChannelInterceptorTest {
         when(authenticator.authenticateWithSession(TOKEN)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> interceptor.preSend(frame(StompCommand.CONNECT, "Bearer " + TOKEN), channel))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOfSatisfying(StompFrameRefusedException.class, refusedAs(Reason.UNAUTHENTICATED));
     }
 
     @Test
     void GivenAConnectWithNoToken_WhenItArrives_ThenTheConnectionIsRefusedWithoutAskingTheAuthenticator() {
         assertThatThrownBy(() -> interceptor.preSend(frame(StompCommand.CONNECT, null), channel))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOfSatisfying(StompFrameRefusedException.class, refusedAs(Reason.UNAUTHENTICATED));
 
         verify(authenticator, never()).authenticateWithSession(any());
     }
@@ -113,7 +115,7 @@ class JwtChannelInterceptorTest {
     @Test
     void GivenAConnectWithANonBearerCredential_WhenItArrives_ThenTheConnectionIsRefused() {
         assertThatThrownBy(() -> interceptor.preSend(frame(StompCommand.CONNECT, "Basic abc"), channel))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOfSatisfying(StompFrameRefusedException.class, refusedAs(Reason.UNAUTHENTICATED));
     }
 
     // STOMP is the 1.2 spec's alias for CONNECT, so a client that sends it must meet the same door.
@@ -240,7 +242,8 @@ class JwtChannelInterceptorTest {
         // topic would receive whatever a later feature did.
         Message<?> subscribe = frameFrom(StompCommand.SUBSCRIBE, "/topic/notifications", session());
 
-        assertThatThrownBy(() -> interceptor.preSend(subscribe, channel)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> interceptor.preSend(subscribe, channel))
+                .isInstanceOfSatisfying(StompFrameRefusedException.class, refusedAs(Reason.REFUSED));
     }
 
     @Test
@@ -255,7 +258,8 @@ class JwtChannelInterceptorTest {
         // There is no @MessageMapping in the application, so a SEND can only be probing for one.
         Message<?> send = frameFrom(StompCommand.SEND, "/app/anything", session());
 
-        assertThatThrownBy(() -> interceptor.preSend(send, channel)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> interceptor.preSend(send, channel))
+                .isInstanceOfSatisfying(StompFrameRefusedException.class, refusedAs(Reason.REFUSED));
     }
 
     @Test
@@ -411,5 +415,10 @@ class JwtChannelInterceptorTest {
         }
         accessor.setLeaveMutable(true);
         return MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
+    }
+
+    /** The refusal's reason, which decides the words the client's ERROR frame carries (ADR-078). */
+    private static Consumer<StompFrameRefusedException> refusedAs(Reason reason) {
+        return refusal -> assertThat(refusal.reason()).isEqualTo(reason);
     }
 }
