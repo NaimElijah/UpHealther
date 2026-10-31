@@ -12,13 +12,13 @@ and the `*ControllerTest` named against each area pins the status codes.
 | Area | Endpoints |
 |---|---|
 | Auth | `POST /api/auth/register` · `POST /api/auth/login` · `GET /api/auth/me` |
-| Health areas | `GET POST /api/health-areas` · `GET PUT DELETE /api/health-areas/{id}` |
-| Upgrades | `GET POST /api/upgrades` · `GET PUT DELETE /api/upgrades/{id}` |
+| Health areas | `GET POST /api/health-areas` · `GET PUT DELETE /api/health-areas/{id}` — a `POST` answers `201` with `Location: /api/health-areas/{id}` |
+| Upgrades | `GET POST /api/upgrades` · `GET PUT DELETE /api/upgrades/{id}` — a `POST` answers `201` with `Location: /api/upgrades/{id}` |
 | Transitions | `POST /api/upgrades/{id}/…` — `plan` · `activate` · `pause` · `complete` · `abandon` · `reschedule` |
-| Tracking config | `GET PUT /api/upgrades/{id}/tracking-config` |
-| Progress | `GET POST /api/upgrades/{id}/progress` · `GET /api/upgrades/{id}/streak` · `GET /api/progress/today` · `GET /api/progress/week` |
-| Reflections | `GET POST /api/upgrades/{id}/reflections` |
-| Reminders | `GET POST /api/upgrades/{id}/reminders` · `PUT DELETE /api/reminders/{id}` |
+| Tracking config | `GET PUT /api/upgrades/{id}/tracking-config` — a `PUT` answers `201` when it creates the upgrade's configuration and `200` when it replaces one |
+| Progress | `GET POST /api/upgrades/{id}/progress` · `GET /api/upgrades/{id}/streak` · `GET /api/progress/today` · `GET /api/progress/week` — a `POST` answers `201` without `Location`: an entry has no route that reads it back |
+| Reflections | `GET POST /api/upgrades/{id}/reflections` — a `POST` answers `201` without `Location`: a reflection has no route that reads it back |
+| Reminders | `GET POST /api/upgrades/{id}/reminders` · `PUT DELETE /api/reminders/{id}` — a `POST` answers `201` without `Location`: a reminder has no route that reads it back |
 | Notifications | `GET /api/notifications` · `GET /api/notifications/unread-count` · `POST /api/notifications/{id}/read` · `POST /api/notifications/read-all` |
 | Dashboard | `GET /api/dashboard` |
 | Sessions | `POST /api/auth/refresh` · `POST /api/auth/logout` — both act on the refresh cookie, `__Host-refresh_token` on `Path=/` (`HttpOnly`, `Secure`, `SameSite=Strict`, no `Domain`), and both require an `X-Requested-With` header. A request carrying two of the cookie is answered as one carrying none |
@@ -46,7 +46,7 @@ every host ([#51](https://github.com/NaimElijah/UpHealther/issues/51)).
 
 ## A created upgrade, in full
 
-`POST /api/upgrades` returns `201`. Nulls are serialised rather than omitted, so the body always
+`POST /api/upgrades` returns `201`, with `Location: /api/upgrades/{id}`. Nulls are serialised rather than omitted, so the body always
 carries all eighteen fields — a client can rely on the key being present.
 
 ```bash

@@ -18,6 +18,7 @@ import com.healthupgrades.support.AProgressEntry;
 import com.healthupgrades.support.ATrackingConfig;
 import com.healthupgrades.support.RecordingAuditTrail;
 import com.healthupgrades.tracking.application.port.in.ProgressEntryDetails;
+import com.healthupgrades.tracking.application.port.in.SavedTrackingConfig;
 import com.healthupgrades.tracking.application.port.in.StreakSummary;
 import com.healthupgrades.tracking.application.port.in.TrackingConfigDetails;
 import com.healthupgrades.tracking.domain.event.StreakAchieved;
@@ -407,6 +408,32 @@ class TrackingServiceTest {
         verify(configRepository).save(existing);
         assertThat(existing.getTrackingType()).isEqualTo(TrackingType.RATING);
         assertThat(existing.getFrequency()).isEqualTo(Frequency.WEEKLY);
+    }
+
+    @Test
+    void GivenAnUpgradeWithNoConfiguration_WhenOneIsSaved_ThenTheResultSaysItWasCreated() {
+        // The web adapter answers a first save 201 and a replacement 200, and only the use case knows which.
+        when(configRepository.findByUpgradeId(upgradeId)).thenReturn(Optional.empty());
+        when(configRepository.save(any(TrackingConfig.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SavedTrackingConfig saved = service.saveConfig(
+                userId, upgradeId, new TrackingConfigDetails(TrackingType.BOOLEAN, Frequency.DAILY, null, null, null));
+
+        assertThat(saved.created()).isTrue();
+        assertThat(saved.config().getUpgradeId()).isEqualTo(upgradeId);
+    }
+
+    @Test
+    void GivenAnExistingConfiguration_WhenOneIsSaved_ThenTheResultSaysItWasReplaced() {
+        TrackingConfig existing = ATrackingConfig.booleanTracking(upgradeId);
+        when(configRepository.findByUpgradeId(upgradeId)).thenReturn(Optional.of(existing));
+        when(configRepository.save(existing)).thenReturn(existing);
+
+        SavedTrackingConfig saved = service.saveConfig(
+                userId, upgradeId, new TrackingConfigDetails(TrackingType.RATING, Frequency.WEEKLY, null, null, false));
+
+        assertThat(saved.created()).isFalse();
+        assertThat(saved.config()).isSameAs(existing);
     }
 
     @Test

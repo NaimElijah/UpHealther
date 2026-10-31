@@ -70,7 +70,7 @@ class TrackingConfigRaceIT extends PostgresIT {
             throws Exception {
         String accessToken = registeredAccessToken();
         String upgradeId = createdUpgradeId(accessToken);
-        configure(accessToken, upgradeId).andExpect(status().isOk());
+        configure(accessToken, upgradeId).andExpect(status().isCreated());
         doReturn(Optional.empty()).when(configRepository).findByUpgradeId(any());
 
         configure(accessToken, upgradeId)
@@ -106,7 +106,7 @@ class TrackingConfigRaceIT extends PostgresIT {
         // what a PUT means (ADR-074). The loser's refusal must also leave the winner's row as it was.
         String accessToken = registeredAccessToken();
         String upgradeId = createdUpgradeId(accessToken);
-        configure(accessToken, upgradeId).andExpect(status().isOk());
+        configure(accessToken, upgradeId).andExpect(status().isCreated());
         doReturn(Optional.empty()).when(configRepository).findByUpgradeId(any());
         configure(accessToken, upgradeId, RESENT_CONFIGURATION).andExpect(status().isConflict());
         reset(configRepository);

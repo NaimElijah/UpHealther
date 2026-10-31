@@ -3,16 +3,18 @@ package com.healthupgrades.upgrade.adapter.in.web;
 import com.healthupgrades.common.security.SecurityUser;
 import com.healthupgrades.upgrade.application.UpgradeService;
 import com.healthupgrades.upgrade.domain.model.Difficulty;
+import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.model.UpgradeType;
 import jakarta.validation.Valid;
+import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.util.UriComponentsBuilder;
 
 /**
  * REST adapter for the upgrade lifecycle — the API's central resource.
@@ -28,9 +30,12 @@ import org.springframework.web.bind.annotation.*;
  * them with {@link UpgradeWebMapper}.
  */
 @RestController
-@RequestMapping("/api/upgrades")
+@RequestMapping(UpgradeController.PATH)
 @RequiredArgsConstructor
 public class UpgradeController {
+
+    /** The collection's route; an upgrade's own route is this followed by its id. */
+    static final String PATH = "/api/upgrades";
 
     private final UpgradeService service; // application service (returns domain aggregates)
     private final UpgradeWebMapper mapper; // maps domain -> UpgradeDto (with tracking config)
@@ -38,14 +43,21 @@ public class UpgradeController {
     /**
      * Creates an upgrade, which always starts as an IDEA.
      *
+     * <p>{@code Location} is a relative reference (RFC 9110 section 10.2.2), so it stays right behind a
+     * proxy that rewrites the host or the scheme.
+     *
      * @param req title and type are required; the rest is optional
-     * @return 201 with the created upgrade
+     * @return 201 with the created upgrade, and a {@code Location} naming the route that reads it back
      */
     @PostMapping
     public ResponseEntity<UpgradeDto> create(
             @AuthenticationPrincipal SecurityUser principal, @Valid @RequestBody UpgradeRequest req) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(mapper.toDto(service.create(principal.getId(), mapper.toDetails(req))));
+        HealthUpgrade created = service.create(principal.getId(), mapper.toDetails(req));
+        URI location = UriComponentsBuilder.fromPath(PATH)
+                .pathSegment("{id}")
+                .buildAndExpand(created.getId())
+                .toUri();
+        return ResponseEntity.created(location).body(mapper.toDto(created));
     }
 
     /**
