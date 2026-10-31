@@ -413,10 +413,12 @@ The browser's half of a read, and of the write that makes it stale:
 5. **A write marks views stale.** A mutation that changes an upgrade calls `refreshUpgradeViews`,
    which invalidates every key that shows upgrades, because one upgrade shows on several pages
    ([ADR-029](../ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)).
-   Other writes invalidate the keys they name, such as a reminder's `['reminders', id]`. A progress
-   entry names too few, and leaves the dashboard and the progress history stale for up to thirty
-   seconds ([#192](https://github.com/NaimElijah/UpHealther/issues/192)). Invalidation refetches what
-   a mounted page reads; the rest refetch when their page next opens.
+   Deleting a health area calls it too, because the delete detaches the upgrades filed under the area;
+   creating or renaming one invalidates `['healthAreas']` and `['dashboard']`, whose By Area names
+   every area. Other writes invalidate the keys they name, such as a reminder's
+   `['reminders', id]`. A progress entry names too few, and leaves the dashboard and the progress
+   history stale for up to thirty seconds ([#192](https://github.com/NaimElijah/UpHealther/issues/192)).
+   Invalidation refetches what a mounted page reads; the rest refetch when their page next opens.
 
 **Notifications arrive by two routes into one cache.** While somebody is signed in,
 `NotificationProvider` reads `['notifications']` over REST, and `api/notificationSocket.ts` hands it

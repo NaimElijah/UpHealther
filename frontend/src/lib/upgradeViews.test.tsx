@@ -10,9 +10,11 @@ import UpgradeDetailsPage from '../pages/UpgradeDetailsPage';
 import UpgradeBacklogPage from '../pages/UpgradeBacklogPage';
 import DailyCheckinPage from '../pages/DailyCheckinPage';
 import ProgressHistoryPage from '../pages/ProgressHistoryPage';
+import HealthAreasPage from '../pages/HealthAreasPage';
 import { createQueryClient } from './queryClient';
 import type {
   ActionTarget,
+  CreateHealthAreaRequest,
   CreateUpgradeRequest,
   DashboardDto,
   HealthArea,
@@ -34,6 +36,10 @@ const rescheduleUpgrade = vi.fn();
 const deleteUpgrade = vi.fn();
 const getDashboard = vi.fn();
 const saveTrackingConfig = vi.fn();
+const getHealthAreas = vi.fn();
+const createHealthArea = vi.fn();
+const updateHealthArea = vi.fn();
+const deleteHealthArea = vi.fn();
 
 vi.mock('../api/upgrades', () => ({
   getUpgrades: (...a: unknown[]) => getUpgrades(...a),
@@ -45,7 +51,12 @@ vi.mock('../api/upgrades', () => ({
   rescheduleUpgrade: (...a: unknown[]) => rescheduleUpgrade(...a),
   deleteUpgrade: (...a: unknown[]) => deleteUpgrade(...a),
 }));
-vi.mock('../api/healthAreas', () => ({ getHealthAreas: () => Promise.resolve([AREA]) }));
+vi.mock('../api/healthAreas', () => ({
+  getHealthAreas: (...a: unknown[]) => getHealthAreas(...a),
+  createHealthArea: (...a: unknown[]) => createHealthArea(...a),
+  updateHealthArea: (...a: unknown[]) => updateHealthArea(...a),
+  deleteHealthArea: (...a: unknown[]) => deleteHealthArea(...a),
+}));
 vi.mock('../api/dashboard', () => ({ getDashboard: (...a: unknown[]) => getDashboard(...a) }));
 vi.mock('../hooks/useAuth', () => ({ useAuth: () => ({ user: { name: 'Ada Lovelace' } }) }));
 vi.mock('../api/progress', () => ({
@@ -97,14 +108,16 @@ function anUpgrade(status: UpgradeStatus): HealthUpgrade {
 }
 
 /**
- * Stands in for the API, holding the upgrades every endpoint answers from, so a page that shows
- * something else is showing a cached answer, not a different truth.
+ * Stands in for the API, holding the upgrades and areas every endpoint answers from, so a page that
+ * shows something else is showing a cached answer, not a different truth.
  *
  * The dashboard is computed from them as the server computes it, for the sections the tests read: the
- * active and planned lists, and the one area's counts.
+ * active and planned lists, and each area's counts. Deleting an area detaches the upgrades filed under
+ * it, as V18's `ON DELETE SET NULL` does.
  */
 function serve(...initial: HealthUpgrade[]) {
   let upgrades = initial;
+  let areas = [AREA];
   const withStatus = (status: UpgradeStatus) => upgrades.filter((u) => u.status === status);
   const change = (id: string, fields: Partial<HealthUpgrade>): HealthUpgrade => {
     upgrades = upgrades.map((u) => (u.id === id ? { ...u, ...fields } : u));
@@ -114,9 +127,8 @@ function serve(...initial: HealthUpgrade[]) {
   // No status is every upgrade, which is what the progress history asks for.
   getUpgrades.mockImplementation((status?: UpgradeStatus) => Promise.resolve(status ? withStatus(status) : upgrades));
   getUpgradeById.mockImplementation((id: string) => Promise.resolve(upgrades.find((u) => u.id === id)));
-  getDashboard.mockImplementation((): Promise<DashboardDto> => {
-    const filed = upgrades.filter((u) => u.areaId === AREA.id);
-    return Promise.resolve({
+  getDashboard.mockImplementation((): Promise<DashboardDto> =>
+    Promise.resolve({
       activeUpgrades: withStatus('ACTIVE'),
       plannedUpgrades: withStatus('PLANNED'),
       todayUpgrades: [],
@@ -124,16 +136,32 @@ function serve(...initial: HealthUpgrade[]) {
       weeklyCompletionRate: 0,
       streaks: {},
       recentlyCompleted: [],
-      areaSummary: [
-        {
-          areaId: AREA.id,
-          areaName: AREA.name,
+      areaSummary: areas.map((area) => {
+        const filed = upgrades.filter((u) => u.areaId === area.id);
+        return {
+          areaId: area.id,
+          areaName: area.name,
           totalUpgrades: filed.length,
           activeCount: filed.filter((u) => u.status === 'ACTIVE').length,
           completedCount: filed.filter((u) => u.status === 'COMPLETED').length,
-        },
-      ],
-    });
+        };
+      }),
+    }),
+  );
+  getHealthAreas.mockImplementation(() => Promise.resolve(areas));
+  createHealthArea.mockImplementation((req: CreateHealthAreaRequest) => {
+    const created: HealthArea = healthAreaAsSent({ ...req, id: `area-${areas.length + 1}` });
+    areas = [...areas, created];
+    return Promise.resolve(created);
+  });
+  updateHealthArea.mockImplementation((id: string, req: CreateHealthAreaRequest) => {
+    areas = areas.map((a) => (a.id === id ? { ...a, ...req } : a));
+    return Promise.resolve(areas.find((a) => a.id === id));
+  });
+  deleteHealthArea.mockImplementation((id: string) => {
+    areas = areas.filter((a) => a.id !== id);
+    upgrades = upgrades.map((u) => (u.areaId === id ? { ...u, areaId: null } : u));
+    return Promise.resolve();
   });
   createUpgrade.mockImplementation((req: CreateUpgradeRequest) => {
     const created: HealthUpgrade = { ...anUpgrade('IDEA'), ...req, id: `upgrade-${upgrades.length + 1}` };
@@ -200,6 +228,7 @@ function renderApp(path: string) {
           <Route path="/daily-checkin" element={<DailyCheckinPage />} />
           <Route path="/progress-history" element={<ProgressHistoryPage />} />
           <Route path="/upgrades/:id" element={<UpgradeDetailsPage />} />
+          <Route path="/health-areas" element={<HealthAreasPage />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -221,6 +250,14 @@ async function areaRow(): Promise<string | null> {
   return within(await screen.findByRole('list', { name: 'Upgrades by area' })).getByRole('listitem').textContent;
 }
 
+/** What the dashboard's By Area card says about each area, once the dashboard has loaded. */
+async function areaRows(): Promise<(string | null)[]> {
+  const list = await screen.findByRole('list', { name: 'Upgrades by area' });
+  return within(list)
+    .getAllByRole('listitem')
+    .map((row) => row.textContent);
+}
+
 /**
  * FR-12 (#189) — a change made on one page reaches every other page that shows the upgrade.
  *
@@ -240,6 +277,10 @@ describe('a change to an upgrade', () => {
     deleteUpgrade.mockReset();
     saveTrackingConfig.mockReset();
     getDashboard.mockReset();
+    getHealthAreas.mockReset();
+    createHealthArea.mockReset();
+    updateHealthArea.mockReset();
+    deleteHealthArea.mockReset();
   });
 
   it('GivenAnUpgradePausedOnTheDashboard_WhenTheActivePageOpensAgain_ThenItIsListedUnderPaused', async () => {
@@ -430,5 +471,85 @@ describe('a change to an upgrade', () => {
     );
 
     await waitFor(async () => expect(await areaRow()).toContain('0 total'));
+  });
+
+  // An area's writes change what the upgrade views show too: a delete detaches the upgrades filed
+  // under it on the server (V18's ON DELETE SET NULL), and the dashboard's By Area names every area.
+
+  it('GivenAnAreaDeletedOnItsPage_WhenAnUpgradeFiledUnderItIsEditedAgain_ThenTheEditSendsNoArea', async () => {
+    serve({ ...anUpgrade('ACTIVE'), areaId: AREA.id });
+    renderApp(`/upgrades/${UPGRADE_ID}`);
+    await screen.findByRole('button', { name: 'Edit Upgrade' });
+
+    goTo('/health-areas');
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Delete Health Area' })).getByRole('button', { name: 'Delete' }),
+    );
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete Health Area' })).toBeNull());
+
+    goTo(`/upgrades/${UPGRADE_ID}`);
+    // The page renders the cached upgrade at once and refetches it behind (ADR-029's one round trip).
+    await waitFor(() => expect(getUpgradeById).toHaveBeenCalledTimes(2));
+    await act(() => getUpgradeById.mock.results[1].value);
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Upgrade' }));
+    fireEvent.submit(
+      within(screen.getByRole('dialog', { name: 'Edit Upgrade' })).getByRole('button', { name: 'Save' }),
+    );
+
+    await waitFor(() => expect(updateUpgrade).toHaveBeenCalled());
+    expect(updateUpgrade.mock.calls[0][1].areaId).toBeNull();
+  });
+
+  it('GivenAnAreaDeletedOnItsPage_WhenTheDashboardOpensAgain_ThenByAreaNoLongerListsIt', async () => {
+    serve({ ...anUpgrade('ACTIVE'), areaId: AREA.id });
+    renderApp('/');
+    expect(await areaRow()).toContain(AREA.name);
+
+    goTo('/health-areas');
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Delete Health Area' })).getByRole('button', { name: 'Delete' }),
+    );
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete Health Area' })).toBeNull());
+
+    goTo('/');
+
+    await screen.findByText('Planned', { selector: 'div' });
+    await waitFor(() => expect(screen.queryByRole('list', { name: 'Upgrades by area' })).toBeNull());
+  });
+
+  it('GivenAnAreaRenamedOnItsPage_WhenTheDashboardOpensAgain_ThenByAreaShowsTheNewName', async () => {
+    serve();
+    renderApp('/');
+    expect(await areaRow()).toContain(AREA.name);
+
+    goTo('/health-areas');
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'Edit Health Area' }));
+    fireEvent.change(dialog.getByLabelText('Name'), { target: { value: 'Mobility' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit Health Area' })).toBeNull());
+
+    goTo('/');
+
+    await waitFor(async () => expect(await areaRow()).toContain('Mobility'));
+  });
+
+  it('GivenAnAreaCreatedOnItsPage_WhenTheDashboardOpensAgain_ThenByAreaListsIt', async () => {
+    serve();
+    renderApp('/');
+    expect(await areaRows()).toHaveLength(1);
+
+    goTo('/health-areas');
+    fireEvent.click(await screen.findByRole('button', { name: '+ New Area' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'New Health Area' }));
+    fireEvent.change(dialog.getByLabelText('Name'), { target: { value: 'Sleep' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New Health Area' })).toBeNull());
+
+    goTo('/');
+
+    await waitFor(async () => expect(await areaRows()).toHaveLength(2));
   });
 });

@@ -72,7 +72,7 @@ no way at all — to read another person's health records
 |---|---|---|
 | FR-6 | A user can create, read, update and delete their own health areas | `HealthAreaServiceTest`, `HealthAreaControllerTest`, `NavMenu.test.tsx` (the phone menu offers it; that the menu is what shows below 768px is checked by hand, see §6) |
 | FR-7 | An area carries a name and optional description, priority, icon and colour | `HealthAreaServiceTest`, `HealthAreaControllerTest`, `HealthAreasPage.test.tsx` |
-| FR-8 | Deleting an area leaves upgrades filed under it intact | `HealthAreaServiceTest`, `HealthAreaPersistenceIT` |
+| FR-8 | Deleting an area leaves upgrades filed under it intact | `HealthAreaServiceTest`, `HealthAreaPersistenceIT`, `upgradeViews.test.tsx` (an upgrade filed under a deleted area is edited without sending the area back) |
 
 ### 2.3 Upgrades
 

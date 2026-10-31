@@ -13,6 +13,7 @@ import PageContainer from '../components/ui/PageContainer';
 import { areaIconGlyph, DEFAULT_AREA_ICON, isIconGlyph } from '../components/ui/areaIcon';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError, toFormMessage } from '../api/apiError';
+import { refreshUpgradeViews } from '../lib/upgradeViews';
 
 /**
  * The area dialogs' fields as typed.
@@ -55,9 +56,10 @@ const parsePriority = (text: string): ParsedPriority => {
  * Manages health areas — the folders upgrades are filed under.
  *
  * Create, edit and delete all go through modals over the same list, and each mutation invalidates the
- * area query rather than patching local state, so what is shown is always what was saved. Deleting an
- * area does not touch the upgrades filed under it. A refused delete is shown in its dialog with the
- * trace id (NFR-30), so the user can retry or cancel.
+ * area query and the dashboard rather than patching local state, so what is shown is always what was
+ * saved. Deleting an area detaches the upgrades filed under it, so a delete also refreshes every view of
+ * upgrades (ADR-029). A refused delete is shown in its dialog with the trace id (NFR-30), so the user
+ * can retry or cancel.
  */
 const HealthAreasPage: React.FC = () => {
   const qc = useQueryClient();
@@ -70,10 +72,16 @@ const HealthAreasPage: React.FC = () => {
 
   const { data: areas = [], isLoading, error } = useQuery({ queryKey: ['healthAreas'], queryFn: getHealthAreas });
 
+  /** The dashboard's By Area names every area, so a new or renamed one changes it too. */
+  const refreshAreaViews = () => {
+    qc.invalidateQueries({ queryKey: ['healthAreas'] });
+    qc.invalidateQueries({ queryKey: ['dashboard'] });
+  };
+
   const createMutation = useMutation({
     mutationFn: createHealthArea,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['healthAreas'] });
+      refreshAreaViews();
       setIsCreateOpen(false);
     },
   });
@@ -81,7 +89,7 @@ const HealthAreasPage: React.FC = () => {
   const updateMutation = useMutation({
     mutationFn: ({ id, req }: { id: string; req: CreateHealthAreaRequest }) => updateHealthArea(id, req),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['healthAreas'] });
+      refreshAreaViews();
       setEditArea(null);
     },
   });
@@ -91,6 +99,9 @@ const HealthAreasPage: React.FC = () => {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['healthAreas'] });
       setDeleteId(null);
+      // The server detaches every upgrade filed under the area (V18's ON DELETE SET NULL), so a cached
+      // upgrade would otherwise keep the deleted id and send it back on its next edit, to be refused.
+      return refreshUpgradeViews(qc);
     },
   });
 
