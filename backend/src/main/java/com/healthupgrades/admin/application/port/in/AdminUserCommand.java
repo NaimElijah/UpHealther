@@ -51,8 +51,10 @@ public interface AdminUserCommand {
      *
      * @param actingAdminId the administrator making the change
      * @param targetUserId  the account whose role is changing
-     * @param role          the role it is to hold
+     * @param role          the role it is to hold; never null
      * @return the account as it now stands
+     * @throws NullPointerException if {@code role} is null; only the web request's constraint stops one
+     *         before it gets here
      * @throws com.healthupgrades.common.domain.exception.ResourceNotFoundException if no such account
      * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if an administrator aims
      *         at their own account
