@@ -3,7 +3,9 @@ package com.healthupgrades.user.application.port.in;
 import com.healthupgrades.user.domain.model.User; // the aggregate being persisted
 
 /**
- * Inbound port exposing write access to users (used by registration).
+ * Inbound port exposing write access to users: registration writes through it, and so do the
+ * administrator's changes to an account ({@code AdminUserService}) and the administrator bootstrap
+ * ({@code AdminBootstrapService}).
  */
 public interface UserCommand {
 

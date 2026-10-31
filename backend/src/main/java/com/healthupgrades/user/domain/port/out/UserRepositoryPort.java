@@ -44,8 +44,9 @@ public interface UserRepositoryPort {
      *
      * <p>Takes a page number and a size rather than a {@code Pageable}: paging is a property of the
      * request, but {@code Pageable} is Spring Data's, and letting it through here would put a
-     * persistence type in a contract the admin context and the security adapter both depend on. The
-     * adapter turns these two numbers into one.
+     * persistence type in the domain's own port, which only the {@code user} context's application
+     * services hold, and from there into {@code AccountListQuery}, which the admin context depends on.
+     * The adapter turns these two numbers into one.
      *
      * <p>The order is fixed rather than a parameter, because an unordered page is not a page: without
      * it the database may return the same row on two pages and never return another.
