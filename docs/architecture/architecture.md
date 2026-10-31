@@ -467,7 +467,7 @@ sequenceDiagram
     else enabled
         S->>DB: UPDATE — current := a new secret
         S->>DB: INSERT the spent digest, and when it was spent
-        S-->>C: Rotated
+        S-->>C: Rotated, with the account it read
         C-->>B: 200 { token } · a new Set-Cookie
     end
 
@@ -488,7 +488,10 @@ sequenceDiagram
 Four things worth noticing. The row is read **`FOR UPDATE`**, so two tabs refreshing together
 serialise instead of both rotating from the same starting state. A refresh with the current credential
 reads the account before it rotates, so an account switched off after its session opened, or deleted,
-is signed out at its next refresh at the latest, and every other session it holds with it. Every
+is signed out at its next refresh at the latest, and every other session it holds with it. That read
+is also the account the new access token is issued for: once the rotation has committed nothing reads
+the database again, so a fault there cannot answer without the new cookie and leave the browser holding
+a spent credential its next refresh would present as a replay. Every
 digest a rotation retires is kept in `auth_session_spent_tokens`, with when it was retired, for as long
 as the session lives and no longer — its rows cascade with the session. That is the only reason a
 replay is distinguishable from a guess, however many rotations old it is, and the grace window runs

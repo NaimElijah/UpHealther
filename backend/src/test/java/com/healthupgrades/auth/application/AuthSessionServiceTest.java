@@ -103,7 +103,9 @@ class AuthSessionServiceTest {
         RefreshOutcome outcome = service.refresh(opened.refreshToken());
 
         assertThat(outcome).isInstanceOfSatisfying(RefreshOutcome.Rotated.class, rotated -> {
-            assertThat(rotated.userId()).isEqualTo(USER_ID);
+            assertThat(rotated.user())
+                    .as("the account as the refresh read it, so continuing needs no second read")
+                    .isSameAs(account);
             assertThat(rotated.grant().sessionId()).isEqualTo(opened.sessionId());
             assertThat(rotated.grant().refreshToken())
                     .as("a credential is good for one exchange and no more")

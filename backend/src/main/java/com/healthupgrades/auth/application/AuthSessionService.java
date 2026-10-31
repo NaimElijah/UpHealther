@@ -132,7 +132,8 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
             return new RefreshOutcome.Rejected();
         }
         if (session.matchesCurrent(presentedHash)) {
-            if (!accountIsEnabled(session.getUserId())) {
+            Optional<User> account = enabledAccount(session.getUserId());
+            if (account.isEmpty()) {
                 // Switching an account off ends its sessions, but one opened between a sign-in's
                 // password check and the switch was not there to end (S5.A9). Its next refresh is where
                 // it is seen, so it ends here, and every other session the account holds with it.
@@ -148,8 +149,7 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
             sessions.saveRotation(session, retired);
             auditTrail.record(AuditEvent.allowed(AuditAction.AUTH_REFRESH, session.getUserId(), session.getId()));
             return new RefreshOutcome.Rotated(
-                    session.getUserId(),
-                    new SessionGrant(session.getId(), rotated.value(), session.getAbsoluteExpiresAt()));
+                    account.get(), new SessionGrant(session.getId(), rotated.value(), session.getAbsoluteExpiresAt()));
         }
         Optional<SpentCredential> spent = sessions.findSpent(session.getId(), presentedHash);
         if (spent.isEmpty()) {
@@ -289,9 +289,9 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
         auditTrail.record(new AuditEvent(action, null, null, AuditOutcome.REFUSED));
     }
 
-    /** Whether the account still exists and may sign in; a deleted one may not. */
-    private boolean accountIsEnabled(UUID userId) {
-        return users.findById(userId).map(User::isEnabled).orElse(false);
+    /** The account, if it still exists and may sign in; a deleted one may not. */
+    private Optional<User> enabledAccount(UUID userId) {
+        return users.findById(userId).filter(User::isEnabled);
     }
 
     /** Whether the presented credential is one this session issued, current or spent. */

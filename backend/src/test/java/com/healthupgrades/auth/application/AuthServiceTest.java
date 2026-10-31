@@ -32,6 +32,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -364,6 +365,22 @@ class AuthServiceTest {
         when(userQuery.findById(gone)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getMe(gone)).isInstanceOf(BusinessRuleException.class);
+    }
+
+    @Test
+    void GivenARotatedSession_WhenTheAccountCanNoLongerBeRead_ThenTheSessionStillContinuesUnderItsNewCredential() {
+        // D2.1. The rotation has committed by the time the session continues, so a second read of the
+        // account that fails would answer 500 without the new cookie, and the browser's next refresh
+        // would present the spent credential as a replay.
+        User user = AUser.aUser().build();
+        lenient().when(userQuery.findById(user.getId())).thenThrow(new DataAccessResourceFailureException("lost"));
+        when(tokenIssuer.issue(user.getId(), GRANT.sessionId())).thenReturn(ISSUED);
+
+        AuthResult result = service.continueSession(user, GRANT);
+
+        assertThat(result.token()).isEqualTo(ISSUED.value());
+        assertThat(result.user()).isSameAs(user);
+        assertThat(result.session()).isSameAs(GRANT);
     }
 
     /**

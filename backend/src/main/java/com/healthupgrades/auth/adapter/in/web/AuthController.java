@@ -129,7 +129,7 @@ public class AuthController {
         RefreshOutcome outcome = cookies.read(request).map(sessions::refresh).orElseGet(RefreshOutcome.Rejected::new);
         return switch (outcome) {
             case RefreshOutcome.Rotated rotated ->
-                withRefreshCookie(ResponseEntity.ok(), authService.continueSession(rotated.userId(), rotated.grant()));
+                withRefreshCookie(ResponseEntity.ok(), authService.continueSession(rotated.user(), rotated.grant()));
             case RefreshOutcome.Stale ignored ->
                 throw new RetryableConflictException("Session was refreshed concurrently. Please retry.");
             case RefreshOutcome.Rejected ignored -> {
