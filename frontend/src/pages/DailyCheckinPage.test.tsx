@@ -417,6 +417,20 @@ describe('DailyCheckinPage headings', () => {
     expect(headingOutlineProblems()).toEqual([]);
   });
 
+  // An outline of the h1 alone has no gaps either, so the test above passed with each upgrade's title as
+  // plain text (review finding 17 on #407).
+  it('GivenTwoActiveUpgrades_WhenThePageRenders_ThenEachIsASectionHeadedByItsTitle', async () => {
+    getUpgrades.mockResolvedValue([
+      anUpgrade({ id: 'upgrade-1', title: 'Cold showers' }),
+      anUpgrade({ id: 'upgrade-2', title: 'Evening walk' }),
+    ]);
+
+    renderPage();
+
+    expect(await screen.findByRole('heading', { level: 2, name: 'Cold showers' })).toBeDefined();
+    expect(screen.getByRole('heading', { level: 2, name: 'Evening walk' })).toBeDefined();
+  });
+
   it('GivenTheLoadFails_WhenThePageRenders_ThenTheFailureSitsUnderThePagesHeading', async () => {
     getUpgrades.mockRejectedValue(new Error('down'));
 
