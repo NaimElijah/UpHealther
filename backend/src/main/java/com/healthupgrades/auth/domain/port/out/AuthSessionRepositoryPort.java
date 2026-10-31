@@ -81,7 +81,7 @@ public interface AuthSessionRepositoryPort {
     /**
      * Ends every session an account holds.
      *
-     * @return how many were still active
+     * @return how many had not been revoked, expired ones the cleanup has not yet removed included
      */
     int revokeAllForUser(UUID userId);
 
