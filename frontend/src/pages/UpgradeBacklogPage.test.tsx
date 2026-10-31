@@ -291,6 +291,31 @@ describe('UpgradeBacklogPage creating an idea', () => {
     expect(screen.getByRole('dialog', { name: 'New Upgrade Idea' })).toBeDefined();
   });
 
+  it('GivenACreateWasRefused_WhenTheDialogIsOpenedAgain_ThenItStartsWithoutTheOldMessage', async () => {
+    renderPage();
+    const first = await openCreate('');
+    fireEvent.submit(first.getByRole('button', { name: 'Add Idea' }));
+    await first.findByText('Title is required.');
+    fireEvent.click(first.getByRole('button', { name: 'Cancel' }));
+
+    const again = await openCreate();
+
+    expect(again.queryByText('Title is required.')).toBeNull();
+  });
+
+  it('GivenATargetEndWasRefused_WhenTheDialogIsOpenedAgain_ThenItStartsWithoutTheOldMessage', async () => {
+    renderPage();
+    const first = await openCreate();
+    fireEvent.change(first.getByLabelText('Target End'), { target: { value: '20260-12-31' } });
+    fireEvent.submit(first.getByRole('button', { name: 'Add Idea' }));
+    await first.findByText('Pick a date with a four-digit year.');
+    fireEvent.click(first.getByRole('button', { name: 'Cancel' }));
+
+    const again = await openCreate();
+
+    expect(again.queryByText('Pick a date with a four-digit year.')).toBeNull();
+  });
+
   it('GivenARefusalThatNamesNoField_WhenAnIdeaIsCreated_ThenTheDialogSaysWhyWithTheReference', async () => {
     createUpgrade.mockRejectedValue(
       apiFailure(500, { status: 500, message: 'An unexpected error occurred', traceId: 'trace-create' }),

@@ -60,6 +60,16 @@ const UpgradeBacklogPage: React.FC = () => {
     },
   });
 
+  /**
+   * Opens the create dialog without a refusal left over from an attempt that was cancelled. The draft
+   * itself is kept, so a dialog closed by mistake loses nothing.
+   */
+  const openCreate = () => {
+    setFormError('');
+    setTargetEndError('');
+    setIsOpen(true);
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
@@ -129,14 +139,14 @@ const UpgradeBacklogPage: React.FC = () => {
       <PageHeader
         title="Idea Backlog"
         subtitle="Health upgrade ideas waiting to be planned"
-        action={<Button onClick={() => setIsOpen(true)}>+ New Idea</Button>}
+        action={<Button onClick={openCreate}>+ New Idea</Button>}
       />
       {upgrades.length === 0 ? (
         <EmptyState
           icon="💡"
           title="No ideas yet"
           description="Capture your health upgrade ideas here before planning them."
-          action={<Button onClick={() => setIsOpen(true)}>Add First Idea</Button>}
+          action={<Button onClick={openCreate}>Add First Idea</Button>}
         />
       ) : (
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
