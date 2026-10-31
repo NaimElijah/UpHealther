@@ -425,3 +425,19 @@ describe('DashboardPage greeting', () => {
     },
   );
 });
+
+/**
+ * The document is titled after the page, from its first render, so a tab, the history list and a screen
+ * reader opening the page all say which page it is. Every route was titled "UpHealther" alone (WCAG
+ * 2.4.2, finding X9.2).
+ */
+describe('DashboardPage title', () => {
+  it('GivenThePage_WhenItOpens_ThenTheDocumentIsTitledAfterIt', () => {
+    document.title = '';
+    getDashboard.mockResolvedValue(aDashboard([]));
+
+    renderPage();
+
+    expect(document.title).toBe('Dashboard – UpHealther');
+  });
+});

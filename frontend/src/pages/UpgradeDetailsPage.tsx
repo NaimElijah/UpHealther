@@ -24,6 +24,7 @@ import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
 import { parseLocalDate } from '../lib/localDate';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
  * Everything about one upgrade: its details, and below them its streak, tracking configuration,
@@ -49,6 +50,7 @@ const UpgradeDetails: React.FC = () => {
   const reflectionsRead = useQuery(reflectionsQuery(id));
   const streakRead = useQuery(streakQuery(id));
   const remindersRead = useQuery(remindersQuery(id));
+  useDocumentTitle(upgrade?.title ?? 'Upgrade');
 
   if (isLoading)
     return (

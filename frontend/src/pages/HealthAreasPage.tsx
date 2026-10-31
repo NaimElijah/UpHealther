@@ -14,6 +14,7 @@ import { areaIconGlyph, DEFAULT_AREA_ICON, isIconGlyph } from '../components/ui/
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError, toFormMessage } from '../api/apiError';
 import { refreshUpgradeViews } from '../lib/upgradeViews';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
  * The area dialogs' fields as typed.
@@ -62,6 +63,7 @@ const parsePriority = (text: string): ParsedPriority => {
  * can retry or cancel.
  */
 const HealthAreasPage: React.FC = () => {
+  useDocumentTitle('Health Areas');
   const qc = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editArea, setEditArea] = useState<HealthArea | null>(null);

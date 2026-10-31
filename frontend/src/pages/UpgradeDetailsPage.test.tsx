@@ -218,6 +218,14 @@ describe('UpgradeDetailsPage', () => {
     vi.useRealTimers();
   });
 
+  // WCAG 2.4.2, finding X9.2: the document is titled after the upgrade the page shows.
+  it('GivenAnUpgrade_WhenItsPageLoads_ThenTheDocumentIsTitledAfterIt', async () => {
+    document.title = '';
+
+    renderPage();
+
+    await waitFor(() => expect(document.title).toBe('Cold showers – UpHealther'));
+  });
   it('GivenProgressReturnedNewestFirst_WhenTheDetailsPageRenders_ThenTheNewestEntryIsListedFirst', async () => {
     getProgressByUpgrade.mockResolvedValue([
       anEntry('p-3', '2026-03-12', 'third day'),

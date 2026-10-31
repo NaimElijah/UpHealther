@@ -14,6 +14,7 @@ import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
 import { refreshUpgradeViews } from '../lib/upgradeViews';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /** The local hours at which the greeting turns from morning to afternoon, and from afternoon to evening. */
 const AFTERNOON_FROM_HOUR = 12;
@@ -35,6 +36,7 @@ type CardSection = 'today' | 'active';
  * at once, and marks the other pages' views of upgrades out of date with it (#189).
  */
 const DashboardPage: React.FC = () => {
+  useDocumentTitle('Dashboard');
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();

@@ -5,6 +5,7 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import ThemeToggle from '../components/theme/ThemeToggle';
 import { toApiError, toFormMessage } from '../api/apiError';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
  * Must match `AuthController.PASSWORD_MIN`. Nothing keeps the two in step automatically. The generated
@@ -28,6 +29,7 @@ const PASSWORD_MIN_LENGTH = 8;
  * page-load restore has settled (`isLoading`), for the reason `LoginPage` gives.
  */
 const RegisterPage: React.FC = () => {
+  useDocumentTitle('Create account');
   const { register, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState('');

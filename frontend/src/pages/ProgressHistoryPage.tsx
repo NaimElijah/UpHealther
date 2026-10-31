@@ -12,6 +12,7 @@ import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
 import { parseLocalDate } from '../lib/localDate';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
  * The last seven days of progress across every upgrade, newest first.
@@ -24,6 +25,7 @@ import { parseLocalDate } from '../lib/localDate';
  * or breaking the list.
  */
 const ProgressHistoryPage: React.FC = () => {
+  useDocumentTitle('Progress History');
   const {
     data: progress = [],
     isLoading: pLoading,

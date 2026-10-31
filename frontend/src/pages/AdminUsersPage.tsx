@@ -13,6 +13,7 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import ErrorState from '../components/ui/ErrorState';
 import type { AdminAccount, UserRole } from '../types';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /** The query key for the account list, so every mutation invalidates the same thing. */
 const ACCOUNTS_KEY = ['adminAccounts'];
@@ -43,6 +44,7 @@ type PendingChange =
  * swallowed into a silent no-op — the change did not happen, and the person needs to know that.
  */
 const AdminUsersPage: React.FC = () => {
+  useDocumentTitle('Accounts');
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [page, setPage] = useState(0);

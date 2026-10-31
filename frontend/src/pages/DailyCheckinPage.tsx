@@ -14,6 +14,7 @@ import PageContainer from '../components/ui/PageContainer';
 import { todayLocal } from '../lib/localDate';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /** Draft entries being filled in, keyed by upgrade id, until the whole form is submitted. */
 type ProgressMap = Record<string, Partial<CreateProgressRequest>>;
@@ -33,6 +34,7 @@ type ProgressMap = Record<string, Partial<CreateProgressRequest>>;
  * conflict cannot arise, is #55's decision.
  */
 const DailyCheckinPage: React.FC = () => {
+  useDocumentTitle('Daily Check-in');
   const qc = useQueryClient();
   const navigate = useNavigate();
   const {

@@ -8,6 +8,7 @@ import NotificationItem from '../components/notifications/NotificationItem';
 import type { AppNotification } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
  * The full notification list, with an all/unread filter.
@@ -20,6 +21,7 @@ import ErrorState from '../components/ui/ErrorState';
  * mark-read is shown above the list too, each with the trace id (NFR-30).
  */
 const NotificationsPage: React.FC = () => {
+  useDocumentTitle('Notifications');
   const {
     notifications,
     unreadCount,

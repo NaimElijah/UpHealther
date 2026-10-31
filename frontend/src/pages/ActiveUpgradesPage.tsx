@@ -12,6 +12,7 @@ import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
 import { refreshUpgradeViews } from '../lib/upgradeViews';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
  * The upgrades currently running, with the transitions available from `ACTIVE`, and below them the
@@ -27,6 +28,7 @@ import { refreshUpgradeViews } from '../lib/upgradeViews';
  * starts.
  */
 const ActiveUpgradesPage: React.FC = () => {
+  useDocumentTitle('Active Upgrades');
   const qc = useQueryClient();
   const navigate = useNavigate();
   const {

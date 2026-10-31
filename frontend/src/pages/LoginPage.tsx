@@ -5,6 +5,7 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import ThemeToggle from '../components/theme/ThemeToggle';
 import { toApiError, toFormMessage } from '../api/apiError';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
  * Sign-in page, one of the two routes reachable without a session.
@@ -23,6 +24,7 @@ import { toApiError, toFormMessage } from '../api/apiError';
  * restored one's socket, or, refused, report nothing on a page already gone.
  */
 const LoginPage: React.FC = () => {
+  useDocumentTitle('Sign in');
   const { login, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');

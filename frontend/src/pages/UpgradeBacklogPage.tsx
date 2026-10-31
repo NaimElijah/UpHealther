@@ -16,6 +16,7 @@ import ErrorState from '../components/ui/ErrorState';
 import { toApiError, toFormMessage } from '../api/apiError';
 import { isFourDigitYearDate, todayLocal } from '../lib/localDate';
 import { refreshUpgradeViews } from '../lib/upgradeViews';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /** The create form's starting values, and what it returns to once an idea is added. */
 const EMPTY_IDEA: CreateUpgradeRequest = { title: '', type: 'HABIT', difficulty: 'MEDIUM' };
@@ -28,6 +29,7 @@ const EMPTY_IDEA: CreateUpgradeRequest = { title: '', type: 'HABIT', difficulty:
  * moves it off this list.
  */
 const UpgradeBacklogPage: React.FC = () => {
+  useDocumentTitle('Idea Backlog');
   const qc = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState<CreateUpgradeRequest>(EMPTY_IDEA);

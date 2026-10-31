@@ -13,6 +13,7 @@ import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
 import { parseLocalDate } from '../lib/localDate';
 import { refreshUpgradeViews } from '../lib/upgradeViews';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
  * Upgrades committed to a start date but not yet running, soonest first.
@@ -22,6 +23,7 @@ import { refreshUpgradeViews } from '../lib/upgradeViews';
  * activation is shown on its card with the trace id (NFR-30).
  */
 const PlannedUpgradesPage: React.FC = () => {
+  useDocumentTitle('Planned Upgrades');
   const qc = useQueryClient();
   const navigate = useNavigate();
   const {
