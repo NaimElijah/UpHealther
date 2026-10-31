@@ -237,7 +237,9 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
             Days <span className="text-fg-faint">(none = every day)</span>
           </span>
           {/* Toggle buttons in a named group. A chosen day has a ring as well as its fill, so the choice is
-              not told by colour alone, and the ring is far above 3:1 in both themes (WCAG 1.4.1, 1.4.11). */}
+              not told by colour alone, and the ring is far above 3:1 in both themes (WCAG 1.4.1, 1.4.11).
+              An unchosen day's letter is fg-muted, as the other toggles' are: fg-subtle on the hover fill
+              was 4.08:1 in the dark theme (1.4.3). */}
           <div role="group" aria-labelledby={daysLabel} className="flex gap-1">
             {DAYS.map((d) => (
               <button
@@ -246,7 +248,7 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
                 aria-label={DAY_NAMES[d]}
                 aria-pressed={reminderDays.includes(d)}
                 onClick={() => toggleDay(d)}
-                className={`w-9 h-9 rounded-lg border-2 text-xs font-medium transition-colors ${reminderDays.includes(d) ? 'bg-brand text-fg-inverted border-fg' : 'bg-muted text-fg-subtle border-transparent hover:bg-muted-strong'}`}
+                className={`w-9 h-9 rounded-lg border-2 text-xs font-medium transition-colors ${reminderDays.includes(d) ? 'bg-brand text-fg-inverted border-fg' : 'bg-muted text-fg-muted border-transparent hover:bg-muted-strong'}`}
               >
                 {d[0]}
               </button>
