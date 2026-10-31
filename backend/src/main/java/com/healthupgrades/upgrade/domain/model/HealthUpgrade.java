@@ -272,7 +272,7 @@ public class HealthUpgrade {
      * <p>Unguarded here on purpose: promoting an upgrade to HARD may breach the concurrent-HARD limit,
      * and that check needs the user's other upgrades. {@code UpgradeService} validates before calling.
      *
-     * @param difficulty the new difficulty, may be null
+     * @param difficulty the new difficulty
      */
     public void changeDifficulty(Difficulty difficulty) {
         this.difficulty = difficulty;

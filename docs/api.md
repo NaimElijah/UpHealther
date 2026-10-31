@@ -27,6 +27,11 @@ and the `*ControllerTest` named against each area pins the status codes.
 
 `GET /api/upgrades` filters on `status`, `type`, `areaId` and `difficulty`.
 
+`PUT /api/upgrades/{id}` replaces the upgrade's descriptive fields with the body's, a null clearing an
+optional one, with one exception: a null `difficulty` keeps the current difficulty, so no `PUT` can
+clear one. `plannedStartDate` is read on creation only; afterwards it moves through `plan` and
+`reschedule`.
+
 An upgrade's `type` is one of FR-9's eight kinds. `PROTOCOL` is retired: the API still returns it for a
 row that already carries it, and a `PUT` may send it back unchanged, but a `POST` with it, or a `PUT`
 that would move another kind to it, is refused with `422`, so no new row can carry it.
