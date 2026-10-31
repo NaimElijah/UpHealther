@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Modal from '../ui/Modal';
+import PageHeading from '../ui/PageHeading';
 import ToastContainer from './ToastContainer';
 import {
   NotificationContext,
@@ -205,5 +206,88 @@ describe('ToastContainer timing', () => {
     act(() => dismiss.blur());
     act(() => vi.advanceTimersByTime(TOAST_LIFETIME_MS));
     expect(screen.queryByText('🔥 7-day streak!')).toBeNull();
+  });
+});
+
+const waterToast: ToastData = {
+  id: 'toast-2',
+  category: 'INFO',
+  title: 'Time to drink water',
+  message: null,
+  relatedUpgradeId: null,
+};
+
+/** The toasts over a page that has its heading and one other control, as every page has. */
+const ToastsOverAPage: React.FC<{ initial: ToastData[] }> = ({ initial }) => (
+  <>
+    <PageHeading>Dashboard</PageHeading>
+    <button type="button">Somewhere on the page</button>
+    <LiveToasts initial={initial} />
+  </>
+);
+
+/** The Dismiss button of the toast titled `title`. */
+const dismissOf = (title: string) =>
+  within(screen.getByRole('group', { name: title })).getByRole('button', { name: 'Dismiss notification' });
+
+/**
+ * A toast pressed from the keyboard goes, and the button that had focus with it, so focus fell to
+ * `<body>` (WCAG 2.4.3, review finding 15 on #407). It moves to the same button of the next toast, or of
+ * the one before when it was the last, and to the page's heading when no toast is left. A pointer press
+ * never gave a toast focus, so it leaves focus where it was.
+ */
+describe('ToastContainer focus after a dismissal', () => {
+  it('GivenTwoToastsAndFocusOnTheFirstsDismiss_WhenItIsPressed_ThenTheNextToastsDismissHasFocus', () => {
+    render(<ToastsOverAPage initial={[streakToast, waterToast]} />);
+    const dismiss = dismissOf('🔥 7-day streak!');
+    dismiss.focus();
+
+    fireEvent.click(dismiss);
+
+    expect(screen.queryByRole('group', { name: '🔥 7-day streak!' })).toBeNull();
+    expect(document.activeElement).toBe(dismissOf('Time to drink water'));
+  });
+
+  it('GivenTwoToastsAndFocusOnTheLastsDismiss_WhenItIsPressed_ThenTheToastBeforeItsDismissHasFocus', () => {
+    render(<ToastsOverAPage initial={[streakToast, waterToast]} />);
+    const dismiss = dismissOf('Time to drink water');
+    dismiss.focus();
+
+    fireEvent.click(dismiss);
+
+    expect(document.activeElement).toBe(dismissOf('🔥 7-day streak!'));
+  });
+
+  it('GivenOneToastAndFocusOnItsDismiss_WhenItIsPressed_ThenThePageHeadingHasFocus', () => {
+    render(<ToastsOverAPage initial={[streakToast]} />);
+    const dismiss = dismissOf('🔥 7-day streak!');
+    dismiss.focus();
+
+    fireEvent.click(dismiss);
+
+    expect(screen.queryByRole('group')).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1, name: 'Dashboard' }));
+  });
+
+  it('GivenOneToastWithNoUpgradeAndFocusOnIt_WhenItIsPressed_ThenThePageHeadingHasFocus', () => {
+    render(<ToastsOverAPage initial={[streakToast]} />);
+    const open = within(screen.getByRole('group', { name: '🔥 7-day streak!' })).getByRole('button', {
+      name: /7-day streak/,
+    });
+    open.focus();
+
+    fireEvent.click(open);
+
+    expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1, name: 'Dashboard' }));
+  });
+
+  it('GivenFocusOnThePage_WhenAToastIsDismissedWithThePointer_ThenFocusStaysWhereItWas', () => {
+    render(<ToastsOverAPage initial={[streakToast, waterToast]} />);
+    const elsewhere = screen.getByRole('button', { name: 'Somewhere on the page' });
+    elsewhere.focus();
+
+    fireEvent.click(dismissOf('🔥 7-day streak!'));
+
+    expect(document.activeElement).toBe(elsewhere);
   });
 });

@@ -1017,7 +1017,9 @@ reachable by pointer only, because Tab stays inside the dialog. See
   only while the pointer is off it and focus is outside it, and announces it through a polite live
   region mounted before any toast arrives, which reads each new toast on its own
   (`aria-atomic="false"`). The toasts stack at the bottom right, where they cover none of the header's
-  controls and not the bell's open panel, which a toast just below the header would (2.4.11).
+  controls and not the bell's open panel, which a toast just below the header would (2.4.11). A toast
+  dismissed from the keyboard hands focus to the next toast's Dismiss, or to the page's heading once
+  none is left.
 
 What jsdom cannot see — contrast, reflow, a focus hidden behind the sticky header, which
 `index.css`'s `scroll-padding-top` prevents — is checked by hand in a browser until

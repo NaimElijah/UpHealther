@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../../hooks/useNotifications';
 import type { ToastData } from '../../contexts/notificationContextValue';
 import { aboveModalProps } from '../ui/aboveModal';
+import { findPageHeading } from '../ui/pageHeadingFocus';
 import { categoryStyle } from './notificationMeta';
 
 /**
@@ -19,6 +20,21 @@ const TOAST_LIFETIME_MS = 10_000;
  * unmounts. A keyboard user is unaffected, since Tab focus never goes through mousedown.
  */
 const keepFocusWhereItIs = (e: React.MouseEvent) => e.preventDefault();
+
+/** The name of each toast's Dismiss button, which is also how the next toast's is found. */
+const DISMISS_LABEL = 'Dismiss notification';
+
+/**
+ * Where focus goes when a toast pressed from the keyboard goes, taking the focused button with it
+ * (WCAG 2.4.3): the Dismiss of the toast after it, or of the one before when it was the last, so a run
+ * of toasts can be dismissed one key after another, and the page's heading once none is left.
+ *
+ * @param toastElement the toast that is about to go, still in the document
+ */
+const focusAfterDismissal = (toastElement: HTMLElement): HTMLElement | null => {
+  const neighbour = toastElement.nextElementSibling ?? toastElement.previousElementSibling;
+  return neighbour?.querySelector<HTMLElement>(`[aria-label="${DISMISS_LABEL}"]`) ?? findPageHeading();
+};
 
 /**
  * @param toast     the toast to show
@@ -44,6 +60,18 @@ const Toast: React.FC<ToastProps> = ({ toast, onDismiss }) => {
   const [focused, setFocused] = useState(false);
   const remaining = useRef(TOAST_LIFETIME_MS);
   const held = hovered || focused;
+  const toastRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Dismisses this toast, and hands focus on when the button pressed had it: a key press leaves focus
+   * on the button, and a pointer press never gives it focus (`keepFocusWhereItIs`), so focus elsewhere
+   * is left where it is.
+   */
+  const dismissFrom = (pressed: HTMLElement) => {
+    const next = document.activeElement === pressed && toastRef.current ? focusAfterDismissal(toastRef.current) : null;
+    onDismiss(toast.id);
+    next?.focus();
+  };
 
   useEffect(() => {
     if (held) return;
@@ -57,6 +85,7 @@ const Toast: React.FC<ToastProps> = ({ toast, onDismiss }) => {
 
   return (
     <div
+      ref={toastRef}
       role="group"
       aria-labelledby={titleId}
       onMouseEnter={() => setHovered(true)}
@@ -70,9 +99,12 @@ const Toast: React.FC<ToastProps> = ({ toast, onDismiss }) => {
       <button
         type="button"
         onMouseDown={keepFocusWhereItIs}
-        onClick={() => {
-          if (toast.relatedUpgradeId) navigate(`/upgrades/${toast.relatedUpgradeId}`);
-          onDismiss(toast.id);
+        onClick={(e) => {
+          // Opening the upgrade is a route change, which moves focus to its page's heading (ADR-083).
+          if (toast.relatedUpgradeId) {
+            navigate(`/upgrades/${toast.relatedUpgradeId}`);
+            onDismiss(toast.id);
+          } else dismissFrom(e.currentTarget);
         }}
         className="flex items-start gap-3 flex-1 min-w-0 text-left"
       >
@@ -89,9 +121,9 @@ const Toast: React.FC<ToastProps> = ({ toast, onDismiss }) => {
       <button
         type="button"
         onMouseDown={keepFocusWhereItIs}
-        onClick={() => onDismiss(toast.id)}
+        onClick={(e) => dismissFrom(e.currentTarget)}
         className="text-fg-faint hover:text-fg-subtle text-lg leading-none shrink-0"
-        aria-label="Dismiss notification"
+        aria-label={DISMISS_LABEL}
       >
         &times;
       </button>
