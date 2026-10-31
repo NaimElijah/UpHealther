@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { loginApi, registerApi, getMe, logoutApi } from '../api/auth';
 import { renewSession } from '../api/client';
 import { endSession } from '../api/session';
@@ -27,11 +27,17 @@ const LEGACY_KEYS = ['jwt_token', 'user'];
  *
  * A 401 on any later request is handled by the axios interceptor in `api/client.ts`, which renews the
  * token and retries before concluding anything.
+ *
+ * Sign-in and registration wait for that restore to settle before they start. The browser can hold one
+ * account's refresh cookie while somebody else signs in, and a restore landing after the sign-in would
+ * replace the new token and user with the previous account's. Waiting makes the latest action win.
  */
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  /** The page-load restore, which never rejects: sign-in and registration await it first. */
+  const restoring = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     LEGACY_KEYS.forEach((key) => {
@@ -50,7 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // error, which is why renewSession reports it as false rather than throwing. It rejects when no
     // answer came, or when the address spent its refresh allowance (429): this tab then shows nobody
     // signed in, but the session is not ended, so the cookie restores it on a later page load.
-    renewSession()
+    restoring.current = renewSession()
       .then(async (renewed) => {
         if (!renewed) return;
         const freshUser = await getMe();
@@ -73,6 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   /** Signs in and starts the session. Rejects if the credentials are wrong, leaving state untouched. */
   const login = useCallback(async (email: string, password: string) => {
+    await restoring.current;
     const response = await loginApi(email, password);
     setAccessToken(response.accessToken, response.expiresAt);
     setUser(response.user);
@@ -81,6 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   /** Creates an account and signs straight in with the token it returns. */
   const register = useCallback(async (name: string, email: string, password: string) => {
+    await restoring.current;
     const response = await registerApi(name, email, password);
     setAccessToken(response.accessToken, response.expiresAt);
     setUser(response.user);

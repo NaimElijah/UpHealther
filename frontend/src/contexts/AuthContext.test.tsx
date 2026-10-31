@@ -47,7 +47,7 @@ const SESSION = { accessToken: 'issued.jwt.token', expiresAt: '2099-01-01T00:00:
 
 /** Renders the provider's state as text, so a test asserts through what a consumer would actually see. */
 function Probe() {
-  const { user, isAuthenticated, isLoading, login, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, login, register, logout } = useAuth();
   return (
     <div>
       <span data-testid="loading">{String(isLoading)}</span>
@@ -57,6 +57,9 @@ function Probe() {
       <button onClick={() => void login('someone@example.com', 's3cret!').catch(() => {})}>sign in</button>
       {/* Swallowed the way Navbar does: it catches the rejection to tell the user it did not work. */}
       <button onClick={() => void logout().catch(() => {})}>sign out</button>
+      <button onClick={() => void register('Someone', 'someone@example.com', 's3cret!').catch(() => {})}>
+        register
+      </button>
     </div>
   );
 }
@@ -170,6 +173,68 @@ describe('AuthProvider', () => {
       await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
       expect(localStorage.getItem('jwt_token')).toBeNull();
       expect(localStorage.getItem('user')).toBeNull();
+    });
+  });
+
+  // A browser can hold one account's live refresh cookie while somebody else signs in, before the
+  // page-load restore has answered. Landing late, the restore replaced the new token and user with the
+  // previous account's, so the second person wrote into the first one's account without noticing.
+  describe('signing in while the page-load restore is in flight', () => {
+    const PREVIOUS: User = { ...USER, id: 'user-0', email: 'previous@example.com' };
+
+    /** Holds the restore open until the test answers it, the previous account's cookie behind it. */
+    function holdTheRestore(): (renewed: boolean) => Promise<void> {
+      let answer: (renewed: boolean) => void = () => {};
+      renewSession.mockReturnValue(new Promise<boolean>((resolve) => (answer = resolve)));
+      getMe.mockResolvedValue(PREVIOUS);
+      return async (renewed) => {
+        await act(async () => answer(renewed));
+        await act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+      };
+    }
+
+    it('GivenARestoreInFlight_WhenAnotherAccountSignsIn_ThenTheLateRestoreDoesNotReplaceIt', async () => {
+      const answerRestore = holdTheRestore();
+      loginApi.mockResolvedValue(SESSION);
+      renderProvider();
+
+      await act(async () => {
+        screen.getByText('sign in').click();
+      });
+      await answerRestore(true);
+
+      await waitFor(() => expect(screen.getByTestId('user').textContent).toBe(USER.email));
+      expect(getAccessToken()).toBe('issued.jwt.token');
+    });
+
+    it('GivenARestoreInFlight_WhenAnAccountIsRegistered_ThenTheLateRestoreDoesNotReplaceIt', async () => {
+      const answerRestore = holdTheRestore();
+      registerApi.mockResolvedValue(SESSION);
+      renderProvider();
+
+      await act(async () => {
+        screen.getByText('register').click();
+      });
+      await answerRestore(true);
+
+      await waitFor(() => expect(screen.getByTestId('user').textContent).toBe(USER.email));
+      expect(getAccessToken()).toBe('issued.jwt.token');
+    });
+
+    it('GivenARestoreInFlightThatFails_WhenTheUserSignsIn_ThenTheSignInStillStands', async () => {
+      // A failed restore clears the token it may have installed; landing late, it cleared the new one.
+      const answerRestore = holdTheRestore();
+      getMe.mockRejectedValue(new Error('gone'));
+      loginApi.mockResolvedValue(SESSION);
+      renderProvider();
+
+      await act(async () => {
+        screen.getByText('sign in').click();
+      });
+      await answerRestore(true);
+
+      await waitFor(() => expect(screen.getByTestId('authenticated').textContent).toBe('true'));
+      expect(getAccessToken()).toBe('issued.jwt.token');
     });
   });
 
