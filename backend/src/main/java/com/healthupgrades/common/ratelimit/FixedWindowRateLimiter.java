@@ -23,9 +23,9 @@ import lombok.RequiredArgsConstructor;
  *
  * <p><strong>The map is bounded.</strong> It is keyed by something the caller chooses, so an unbounded
  * one is its own denial of service: addresses that appear once and never again would accumulate until
- * the heap ran out. At the cap, expired windows are swept first — they are dead weight and there are
- * usually plenty — and only if that frees nothing is an arbitrary live window evicted: the one the
- * iterator reaches first, because finding the oldest would cost a scan per request. Eviction means
+ * the heap ran out. At the cap, expired windows are swept first, at most once per window — they are dead
+ * weight and there are usually plenty — and if the map is still full, whichever window the iterator
+ * reaches first is evicted, live or not, because finding the oldest would cost a scan per request. Eviction means
  * somebody's count is forgotten, which is a weaker limit rather than a broken process, and that is the
  * right way round.
  *
@@ -110,8 +110,9 @@ public class FixedWindowRateLimiter {
         if (windows.size() < properties.maxTrackedClients()) {
             return;
         }
-        // Everything tracked is still live, so somebody's count is forgotten either way. A weaker
-        // limit for one client beats an unbounded map or a per-request scan.
+        // Still full: the sweep freed nothing or was throttled, so the window evicted may be live and
+        // somebody's count is forgotten. A weaker limit for one client beats an unbounded map or a
+        // per-request scan.
         Iterator<String> keys = windows.keySet().iterator();
         if (keys.hasNext()) {
             windows.remove(keys.next());
