@@ -1,0 +1,61 @@
+package com.healthupgrades.common.websocket;
+
+/**
+ * A STOMP frame the server refused, and the fixed words the client is told it with.
+ *
+ * <p>Thrown from {@link JwtChannelInterceptor#preSend}, which is the only way an interceptor can refuse a
+ * frame. Spring wraps it on the way out of the inbound channel, and {@link StompRefusalErrorHandler}
+ * finds it in the cause chain and writes {@link Reason#frameMessage()} into the ERROR frame. The
+ * exception's own message is the server's detail and never reaches the client.
+ *
+ * <p>An {@link IllegalArgumentException}, as the interceptor's refusals have always been, because the
+ * frame is an argument the server will not take.
+ */
+public class StompFrameRefusedException extends IllegalArgumentException {
+
+    /** Why a frame was refused, which is all a client is told about it. */
+    public enum Reason {
+        /** A CONNECT with no bearer token, or one that does not authenticate. */
+        UNAUTHENTICATED("Unauthenticated"),
+
+        /** A SUBSCRIBE or SEND that an authenticated socket, or a socket that never connected, may not send. */
+        REFUSED("Refused");
+
+        private final String frameMessage;
+
+        Reason(String frameMessage) {
+            this.frameMessage = frameMessage;
+        }
+
+        /**
+         * The ERROR frame's {@code message} header for this reason.
+         *
+         * @return the fixed words a client reads, the same for every refusal of this kind
+         */
+        public String frameMessage() {
+            return frameMessage;
+        }
+    }
+
+    private final Reason reason;
+
+    /**
+     * Refuses a frame.
+     *
+     * @param reason what the client is told
+     * @param detail what the server knows about the refusal, for its own diagnostics only
+     */
+    public StompFrameRefusedException(Reason reason, String detail) {
+        super(detail);
+        this.reason = reason;
+    }
+
+    /**
+     * Says why the frame was refused.
+     *
+     * @return the reason, whose {@link Reason#frameMessage()} the client reads
+     */
+    public Reason reason() {
+        return reason;
+    }
+}

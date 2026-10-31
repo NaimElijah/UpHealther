@@ -14,11 +14,11 @@ import org.junit.jupiter.api.Test;
  * The words the server closes a socket with, once its session has ended, are the words the browser looks
  * for (ADR-054).
  *
- * <p>The client ends the session in the tab (ADR-066) on that frame and on no other ERROR, because Spring
- * sends one generic ERROR for every refused frame, an outage included. So the two copies of the message
- * are a contract: changed on one side only, the tab would go on showing the ended session's data and
- * presenting its dead token, refused and audited every five seconds until it lapsed, and nothing else
- * would notice.
+ * <p>The client ends the session in the tab (ADR-066) on that frame and on no other ERROR, because every
+ * other ERROR is about one frame, an outage included ({@code StompRefusalErrorHandler}). So the two copies
+ * of the message are a contract: changed on one side only, the tab would go on showing the ended
+ * session's data and presenting its dead token, refused and audited every five seconds until it lapsed,
+ * and nothing else would notice.
  */
 class SessionEndedFrameContractTest {
 

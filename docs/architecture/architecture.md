@@ -167,10 +167,14 @@ resolves per session using that principal. Every CONNECT that presents a credent
 `auth.connect`, allowed or refused (NFR-23), because the socket stays signed in as that user for as long
 as it is open; a refusal names nobody, as a refused login does. A CONNECT with no `Authorization` header
 — what a tab whose session could not be renewed sends every five seconds — presented nothing and is not
-an entry, as a refresh with no cookie is not. A refusal reaches the browser as a STOMP ERROR frame
-whose message is Spring's generic one, the same whatever the cause, an outage included, so the client
-keeps its token through one and retries. Spring logs some refusals at ERROR, so nginx throttles the
-`/ws` handshake per client address: sixty a minute with a burst of twenty, over the limit answered 429.
+an entry, as a refresh with no cookie is not. A refusal reaches the browser as a STOMP ERROR frame,
+after which Spring closes the socket. `StompRefusalErrorHandler`, registered on the endpoint, words its
+`message` from the type of what was thrown, never from its text: `Unauthenticated` for a CONNECT
+without a usable token, `Refused` for a SUBSCRIBE or SEND the interceptor turns down, and
+`Frame not processed` for anything else, an outage while authenticating or a frame that could not be
+decoded. The client acts on none of these and keeps its token through one, and retries. Spring logs
+some refusals at ERROR, so nginx throttles the `/ws` handshake per client address: sixty a minute with
+a burst of twenty, over the limit answered 429.
 It bounds handshakes, not what one open socket sends, which
 [#382](https://github.com/NaimElijah/UpHealther/issues/382) tracks, and it caps no open sockets
 ([ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md)).
