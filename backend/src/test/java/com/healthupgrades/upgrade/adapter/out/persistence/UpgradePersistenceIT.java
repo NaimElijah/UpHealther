@@ -12,6 +12,9 @@ import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
 import com.healthupgrades.upgrade.domain.port.out.UpgradeRepositoryPort;
 import com.healthupgrades.user.domain.model.User;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -270,6 +273,58 @@ class UpgradePersistenceIT extends PostgresIT {
     }
 
     @Test
+    void GivenUpgradesOfTwoUsersInSeveralStates_WhenOneStatusIsCountedByOwner_ThenEachOwnerGetsOnlyTheirOwn() {
+        // The check-in nudge's read (D2.14): a count per owner, not the upgrades themselves. Other ITs
+        // commit upgrades into the shared database, so only these two owners' counts are asserted.
+        entityManager.persistAndFlush(anUpgradeFor(ownerId, UpgradeStatus.ACTIVE));
+        entityManager.persistAndFlush(anUpgradeFor(ownerId, UpgradeStatus.ACTIVE));
+        entityManager.persistAndFlush(anUpgradeFor(ownerId, UpgradeStatus.PLANNED));
+        entityManager.persistAndFlush(anUpgradeFor(strangerId, UpgradeStatus.ACTIVE));
+        entityManager.clear();
+
+        Map<UUID, Long> active = repository.countByOwner(UpgradeStatus.ACTIVE);
+
+        assertThat(active).containsEntry(ownerId, 2L).containsEntry(strangerId, 1L);
+    }
+
+    @Test
+    void GivenUpgradesEitherSideOfTheirTargetDate_WhenTheOverdueCandidatesAreRead_ThenOnlyActiveOnesPastItComeBack() {
+        // D3.15: the overdue sweep's query. Other ITs commit upgrades into the shared database, so only
+        // these rows are asserted on.
+        LocalDate today = LocalDate.of(2026, 3, 15);
+        UUID late = persisted(ownerId, UpgradeStatus.ACTIVE, today.minusDays(1));
+        UUID dueToday = persisted(ownerId, UpgradeStatus.ACTIVE, today);
+        UUID ahead = persisted(strangerId, UpgradeStatus.ACTIVE, today.plusDays(1));
+        UUID pausedAndLate = persisted(ownerId, UpgradeStatus.PAUSED, today.minusDays(1));
+        UUID noTarget = persisted(strangerId, UpgradeStatus.ACTIVE, null);
+        UUID strangersLate = persisted(strangerId, UpgradeStatus.ACTIVE, today.minusDays(30));
+        entityManager.clear();
+
+        List<UUID> found = repository.findActivePastTargetDate(today).stream()
+                .map(HealthUpgrade::getId)
+                .toList();
+
+        assertThat(found).contains(late, strangersLate).doesNotContain(dueToday, ahead, pausedAndLate, noTarget);
+    }
+
+    @Test
+    void GivenAnUpgradeCompletedAtAMoment_WhenItIsReadBack_ThenTheMomentIsTheOneRecorded() {
+        // FR-27, ADR-080: the column V19 adds, mapped, and the stamp surviving the round trip unchanged.
+        UUID id = persistedUpgrade().getId();
+        entityManager.flush();
+        entityManager.clear();
+        HealthUpgrade upgrade = repository.findByIdAndUserId(id, ownerId).orElseThrow();
+        LocalDateTime at = LocalDateTime.of(2026, 3, 20, 18, 45, 30);
+        upgrade.complete(at);
+        repository.save(upgrade);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(repository.findByIdAndUserId(id, ownerId).orElseThrow().getCompletedAt())
+                .isEqualTo(at);
+    }
+
+    @Test
     void GivenActiveHardUpgradesAcrossUsers_WhenOneUsersAreCounted_ThenTheOthersDoNotInflateTheCount() {
         // The count behind BR-5. Counting across users would refuse a user their first HARD upgrade
         // because somebody else already has three.
@@ -372,6 +427,16 @@ class UpgradePersistenceIT extends PostgresIT {
                 .status(status)
                 .plannedStartDate(LocalDate.of(2026, 3, 1))
                 .build();
+    }
+
+    private UUID persisted(UUID userId, UpgradeStatus status, LocalDate targetEndDate) {
+        return entityManager
+                .persistAndFlush(AnUpgrade.ownedBy(userId)
+                        .id(null)
+                        .status(status)
+                        .targetEndDate(targetEndDate)
+                        .build())
+                .getId();
     }
 
     private static HealthUpgrade hardActiveFor(UUID userId) {

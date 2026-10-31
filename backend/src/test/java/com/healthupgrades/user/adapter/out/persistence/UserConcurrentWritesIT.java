@@ -21,6 +21,7 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Propagation;
@@ -89,7 +90,9 @@ class UserConcurrentWritesIT extends PostgresIT {
     @Test
     void
             GivenAnAccountDisabledWhileANameChangeWasInFlight_WhenTheNameChangeIsSaved_ThenItIsRefusedAndTheAccountStaysDisabled() {
-        assertThatThrownBy(() -> saveAfterAConcurrentDisable(account -> account.setName(NEW_NAME)))
+        assertThatThrownBy(() -> saveAfterAConcurrentDisable(
+                        // No use case renames an account; this stands for any write to the row.
+                        account -> ReflectionTestUtils.setField(account, "name", NEW_NAME)))
                 .isInstanceOf(AccountModifiedConcurrentlyException.class);
 
         Map<String, Object> row = storedRow();

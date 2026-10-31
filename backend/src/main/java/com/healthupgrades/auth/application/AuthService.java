@@ -72,11 +72,7 @@ public class AuthService {
             if (userQuery.existsByEmail(email)) {
                 throw new BusinessRuleException(EMAIL_TAKEN);
             }
-            User user = User.builder()
-                    .name(name)
-                    .email(email)
-                    .passwordHash(passwordEncoder.encode(password)) // never store the raw password
-                    .build();
+            User user = User.register(name, email, passwordEncoder.encode(password)); // never the raw password
             try {
                 user = userCommand.register(user);
             } catch (EmailAlreadyRegisteredException lostTheRace) {
@@ -145,17 +141,17 @@ public class AuthService {
     /**
      * Issues a fresh access token for a session that has just rotated its credential.
      *
-     * <p>The session was decided before this is called; all that is left is to name the account the
-     * new token is for. Token issuing stays here rather than moving to the controller, so the web
-     * adapter never touches the signing key.
+     * <p>The session was decided before this is called, and the account read inside the transaction that
+     * decided it; all that is left is to mint the token. Nothing here touches the database: the rotation
+     * has already committed, so a fault now would answer without the new credential, and the client's
+     * next refresh would present the spent one as a replay (D2.1). Token issuing stays here rather than
+     * moving to the controller, so the web adapter never touches the signing key.
      *
-     * @param userId the account the rotated session belongs to
-     * @param grant  the session and its new credential
+     * @param user  the account the rotated session belongs to, as the refresh read it
+     * @param grant the session and its new credential
      * @return the new access token, the account, and the grant to put back in the cookie
-     * @throws BusinessRuleException if the account has gone since the session was read
      */
-    public AuthResult continueSession(UUID userId, SessionGrant grant) {
-        User user = getMe(userId);
+    public AuthResult continueSession(User user, SessionGrant grant) {
         return issued(user, grant);
     }
 

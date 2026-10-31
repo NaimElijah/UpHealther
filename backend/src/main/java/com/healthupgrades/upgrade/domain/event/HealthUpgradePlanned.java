@@ -6,7 +6,8 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Raised when an IDEA is committed to a start date and becomes PLANNED.
+ * Raised when an upgrade becomes PLANNED: an IDEA committed to a start date, or an ABANDONED upgrade
+ * revived by a reschedule.
  *
  * @param upgradeId        the upgrade that was planned
  * @param userId           its owner

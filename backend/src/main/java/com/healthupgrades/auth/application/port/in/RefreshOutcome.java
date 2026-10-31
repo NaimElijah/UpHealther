@@ -1,6 +1,6 @@
 package com.healthupgrades.auth.application.port.in;
 
-import java.util.UUID;
+import com.healthupgrades.user.domain.model.User;
 
 /**
  * How an attempt to exchange a refresh credential ended.
@@ -19,10 +19,15 @@ public sealed interface RefreshOutcome {
     /**
      * The credential was the current one: the session continues, under a new credential.
      *
-     * @param userId the account the session belongs to, so a fresh access token can be issued for it
-     * @param grant  the new credential and the session it belongs to
+     * <p>Carries the account as the refresh read it, inside the transaction that rotated the credential.
+     * By the time the caller sees this the rotation has committed, so a second read of the account that
+     * failed would answer a fault without the new credential, and the client's next refresh would present
+     * the spent one as a replay (D2.1).
+     *
+     * @param user  the account the session belongs to, so a fresh access token can be issued for it
+     * @param grant the new credential and the session it belongs to
      */
-    record Rotated(UUID userId, SessionGrant grant) implements RefreshOutcome {}
+    record Rotated(User user, SessionGrant grant) implements RefreshOutcome {}
 
     /**
      * The credential was rotated out moments ago, inside the grace window. Worth retrying, and nothing

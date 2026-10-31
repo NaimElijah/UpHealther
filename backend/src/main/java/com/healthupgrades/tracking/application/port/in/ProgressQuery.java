@@ -1,7 +1,6 @@
 package com.healthupgrades.tracking.application.port.in;
 
 import com.healthupgrades.tracking.domain.model.ProgressEntry; // returned domain aggregate
-import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -13,6 +12,14 @@ import java.util.UUID;
  */
 public interface ProgressQuery {
 
-    /** A user's progress entries within an inclusive date range. */
-    List<ProgressEntry> findByUserIdAndDateBetween(UUID userId, LocalDate start, LocalDate end);
+    /**
+     * The user's entries over the last seven days, today inclusive.
+     *
+     * <p>The one definition of "the week": the dashboard's weekly rate and {@code /api/progress/week} both
+     * read it here, so the two cannot disagree about which days it spans.
+     *
+     * @param userId the owner
+     * @return the week's entries, ordered as the store returns them
+     */
+    List<ProgressEntry> getWeekProgress(UUID userId);
 }

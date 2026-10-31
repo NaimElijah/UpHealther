@@ -1,6 +1,7 @@
 package com.healthupgrades.tracking.domain.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.healthupgrades.tracking.domain.model.ProgressEntry;
 import com.healthupgrades.tracking.domain.model.TrackingConfig;
@@ -218,16 +219,20 @@ class ProgressEvaluationServiceTest {
         assertThat(service.isSuccessful(e, c)).isFalse();
     }
 
-    // Null safety
+    // Null arguments are a caller's bug. These two tests used to pin that a missing configuration scores
+    // the entry as a failure, which is the opposite of BR-7: without a configuration the entry keeps the
+    // completed value its caller sent, and TrackingService decides that before it ever asks here (D3.4).
     @Test
-    void GivenNoEntry_WhenEvaluationIsAsked_ThenItDoesNotCount() {
+    void GivenNoEntry_WhenEvaluationIsAsked_ThenItIsRefused() {
         TrackingConfig c = buildConfig(TrackingType.BOOLEAN);
-        assertThat(service.isSuccessful(null, c)).isFalse();
+
+        assertThatThrownBy(() -> service.isSuccessful(null, c)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
-    void GivenNoTrackingConfig_WhenEvaluationIsAsked_ThenItDoesNotCount() {
+    void GivenNoTrackingConfig_WhenEvaluationIsAsked_ThenItIsRefused() {
         ProgressEntry e = buildEntry();
-        assertThat(service.isSuccessful(e, null)).isFalse();
+
+        assertThatThrownBy(() -> service.isSuccessful(e, null)).isInstanceOf(NullPointerException.class);
     }
 }

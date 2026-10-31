@@ -84,7 +84,7 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
         RefreshToken token = new RefreshToken(sessionId, secrets.generate());
         AuthSession session = AuthSession.opened(
                 sessionId, userId, token.hash(), clock.instant(), properties.idle(), properties.absolute());
-        sessions.save(session);
+        sessions.insert(session);
         return new SessionGrant(sessionId, token.value(), session.getAbsoluteExpiresAt());
     }
 
@@ -132,15 +132,20 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
             return new RefreshOutcome.Rejected();
         }
         if (session.matchesCurrent(presentedHash)) {
-            if (!accountIsEnabled(session.getUserId())) {
+            Optional<User> account = enabledAccount(session.getUserId());
+            if (account.isEmpty()) {
                 // Switching an account off ends its sessions, but one opened between a sign-in's
                 // password check and the switch was not there to end (S5.A9). Its next refresh is where
                 // it is seen, so it ends here, and every other session the account holds with it.
-                recordRefusal(AuditAction.AUTH_REFRESH, session, true);
+                //
                 // Holds this session's row lock while it updates every row of the account, so two
                 // refreshes of two of its sessions at once can deadlock: PostgreSQL aborts one with a
-                // 500, and the other still revokes every session. Rare, and safe either way.
+                // 500, and the other still revokes every session. Rare, and safe either way. The
+                // refusal is recorded only once the revocation has run: recorded first, an aborted one
+                // would leave it beside the fault the catch in refresh records, two entries for one
+                // attempt.
                 revokeAllForUser(session.getUserId());
+                recordRefusal(AuditAction.AUTH_REFRESH, session, true);
                 return new RefreshOutcome.Rejected();
             }
             RefreshToken rotated = new RefreshToken(session.getId(), secrets.generate());
@@ -148,8 +153,7 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
             sessions.saveRotation(session, retired);
             auditTrail.record(AuditEvent.allowed(AuditAction.AUTH_REFRESH, session.getUserId(), session.getId()));
             return new RefreshOutcome.Rotated(
-                    session.getUserId(),
-                    new SessionGrant(session.getId(), rotated.value(), session.getAbsoluteExpiresAt()));
+                    account.get(), new SessionGrant(session.getId(), rotated.value(), session.getAbsoluteExpiresAt()));
         }
         Optional<SpentCredential> spent = sessions.findSpent(session.getId(), presentedHash);
         if (spent.isEmpty()) {
@@ -171,7 +175,9 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
      */
     private void revokeForReuse(AuthSession session) {
         session.revoke();
-        sessions.save(session);
+        // Written out now, not at commit: the line and the entry below say the session has been
+        // revoked, and a plain save of a session already read would issue its UPDATE only after them.
+        sessions.saveAndFlush(session);
         // WARN, and the only line in this class at that level: a spent credential presented after the
         // grace window means two parties hold one session's credentials. Ids only — which session and
         // whose — because that is what an investigation needs and everything else about it is personal
@@ -289,9 +295,9 @@ public class AuthSessionService implements SessionQuery, SessionCommand {
         auditTrail.record(new AuditEvent(action, null, null, AuditOutcome.REFUSED));
     }
 
-    /** Whether the account still exists and may sign in; a deleted one may not. */
-    private boolean accountIsEnabled(UUID userId) {
-        return users.findById(userId).map(User::isEnabled).orElse(false);
+    /** The account, if it still exists and may sign in; a deleted one may not. */
+    private Optional<User> enabledAccount(UUID userId) {
+        return users.findById(userId).filter(User::isEnabled);
     }
 
     /** Whether the presented credential is one this session issued, current or spent. */

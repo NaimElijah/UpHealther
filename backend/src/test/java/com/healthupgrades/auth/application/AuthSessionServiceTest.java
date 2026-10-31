@@ -27,6 +27,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +35,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataAccessResourceFailureException;
 
 /**
@@ -84,6 +86,14 @@ class AuthSessionServiceTest {
     }
 
     @Test
+    void GivenAnAuthenticatedAccount_WhenASessionIsOpened_ThenItIsInsertedAsANewRow() {
+        // D2.12. Through the port's insert, not save, which would read the row before writing it.
+        SessionGrant grant = service.open(USER_ID);
+
+        assertThat(sessions.inserted()).containsExactly(grant.sessionId());
+    }
+
+    @Test
     void GivenAnAuthenticatedAccount_WhenASessionIsOpened_ThenTheCredentialNamesItAndOnlyItsHashIsStored() {
         SessionGrant grant = service.open(USER_ID);
 
@@ -103,7 +113,9 @@ class AuthSessionServiceTest {
         RefreshOutcome outcome = service.refresh(opened.refreshToken());
 
         assertThat(outcome).isInstanceOfSatisfying(RefreshOutcome.Rotated.class, rotated -> {
-            assertThat(rotated.userId()).isEqualTo(USER_ID);
+            assertThat(rotated.user())
+                    .as("the account as the refresh read it, so continuing needs no second read")
+                    .isSameAs(account);
             assertThat(rotated.grant().sessionId()).isEqualTo(opened.sessionId());
             assertThat(rotated.grant().refreshToken())
                     .as("a credential is good for one exchange and no more")
@@ -150,6 +162,28 @@ class AuthSessionServiceTest {
         service.refresh(opened.refreshToken());
 
         assertThat(published).containsExactly(new AuthSessionEnded(opened.sessionId(), USER_ID, now()));
+    }
+
+    @Test
+    void GivenACredentialReplayedAfterTheGraceWindow_WhenTheReuseIsAudited_ThenTheRevocationHasAlreadyBeenWritten() {
+        // D2.3. The WARN line and the AUTH_TOKEN_REUSE entry say the session has been revoked. A plain
+        // save of a session already read writes nothing until commit, so they would precede the UPDATE.
+        Map<AuditAction, Boolean> writtenWhenRecorded = new EnumMap<>(AuditAction.class);
+        AuthSessionService observed = new AuthSessionService(
+                sessions,
+                secrets,
+                new AuthSessionProperties(IDLE, ABSOLUTE, GRACE),
+                event -> writtenWhenRecorded.put(event.action(), sessions.revocationWritten()),
+                published::add,
+                users,
+                clock);
+        SessionGrant opened = observed.open(USER_ID);
+        observed.refresh(opened.refreshToken());
+        clock.moveTo(START.plus(GRACE).plusSeconds(1));
+
+        observed.refresh(opened.refreshToken());
+
+        assertThat(writtenWhenRecorded).containsEntry(AuditAction.AUTH_TOKEN_REUSE, true);
     }
 
     @Test
@@ -219,6 +253,22 @@ class AuthSessionServiceTest {
         assertThat(auditTrail.recorded())
                 .endsWith(new AuditEvent(
                         AuditAction.AUTH_TOKEN_REUSE, USER_ID, opened.sessionId(), AuditOutcome.REFUSED));
+    }
+
+    @Test
+    void GivenADisabledAccountWhoseRevocationDeadlocks_WhenTheSessionIsRefreshed_ThenTheAttemptIsAuditedOnceAsAFault() {
+        // D2.2. Revoking every session of the account can deadlock with a refresh of another of its
+        // sessions. The refusal recorded before it would then stand beside the fault the catch records,
+        // two entries for one attempt, and the refusal would claim a revocation that rolled back.
+        SessionGrant refreshed = service.open(USER_ID);
+        account.disable();
+        sessions.failRevokeAllWith(new CannotAcquireLockException("deadlock detected"));
+
+        assertThatThrownBy(() -> service.refresh(refreshed.refreshToken()))
+                .isInstanceOf(CannotAcquireLockException.class);
+
+        assertThat(auditTrail.recorded())
+                .containsExactly(new AuditEvent(AuditAction.AUTH_REFRESH, null, null, AuditOutcome.FAILED));
     }
 
     @Test
@@ -751,11 +801,35 @@ class AuthSessionServiceTest {
         private final Map<UUID, AuthSession> rows = new HashMap<>();
         private final Map<UUID, List<SpentCredential>> spent = new HashMap<>();
         private final List<Read> reads = new ArrayList<>();
+        private final List<UUID> inserted = new ArrayList<>();
+        private RuntimeException revokeAllFailure;
+        /** Whether a revoked session has been written out, as only {@code saveAndFlush} does before commit. */
+        private boolean revocationWritten;
+
+        /** Makes every later {@code revokeAllForUser} throw, as a deadlock PostgreSQL aborts does. */
+        void failRevokeAllWith(RuntimeException failure) {
+            revokeAllFailure = failure;
+        }
+
+        @Override
+        public AuthSession insert(AuthSession session) {
+            if (rows.containsKey(session.getId())) {
+                throw new IllegalStateException("session " + session.getId() + " is already stored");
+            }
+            inserted.add(session.getId());
+            return save(session);
+        }
 
         @Override
         public AuthSession save(AuthSession session) {
             rows.put(session.getId(), session);
             return session;
+        }
+
+        @Override
+        public AuthSession saveAndFlush(AuthSession session) {
+            revocationWritten |= session.isRevoked();
+            return save(session);
         }
 
         @Override
@@ -786,6 +860,9 @@ class AuthSessionServiceTest {
 
         @Override
         public int revokeAllForUser(UUID userId) {
+            if (revokeAllFailure != null) {
+                throw revokeAllFailure;
+            }
             List<AuthSession> live = rows.values().stream()
                     .filter(session -> session.getUserId().equals(userId))
                     .filter(session -> !session.isRevoked())
@@ -816,6 +893,14 @@ class AuthSessionServiceTest {
         List<Read> reads() {
             return List.copyOf(reads);
         }
+
+        List<UUID> inserted() {
+            return List.copyOf(inserted);
+        }
+
+        boolean revocationWritten() {
+            return revocationWritten;
+        }
     }
 
     /** A session store that cannot be reached, for the outcome that is a fault rather than a refusal. */
@@ -826,7 +911,17 @@ class AuthSessionServiceTest {
         }
 
         @Override
+        public AuthSession insert(AuthSession session) {
+            throw down();
+        }
+
+        @Override
         public AuthSession save(AuthSession session) {
+            throw down();
+        }
+
+        @Override
+        public AuthSession saveAndFlush(AuthSession session) {
             throw down();
         }
 

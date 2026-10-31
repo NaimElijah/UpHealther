@@ -99,7 +99,7 @@ class AuthSessionRowLockIT extends PostgresIT {
             entityManager.flush();
             ownerId = owner.getId();
             sessionId = UUID.randomUUID();
-            repository.save(AuthSession.opened(
+            repository.insert(AuthSession.opened(
                     sessionId, ownerId, new RefreshToken(sessionId, "a-secret").hash(), NOW, IDLE, ABSOLUTE));
         });
     }

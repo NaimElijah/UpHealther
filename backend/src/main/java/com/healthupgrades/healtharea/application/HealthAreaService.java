@@ -121,6 +121,6 @@ public class HealthAreaService implements HealthAreaQuery {
     private HealthArea getOwnedArea(UUID userId, UUID id) {
         return repository
                 .findByIdAndUserId(id, userId)
-                .orElseThrow(() -> new ResourceNotFoundException("HealthArea not found: " + id)); // ownership guard
+                .orElseThrow(() -> new ResourceNotFoundException("HealthArea not found: " + id));
     }
 }

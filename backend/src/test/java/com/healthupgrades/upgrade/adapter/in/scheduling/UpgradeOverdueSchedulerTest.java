@@ -94,8 +94,7 @@ class UpgradeOverdueSchedulerTest {
 
     @Test
     void GivenAnActiveUpgradePastItsTargetDate_WhenTheOverdueSweepRuns_ThenItIsAnnounced() {
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
-                .thenReturn(List.of(activeUpgradeEnding(today.minusDays(1))));
+        when(upgradeQuery.findActivePastTargetDate(today)).thenReturn(List.of(activeUpgradeEnding(today.minusDays(1))));
 
         scheduler.detectOverdueUpgrades();
 
@@ -109,7 +108,7 @@ class UpgradeOverdueSchedulerTest {
     void GivenAnActiveUpgradePastItsTargetDate_WhenTheOverdueSweepRuns_ThenTheAnnouncementNamesTheDateMissed() {
         // BR-11 announces once per target date, so the listener needs to know which date this is about.
         LocalDate missed = today.minusDays(3);
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgradeEnding(missed)));
+        when(upgradeQuery.findActivePastTargetDate(today)).thenReturn(List.of(activeUpgradeEnding(missed)));
 
         scheduler.detectOverdueUpgrades();
 
@@ -120,8 +119,7 @@ class UpgradeOverdueSchedulerTest {
 
     @Test
     void GivenATargetDateStillAhead_WhenTheOverdueSweepRuns_ThenNothingIsAnnounced() {
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
-                .thenReturn(List.of(activeUpgradeEnding(today.plusDays(5))));
+        when(upgradeQuery.findActivePastTargetDate(today)).thenReturn(List.of(activeUpgradeEnding(today.plusDays(5))));
 
         scheduler.detectOverdueUpgrades();
 
@@ -130,7 +128,7 @@ class UpgradeOverdueSchedulerTest {
 
     @Test
     void GivenNoTargetDate_WhenTheOverdueSweepRuns_ThenNothingIsAnnounced() {
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgradeEnding(null)));
+        when(upgradeQuery.findActivePastTargetDate(today)).thenReturn(List.of(activeUpgradeEnding(null)));
 
         scheduler.detectOverdueUpgrades();
 
@@ -140,7 +138,7 @@ class UpgradeOverdueSchedulerTest {
     @Test
     void GivenATargetDateOfToday_WhenTheOverdueSweepRuns_ThenNothingIsAnnounced() {
         // Overdue means past the target date; the final day still counts as on time.
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgradeEnding(today)));
+        when(upgradeQuery.findActivePastTargetDate(today)).thenReturn(List.of(activeUpgradeEnding(today)));
 
         scheduler.detectOverdueUpgrades();
 
@@ -153,7 +151,7 @@ class UpgradeOverdueSchedulerTest {
         // was given. Reading the system clock would report it overdue; reading the injected one does not.
         // Both dates are fixed, so the test does not depend on when the suite runs.
         LocalDate wellPastByTheWallClockButAheadOfOurs = today.plusMonths(5);
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
+        when(upgradeQuery.findActivePastTargetDate(today))
                 .thenReturn(List.of(activeUpgradeEnding(wellPastByTheWallClockButAheadOfOurs)));
 
         scheduler.detectOverdueUpgrades();
@@ -168,7 +166,7 @@ class UpgradeOverdueSchedulerTest {
         HealthUpgrade first = activeUpgrade(UUID.randomUUID(), today.minusDays(1));
         HealthUpgrade ahead = activeUpgrade(UUID.randomUUID(), today.plusDays(1));
         HealthUpgrade last = activeUpgrade(UUID.randomUUID(), today.minusDays(9));
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(first, ahead, last));
+        when(upgradeQuery.findActivePastTargetDate(today)).thenReturn(List.of(first, ahead, last));
 
         scheduler.detectOverdueUpgrades();
 
@@ -194,7 +192,7 @@ class UpgradeOverdueSchedulerTest {
     @Test
     void GivenOneOverdueAndOneOnTimeUpgrade_WhenTheOverdueSweepRuns_ThenItsLineCountsBothScannedAndOneAnnounced() {
         // Counts that differ, so a line reporting the wrong one of them, or a constant, says so.
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
+        when(upgradeQuery.findActivePastTargetDate(today))
                 .thenReturn(List.of(activeUpgradeEnding(today.minusDays(1)), activeUpgradeEnding(today.plusDays(1))));
 
         List<ILoggingEvent> logged = logsFromScheduler(scheduler::detectOverdueUpgrades);
@@ -209,7 +207,7 @@ class UpgradeOverdueSchedulerTest {
 
     @Test
     void GivenASweep_WhenItFinishes_ThenTheRunIsTimedAndCountedAsOkUnderItsJobName() {
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of());
+        when(upgradeQuery.findActivePastTargetDate(today)).thenReturn(List.of());
 
         scheduler.detectOverdueUpgrades();
 
@@ -224,7 +222,7 @@ class UpgradeOverdueSchedulerTest {
 
     @Test
     void GivenTheQueryFails_WhenTheOverdueSweepRuns_ThenTheFaultEscapesAndTheRunIsCountedAsFailed() {
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenThrow(new IllegalStateException("database down"));
+        when(upgradeQuery.findActivePastTargetDate(today)).thenThrow(new IllegalStateException("database down"));
 
         assertThatThrownBy(scheduler::detectOverdueUpgrades).isInstanceOf(IllegalStateException.class);
 
