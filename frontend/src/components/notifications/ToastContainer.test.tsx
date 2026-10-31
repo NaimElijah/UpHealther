@@ -194,6 +194,21 @@ describe('ToastContainer timing', () => {
     expect(screen.queryByText('🔥 7-day streak!')).toBeNull();
   });
 
+  // Review finding 33 on #407: focus moving from one of the toast's buttons to the other was untested. This
+  // pins the behaviour, not onBlur's relatedTarget check: without the check the toast is let go on the blur
+  // and held again on the focus that follows at once, so no time is lost and the test cannot tell.
+  it('GivenFocusMovesBetweenAToastsButtons_WhenItsLifetimePasses_ThenItStays', () => {
+    vi.useFakeTimers();
+    render(<LiveToasts initial={[streakToast]} />);
+    const toast = within(screen.getByRole('group', { name: '🔥 7-day streak!' }));
+    act(() => toast.getByRole('button', { name: /7-day streak/ }).focus());
+
+    act(() => toast.getByRole('button', { name: 'Dismiss notification' }).focus());
+    act(() => vi.advanceTimersByTime(TOAST_LIFETIME_MS * 2));
+
+    expect(screen.queryByText('🔥 7-day streak!')).not.toBeNull();
+  });
+
   // Review finding 29 on #407: elapsed time was read from the wall clock, which can jump while a toast is
   // up, and a jump forward used up the whole lifetime at once.
   it('GivenTheWallClockJumpsAnHourAhead_WhenTheToastIsHeldAndLetGo_ThenItKeepsTheTimeItHadLeft', () => {

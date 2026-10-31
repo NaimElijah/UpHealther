@@ -240,6 +240,26 @@ describe('UpgradeDetailsPage', () => {
     expect(screen.getByRole('heading', { level: 1 })).toBeDefined();
     expect(headingOutlineProblems()).toEqual([]);
   });
+  // Review finding 33 on #407: the titles before the upgrade's own were untested.
+  it('GivenTheUpgradeIsStillLoading_WhenItsPageRenders_ThenTheDocumentIsTitledUpgrade', () => {
+    document.title = '';
+    getUpgradeById.mockReturnValue(new Promise(() => {}));
+
+    renderPage();
+
+    expect(document.title).toBe('Upgrade – UpHealther');
+  });
+
+  it('GivenTheUpgradeCannotBeLoaded_WhenItsPageRenders_ThenTheDocumentIsTitledUpgrade', async () => {
+    document.title = '';
+    getUpgradeById.mockRejectedValue(new Error('down'));
+
+    renderPage();
+    await screen.findByRole('alert');
+
+    expect(document.title).toBe('Upgrade – UpHealther');
+  });
+
   it('GivenAnUpgrade_WhenItsPageLoads_ThenTheDocumentIsTitledAfterIt', async () => {
     document.title = '';
 
