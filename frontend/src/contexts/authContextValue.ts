@@ -16,9 +16,15 @@ import type { User } from '../types';
 export interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  /** Rejects with a 401 when the credentials do not match. Waits for the page-load restore to settle first. */
+  /**
+   * Rejects with a 401 when the credentials do not match or the account is disabled, a 400 when the body is
+   * refused, and a 429 over the sign-in limit (NFR-42). Waits for the page-load restore to settle first.
+   */
   login: (email: string, password: string) => Promise<void>;
-  /** Rejects with a 422 when the email is taken, and a 400 when the body is refused. Waits for the restore too. */
+  /**
+   * Rejects with a 422 when the email is taken, a 400 when the body is refused, and a 429 over the sign-in
+   * limit (NFR-42). Waits for the restore too.
+   */
   register: (name: string, email: string, password: string) => Promise<void>;
   /** Rejects if the server could not end the session — see `AuthContext` for why that must be shown. */
   logout: () => Promise<void>;
