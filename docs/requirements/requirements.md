@@ -286,7 +286,7 @@ such rows — before BR-18, an `areaId` belonging to another user was stored as 
 | NFR-16 | A user's theme choice survives a reload and is applied before the first paint, so the page never flashes the wrong theme | `bootScript.test.tsx`, `ThemeProvider.test.tsx` |
 | NFR-17 | The interface remains usable where browser storage is blocked or `matchMedia` is unavailable | `ThemeProvider`, `ThemeProvider.test.tsx` |
 | NFR-18 | Every colour in the interface is a semantic token, so no component can hard-code one that survives a theme change | `frontend/scripts/check-colours.mjs`, `.github/workflows/ci.yml` |
-| NFR-19 | Text meets a 4.5:1 contrast ratio and control boundaries 3:1, in both themes | the token values in `frontend/src/index.css` — computed, not automatically re-checked; see §6 |
+| NFR-19 | Text meets a 4.5:1 contrast ratio and control boundaries 3:1, in both themes | the token values in `frontend/src/index.css` — computed, not automatically re-checked; see §6. Two deliberate exceptions, which its header comment records: `line` and `line-subtle`, a card's outline and a list's divider, which mark no control or state; and a chosen toggle's `brand` fill against `muted`, 2.53:1 in the dark theme, because the choice is carried by an `fg` ring of 11.87:1 or more |
 | NFR-20 | The interface does not scroll horizontally at any window width from 320px upward, whatever a user has stored in it | the shell's `min-w-0` floors and the truncation rules on every user-supplied string ([ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md)) — checked by hand at 320, 360, 486, 684, 1040 and 1540px, see §6 |
 | NFR-31 | A render-time error shows a recoverable message rather than blanking the page | `ErrorBoundary.test.tsx` |
 
