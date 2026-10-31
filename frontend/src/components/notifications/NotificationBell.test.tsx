@@ -132,6 +132,34 @@ describe('NotificationBell disclosure', () => {
     },
   );
 
+  // The documented outside-click close was untested (review finding 20 on #407).
+  it('GivenThePanelIsOpen_WhenThePointerPressesOutsideIt_ThenItClosesAndFocusStaysWhereTheClickPutIt', () => {
+    render(
+      <>
+        <StatefulBell />
+        <button type="button">Elsewhere</button>
+      </>,
+    );
+    const bell = screen.getByRole('button', { name: /^Notifications/ });
+    fireEvent.click(bell);
+    const elsewhere = screen.getByRole('button', { name: 'Elsewhere' });
+    elsewhere.focus();
+
+    fireEvent.mouseDown(elsewhere);
+
+    expect(bell.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('button', { name: /Time to log/ })).toBeNull();
+    expect(document.activeElement).toBe(elsewhere);
+  });
+
+  it('GivenThePanelIsOpen_WhenThePointerPressesInsideIt_ThenItStaysOpen', () => {
+    const bell = openPanel();
+
+    fireEvent.mouseDown(screen.getByRole('button', { name: /Time to log/ }));
+
+    expect(bell.getAttribute('aria-expanded')).toBe('true');
+  });
+
   it('GivenANotificationWithNoUpgrade_WhenItIsSelected_ThenThePanelClosesAndTheBellHasFocus', () => {
     const bell = openPanel();
     const item = screen.getByRole('button', { name: /Time to log/ });
