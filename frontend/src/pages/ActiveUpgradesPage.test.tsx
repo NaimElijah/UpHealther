@@ -377,3 +377,22 @@ describe('ActiveUpgradesPage headings', () => {
     expect(headingOutlineProblems()).toEqual([]);
   });
 });
+
+/**
+ * What only takes the user to another page is a link, styled as a button: announced as a link, and
+ * openable in a new tab. These were buttons that called `navigate` (WCAG 4.1.2, finding X9.25).
+ */
+describe('ActiveUpgradesPage links', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    answerByStatus({});
+  });
+
+  it('GivenNothingRunning_WhenThePageRenders_ThenItsWaysToOtherPagesAreLinks', async () => {
+    renderPage();
+    await screen.findByText('No active upgrades');
+
+    expect(screen.getByRole('link', { name: 'Daily Check-in' }).getAttribute('href')).toBe('/daily-checkin');
+    expect(screen.getByRole('link', { name: 'View Planned' }).getAttribute('href')).toBe('/upgrades/planned');
+  });
+});

@@ -31,7 +31,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
  * several pages also disable the button while their write is in flight.
  *
  * Forwards its ref to the `<button>`, so a caller can move focus to it when the control that had focus
- * is gone.
+ * is gone. Something that only goes to another page is a `ButtonLink`, which looks the same.
  */
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (

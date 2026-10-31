@@ -5,8 +5,7 @@ import PageHeader from '../components/ui/PageHeader';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import UpgradeCard from '../components/upgrade/UpgradeCard';
-import Button from '../components/ui/Button';
-import { useNavigate } from 'react-router-dom';
+import ButtonLink from '../components/ui/ButtonLink';
 import type { ActionTarget } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
@@ -27,7 +26,6 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle';
 const PlannedUpgradesPage: React.FC = () => {
   useDocumentTitle('Planned Upgrades');
   const qc = useQueryClient();
-  const navigate = useNavigate();
   const {
     data: upgrades = [],
     isLoading,
@@ -80,14 +78,14 @@ const PlannedUpgradesPage: React.FC = () => {
       <PageHeader
         title="Planned Upgrades"
         subtitle="Upgrades scheduled to start soon"
-        action={<Button onClick={() => navigate('/upgrades/backlog')}>Browse Backlog</Button>}
+        action={<ButtonLink to="/upgrades/backlog">Browse Backlog</ButtonLink>}
       />
       {sorted.length === 0 ? (
         <EmptyState
           icon="📅"
           title="No planned upgrades"
           description="Move ideas from backlog to plan, or create a new upgrade."
-          action={<Button onClick={() => navigate('/upgrades/backlog')}>Go to Backlog</Button>}
+          action={<ButtonLink to="/upgrades/backlog">Go to Backlog</ButtonLink>}
         />
       ) : (
         <section aria-labelledby="planned-list-heading">

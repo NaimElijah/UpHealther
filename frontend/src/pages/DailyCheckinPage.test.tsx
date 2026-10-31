@@ -427,3 +427,32 @@ describe('DailyCheckinPage headings', () => {
     expect(headingOutlineProblems()).toEqual([]);
   });
 });
+
+/**
+ * What only takes the user to another page is a link, styled as a button: announced as a link, and
+ * openable in a new tab. These were buttons that called `navigate` (WCAG 4.1.2, finding X9.25).
+ */
+describe('DailyCheckinPage links', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    createProgress.mockReset();
+    createProgress.mockResolvedValue({});
+  });
+
+  it('GivenNoActiveUpgrades_WhenTheCheckinOpens_ThenViewPlannedIsALink', async () => {
+    getUpgrades.mockResolvedValue([]);
+    renderPage();
+    await screen.findByText('No active upgrades');
+
+    expect(screen.getByRole('link', { name: 'View Planned' }).getAttribute('href')).toBe('/upgrades/planned');
+  });
+
+  it('GivenASubmittedCheckin_WhenItsCompletionShows_ThenBackToDashboardIsALink', async () => {
+    getUpgrades.mockResolvedValue([anUpgrade()]);
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Submit Check-in' }));
+    await screen.findByText('Check-in Complete!');
+
+    expect(screen.getByRole('link', { name: 'Back to Dashboard' }).getAttribute('href')).toBe('/dashboard');
+  });
+});

@@ -5,11 +5,11 @@ import { createProgress } from '../api/progress';
 import PageHeader from '../components/ui/PageHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
+import ButtonLink from '../components/ui/ButtonLink';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
 import { numOrUndef } from '../components/upgrade/formInput';
 import RatingPicker from '../components/upgrade/RatingPicker';
-import { useNavigate } from 'react-router-dom';
 import type { HealthUpgrade, CreateProgressRequest } from '../types';
 import PageContainer from '../components/ui/PageContainer';
 import PageHeading from '../components/ui/PageHeading';
@@ -38,7 +38,6 @@ type ProgressMap = Record<string, Partial<CreateProgressRequest>>;
 const DailyCheckinPage: React.FC = () => {
   useDocumentTitle('Daily Check-in');
   const qc = useQueryClient();
-  const navigate = useNavigate();
   const {
     data: upgrades = [],
     isLoading,
@@ -101,7 +100,7 @@ const DailyCheckinPage: React.FC = () => {
           Check-in Complete!
         </PageHeading>
         <p className="text-fg-subtle mb-6">Great job tracking your upgrades today.</p>
-        <Button onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>
+        <ButtonLink to="/dashboard">Back to Dashboard</ButtonLink>
       </PageContainer>
     );
   }
@@ -118,7 +117,7 @@ const DailyCheckinPage: React.FC = () => {
           icon="✅"
           title="No active upgrades"
           description="Activate upgrades to track them here."
-          action={<Button onClick={() => navigate('/upgrades/planned')}>View Planned</Button>}
+          action={<ButtonLink to="/upgrades/planned">View Planned</ButtonLink>}
         />
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">

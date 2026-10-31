@@ -170,3 +170,22 @@ describe('PlannedUpgradesPage headings', () => {
     expect(headingOutlineProblems()).toEqual([]);
   });
 });
+
+/**
+ * What only takes the user to another page is a link, styled as a button: announced as a link, and
+ * openable in a new tab. These were buttons that called `navigate` (WCAG 4.1.2, finding X9.25).
+ */
+describe('PlannedUpgradesPage links', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    getUpgrades.mockResolvedValue([]);
+  });
+
+  it('GivenNothingPlanned_WhenThePageRenders_ThenItsWaysToTheBacklogAreLinks', async () => {
+    renderPage();
+    await screen.findByText('No planned upgrades');
+
+    expect(screen.getByRole('link', { name: 'Browse Backlog' }).getAttribute('href')).toBe('/upgrades/backlog');
+    expect(screen.getByRole('link', { name: 'Go to Backlog' }).getAttribute('href')).toBe('/upgrades/backlog');
+  });
+});

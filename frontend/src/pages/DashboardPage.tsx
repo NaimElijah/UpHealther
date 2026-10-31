@@ -1,12 +1,11 @@
 import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import { getDashboard } from '../api/dashboard';
 import { useAuth } from '../hooks/useAuth';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Card from '../components/ui/Card';
 import PageHeading from '../components/ui/PageHeading';
-import Button from '../components/ui/Button';
+import ButtonLink from '../components/ui/ButtonLink';
 import UpgradeCard from '../components/upgrade/UpgradeCard';
 import EmptyState from '../components/ui/EmptyState';
 import { performUpgradeAction } from '../api/upgrades';
@@ -42,7 +41,6 @@ type CardSection = 'today' | 'active';
 const DashboardPage: React.FC = () => {
   useDocumentTitle('Dashboard');
   const { user } = useAuth();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard'],
@@ -118,9 +116,9 @@ const DashboardPage: React.FC = () => {
             {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        <Button className="shrink-0" onClick={() => navigate('/upgrades/backlog')}>
+        <ButtonLink to="/upgrades/backlog" className="shrink-0">
           + Add Upgrade
-        </Button>
+        </ButtonLink>
       </div>
 
       {(data?.overdueUpgrades?.length ?? 0) > 0 && (
@@ -188,9 +186,9 @@ const DashboardPage: React.FC = () => {
                 pendingTransition={pendingFor(u.id, 'today')}
               />
             ))}
-            <Button variant="secondary" onClick={() => navigate('/daily-checkin')} className="w-full mt-2">
+            <ButtonLink to="/daily-checkin" variant="secondary" className="w-full mt-2">
               Go to Daily Check-in
-            </Button>
+            </ButtonLink>
           </div>
         )}
       </Card>
@@ -202,7 +200,7 @@ const DashboardPage: React.FC = () => {
             title="No active upgrades"
             description="Activate a planned upgrade to get started."
             level={3}
-            action={<Button onClick={() => navigate('/upgrades/planned')}>View Planned</Button>}
+            action={<ButtonLink to="/upgrades/planned">View Planned</ButtonLink>}
           />
         ) : (
           <div className="grid sm:grid-cols-2 gap-4">

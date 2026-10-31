@@ -344,7 +344,7 @@ describe('DashboardPage sections', () => {
 
     const today = await findCard("Today's Health Moves");
     expect(within(today).getByText('Drink water')).toBeDefined();
-    expect(within(today).getByRole('button', { name: 'Go to Daily Check-in' })).toBeDefined();
+    expect(within(today).getByRole('link', { name: 'Go to Daily Check-in' })).toBeDefined();
     expect(within(today).queryByText('All done for today!')).toBeNull();
   });
 
@@ -544,5 +544,33 @@ describe('DashboardPage emoji', () => {
     expect(await screen.findByRole('heading', { level: 1, name: /^Good \w+, Ada$/ })).toBeDefined();
     expect(screen.getByRole('heading', { level: 2, name: 'Current Streaks' })).toBeDefined();
     expect(screen.getByText('⚠️').getAttribute('aria-hidden')).toBe('true');
+  });
+});
+
+/**
+ * What only takes the user to another page is a link, styled as a button: announced as a link, and
+ * openable in a new tab. These were buttons that called `navigate` (WCAG 4.1.2, finding X9.25).
+ */
+describe('DashboardPage links', () => {
+  beforeEach(() => {
+    getDashboard.mockReset();
+  });
+
+  it('GivenUpgradesDueToday_WhenTheDashboardRenders_ThenItsWaysToOtherPagesAreLinks', async () => {
+    const walk = anActiveUpgrade('upgrade-1', 'Evening walk');
+    getDashboard.mockResolvedValue({ ...aDashboard([]), activeUpgrades: [walk], todayUpgrades: [walk] });
+    renderPage();
+    await screen.findAllByText('Evening walk');
+
+    expect(screen.getByRole('link', { name: '+ Add Upgrade' }).getAttribute('href')).toBe('/upgrades/backlog');
+    expect(screen.getByRole('link', { name: 'Go to Daily Check-in' }).getAttribute('href')).toBe('/daily-checkin');
+  });
+
+  it('GivenNoActiveUpgrades_WhenTheDashboardRenders_ThenViewPlannedIsALink', async () => {
+    getDashboard.mockResolvedValue(aDashboard([]));
+    renderPage();
+    await screen.findByText('No active upgrades');
+
+    expect(screen.getByRole('link', { name: 'View Planned' }).getAttribute('href')).toBe('/upgrades/planned');
   });
 });
