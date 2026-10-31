@@ -133,16 +133,29 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
     resetReminderForm();
   };
 
+  /** Abandons the edit, and sends focus to the form's time, since Cancel goes with the edit. */
+  const cancelEditingReminder = () => {
+    stopEditingReminder();
+    timeField.current?.focus();
+  };
+
   const submitReminder = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingReminderId) {
       createReminderMut.mutate(undefined, { onSuccess: resetReminderForm });
       return;
     }
+    const pressed = document.activeElement;
     // `enabled` is left out, so a disabled reminder stays disabled when its schedule moves.
     rescheduleReminderMut.mutate(
       { reminderId: editingReminderId, req: { reminderTime, daysOfWeek: reminderDays } },
-      { onSuccess: stopEditingReminder },
+      {
+        onSuccess: () => {
+          stopEditingReminder();
+          // The form goes back to adding, and focus goes to where it starts, as Edit sent it there.
+          focusWhenReady(() => timeField.current, pressed);
+        },
+      },
     );
   };
 
@@ -166,27 +179,32 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
                 <span className="text-fg-subtle">{r.daysOfWeek.length ? r.daysOfWeek.join(', ') : 'Every day'}</span>
                 {!r.enabled && <Badge variant="gray">disabled</Badge>}
               </div>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
+              {/* Ghost buttons, like the account list's row actions. While a write runs the pressed one is
+                  busy rather than disabled, because a disabled button drops its focus to <body>, and the
+                  others are disabled, because one write runs at a time (review finding 3 on #407). */}
+              <div className="flex flex-wrap items-center justify-end gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => editReminder(r)}
                   disabled={reminderWriteInFlight}
                   aria-label={`Edit the ${reminderClock(r)} reminder`}
-                  className="text-brand-fg hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Edit
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => switchReminder(r)}
                   disabled={reminderWriteInFlight}
+                  loading={switchReminderMut.isPending && switchReminderMut.variables?.reminderId === r.id}
                   aria-label={`${r.enabled ? 'Disable' : 'Enable'} the ${reminderClock(r)} reminder`}
-                  className="text-fg-subtle hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {r.enabled ? 'Disable' : 'Enable'}
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={(e) => {
                     const pressed = e.currentTarget;
                     deleteReminderMut.mutate(r.id, {
@@ -200,11 +218,11 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
                   }}
                   // A second DELETE would be answered 404, saying "not removed" while the row disappears.
                   disabled={reminderWriteInFlight}
+                  loading={deleteReminderMut.isPending && deleteReminderMut.variables === r.id}
                   aria-label={`Remove the ${reminderClock(r)} reminder`}
-                  className="text-danger-fg hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Remove
-                </button>
+                </Button>
               </div>
             </div>
           ))}
@@ -255,18 +273,18 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
             ))}
           </div>
         </div>
-        {editingReminderId ? (
-          <>
-            <Button type="submit" loading={rescheduleReminderMut.isPending} disabled={reminderWriteInFlight}>
-              Save reminder
-            </Button>
-            <Button type="button" variant="secondary" onClick={stopEditingReminder} disabled={reminderWriteInFlight}>
-              Cancel
-            </Button>
-          </>
-        ) : (
-          <Button type="submit" loading={createReminderMut.isPending} disabled={reminderWriteInFlight}>
-            Add reminder
+        {/* One submit button whose label follows the form's mode, so the node, and the focus on it, survive
+            the switch between adding and saving. */}
+        <Button
+          type="submit"
+          loading={editingReminderId ? rescheduleReminderMut.isPending : createReminderMut.isPending}
+          disabled={reminderWriteInFlight}
+        >
+          {editingReminderId ? 'Save reminder' : 'Add reminder'}
+        </Button>
+        {editingReminderId && (
+          <Button type="button" variant="secondary" onClick={cancelEditingReminder} disabled={reminderWriteInFlight}>
+            Cancel
           </Button>
         )}
       </form>

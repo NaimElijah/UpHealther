@@ -1008,10 +1008,11 @@ reachable by pointer only, because Tab stays inside the dialog. See
   and ignores a caller's `disabled` meanwhile, because a disabled button gives up focus.
 - **An action that removes the control that had focus hands focus on**, through
   `hooks/useFocusWhenReady`: to the page's heading when a card or a header button goes, to the reminder
-  form when a reminder row goes, to the other paging button at either end of the account list. It moves
-  focus only while nothing, `<body>` or the pressed control holds it (`lib/focusIsFree`), so focus the
-  user moved while the request was in flight stays where they put it. The bell hands focus back to
-  itself when its panel closes or an action in it removes its own button.
+  form's time when a reminder row goes or its edit is saved or cancelled, to the other paging button at
+  either end of the account list. It moves focus only while nothing, `<body>` or the pressed control
+  holds it (`lib/focusIsFree`), so focus the user moved while the request was in flight stays where
+  they put it. The bell hands focus back to itself when its panel closes or an action in it removes its
+  own button.
 - **A toast waits while it is held.** `ToastContainer` times each toast out after ten seconds counted
   only while the pointer is off it and focus is outside it, and announces it through a polite live
   region mounted before any toast arrives.

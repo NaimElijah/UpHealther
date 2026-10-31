@@ -1865,6 +1865,68 @@ describe('UpgradeDetailsPage changing a reminder', () => {
     expect(document.activeElement).toBe(screen.getByLabelText('Time'));
   });
 
+  // Review finding 3 on #407: the row's buttons were disabled while a write ran, and a disabled button
+  // drops its focus to <body> in a browser, which jsdom never shows; so the pressed one is busy instead.
+  it('GivenFocusOnDisable_WhenTheSwitchIsInFlight_ThenDisableKeepsFocusAndSaysItIsBusy', async () => {
+    serveReminders(aReminder());
+    renderPage();
+    const disable = await screen.findByRole('button', { name: 'Disable the 09:00 reminder' });
+    let land: (reminder: Reminder) => void = () => {};
+    updateReminder.mockImplementationOnce(() => new Promise<Reminder>((resolve) => (land = resolve)));
+    disable.focus();
+
+    fireEvent.click(disable);
+    await settled();
+
+    expect(document.activeElement).toBe(disable);
+    expect(disable.hasAttribute('disabled')).toBe(false);
+    expect(disable.getAttribute('aria-busy')).toBe('true');
+    getReminders.mockResolvedValue([aReminder({ enabled: false })]);
+    await act(async () => land(aReminder({ enabled: false })));
+    expect(await screen.findByRole('button', { name: 'Enable the 09:00 reminder' })).toBe(document.activeElement);
+  });
+
+  it('GivenFocusOnRemove_WhenTheRemovalIsInFlight_ThenRemoveKeepsFocusAndSaysItIsBusy', async () => {
+    serveReminders(aReminder());
+    deleteReminder.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    const remove = await screen.findByRole('button', { name: 'Remove the 09:00 reminder' });
+    remove.focus();
+
+    fireEvent.click(remove);
+    await settled();
+
+    expect(document.activeElement).toBe(remove);
+    expect(remove.hasAttribute('disabled')).toBe(false);
+    expect(remove.getAttribute('aria-busy')).toBe('true');
+  });
+
+  it('GivenFocusOnSaveReminder_WhenTheRescheduleLands_ThenFocusMovesToTheTime', async () => {
+    serveReminders(aReminder());
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit the 09:00 reminder' }));
+    const save = screen.getByRole('button', { name: 'Save reminder' });
+    save.focus();
+
+    fireEvent.click(save);
+
+    await screen.findByRole('button', { name: 'Add reminder' });
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Time')));
+  });
+
+  it('GivenAReminderBeingRescheduled_WhenCancelIsPressed_ThenFocusMovesToTheTime', async () => {
+    serveReminders(aReminder());
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit the 09:00 reminder' }));
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    cancel.focus();
+
+    fireEvent.click(cancel);
+
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByLabelText('Time'));
+  });
+
   it('GivenAReminder_WhenItIsRescheduled_ThenItsNewTimeAndDaysAreSentAndItsStateIsLeftAlone', async () => {
     serveReminders(aReminder({ enabled: false }));
     renderPage();
