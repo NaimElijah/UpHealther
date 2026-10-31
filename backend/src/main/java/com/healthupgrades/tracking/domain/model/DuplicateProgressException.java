@@ -13,7 +13,7 @@ import com.healthupgrades.common.domain.exception.ConflictException;
  */
 public class DuplicateProgressException extends ConflictException {
 
-    /** @param message user-facing explanation naming the upgrade and date that already have an entry */
+    /** @param message user-facing explanation naming the date that already has an entry */
     public DuplicateProgressException(String message) {
         super(message);
     }

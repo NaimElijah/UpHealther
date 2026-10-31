@@ -22,6 +22,7 @@ import com.healthupgrades.user.application.port.in.UserCommand;
 import com.healthupgrades.user.application.port.in.UserQuery;
 import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User;
+import com.healthupgrades.user.domain.model.UserPage;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -174,8 +175,7 @@ class AdminUserServiceTest {
         // Without the total a caller cannot tell twenty-five of twenty-six from twenty-five of a
         // thousand, and has to page until a short one comes back to find out.
         List<User> firstPage = List.of(AUser.withId(UUID.randomUUID()), AUser.withId(UUID.randomUUID()));
-        when(accounts.findAll(0, 25)).thenReturn(firstPage);
-        when(accounts.count()).thenReturn(137L);
+        when(accounts.findAll(0, 25)).thenReturn(new UserPage(firstPage, 137L));
 
         AccountPage page = service.list(ADMIN_ID, 0, 25);
 
@@ -189,8 +189,7 @@ class AdminUserServiceTest {
     void GivenAnAdministrator_WhenTheyListTheAccounts_ThenTheReadIsAuditedNamingThem() {
         // S5.A12: the one read that returns other people's names and addresses, so who read it is
         // recorded. A page is no one record, so the entry names the administrator and no resource.
-        when(accounts.findAll(0, 25)).thenReturn(List.of());
-        when(accounts.count()).thenReturn(0L);
+        when(accounts.findAll(0, 25)).thenReturn(new UserPage(List.of(), 0L));
 
         service.list(ADMIN_ID, 0, 25);
 

@@ -25,6 +25,9 @@ public interface AdminUserCommand {
      * @throws com.healthupgrades.common.domain.exception.ResourceNotFoundException if no such account
      * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if an administrator aims
      *         at their own account
+     * @throws com.healthupgrades.user.domain.model.AccountModifiedConcurrentlyException if another write
+     *         to the account committed after this change loaded it; answered 409, and nothing is changed
+     *         (ADR-073)
      */
     User disable(UUID actingAdminId, UUID targetUserId);
 

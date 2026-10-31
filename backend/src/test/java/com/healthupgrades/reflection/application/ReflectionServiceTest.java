@@ -35,6 +35,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.stubbing.Answer;
 
 /**
  * Covers FR-23 (write a reflection), FR-24 (read an upgrade's reflections, newest first) and BR-13
@@ -124,11 +125,7 @@ class ReflectionServiceTest {
     void GivenAReflectionIsWritten_WhenItIsStored_ThenItIsAnnounced() {
         UUID reflectionId = UUID.randomUUID();
         when(upgradeQuery.getOwnedUpgrade(userId, upgradeId)).thenReturn(AnUpgrade.active(userId));
-        when(repository.save(any(Reflection.class))).thenAnswer(call -> {
-            Reflection r = call.getArgument(0);
-            r.setId(reflectionId);
-            return r;
-        });
+        when(repository.save(any(Reflection.class))).thenAnswer(storedAs(reflectionId));
 
         service.create(userId, upgradeId, DETAILS);
 
@@ -170,11 +167,7 @@ class ReflectionServiceTest {
         // upgrade's, the record the reflection belongs to, on a success as on a refusal.
         UUID reflectionId = UUID.randomUUID();
         when(upgradeQuery.getOwnedUpgrade(userId, upgradeId)).thenReturn(AnUpgrade.active(userId));
-        when(repository.save(any(Reflection.class))).thenAnswer(call -> {
-            Reflection saved = call.getArgument(0);
-            saved.setId(reflectionId);
-            return saved;
-        });
+        when(repository.save(any(Reflection.class))).thenAnswer(storedAs(reflectionId));
 
         service.create(userId, upgradeId, DETAILS);
 
@@ -235,5 +228,26 @@ class ReflectionServiceTest {
                 .map(Method::getName)
                 .distinct()
                 .toList();
+    }
+
+    /**
+     * What the repository answers on an insert: the reflection it was given, as stored under {@code id}.
+     * A copy rather than the same instance with its id set, because a reflection has no setters (BR-13).
+     */
+    private static Answer<Reflection> storedAs(UUID id) {
+        return call -> {
+            Reflection given = call.getArgument(0);
+            return Reflection.builder()
+                    .id(id)
+                    .upgradeId(given.getUpgradeId())
+                    .userId(given.getUserId())
+                    .date(given.getDate())
+                    .difficultyRating(given.getDifficultyRating())
+                    .benefitRating(given.getBenefitRating())
+                    .whatWorked(given.getWhatWorked())
+                    .whatDidNotWork(given.getWhatDidNotWork())
+                    .nextAdjustment(given.getNextAdjustment())
+                    .build();
+        };
     }
 }

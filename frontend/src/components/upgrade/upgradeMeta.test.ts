@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { difficultyBadgeVariant, difficultyVariant } from './upgradeMeta';
+import { DIFFICULTY_LABELS, difficultyBadgeVariant, difficultyVariant, labelFor } from './upgradeMeta';
 import type { Difficulty } from '../../types';
 
 /**
@@ -34,5 +34,13 @@ describe('difficultyBadgeVariant', () => {
     // Difficulty is optional on an upgrade, so both absent forms reach this.
     expect(difficultyBadgeVariant(null)).toBe('gray');
     expect(difficultyBadgeVariant(undefined)).toBe('gray');
+  });
+});
+
+/** A value's name wherever one is shown: the difficulty badge, and the tracking card's type and frequency. */
+describe('labelFor', () => {
+  it('GivenAValueThisBuildDoesNotKnow_WhenItsLabelIsRead_ThenItIsNamedByItsRawValue', () => {
+    // A value the API adds before the frontend knows it degrades to its name rather than to nothing.
+    expect(labelFor(DIFFICULTY_LABELS, 'IMPOSSIBLE' as Difficulty)).toBe('IMPOSSIBLE');
   });
 });

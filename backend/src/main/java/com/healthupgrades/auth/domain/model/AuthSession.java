@@ -33,8 +33,9 @@ import lombok.Getter;
  *
  * <p><strong>Two expiries.</strong> {@code idleExpiresAt} slides forward on each refresh, so a session
  * in use stays alive; {@code absoluteExpiresAt} never moves, so no session lives forever however busy
- * it is. Both are stored rather than computed, because the policy they came from can change and a live
- * session must keep the terms it was opened under.
+ * it is. Both are stored rather than computed, but they keep different terms when the policy changes:
+ * the absolute cap is the one the session was opened under, while each refresh slides the idle window
+ * by the setting in force at that refresh.
  *
  * <p>Every method that needs to know the time takes it as an argument. The aggregate has no clock, so
  * its rules are testable without one and cannot drift from the caller's idea of now.
@@ -74,6 +75,15 @@ public class AuthSession {
 
     /** For JPA only. */
     protected AuthSession() {}
+
+    /**
+     * The digest of the credential currently accepted.
+     *
+     * @return a copy: the array itself would let a reader change which credential the session accepts
+     */
+    public byte[] getRefreshTokenHash() {
+        return refreshTokenHash.clone();
+    }
 
     /**
      * Opens a session for an account.
@@ -135,8 +145,13 @@ public class AuthSession {
      * @param idle         how long the session survives without being used again
      * @return the credential this exchange retired, which the caller must store beside the session: it is
      *         how a later replay of it is recognised
+     * @throws IllegalStateException if the session is no longer usable at {@code now}: sliding the idle
+     *         window from {@code now} would bring a lapsed or revoked session back to life
      */
     public SpentCredential rotate(byte[] newTokenHash, Instant now, Duration idle) {
+        if (!isActive(now)) {
+            throw new IllegalStateException("Only an active session can be rotated");
+        }
         SpentCredential retired = new SpentCredential(refreshTokenHash, now);
         this.refreshTokenHash = newTokenHash.clone();
         this.lastUsedAt = now;

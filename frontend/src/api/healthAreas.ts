@@ -20,7 +20,7 @@ export const updateHealthArea = async (id: string, req: CreateHealthAreaRequest)
   return data;
 };
 
-/** Deletes a health area. Upgrades filed under it keep the now-dangling area id. */
+/** Deletes a health area. The upgrades filed under it stay, and their `areaId` becomes null. */
 export const deleteHealthArea = async (id: string): Promise<void> => {
   await client.delete(apiPath`/api/health-areas/${id}`);
 };

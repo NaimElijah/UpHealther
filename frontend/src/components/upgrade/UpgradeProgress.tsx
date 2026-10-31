@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createProgress } from '../../api/progress';
-import { parseLocalDate, todayLocal } from '../../lib/localDate';
+import { latestProgressDate, parseLocalDate, todayLocal } from '../../lib/localDate';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
@@ -51,6 +51,9 @@ const UpgradeProgress: React.FC<Props> = ({ upgradeId, read, trackingConfig }) =
 
   const [progressOpen, setProgressOpen] = useState(false);
   const [progressForm, setProgressForm] = useState(newProgressForm);
+  // The last date the API accepts, read when the dialog opens as its default date is, so the field
+  // offers no day the server would refuse (FR-18).
+  const [latestDate, setLatestDate] = useState(latestProgressDate);
 
   // Closing the dialog is passed to each `mutate` call rather than set here, because only a call's own
   // callbacks stop when an opener below resets the mutation; these run for every save that succeeds.
@@ -70,6 +73,7 @@ const UpgradeProgress: React.FC<Props> = ({ upgradeId, read, trackingConfig }) =
    */
   const openProgress = () => {
     setProgressForm(newProgressForm());
+    setLatestDate(latestProgressDate());
     progressMutation.reset();
     setProgressOpen(true);
   };
@@ -122,6 +126,7 @@ const UpgradeProgress: React.FC<Props> = ({ upgradeId, read, trackingConfig }) =
           <Input
             label="Date"
             type="date"
+            max={latestDate}
             value={progressForm.date}
             onChange={(e) => setProgressForm({ ...progressForm, date: e.target.value })}
             error={refusalMessage(progressMutation.error, 'date')}

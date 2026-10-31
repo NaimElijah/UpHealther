@@ -243,12 +243,30 @@ describe('openNotificationSocket', () => {
       expect(onNotification).toHaveBeenCalledWith(pushed);
     });
 
-    it('GivenAConnectedSocket_WhenAFrameThatWillNotParseArrives_ThenItIsDroppedWithoutThrowing', () => {
+    // A frame that will not parse is a bug to see too: dropped silently, a server sending a shape this
+    // client cannot read would cost every notification with no sign of why.
+
+    it('GivenAConnectedSocket_WhenAFrameThatWillNotParseArrives_ThenItsErrorIsReportedAndNotThrownIntoTheClient', () => {
+      const queued = captureMicrotasks();
       const { client, onNotification } = openConnected();
 
       expect(() => client.deliver('not json')).not.toThrow();
 
       expect(onNotification).not.toHaveBeenCalled();
+      expect(queued).toHaveLength(1);
+      expect(queued[0]).toThrow(SyntaxError);
+    });
+
+    it('GivenAFrameThatWouldNotParse_WhenTheNextNotificationArrives_ThenItIsStillDelivered', () => {
+      captureMicrotasks();
+      const { client, onNotification } = openConnected();
+      const next = notificationAsSent({ id: 'n-2', title: 'Upgrade activated' });
+
+      client.deliver('not json');
+      client.deliver(JSON.stringify(next));
+
+      expect(onNotification).toHaveBeenCalledTimes(1);
+      expect(onNotification).toHaveBeenCalledWith(next);
     });
 
     it('GivenAnErrorFrameForAnyOtherReason_WhenItArrives_ThenTheTokenIsKeptAndItReportsDisconnected', () => {

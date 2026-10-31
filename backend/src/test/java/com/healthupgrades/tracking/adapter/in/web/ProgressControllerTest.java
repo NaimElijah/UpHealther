@@ -117,6 +117,22 @@ class ProgressControllerTest {
     }
 
     @Test
+    void GivenADateYearsAhead_WhenProgressIsLogged_ThenItAnswers400OnTheDateAndNothingIsRecorded() throws Exception {
+        // D3.16, FR-18. Seven entries dated in the coming week would announce a seven-day milestone at
+        // once. Far past any server's tomorrow, so the slice's real clock cannot make this ambiguous;
+        // NoLaterThanTomorrowTest pins the exact bound on a fixed clock. The SPA shows the message under
+        // the date field as it is, so it names no "tomorrow": the bound is the server's, in UTC, and a
+        // user far from UTC would read "tomorrow" as their own.
+        mockMvc.perform(bearer(post(progressPath))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\":\"2099-01-01\",\"completed\":true}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.date").value("must not be more than a day ahead"));
+
+        verify(trackingService, never()).recordProgress(any(), any(), any());
+    }
+
+    @Test
     void GivenARatingOutsideOneToFive_WhenProgressIsLogged_ThenItAnswers400AndNothingIsRecorded() throws Exception {
         mockMvc.perform(bearer(post(progressPath))
                         .contentType(MediaType.APPLICATION_JSON)

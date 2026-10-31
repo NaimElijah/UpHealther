@@ -13,7 +13,7 @@ import java.util.UUID;
  *
  * @param upgradeId  the upgrade that became ACTIVE
  * @param userId     its owner
- * @param startDate  the date it actually started
+ * @param startDate  the date it started running
  * @param occurredAt when the transition happened
  */
 public record HealthUpgradeActivated(UUID upgradeId, UUID userId, LocalDate startDate, LocalDateTime occurredAt)

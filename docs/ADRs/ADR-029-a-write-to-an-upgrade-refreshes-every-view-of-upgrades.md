@@ -1,6 +1,7 @@
 # ADR-029: A write to an upgrade refreshes every view of upgrades
 
-- **Status:** Accepted
+- **Status:** Accepted — extended by
+  [ADR-081](ADR-081-a-write-that-changes-upgrades-indirectly-refreshes-their-views-too.md)
 - **Date:** 2026-10-11
 - **Scope:** `frontend/src/lib/upgradeViews.ts` and every mutation that changes an upgrade. No new
   dependency.

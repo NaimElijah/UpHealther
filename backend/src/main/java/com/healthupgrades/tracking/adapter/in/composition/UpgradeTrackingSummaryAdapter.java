@@ -47,9 +47,7 @@ public class UpgradeTrackingSummaryAdapter implements UpgradeTrackingSummaryPort
         return new UpgradeTrackingSummary(
                 config.getId(),
                 config.getUpgradeId(),
-                config.getTrackingType() != null
-                        ? UpgradeTrackingType.valueOf(config.getTrackingType().name())
-                        : null,
+                UpgradeTrackingType.valueOf(config.getTrackingType().name()),
                 config.getFrequency() != null
                         ? UpgradeTrackingFrequency.valueOf(config.getFrequency().name())
                         : null,

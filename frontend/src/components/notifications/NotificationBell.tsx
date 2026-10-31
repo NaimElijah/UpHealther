@@ -2,6 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNotifications } from '../../hooks/useNotifications';
 import NotificationDropdown from './NotificationDropdown';
 
+/** The highest count the badge spells out; above it the badge reads "9+". */
+const BADGE_MAX = 9;
+
 /**
  * Navbar bell with an unread badge, opening the notification dropdown.
  *
@@ -35,7 +38,7 @@ const NotificationBell: React.FC = () => {
         <span className="text-xl">🔔</span>
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-danger text-fg-inverted text-[10px] font-bold">
-            {unreadCount > 9 ? '9+' : unreadCount}
+            {unreadCount > BADGE_MAX ? `${BADGE_MAX}+` : unreadCount}
           </span>
         )}
       </button>

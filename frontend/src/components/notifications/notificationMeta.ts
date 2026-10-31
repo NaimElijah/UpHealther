@@ -1,5 +1,13 @@
 import type { NotificationCategory } from '../../types';
 
+/** A category's icon and the token classes its toast and row are drawn with. */
+interface CategoryMeta {
+  icon: string;
+  bg: string;
+  border: string;
+  text: string;
+}
+
 /**
  * Icon + token classes per notification category, shared by the toast, dropdown and list.
  *
@@ -8,12 +16,25 @@ import type { NotificationCategory } from '../../types';
  * mistaken for a streak celebration; INFO is cyan rather than the brand blue the sidebar's active
  * state already uses.
  */
-export const categoryMeta: Record<NotificationCategory, { icon: string; bg: string; border: string; text: string }> = {
+const categoryMeta: Record<NotificationCategory, CategoryMeta> = {
   INFO: { icon: 'ℹ️', bg: 'bg-info-soft', border: 'border-info-line', text: 'text-info-fg' },
   SUCCESS: { icon: '✅', bg: 'bg-success-soft', border: 'border-success-line', text: 'text-success-fg' },
   WARNING: { icon: '⚠️', bg: 'bg-warning-soft', border: 'border-warning-line', text: 'text-warning-fg' },
   REMINDER: { icon: '⏰', bg: 'bg-reminder-soft', border: 'border-reminder-line', text: 'text-reminder-fg' },
 };
+
+/**
+ * The icon and token classes for a category, INFO's for one this build does not know.
+ *
+ * The fallback is needed although the map is total: the category arrives as unvalidated JSON, so a tab
+ * opened before a deploy that adds one receives a value outside the union, and reading its classes
+ * without a fallback threw during render, which the error boundary turned into a blank app.
+ *
+ * @param category the value from the API, typed as `NotificationCategory` but not validated as one
+ */
+export function categoryStyle(category: NotificationCategory): CategoryMeta {
+  return categoryMeta[category] ?? categoryMeta.INFO;
+}
 
 /**
  * `YYYY-MM-DDTHH:mm:ss[.fraction]` as `ISO_LOCAL_DATE_TIME` writes it, which is what the API's

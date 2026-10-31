@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { loginApi, registerApi, getMe, logoutApi } from '../api/auth';
 import { renewSession } from '../api/client';
 import { endSession } from '../api/session';
@@ -27,11 +27,21 @@ const LEGACY_KEYS = ['jwt_token', 'user'];
  *
  * A 401 on any later request is handled by the axios interceptor in `api/client.ts`, which renews the
  * token and retries before concluding anything.
+ *
+ * The browser can hold one account's refresh cookie while somebody else signs in. `isLoading` stays true
+ * until the restore settles, and `LoginPage` and `RegisterPage` refuse to submit meanwhile, so the forms
+ * cannot race it: a restore that succeeds signs the tab in and redirects it before anybody can sign in.
+ * Sign-in and registration also wait for the restore themselves, a backstop for any other caller, so a
+ * restore landing late cannot replace the new token and user with the previous account's. Neither
+ * covers a restore whose deadline passed while its refresh was still out: that refresh's cookie can
+ * land after a later sign-in's (#403).
  */
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  /** The page-load restore, which never rejects: sign-in and registration await it first. */
+  const restoring = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     LEGACY_KEYS.forEach((key) => {
@@ -47,10 +57,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // One request decides the whole question: a live refresh cookie means a session, and the absence
     // of one means an ordinary visitor. A 401 there is the expected answer for a visitor, not an
-    // error, which is why renewSession reports it as false rather than throwing. It rejects when no
-    // answer came, or when the address spent its refresh allowance (429): this tab then shows nobody
-    // signed in, but the session is not ended, so the cookie restores it on a later page load.
-    renewSession()
+    // error, which is why renewSession reports it as false rather than throwing; so is no answer
+    // within its deadline. It rejects when the address spent its refresh allowance (429), or when the
+    // cross-tab lock fails: this tab then shows nobody signed in, but the session is not ended, so the
+    // cookie restores it on a later page load. A profile read that fails after a renewal lands in the
+    // same catch. None of these failures is shown with a trace id yet (#148).
+    restoring.current = renewSession()
       .then(async (renewed) => {
         if (!renewed) return;
         const freshUser = await getMe();
@@ -73,6 +85,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   /** Signs in and starts the session. Rejects if the credentials are wrong, leaving state untouched. */
   const login = useCallback(async (email: string, password: string) => {
+    await restoring.current;
     const response = await loginApi(email, password);
     setAccessToken(response.accessToken, response.expiresAt);
     setUser(response.user);
@@ -81,6 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   /** Creates an account and signs straight in with the token it returns. */
   const register = useCallback(async (name: string, email: string, password: string) => {
+    await restoring.current;
     const response = await registerApi(name, email, password);
     setAccessToken(response.accessToken, response.expiresAt);
     setUser(response.user);
@@ -98,8 +112,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
    *
    * On success the session is ended by `endSession` (`api/session`), the same as when the server refuses
    * a renewal: a full document navigation, so nothing belonging to the previous user can be read by the
-   * next one. The user is cleared first because that navigation is not instant, and until the page
-   * unloads the app should render nobody signed in.
+   * next one. The user is cleared first, but in the application no render shows it: `endSession`
+   * unmounts the application synchronously before React commits that update (ADR-066).
    */
   const logout = useCallback(async () => {
     await logoutApi();

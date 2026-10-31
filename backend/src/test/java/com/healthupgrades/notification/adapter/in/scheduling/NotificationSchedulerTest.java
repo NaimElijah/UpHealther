@@ -34,6 +34,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
@@ -178,7 +179,7 @@ class NotificationSchedulerTest {
 
     @Test
     void GivenAUserWithActiveUpgradesAndNothingLoggedToday_WhenTheCheckinSweepRuns_ThenTheyAreNudged() {
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgrade()));
+        when(upgradeQuery.countByOwner(UpgradeStatus.ACTIVE)).thenReturn(Map.of(userId, 1L));
         guards(Set.of(), Set.of());
 
         scheduler.notifyDailyCheckin();
@@ -189,7 +190,7 @@ class NotificationSchedulerTest {
 
     @Test
     void GivenOneActiveUpgrade_WhenTheCheckinSweepRuns_ThenTheNudgeIsAReminderCountingOneUpgrade() {
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgrade()));
+        when(upgradeQuery.countByOwner(UpgradeStatus.ACTIVE)).thenReturn(Map.of(userId, 1L));
         guards(Set.of(), Set.of());
 
         scheduler.notifyDailyCheckin();
@@ -206,8 +207,7 @@ class NotificationSchedulerTest {
 
     @Test
     void GivenTwoActiveUpgrades_WhenTheCheckinSweepRuns_ThenTheNudgeCountsBothInThePlural() {
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
-                .thenReturn(List.of(activeUpgrade(), activeUpgradeOf(userId)));
+        when(upgradeQuery.countByOwner(UpgradeStatus.ACTIVE)).thenReturn(Map.of(userId, 2L));
         guards(Set.of(), Set.of());
 
         scheduler.notifyDailyCheckin();
@@ -226,7 +226,7 @@ class NotificationSchedulerTest {
     void GivenTheUserHasAlreadyBeenNudgedSinceMidnight_WhenTheCheckinSweepRunsAgain_ThenTheyAreNotNudgedTwice() {
         // FR-30 says "once a day", and the cron is configurable — so the guard, not the schedule, is
         // what makes that true.
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgrade()));
+        when(upgradeQuery.countByOwner(UpgradeStatus.ACTIVE)).thenReturn(Map.of(userId, 1L));
         guards(Set.of(userId), Set.of());
 
         scheduler.notifyDailyCheckin();
@@ -236,7 +236,7 @@ class NotificationSchedulerTest {
 
     @Test
     void GivenTheUserHasAlreadyLoggedSomethingToday_WhenTheCheckinSweepRuns_ThenTheyAreNotNudged() {
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgrade()));
+        when(upgradeQuery.countByOwner(UpgradeStatus.ACTIVE)).thenReturn(Map.of(userId, 1L));
         guards(Set.of(), Set.of(userId));
 
         scheduler.notifyDailyCheckin();
@@ -250,8 +250,8 @@ class NotificationSchedulerTest {
         // user who had something running.
         UUID nudgedAlready = UUID.randomUUID();
         UUID loggedAlready = UUID.randomUUID();
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
-                .thenReturn(List.of(activeUpgradeOf(nudgedAlready), activeUpgradeOf(loggedAlready), activeUpgrade()));
+        when(upgradeQuery.countByOwner(UpgradeStatus.ACTIVE))
+                .thenReturn(Map.of(nudgedAlready, 1L, loggedAlready, 1L, userId, 1L));
         guards(Set.of(nudgedAlready), Set.of(loggedAlready));
 
         scheduler.notifyDailyCheckin();
@@ -265,7 +265,7 @@ class NotificationSchedulerTest {
 
     @Test
     void GivenNobodyHasAnActiveUpgrade_WhenTheCheckinSweepRuns_ThenNobodyIsNudgedAndNothingIsLookedUp() {
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of());
+        when(upgradeQuery.countByOwner(UpgradeStatus.ACTIVE)).thenReturn(Map.of());
 
         scheduler.notifyDailyCheckin();
 
@@ -278,7 +278,7 @@ class NotificationSchedulerTest {
     void GivenTheCheckinSweepRuns_WhenTodayIsDecided_ThenItComesFromTheInjectedClock() {
         // NFR-15. The "already nudged" guard is a since-midnight window, so a wall-clock read here would
         // make the test's verdict depend on the hour it ran in.
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgrade()));
+        when(upgradeQuery.countByOwner(UpgradeStatus.ACTIVE)).thenReturn(Map.of(userId, 1L));
 
         scheduler.notifyDailyCheckin();
 
@@ -610,8 +610,7 @@ class NotificationSchedulerTest {
 
     @Test
     void GivenTheDatabaseCannotBeReached_WhenTheCheckinSweepRuns_ThenTheSweepStopsAtTheFirstSuchFailure() {
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
-                .thenReturn(List.of(activeUpgradeOf(UUID.randomUUID()), activeUpgrade()));
+        when(upgradeQuery.countByOwner(UpgradeStatus.ACTIVE)).thenReturn(Map.of(UUID.randomUUID(), 1L, userId, 1L));
         guards(Set.of(), Set.of());
         when(notificationService.create(any(), any(), any(), any(), any(), any()))
                 .thenThrow(unreachable());
@@ -630,8 +629,7 @@ class NotificationSchedulerTest {
     @Test
     void GivenOneUsersNudgeFailsToSave_WhenTheCheckinSweepRuns_ThenTheOthersAreStillNudgedAndTheRunFails() {
         UUID failing = UUID.randomUUID();
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
-                .thenReturn(List.of(activeUpgradeOf(failing), activeUpgrade()));
+        when(upgradeQuery.countByOwner(UpgradeStatus.ACTIVE)).thenReturn(Map.of(failing, 1L, userId, 1L));
         guards(Set.of(), Set.of());
         RuntimeException failure = saveFailure();
         nudgeFailsFor(failing, failure);
@@ -647,8 +645,7 @@ class NotificationSchedulerTest {
     @Test
     void GivenANudgeFailsToSave_WhenTheCheckinSweepRuns_ThenTheRunLineCountsItFailed() {
         UUID failing = UUID.randomUUID();
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
-                .thenReturn(List.of(activeUpgradeOf(failing), activeUpgrade()));
+        when(upgradeQuery.countByOwner(UpgradeStatus.ACTIVE)).thenReturn(Map.of(failing, 1L, userId, 1L));
         guards(Set.of(), Set.of());
         nudgeFailsFor(failing, saveFailure());
 
@@ -702,19 +699,11 @@ class NotificationSchedulerTest {
         return upgradeIn(UpgradeStatus.ACTIVE);
     }
 
-    private HealthUpgrade activeUpgradeOf(UUID owner) {
-        return HealthUpgrade.builder()
-                .id(UUID.randomUUID())
-                .userId(owner)
-                .title("Stretch")
-                .status(UpgradeStatus.ACTIVE)
-                .build();
-    }
-
     /**
      * Makes the nudge to {@code failing} throw {@code failure} and the nudge to {@link #userId} succeed.
      *
-     * <p>Stubbed by user, not by call order, because the sweep walks a {@code HashMap}. Both users are
+     * <p>Stubbed by user, not by call order, because the sweep walks the map of who has something running,
+     * which {@code Collectors.toUnmodifiableMap} builds with no defined order. Both users are
      * stubbed because strict stubs answer a call that matches no stub with {@code PotentialStubbingProblem},
      * and the sweep, which carries on past any {@code RuntimeException}, would count that as a second
      * failed save whenever the map happened to reach {@link #userId} first.

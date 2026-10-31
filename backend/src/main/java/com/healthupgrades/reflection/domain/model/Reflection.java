@@ -9,9 +9,9 @@ import lombok.*;
 /**
  * A user's periodic review of how one upgrade is going.
  *
- * <p>Append-only in practice: nothing in the application updates or deletes a reflection, because its
- * value is being a record of what the user thought at the time. Several may exist for the same upgrade
- * and the same date.
+ * <p>Append-only (BR-13): nothing in the application updates or deletes a reflection, because its value
+ * is being a record of what the user thought at the time, and it has no setters, so nothing can. Several
+ * may exist for the same upgrade and the same date. The builder exists for creation and for tests.
  *
  * <p>Every field but the identifiers and the date is optional — a reflection that is only a sentence
  * about what went wrong is a useful one, and requiring more would mean fewer get written.
@@ -19,9 +19,8 @@ import lombok.*;
 @Entity
 @Table(name = "reflections")
 @Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED) // required by JPA, not for general use
+@AllArgsConstructor(access = AccessLevel.PRIVATE) // backs the builder only
 @Builder
 public class Reflection {
 

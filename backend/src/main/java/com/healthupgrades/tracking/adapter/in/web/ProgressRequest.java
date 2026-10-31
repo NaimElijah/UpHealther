@@ -13,7 +13,8 @@ import org.jspecify.annotations.Nullable;
  * <p>Every field is optional because which one matters depends on the upgrade's tracking type. Sending
  * the field a type does not use is accepted and stored; it simply plays no part in scoring.
  *
- * @param date         the day being logged; today when null. A past date is allowed, a duplicate is not
+ * @param date         the day being logged; today when null. A past date is allowed, a duplicate is not,
+ *                     and neither is one after the server's tomorrow
  * @param completed    claimed completion; overridden by the server when the upgrade has a configuration
  * @param numericValue NUMERIC tracking: the value achieved; must be zero or positive
  * @param unit         NUMERIC tracking: the unit the value is in. Unstated is read as the target's unit;
@@ -22,7 +23,7 @@ import org.jspecify.annotations.Nullable;
  * @param note         free-text note; the scored field under TEXT tracking
  */
 public record ProgressRequest(
-        @Nullable LocalDate date,
+        @Nullable @NoLaterThanTomorrow LocalDate date,
         @Nullable Boolean completed,
         @PositiveOrZero @Nullable Double numericValue,
         @Size(max = UNIT_MAX) @Nullable String unit,

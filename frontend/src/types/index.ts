@@ -23,7 +23,8 @@ export type User = Wire.UserDto;
  *
  * Only the access token is here. The refresh credential arrives in an `HttpOnly` cookie that this
  * code cannot read, which is the point of it being there rather than in the body. `expiresAt` is
- * ISO-8601: when the access token lapses, so the client can renew before a request fails.
+ * ISO-8601: when the access token lapses. Only the notification socket reads it, to renew a lapsed
+ * token before it connects; an HTTP request renews after it is answered 401.
  */
 export type AuthResponse = Wire.TokenPair;
 
@@ -60,8 +61,9 @@ export type HealthArea = Wire.HealthAreaDto & { upgradeCount?: number };
  * The value is bound straight from the request body, so it is generated from the backend enum rather
  * than copied: a name offered here and missing there would fail to deserialize and surface as a 500.
  *
- * `PROTOCOL` is legacy: it is accepted and rendered so an existing row displays, but it is not one of
- * the documented kinds and is deliberately absent from the create form.
+ * `PROTOCOL` is retired: it is rendered so an existing row displays, and an edit that sends it back
+ * unchanged is accepted, but the API refuses it on creation or as a change to another kind (422), so it
+ * is deliberately absent from the create form.
  */
 export type UpgradeType = Wire.UpgradeType;
 
@@ -166,7 +168,10 @@ export type CreateProgressRequest = Wire.ProgressRequest & { upgradeId: string }
 /** Body for writing a reflection. Every field is optional; an absent date means today. */
 export type CreateReflectionRequest = Wire.ReflectionRequest;
 
-/** What a notification is about. Drives the icon and the destination a click leads to. */
+/**
+ * What a notification is about, as the server classified it. Nothing in the interface reads it: the
+ * icon and colour come from `category`, and where a click leads from `relatedUpgradeId`.
+ */
 export type NotificationType = Wire.NotificationType;
 
 /** How a notification should read, which drives its colour and icon. */

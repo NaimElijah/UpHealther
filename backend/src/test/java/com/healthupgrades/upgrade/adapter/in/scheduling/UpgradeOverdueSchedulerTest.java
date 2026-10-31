@@ -35,11 +35,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
 
 /**
- * Covers the overdue sweep: which active upgrades it announces, and that it announces nothing for those
- * still within their target date.
+ * Covers the overdue sweep: that it announces each candidate the query returns, and nothing when it returns
+ * none. The stubs return only what the real query can, active upgrades past their target date; which upgrades
+ * those are is {@code UpgradePersistenceIT}'s to pin, against PostgreSQL.
  *
  * <p>It also pins NFR-25, what a run records about itself: the timer and the ok and failed counters under
- * the job's name, and the one INFO line counting what was scanned and what was announced.
+ * the job's name, and the one INFO line counting what was announced.
  *
  * <p>Driven by a fixed {@link java.time.Clock}, so "past its target date" means the same thing on every
  * run. Driven through the scheduler, over the real {@link UpgradeOverdueService} that holds the sweep since
@@ -58,9 +59,8 @@ class UpgradeOverdueSchedulerTest {
     DomainEventPublisher eventPublisher;
 
     /**
-     * Deliberately fixed to a date well in the past, so a target date that is still "ahead" by this clock
-     * is unambiguously behind by the wall clock. That gap is what
-     * {@link #GivenAFixedClock_WhenTheOverdueSweepRuns_ThenItJudgesAgainstThatClockNotTheWallClock()} exploits.
+     * Deliberately fixed to a date well in the past, so its day is never the wall clock's. That gap is what
+     * {@link #GivenAFixedClock_WhenTheOverdueSweepRuns_ThenItAsksForTheCandidatesOfThatClocksDay()} exploits.
      */
     private final Clock fixedClock = Clock.fixed(Instant.parse("2020-01-01T09:00:00Z"), ZoneOffset.UTC);
 
@@ -94,8 +94,7 @@ class UpgradeOverdueSchedulerTest {
 
     @Test
     void GivenAnActiveUpgradePastItsTargetDate_WhenTheOverdueSweepRuns_ThenItIsAnnounced() {
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
-                .thenReturn(List.of(activeUpgradeEnding(today.minusDays(1))));
+        when(upgradeQuery.findActivePastTargetDate(today)).thenReturn(List.of(activeUpgradeEnding(today.minusDays(1))));
 
         scheduler.detectOverdueUpgrades();
 
@@ -109,7 +108,7 @@ class UpgradeOverdueSchedulerTest {
     void GivenAnActiveUpgradePastItsTargetDate_WhenTheOverdueSweepRuns_ThenTheAnnouncementNamesTheDateMissed() {
         // BR-11 announces once per target date, so the listener needs to know which date this is about.
         LocalDate missed = today.minusDays(3);
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgradeEnding(missed)));
+        when(upgradeQuery.findActivePastTargetDate(today)).thenReturn(List.of(activeUpgradeEnding(missed)));
 
         scheduler.detectOverdueUpgrades();
 
@@ -119,9 +118,10 @@ class UpgradeOverdueSchedulerTest {
     }
 
     @Test
-    void GivenATargetDateStillAhead_WhenTheOverdueSweepRuns_ThenNothingIsAnnounced() {
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
-                .thenReturn(List.of(activeUpgradeEnding(today.plusDays(5))));
+    void GivenNoCandidates_WhenTheOverdueSweepRuns_ThenNothingIsAnnounced() {
+        // An upgrade on time, due today, with no target date or not ACTIVE is never a candidate:
+        // UpgradePersistenceIT pins each out of the query, against PostgreSQL.
+        when(upgradeQuery.findActivePastTargetDate(today)).thenReturn(List.of());
 
         scheduler.detectOverdueUpgrades();
 
@@ -129,54 +129,32 @@ class UpgradeOverdueSchedulerTest {
     }
 
     @Test
-    void GivenNoTargetDate_WhenTheOverdueSweepRuns_ThenNothingIsAnnounced() {
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgradeEnding(null)));
+    void GivenAFixedClock_WhenTheOverdueSweepRuns_ThenItAsksForTheCandidatesOfThatClocksDay() {
+        // The clock is fixed years in the past, so a sweep that read the wall clock would ask for another
+        // day, and the strict stub, which answers only for the injected clock's day, would refuse it.
+        when(upgradeQuery.findActivePastTargetDate(today)).thenReturn(List.of(activeUpgradeEnding(today.minusDays(1))));
 
         scheduler.detectOverdueUpgrades();
 
-        verify(eventPublisher, never()).publish(any());
+        verify(upgradeQuery).findActivePastTargetDate(today);
+        verify(eventPublisher).publish(any());
     }
 
     @Test
-    void GivenATargetDateOfToday_WhenTheOverdueSweepRuns_ThenNothingIsAnnounced() {
-        // Overdue means past the target date; the final day still counts as on time.
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(activeUpgradeEnding(today)));
-
-        scheduler.detectOverdueUpgrades();
-
-        verify(eventPublisher, never()).publish(any());
-    }
-
-    @Test
-    void GivenAFixedClock_WhenTheOverdueSweepRuns_ThenItJudgesAgainstThatClockNotTheWallClock() {
-        // A target date long past by any wall clock this runs on, but still ahead of the clock this job
-        // was given. Reading the system clock would report it overdue; reading the injected one does not.
-        // Both dates are fixed, so the test does not depend on when the suite runs.
-        LocalDate wellPastByTheWallClockButAheadOfOurs = today.plusMonths(5);
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
-                .thenReturn(List.of(activeUpgradeEnding(wellPastByTheWallClockButAheadOfOurs)));
-
-        scheduler.detectOverdueUpgrades();
-
-        verify(eventPublisher, never()).publish(any());
-    }
-
-    @Test
-    void GivenOverdueUpgradesEitherSideOfOneOnTime_WhenTheOverdueSweepRuns_ThenEachOverdueOneIsAnnounced() {
-        // A sweep that stopped at its first find, or skipped the rest after an on-time one, would still
-        // pass every single-upgrade case above.
+    void GivenSeveralOverdueUpgrades_WhenTheOverdueSweepRuns_ThenEachIsAnnouncedInTurn() {
+        // A sweep that stopped at its first find would still pass every single-upgrade case above.
         HealthUpgrade first = activeUpgrade(UUID.randomUUID(), today.minusDays(1));
-        HealthUpgrade ahead = activeUpgrade(UUID.randomUUID(), today.plusDays(1));
+        HealthUpgrade second = activeUpgrade(UUID.randomUUID(), today.minusDays(4));
         HealthUpgrade last = activeUpgrade(UUID.randomUUID(), today.minusDays(9));
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of(first, ahead, last));
+        when(upgradeQuery.findActivePastTargetDate(today)).thenReturn(List.of(first, second, last));
 
         scheduler.detectOverdueUpgrades();
 
         ArgumentCaptor<UpgradeOverdueDetected> published = ArgumentCaptor.forClass(UpgradeOverdueDetected.class);
-        verify(eventPublisher, times(2)).publish(published.capture());
+        verify(eventPublisher, times(3)).publish(published.capture());
         assertThat(published.getAllValues())
                 .extracting(UpgradeOverdueDetected::upgradeId)
-                .containsExactly(first.getId(), last.getId());
+                .containsExactly(first.getId(), second.getId(), last.getId());
     }
 
     private HealthUpgrade activeUpgrade(UUID id, LocalDate targetEndDate) {
@@ -192,10 +170,13 @@ class UpgradeOverdueSchedulerTest {
     // ---- NFR-25: what a run records about itself ----
 
     @Test
-    void GivenOneOverdueAndOneOnTimeUpgrade_WhenTheOverdueSweepRuns_ThenItsLineCountsBothScannedAndOneAnnounced() {
-        // Counts that differ, so a line reporting the wrong one of them, or a constant, says so.
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE))
-                .thenReturn(List.of(activeUpgradeEnding(today.minusDays(1)), activeUpgradeEnding(today.plusDays(1))));
+    void GivenTwoOverdueUpgrades_WhenTheOverdueSweepRuns_ThenItsLineCountsBothAnnouncedAndNothingElse() {
+        // Two, not one, so a line reporting a constant 1 says so. The query's candidates are all overdue, so a
+        // second count of them would only ever repeat this one; UpgradePersistenceIT pins the query instead.
+        when(upgradeQuery.findActivePastTargetDate(today))
+                .thenReturn(List.of(
+                        activeUpgrade(UUID.randomUUID(), today.minusDays(1)),
+                        activeUpgrade(UUID.randomUUID(), today.minusDays(2))));
 
         List<ILoggingEvent> logged = logsFromScheduler(scheduler::detectOverdueUpgrades);
 
@@ -204,12 +185,13 @@ class UpgradeOverdueSchedulerTest {
                 .singleElement()
                 .extracting(ILoggingEvent::getFormattedMessage)
                 .asString()
-                .contains("job=" + JOB, "scanned=2", "announced=1");
+                .contains("job=" + JOB, "announced=2")
+                .doesNotContain("scanned");
     }
 
     @Test
     void GivenASweep_WhenItFinishes_ThenTheRunIsTimedAndCountedAsOkUnderItsJobName() {
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenReturn(List.of());
+        when(upgradeQuery.findActivePastTargetDate(today)).thenReturn(List.of());
 
         scheduler.detectOverdueUpgrades();
 
@@ -224,7 +206,7 @@ class UpgradeOverdueSchedulerTest {
 
     @Test
     void GivenTheQueryFails_WhenTheOverdueSweepRuns_ThenTheFaultEscapesAndTheRunIsCountedAsFailed() {
-        when(upgradeQuery.findByStatus(UpgradeStatus.ACTIVE)).thenThrow(new IllegalStateException("database down"));
+        when(upgradeQuery.findActivePastTargetDate(today)).thenThrow(new IllegalStateException("database down"));
 
         assertThatThrownBy(scheduler::detectOverdueUpgrades).isInstanceOf(IllegalStateException.class);
 

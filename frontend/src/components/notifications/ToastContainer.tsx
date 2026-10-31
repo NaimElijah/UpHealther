@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../../hooks/useNotifications';
 import { aboveModalProps } from '../ui/aboveModal';
-import { categoryMeta } from './notificationMeta';
+import { categoryStyle } from './notificationMeta';
 
 /**
  * Keeps a pressed toast button from taking focus. The click still acts. Without this, pressing one over
@@ -34,7 +34,7 @@ const ToastContainer: React.FC = () => {
   return createPortal(
     <div {...aboveModalProps} className="fixed top-4 right-4 z-[60] flex flex-col gap-2 w-80 max-w-[calc(100vw-2rem)]">
       {toasts.map((t) => {
-        const meta = categoryMeta[t.category];
+        const meta = categoryStyle(t.category);
         return (
           // The card is a non-interactive live region; the interactive parts are real buttons so the
           // toast is keyboard- and screen-reader-accessible.

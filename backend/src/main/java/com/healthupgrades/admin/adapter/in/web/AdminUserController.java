@@ -54,6 +54,13 @@ public class AdminUserController {
      */
     static final int MAX_PAGE_SIZE = 100;
 
+    /**
+     * The last page this endpoint will serve, derived so the largest page at the largest size still has
+     * an offset an {@code int} can hold. Past it Spring Data refuses the offset with an exception that
+     * would answer 500; the bound answers 400 before any query is built.
+     */
+    static final int MAX_PAGE = Integer.MAX_VALUE / MAX_PAGE_SIZE;
+
     private final AdminUserQuery adminUserQuery;
     private final AdminUserCommand adminUserCommand;
 
@@ -61,14 +68,14 @@ public class AdminUserController {
      * Lists accounts, oldest first.
      *
      * @param principal the administrator, who is named in the audit entry
-     * @param page zero-based page number
+     * @param page zero-based page number, at most {@link #MAX_PAGE}
      * @param size how many per page, at most {@link #MAX_PAGE_SIZE}
      * @return 200 with the page and the total behind it
      */
     @GetMapping
     public ResponseEntity<AccountPageDto> list(
             @AuthenticationPrincipal SecurityUser principal,
-            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "0") @Min(0) @Max(MAX_PAGE) int page,
             @RequestParam(defaultValue = "" + DEFAULT_PAGE_SIZE) @Min(1) @Max(MAX_PAGE_SIZE) int size) {
         return ResponseEntity.ok(toPageDto(adminUserQuery.list(principal.getId(), page, size)));
     }

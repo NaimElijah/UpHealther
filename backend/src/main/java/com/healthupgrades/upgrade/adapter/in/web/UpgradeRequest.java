@@ -20,7 +20,8 @@ import org.jspecify.annotations.Nullable;
  * @param title            short name; required, non-blank and no longer than its column
  * @param description      longer explanation, optional
  * @param type             what kind of change this is; required
- * @param difficulty       how demanding it is, optional
+ * @param difficulty       how demanding it is, optional. On a {@code PUT}, null keeps the current
+ *                         difficulty: it cannot clear one, unlike a null {@code description}, which does
  * @param plannedStartDate intended start date, optional and only meaningful on creation
  * @param targetEndDate    the date it should be done by, optional
  * @param motivation       why the user wants it, optional

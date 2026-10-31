@@ -19,7 +19,7 @@ import {
   streakQuery,
 } from '../components/upgrade/upgradeDetailsQueries';
 import Badge from '../components/ui/Badge';
-import { difficultyBadgeVariant } from '../components/upgrade/upgradeMeta';
+import { difficultyBadgeVariant, difficultyLabel } from '../components/upgrade/upgradeMeta';
 import PageContainer from '../components/ui/PageContainer';
 import ErrorState from '../components/ui/ErrorState';
 import { toApiError } from '../api/apiError';
@@ -80,7 +80,7 @@ const UpgradeDetails: React.FC = () => {
         <div className="flex flex-wrap gap-2 mb-3">
           <UpgradeStatusBadge status={upgrade.status} />
           <UpgradeTypeBadge type={upgrade.type} />
-          <Badge variant={difficultyBadgeVariant(upgrade.difficulty)}>{upgrade.difficulty}</Badge>
+          <Badge variant={difficultyBadgeVariant(upgrade.difficulty)}>{difficultyLabel(upgrade.difficulty)}</Badge>
         </div>
         <h1 className="text-2xl font-bold text-fg break-words">{upgrade.title}</h1>
         {upgrade.description && <p className="text-fg-subtle mt-2 break-words">{upgrade.description}</p>}

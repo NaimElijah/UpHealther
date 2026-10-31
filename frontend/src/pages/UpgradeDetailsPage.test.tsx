@@ -17,7 +17,7 @@ import type {
   StreakSummary,
   UpgradeStatus,
 } from '../types';
-import { healthAreaAsSent, reflectionAsSent, upgradeAsSent } from '../test/wireFixtures';
+import { healthAreaAsSent, reflectionAsSent, trackingConfigAsSent, upgradeAsSent } from '../test/wireFixtures';
 
 const getUpgradeById = vi.fn();
 const updateUpgrade = vi.fn();
@@ -345,6 +345,21 @@ describe('UpgradeDetailsPage', () => {
     expect((screen.getByLabelText('Date') as HTMLInputElement).value).toBe('2026-03-11');
   });
 
+  // FR-18, #342 D3.16 — the API refuses a progress date past the server's tomorrow, which is UTC's today
+  // plus a day, not the user's. In Los Angeles at 22:00 on 11 March, UTC is already on 12 March, so the
+  // last date the API accepts is 13 March, two days past the local one.
+
+  it('GivenLateEveningWestOfUtc_WhenLogProgressIsOpened_ThenTheDateCannotGoPastTheServersTomorrow', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-12T05:00:00Z'));
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Log Progress' }));
+
+    expect((screen.getByLabelText('Date') as HTMLInputElement).max).toBe('2026-03-13');
+  });
+
   it('GivenLateEveningWestOfUtc_WhenAddReflectionIsOpened_ThenItOffersTheLocalDay', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-03-12T05:00:00Z'));
@@ -662,6 +677,124 @@ describe('UpgradeDetailsPage', () => {
     expect((within(dialog).getByLabelText('Required daily') as HTMLInputElement).checked).toBe(false);
   });
 
+  // The target and unit belong to NUMERIC alone. Changing the type away from it hid their fields but
+  // kept and sent their values, and the card then read "Target: 2 L" for a Yes / No configuration.
+
+  it('GivenASavedNumericConfiguration_WhenTheTypeIsChangedToYesNoAndSaved_ThenNoTargetIsSent', async () => {
+    getUpgradeById.mockResolvedValue({
+      ...anUpgrade(),
+      trackingConfig: trackingConfigAsSent({
+        upgradeId: UPGRADE_ID,
+        trackingType: 'NUMERIC',
+        targetNumericValue: 2,
+        targetUnit: 'L',
+      }),
+    });
+    saveTrackingConfig.mockResolvedValue(anUpgrade());
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'Configure Tracking' }));
+
+    fireEvent.change(dialog.getByLabelText('Tracking type'), { target: { value: 'BOOLEAN' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(saveTrackingConfig).toHaveBeenCalledTimes(1));
+    expect(saveTrackingConfig.mock.calls[0][1]).toMatchObject({
+      trackingType: 'BOOLEAN',
+      targetNumericValue: null,
+      targetUnit: null,
+    });
+  });
+
+  it('GivenAYesNoConfigurationHoldingATarget_WhenItIsShown_ThenNoTargetIsShown', async () => {
+    getUpgradeById.mockResolvedValue({
+      ...anUpgrade(),
+      trackingConfig: trackingConfigAsSent({
+        upgradeId: UPGRADE_ID,
+        trackingType: 'BOOLEAN',
+        targetNumericValue: 2,
+        targetUnit: 'L',
+      }),
+    });
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    expect(screen.queryByText('Target:')).toBeNull();
+  });
+
+  it('GivenANumericConfiguration_WhenItIsSavedWithATargetAndUnit_ThenBothAreSentAndShown', async () => {
+    const saved = trackingConfigAsSent({
+      upgradeId: UPGRADE_ID,
+      trackingType: 'NUMERIC',
+      targetNumericValue: 8,
+      targetUnit: 'glasses',
+    });
+    getUpgradeById.mockResolvedValueOnce(anUpgrade()).mockResolvedValue({ ...anUpgrade(), trackingConfig: saved });
+    saveTrackingConfig.mockResolvedValue({ ...anUpgrade(), trackingConfig: saved });
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'Configure Tracking' }));
+
+    fireEvent.change(dialog.getByLabelText('Tracking type'), { target: { value: 'NUMERIC' } });
+    fireEvent.change(dialog.getByLabelText('Target value'), { target: { value: '8' } });
+    fireEvent.change(dialog.getByLabelText('Unit'), { target: { value: 'glasses' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(saveTrackingConfig).toHaveBeenCalledTimes(1));
+    expect(saveTrackingConfig.mock.calls[0][1]).toMatchObject({
+      trackingType: 'NUMERIC',
+      targetNumericValue: 8,
+      targetUnit: 'glasses',
+    });
+    expect(await screen.findByText('Target:')).toBeDefined();
+    expect(screen.getByText('8 glasses')).toBeDefined();
+  });
+
+  // The difficulty pill names the difficulty as the form and the upgrade card do. It showed the raw
+  // value, "MEDIUM" in capitals beside "Active" and "Habit", and an empty pill for none.
+
+  it('GivenADifficulty_WhenTheDetailsPageIsShown_ThenItIsNamedByItsLabel', async () => {
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    expect(screen.getByText('Medium')).toBeDefined();
+    expect(screen.queryByText('MEDIUM')).toBeNull();
+  });
+
+  it('GivenNoDifficulty_WhenTheDetailsPageIsShown_ThenThePillSaysTheDifficultyIsNotSet', async () => {
+    getUpgradeById.mockResolvedValue({ ...anUpgrade(), difficulty: null });
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    expect(screen.getByText('Difficulty not set')).toBeDefined();
+  });
+
+  it('GivenASavedConfiguration_WhenItIsShown_ThenItsTypeAndFrequencyAreNamedAsTheFormNamesThem', async () => {
+    getUpgradeById.mockResolvedValue({
+      ...anUpgrade(),
+      trackingConfig: trackingConfigAsSent({ upgradeId: UPGRADE_ID, trackingType: 'RATING', frequency: 'WEEKLY' }),
+    });
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    expect(screen.getByText('Rating (1-5)')).toBeDefined();
+    expect(screen.getByText('Weekly')).toBeDefined();
+    expect(screen.queryByText('RATING')).toBeNull();
+  });
+
+  it('GivenASavedConfigurationWithNoFrequency_WhenItIsShown_ThenTheFrequencySaysItIsNotSet', async () => {
+    getUpgradeById.mockResolvedValue({
+      ...anUpgrade(),
+      trackingConfig: trackingConfigAsSent({ upgradeId: UPGRADE_ID, frequency: null }),
+    });
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    expect(screen.getByText('Frequency:').parentElement?.textContent).toBe('Frequency: Not set');
+  });
+
   it('GivenATrackingSaveWasRefused_WhenTheDialogIsReopened_ThenTheRefusalIsGone', async () => {
     saveTrackingConfig.mockRejectedValue(OVERLONG_UNIT);
     renderPage();
@@ -707,6 +840,28 @@ describe('UpgradeDetailsPage', () => {
     // accepted save. The refetch happens only on success; wait for it, then look.
     await waitFor(() => expect(getReminders.mock.calls.length).toBeGreaterThan(fetchesBeforeTheRetry));
     expect(screen.queryByText('Must not be null')).toBeNull();
+  });
+
+  it('GivenAReminderAddedAtAnotherTime_WhenItIsAccepted_ThenTheFormStartsAgainFromNineOClockAndNoDays', async () => {
+    createReminder.mockResolvedValue({
+      id: 'r-1',
+      upgradeId: UPGRADE_ID,
+      reminderTime: '07:30:00',
+      daysOfWeek: ['WED'],
+      enabled: true,
+    });
+    renderPage();
+    await screen.findByText('Cold showers');
+    fireEvent.change(screen.getByLabelText('Time'), { target: { value: '07:30' } });
+    fireEvent.click(screen.getByTitle('WED'));
+
+    fireEvent.submit(screen.getByRole('button', { name: 'Add reminder' }));
+    await waitFor(() => expect((screen.getByLabelText('Time') as HTMLInputElement).value).toBe('09:00'));
+    fireEvent.submit(screen.getByRole('button', { name: 'Add reminder' }));
+
+    await waitFor(() => expect(createReminder).toHaveBeenCalledTimes(2));
+    expect(createReminder.mock.calls[0][1]).toMatchObject({ reminderTime: '07:30', daysOfWeek: ['WED'] });
+    expect(createReminder.mock.calls[1][1]).toMatchObject({ reminderTime: '09:00', daysOfWeek: [] });
   });
 
   it('GivenTheUpgradeIsGone_WhenAReminderIsAdded_ThenItSaysWhyWithItsReference', async () => {

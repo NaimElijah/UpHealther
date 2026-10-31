@@ -1,11 +1,13 @@
 package com.healthupgrades.upgrade.domain.port.out;
 
 import com.healthupgrades.common.domain.exception.RetryableConflictException;
-import com.healthupgrades.upgrade.domain.model.Difficulty; // difficulty enum used as a query filter
-import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // the aggregate this port persists
-import com.healthupgrades.upgrade.domain.model.UpgradeStatus; // lifecycle status used as a query filter
-import com.healthupgrades.upgrade.domain.model.UpgradeType; // type enum used as a query filter
+import com.healthupgrades.upgrade.domain.model.Difficulty;
+import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
+import com.healthupgrades.upgrade.domain.model.UpgradeStatus;
+import com.healthupgrades.upgrade.domain.model.UpgradeType;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -41,8 +43,22 @@ public interface UpgradeRepositoryPort {
     /** A user's upgrades filtered by difficulty. */
     List<HealthUpgrade> findByUserIdAndDifficulty(UUID userId, Difficulty difficulty);
 
-    /** All upgrades in a status across every user (used by scheduled jobs). */
-    List<HealthUpgrade> findByStatus(UpgradeStatus status);
+    /**
+     * Every ACTIVE upgrade whose target date is before a given day, across every user (used by scheduled
+     * jobs): the overdue sweep's candidates, read without the rest of the active upgrades.
+     *
+     * @param today the day a target date is judged against; an upgrade due on it is not yet late
+     * @return the matching upgrades of every user
+     */
+    List<HealthUpgrade> findActivePastTargetDate(LocalDate today);
+
+    /**
+     * How many upgrades in a status each user has, across every user (used by scheduled jobs).
+     *
+     * @param status the status to count
+     * @return each user with at least one upgrade in it, and how many; a user with none is absent
+     */
+    Map<UUID, Long> countByOwner(UpgradeStatus status);
 
     /** Batch lookup of upgrades by id (used to resolve reminders in bulk). */
     List<HealthUpgrade> findAllById(Iterable<UUID> ids);

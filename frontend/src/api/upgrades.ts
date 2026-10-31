@@ -40,7 +40,8 @@ export const updateUpgrade = async (id: string, req: CreateUpgradeRequest): Prom
 };
 
 /**
- * Moves an upgrade to `status` through that status's action endpoint, which takes no body.
+ * Moves an upgrade to `status` through that status's action endpoint, with no body. Of those endpoints
+ * only `/activate` takes one, an optional start date; without it the upgrade starts today.
  *
  * The parameter type is what keeps `PLANNED` out: both ways into it carry a date, so planning goes
  * through planUpgrade() and rescheduling through rescheduleUpgrade() (#88).

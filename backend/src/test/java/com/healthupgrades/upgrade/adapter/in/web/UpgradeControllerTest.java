@@ -185,6 +185,27 @@ class UpgradeControllerTest {
     }
 
     @Test
+    void GivenTheRetiredProtocolType_WhenAnUpgradeIsCreated_ThenTheDomainsRefusalAnswers422() throws Exception {
+        // FR-9: PROTOCOL still binds, since a row may carry it and a PUT may send it back, so the
+        // refusal is the aggregate's, not the body's. Stubbed as HealthUpgrade.create refuses it; what
+        // this pins is that it reaches the use case as PROTOCOL and that the refusal is a 422, not a 400.
+        String refusal = "That kind of upgrade is retired; choose another";
+        when(service.create(eq(userId), any())).thenThrow(new BusinessRuleException(refusal));
+
+        mockMvc.perform(bearer(post(BASE))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Cold showers\",\"type\":\"PROTOCOL\"}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.message").value(refusal));
+
+        ArgumentCaptor<UpgradeDetails> details = ArgumentCaptor.forClass(UpgradeDetails.class);
+        verify(service).create(eq(userId), details.capture());
+        assertThat(details.getValue().type().isRetired())
+                .as("the use case is asked for the retired kind")
+                .isTrue();
+    }
+
+    @Test
     void GivenABodyWithNoTitle_WhenAnUpgradeIsCreated_ThenItAnswers400NamingTheField() throws Exception {
         // NFR-7: a failed constraint is a 400 whose body maps the field to its message, so a form can
         // show the error next to the input rather than as a banner.

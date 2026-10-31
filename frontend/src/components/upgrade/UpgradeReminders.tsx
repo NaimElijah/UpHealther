@@ -100,17 +100,22 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
     setEditingReminderId(reminder.id);
   };
 
+  /** Puts the form's time and days back to their defaults. */
+  const resetReminderForm = () => {
+    setReminderTime(DEFAULT_REMINDER_TIME);
+    setReminderDays([]);
+  };
+
   /** Puts the form back to adding a reminder, from its defaults. */
   const stopEditingReminder = () => {
     setEditingReminderId(null);
-    setReminderTime(DEFAULT_REMINDER_TIME);
-    setReminderDays([]);
+    resetReminderForm();
   };
 
   const submitReminder = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingReminderId) {
-      createReminderMut.mutate(undefined, { onSuccess: () => setReminderDays([]) });
+      createReminderMut.mutate(undefined, { onSuccess: resetReminderForm });
       return;
     }
     // `enabled` is left out, so a disabled reminder stays disabled when its schedule moves.

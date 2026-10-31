@@ -26,12 +26,25 @@ import org.springframework.stereotype.Component;
 class AuthSessionRepositoryAdapter implements AuthSessionRepositoryPort {
 
     private final AuthSessionJpaRepository jpa; // Spring Data proxy
-    private final EntityManager entityManager; // the transaction's, for the spent-credential statements
+    private final EntityManager entityManager; // the transaction's, for inserts and the spent credentials
+
+    /** {@inheritDoc} */
+    @Override
+    public AuthSession insert(AuthSession session) {
+        entityManager.persist(session);
+        return session;
+    }
 
     /** {@inheritDoc} */
     @Override
     public AuthSession save(AuthSession session) {
         return jpa.save(session);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public AuthSession saveAndFlush(AuthSession session) {
+        return jpa.saveAndFlush(session);
     }
 
     /** {@inheritDoc} */
