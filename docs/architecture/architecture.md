@@ -105,11 +105,11 @@ domain layers reach the kernel in `common.domain` and nowhere else ([ADR-064](..
 |---|---|
 | `src/api/` | One axios instance, `client.ts`, and one module per backend area with a thin function per endpoint. The instance attaches the in-memory access token, and renews it from the refresh cookie and retries once on a 401 rather than signing the user out; `tokenStore.ts` holds the token, and every HTTP call goes through the instance. `api/` owns the credential's renewal and the end of a session: `session.ts`'s `endSession` is the one way a session ends, on sign-out, when a renewal fails and on the server's session-ended frame, by dropping the token, emptying what registered with its `onSessionEnd` (the query cache, and the application `main.tsx` mounted), and replacing the document with `/login`, never a router push, so no state of the previous user survives. A page the browser restores from its back/forward cache reloads, because its script state is the one it was left with ([ADR-066](../ADRs/ADR-066-a-tab-keeps-nothing-of-a-session-that-ended.md)). An id goes into a path only through `apiPath.ts`'s template tag, which encodes it as one segment and refuses an empty, `.` or `..` one, because a route's `:id` arrives decoded. `apiError.ts`'s `toApiError` is the one place a failure is decoded, into a status, a message, any field errors and the trace id. `notificationSocket.ts` is the STOMP client that delivers notifications live: it presents and renews the same token, and takes the API's origin from `apiBaseUrl.ts`, as the instance does |
 | `src/contexts/` | `AuthProvider` owns the current user and the sign-in, registration and sign-out actions. It writes the token three times: it stores the one a sign-in or a registration returns, and clears it when the restore at page load fails; a sign-out the server accepted ends through `endSession`. Until the page-load restore settles, `isLoading` is true and the sign-in and registration pages refuse to submit, so a restore that succeeds signs the tab in and redirects it before anybody can sign in on top of it; the sign-in and registration actions also wait for the restore themselves, a backstop for any other caller, so a restore that lands late cannot replace the account just signed in with the one whose refresh cookie the browser held. A restore whose deadline passed while its refresh was still out is not covered: that refresh's cookie can land after a later sign-in's ([#403](https://github.com/NaimElijah/UpHealther/issues/403)); `NotificationProvider` owns the notification list, the unread count (the server's, since the list holds only the fifty most recent; the unread listed stands in until it can be read), when the STOMP connection is open, and the toasts; `ThemeProvider` owns the light/dark/system choice and the `dark` class on `<html>` |
-| `src/hooks/` | `useAuth`, `useNotifications` and `useTheme` — typed context readers that fail loudly outside their provider |
+| `src/hooks/` | `useAuth`, `useNotifications` and `useTheme` — typed context readers that fail loudly outside their provider — and two hooks every page uses: `useDocumentTitle`, which titles the document after the page, and `useFocusWhenReady`, which moves focus once an action that removed the focused control has rendered |
 | `src/App.tsx`, `src/main.tsx` | The outer half of the composition root. `main.tsx` mounts `App` under `StrictMode`, and unmounts it when a session ends, through `onSessionEnd`; `App` installs, outermost first, `ThemeProvider`, `ErrorBoundary`, the one `QueryClientProvider` and `AuthProvider` around the router |
-| `src/router/` | `index.tsx`, the route table and the inner half of the composition root: inside `BrowserRouter` it mounts `NotificationProvider` around the routes and `ToastContainer` beside them, so both can navigate: a toast opens its upgrade, and so does the provider when a desktop notification is clicked. `ProtectedRoute` gates every page but sign-in and registration; `RequireRole` adds the administrator check in front of `/admin/users`, a courtesy, since the API decides. `/` and any unknown path redirect |
+| `src/router/` | `index.tsx`, the route table and the inner half of the composition root: inside `BrowserRouter` it mounts `NotificationProvider` around the routes, and `RouteFocus` and `ToastContainer` beside them, so a route change can move focus and a toast can navigate: a toast opens its upgrade, and so does the provider when a desktop notification is clicked. `ProtectedRoute` gates every page but sign-in and registration; `RequireRole` adds the administrator check in front of `/admin/users`, a courtesy, since the API decides. `/` and any unknown path redirect |
 | `src/pages/` | One component per route that renders a page |
-| `src/components/` | `ui/` primitives — including `PageContainer`, which decides how wide a page may grow, `Modal`, which every dialog is, and `ErrorState`, which shows a failure with its trace id — `upgrade/` cards, badges, the fields that describe an upgrade, the actions an upgrade's page offers on it, and the sections of that page (its streak, tracking configuration, reminders, progress and reflections), each rendering the read the page hands it and owning its writes and dialog where it has them, `notifications/` bell, dropdown, items and toasts, `layout/` navbar, sidebar and the phone menu, the last two rendering one shared list of links (`navItems.ts`), `theme/` the light, dark and system switch, and `ErrorBoundary.tsx`, which replaces a tree that threw while rendering with a page offering a reload |
+| `src/components/` | `ui/` primitives — including `PageContainer`, which decides how wide a page may grow, `Modal`, which every dialog is, `ErrorState`, which shows a failure with its trace id, `PageHeading`, every page's one `h1`, and `ButtonLink`, a link that looks like `Button` — `upgrade/` cards, badges, the fields that describe an upgrade, the actions an upgrade's page offers on it, and the sections of that page (its streak, tracking configuration, reminders, progress and reflections), each rendering the read the page hands it and owning its writes and dialog where it has them, `notifications/` bell, dropdown, items and toasts, `layout/` navbar, sidebar and the phone menu, the last two rendering one shared list of links (`navItems.ts`), `theme/` the light, dark and system switch, and `ErrorBoundary.tsx`, which replaces a tree that threw while rendering with a page offering a reload |
 | `src/types/` | `api.generated.ts`, the request and response shapes and enums rendered from the backend's records, and `index.ts`, which gives them the frontend's names and adds, as intersections, what no record declares: a health area's client-side `upgradeCount`, and the `upgradeId` that `createProgress` moves from a new entry into the URL (see "The frontend's wire types are generated from the backend's records") |
 | `src/lib/` | Helpers shared by several pages. `localDate.ts` turns the API's zone-less `YYYY-MM-DD` dates into the user's own day and back, because JavaScript's shortcuts for both go through UTC; `queryClient.ts` builds the one server-state cache and its thirty-second staleness window, and registers it to be emptied when a session ends; `upgradeViews.ts` marks every cached view of upgrades out of date after a write that changed one ([ADR-029](../ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)) |
 
@@ -977,6 +977,43 @@ live above an open dialog. `aria-modal` then holds for the page and not for the 
 reachable by pointer only, because Tab stays inside the dialog. See
 [ADR-019](../ADRs/ADR-019-a-toast-stays-live-above-an-open-dialog.md).
 
+**The interface targets WCAG 2.2 AA, and a handful of shared pieces carry it**
+([ADR-082](../ADRs/ADR-082-the-interface-targets-wcag-2-2-aa.md); NFR-61 names the tests).
+
+- **A route change moves focus to the new page's heading.** Every page's `h1` is
+  `components/ui/PageHeading` (through `PageHeader`, or directly), focusable by script and not by Tab.
+  `router/RouteFocus`, mounted after the routes, focuses it after every location change but the first
+  render. A page still loading has no heading yet, so the move is left waiting and the heading takes it
+  as it mounts, unless the user has moved focus meanwhile. The phone menu needs nothing of its own:
+  its `Modal` hands focus back to the menu button in a cleanup, and every cleanup runs before the
+  router's effect. See [ADR-083](../ADRs/ADR-083-a-route-change-moves-focus-to-the-new-pages-heading.md).
+- **Each page titles the document**, as "{page} – UpHealther", through `hooks/useDocumentTitle`,
+  called before any early return so the title holds while the page loads. `index.html` keeps its fixed
+  title, because the boot script's CSP hash covers the file.
+- **The headings form an outline.** A `Card`'s header is a heading, `h2` unless its `level` says `3`,
+  and so are `EmptyState`'s and `ErrorState`'s titles. A page that fails to load renders its
+  `PageHeader` above the failure, so it keeps its `h1`, and a list of cards whose titles are `h3`s has a
+  visually hidden `h2` above it.
+- **A field is wired to its label, its error and its required state by `Input` and `Select`.** Each
+  takes its ids from `useId`, marks the control `aria-invalid` and describes it by its error while
+  there is one, announces the error as an alert, and passes `required` through with `aria-required`
+  and a visible marker. Forms with required fields set `noValidate` and check themselves, and a refused
+  check sends focus to the field it names.
+- **A loading `Button` keeps focus.** It refuses presses with `aria-disabled` and a click that cancels
+  its default, which stops a submit button sending its form again, says it is busy with `aria-busy`,
+  and ignores a caller's `disabled` meanwhile, because a disabled button gives up focus.
+- **An action that removes the control that had focus hands focus on**, through
+  `hooks/useFocusWhenReady`: to the page's heading when a card or a header button goes, to the reminder
+  form when a reminder row goes, to the other paging button at either end of the account list. The
+  bell hands focus back to itself when its panel closes or an action in it removes its own button.
+- **A toast waits while it is held.** `ToastContainer` times each toast out after ten seconds counted
+  only while the pointer is off it and focus is outside it, and announces it through a polite live
+  region mounted before any toast arrives.
+
+What jsdom cannot see — contrast, reflow, a focus hidden behind the sticky header, which
+`index.css`'s `scroll-padding-top` prevents — is checked by hand in a browser until
+[#404](https://github.com/NaimElijah/UpHealther/issues/404) automates it.
+
 Two constraints fall out of the dialog's walk and bind anything added later. **A new `createPortal(...,
 document.body)` has to declare itself**: it either spreads `aboveModalProps`
 (`components/ui/aboveModal.ts`, the `data-above-modal` attribute), meaning it belongs above a dialog
@@ -1119,6 +1156,8 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why every page shares one width; why the shell can be trusted not to overflow; why container queries were turned down | [ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md) |
 | Why the dialog traps focus by hand rather than through a native `<dialog>`; why `inert` and not `aria-hidden`; why the overlay is portalled | [ADR-013](../ADRs/ADR-013-trapping-focus-without-a-native-dialog.md) |
 | Why a phone gets the navigation in the shared dialog rather than a drawer or a tab bar; when the menu closes; why the brand leaves the navbar below 360px | [ADR-022](../ADRs/ADR-022-the-phone-navigation-is-the-shared-dialog-not-a-drawer.md) |
+| Why the interface targets WCAG 2.2 AA rather than 2.1 AA or no target; what is checked by hand until an automated check exists; what it changed in ADR-019's toasts | [ADR-082](../ADRs/ADR-082-the-interface-targets-wcag-2-2-aa.md) |
+| Why a route change moves focus to the new page's heading, rather than to `<main>`, to a live region or nowhere; how a heading that arrives late takes it; why the phone menu needs no special case | [ADR-083](../ADRs/ADR-083-a-route-change-moves-focus-to-the-new-pages-heading.md) |
 | Why a write to an upgrade refreshes every page's view of upgrades rather than its own, and why not a zero staleness window or patched caches | [ADR-029](../ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md) |
 | Why deleting a health area refreshes every view of upgrades, and creating or renaming one the dashboard | [ADR-081](../ADRs/ADR-081-a-write-that-changes-upgrades-indirectly-refreshes-their-views-too.md) |
 | Why a notification sweep carries on past a failed save, still fails the run, and gives up only when the database cannot be reached | [ADR-023](../ADRs/ADR-023-a-notification-sweep-carries-on-past-a-failed-save-and-fails-the-run.md) |

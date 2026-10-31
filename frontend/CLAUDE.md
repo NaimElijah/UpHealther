@@ -172,6 +172,32 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   - Type an inline request body with `satisfies` and its generated request type, as `api/auth.ts` does,
     so a key the endpoint does not take, or a missing one, is a compile error.
 - Styling is Tailwind CSS; reusable primitives are in `src/components/ui/`.
+- **The interface targets WCAG 2.2 AA**
+  ([ADR-082](../docs/ADRs/ADR-082-the-interface-targets-wcag-2-2-aa.md), NFR-61), and the primitives
+  carry most of it, so a new page or control uses them rather than its own markup:
+  - **A page's `h1` is `PageHeading`**, directly or through `PageHeader`, and the page calls
+    `useDocumentTitle` before any early return. A route change focuses that heading through
+    `router/RouteFocus`
+    ([ADR-083](../docs/ADRs/ADR-083-a-route-change-moves-focus-to-the-new-pages-heading.md)); an `h1`
+    drawn by hand silently loses that. A page that fails to load renders its `PageHeader` above the
+    `ErrorState`.
+  - **Headings do not skip a level.** A `Card`'s header is an `h2`, or an `h3` with `level={3}`, and
+    `EmptyState` and `ErrorState` take the same `level`. `src/test/headingOutline.ts`'s
+    `headingOutlineProblems()` is what a page test asserts empty.
+  - **A field is an `Input` or a `Select`**, which tie its label, its error and its required state to
+    it through `useId`. A form with a `required` field sets `noValidate`, checks itself, and sends focus
+    to the field a check refuses.
+  - **A loading `Button` keeps focus**: it uses `aria-disabled` and `aria-busy`, not `disabled`, and
+    ignores a caller's `disabled` while `loading`. Disabling the very button the user pressed drops its
+    focus in a browser, which jsdom never shows, so the pressed one gets `loading` instead.
+  - **An action that removes the control that had focus hands focus on** with `useFocusWhenReady`,
+    usually to `findPageHeading()`.
+  - **What only navigates is a `ButtonLink`**, not a `Button` that calls `navigate`. A repeated per-item
+    button names its item after the word it shows (``aria-label={`Pause ${title}`}``), and a decorative
+    emoji is `aria-hidden`.
+  - **Contrast, reflow and a focus hidden behind the sticky header are checked by hand**, in a browser,
+    because jsdom has no layout; the PR says which. Automating it is
+    [#404](https://github.com/NaimElijah/UpHealther/issues/404)'s.
 - **The page is served under a CSP, and the inline boot script is permitted by a hash.** It is in
   `nginx.conf`, so `npm run dev` serves no headers and a violation only appears in a compose run or
   in production. `src/test/bootScriptCsp.test.ts` recomputes the hash from the shipped `index.html`
