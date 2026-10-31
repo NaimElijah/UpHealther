@@ -32,6 +32,12 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class DashboardAggregationService implements DashboardQuery {
 
+    /** How many recently completed upgrades the dashboard shows. */
+    static final int RECENTLY_COMPLETED_SHOWN = 5;
+
+    /** Scales the share of completed entries to the percentage the rate is reported in. */
+    private static final double PERCENT = 100.0;
+
     private final UpgradeQuery upgradeQuery; // inbound port: upgrades
     private final ProgressQuery progressQuery; // inbound port: progress entries
     private final StreakQuery streakQuery; // inbound port: computed streaks
@@ -54,7 +60,7 @@ public class DashboardAggregationService implements DashboardQuery {
         List<HealthUpgrade> overdue =
                 all.stream().filter(u -> u.isOverdue(today)).toList();
 
-        double weeklyRate = calculateWeeklyCompletionRate(userId, today);
+        double weeklyRate = calculateWeeklyCompletionRate(userId);
         Map<UUID, Integer> streaks = streakQuery.currentStreaks(
                 userId, active.stream().map(HealthUpgrade::getId).toList());
 
@@ -65,7 +71,7 @@ public class DashboardAggregationService implements DashboardQuery {
                 .filter(u -> u.getStatus() == UpgradeStatus.COMPLETED)
                 .sorted(Comparator.comparing(
                         HealthUpgrade::getCompletedAt, Comparator.nullsLast(Comparator.reverseOrder())))
-                .limit(5)
+                .limit(RECENTLY_COMPLETED_SHOWN)
                 .toList();
 
         List<HealthArea> areas = healthAreaQuery.listByUser(userId);
@@ -75,15 +81,17 @@ public class DashboardAggregationService implements DashboardQuery {
                 active, planned, todayList, overdue, recentlyCompleted, weeklyRate, streaks, areaSummaries);
     }
 
-    /** Percentage of the last 7 days' progress entries marked completed (0 when there are none). */
-    private double calculateWeeklyCompletionRate(UUID userId, LocalDate today) {
-        LocalDate weekAgo = today.minusDays(6);
-        List<ProgressEntry> weekEntries = progressQuery.findByUserIdAndDateBetween(userId, weekAgo, today);
+    /**
+     * Percentage of the week's progress entries marked completed (0 when there are none). The week is the
+     * tracking context's, the one {@code /api/progress/week} returns.
+     */
+    private double calculateWeeklyCompletionRate(UUID userId) {
+        List<ProgressEntry> weekEntries = progressQuery.getWeekProgress(userId);
         if (weekEntries.isEmpty()) return 0.0;
         long completed = weekEntries.stream()
                 .filter(e -> Boolean.TRUE.equals(e.getCompleted()))
                 .count();
-        return (double) completed / weekEntries.size() * 100.0;
+        return (double) completed / weekEntries.size() * PERCENT;
     }
 
     /** Rolls up upgrade counts per health area. */

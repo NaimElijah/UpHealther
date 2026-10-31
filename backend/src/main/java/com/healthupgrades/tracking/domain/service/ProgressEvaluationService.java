@@ -13,6 +13,9 @@ import java.util.Objects;
  */
 public class ProgressEvaluationService {
 
+    /** The lowest rating that counts as a success: 3, the midpoint of the one-to-five scale (BR-21). */
+    static final int RATING_SUCCESS_THRESHOLD = 3;
+
     /**
      * Returns whether the entry counts as a success for its configured tracking type: boolean
      * completion, numeric value meeting the target in a comparable unit, a rating of at least 3, or
@@ -38,8 +41,8 @@ public class ProgressEvaluationService {
                         && config.getTargetNumericValue() != null
                         && unitsAreComparable(entry.getUnit(), config.getTargetUnit())
                         && entry.getNumericValue() >= config.getTargetNumericValue();
-            // 3 is the midpoint of the one-to-five scale: an average day counts, a bad one does not.
-            case RATING -> entry.getRating() != null && entry.getRating() >= 3;
+            // The midpoint of the scale: an average day counts, a bad one does not.
+            case RATING -> entry.getRating() != null && entry.getRating() >= RATING_SUCCESS_THRESHOLD;
             case TEXT -> entry.getNote() != null && !entry.getNote().isBlank();
         };
     }
