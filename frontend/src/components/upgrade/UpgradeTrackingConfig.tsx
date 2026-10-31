@@ -8,6 +8,7 @@ import Input from '../ui/Input';
 import Select from '../ui/Select';
 import Modal from '../ui/Modal';
 import { numOrUndef, refusalMessage } from './formInput';
+import { labelFor } from './upgradeMeta';
 import type { Frequency, HealthUpgrade, SaveTrackingConfigRequest, TrackingType } from '../../types';
 
 /** A select's choices, in the order a label map lists them. */
@@ -15,7 +16,7 @@ const optionsOf = <T extends string>(labels: Record<T, string>): { value: T; lab
   (Object.keys(labels) as T[]).map((value) => ({ value, label: labels[value] }));
 
 /**
- * What the configuration form calls each tracking type. Keyed by the generated union, so a type the API
+ * What the configuration form, and the card above it, call each tracking type. Keyed by the generated union, so a type the API
  * adds is a compile error here rather than an option the form lacks. The upgrade's saved type is the
  * upgrade context's mirror of that union (ADR-077), so the form can open on it as it is.
  */
@@ -26,7 +27,10 @@ const TRACKING_TYPE_LABELS: Record<TrackingType, string> = {
   TEXT: 'Text note',
 };
 
-/** What the configuration form calls each frequency; total over the union for the same reason. */
+/**
+ * What the configuration form, and the card above it, call each frequency; total over the union for
+ * the same reason.
+ */
 const FREQUENCY_LABELS: Record<Frequency, string> = {
   DAILY: 'Daily',
   WEEKLY: 'Weekly',
@@ -111,11 +115,11 @@ const UpgradeTrackingConfig: React.FC<Props> = ({ upgradeId, trackingConfig }) =
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
               <span className="text-fg-subtle">Type:</span>{' '}
-              <span className="font-medium">{trackingConfig.trackingType}</span>
+              <span className="font-medium">{labelFor(TRACKING_TYPE_LABELS, trackingConfig.trackingType)}</span>
             </div>
             <div>
               <span className="text-fg-subtle">Frequency:</span>{' '}
-              <span className="font-medium">{trackingConfig.frequency}</span>
+              <span className="font-medium">{labelFor(FREQUENCY_LABELS, trackingConfig.frequency)}</span>
             </div>
             {trackingConfig.trackingType === TARGETED_TYPE && trackingConfig.targetNumericValue != null && (
               <div>

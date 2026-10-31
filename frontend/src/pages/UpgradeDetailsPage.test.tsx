@@ -708,6 +708,30 @@ describe('UpgradeDetailsPage', () => {
     expect(screen.queryByText('Target:')).toBeNull();
   });
 
+  it('GivenASavedConfiguration_WhenItIsShown_ThenItsTypeAndFrequencyAreNamedAsTheFormNamesThem', async () => {
+    getUpgradeById.mockResolvedValue({
+      ...anUpgrade(),
+      trackingConfig: trackingConfigAsSent({ upgradeId: UPGRADE_ID, trackingType: 'RATING', frequency: 'WEEKLY' }),
+    });
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    expect(screen.getByText('Rating (1-5)')).toBeDefined();
+    expect(screen.getByText('Weekly')).toBeDefined();
+    expect(screen.queryByText('RATING')).toBeNull();
+  });
+
+  it('GivenASavedConfigurationWithNoFrequency_WhenItIsShown_ThenTheFrequencySaysItIsNotSet', async () => {
+    getUpgradeById.mockResolvedValue({
+      ...anUpgrade(),
+      trackingConfig: trackingConfigAsSent({ upgradeId: UPGRADE_ID, frequency: null }),
+    });
+    renderPage();
+    await screen.findByText('Cold showers');
+
+    expect(screen.getByText('Frequency:').parentElement?.textContent).toBe('Frequency: Not set');
+  });
+
   it('GivenATrackingSaveWasRefused_WhenTheDialogIsReopened_ThenTheRefusalIsGone', async () => {
     saveTrackingConfig.mockRejectedValue(OVERLONG_UNIT);
     renderPage();

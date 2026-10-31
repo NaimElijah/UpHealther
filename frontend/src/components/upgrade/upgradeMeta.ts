@@ -40,3 +40,26 @@ export function difficultyBadgeVariant(difficulty: Difficulty | null | undefined
   if (!difficulty) return UNKNOWN_DIFFICULTY_VARIANT;
   return difficultyVariant[difficulty] ?? UNKNOWN_DIFFICULTY_VARIANT;
 }
+
+/** What a field the upgrade leaves empty reads as, wherever its value would be named. */
+export const NOT_SET_LABEL = 'Not set';
+
+/**
+ * A value's label from a label map: {@link NOT_SET_LABEL} for none, and the raw value for one this
+ * build does not know, as the status badge falls back, so a new value degrades to its name rather than
+ * to nothing.
+ *
+ * @param labels what each known value is called
+ * @param value  the value from the API, typed but not validated as one of `labels`' keys
+ */
+export function labelFor<T extends string>(labels: Record<T, string>, value: T | null | undefined): string {
+  if (value == null) return NOT_SET_LABEL;
+  return labels[value] ?? value;
+}
+
+/** What the form and the card call each difficulty. Keyed by the union, so a new one fails the build here. */
+export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
+  EASY: 'Easy',
+  MEDIUM: 'Medium',
+  HARD: 'Hard',
+};

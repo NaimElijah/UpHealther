@@ -5,7 +5,7 @@ import UpgradeStatusBadge from './UpgradeStatusBadge';
 import UpgradeTypeBadge from './UpgradeTypeBadge';
 import Badge from '../ui/Badge';
 import Button from '../ui/Button';
-import { difficultyBadgeVariant } from './upgradeMeta';
+import { DIFFICULTY_LABELS, difficultyBadgeVariant, labelFor } from './upgradeMeta';
 import ErrorState from '../ui/ErrorState';
 import type { ApiError } from '../../api/apiError';
 
@@ -64,7 +64,9 @@ const UpgradeCard: React.FC<Props> = ({
       <div className="flex flex-wrap gap-2 mt-3">
         <UpgradeStatusBadge status={upgrade.status} />
         <UpgradeTypeBadge type={upgrade.type} />
-        <Badge variant={difficultyBadgeVariant(upgrade.difficulty)}>{upgrade.difficulty}</Badge>
+        <Badge variant={difficultyBadgeVariant(upgrade.difficulty)}>
+          {labelFor(DIFFICULTY_LABELS, upgrade.difficulty)}
+        </Badge>
       </div>
       {showActions && upgrade.status === 'IDEA' && onPlan && (
         <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-line-subtle">
