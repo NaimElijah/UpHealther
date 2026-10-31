@@ -614,6 +614,25 @@ class HexagonalArchitectureTest {
             .as("only AdminBootstrapRunner may depend on AdminBootstrapService");
 
     /**
+     * Only {@code User} itself may call its builder.
+     *
+     * <p>The builder sets every field, the id, the version, the role and the enabled flag included, and the
+     * adapter's save merges. So a production class holding it could write
+     * {@code User.builder().id(target).version(v).role(Role.ADMIN).build()} and save it, granting ADMIN with
+     * no audit entry and nothing to refuse it. An account is created through {@code User.register}, which
+     * calls the builder with its defaults, and changes only through {@code changeRole}, {@code disable} and
+     * {@code enable}, so the places an account gains a privilege stay countable (#342, D2.7). Tests keep
+     * the builder: they are not imported here.
+     */
+    @ArchTest
+    static final ArchRule only_user_calls_its_builder = noClasses()
+            .that()
+            .doNotHaveFullyQualifiedName("com.healthupgrades.user.domain.model.User")
+            .should()
+            .callMethod("com.healthupgrades.user.domain.model.User", "builder")
+            .as("no production class but User may call User.builder(); create an account with User.register");
+
+    /**
      * Only the nightly job may delete notifications across every account.
      *
      * <p>{@code NotificationRetentionService.deleteExpired} deletes every user's notifications past their
