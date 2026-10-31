@@ -194,6 +194,22 @@ describe('ToastContainer timing', () => {
     expect(screen.queryByText('🔥 7-day streak!')).toBeNull();
   });
 
+  // Review finding 29 on #407: elapsed time was read from the wall clock, which can jump while a toast is
+  // up, and a jump forward used up the whole lifetime at once.
+  it('GivenTheWallClockJumpsAnHourAhead_WhenTheToastIsHeldAndLetGo_ThenItKeepsTheTimeItHadLeft', () => {
+    vi.useFakeTimers();
+    render(<LiveToasts initial={[streakToast]} />);
+    const toast = screen.getByRole('group', { name: '🔥 7-day streak!' });
+    act(() => vi.advanceTimersByTime(1_000));
+    vi.setSystemTime(Date.now() + 60 * 60 * 1_000);
+
+    fireEvent.mouseEnter(toast);
+    fireEvent.mouseLeave(toast);
+    act(() => vi.advanceTimersByTime(TOAST_LIFETIME_MS - 1_000 - 1));
+
+    expect(screen.queryByText('🔥 7-day streak!')).not.toBeNull();
+  });
+
   it('GivenFocusInAToast_WhenItsLifetimePasses_ThenItStaysUntilFocusLeaves', () => {
     vi.useFakeTimers();
     render(<LiveToasts initial={[streakToast]} />);

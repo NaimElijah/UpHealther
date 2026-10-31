@@ -75,11 +75,12 @@ const Toast: React.FC<ToastProps> = ({ toast, onDismiss }) => {
 
   useEffect(() => {
     if (held) return;
-    const startedAt = Date.now();
+    // A monotonic clock: the wall clock can be set back or forward while a toast is up.
+    const startedAt = performance.now();
     const timer = window.setTimeout(() => onDismiss(toast.id), remaining.current);
     return () => {
       window.clearTimeout(timer);
-      remaining.current -= Date.now() - startedAt;
+      remaining.current -= performance.now() - startedAt;
     };
   }, [held, toast.id, onDismiss]);
 
