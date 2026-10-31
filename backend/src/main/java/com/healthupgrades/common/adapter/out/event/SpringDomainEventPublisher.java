@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class SpringDomainEventPublisher implements DomainEventPublisher {
 
-    private final ApplicationEventPublisher publisher; // Spring's in-process event bus
+    private final ApplicationEventPublisher publisher;
 
     /** {@inheritDoc} */
     @Override
@@ -29,6 +29,6 @@ public class SpringDomainEventPublisher implements DomainEventPublisher {
         // with no one reviewing the decision. Correlating a publication with its subject is the
         // consumer's job, where the fields logged are chosen deliberately.
         log.debug("Publishing domain event: {} occurred at {}", event.getClass().getSimpleName(), event.occurredAt());
-        publisher.publishEvent(event); // hand off to Spring so existing listeners keep working
+        publisher.publishEvent(event);
     }
 }
