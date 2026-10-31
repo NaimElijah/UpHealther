@@ -15,8 +15,8 @@ import org.jspecify.annotations.Nullable;
  * @param icon        the glyph to draw for the area, usually an emoji; may be null. Not an icon-font
  *                    key: nothing in the client turns a name such as "water_drop" into a picture, and
  *                    a value that is not drawable is replaced by a default when it is rendered
- * @param color       free text, up to 50 characters, may be null; the SPA only round-trips it through the
- *                    edit form
+ * @param color       free text, up to 50 characters, may be null; the SPA sets it in the create and edit
+ *                    forms but never draws it
  * @param createdAt   when the area was created
  * @param updatedAt   when it was last modified
  */
