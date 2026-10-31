@@ -81,7 +81,7 @@ public class TrackingService implements ProgressQuery, StreakQuery {
         // row: changing how an upgrade is measured changes what its past progress means, and the upgrade
         // is what somebody would be reading back. A refusal names the upgrade that was probed.
         return auditTrail.recording(AuditAction.TRACKING_CONFIGURE, userId, upgradeId, () -> {
-            upgradeQuery.getOwnedUpgrade(userId, upgradeId); // ownership check (throws if not owned)
+            upgradeQuery.getOwnedUpgrade(userId, upgradeId);
             Optional<TrackingConfig> existing = configRepository.findByUpgradeId(upgradeId);
             TrackingConfig config = existing.orElseGet(
                     () -> TrackingConfig.builder().upgradeId(upgradeId).build());
@@ -227,7 +227,7 @@ public class TrackingService implements ProgressQuery, StreakQuery {
     /** {@inheritDoc} */
     @Override
     public Map<UUID, Integer> currentStreaks(UUID userId, Collection<UUID> upgradeIds) {
-        if (upgradeIds.isEmpty()) return Map.of(); // nothing asked for, nothing queried
+        if (upgradeIds.isEmpty()) return Map.of();
         Map<UUID, List<ProgressEntry>> historyByUpgrade =
                 progressRepository.findByUserIdAndUpgradeIdIn(userId, upgradeIds).stream()
                         .collect(Collectors.groupingBy(ProgressEntry::getUpgradeId));

@@ -47,7 +47,7 @@ public class DashboardAggregationService implements DashboardQuery {
     /** {@inheritDoc} */
     @Override
     public DashboardView getDashboard(UUID userId) {
-        List<HealthUpgrade> all = upgradeQuery.findByUser(userId); // the user's whole portfolio
+        List<HealthUpgrade> all = upgradeQuery.findByUser(userId);
         LocalDate today = LocalDate.now(clock);
 
         List<HealthUpgrade> active =

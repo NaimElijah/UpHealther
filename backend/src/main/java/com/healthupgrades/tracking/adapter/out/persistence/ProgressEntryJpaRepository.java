@@ -14,17 +14,17 @@ import org.springframework.data.jpa.repository.Query;
  * Spring Data JPA repository backing {@link ProgressEntryRepositoryAdapter}; package-private internal detail.
  */
 interface ProgressEntryJpaRepository extends JpaRepository<ProgressEntry, UUID> {
-    List<ProgressEntry> findByUpgradeId(UUID upgradeId); // derived query
+    List<ProgressEntry> findByUpgradeId(UUID upgradeId);
 
     List<ProgressEntry> findByUpgradeIdOrderByDateDesc(UUID upgradeId);
 
     List<ProgressEntry> findByUserIdAndUpgradeIdIn(UUID userId, Collection<UUID> upgradeIds); // batch, owner's only
 
-    Optional<ProgressEntry> findByUpgradeIdAndDate(UUID upgradeId, LocalDate date); // derived query
+    Optional<ProgressEntry> findByUpgradeIdAndDate(UUID upgradeId, LocalDate date);
 
     boolean existsByUpgradeIdAndDate(UUID upgradeId, LocalDate date);
 
-    List<ProgressEntry> findByUserId(UUID userId); // derived query
+    List<ProgressEntry> findByUserId(UUID userId);
 
     List<ProgressEntry> findByUserIdAndDate(UUID userId, LocalDate date);
 

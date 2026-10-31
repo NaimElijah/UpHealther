@@ -12,5 +12,5 @@ interface ReflectionJpaRepository extends JpaRepository<Reflection, UUID> {
     // Derived query. Several reflections may share a date, so createdAt breaks the tie.
     List<Reflection> findByUpgradeIdOrderByDateDescCreatedAtDesc(UUID upgradeId);
 
-    List<Reflection> findByUserId(UUID userId); // derived query
+    List<Reflection> findByUserId(UUID userId);
 }
