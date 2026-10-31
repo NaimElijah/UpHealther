@@ -35,8 +35,10 @@ const NUMBER_UNREADABLE = 'Enter a number.';
  * Logs progress for every active upgrade in one pass.
  *
  * The entries are gathered locally and submitted together, so the user fills the form once rather than
- * saving each upgrade separately. Only upgrades with something entered are sent; an untouched one is
- * left unlogged rather than recorded as missed.
+ * saving each upgrade separately. Every active upgrade is sent, touched or not: an untouched one is
+ * posted with nothing but its upgrade and the day, and since an upgrade takes one entry a day (BR-6), it
+ * then counts as missed and cannot be corrected later that day. Whether an untouched upgrade should be
+ * sent at all is #55's decision.
  *
  * A failed load or submit is shown with its trace id (NFR-30). A failed load is not the empty state, and
  * a failed submit keeps the form, saying the check-in was not *fully* saved: one refusal rejects the
