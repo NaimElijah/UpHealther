@@ -1011,8 +1011,10 @@ reachable by pointer only, because Tab stays inside the dialog. See
   form's time when a reminder row goes or its edit is saved or cancelled, to the other paging button at
   either end of the account list. It moves focus only while nothing, `<body>` or the pressed control
   holds it (`lib/focusIsFree`), so focus the user moved while the request was in flight stays where
-  they put it. The bell hands focus back to itself when its panel closes or an action in it removes its
-  own button.
+  they put it. A view that replaces itself with a new page heading takes a second route,
+  `PageHeading`'s `takeFocus`, which focuses the heading as it mounts, under the same rule: the daily
+  check-in's completion is the one user. The bell hands focus back to itself when its panel closes or an
+  action in it removes its own button.
 - **A toast waits while it is held.** `ToastContainer` times each toast out after ten seconds counted
   only while the pointer is off it and focus is outside it, and announces it through a polite live
   region mounted before any toast arrives, which reads each new toast on its own

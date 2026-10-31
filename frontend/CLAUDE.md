@@ -200,7 +200,9 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   - **An action that removes the control that had focus hands focus on** with `useFocusWhenReady`,
     usually to `findPageHeading()`, and passes it the pressed control: focus moves only while nothing,
     `<body>` or that control holds it (`lib/focusIsFree.ts`), so a user who moved on while the request
-    was in flight keeps their place.
+    was in flight keeps their place. A view that replaces itself with a new page heading, as the
+    check-in's completion does, takes the second route: `PageHeading`'s `takeFocus`, which focuses the
+    heading as it mounts, under the same rule.
   - **What only navigates is a `ButtonLink`**, not a `Button` that calls `navigate`. A repeated per-item
     button names its item after the word it shows (``aria-label={`Pause ${title}`}``), and a decorative
     emoji is `aria-hidden`.
