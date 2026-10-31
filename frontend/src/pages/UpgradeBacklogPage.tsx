@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getUpgrades, createUpgrade, planUpgrade } from '../api/upgrades';
 import { getHealthAreas } from '../api/healthAreas';
@@ -40,6 +40,9 @@ const UpgradeBacklogPage: React.FC = () => {
   const [planning, setPlanning] = useState<HealthUpgrade | null>(null);
   const [planDate, setPlanDate] = useState('');
   const [planError, setPlanError] = useState('');
+  const titleField = useRef<HTMLInputElement>(null);
+  const targetEndField = useRef<HTMLInputElement>(null);
+  const planDateField = useRef<HTMLInputElement>(null);
 
   const {
     data: upgrades = [],
@@ -87,10 +90,12 @@ const UpgradeBacklogPage: React.FC = () => {
     setTargetEndError('');
     if (!form.title.trim()) {
       setFormError('Title is required.');
+      titleField.current?.focus();
       return;
     }
     if (form.targetEndDate && !isFourDigitYearDate(form.targetEndDate)) {
       setTargetEndError('Pick a date with a four-digit year.');
+      targetEndField.current?.focus();
       return;
     }
     try {
@@ -124,10 +129,12 @@ const UpgradeBacklogPage: React.FC = () => {
     setPlanError('');
     if (!planDate) {
       setPlanError('Pick a start date.');
+      planDateField.current?.focus();
       return;
     }
     if (!isFourDigitYearDate(planDate)) {
       setPlanError('Pick a date with a four-digit year.');
+      planDateField.current?.focus();
       return;
     }
     try {
@@ -168,13 +175,15 @@ const UpgradeBacklogPage: React.FC = () => {
       )}
 
       <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="New Upgrade Idea">
-        <form onSubmit={handleCreate} className="space-y-4">
+        <form onSubmit={handleCreate} noValidate className="space-y-4">
           <UpgradeFormFields
             value={form}
             onChange={setForm}
             areas={areas}
             titleError={formError}
             targetEndError={targetEndError}
+            titleRef={titleField}
+            targetEndRef={targetEndField}
           />
           <div className="flex gap-2 justify-end">
             <Button variant="secondary" type="button" onClick={() => setIsOpen(false)}>
@@ -188,16 +197,18 @@ const UpgradeBacklogPage: React.FC = () => {
       </Modal>
 
       <Modal isOpen={!!planning} onClose={closePlan} title="Plan Upgrade">
-        <form onSubmit={handlePlan} className="space-y-4">
+        <form onSubmit={handlePlan} noValidate className="space-y-4">
           <p className="text-fg-subtle">
             When do you want to start <span className="font-medium text-fg">{planning?.title}</span>?
           </p>
           <Input
+            ref={planDateField}
             label="Start date"
             type="date"
             value={planDate}
             onChange={(e) => setPlanDate(e.target.value)}
             error={planError}
+            required
           />
           <div className="flex gap-2 justify-end">
             <Button variant="secondary" type="button" onClick={closePlan} disabled={planMutation.isPending}>

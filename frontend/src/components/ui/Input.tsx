@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useId } from 'react';
+import { FieldError, FieldLabel } from './FieldParts';
+import { fieldAria, fieldIds } from './fieldA11y';
 
 /**
- * Extends the native input attributes, so `type`, `value`, `onChange` and validation attributes pass
- * through unchanged.
+ * Extends the native input attributes, so `type`, `value`, `onChange`, `required` and the validation
+ * attributes pass through unchanged.
  *
- * @param label optional caption, also used to derive an id when none is given
- * @param error message shown below the field, which also switches it to its error colours
+ * @param label optional caption, which names the field
+ * @param error message shown below the field, which also marks it invalid and switches it to its error
+ *              colours
  */
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -15,33 +18,34 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 /**
  * Labelled text input with inline error display.
  *
- * When no `id` is supplied one is derived from the label, which is what keeps the `htmlFor` association
- * intact — without it, clicking the label would not focus the field and screen readers would not
- * announce it.
+ * The label names the field through `htmlFor`, so clicking it focuses the field and a screen reader
+ * announces it. An error is tied to the field by `aria-describedby` and `aria-invalid` and announced as
+ * it appears, and a required field carries `aria-required` and a visible marker (WCAG 3.3.1, 3.3.2,
+ * 4.1.2). The ids come from `useId` unless the caller gives one.
  *
  * Forwards its ref to the `<input>`, so a caller can move focus to the field.
  */
-const Input = React.forwardRef<HTMLInputElement, InputProps>(({ label, error, id, className = '', ...rest }, ref) => {
-  const inputId = id ?? label?.toLowerCase().replace(/\s+/g, '-');
-  return (
-    <div className="flex flex-col gap-1">
-      {label && (
-        <label htmlFor={inputId} className="text-sm font-medium text-fg-muted">
-          {label}
-        </label>
-      )}
-      <input
-        ref={ref}
-        id={inputId}
-        className={`rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
-          error ? 'border-danger focus:ring-danger' : 'border-line-strong'
-        } ${className}`}
-        {...rest}
-      />
-      {error && <p className="text-xs text-danger-fg">{error}</p>}
-    </div>
-  );
-});
+const Input = React.forwardRef<HTMLInputElement, InputProps>(
+  ({ label, error, id, required, className = '', 'aria-describedby': describedBy, ...rest }, ref) => {
+    const ids = fieldIds(useId(), id);
+    return (
+      <div className="flex flex-col gap-1">
+        {label && <FieldLabel htmlFor={ids.control} label={label} required={required} />}
+        <input
+          ref={ref}
+          id={ids.control}
+          required={required}
+          {...fieldAria(ids, { error, required, describedBy })}
+          className={`rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
+            error ? 'border-danger focus:ring-danger' : 'border-line-strong'
+          } ${className}`}
+          {...rest}
+        />
+        <FieldError id={ids.error} message={error} />
+      </div>
+    );
+  },
+);
 Input.displayName = 'Input';
 
 export default Input;

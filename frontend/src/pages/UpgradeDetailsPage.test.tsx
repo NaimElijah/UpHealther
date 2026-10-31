@@ -1177,6 +1177,20 @@ describe('UpgradeDetailsPage editing an upgrade', () => {
     expect(updateUpgrade).not.toHaveBeenCalled();
   });
 
+  // WCAG 3.3.1, finding X9.5: the refused field is tied to its message and takes focus.
+  it('GivenTheTitleIsCleared_WhenTheEditIsSaved_ThenTheTitleIsInvalidAndHasFocus', async () => {
+    serveUpgrade(described);
+    renderPage();
+    const dialog = await openEdit();
+
+    fireEvent.change(dialog.getByLabelText('Title'), { target: { value: '  ' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save' }));
+
+    await dialog.findByText('Title is required.');
+    expect(dialog.getByLabelText('Title').getAttribute('aria-invalid')).toBe('true');
+    expect(document.activeElement).toBe(dialog.getByLabelText('Title'));
+  });
+
   it('GivenATargetEndWithAFiveDigitYear_WhenTheEditIsSaved_ThenNothingIsSentAndTheFieldAsksForFourDigits', async () => {
     serveUpgrade(described);
     renderPage();

@@ -402,3 +402,45 @@ describe('HealthAreasPage title', () => {
     expect(document.title).toBe('Health Areas – UpHealther');
   });
 });
+
+/**
+ * The area dialogs mark the name required, and a refused submit sends focus to the first field to fix
+ * (WCAG 3.3.1, 3.3.2, finding X9.5).
+ */
+describe('HealthAreasPage form errors', () => {
+  beforeEach(() => {
+    getHealthAreas.mockReset();
+    createHealthArea.mockReset();
+    getHealthAreas.mockResolvedValue([anArea()]);
+  });
+
+  it('GivenTheNewAreaDialog_WhenItOpens_ThenTheNameIsMarkedRequired', async () => {
+    renderPage();
+    const dialog = await openCreate();
+
+    expect(dialog.getByLabelText('Name').getAttribute('aria-required')).toBe('true');
+  });
+
+  it('GivenABlankName_WhenANewAreaIsSubmitted_ThenTheNameIsInvalidAndHasFocus', async () => {
+    renderPage();
+    const dialog = await openCreate();
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Create' }));
+
+    await dialog.findByText('Name is required.');
+    expect(dialog.getByLabelText('Name').getAttribute('aria-invalid')).toBe('true');
+    expect(document.activeElement).toBe(dialog.getByLabelText('Name'));
+  });
+
+  it('GivenAValidNameAndAFractionalPriority_WhenANewAreaIsSubmitted_ThenThePriorityHasFocus', async () => {
+    renderPage();
+    const dialog = await openCreate();
+    fireEvent.change(dialog.getByLabelText('Name'), { target: { value: 'Sleep' } });
+    fireEvent.change(dialog.getByLabelText('Priority'), { target: { value: '1.5' } });
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Create' }));
+
+    await dialog.findByText('Priority must be a whole number.');
+    expect(document.activeElement).toBe(dialog.getByLabelText('Priority'));
+  });
+});

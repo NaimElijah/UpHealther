@@ -385,3 +385,40 @@ describe('UpgradeBacklogPage focus after planning', () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 })));
   });
 });
+
+/**
+ * The backlog's dialogs mark their required fields, and a refused submit sends focus to the field to fix
+ * (WCAG 3.3.1, 3.3.2, finding X9.5).
+ */
+describe('UpgradeBacklogPage form errors', () => {
+  beforeEach(() => {
+    getUpgrades.mockReset();
+    planUpgrade.mockReset();
+    createUpgrade.mockReset();
+    getUpgrades.mockResolvedValue([anIdea()]);
+  });
+
+  it('GivenTheNewIdeaDialog_WhenItIsSubmittedWithoutATitle_ThenTheTitleIsRequiredInvalidAndHasFocus', async () => {
+    renderPage();
+    const dialog = await openCreate('');
+    expect(dialog.getByLabelText('Title').getAttribute('aria-required')).toBe('true');
+
+    fireEvent.submit(dialog.getByRole('button', { name: 'Add Idea' }));
+
+    await dialog.findByText('Title is required.');
+    expect(dialog.getByLabelText('Title').getAttribute('aria-invalid')).toBe('true');
+    expect(document.activeElement).toBe(dialog.getByLabelText('Title'));
+  });
+
+  it('GivenThePlanDialog_WhenItIsSubmittedWithoutADate_ThenTheDateIsRequiredAndHasFocus', async () => {
+    renderPage();
+    const dialog = await openPlan();
+    expect(dialog.getByLabelText('Start date').getAttribute('aria-required')).toBe('true');
+
+    fireEvent.change(dialog.getByLabelText('Start date'), { target: { value: '' } });
+    fireEvent.submit(dialog.getByRole('button', { name: 'Plan' }));
+
+    await dialog.findByText('Pick a start date.');
+    expect(document.activeElement).toBe(dialog.getByLabelText('Start date'));
+  });
+});

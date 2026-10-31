@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getHealthAreas, createHealthArea, updateHealthArea, deleteHealthArea } from '../api/healthAreas';
 import PageHeader from '../components/ui/PageHeader';
@@ -71,6 +71,9 @@ const HealthAreasPage: React.FC = () => {
   const [form, setForm] = useState<AreaForm>(EMPTY_FORM);
   const [formError, setFormError] = useState('');
   const [priorityError, setPriorityError] = useState('');
+  // Shared by both dialogs: only one is open at a time, and a closed one renders nothing.
+  const nameField = useRef<HTMLInputElement>(null);
+  const priorityField = useRef<HTMLInputElement>(null);
 
   const { data: areas = [], isLoading, error } = useQuery({ queryKey: ['healthAreas'], queryFn: getHealthAreas });
 
@@ -131,7 +134,10 @@ const HealthAreasPage: React.FC = () => {
     const parsed = parsePriority(form.priority);
     if (nameMissing) setFormError('Name is required.');
     if (!parsed.valid) setPriorityError(parsed.problem);
-    if (nameMissing || !parsed.valid) return;
+    if (nameMissing || !parsed.valid) {
+      (nameMissing ? nameField : priorityField).current?.focus();
+      return;
+    }
     try {
       await createMutation.mutateAsync({ ...form, priority: parsed.priority });
     } catch (thrown) {
@@ -148,6 +154,7 @@ const HealthAreasPage: React.FC = () => {
     const parsed = parsePriority(form.priority);
     if (!parsed.valid) {
       setPriorityError(parsed.problem);
+      priorityField.current?.focus();
       return;
     }
     try {
@@ -245,13 +252,15 @@ const HealthAreasPage: React.FC = () => {
       )}
 
       <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="New Health Area">
-        <form onSubmit={handleCreate} className="space-y-4">
+        <form onSubmit={handleCreate} noValidate className="space-y-4">
           <Input
+            ref={nameField}
             label="Name"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             placeholder="e.g. Sleep, Nutrition"
             error={formError}
+            required
           />
           <Input
             label="Description"
@@ -260,6 +269,7 @@ const HealthAreasPage: React.FC = () => {
             placeholder="Optional description"
           />
           <Input
+            ref={priorityField}
             label="Priority"
             type="number"
             value={form.priority}
@@ -291,12 +301,14 @@ const HealthAreasPage: React.FC = () => {
       </Modal>
 
       <Modal isOpen={!!editArea} onClose={() => setEditArea(null)} title="Edit Health Area">
-        <form onSubmit={handleUpdate} className="space-y-4">
+        <form onSubmit={handleUpdate} noValidate className="space-y-4">
           <Input
+            ref={nameField}
             label="Name"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             error={formError}
+            required
           />
           <Input
             label="Description"
@@ -304,6 +316,7 @@ const HealthAreasPage: React.FC = () => {
             onChange={(e) => setForm({ ...form, description: e.target.value })}
           />
           <Input
+            ref={priorityField}
             label="Priority"
             type="number"
             value={form.priority}

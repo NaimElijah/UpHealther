@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import Button from '../components/ui/Button';
@@ -32,6 +32,8 @@ const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const emailField = useRef<HTMLInputElement>(null);
+  const passwordField = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     if (isAuthenticated) navigate('/dashboard', { replace: true });
@@ -43,6 +45,7 @@ const LoginPage: React.FC = () => {
     setError('');
     if (!email || !password) {
       setError('Please fill in all fields.');
+      (email ? passwordField : emailField).current?.focus();
       return;
     }
     setLoading(true);
@@ -74,24 +77,34 @@ const LoginPage: React.FC = () => {
           <PageHeading className="text-2xl font-bold text-fg">UpHealther</PageHeading>
           <p className="text-fg-subtle mt-1">Sign in to your account</p>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* noValidate: the form checks its own fields, so the message is the page's, tied to the field and
+              announced, and focus goes to the field to fix, rather than a browser's bubble. */}
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <Input
+            ref={emailField}
             label="Email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
             autoComplete="email"
+            required
           />
           <Input
+            ref={passwordField}
             label="Password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
             autoComplete="current-password"
+            required
           />
-          {error && <p className="text-sm text-danger-fg text-center">{error}</p>}
+          {error && (
+            <p role="alert" className="text-sm text-danger-fg text-center">
+              {error}
+            </p>
+          )}
           <Button type="submit" loading={loading || isLoading} className="w-full">
             Sign In
           </Button>

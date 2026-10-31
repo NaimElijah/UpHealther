@@ -35,6 +35,8 @@ const NO_DIFFICULTY = '';
  * @param areas          the caller's health areas, offered alongside "No area"
  * @param titleError     why the last save was refused, shown under the title
  * @param targetEndError why the target end cannot be sent, shown under it
+ * @param titleRef       the title's input, so the hosting form can send focus to it when it refuses a save
+ * @param targetEndRef   the target end's input, likewise
  */
 interface Props {
   value: CreateUpgradeRequest;
@@ -42,6 +44,8 @@ interface Props {
   areas: HealthArea[];
   titleError?: string;
   targetEndError?: string;
+  titleRef?: React.Ref<HTMLInputElement>;
+  targetEndRef?: React.Ref<HTMLInputElement>;
 }
 
 /**
@@ -50,8 +54,18 @@ interface Props {
  * Only the fields: the dialog, the submit button and what a save does belong to the form that hosts
  * them, so a new upgrade and an edited one can share what the user fills in without sharing what
  * happens next.
+ *
+ * The title is required, so a hosting form sets `noValidate` and checks it itself, as both forms do.
  */
-const UpgradeFormFields: React.FC<Props> = ({ value, onChange, areas, titleError, targetEndError }) => {
+const UpgradeFormFields: React.FC<Props> = ({
+  value,
+  onChange,
+  areas,
+  titleError,
+  targetEndError,
+  titleRef,
+  targetEndRef,
+}) => {
   const set = (fields: Partial<CreateUpgradeRequest>) => onChange({ ...value, ...fields });
   // An upgrade of a type no longer offered keeps it as a choice. Missing from the list, the select would
   // show the first type instead, and read as a different kind of upgrade from the one being edited.
@@ -73,11 +87,13 @@ const UpgradeFormFields: React.FC<Props> = ({ value, onChange, areas, titleError
   return (
     <>
       <Input
+        ref={titleRef}
         label="Title"
         value={value.title}
         onChange={(e) => set({ title: e.target.value })}
         placeholder="e.g. Drink 2L water daily"
         error={titleError}
+        required
       />
       <Input
         label="Description"
@@ -117,6 +133,7 @@ const UpgradeFormFields: React.FC<Props> = ({ value, onChange, areas, titleError
       />
       {/* Left out when cleared, not sent empty: an absent date is how the API is told there is none. */}
       <Input
+        ref={targetEndRef}
         label="Target End"
         type="date"
         value={value.targetEndDate ?? ''}

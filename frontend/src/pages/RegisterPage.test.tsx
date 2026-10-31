@@ -202,3 +202,44 @@ describe('RegisterPage title', () => {
     expect(document.title).toBe('Create account – UpHealther');
   });
 });
+
+/**
+ * The registration form marks its fields required, announces its message, and sends focus to the field
+ * to fix (WCAG 3.3.1, 3.3.2, 4.1.3, finding X9.5).
+ */
+describe('RegisterPage form errors', () => {
+  it('GivenTheRegistrationForm_WhenItRenders_ThenEveryFieldIsMarkedRequired', () => {
+    renderRegister();
+
+    for (const label of ['Full Name', 'Email', 'Password', 'Confirm Password']) {
+      expect(screen.getByLabelText(label).getAttribute('aria-required')).toBe('true');
+    }
+  });
+
+  it('GivenAConfirmationThatDiffers_WhenTheFormIsSubmitted_ThenTheMessageIsAnnouncedAndTheConfirmationHasFocus', async () => {
+    renderRegister();
+
+    fillAndSubmit({ password: 'eight-ch', confirm: 'nine-chr' });
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Passwords do not match.');
+    expect(document.activeElement).toBe(screen.getByLabelText('Confirm Password'));
+  });
+
+  it('GivenAShortPassword_WhenTheFormIsSubmitted_ThenThePasswordHasFocus', async () => {
+    renderRegister();
+
+    fillAndSubmit({ password: 'short' });
+
+    await screen.findByRole('alert');
+    expect(document.activeElement).toBe(screen.getByLabelText('Password'));
+  });
+
+  it('GivenAnEmptyName_WhenTheFormIsSubmitted_ThenTheNameHasFocus', async () => {
+    renderRegister();
+
+    fillAndSubmit({ name: '' });
+
+    await screen.findByRole('alert');
+    expect(document.activeElement).toBe(screen.getByLabelText('Full Name'));
+  });
+});

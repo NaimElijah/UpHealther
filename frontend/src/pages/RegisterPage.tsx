@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import Button from '../components/ui/Button';
@@ -39,6 +39,16 @@ const RegisterPage: React.FC = () => {
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const nameField = useRef<HTMLInputElement>(null);
+  const emailField = useRef<HTMLInputElement>(null);
+  const passwordField = useRef<HTMLInputElement>(null);
+  const confirmField = useRef<HTMLInputElement>(null);
+
+  /** Says what is wrong and sends focus to the field that has to change. */
+  const refuse = (message: string, field: React.RefObject<HTMLInputElement | null>) => {
+    setError(message);
+    field.current?.focus();
+  };
 
   React.useEffect(() => {
     if (isAuthenticated) navigate('/dashboard', { replace: true });
@@ -49,15 +59,15 @@ const RegisterPage: React.FC = () => {
     if (isLoading) return;
     setError('');
     if (!name || !email || !password) {
-      setError('Please fill in all fields.');
+      refuse('Please fill in all fields.', !name ? nameField : !email ? emailField : passwordField);
       return;
     }
     if (password !== confirm) {
-      setError('Passwords do not match.');
+      refuse('Passwords do not match.', confirmField);
       return;
     }
     if (password.length < PASSWORD_MIN_LENGTH) {
-      setError(`Password must be at least ${PASSWORD_MIN_LENGTH} characters.`);
+      refuse(`Password must be at least ${PASSWORD_MIN_LENGTH} characters.`, passwordField);
       return;
     }
     setLoading(true);
@@ -90,40 +100,54 @@ const RegisterPage: React.FC = () => {
           <PageHeading className="text-2xl font-bold text-fg">Create Account</PageHeading>
           <p className="text-fg-subtle mt-1">Start your health journey today</p>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* noValidate: the form checks its own fields, so the message is the page's, tied to the field and
+              announced, and focus goes to the field to fix, rather than a browser's bubble. */}
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <Input
+            ref={nameField}
             label="Full Name"
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="John Doe"
             autoComplete="name"
+            required
           />
           <Input
+            ref={emailField}
             label="Email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
             autoComplete="email"
+            required
           />
           <Input
+            ref={passwordField}
             label="Password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
             autoComplete="new-password"
+            required
           />
           <Input
+            ref={confirmField}
             label="Confirm Password"
             type="password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             placeholder="••••••••"
             autoComplete="new-password"
+            required
           />
-          {error && <p className="text-sm text-danger-fg text-center">{error}</p>}
+          {error && (
+            <p role="alert" className="text-sm text-danger-fg text-center">
+              {error}
+            </p>
+          )}
           <Button type="submit" loading={loading || isLoading} className="w-full">
             Create Account
           </Button>

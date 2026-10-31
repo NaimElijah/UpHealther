@@ -210,3 +210,44 @@ describe('LoginPage title', () => {
     expect(document.title).toBe('Sign in – UpHealther');
   });
 });
+
+/**
+ * The sign-in form marks its fields required, announces its message, and sends focus to the field to fix.
+ * The message was a bare paragraph a screen reader never announced, and focus stayed on the button
+ * (WCAG 3.3.1, 3.3.2, 4.1.3, finding X9.5).
+ */
+describe('LoginPage form errors', () => {
+  it('GivenTheSignInForm_WhenItRenders_ThenBothFieldsAreMarkedRequired', () => {
+    renderLogin();
+
+    expect(screen.getByLabelText('Email').getAttribute('aria-required')).toBe('true');
+    expect(screen.getByLabelText('Password').getAttribute('aria-required')).toBe('true');
+  });
+
+  it('GivenAnEmptyEmail_WhenTheFormIsSubmitted_ThenTheMessageIsAnnouncedAndTheEmailFieldHasFocus', async () => {
+    renderLogin();
+
+    await signIn('', 's3cret!');
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Please fill in all fields.');
+    expect(document.activeElement).toBe(screen.getByLabelText('Email'));
+  });
+
+  it('GivenAnEmptyPassword_WhenTheFormIsSubmitted_ThenThePasswordFieldHasFocus', async () => {
+    renderLogin();
+
+    await signIn('someone@example.com', '');
+
+    await screen.findByRole('alert');
+    expect(document.activeElement).toBe(screen.getByLabelText('Password'));
+  });
+
+  it('GivenCredentialsTheServerRejects_WhenTheFormIsSubmitted_ThenTheRefusalIsAnnounced', async () => {
+    login.mockRejectedValue(apiFailure(401));
+    renderLogin();
+
+    await signIn();
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Invalid email or password.');
+  });
+});
