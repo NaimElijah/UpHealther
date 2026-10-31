@@ -45,6 +45,8 @@ interface Props {
  * A logged entry refreshes this history and the streak (`UpgradeStreak`), and nothing else: the
  * dashboard and the progress history page stay as they were for up to the cache's thirty seconds. That
  * is #192, a known bug, left as it is here.
+ *
+ * A read that failed renders as "No progress logged yet.": the section ignores the read's `error` (#148).
  */
 const UpgradeProgress: React.FC<Props> = ({ upgradeId, read, trackingConfig }) => {
   const qc = useQueryClient();

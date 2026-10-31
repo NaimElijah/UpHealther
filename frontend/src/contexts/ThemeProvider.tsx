@@ -52,8 +52,9 @@ const systemPrefersDarkNow = (): boolean => darkMediaQuery()?.matches ?? false;
  * session — the login page needs it as much as the dashboard does.
  *
  * The class is also set before React runs, by the boot script in `index.html`. That script is what
- * prevents the flash; this provider is what keeps the class true afterwards. The two agree by
- * construction: same key, same values, same resolution rule.
+ * prevents the flash; this provider is what keeps the class true afterwards. They are separate copies of
+ * one rule, with the same key, values and resolution, and `contexts/bootScript.test.tsx` holds them in
+ * agreement by running the shipped script against this provider.
  */
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<Theme>(readStoredTheme);

@@ -22,7 +22,10 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   error?: string;
 }
 
-/** Labelled dropdown with inline error display, tied to the field as {@link Input}'s is. */
+/**
+ * Labelled dropdown with inline error display, tied to the field as {@link Input}'s is. Unlike `Input`, it
+ * forwards no ref.
+ */
 const Select: React.FC<SelectProps> = ({
   label,
   options,

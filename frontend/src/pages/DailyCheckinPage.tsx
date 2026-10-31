@@ -54,7 +54,8 @@ const DailyCheckinPage: React.FC = () => {
       await Promise.all(entries.map((e) => createProgress(e)));
     },
     // Settled rather than succeeded: the entries are posted together, so when one is refused the others
-    // may already be stored, and the progress every other page caches is stale either way.
+    // may already be stored. This refreshes each upgrade's own history (`['progress', id]`); the Progress
+    // History page, the streaks and the dashboard stay stale for up to the cache's thirty seconds (#192).
     onSettled: () => qc.invalidateQueries({ queryKey: ['progress'] }),
     onSuccess: () => setSubmitted(true),
   });

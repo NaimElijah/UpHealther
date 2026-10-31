@@ -11,8 +11,6 @@ const APP_NAME = 'UpHealther';
  * alone. Nothing restores the previous title on unmount: the next page sets its own, and restoring
  * first would flash the old one in the tab.
  *
- * `index.html` keeps its fixed title, because editing it would change the boot script's CSP hash.
- *
  * @param pageTitle what the page is, said as its heading says it
  */
 export function useDocumentTitle(pageTitle: string): void {

@@ -17,8 +17,8 @@ interface Props {
  * A real button rather than a clickable div, so it is reachable by keyboard and announced as
  * actionable. Unread rows are tinted and carry a dot, and say "Unread:" in visually hidden text first, so
  * the state is in the row's name and not in its colour alone. The dot is decoration beside that text.
- * It used to be the dot that carried an `aria-label`, which ARIA 1.2 does not allow on an empty generic
- * element (WCAG 4.1.2, 1.4.1).
+ * The dot carries no `aria-label`, which ARIA 1.2 does not allow on an empty generic element (WCAG 4.1.2,
+ * 1.4.1).
  */
 const NotificationItem: React.FC<Props> = ({ notification, onSelect }) => {
   const meta = categoryStyle(notification.category);

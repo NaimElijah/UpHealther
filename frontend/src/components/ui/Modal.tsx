@@ -40,6 +40,10 @@ const FOCUSABLE = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
+/** How many dialogs are open, and the children of `<body>` the first of them marked inert. */
+let openModals = 0;
+let inerted: Element[] = [];
+
 /**
  * Marks every other child of `<body>` inert while a dialog is open, refcounted across dialogs.
  *
@@ -57,10 +61,9 @@ const FOCUSABLE = [
  * a dialog, or it is mounted where this walk can see it. Watching for it would mean a
  * MutationObserver alive for the lifetime of every dialog, which is a great deal of machinery for a
  * case the codebase does not have.
+ *
+ * Anything already `inert` is left out of the snapshot, so `releaseInert` clears only what this set.
  */
-let openModals = 0;
-let inerted: Element[] = [];
-
 const acquireInert = () => {
   if (++openModals > 1) return;
   inerted = Array.from(document.body.children).filter(
@@ -117,8 +120,8 @@ const releaseInert = () => {
  * `aria-modal` holds for the page and not for the toast (ADR-019).
  */
 const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
-  // Three modals can share one page, so the title's id has to be unique per instance — a hard-coded
-  // one would make every dialog resolve the same accessible name.
+  // Several Modals are mounted on one page, so the title's id is unique per instance: should two ever open
+  // together, a hard-coded one would give every dialog the same accessible name.
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
 

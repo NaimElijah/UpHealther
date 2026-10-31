@@ -64,8 +64,7 @@ const LoginPage: React.FC = () => {
       const failure = toApiError(thrown);
       // 401 is the only status that means "these credentials are not good", and it keeps the
       // deliberately vague message. Anything else is ours, so say what the API said: the field it
-      // refused, or the message and the trace id — this is the highest-traffic failure path in the
-      // application, and it was the one place a server fault was being reported to the user as their
+      // refused, or the message and the trace id, so a server fault is never reported to the user as their
       // own mistake.
       setError(failure.status === 401 ? 'Invalid email or password.' : toFormMessage(failure));
     } finally {

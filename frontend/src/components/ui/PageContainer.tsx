@@ -21,10 +21,8 @@ const widthClasses: Record<NonNullable<PageContainerProps['width']>, string> = {
 /**
  * The one place a page's width is decided.
  *
- * Pages used to cap themselves, with four different values across nine pages and nothing behind the
- * choice — which is how `/health-areas` came to sit 896px wide in the middle of a 1536px window. A page
- * now fills whatever the shell gives it and stops only where a line of text stops being comfortable to
- * read.
+ * A page fills whatever the shell gives it and stops only where a line of text stops being comfortable to
+ * read, so no page caps itself.
  *
  * So the cap is on the measure, not on the layout. At the 16px body size a proportional character
  * averages roughly 8px, which puts `wide` (1280px) near 160 characters and `narrow` (768px) near 95 —

@@ -6,7 +6,8 @@ import { buttonClasses, type ButtonSize, type ButtonVariant } from './buttonStyl
  * Extends the native button attributes, so `type`, `onClick`, `aria-*` and the rest pass straight
  * through.
  *
- * @param variant visual weight: primary for the main action, danger for destructive ones
+ * @param variant visual weight: primary for the main action, danger for destructive ones; secondary is a muted
+ *                fill and ghost has none until hovered
  * @param size    padding and text scale
  * @param loading shows a spinner and refuses presses, so a slow request cannot be double-submitted; the
  *                button stays focusable meanwhile, and `disabled` is ignored while it is set

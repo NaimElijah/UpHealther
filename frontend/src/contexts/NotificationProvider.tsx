@@ -49,6 +49,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [navigate]);
   const [connected, setConnected] = useState(false);
   const [toasts, setToasts] = useState<ToastData[]>([]);
+  // 'denied' where the Notification API is absent, so the prompts that offer to enable it, which show only
+  // for 'default', never appear.
   const [desktopPermission, setDesktopPermission] = useState<NotificationPermission>(
     typeof Notification !== 'undefined' ? Notification.permission : 'denied',
   );
@@ -99,14 +101,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
    */
   const handleIncoming = useCallback(
     (n: AppNotification) => {
-      // Prepend to the cached list (de-duped) so the bell/badge/list update live.
       queryClient.setQueryData<AppNotification[]>(NOTIF_KEY, (old = []) =>
         old.some((x) => x.id === n.id) ? old : [n, ...old],
       );
       // Read again rather than incremented: the count already fetched may include this notification.
       queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
       pushToast(n);
-      // OS/desktop notification only when the tab is backgrounded and permission was granted.
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.hidden) {
         const desktop = new Notification(n.title, { body: n.message ?? '' });
         desktop.onclick = () => {
@@ -123,8 +123,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   );
 
   // The socket follows the session: open while authenticated, closed on logout/unmount. While it is down
-  // it reconnects on its own, and nothing is lost meanwhile, since anything missed is still fetched by the
-  // REST query.
+  // it reconnects on its own. A notification missed meanwhile arrives with the next refetch of the REST
+  // query; reconnecting does not trigger one.
   // handleIncoming is a dependency, so it is memoised: a new identity each render would tear the
   // socket down and rebuild it on every render.
   useEffect(() => {
@@ -205,7 +205,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [queryClient, cancelNotificationFetches]);
 
   /**
-   * Asks the browser for desktop-notification permission.
+   * Asks the browser for desktop-notification permission. The browser shows its own prompt, and the answer
+   * becomes `desktopPermission`.
    *
    * Guarded because the API is absent in insecure contexts and some embedded browsers, where reading
    * `Notification` at all would throw.

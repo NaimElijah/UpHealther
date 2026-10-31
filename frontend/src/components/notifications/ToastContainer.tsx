@@ -8,9 +8,9 @@ import { findPageHeading } from '../ui/pageHeadingFocus';
 import { categoryStyle } from './notificationMeta';
 
 /**
- * How long a toast stays up on its own, counted only while nothing holds it (WCAG 2.2.1). Ten seconds
- * rather than the six it was: long enough to read a title and a two-line message at an unhurried pace,
- * and the toast stays for as long as the pointer is over it or focus is in it on top of that.
+ * How long a toast stays up on its own, counted only while nothing holds it (WCAG 2.2.1). Ten seconds is
+ * long enough to read a title and a two-line message at an unhurried pace, and the toast stays for as long
+ * as the pointer is over it or focus is in it on top of that.
  */
 const TOAST_LIFETIME_MS = 10_000;
 

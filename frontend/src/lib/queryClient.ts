@@ -12,7 +12,7 @@ import { onSessionEnd } from '../api/session';
  * with — the staleness window included — without sharing one between tests.
  *
  * Side effect: the client is emptied whenever `endSession` runs, for the life of the page, so a page
- * the back/forward cache restores holds nothing of the previous user's (S5.D1).
+ * the back/forward cache restores holds nothing of the previous user's (S5.D1, #339).
  *
  * @returns a new client with the application's query defaults
  */

@@ -50,8 +50,8 @@ export type RoleRequest = Wire.RoleRequest;
 /**
  * A user-defined grouping upgrades are filed under.
  *
- * `upgradeCount` is not part of the health-area response; it is filled in by the client where a count
- * is needed, which is why it is optional.
+ * `upgradeCount` is declared for a per-area count of upgrades, but the health-area response does not carry
+ * one and nothing fills it in today, so the areas page's count line never renders (#182).
  */
 export type HealthArea = Wire.HealthAreaDto & { upgradeCount?: number };
 

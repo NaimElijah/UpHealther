@@ -29,10 +29,9 @@ const Reference: React.FC<{ traceId: string }> = ({ traceId }) => (
  *
  * The reason this exists rather than a hard-coded sentence per page is the **trace id**. The backend
  * puts one on every log line, on the `X-Trace-Id` header and on the error body specifically so that a
- * user reporting a failure can quote one string that finds their request. Seven pages used to render
- * `Failed to load X.` and throw the response away, which left a support conversation with nothing in
- * it — under any concurrent traffic, "it broke on the upgrades page" matches every failure that page
- * has ever produced.
+ * user reporting a failure can quote one string that finds their request. A bare `Failed to load X.` throws
+ * the response away and leaves a support conversation with nothing in it: under any concurrent traffic,
+ * "it broke on the upgrades page" matches every failure that page produces.
  *
  * The id is shown quietly: a user who does not care never has to read it, and one who is reporting a
  * problem has something exact to paste. It is safe to display — a trace id identifies a request, never

@@ -45,6 +45,10 @@ export const updateUpgrade = async (id: string, req: CreateUpgradeRequest): Prom
  *
  * The parameter type is what keeps `PLANNED` out: both ways into it carry a date, so planning goes
  * through planUpgrade() and rescheduling through rescheduleUpgrade() (#88).
+ *
+ * @throws the API's 404 when the upgrade is not the caller's, and 422 when the move is not legal from its current
+ *   status or activating it would exceed the concurrent-HARD limit; 409 when that limit check collides with
+ *   another of the caller's requests, and the request may be resent unchanged
  */
 export const performUpgradeAction = async (id: string, status: ActionTarget): Promise<HealthUpgrade> => {
   const actionMap: Record<ActionTarget, string> = {
@@ -74,6 +78,9 @@ export const planUpgrade = async (id: string, plannedStartDate: string): Promise
 /**
  * Moves an upgrade's planned start date. Also the only way back from `ABANDONED`, which this returns
  * to `PLANNED`.
+ *
+ * @param newDate `YYYY-MM-DD`
+ * @throws the API's 422 when the upgrade is `COMPLETED`, and 404 when it is not the caller's
  */
 export const rescheduleUpgrade = async (id: string, newDate: string): Promise<HealthUpgrade> => {
   const { data } = await client.post<HealthUpgrade>(apiPath`/api/upgrades/${id}/reschedule`, {

@@ -29,20 +29,21 @@ export const listAccounts = async (page = 0): Promise<AccountPage> => {
 /**
  * Switches an account off, ending every session it holds.
  *
- * Rejects with 422 if an administrator aims at their own account, and 404 if there is no such account.
+ * Rejects with 422 if an administrator aims at their own account, 404 if there is no such account, and 409 if
+ * another write to the account committed after this change loaded it, in which case nothing is changed.
  */
 export const disableAccount = async (id: string): Promise<AdminAccount> => {
   const { data } = await client.post<AdminAccount>(apiPath`/api/admin/users/${id}/disable`);
   return data;
 };
 
-/** Switches an account back on, with everything it owned still in place. */
+/** Switches an account back on, with everything it owned still in place. Refuses as `disableAccount` does. */
 export const enableAccount = async (id: string): Promise<AdminAccount> => {
   const { data } = await client.post<AdminAccount>(apiPath`/api/admin/users/${id}/enable`);
   return data;
 };
 
-/** Grants or revokes the administrator role. */
+/** Grants or revokes the administrator role. Refuses as `disableAccount` does. */
 export const changeAccountRole = async (id: string, role: UserRole): Promise<AdminAccount> => {
   const { data } = await client.put<AdminAccount>(apiPath`/api/admin/users/${id}/role`, { role } satisfies RoleRequest);
   return data;

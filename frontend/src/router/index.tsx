@@ -22,15 +22,17 @@ import AdminUsersPage from '../pages/AdminUsersPage';
 /**
  * The route table, and the only place a URL maps to a page.
  *
- * Every route but login and register is wrapped in {@link ProtectedRoute} and the shared {@link Layout},
- * so an authenticated page cannot be added without both. The administration page adds
- * {@link RequireRole} on top, which is a courtesy rather than a wall — the API decides. Unknown paths
- * fall through to `/`, which redirects to the dashboard when signed in and to login otherwise.
+ * By convention each authenticated page is wrapped in {@link ProtectedRoute} and the shared {@link Layout};
+ * every route is written out by hand, so only review enforces it. `/` only redirects, and is wrapped in
+ * `ProtectedRoute` alone. The administration page adds {@link RequireRole} on top, which is a courtesy
+ * rather than a wall — the API decides. Unknown paths fall through to `/`, which redirects to the dashboard
+ * when signed in and to login otherwise.
+ *
+ * `NotificationProvider` lives inside the router so toasts and items can navigate, and inside the
+ * `QueryClientProvider` and `AuthProvider` that `App.tsx` mounts, for query and auth access. `ToastContainer`
+ * sits beside the routes, not in any page or `Layout`, so it is mounted signed in or out and survives
+ * navigation. `RouteFocus` comes after the routes so that its effect runs after the new page's (ADR-083).
  */
-// NotificationProvider lives inside the Router so toasts/items can navigate, and inside the existing
-// QueryClientProvider + AuthProvider (mounted in App.tsx) for query + auth access. ToastContainer sits
-// beside Routes, not in any page or Layout, so it is mounted signed in or out and survives navigation.
-// RouteFocus comes after Routes so that its effect runs after the new page's (ADR-083).
 const AppRouter: React.FC = () => (
   <BrowserRouter>
     <NotificationProvider>

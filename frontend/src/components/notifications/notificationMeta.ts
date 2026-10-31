@@ -28,7 +28,7 @@ const categoryMeta: Record<NotificationCategory, CategoryMeta> = {
  *
  * The fallback is needed although the map is total: the category arrives as unvalidated JSON, so a tab
  * opened before a deploy that adds one receives a value outside the union, and reading its classes
- * without a fallback threw during render, which the error boundary turned into a blank app.
+ * without a fallback would throw during render, which the error boundary would turn into its failure screen.
  *
  * @param category the value from the API, typed as `NotificationCategory` but not validated as one
  */
@@ -81,7 +81,8 @@ const parseUtcLocalDateTime = (iso: string): Date => {
  * as the browser's local time, every age shifted by the user's own offset.
  *
  * Coarse on purpose: a notification list is scanned, not read closely, and a rounded figure is quicker
- * to take in than an exact one.
+ * to take in than an exact one. An instant in the future, from a clock that runs behind the server's, reads as
+ * "just now".
  *
  * @param iso an offset-less ISO local date-time exactly as the API sends it, such as
  *        `2026-01-14T09:13:02` or `2026-01-14T09:13:02.123456`

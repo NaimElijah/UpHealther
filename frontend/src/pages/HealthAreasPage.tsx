@@ -61,8 +61,8 @@ const parsePriority = (text: string): ParsedPriority => {
  * Create, edit and delete all go through modals over the same list, and each mutation invalidates the
  * area query and the dashboard rather than patching local state, so what is shown is always what was
  * saved. Deleting an area detaches the upgrades filed under it, so a delete also refreshes every view of
- * upgrades (ADR-029). A refused delete is shown in its dialog with the trace id (NFR-30), so the user
- * can retry or cancel.
+ * upgrades (ADR-081, extending ADR-029). A refused delete is shown in its dialog with the trace id (NFR-30),
+ * so the user can retry or cancel.
  */
 const HealthAreasPage: React.FC = () => {
   useDocumentTitle('Health Areas');
@@ -153,7 +153,7 @@ const HealthAreasPage: React.FC = () => {
       await createMutation.mutateAsync({ ...form, priority: parsed.priority });
     } catch (thrown) {
       // The name, icon and colour are each bounded by their column (BR-16), and the API names whichever
-      // failed. Before this the rejection was unhandled and the dialog gave no sign of it.
+      // failed. The message is shown under the name, the form's main field.
       setFormError(toFormMessage(toApiError(thrown), 'name'));
     }
   };
