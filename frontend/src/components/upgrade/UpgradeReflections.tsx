@@ -124,7 +124,7 @@ const UpgradeReflections: React.FC<Props> = ({ upgradeId, read }) => {
             </label>
             <textarea
               id="reflection-what-worked"
-              className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2"
+              className="w-full mt-1 rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2"
               rows={2}
               value={reflectionForm.whatWorked ?? ''}
               onChange={(e) => setReflectionForm({ ...reflectionForm, whatWorked: e.target.value })}
@@ -136,7 +136,7 @@ const UpgradeReflections: React.FC<Props> = ({ upgradeId, read }) => {
             </label>
             <textarea
               id="reflection-what-did-not-work"
-              className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2"
+              className="w-full mt-1 rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2"
               rows={2}
               value={reflectionForm.whatDidNotWork ?? ''}
               onChange={(e) => setReflectionForm({ ...reflectionForm, whatDidNotWork: e.target.value })}
@@ -148,7 +148,7 @@ const UpgradeReflections: React.FC<Props> = ({ upgradeId, read }) => {
             </label>
             <textarea
               id="reflection-next-adjustment"
-              className="w-full mt-1 rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2"
+              className="w-full mt-1 rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2"
               rows={2}
               value={reflectionForm.nextAdjustment ?? ''}
               onChange={(e) => setReflectionForm({ ...reflectionForm, nextAdjustment: e.target.value })}

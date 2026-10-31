@@ -36,7 +36,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           id={ids.control}
           required={required}
           {...fieldAria(ids, { error, required, describedBy })}
-          className={`rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
+          className={`rounded-lg border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
             error ? 'border-danger focus:ring-danger' : 'border-line-strong'
           } ${className}`}
           {...rest}

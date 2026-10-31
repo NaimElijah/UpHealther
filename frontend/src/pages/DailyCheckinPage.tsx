@@ -145,7 +145,7 @@ const DailyCheckinPage: React.FC = () => {
                         id={fieldId(u.id, 'amount')}
                         type="number"
                         aria-describedby={u.trackingConfig?.targetUnit ? fieldId(u.id, 'unit') : undefined}
-                        className="rounded-lg border border-line-strong px-3 py-2 text-sm w-28 focus:outline-none focus:ring-2"
+                        className="rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm w-28 focus:outline-none focus:ring-2"
                         placeholder="0"
                         value={progressMap[u.id]?.numericValue ?? ''}
                         onChange={(e) => updateProgress(u.id, { numericValue: numOrUndef(e.target.value) })}
@@ -174,7 +174,7 @@ const DailyCheckinPage: React.FC = () => {
                     </label>
                     <textarea
                       id={fieldId(u.id, 'note')}
-                      className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                      className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2"
                       rows={2}
                       placeholder="Add your note..."
                       value={progressMap[u.id]?.note ?? ''}
@@ -191,7 +191,7 @@ const DailyCheckinPage: React.FC = () => {
                     <input
                       id={fieldId(u.id, 'note')}
                       type="text"
-                      className="w-full rounded-lg border border-line px-3 py-2 text-sm text-fg-subtle focus:outline-none focus:ring-1"
+                      className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-fg-subtle focus:outline-none focus:ring-1"
                       placeholder="Optional note..."
                       value={progressMap[u.id]?.note ?? ''}
                       onChange={(e) => updateProgress(u.id, { note: e.target.value })}
