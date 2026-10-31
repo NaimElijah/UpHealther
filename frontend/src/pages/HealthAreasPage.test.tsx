@@ -64,6 +64,15 @@ async function openDelete() {
   return within(screen.getByRole('dialog', { name: 'Delete Health Area' }));
 }
 
+/**
+ * Types text a number input cannot parse, as a browser reports it: the value reads '' and
+ * `validity.badInput` is set. jsdom never sets `badInput`, so the field's validity is stubbed.
+ */
+function typeUnreadable(input: HTMLElement) {
+  Object.defineProperty(input, 'validity', { configurable: true, value: { badInput: true } });
+  fireEvent.change(input, { target: { value: '' } });
+}
+
 /** Opens the create dialog, and returns queries scoped to it. */
 async function openCreate() {
   fireEvent.click(await screen.findByRole('button', { name: '+ New Area' }));
@@ -189,6 +198,33 @@ describe('HealthAreasPage', () => {
 
     expect(await dialog.findByText('Priority must be a whole number.')).toBeDefined();
     expect(updateHealthArea).not.toHaveBeenCalled();
+  });
+
+  // A number input reads text it cannot parse ("3e") as '', the value of a cleared field. Taken as no
+  // priority, a full-replacement update erased the stored one while "3e" stayed on screen.
+
+  it('GivenAPriorityTheInputCannotRead_WhenAnEditIsSaved_ThenTheFormRefusesItRatherThanClearingIt', async () => {
+    renderPage();
+    const dialog = await openEdit();
+
+    typeUnreadable(dialog.getByLabelText('Priority'));
+    fireEvent.submit(dialog.getByRole('button', { name: 'Save Changes' }));
+
+    expect(await dialog.findByText('Priority must be a whole number.')).toBeDefined();
+    expect(updateHealthArea).not.toHaveBeenCalled();
+  });
+
+  it('GivenAPriorityTheInputCannotRead_WhenANewAreaIsSubmitted_ThenTheFormRefusesIt', async () => {
+    renderPage();
+    const dialog = await openCreate();
+
+    fireEvent.change(dialog.getByLabelText('Name'), { target: { value: 'Nutrition' } });
+    fireEvent.change(dialog.getByLabelText('Priority'), { target: { value: '3' } });
+    typeUnreadable(dialog.getByLabelText('Priority'));
+    fireEvent.submit(dialog.getByRole('button', { name: 'Create' }));
+
+    expect(await dialog.findByText('Priority must be a whole number.')).toBeDefined();
+    expect(createHealthArea).not.toHaveBeenCalled();
   });
 
   // The column is an INTEGER, and so is the API's field. A number past it was sent anyway, refused by
