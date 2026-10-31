@@ -53,9 +53,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // One request decides the whole question: a live refresh cookie means a session, and the absence
     // of one means an ordinary visitor. A 401 there is the expected answer for a visitor, not an
-    // error, which is why renewSession reports it as false rather than throwing. It rejects when no
-    // answer came, or when the address spent its refresh allowance (429): this tab then shows nobody
-    // signed in, but the session is not ended, so the cookie restores it on a later page load.
+    // error, which is why renewSession reports it as false rather than throwing; so is no answer
+    // within its deadline. It rejects when the address spent its refresh allowance (429), or when the
+    // cross-tab lock fails: this tab then shows nobody signed in, but the session is not ended, so the
+    // cookie restores it on a later page load. A profile read that fails after a renewal lands in the
+    // same catch. None of these failures is shown with a trace id yet (#148).
     restoring.current = renewSession()
       .then(async (renewed) => {
         if (!renewed) return;
