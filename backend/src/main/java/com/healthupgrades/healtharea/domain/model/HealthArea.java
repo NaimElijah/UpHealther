@@ -8,9 +8,10 @@ import lombok.*;
 /**
  * Health area aggregate — a user-defined grouping ("Fitness", "Sleep") that upgrades are filed under.
  *
- * <p>Unlike {@code HealthUpgrade}, this aggregate keeps its setters: it has no state machine and no
- * invariant beyond "belongs to a user and has a name", so there is nothing for a factory or transition
- * method to protect.
+ * <p>Unlike {@code HealthUpgrade}, this aggregate keeps its setters: it has no state machine for a
+ * transition method to guard. Its one invariant, that it belongs to a user and has a name, is not the
+ * entity's to enforce: the request's validation refuses a blank name, the service sets the owner, and the
+ * NOT NULL columns refuse either missing.
  *
  * <p>An area is referenced by upgrades through its id only. Deleting one does not cascade: the foreign
  * key sets those upgrades' area to null, so they survive, unfiled (FR-8).
