@@ -2,6 +2,7 @@ package com.healthupgrades.reminder.adapter.out.persistence;
 
 import com.healthupgrades.reminder.domain.model.Reminder; // domain aggregate
 import com.healthupgrades.reminder.domain.port.out.ReminderRepositoryPort; // the port implemented here
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -43,7 +44,7 @@ class ReminderRepositoryAdapter implements ReminderRepositoryPort {
 
     /** {@inheritDoc} */
     @Override
-    public List<Reminder> findByEnabledTrue() {
-        return jpa.findByEnabledTrue();
+    public List<Reminder> findEnabledWithinMinute(LocalTime time) {
+        return jpa.findEnabledWithinMinute(time.getHour(), time.getMinute());
     }
 }

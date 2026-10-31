@@ -1,6 +1,7 @@
 package com.healthupgrades.reminder.domain.port.out;
 
 import com.healthupgrades.reminder.domain.model.Reminder; // the aggregate this port persists
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,6 +23,12 @@ public interface ReminderRepositoryPort {
     /** All reminders configured for an upgrade. */
     List<Reminder> findByUpgradeId(UUID upgradeId);
 
-    /** All enabled reminders across users (used by the dispatch scheduler). */
-    List<Reminder> findByEnabledTrue();
+    /**
+     * The enabled reminders across users set for a time within the minute {@code time} falls in, from its
+     * first instant to its last, so the minute before midnight does not wrap into the next day's first.
+     *
+     * @param time a time of day, of which only the hour and minute count
+     * @return those reminders, for the dispatch sweep
+     */
+    List<Reminder> findEnabledWithinMinute(LocalTime time);
 }

@@ -76,9 +76,10 @@ public class LoggingAuditTrail implements AuditTrail {
      *
      * <p><b>An {@code ALLOWED} entry waits for the commit.</b> Every caller wraps the body of an
      * {@code @Transactional} service method, so the work returns while its transaction is still open —
-     * the commit happens afterwards, in the proxy. Only registration's save and the tracking
-     * configuration's save flush, each to translate its own unique-key race (ADR-074), so everywhere
-     * else a {@code @Version} clash or a unique constraint losing a race is decided <em>at commit</em>,
+     * the commit happens afterwards, in the proxy. Only registration's save, the tracking
+     * configuration's save and the account save flush, each to translate the race it can lose (ADR-074,
+     * ADR-073), so everywhere else a {@code @Version} clash or a unique constraint losing a race is
+     * decided <em>at commit</em>,
      * after the service method has returned. Writing the entry at that point would have the trail and
      * the counter both claim an edit succeeded while the caller was answered 409 and nothing was
      * persisted. Deferring it through

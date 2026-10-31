@@ -8,6 +8,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.healthupgrades.admin.application.AdminBootstrapService;
 import com.healthupgrades.common.domain.audit.AuditAction;
 import com.healthupgrades.common.domain.audit.AuditEvent;
@@ -16,6 +20,7 @@ import com.healthupgrades.support.AUser;
 import com.healthupgrades.support.RecordingAuditTrail;
 import com.healthupgrades.user.application.port.in.UserCommand;
 import com.healthupgrades.user.application.port.in.UserQuery;
+import com.healthupgrades.user.domain.model.AccountModifiedConcurrentlyException;
 import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User;
 import java.util.Optional;
@@ -24,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessResourceFailureException;
 
 /**
@@ -98,6 +104,34 @@ class AdminBootstrapRunnerTest {
 
         assertThat(auditTrail.only(AuditAction.ADMIN_BOOTSTRAP))
                 .hasValue(new AuditEvent(AuditAction.ADMIN_BOOTSTRAP, null, BOOTSTRAP_ID, AuditOutcome.FAILED));
+    }
+
+    @Test
+    void GivenAnotherInstancePromotedTheAccountFirst_WhenTheRunnerRuns_ThenItLogsAtInfoAndTheApplicationStillStarts() {
+        // Two replicas starting together both find no administrator and both promote the account. The
+        // version refuses the second save (ADR-073); that instance has nothing left to do, so the refusal
+        // is a fact to note, not a reason to fail its start.
+        User account = AUser.withId(BOOTSTRAP_ID);
+        when(userQuery.existsEnabledWithRole(Role.ADMIN)).thenReturn(false);
+        when(userQuery.findById(BOOTSTRAP_ID)).thenReturn(Optional.of(account));
+        when(userCommand.save(account)).thenThrow(new AccountModifiedConcurrentlyException());
+        Logger runnerLogger = (Logger) LoggerFactory.getLogger(AdminBootstrapRunner.class);
+        ListAppender<ILoggingEvent> lines = new ListAppender<>();
+        lines.start();
+        runnerLogger.addAppender(lines);
+
+        try {
+            assertThatCode(() -> run(BOOTSTRAP_ID.toString())).doesNotThrowAnyException();
+        } finally {
+            runnerLogger.detachAppender(lines);
+        }
+
+        assertThat(lines.list)
+                .singleElement()
+                .extracting(ILoggingEvent::getLevel)
+                .isEqualTo(Level.INFO);
+        assertThat(auditTrail.only(AuditAction.ADMIN_BOOTSTRAP))
+                .hasValue(new AuditEvent(AuditAction.ADMIN_BOOTSTRAP, null, BOOTSTRAP_ID, AuditOutcome.REFUSED));
     }
 
     @Test

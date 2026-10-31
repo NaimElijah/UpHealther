@@ -3,6 +3,7 @@ package com.healthupgrades.reminder.application;
 import com.healthupgrades.reminder.application.port.in.ReminderSweepQuery;
 import com.healthupgrades.reminder.domain.model.Reminder;
 import com.healthupgrades.reminder.domain.port.out.ReminderRepositoryPort;
+import java.time.LocalTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,9 +23,9 @@ class ReminderSweeps implements ReminderSweepQuery {
 
     private final ReminderRepositoryPort repository; // outbound persistence port
 
-    /** {@inheritDoc} Exposes enabled reminders as domain objects for the notification sweep. */
+    /** {@inheritDoc} */
     @Override
-    public List<Reminder> findEnabled() {
-        return repository.findByEnabledTrue();
+    public List<Reminder> findEnabledWithinMinute(LocalTime time) {
+        return repository.findEnabledWithinMinute(time);
     }
 }

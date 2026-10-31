@@ -10,9 +10,9 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 /**
  * Spring Boot entry point for the HealthUpgrades API.
  *
- * <p>Scheduling is enabled here because three driving adapters are scheduled jobs rather than HTTP
- * endpoints: {@code UpgradeOverdueScheduler}, {@code NotificationScheduler} and
- * {@code AuthSessionCleanupScheduler}.
+ * <p>Scheduling is enabled here because four driving adapters are scheduled jobs rather than HTTP
+ * endpoints: {@code UpgradeOverdueScheduler}, {@code NotificationScheduler},
+ * {@code AuthSessionCleanupScheduler} and {@code NotificationRetentionScheduler}.
  */
 @SpringBootApplication
 @EnableScheduling

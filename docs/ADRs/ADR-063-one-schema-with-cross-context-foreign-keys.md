@@ -1,6 +1,8 @@
 # ADR-063: One schema, with foreign keys across the contexts
 
-- **Status:** Accepted
+- **Status:** Accepted — extended by
+  [ADR-073](ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md) (progress entries, reflections and an
+  upgrade's area reference their parent by id and owner together, so a child row's owner is its parent's)
 - **Date:** 2026-10-30
 - **Scope:**
   - `backend/src/main/resources/db/migration/` — `V1__init_schema.sql`, `V4__notifications.sql` and

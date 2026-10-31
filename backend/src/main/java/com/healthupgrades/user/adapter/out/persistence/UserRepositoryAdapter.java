@@ -1,5 +1,6 @@
 package com.healthupgrades.user.adapter.out.persistence;
 
+import com.healthupgrades.user.domain.model.AccountModifiedConcurrentlyException;
 import com.healthupgrades.user.domain.model.EmailAlreadyRegisteredException;
 import com.healthupgrades.user.domain.model.Role;
 import com.healthupgrades.user.domain.model.User; // domain aggregate
@@ -10,6 +11,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
@@ -29,10 +31,25 @@ class UserRepositoryAdapter implements UserRepositoryPort {
 
     private final UserJpaRepository jpa; // Spring Data proxy
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Flushed, so a version clash is raised inside this call, where it can be translated, rather than
+     * by whatever flushes next. An administrator's disable revokes the account's sessions after the save,
+     * through a query that flushes first, so unflushed the clash surfaced there, inside the audited body,
+     * as Spring's exception, and was recorded as a fault rather than a refusal (ADR-073).
+     *
+     * <p>Only Spring's {@link OptimisticLockingFailureException} is caught. JPA's own
+     * {@code OptimisticLockException} cannot reach here: the Spring Data proxy translates every persistence
+     * exception before it leaves {@code jpa}.
+     */
     @Override
     public User save(User user) {
-        return jpa.save(user);
+        try {
+            return jpa.saveAndFlush(user);
+        } catch (OptimisticLockingFailureException overtaken) {
+            throw new AccountModifiedConcurrentlyException();
+        }
     }
 
     /**

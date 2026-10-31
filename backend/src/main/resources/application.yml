@@ -27,9 +27,10 @@ spring:
       # mismatch. An entity change therefore needs a new V{n}__*.sql migration, never a schema update here.
       ddl-auto: validate
     show-sql: false
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
+    # Off, so a request gives its connection back when its last transaction ends rather than once its
+    # response has been written. Open-in-view exists to lazy-load associations from the view, and no
+    # entity here maps one: each holds the ids of its neighbours, never the rows (ADR-063).
+    open-in-view: false
   flyway:
     enabled: true
     # Lets Flyway adopt a database that already has tables but no schema history, so an environment
@@ -130,6 +131,9 @@ app:
       # Cron expressions for the delayed-notification jobs, read in UTC (ServerZone, ADR-020).
       daily-checkin: ${NOTIFY_CHECKIN_CRON:0 0 18 * * *} # daily at 18:00 — check-in nudge
       reminders: ${NOTIFY_REMINDERS_CRON:0 * * * * *}    # every minute — user reminder dispatch
+      # Deletes notifications older than ninety days (NFR-60, ADR-075). A quarter of an hour after the
+      # session cleanup, so the two do not overlap.
+      retention: ${NOTIFY_RETENTION_CRON:0 45 3 * * *} # daily at 03:45
 
 management:
   endpoints:
