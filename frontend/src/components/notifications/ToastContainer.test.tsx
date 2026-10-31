@@ -157,6 +157,14 @@ describe('ToastContainer timing', () => {
     expect(region.textContent).toBe('');
   });
 
+  // `role="status"` implies `aria-atomic="true"`, so with a toast already showing, a new one could have a
+  // screen reader read the whole region again, every earlier toast included (review finding 10 on #407).
+  it('GivenTheLiveRegion_WhenItRenders_ThenItAnnouncesEachToastOnItsOwn', () => {
+    render(<PageWithDialog dialogOpen={false} toasts={[]} />);
+
+    expect(screen.getByRole('status').getAttribute('aria-atomic')).toBe('false');
+  });
+
   it('GivenAToastShowing_WhenTenSecondsPass_ThenItDismissesItselfAndNotBefore', () => {
     vi.useFakeTimers();
     render(<LiveToasts initial={[streakToast]} />);

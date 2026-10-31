@@ -1015,7 +1015,8 @@ reachable by pointer only, because Tab stays inside the dialog. See
   own button.
 - **A toast waits while it is held.** `ToastContainer` times each toast out after ten seconds counted
   only while the pointer is off it and focus is outside it, and announces it through a polite live
-  region mounted before any toast arrives.
+  region mounted before any toast arrives, which reads each new toast on its own
+  (`aria-atomic="false"`).
 
 What jsdom cannot see — contrast, reflow, a focus hidden behind the sticky header, which
 `index.css`'s `scroll-padding-top` prevents — is checked by hand in a browser until

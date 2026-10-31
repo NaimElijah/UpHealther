@@ -106,7 +106,8 @@ const Toast: React.FC<ToastProps> = ({ toast, onDismiss }) => {
  * routes rather than by any page, so a toast survives navigation. The polite live region they are
  * announced through is mounted from the start, empty, and stays: a region inserted together with its
  * text is announced unreliably, if at all (WCAG 4.1.3). Each toast in it says itself when it appears,
- * without interrupting whatever is being read.
+ * without interrupting whatever is being read, and only itself: `role="status"` implies
+ * `aria-atomic="true"`, which would have the whole region read again, every earlier toast included.
  *
  * Portalled to `<body>` and marked to stay live above a dialog. An open `Modal` makes every other child
  * of `<body>` inert, and a toast is a report about what just happened, not part of the page behind. If
@@ -123,6 +124,7 @@ const ToastContainer: React.FC = () => {
       {...aboveModalProps}
       role="status"
       aria-live="polite"
+      aria-atomic="false"
       className="fixed top-4 right-4 z-[60] flex flex-col gap-2 w-80 max-w-[calc(100vw-2rem)]"
     >
       {toasts.map((t) => (
