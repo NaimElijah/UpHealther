@@ -2,6 +2,8 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-31
+- **Supersedes in part:** [ADR-019](ADR-019-a-toast-stays-live-above-an-open-dialog.md), whose *What this
+  makes hard* says a toast "dismisses itself after six seconds". The rest of ADR-019 stands.
 - **Scope:** `frontend/`: every page, component and context, `index.html` and the theme. No new
   dependency, and no backend change.
 - **Issue:** [#104](https://github.com/NaimElijah/UpHealther/issues/104), where the owner decided the
