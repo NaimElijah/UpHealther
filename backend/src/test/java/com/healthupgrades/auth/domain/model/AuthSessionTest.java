@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -121,6 +122,17 @@ class AuthSessionTest {
         session.revoke();
 
         assertThat(session.isActive(OPENED_AT)).isFalse();
+    }
+
+    @Test
+    void GivenTheDigestReadOffASession_WhenTheCallerOverwritesIt_ThenTheSessionStillAcceptsItsCredential() {
+        // D2.6. The getter must hand out a copy: the array itself would let any reader change which
+        // credential the session accepts.
+        AuthSession session = opened();
+
+        Arrays.fill(session.getRefreshTokenHash(), (byte) 0);
+
+        assertThat(session.matchesCurrent(FIRST)).isTrue();
     }
 
     @Test

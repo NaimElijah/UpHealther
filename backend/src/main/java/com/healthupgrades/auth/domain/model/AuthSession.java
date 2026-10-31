@@ -76,6 +76,15 @@ public class AuthSession {
     protected AuthSession() {}
 
     /**
+     * The digest of the credential currently accepted.
+     *
+     * @return a copy: the array itself would let a reader change which credential the session accepts
+     */
+    public byte[] getRefreshTokenHash() {
+        return refreshTokenHash.clone();
+    }
+
+    /**
      * Opens a session for an account.
      *
      * <p>The id is supplied rather than invented here, because the credential is built around it: the
