@@ -130,7 +130,7 @@ docker compose up --build   # with Node installed, `npm start` runs the same com
 ```
 
 Frontend at http://localhost:3000, API at http://localhost:8080. From built images all three
-services were healthy 55 seconds after `docker compose up` on a fresh volume (measured 2026-11-01);
+services were healthy 55 seconds after `docker compose up` on a fresh volume (one machine, 2026-11-01);
 the first build takes longer, and CI builds both images, starts the stack and runs the browser suite
 in about three minutes ([ADR-052](docs/ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md)).
 The page is ready when `docker compose ps` shows all three services `healthy`. The ports are
