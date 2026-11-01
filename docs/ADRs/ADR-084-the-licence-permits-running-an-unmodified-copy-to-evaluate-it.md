@@ -6,8 +6,8 @@
   licence "grants exactly one thing: permission to read, retain a local copy for evaluation, and quote
   short excerpts with credit". It now also grants the permission in `LICENSE` §3.4. The rest of ADR-003
   stands.
-- **Scope:** `LICENSE` (the summary, §3.4, the closing paragraph of §3, §4.5) and the licence wording in
-  `README.md`. No code, build or runtime change.
+- **Scope:** `LICENSE` (the summary, §3.4, the closing paragraph of §3, §4.1, §4.5, and the version
+  label, now 1.1) and the licence wording in `README.md`. No code, build or runtime change.
 - **Issue:** [#346](https://github.com/NaimElijah/UpHealther/issues/346), scan 12, finding F1, where the
   owner decided on 2026-11-01. Related, and not settled here:
   [#225](https://github.com/NaimElijah/UpHealther/issues/225).
@@ -43,13 +43,16 @@ repository's own build files and documentation direct, on a computer under their
 evaluate it.** The permission carries its own limit: the licensee must not deploy it, host it, offer it
 as a service, or make it reachable by any other person, or by any other computer over a network.
 
-- **§4.5 carves the permission out** ("other than as permitted by Section 3.4"), the way §4.2 already
-  carves out Section 3, and the summary at the head of the file and the closing paragraph of §3 say the
-  same. A reader who stops at the summary is not misled in either direction.
-- **Nothing else is broadened.** Modification (§4.3), redistribution (§4.4), use in any project,
-  product, service or system (§4.1), presenting the work as one's own (§4.7) and training a model on it
-  (§4.8) stay forbidden. Running for any purpose but evaluation stays forbidden. So does running a
-  modified copy, which includes building one from edited sources.
+- **§4.1 and §4.5 carve the permission out** ("other than as permitted by Section 3.4"), the way §4.2
+  already carves out Section 3, so neither "use in a system" nor "execute" can be read against it. The
+  summary at the head of the file and the closing paragraph of §3 say the same. A reader who stops at
+  the summary is not misled in either direction.
+- **The version label moves to 1.1**, so the text an evaluator accepted can be told from the one before
+  this grant.
+- **Nothing else is broadened.** Modification (§4.3), redistribution (§4.4), any use in a project,
+  product, service or system beyond evaluating (§4.1), presenting the work as one's own (§4.7) and
+  training a model on it (§4.8) stay forbidden. Running for any purpose but evaluation stays forbidden.
+  So does running a modified copy, which includes building one from edited sources.
 - **The README says it.** Its Quick start, Development and Testing sections may tell an evaluator to run
   the stack, and its Licence section and *Source-available, not open source* entry state the grant.
   `LICENSE` governs where they differ.
