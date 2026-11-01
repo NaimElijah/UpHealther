@@ -254,8 +254,8 @@ passwords that are already public. `scripts/derive_common_passwords.py` derives 
 **Conventions.** Conventional Commits, one logical change per commit, on a
 `type/short-kebab-description` branch cut from `dev`; a PR merges into `dev`, and `dev` → `main` is
 the release PR, both as merge commits ([`.git-blame-ignore-revs`](.git-blame-ignore-revs) depends on
-that). The formatters own layout: `./mvnw spotless:apply` ([ADR-037](docs/ADRs/ADR-037-the-backend-is-formatted-by-palantir-java-format-through-spotless.md)),
-`npm run format` ([ADR-038](docs/ADRs/ADR-038-the-frontend-is-formatted-by-prettier.md)).
+that). The formatters own layout: `./mvnw spotless:apply` in `backend/` ([ADR-037](docs/ADRs/ADR-037-the-backend-is-formatted-by-palantir-java-format-through-spotless.md)),
+`npm run format` in `frontend/` ([ADR-038](docs/ADRs/ADR-038-the-frontend-is-formatted-by-prettier.md)).
 
 **A feature end to end.** In the order the files come: behaviour into `domain/model` with a failing
 test; its ports in `domain/port/out`; a `@Transactional` service in `application`; the adapter in
@@ -267,9 +267,9 @@ and the page.
 
 | Level | Covers | Command |
 |---|---|---|
-| Unit and slice | State machine, every use case, each controller on the real security chain; no database or Docker | `./mvnw test` |
-| Structural | Thirty-one ArchUnit rules; the wire-type, column-bound, pinned-image and version contracts | `./mvnw test` |
-| Integration | The app against a Testcontainers PostgreSQL: migrations, database-enforced invariants | `./mvnw verify` |
+| Unit and slice | State machine, every use case, each controller on the real security chain; no database or Docker | `./mvnw test` in `backend/` |
+| Structural | Thirty-one ArchUnit rules; the wire-type, column-bound, pinned-image and version contracts | `./mvnw test` in `backend/` |
+| Integration | The app against a Testcontainers PostgreSQL: migrations, database-enforced invariants | `./mvnw verify` in `backend/` |
 | Frontend | Session restore, silent token renewal, the socket, route and role gates, CSP, theme | `npm test` in `frontend/` |
 | Smoke | A browser drives both modules through the composed stack, under nginx's CSP | `npm run test:images` |
 
