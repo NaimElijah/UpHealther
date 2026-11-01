@@ -29,6 +29,7 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
   its diagrams, three of them generated from the code.
 - `docs/ADRs/` — why each decision was made, one `ADR-NNN-short-kebab-title.md` per decision.
 - `docs/api.md` — the HTTP surface.
+- `docs/releasing.md` — how a release is cut: the version PR, the promotion and the tag.
 
 ## Keeping the documents in step
 
@@ -55,7 +56,7 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
   CI's frontend job runs only the first, and its images job only the second.
 - `npm start` — `docker compose up --build`.
 - `npm run changelog -- --tag vX.Y.Z` — prepends release X.Y.Z's section to `CHANGELOG.md`, through
-  git-cliff's image (needs Docker, and the tags fetched). One step of the README's Releasing section;
+  git-cliff's image (needs Docker, and the tags fetched). One step of `docs/releasing.md`;
   `npm test` does not run it (ADR-051).
 - `npm run generate:wire-types` — rewrites `frontend/src/types/api.generated.ts` from the request and
   response records the controllers declare, by running `FrontendWireTypesContractTest` with

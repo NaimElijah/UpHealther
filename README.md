@@ -49,7 +49,7 @@ flowchart LR
 **Contents** · [🎯 What and why](#-what-and-why) · [✨ Features](#-features) ·
 [🧱 Architecture](#-architecture) · [🧰 Tech stack](#-tech-stack) · [🚀 Quick start](#-quick-start) ·
 [🔩 Configuration](#-configuration) · [📖 Usage](#-usage) · [💻 Development](#-development) ·
-[🧪 Testing](#-testing) · [📡 Operations](#-operations) · [🔖 Releasing](#-releasing) ·
+[🧪 Testing](#-testing) · [📡 Operations](#-operations) ·
 [📁 Project structure](#-project-structure) · [🧭 Design decisions](#-design-decisions) ·
 [🚦 Status and limitations](#-status-and-limitations) · [📜 Licence](#-licence)
 
@@ -458,58 +458,13 @@ Migrations run at application start, so a bad one leaves the container un-ready 
 corrupting the schema. To chase a reported failure:
 `docker logs healthupgrades-backend | grep <trace id>`.
 
-## 🔖 Releasing
+### Releasing
 
 One version names both modules, and a release is an annotated `v<version>` tag on the promotion merge
-that ships it, with its section in [`CHANGELOG.md`](CHANGELOG.md)
+to `main`, with its section in [`CHANGELOG.md`](CHANGELOG.md) written by git-cliff
 ([ADR-050](docs/ADRs/ADR-050-one-version-names-the-whole-repository.md),
 [ADR-051](docs/ADRs/ADR-051-a-release-is-a-tag-on-its-promotion-and-git-cliff-writes-its-changelog.md)).
-Each line below runs the same from PowerShell, Git Bash or a Linux shell. Run them one at a time,
-because PowerShell 5.1 has no `&&`.
-
-1. Fetch the tags, then branch from `dev`. Without the tags, the changelog takes the whole history as
-   one release.
-
-   ```bash
-   git fetch origin --tags
-   git switch --no-track -c chore/release-X.Y.Z origin/dev
-   ```
-
-2. Set the version in both modules, the frontend's from `frontend/` and the pom's from the root:
-
-   ```bash
-   cd frontend
-   npm version X.Y.Z --no-git-tag-version
-   cd ..
-   node scripts/mvnw.mjs versions:set "-DnewVersion=X.Y.Z" -DgenerateBackupPoms=false
-   ```
-
-3. Write the release's section of the changelog. It needs Docker, and it prepends, so run it once:
-
-   ```bash
-   npm run changelog -- --tag vX.Y.Z
-   ```
-
-4. Commit all of it as `chore(release): X.Y.Z`, and merge this *version PR* into `dev`. Nothing else
-   merges into `dev` until the promotion has, because whatever does would ship with no line in the
-   changelog.
-5. Promote: the release PR from `dev` into `main`, labelled `release`, merged as a merge commit.
-6. Tag the promotion merge, and push the tag:
-
-   ```bash
-   git fetch origin
-   git tag -a vX.Y.Z origin/main -m "UpHealther X.Y.Z"
-   git push origin vX.Y.Z
-   ```
-
-`RepositoryVersionContractTest` fails the version PR in three cases:
-
-- a version field was not set;
-- the changelog's newest section is not the new version;
-- a release or a commit appears in the changelog twice.
-
-Once the tag is pushed, `git describe --exact-match origin/main` names it. Pushing a tag starts no
-workflow yet.
+The maintainer's steps are in [docs/releasing.md](docs/releasing.md).
 
 ## 📁 Project structure
 
