@@ -16,6 +16,12 @@
 -- docker-compose.yml name. No deployment carries the script, so none holds the account again.
 
 -- Bounds the wait for the row locks the delete and its cascades take (ADR-072).
+--
+-- No up-front LOCK TABLE, unlike ADR-072's DDL migrations. The delete and its cascades take only ROW
+-- EXCLUSIVE on each table, which no statement the application runs conflicts with, and row locks on the
+-- demo account's own rows, which no other account's request touches. A lock strong enough to fix an order,
+-- SHARE ROW EXCLUSIVE or above, would block every write to users and the nine tables its cascade reaches
+-- for the whole migration. The timeout above bounds each row wait instead.
 SET LOCAL lock_timeout = '5s';
 
 DELETE FROM users WHERE id = 'a0000000-0000-0000-0000-000000000001';
