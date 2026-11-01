@@ -51,12 +51,20 @@ import org.testcontainers.utility.DockerImageName;
  * errored before an assertion ran. A minimum idle of one bounds what a context holds once its tests are
  * done, while its pool can still grow to ten for a test that needs them concurrently. Set here, for the
  * same reason as the rate limit: one value for every {@code *IT}, one context cache key.
+ *
+ * <p><strong>No demo account.</strong> Maven runs the tests from {@code backend/}, so they read
+ * {@code backend/config/application.yml}, which names the Flyway callback that creates the demo account for
+ * a run from a checkout (#84). The callback location is emptied here, so the shared database is migrated as
+ * the jar migrates a deployment's: it holds no account that no test created, and {@code ApplicationContextIT}
+ * can show a deployment gets none. Set here, for the same reason as the rate limit. What the callback does
+ * is {@code DemoAccountMigrationIT}'s to show, on databases of its own.
  */
 @TestPropertySource(
         properties = {
             "app.rate-limit.limit=1000000",
             "app.session-rate-limit.limit=1000000",
-            "spring.datasource.hikari.minimum-idle=1"
+            "spring.datasource.hikari.minimum-idle=1",
+            "spring.flyway.callback-locations="
         })
 public abstract class PostgresIT {
 

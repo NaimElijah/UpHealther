@@ -177,7 +177,10 @@ public class SecurityConfig {
         return config.getAuthenticationManager();
     }
 
-    /** BCrypt encoder — the algorithm the stored password hashes (including the seeded demo user) use. */
+    /**
+     * BCrypt encoder — the algorithm every stored password hash uses, including the one the development
+     * demo account's seed script writes.
+     */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();

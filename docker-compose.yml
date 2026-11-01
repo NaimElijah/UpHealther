@@ -61,6 +61,12 @@ services:
       # one, the same value as backend/config/application.yml. This file is the local stack only: a
       # deployment through it would inherit this key unless JWT_SECRET is set.
       JWT_SECRET: ${JWT_SECRET:-local-development-only-published-signing-key-not-a-secret}
+      # Creates the demo account after every migration while it is missing, through the Flyway callback
+      # in db/demo, as backend/config/application.yml does for a native run. The image carries the
+      # script but names no callback location, so a deployment that runs it without this file never
+      # holds the account (#84). A literal, not a variable: this file is the local stack only, and the
+      # demo account is part of what it is for.
+      SPRING_FLYWAY_CALLBACK_LOCATIONS: "classpath:db/demo"
       # Shorten it to watch a token lapse and be renewed without the user noticing.
       JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-15m}
       # How long a session survives unused, and the cap it never outlives however busy it is.

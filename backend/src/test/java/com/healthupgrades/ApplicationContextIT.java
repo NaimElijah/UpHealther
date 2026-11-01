@@ -6,10 +6,12 @@ import com.healthupgrades.support.PostgresIT;
 import com.healthupgrades.tracking.domain.service.ProgressEvaluationService;
 import com.healthupgrades.tracking.domain.service.StreakCalculator;
 import com.healthupgrades.upgrade.domain.service.UpgradeSchedulingService;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.jpa.support.OpenEntityManagerInViewInterceptor;
 
 /**
@@ -32,11 +34,18 @@ import org.springframework.orm.jpa.support.OpenEntityManagerInViewInterceptor;
  *       Booting here is what turns that into a build failure.</li>
  * </ul>
  *
- * <p>It also pins one property of the context the shipped configuration builds: open-in-view is off, so a
- * request holds a pooled connection only while one of its transactions runs.
+ * <p>It also pins two properties of what the shipped configuration builds: open-in-view is off, so a
+ * request holds a pooled connection only while one of its transactions runs; and a database it has migrated
+ * holds no demo account (#84).
  */
 @SpringBootTest
 class ApplicationContextIT extends PostgresIT {
+
+    /** The id V2 gave the demo account, which no deployment's database may hold. */
+    private static final UUID DEMO_ACCOUNT = UUID.fromString("a0000000-0000-0000-0000-000000000001");
+
+    /** The demo account's address, which a published password signs in to wherever it exists. */
+    private static final String DEMO_EMAIL = "demo@healthupgrades.com";
 
     @Autowired
     UpgradeSchedulingService upgradeSchedulingService;
@@ -49,6 +58,9 @@ class ApplicationContextIT extends PostgresIT {
 
     @Autowired
     ApplicationContext context;
+
+    @Autowired
+    JdbcTemplate jdbc;
 
     @Test
     void GivenTheRealSchemaAndTheHandWiredBeans_WhenTheApplicationStarts_ThenItComesUpWithBothIntact() {
@@ -63,5 +75,15 @@ class ApplicationContextIT extends PostgresIT {
         // registered every request holds its pooled connection until the response has been written.
         assertThat(context.getBeanNamesForType(OpenEntityManagerInViewInterceptor.class))
                 .isEmpty();
+    }
+
+    @Test
+    void GivenTheShippedFlywaySettings_WhenTheApplicationHasStarted_ThenThereIsNoDemoAccount() {
+        // PostgresIT empties the callback location backend/config/ names, so Flyway ran here as it runs in
+        // a deployment: V2 seeded the account, and V21 must have deleted it, or anyone could sign in to it.
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM users WHERE id = ? OR email = ?", Long.class, DEMO_ACCOUNT, DEMO_EMAIL))
+                .as("accounts holding the demo account's id or address")
+                .isZero();
     }
 }

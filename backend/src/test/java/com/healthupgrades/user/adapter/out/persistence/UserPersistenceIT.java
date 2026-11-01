@@ -32,9 +32,10 @@ import org.springframework.dao.DataIntegrityViolationException;
  *
  * <p>Also FR-42's order: the administration list is oldest first, and the sort is applied by this
  * adapter, so only a real database can show it. The rows are inserted natively because
- * {@code @PrePersist} stamps the current time, and they are dated 2020 so they sort ahead of the
- * seeded demo account. And D2.13's one count per page at most, which only the statements Hibernate ran
- * can show, so this class switches its statistics on.
+ * {@code @PrePersist} stamps the current time, and they are dated 2020 so they sort ahead of every account
+ * another IT has committed to the shared database, each stamped with the time it ran. And D2.13's one count
+ * per page at most, which only the statements Hibernate ran can show, so this class switches its statistics
+ * on.
  *
  * <p>And FR-45's "only while no <em>enabled</em> administrator exists", which is a derived query no
  * mocked port can run.
