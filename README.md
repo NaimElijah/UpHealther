@@ -303,7 +303,7 @@ there is no pipeline and no published image.
 |---|---|
 | Health | `GET /actuator/health/liveness` and `/readiness`; readiness waits for Flyway, so a bad migration leaves the container un-ready rather than corrupting the schema |
 | Metrics | `GET /actuator/prometheus` — HTTP latency, error rate, JVM, HikariCP saturation, audit and job counters; nothing scrapes it |
-| Traces | Micrometer Tracing over the OpenTelemetry bridge; sampled at 1.0, no exporter configured |
+| Traces | Micrometer Tracing over the OpenTelemetry bridge; sampled at 1.0, no exporter configured; the SPA sends no telemetry |
 | Logs | `docker logs` only, JSON per line under compose; a trace id on every line ([two gaps](docs/architecture/architecture.md#known-constraints)), so `docker logs healthupgrades-backend \| grep <trace id>` finds a request |
 | Audit | The `AUDIT` logger — `action`, `outcome`, `resource`, `actorId`, `resourceId`; never personal data |
 
