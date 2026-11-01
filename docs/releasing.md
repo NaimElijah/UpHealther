@@ -14,7 +14,7 @@ that ships it, with its section in [`CHANGELOG.md`](../CHANGELOG.md)
 - Docker running, because step 3 writes the changelog through git-cliff's image.
 - Push access to `origin`, for the branch, the pull requests and the tag.
 - Node and JDK 21, for `npm version` and for the Maven wrapper in step 2.
-  [Development](../README.md#-development) lists what a native setup needs.
+  [Development](../README.md#development) lists what a native setup needs.
 - The tags fetched, which step 1 does. Without them the changelog takes the whole history as one
   release.
 

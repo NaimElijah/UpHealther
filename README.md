@@ -39,14 +39,14 @@ flowchart LR
     core -->|"JDBC"| db
 ```
 
-**Contents** · [🎯 What and why](#-what-and-why) · [✨ Features](#-features) ·
-[🧱 Architecture](#-architecture) · [🧰 Tech stack](#-tech-stack) · [🚀 Quick start](#-quick-start) ·
-[🔩 Configuration](#-configuration) · [📖 Usage](#-usage) · [💻 Development](#-development) ·
-[🧪 Testing](#-testing) · [📡 Operations](#-operations) · [📁 Project structure](#-project-structure) ·
-[🧭 Design decisions](#-design-decisions) · [🚦 Status and limitations](#-status-and-limitations) ·
-[📜 Licence and contributing](#-licence-and-contributing)
+**Contents** · [What and why](#what-and-why) · [Features](#features) ·
+[Architecture](#architecture) · [Tech stack](#tech-stack) · [Quick start](#quick-start) ·
+[Configuration](#configuration) · [Usage](#usage) · [Development](#development) ·
+[Testing](#testing) · [Operations](#operations) · [Project structure](#project-structure) ·
+[Design decisions](#design-decisions) · [Status and limitations](#status-and-limitations) ·
+[Licence and contributing](#licence-and-contributing)
 
-## 🎯 What and why
+## What and why
 
 People who decide to change a health habit rarely fail at the decision — they fail at knowing
 whether the change survived contact with a normal week. UpHealther models each intended change as
@@ -59,7 +59,7 @@ and every one of those moves is a guarded transition rather than an editable sta
 > treatment, and no feature may imply otherwise
 > ([non-goal 5.1](docs/requirements/requirements.md#5-non-goals)).
 
-## ✨ Features
+## Features
 
 - Create an upgrade — a habit, one-off action, routine, goal, experiment, product replacement,
   learning task, or medical or preventive errand — and file it under a health area you define
@@ -80,7 +80,7 @@ and every one of those moves is a guarded transition rather than an editable sta
 
 Every capability is listed in [requirements §2](docs/requirements/requirements.md#2-functional-requirements).
 
-## 🧱 Architecture
+## Architecture
 
 Three processes and a browser, shown above. No message broker, no cache, no third-party service:
 all state is in the one database, and every side effect is a write to it or a push to a browser.
@@ -101,7 +101,7 @@ upgrade *scoped to that user* (another user's row is a 404, not a 403), refuses 
 the day, scores the entry against the tracking configuration and saves it through a port the domain
 owns. Notifications are pushed by listeners that run after the commit, so a rollback announces nothing.
 
-## 🧰 Tech stack
+## Tech stack
 
 | Layer | Technology | Version | Why |
 |:---|:---|---:|:---|
@@ -119,7 +119,7 @@ owns. Notifications are pushed by listeners that run after the commit, so a roll
 | Frontend and smoke tests | Vitest on jsdom; Playwright in Chromium | 5.0.5 / 30.1.3; 1.64.1 | Colocated tests; one browser run through the stack ([ADR-052](docs/ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md)) |
 | Lint and format | palantir-java-format, ESLint, Prettier | 2.102.0 / 10.13.0 / 3.9.10 | Warnings fail the build ([ADR-039](docs/ADRs/ADR-039-the-backend-compiles-under-javacs-lint-and-fails-on-a-warning.md)) |
 
-## 🚀 Quick start
+## Quick start
 
 **Prerequisites:** Docker with Compose v2, and on Linux Docker Engine 28.3.3 or later. Nothing else.
 
@@ -153,7 +153,7 @@ a working default, so no `.env` is needed to start — copy `.env.example` to `.
 
 </details>
 
-## 🔩 Configuration
+## Configuration
 
 The four variables a deployment reads first, from [`.env.example`](.env.example). Nothing needs
 setting to run locally. **Only `JWT_SECRET` is required:** it has no default, so a deployment
@@ -170,7 +170,7 @@ empty by default, and empty means do nothing. The other two defaults suit the lo
 
 The other twenty-six variables, none required: [architecture.md](docs/architecture/architecture.md#the-other-configuration-variables).
 
-## 📖 Usage
+## Usage
 
 For Git Bash or a Linux or macOS shell, with only `curl` and `sed`, against the running stack. Sign
 in as the demo account and keep the access token:
@@ -219,7 +219,7 @@ curl -s -X POST "http://localhost:8080/api/upgrades/$ID/complete" \
 
 Your `id`, `timestamp` and `traceId` differ. Every endpoint is in [**docs/api.md**](docs/api.md).
 
-## 💻 Development
+## Development
 
 Running natively needs **JDK 21**, **Node 24** (`frontend/.nvmrc` names the release; npm refuses any
 outside `^24.16.0`) and a PostgreSQL 15 on `:5432`; testing also needs **Python 3** (diagram check)
@@ -259,7 +259,7 @@ test; its ports in `domain/port/out`; a `@Transactional` service in `application
 `npm run generate:wire-types` ([ADR-053](docs/ADRs/ADR-053-the-frontends-wire-types-are-generated-from-the-apis-records.md))
 and the page.
 
-## 🧪 Testing
+## Testing
 
 | Level | Covers | Command |
 |---|---|---|
@@ -293,7 +293,7 @@ Dependabot ([ADR-046](docs/ADRs/ADR-046-dependabot-proposes-weekly-updates-into-
 reported, never gated: each requirement names the test that enforces it
 ([ADR-009](docs/ADRs/ADR-009-test-levels-boundaries-and-naming.md)).
 
-## 📡 Operations
+## Operations
 
 **Nothing is deployed.** This runs locally under Compose and has never run in a hosted environment,
 so there is no pipeline and no published image.
@@ -314,7 +314,7 @@ A release is an annotated `v<version>` tag on the promotion merge to `main`, wit
 [ADR-051](docs/ADRs/ADR-051-a-release-is-a-tag-on-its-promotion-and-git-cliff-writes-its-changelog.md));
 the steps are in [docs/releasing.md](docs/releasing.md).
 
-## 📁 Project structure
+## Project structure
 
 ```
 backend/      Spring Boot API: ten bounded contexts; config/ = the unpackaged dev key
@@ -324,7 +324,7 @@ docs/         requirements/, architecture/ (seven diagrams), ADRs/, api.md, rele
 scripts/      Image check, backend audit, git-cliff, Maven and Python launchers
 ```
 
-## 🧭 Design decisions
+## Design decisions
 
 **DDD + hexagonal, boundaries enforced by tests** ([ADR-001](docs/ADRs/ADR-001-ddd-hexagonal-architecture.md),
 corrected by [ADR-002](docs/ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md))
@@ -341,7 +341,7 @@ organisations. **Cost:** an evaluator may run an unmodified copy
 ([ADR-084](docs/ADRs/ADR-084-the-licence-permits-running-an-unmodified-copy-to-evaluate-it.md)),
 but nobody may modify, host or reuse it.
 
-## 🚦 Status and limitations
+## Status and limitations
 
 **Feature-complete and unshipped.** Every capability above is implemented and covered by tests at
 every level, and `npm test` is green, but it has never run in a hosted environment, and some defects
@@ -376,7 +376,7 @@ that proves it gives no medical advice ([#271](https://github.com/NaimElijah/UpH
 and the rest of the repository baseline ([#197](https://github.com/NaimElijah/UpHealther/issues/197)).
 Sharing and a public API are **non-goals** ([§5](docs/requirements/requirements.md#5-non-goals)).
 
-## 📜 Licence and contributing
+## Licence and contributing
 
 > [!IMPORTANT]
 > UpHealther is **source-available, not open source**. Reading, reviewing and evaluating it is the

@@ -812,7 +812,7 @@ Integration points a maintainer will need:
 
 ### The other configuration variables
 
-The [README's configuration table](../../README.md#-configuration) lists the four variables a deployment
+The [README's configuration table](../../README.md#configuration) lists the four variables a deployment
 reads first. This is the rest: sixteen that `.env.example` also carries, and ten that live only in
 `application.yml`. None is required. `docker-compose.yml` does not pass four of them through, so those
 take effect on a native run only, marked *native*, and it sets `DB_URL`, `DB_USERNAME` and `DB_PASSWORD`
