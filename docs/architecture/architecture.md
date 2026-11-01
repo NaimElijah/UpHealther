@@ -343,10 +343,9 @@ of all of them in one call. No application service calls the port, so a use case
 `DashboardWebMapper` maps its embedded upgrades through `UpgradeWebMapper`, so the dashboard inherits
 the read.
 
-The indirection is accepted, and not moved into the use cases. Moving it would change the ten
-`UpgradeService` methods the controller maps, and the dashboard's view, to return an upgrade together
-with its setup: about a dozen signatures, to remove an indirection that is named here instead. The
-cost is that a web mapper does I/O, which a reader of the layering rules would not expect.
+The indirection stays in the web mapper and is not moved into the use cases
+([ADR-064](../ADRs/ADR-064-the-backends-layering-rules-beyond-adr-002.md) records why). The cost is that
+a web mapper does I/O, which a reader of the layering rules would not expect.
 `TrackingConfigQuery`, the port that answers, is not scoped by owner. ArchUnit keeps every dependent of
 it inside `tracking`, every dependent of `UpgradeTrackingSummaryPort` but this mapper and its
 implementer out, and every dependent of this mapper but its two callers out; mechanism 5, above, says
@@ -697,9 +696,8 @@ the trail is the only place that attempt exists at all
 ([ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md)). `REFUSED` (the system said no) and
 `FAILED` (the system broke) are separate outcomes because they need separate reactions.
 
-There is no audit table. An entry has to outlive the transaction it observes — a refused transition
-rolls back, and a row written inside it would roll back too — and the trace id already on the line joins
-the entry to its request without a foreign key.
+There is no audit table: an entry is a line on the `AUDIT` logger, and the trace id already on the
+line joins it to its request.
 [ADR-011](../ADRs/ADR-011-audit-as-a-log-stream.md) records the decision, what is deliberately not
 audited, and what would reverse it;
 [ADR-021](../ADRs/ADR-021-what-a-refused-authentication-names-and-what-is-no-attempt.md) records whom a
@@ -915,8 +913,7 @@ at startup: `CommonPasswordPolicy`, in the application layer, loads it through
 `CommonPasswordListPort`, which `ClasspathCommonPasswordList` implements over the classpath, and
 the `@NotCommonPassword` validator asks the policy. Spring builds that validator with the policy
 injected, so a web slice that posts a registration needs the policy bean, which `WebSliceSupport`
-supplies. A missing list, an empty one or one of only blank lines stops the application starting
-([ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md)).
+supplies ([ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md)).
 
 **Every request record and response DTO belongs to the web adapter.** Application services take command
 records from `application/port/in` and return domain objects; a `*WebMapper` per context translates in
@@ -1089,8 +1086,8 @@ request body writes to.
 **One character is refused for every field at once.** PostgreSQL refuses U+0000 in any text column, so
 a body carrying one reached the flush and returned 500 with an ERROR line. `NulRefusingStringModule`, a
 Jackson module Boot registers with its mapper, refuses any string a request body carries that holds one,
-which reaches the client as the 400 of a malformed body. It is one module rather than a constraint per
-field so that a field added later is covered without anybody remembering it.
+which reaches the client as the 400 of a malformed body. One module covers every string field, a later
+one included ([ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md)).
 
 **The repository's commands are defined once, in the root `package.json`.** `npm run setup`,
 `npm start` and `npm test` are its entry points, and CI's jobs call its `test:*` scripts rather than
