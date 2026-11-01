@@ -761,7 +761,7 @@ Integration points a maintainer will need:
   ([ADR-042](../ADRs/ADR-042-the-jar-carries-no-jwt-signing-key.md)). `CORS_ALLOWED_ORIGINS` and
   `VITE_API_URL` only matter when frontend and API are on different origins. The five cron expressions
   are keyed in `application.yml` under `app.*.schedules.*`, each overridable by the environment variable
-  [the table below](#the-other-configuration-variables) names. `.env.example` lists none of them.
+  [the section below](#the-other-configuration-variables) names. `.env.example` lists none of them.
 - **CI** — GitHub Actions on every push and PR to `main` and `dev`. Each job runs its part of the gate
   through the root `package.json`, the same scripts `npm test` runs locally
   ([ADR-044](../ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md)): the backend runs `./mvnw verify`,
