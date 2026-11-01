@@ -26,8 +26,9 @@ import java.util.stream.Stream;
 final class FlywayMigrations {
 
     /**
-     * Flyway's migration directory, relative to {@code backend/}, where Maven runs the tests. Flyway reads
-     * the folders beneath it too, and so does {@link #read()}.
+     * Flyway's migration directory, relative to {@code backend/}, where Maven runs the tests. Every migration
+     * sits directly in it: Flyway would also run one from a folder beneath it, but {@link #read()} refuses
+     * one there.
      */
     static final Path DIRECTORY = Paths.get("src", "main", "resources", "db", "migration");
 
@@ -77,25 +78,26 @@ final class FlywayMigrations {
      * Every migration in {@link #DIRECTORY}, in the order Flyway applies them.
      *
      * @throws UncheckedIOException if the directory cannot be read
-     * @throws IllegalArgumentException if a {@code .sql} file there, or in any folder beneath it, is not a
-     *     versioned migration, or two of them share a name
+     * @throws IllegalArgumentException if a {@code .sql} file there is not a versioned migration, or one sits
+     *     in a folder beneath it
      */
     static List<Migration> read() {
         return read(DIRECTORY);
     }
 
     /**
-     * Every migration under the given directory, in the order Flyway applies them.
+     * Every migration in the given directory, in the order Flyway applies them.
      *
-     * <p>Searches the folders beneath it too, because Flyway scans a location recursively: a script nested
-     * there runs on every database as surely as one beside the rest, so it is held to the same rules, and
-     * one that is not a versioned migration, such as a callback, fails here as a misnamed one does. A
-     * callback belongs in a location of its own, which a deployment does not name (#84).
+     * <p>Searches the folders beneath it too, but only to refuse what it finds there. Flyway scans a location
+     * recursively, so a script nested there would run on every database, a callback included (#84); and
+     * every other reader of the migrations, the ER diagram's generator among them, reads the top level
+     * alone, so a nested migration's DDL would be missing from what they check while they passed. One rule
+     * everywhere: every migration sits directly in the directory.
      *
      * @param directory where the migrations are
      * @throws UncheckedIOException if the directory cannot be read
-     * @throws IllegalArgumentException if a {@code .sql} file under it is not a versioned migration, or two
-     *     of them share a name, so that one would hide the other from every test reading them by name
+     * @throws IllegalArgumentException if a {@code .sql} file there is not a versioned migration, or one sits
+     *     in a folder beneath it
      */
     static List<Migration> read(Path directory) {
         Map<String, String> sqlByFileName = new LinkedHashMap<>();
@@ -103,10 +105,12 @@ final class FlywayMigrations {
             for (Path file : files.filter(Files::isRegularFile)
                     .filter(p -> p.toString().endsWith(".sql"))
                     .toList()) {
-                String fileName = file.getFileName().toString();
-                if (sqlByFileName.putIfAbsent(fileName, Files.readString(file)) != null) {
-                    throw new IllegalArgumentException("two migrations under " + directory + " are named " + fileName);
+                if (!file.getParent().equals(directory)) {
+                    throw new IllegalArgumentException(directory.relativize(file)
+                            + " sits in a folder beneath " + directory
+                            + "; every migration belongs directly in it, where every reader looks");
                 }
+                sqlByFileName.put(file.getFileName().toString(), Files.readString(file));
             }
         } catch (IOException e) {
             throw new UncheckedIOException("could not read the migrations at " + directory.toAbsolutePath(), e);
