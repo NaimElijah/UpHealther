@@ -1,6 +1,8 @@
 # ADR-082: The interface targets WCAG 2.2 AA
 
-- **Status:** Accepted
+- **Status:** Accepted — the target under which the follow-up in the *Note* of
+  [ADR-005](ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md) was done: the decorative emoji
+  are hidden from assistive technology ([#343](https://github.com/NaimElijah/UpHealther/issues/343))
 - **Date:** 2026-10-31
 - **Supersedes in part:** [ADR-019](ADR-019-a-toast-stays-live-above-an-open-dialog.md), whose *What this
   makes hard* says a toast "dismisses itself after six seconds". The rest of ADR-019 stands.

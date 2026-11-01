@@ -1,7 +1,9 @@
 # ADR-001: Adopt Domain-Driven Design + Hexagonal (Ports & Adapters) for the backend
 
 - **Status:** Accepted — superseded in part by
-  [ADR-002](ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)
+  [ADR-002](ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md); its "Spring Boot 3"
+  superseded by [ADR-032](ADR-032-the-backend-runs-on-spring-boot-4-1.md), which moves the backend to
+  Spring Boot 4.1
 - **Date:** 2026-07-09
 - **Scope:** `backend/` (Spring Boot 3 / Java 21). The React frontend is unaffected.
 

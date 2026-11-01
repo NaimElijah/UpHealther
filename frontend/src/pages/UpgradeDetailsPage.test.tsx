@@ -1466,7 +1466,7 @@ async function confirmAbandonThenDismissInTheSameTask(): Promise<() => void> {
 }
 
 /**
- * FR-12 (#89) — an upgrade can be abandoned from its page, from any state that is not final (BR-2).
+ * FR-12 (#89) — an upgrade can be abandoned from its page, from any state but COMPLETED and ABANDONED (BR-2).
  *
  * Abandoning asks first: an abandoned upgrade leaves every list, so a slip would look like the upgrade
  * had vanished.

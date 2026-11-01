@@ -4,7 +4,9 @@
   also overrides `opentelemetry.version`, from Boot's 1.62.0 to 1.67.0 for GHSA-ccrj-gw8r-854m
   ([#364](https://github.com/NaimElijah/UpHealther/issues/364)): five minors past what Boot manages, not a
   patch. So the "delete the overrides" trigger under *When to revisit* is per override, and
-  OpenTelemetry's is that Boot manages 1.67.0 or newer, whatever Tomcat and Jackson do
+  OpenTelemetry's is that Boot manages 1.67.0 or newer, whatever Tomcat and Jackson do; it extends
+  [ADR-046](ADR-046-dependabot-proposes-weekly-updates-into-dev.md), adding `/scripts` to the
+  `docker-compose` entry for the audit's OSV-Scanner image
 - **Date:** 2026-10-19
 - **Supersedes in part:** [ADR-002](ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)
   (its known gap, "The backend has no vulnerability audit yet")

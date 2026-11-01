@@ -1,6 +1,7 @@
 # ADR-050: One version names the whole repository, and a test holds every field to it
 
-- **Status:** Accepted
+- **Status:** Accepted — the `FrontendEnumContractTest` it names was retired by
+  [ADR-053](ADR-053-the-frontends-wire-types-are-generated-from-the-apis-records.md)
 - **Date:** 2026-10-21
 - **Scope:** the `<version>` in `backend/pom.xml` and its `build-info` execution, the `version` in
   `frontend/package.json` and both of its lockfile's, `RepositoryVersionContractTest`,

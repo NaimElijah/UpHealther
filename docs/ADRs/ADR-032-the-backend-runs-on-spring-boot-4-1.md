@@ -2,7 +2,9 @@
 
 - **Status:** Accepted — its "Jackson 3 with its own defaults" superseded for one feature by
   [ADR-033](ADR-033-refuse-a-fractional-number-for-an-integer-field.md), which turns
-  `ACCEPT_FLOAT_AS_INT` off so a fraction sent for an integer field is refused
+  `ACCEPT_FLOAT_AS_INT` off so a fraction sent for an integer field is refused; it also supersedes the
+  logger [ADR-027](ADR-027-hibernates-sql-exception-logger-is-turned-off.md) names, `SqlExceptionHelper`,
+  with `org.hibernate.orm.jdbc.error`
 - **Date:** 2026-10-13
 - **Scope:** `backend/pom.xml` and everything the Boot BOM versions: Spring Framework, Spring Security,
   Hibernate, Jackson, Flyway, Micrometer, Testcontainers and JUnit. It retires the version pins that
