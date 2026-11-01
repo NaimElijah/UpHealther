@@ -408,8 +408,7 @@ Undecided, and owned by the repository owner.
 - **No governing jurisdiction is named in the licence** — ADR-003 flags this as the first thing to add
   if the project ever becomes commercially significant.
 - **Requirement priorities and delivery order are not recorded here.** Everything above is already
-  built, so nothing has needed ranking yet. Planned work lives on the project board, starting from
-  [#16](https://github.com/NaimElijah/UpHealther/issues/16).
+  built, so nothing has needed ranking yet. Planned work lives on the project board.
 
 ---
 
