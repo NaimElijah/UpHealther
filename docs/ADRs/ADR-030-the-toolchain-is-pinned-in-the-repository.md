@@ -6,7 +6,9 @@
   [ADR-052](ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md), whose `e2e/`
   package takes the frontend's `engines` range with an `.npmrc` of its own setting `engine-strict`; and
   by [ADR-055](ADR-055-python-is-left-floating-at-any-python-3.md), which adds Python, run by the diagram
-  check and by CI's backend coverage summary, to the "Deliberately left floating" list below
+  check and by CI's backend coverage summary, to the "Deliberately left floating" list below; its
+  Maven 3.9.16 pin moved to 3.10.0 by db6514fc (`backend/.mvn/wrapper/maven-wrapper.properties`), and
+  its enforcer range `[3.9.16,4)` to `[3.10.0,4)` by 3d59e56f (`backend/pom.xml`)
 - **Date:** 2026-10-13
 - **Scope:** `backend/mvnw`, `backend/.mvn/`, `backend/pom.xml` (maven-enforcer-plugin), `frontend/.nvmrc`,
   `frontend/.npmrc`, the `engines` field of `frontend/package.json`, both Dockerfiles,
