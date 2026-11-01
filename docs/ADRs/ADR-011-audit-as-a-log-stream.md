@@ -6,10 +6,12 @@
   audited read; a child record's creation named by its upgrade; a session named by a digest; the
   `AUDIT` logger pinned at INFO). Its `afterCommit` deferral of the `ALLOWED` entry is `afterCompletion`
   in `LoggingAuditTrail.record` (8e275b2), which writes the entry of a transaction that did not commit as
-  `REFUSED`. Its "No repository adapter flushes" is superseded: three repository writes flush to
-  translate a race: the account save
+  `REFUSED`. Its "No repository adapter flushes" is superseded: four repository writes flush. Three do
+  so to translate a race: the account save
   ([ADR-073](ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md)), and registration's and the
-  tracking configuration's ([ADR-074](ADR-074-concurrent-writes-beyond-the-version-check.md))
+  tracking configuration's ([ADR-074](ADR-074-concurrent-writes-beyond-the-version-check.md)). The
+  fourth, the session save in `AuthSessionService.revokeForReuse`, flushes so the revocation is written
+  before the audit entry that announces it
 - **Date:** 2026-08-25
 - **Scope:** `backend/` — one outbound port, one adapter, and a recording call in every state-changing
   use case. No new dependency. No migration. No change to any aggregate.
