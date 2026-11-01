@@ -25,7 +25,10 @@ import java.util.stream.Stream;
  */
 final class FlywayMigrations {
 
-    /** Flyway's migration directory, relative to {@code backend/}, where Maven runs the tests. */
+    /**
+     * Flyway's migration directory, relative to {@code backend/}, where Maven runs the tests. Flyway reads
+     * the folders beneath it too, and so does {@link #read()}.
+     */
     static final Path DIRECTORY = Paths.get("src", "main", "resources", "db", "migration");
 
     /** A Flyway versioned migration's file name, capturing its version: {@code V10__x.sql} is 10. */
@@ -74,16 +77,39 @@ final class FlywayMigrations {
      * Every migration in {@link #DIRECTORY}, in the order Flyway applies them.
      *
      * @throws UncheckedIOException if the directory cannot be read
-     * @throws IllegalArgumentException if a {@code .sql} file there is not a versioned migration
+     * @throws IllegalArgumentException if a {@code .sql} file there, or in any folder beneath it, is not a
+     *     versioned migration, or two of them share a name
      */
     static List<Migration> read() {
+        return read(DIRECTORY);
+    }
+
+    /**
+     * Every migration under the given directory, in the order Flyway applies them.
+     *
+     * <p>Searches the folders beneath it too, because Flyway scans a location recursively: a script nested
+     * there runs on every database as surely as one beside the rest, so it is held to the same rules, and
+     * one that is not a versioned migration, such as a callback, fails here as a misnamed one does. A
+     * callback belongs in a location of its own, which a deployment does not name (#84).
+     *
+     * @param directory where the migrations are
+     * @throws UncheckedIOException if the directory cannot be read
+     * @throws IllegalArgumentException if a {@code .sql} file under it is not a versioned migration, or two
+     *     of them share a name, so that one would hide the other from every test reading them by name
+     */
+    static List<Migration> read(Path directory) {
         Map<String, String> sqlByFileName = new LinkedHashMap<>();
-        try (Stream<Path> files = Files.list(DIRECTORY)) {
-            for (Path file : files.filter(p -> p.toString().endsWith(".sql")).toList()) {
-                sqlByFileName.put(file.getFileName().toString(), Files.readString(file));
+        try (Stream<Path> files = Files.walk(directory)) {
+            for (Path file : files.filter(Files::isRegularFile)
+                    .filter(p -> p.toString().endsWith(".sql"))
+                    .toList()) {
+                String fileName = file.getFileName().toString();
+                if (sqlByFileName.putIfAbsent(fileName, Files.readString(file)) != null) {
+                    throw new IllegalArgumentException("two migrations under " + directory + " are named " + fileName);
+                }
             }
         } catch (IOException e) {
-            throw new UncheckedIOException("could not read the migrations at " + DIRECTORY.toAbsolutePath(), e);
+            throw new UncheckedIOException("could not read the migrations at " + directory.toAbsolutePath(), e);
         }
         return inVersionOrder(sqlByFileName);
     }
