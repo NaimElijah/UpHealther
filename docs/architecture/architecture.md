@@ -502,7 +502,7 @@ sequenceDiagram
     end
 ```
 
-Four things worth noticing. The row is read **`FOR UPDATE`**, so two tabs refreshing together
+A few things are worth noticing. The row is read **`FOR UPDATE`**, so two tabs refreshing together
 serialise instead of both rotating from the same starting state. A refresh with the current credential
 reads the account before it rotates, so an account switched off after its session opened, or deleted,
 is signed out at its next refresh at the latest, and every other session it holds with it. That read
