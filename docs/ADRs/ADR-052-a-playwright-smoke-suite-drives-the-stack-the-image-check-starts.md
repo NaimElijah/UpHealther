@@ -5,8 +5,8 @@
   the third-party notices nginx serves. Its "so no shell parses anything, as in `mvnw.mjs`" holds for
   `scripts/mvnw.mjs` only off Windows: on Windows it runs `mvnw.cmd` through `cmd.exe` (`shell: true`).
   `scripts/python.mjs` spawns without a shell everywhere. #84 did not remove the demo account but
-  confined it to development runs ([ADR-085](ADR-085-the-jar-creates-no-account-of-its-own.md)); the composed stack still creates it, and the suite
-  still registers its own
+  confined it to development runs ([ADR-085](ADR-085-the-jar-creates-no-account-of-its-own.md));
+  the composed stack still creates it, and the suite still registers its own
 - **Date:** 2026-10-22
 - **Scope:**
   - `e2e/`: its `package.json`, lockfile, `.npmrc`, `playwright.config.ts` and `tests/smoke.test.ts`;
