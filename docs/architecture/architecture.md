@@ -1228,4 +1228,4 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why an upgrade records when it was completed, stamped from the injected clock and backfilled approximately from `updated_at`, rather than restating FR-27 or waiting for #263's lifecycle history | [ADR-080](../ADRs/ADR-080-an-upgrade-records-when-it-was-completed.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
-| How to run, test and deploy it | [`README.md`](../../README.md) |
+| How to run, test and release it | [`README.md`](../../README.md) |
