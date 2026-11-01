@@ -1,6 +1,7 @@
 # ADR-012: Metrics are exposed as a scrape endpoint, and the actuator surface is closed by name
 
-- **Status:** Accepted
+- **Status:** Accepted — its "Boot 3.2.5" superseded by
+  [ADR-032](ADR-032-the-backend-runs-on-spring-boot-4-1.md), which moves the backend to Spring Boot 4.1
 - **Date:** 2026-08-25
 - **Scope:** `backend/` — one compile dependency, the `management.*` configuration, and a `HEALTHCHECK`
   in both images. No application code.

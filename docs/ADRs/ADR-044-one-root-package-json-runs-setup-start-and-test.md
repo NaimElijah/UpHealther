@@ -8,7 +8,10 @@
   `changelog`, a release step that `npm test` does not run; and by
   [ADR-052](ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md), which splits
   `setup` into `setup:frontend` and `setup:e2e`, the second installing the browser suite and its
-  Chromium
+  Chromium; it extends the Prettier scope of
+  [ADR-038](ADR-038-the-frontend-is-formatted-by-prettier.md) to the root `package.json` and `scripts/`,
+  and folds the "separate CI step" for the frontend tests that
+  [ADR-004](ADR-004-frontend-test-harness.md) names into one step that runs the whole frontend gate
 - **Date:** 2026-10-18
 - **Scope:** the root `package.json`, `scripts/mvnw.mjs`, `scripts/python.mjs`, the `format` and
   `format:check` scripts in `frontend/package.json`, and `.github/workflows/ci.yml`. NFR-52 in
