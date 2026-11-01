@@ -321,7 +321,7 @@ backend/      Spring Boot API: ten bounded contexts; config/ = the unpackaged de
 frontend/     React + TypeScript SPA, served by nginx in production
 e2e/          Playwright smoke suite: a browser through the composed stack
 docs/         requirements/, architecture/ (seven diagrams), ADRs/, api.md, releasing.md
-scripts/      Image check, backend audit, git-cliff, Maven and Python launchers
+scripts/      Image check, audit, git-cliff, launchers, postgres-init/, password list
 ```
 
 ## Design decisions
