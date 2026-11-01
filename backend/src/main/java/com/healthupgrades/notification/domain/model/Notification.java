@@ -39,10 +39,14 @@ public class Notification {
     @Column(nullable = false)
     private String title;
 
+    /** The body text; the column allows null. */
     @Column(columnDefinition = "TEXT")
     private String message;
 
-    /** The upgrade this concerns, letting the client link to it. Null for account-wide notifications. */
+    /**
+     * The upgrade this concerns, letting the client link to it. Null for account-wide notifications, and once
+     * the upgrade is deleted ({@code ON DELETE SET NULL}).
+     */
     private UUID relatedUpgradeId;
 
     // Mapped to the column "is_read" because "read" is a reserved word in several SQL dialects.
@@ -52,7 +56,7 @@ public class Notification {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    /** Marks the notification as read. */
+    /** Marks the notification as read. Idempotent: marking a read one again changes nothing. */
     public void markAsRead() {
         this.read = true;
     }
@@ -62,6 +66,11 @@ public class Notification {
      *
      * <p>Conditional, unlike the other entities' callbacks: notifications are the one aggregate whose
      * timestamp a caller may set deliberately, and overwriting it here would discard that.
+     *
+     * <p>{@code NotificationService.create} always supplies it, from the injected clock, so this fallback
+     * serves a notification built without one. It reads {@code LocalDateTime.now()} in the host's zone, a
+     * known deviation from ADR-020, tracked in #51 and exempted in {@code ServerTimeArchitectureTest} until
+     * #51 routes the entity hooks through the clock.
      */
     @PrePersist
     protected void onCreate() {

@@ -1,7 +1,7 @@
 package com.healthupgrades.notification.adapter.out.persistence;
 
-import com.healthupgrades.notification.domain.model.Notification; // managed entity
-import com.healthupgrades.notification.domain.model.NotificationType; // dedup-guard parameter
+import com.healthupgrades.notification.domain.model.Notification;
+import com.healthupgrades.notification.domain.model.NotificationType;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -16,15 +16,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Spring Data JPA repository backing {@link NotificationRepositoryAdapter}; package-private internal detail.
- * Query methods (including the bulk update) are kept verbatim from the previous infrastructure repository.
  */
 interface NotificationJpaRepository extends JpaRepository<Notification, UUID> {
 
-    List<Notification> findTop50ByUserIdOrderByCreatedAtDesc(UUID userId); // derived query, newest first
+    List<Notification> findTop50ByUserIdOrderByCreatedAtDesc(UUID userId);
 
-    long countByUserIdAndReadFalse(UUID userId); // derived count of unread
+    long countByUserIdAndReadFalse(UUID userId);
 
-    Optional<Notification> findByIdAndUserId(UUID id, UUID userId); // derived query: ownership-scoped
+    Optional<Notification> findByIdAndUserId(UUID id, UUID userId);
 
     // Dedup guard for system-generated notifications (e.g. one "overdue" per upgrade per target date).
     boolean existsByUserIdAndRelatedUpgradeIdAndTypeAndCreatedAtGreaterThanEqual(
@@ -36,7 +35,7 @@ interface NotificationJpaRepository extends JpaRepository<Notification, UUID> {
 
     @Modifying
     @Query("update Notification n set n.read = true where n.userId = :userId and n.read = false")
-    void markAllReadForUser(@Param("userId") UUID userId); // bulk mark-as-read
+    void markAllReadForUser(@Param("userId") UUID userId);
 
     /**
      * Deletes a batch of the oldest notifications created before the cutoff, of every user.

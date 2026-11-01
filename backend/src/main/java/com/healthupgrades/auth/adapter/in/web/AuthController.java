@@ -70,9 +70,9 @@ public class AuthController {
      */
     public static final int PASSWORD_MAX = 72;
 
-    private final AuthService authService; // application service
-    private final SessionCommand sessions; // inbound write port for server-side sessions
-    private final RefreshCookies cookies; // builds and reads the refresh cookie
+    private final AuthService authService;
+    private final SessionCommand sessions;
+    private final RefreshCookies cookies;
 
     /**
      * Registers a new user and issues a token.
@@ -94,8 +94,13 @@ public class AuthController {
      *
      * @param request email and password
      * @return 200 with the JWT and the user's public view
-     * @throws org.springframework.security.core.AuthenticationException if the credentials do not match
-     *         (surfaces as 401; the response never says which half was wrong)
+     * @throws org.springframework.security.authentication.BadCredentialsException if the email or password does
+     *         not match (surfaces as 401 "Invalid credentials", which never says which half was wrong)
+     * @throws org.springframework.security.authentication.AccountStatusException if the account is disabled
+     *         (the same 401)
+     * @throws org.springframework.security.core.AuthenticationException any other failure of the authentication
+     *         manager, such as a database outage, which is not a rejection of the credentials and surfaces as
+     *         a 500
      */
     @PostMapping("/login")
     public ResponseEntity<TokenPair> login(@Valid @RequestBody LoginRequest request) {

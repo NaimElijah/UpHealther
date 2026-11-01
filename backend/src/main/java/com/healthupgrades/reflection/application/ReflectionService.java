@@ -48,9 +48,9 @@ public class ReflectionService {
      */
     @Transactional
     public Reflection create(UUID userId, UUID upgradeId, ReflectionDetails details) {
-        // Audited against the upgrade reflected on, as the action's label says (S5.C6): it is the record
-        // whose history somebody would be reconstructing, and a refusal on another user's upgrade names
-        // the upgrade that was probed, which BR-15 leaves no other trace of.
+        // Audited against the upgrade reflected on, as the action's label says (ADR-065, section 11): it is
+        // the record whose history somebody would be reconstructing, and a refusal on another user's upgrade
+        // names the upgrade that was probed, which BR-15 leaves no other trace of.
         return auditTrail.recording(AuditAction.REFLECTION_CREATE, userId, upgradeId, () -> {
             upgradeQuery.getOwnedUpgrade(userId, upgradeId);
             Reflection reflection = Reflection.builder()

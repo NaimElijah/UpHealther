@@ -10,11 +10,11 @@
  *
  * Every foreground/background pair used in the app was checked against WCAG AA: 4.5:1 for text, 3:1 for
  * control boundaries and graphical state. The worst text pair is 4.63:1 and the worst non-text pair that
- * carries a boundary or a state is 3.29:1. `line` and `line-subtle` are deliberate exceptions — a card's
- * outline and a list's divider identify no component or state, and forcing 3:1 there would put a mid-grey
- * box round every panel. So is a chosen toggle's `brand` fill against the `muted` around it, 2.53:1 in the
- * dark theme: the toggles mark their choice with an `fg` ring as well, 11.87:1 or more in both themes
- * (measured in a browser), so the fill is not what carries the state.
+ * carries a boundary or a state is 3.29:1, leaving out the exceptions that follow. `line` and `line-subtle`
+ * are deliberate exceptions — a card's outline and a list's divider identify no component or state, and
+ * forcing 3:1 there would put a mid-grey box round every panel. So is a chosen toggle's `brand` fill against
+ * the `muted` around it, 2.53:1 in the dark theme: the toggles mark their choice with an `fg` ring as well,
+ * 11.87:1 or more in both themes (measured in a browser), so the fill is not what carries the state.
  *
  * `.dark` is put on `<html>` by the boot script in `index.html` before first paint, and kept in step
  * afterwards by `ThemeProvider`.
@@ -211,8 +211,9 @@
  *
  * Deliberately outside `@layer base`. Tailwind emits base before utilities and both selectors are
  * specificity (0,1,0), so the same rule inside the base layer loses to the `animate-fade-in` utility on
- * source order and silently does nothing. Unlayered CSS outranks every Tailwind layer, so this wins
- * where it belongs and needs no `!important`.
+ * source order and silently does nothing. Tailwind 3 processes `@layer` itself and emits no native cascade
+ * layers, so this rule stays where it is written, after `@tailwind utilities`, and wins on source order
+ * without an `!important`.
  */
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-in {

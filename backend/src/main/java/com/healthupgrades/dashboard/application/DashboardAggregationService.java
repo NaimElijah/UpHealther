@@ -38,19 +38,18 @@ public class DashboardAggregationService implements DashboardQuery {
     /** Scales the share of completed entries to the percentage the rate is reported in. */
     private static final double PERCENT = 100.0;
 
-    private final UpgradeQuery upgradeQuery; // inbound port: upgrades
-    private final ProgressQuery progressQuery; // inbound port: progress entries
-    private final StreakQuery streakQuery; // inbound port: computed streaks
-    private final HealthAreaQuery healthAreaQuery; // inbound port: health areas
+    private final UpgradeQuery upgradeQuery;
+    private final ProgressQuery progressQuery;
+    private final StreakQuery streakQuery;
+    private final HealthAreaQuery healthAreaQuery;
     private final Clock clock; // decides the "today" every section is bucketed against
 
     /** {@inheritDoc} */
     @Override
     public DashboardView getDashboard(UUID userId) {
-        List<HealthUpgrade> all = upgradeQuery.findByUser(userId); // the user's whole portfolio
+        List<HealthUpgrade> all = upgradeQuery.findByUser(userId);
         LocalDate today = LocalDate.now(clock);
 
-        // Bucket the upgrades by the dashboard's sections (kept as domain objects).
         List<HealthUpgrade> active =
                 all.stream().filter(u -> u.getStatus() == UpgradeStatus.ACTIVE).toList();
         List<HealthUpgrade> planned =
@@ -95,7 +94,6 @@ public class DashboardAggregationService implements DashboardQuery {
 
     /** Rolls up upgrade counts per health area. */
     private List<DashboardView.AreaSummary> buildAreaSummary(List<HealthArea> areas, List<HealthUpgrade> upgrades) {
-        // Group upgrades by their area so each area's counts are a single pass.
         Map<UUID, List<HealthUpgrade>> byArea = upgrades.stream()
                 .filter(u -> u.getAreaId() != null)
                 .collect(Collectors.groupingBy(HealthUpgrade::getAreaId));

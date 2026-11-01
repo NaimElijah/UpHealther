@@ -1,7 +1,7 @@
 package com.healthupgrades.reminder.adapter.out.persistence;
 
-import com.healthupgrades.reminder.domain.model.Reminder; // domain aggregate
-import com.healthupgrades.reminder.domain.port.out.ReminderRepositoryPort; // the port implemented here
+import com.healthupgrades.reminder.domain.model.Reminder;
+import com.healthupgrades.reminder.domain.port.out.ReminderRepositoryPort;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 class ReminderRepositoryAdapter implements ReminderRepositoryPort {
 
-    private final ReminderJpaRepository jpa; // Spring Data proxy
+    private final ReminderJpaRepository jpa;
 
     /** {@inheritDoc} */
     @Override

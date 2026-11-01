@@ -43,8 +43,9 @@ public sealed interface RefreshOutcome {
      * The credential is not usable, and the caller should sign in again.
      *
      * <p>One verdict covers every reason — unparseable, unknown session, expired, revoked, replayed
-     * after the grace window, or simply wrong. Telling an anonymous caller which of those it was would
-     * answer questions it has no business asking, and the client does the same thing in every case.
+     * after the grace window, its account switched off or gone, or simply wrong. Telling an anonymous
+     * caller which of those it was would answer questions it has no business asking, and the client does
+     * the same thing in every case.
      */
     record Rejected() implements RefreshOutcome {}
 }

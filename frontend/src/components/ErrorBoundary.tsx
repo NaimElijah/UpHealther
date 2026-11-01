@@ -17,14 +17,15 @@ interface ErrorBoundaryState {
  * white, with nothing to read, nothing to click and nothing to report. This is the only construct that
  * can prevent that, and it has to be a class: `getDerivedStateFromError` has no hooks equivalent.
  *
- * <p><b>It shows, it does not record.</b> There is no `console.error` and no reporting endpoint,
- * deliberately. This repository has no `console` call in any committed file, and `architecture.md`
- * states "no analytics" as a position rather than an omission — so a browser error here has no sink to
- * go to, and inventing one is a decision about sending user data off the device, not a logging tweak.
+ * **It shows, it does not record.** There is no `console.error` and no reporting endpoint,
+ * deliberately. The application code has no `console` call (the build scripts print to the terminal), and
+ * `architecture.md` states "no analytics" as a position rather than an omission — so a browser error here
+ * has no sink to go to, and inventing one is a decision about sending user data off the device, not a logging
+ * tweak.
  * What the user gets instead is a page that says what happened and a reload that works. Errors that
  * came from the API are a different story and do carry a trace id — see `ErrorState`.
  *
- * <p>Mounted inside `ThemeProvider` so the fallback is drawn in the theme the user chose, and around
+ * Mounted inside `ThemeProvider` so the fallback is drawn in the theme the user chose, and around
  * the router so a throw in any page is contained rather than taking the shell with it.
  */
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {

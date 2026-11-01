@@ -26,6 +26,8 @@ import org.springframework.web.socket.messaging.StompSubProtocolErrorHandler;
  * session ends ({@link StompSessionRegistry#SESSION_ENDED}), goes through
  * {@link #handleErrorMessageToClient}, which this class leaves as Spring wrote it: it returns that frame
  * unchanged.
+ *
+ * <p>See ADR-078.
  */
 class StompRefusalErrorHandler extends StompSubProtocolErrorHandler {
 

@@ -10,8 +10,10 @@ import java.util.Objects;
  * finds it in the cause chain and writes {@link Reason#frameMessage()} into the ERROR frame. The
  * exception's own message is the server's detail and never reaches the client.
  *
- * <p>An {@link IllegalArgumentException}, as the interceptor's refusals have always been, because the
- * frame is an argument the server will not take.
+ * <p>An {@link IllegalArgumentException}, because the frame is an argument the server will not take.
+ *
+ * <p>See ADR-078 for why the client is told fixed words, and ADR-079 for the commands the interceptor
+ * refuses.
  */
 class StompFrameRefusedException extends IllegalArgumentException {
 

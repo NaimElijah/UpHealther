@@ -12,12 +12,12 @@ import org.jspecify.annotations.Nullable;
  * is rejected rather than dropped — silently discarding it would leave an empty filter, which means
  * every day, and turn a twice-weekly reminder into a daily one.
  *
- * @param reminderTime the local time to fire at; required
+ * @param reminderTime the time of day to fire at, in the server's zone (UTC, ADR-020); required
  * @param daysOfWeek   the days to fire on, e.g. {@code ["MON","WED","FRI"]}; null or empty means daily
  * @param enabled      whether it is switched on; null creates it enabled and leaves an existing one
  *                     unchanged
  */
 public record ReminderRequest(
         @NotNull LocalTime reminderTime,
-        @Nullable List<String> daysOfWeek, // e.g. ["MON","WED","FRI"]; empty/null means every day
+        @Nullable List<String> daysOfWeek,
         @Nullable Boolean enabled) {}

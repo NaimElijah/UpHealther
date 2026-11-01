@@ -26,7 +26,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class RateLimitConfig implements WebMvcConfigurer {
 
     /**
-     * The endpoints a client may reach without a credential, and therefore the ones worth guessing at.
+     * The endpoints that create or prove an identity, which a client reaches without a credential, and
+     * therefore the ones worth guessing at.
      *
      * <p>Sign-in is the obvious one. Registration is here too, and for a different reason: it is not
      * guessable, but it is free account creation, and an unlimited one is how a database fills with
@@ -37,7 +38,7 @@ public class RateLimitConfig implements WebMvcConfigurer {
     /**
      * The endpoints that act on the refresh cookie alone. Neither takes a password, but each attempt
      * reads a session under a lock and writes an audit entry, so an unlimited caller could write the
-     * audit stream at will (S5.A11). Their limit is looser, because a signed-in browser calls them on
+     * audit stream at will (S5.A11, ADR-065). Their limit is looser, because a signed-in browser calls them on
      * its own.
      */
     static final List<String> SESSION_PATHS = List.of("/api/auth/refresh", "/api/auth/logout");

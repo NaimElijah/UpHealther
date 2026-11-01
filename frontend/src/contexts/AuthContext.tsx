@@ -17,13 +17,12 @@ const LEGACY_KEYS = ['jwt_token', 'user'];
  * Owns the signed-in user and the sign-in, registration and sign-out actions. The credential's renewal
  * and the end of a session belong to `api/` (`client.ts`, `tokenStore.ts` and `session.ts`).
  *
- * Nothing about the session is in web storage any more. The access token lives in memory
+ * Nothing about the session is in web storage. The access token lives in memory
  * (`api/tokenStore`), so it dies with the tab; what survives a reload is the `HttpOnly` refresh cookie,
  * which this code cannot read and does not need to. A page load therefore starts signed out and asks
  * the server: one `POST /api/auth/refresh`, which either yields a fresh token or does not.
  *
- * That is why there is no optimistic restore from a cached user any more. There is nothing to restore
- * from, and the round trip that replaced it is the same one that used to validate the cached copy.
+ * That is why there is no optimistic restore from a cached user: there is nothing to restore from.
  *
  * A 401 on any later request is handled by the axios interceptor in `api/client.ts`, which renews the
  * token and retries before concluding anything.

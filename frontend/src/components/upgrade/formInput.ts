@@ -7,6 +7,9 @@ import { toApiError, toFormMessage } from '../../api/apiError';
  * a NaN would come back as the controlled input's `value`, since `value ?? ''` lets it through, and
  * React refuses NaN there with a warning. Sent, it would serialise to `null`, which the API reads as no
  * value just as it reads an absent field.
+ *
+ * `parseFloat` takes a numeric prefix, so `numOrUndef('3e')` is 3. A number input reports text it cannot
+ * read as `''` instead, which `unreadableInput.ts` tells from an empty field.
  */
 export const numOrUndef = (v: string): number | undefined => {
   const n = parseFloat(v);

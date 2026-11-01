@@ -1,8 +1,8 @@
 package com.healthupgrades.notification.adapter.out.persistence;
 
-import com.healthupgrades.notification.domain.model.Notification; // domain aggregate
-import com.healthupgrades.notification.domain.model.NotificationType; // dedup-guard parameter
-import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort; // the port implemented here
+import com.healthupgrades.notification.domain.model.Notification;
+import com.healthupgrades.notification.domain.model.NotificationType;
+import com.healthupgrades.notification.domain.port.out.NotificationRepositoryPort;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 class NotificationRepositoryAdapter implements NotificationRepositoryPort {
 
-    private final NotificationJpaRepository jpa; // Spring Data proxy
+    private final NotificationJpaRepository jpa;
 
     /** {@inheritDoc} */
     @Override

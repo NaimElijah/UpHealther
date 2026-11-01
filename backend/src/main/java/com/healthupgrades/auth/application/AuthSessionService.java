@@ -70,12 +70,12 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @Slf4j
 public class AuthSessionService implements SessionQuery, SessionCommand {
 
-    private final AuthSessionRepositoryPort sessions; // outbound persistence port
-    private final SecretGeneratorPort secrets; // outbound randomness port
+    private final AuthSessionRepositoryPort sessions;
+    private final SecretGeneratorPort secrets;
     private final AuthSessionProperties properties; // validated app.auth.session settings
     private final AuditTrail auditTrail; // records every refresh and sign-out, and detected reuse
     private final DomainEventPublisher events; // announces a session's end, so its open sockets close too
-    private final UserQuery users; // inbound read port of the user context, to re-read the account on refresh
+    private final UserQuery users;
     private final Clock clock; // injectable, so expiry is testable without waiting
 
     /** {@inheritDoc} */

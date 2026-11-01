@@ -1,6 +1,6 @@
 package com.healthupgrades.reflection.domain.port.out;
 
-import com.healthupgrades.reflection.domain.model.Reflection; // the aggregate this port persists
+import com.healthupgrades.reflection.domain.model.Reflection;
 import java.util.List;
 import java.util.UUID;
 
@@ -9,7 +9,7 @@ import java.util.UUID;
  */
 public interface ReflectionRepositoryPort {
 
-    /** Persists a new or updated reflection and returns the managed instance. */
+    /** Persists a new reflection and returns the managed instance. */
     Reflection save(Reflection reflection);
 
     /**

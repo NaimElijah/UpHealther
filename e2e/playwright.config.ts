@@ -1,7 +1,9 @@
 /**
  * Playwright's configuration for the smoke suite that drives the composed stack: Chromium against the
  * frontend nginx serves on port 3000, which the root's `npm run test:images` starts from both images
- * and publishes for it. See docs/ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md.
+ * and publishes for it. Run alone with `npm test` in `e2e/`, the suite starts nothing and drives whatever
+ * answers on 127.0.0.1:3000. See
+ * docs/ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md.
  */
 import { defineConfig, devices } from '@playwright/test';
 
@@ -15,7 +17,7 @@ const BASE_URL = 'http://localhost:3000';
 /**
  * Docker Desktop accepts a connection on `::1` and then stalls it, and Chromium tries `::1` first for
  * `localhost`. Resolving the name to IPv4 inside the browser keeps the origin `localhost`, which the
- * line above depends on. On Linux it changes nothing.
+ * `BASE_URL` depends on. On Linux it changes nothing.
  */
 const RESOLVE_LOCALHOST_TO_IPV4 = '--host-resolver-rules=MAP localhost 127.0.0.1';
 
@@ -41,8 +43,8 @@ export default defineConfig({
   use: {
     baseURL: BASE_URL,
     // The server keeps time in UTC (ADR-020) and the SPA dates an entry by the browser's local day, so
-    // the browser runs in UTC too. Otherwise an entry logged east of UTC late in the day is tomorrow's
-    // to the server.
+    // the browser runs in UTC too. Otherwise, east of UTC, between local midnight and UTC midnight, an
+    // entry the browser dates today is tomorrow's to the server.
     timezoneId: 'UTC',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

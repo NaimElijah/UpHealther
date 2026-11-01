@@ -18,7 +18,8 @@ public class TooManyRequestsException extends RuntimeException {
     private final Duration retryAfter;
 
     /**
-     * @param retryAfter how long until the caller may try again
+     * @param retryAfter how long until the caller may try again; must not be null, or
+     *                   {@link #retryAfterSeconds} fails with a {@code NullPointerException}
      */
     public TooManyRequestsException(Duration retryAfter) {
         super("Too many attempts");
@@ -29,7 +30,8 @@ public class TooManyRequestsException extends RuntimeException {
      * How long to wait, in whole seconds, rounded up.
      *
      * <p>Rounded up rather than down because {@code Retry-After: 0} invites an immediate retry that is
-     * refused again, and a client honouring it would spin.
+     * refused again, and a client honouring it would spin. For the same reason it is never less than one:
+     * a zero or negative wait is reported as one second.
      */
     public long retryAfterSeconds() {
         return Math.max(1, (retryAfter.toMillis() + 999) / 1000);

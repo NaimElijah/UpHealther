@@ -12,8 +12,8 @@ export interface FieldIds {
 
 /**
  * The control's id and its error's id. A caller's `id` is kept, so a page that links to a field by id
- * still can. Otherwise the id is React's, unique per field: deriving it from the label, as before, gave
- * two fields with one label the same id, and the second label then named the first field.
+ * still can. Otherwise the id is React's, unique per field: an id derived from the label would give two
+ * fields with one label the same id, and the second label would then name the first field.
  */
 export const fieldIds = (generated: string, id: string | undefined): FieldIds => ({
   control: id ?? `${generated}-control`,

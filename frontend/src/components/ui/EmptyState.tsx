@@ -1,7 +1,7 @@
 import React from 'react';
 
 /**
- * @param icon        emoji shown above the title
+ * @param icon        emoji shown above the title; 📭 when not given
  * @param title       what is empty, said plainly
  * @param description optional line explaining how to fill it
  * @param action      optional button, usually the one that creates the first item

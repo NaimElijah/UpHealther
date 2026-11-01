@@ -33,7 +33,7 @@ public class UpgradeOverdueService {
     public static final String JOB = "upgrade.overdue-scan";
 
     private final UpgradeSweepQuery upgradeQuery; // own context's read view across every user
-    private final DomainEventPublisher eventPublisher; // outbound port
+    private final DomainEventPublisher eventPublisher;
 
     /**
      * Publishes {@link UpgradeOverdueDetected} for every active upgrade past its target date on a given day.

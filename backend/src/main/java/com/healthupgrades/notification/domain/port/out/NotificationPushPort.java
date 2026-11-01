@@ -1,6 +1,6 @@
 package com.healthupgrades.notification.domain.port.out;
 
-import com.healthupgrades.notification.domain.model.Notification; // domain object pushed to the user
+import com.healthupgrades.notification.domain.model.Notification;
 import java.util.UUID;
 
 /**
@@ -11,6 +11,11 @@ import java.util.UUID;
  */
 public interface NotificationPushPort {
 
-    /** Pushes a notification to the given user's real-time channel. */
+    /**
+     * Pushes a notification to the given user's real-time channel.
+     *
+     * <p>{@code NotificationService} calls it after the transaction that stored the notification has
+     * committed.
+     */
     void push(UUID userId, Notification notification);
 }

@@ -1,7 +1,7 @@
 package com.healthupgrades.healtharea.adapter.out.persistence;
 
-import com.healthupgrades.healtharea.domain.model.HealthArea; // domain aggregate
-import com.healthupgrades.healtharea.domain.port.out.HealthAreaRepositoryPort; // the port implemented here
+import com.healthupgrades.healtharea.domain.model.HealthArea;
+import com.healthupgrades.healtharea.domain.port.out.HealthAreaRepositoryPort;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -12,13 +12,13 @@ import org.springframework.stereotype.Component;
  * Persistence adapter implementing {@link HealthAreaRepositoryPort} by delegating to Spring Data JPA.
  *
  * <p>The adapter exists so the Spring Data interface can stay package-private: the port is the only
- * thing the rest of the application sees, which is what keeps JPA confined to this package.
+ * thing the rest of the application sees, which is what keeps Spring Data confined to this package.
  */
 @Component
 @RequiredArgsConstructor
 class HealthAreaRepositoryAdapter implements HealthAreaRepositoryPort {
 
-    private final HealthAreaJpaRepository jpa; // Spring Data proxy
+    private final HealthAreaJpaRepository jpa;
 
     /** {@inheritDoc} */
     @Override

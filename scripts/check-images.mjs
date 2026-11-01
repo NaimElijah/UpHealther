@@ -1,9 +1,22 @@
 #!/usr/bin/env node
 /**
  * Builds both container images, starts the whole stack from them, waits until every service reports
- * healthy, and then drives it with the browser suite in `e2e/`. The stack is always taken down again.
- * Exits non-zero when an image does not build, a service never becomes healthy, or the suite fails,
- * after printing the stack's logs.
+ * healthy, and then drives it with the browser suite in `e2e/`. Run it as `npm run test:images` from the
+ * repository root. It needs a running Docker daemon, a Compose of 2.24.4 or later (`compose.images-check.yml`
+ * uses `!reset` and `!override`), and `npm run setup:e2e`.
+ *
+ * It first removes whatever an interrupted earlier run of its own left behind, and publishes
+ * 127.0.0.1:3000 while it runs. Whatever the build, the start or the suite did, it then takes the stack
+ * down again, volume and built images included. An interrupt (Ctrl+C) ends the script before that and
+ * leaves the containers behind; the next run removes them first. A failing suite leaves its trace and
+ * screenshots in `e2e/test-results/`.
+ *
+ * Exits 0 only when the suite passes and the take-down succeeds. Exits non-zero when an image does not
+ * build, when a service is not healthy within `WAIT_TIMEOUT_SECONDS`, when the suite fails, or when the
+ * take-down fails. It prints the stack's logs when the start or the suite fails. A failed precondition
+ * (Playwright or its Chromium missing, another stack's containers holding the fixed names, something
+ * already answering on a published address) is an uncaught `Error`, so Node prints its stack trace and
+ * exits 1.
  *
  * Two bare `docker build`s would only show that each Dockerfile runs. Starting the stack shows what a
  * deployment needs:
@@ -30,6 +43,11 @@ import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const E2E = fileURLToPath(new URL('../e2e/', import.meta.url));
 
+/**
+ * The compose arguments every call shares. The project has a name of its own, so `down` removes only this
+ * check's resources and none of a developer's stack (ADR-045). The file paths are relative to `ROOT`, the
+ * working directory every `docker` call here uses.
+ */
 const COMPOSE = [
   'compose',
   '--project-name',
@@ -46,7 +64,10 @@ const COMPOSE = [
  */
 const WAIT_TIMEOUT_SECONDS = 240;
 
-/** Runs `docker` with its output shown, and returns its exit status. */
+/**
+ * Runs `docker` with its output shown, and returns its exit status. A child killed by a signal counts as
+ * status 1. Throws when `docker` cannot be started.
+ */
 function docker(args) {
   const result = spawnSync('docker', args, { cwd: ROOT, stdio: 'inherit' });
   if (result.error) {
@@ -60,7 +81,10 @@ function takeDown() {
   return docker([...COMPOSE, 'down', '--volumes', '--rmi', 'local']);
 }
 
-/** Runs `docker` and returns what it printed, failing loudly when it fails. */
+/**
+ * Runs `docker` and returns its standard output, which is not echoed. Throws an `Error` carrying the
+ * standard error when `docker` exits non-zero, and the spawn error when it cannot be started.
+ */
 function dockerOutput(args) {
   const result = spawnSync('docker', args, { cwd: ROOT, encoding: 'utf8' });
   if (result.error) {
@@ -79,6 +103,10 @@ function dockerOutput(args) {
  * the stack is up. The package being installed is not enough: the browser lives outside it, in
  * Playwright's cache, and the suite runs the headless shell, whose path no public API gives, so it is
  * launched rather than looked for.
+ *
+ * @returns the path of Playwright's command-line entry point
+ * @throws {Error} naming `npm run setup:e2e`, with the cause attached, when the package cannot be resolved
+ *   from `e2e/` or Chromium does not launch
  */
 async function preparedPlaywrightCli() {
   const fromE2e = createRequire(new URL('../e2e/package.json', import.meta.url));
@@ -144,7 +172,10 @@ function publishedAddresses(services) {
     .map((port) => ({ host: port.host_ip || '127.0.0.1', port: Number(port.published) }));
 }
 
-/** Whether something accepts a connection at the address. A refusal means the port is free. */
+/**
+ * Whether something accepts a connection at the address. A refusal means the port is free. Any other
+ * connection error is thrown, not read as "free".
+ */
 function isAnswering({ host, port }) {
   return new Promise((resolve, reject) => {
     const socket = connect({ host, port });
@@ -177,6 +208,11 @@ async function refuseWhenAPublishedPortIsTaken(services) {
   }
 }
 
+/**
+ * Builds the images and starts the stack, waiting until every service is healthy or `WAIT_TIMEOUT_SECONDS`
+ * passes. Returns the first non-zero Docker status, or 0. Prints the stack's logs when the start fails, not
+ * when the build does, since a failed build has started nothing.
+ */
 function buildAndStart() {
   const built = docker([...COMPOSE, 'build']);
   if (built !== 0) {
@@ -190,8 +226,10 @@ function buildAndStart() {
 }
 
 /**
- * Runs the browser suite against the started stack. Node runs Playwright's entry point itself, so no
- * shell parses anything, on Windows or anywhere else, as in `mvnw.mjs`.
+ * Runs the browser suite in `e2e/` against the started stack and returns its exit status, printing the
+ * stack's logs when it fails. Node runs Playwright's entry point itself, so no shell parses anything, on
+ * Windows or anywhere else, as in `python.mjs`. `mvnw.mjs` cannot, because it has to go through `cmd.exe`
+ * to run a `.cmd` file.
  */
 function driveWithABrowser(cli) {
   const result = spawnSync(process.execPath, [cli, 'test'], { cwd: E2E, stdio: 'inherit' });
@@ -219,6 +257,8 @@ if (versioned !== 0) {
   process.exit(versioned);
 }
 
+// Clears what an interrupted earlier run of this check left, so those containers are not mistaken for
+// another stack's by the refusals below (ADR-045).
 const cleared = takeDown();
 if (cleared !== 0) {
   process.exit(cleared);

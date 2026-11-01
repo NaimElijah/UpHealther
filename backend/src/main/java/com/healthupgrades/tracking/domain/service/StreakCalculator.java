@@ -30,6 +30,11 @@ public class StreakCalculator {
      *
      * <p>{@code today} is a parameter rather than a call to the system clock, which keeps this service
      * pure and lets callers that inject a {@link java.time.Clock} decide what "today" means.
+     *
+     * @param entries the upgrade's entries, in any order; only those marked completed count. Null or empty
+     *                gives 0
+     * @param today   the day the streak is counted back from
+     * @return the length of the current run, in days
      */
     public int calculateCurrentStreak(List<ProgressEntry> entries, LocalDate today) {
         if (entries == null || entries.isEmpty()) return 0;
@@ -106,7 +111,13 @@ public class StreakCalculator {
         return run;
     }
 
-    /** Calculates the longest run of consecutive completed days across the entire history. */
+    /**
+     * Calculates the longest run of consecutive completed days across the entire history.
+     *
+     * @param entries the upgrade's entries, in any order; only those marked completed count. Null or empty
+     *                gives 0
+     * @return the length of the longest run, in days
+     */
     public int calculateLongestStreak(List<ProgressEntry> entries) {
         if (entries == null || entries.isEmpty()) return 0;
 

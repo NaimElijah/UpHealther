@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Driving adapter that runs the overdue sweep, {@link UpgradeOverdueService#announceOverdue}, daily at
- * 08:00 by default.
+ * 08:00 UTC by default.
  *
  * <p>A trigger and nothing more: it reads the clock in the server's zone, and times the run and counts
  * how it ended under the job's name (NFR-25). The cron expression is configured under

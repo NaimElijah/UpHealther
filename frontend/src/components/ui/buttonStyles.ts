@@ -4,7 +4,10 @@
  * refuses a component file that exports a function.
  */
 
-/** Visual weight: primary for the main action, danger for destructive ones. */
+/**
+ * Visual weight: primary for the main action, danger for destructive ones; secondary is a muted fill and ghost
+ * has none until hovered.
+ */
 export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
 /** Padding and text scale. */

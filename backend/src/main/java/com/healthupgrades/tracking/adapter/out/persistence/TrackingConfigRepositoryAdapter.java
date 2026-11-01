@@ -2,8 +2,8 @@ package com.healthupgrades.tracking.adapter.out.persistence;
 
 import com.healthupgrades.common.domain.exception.ResourceNotFoundException;
 import com.healthupgrades.common.domain.exception.RetryableConflictException;
-import com.healthupgrades.tracking.domain.model.TrackingConfig; // domain aggregate
-import com.healthupgrades.tracking.domain.port.out.TrackingConfigRepositoryPort; // the port implemented here
+import com.healthupgrades.tracking.domain.model.TrackingConfig;
+import com.healthupgrades.tracking.domain.port.out.TrackingConfigRepositoryPort;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -35,7 +35,7 @@ class TrackingConfigRepositoryAdapter implements TrackingConfigRepositoryPort {
      */
     static final String UPGRADE_NOT_FOUND = "Upgrade not found: ";
 
-    private final TrackingConfigJpaRepository jpa; // Spring Data proxy
+    private final TrackingConfigJpaRepository jpa;
 
     /**
      * {@inheritDoc}

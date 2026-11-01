@@ -14,13 +14,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * Driving adapter that answers the upgrade context's {@link UpgradeTrackingSummaryPort} from this
+ * Composition adapter that answers the upgrade context's {@link UpgradeTrackingSummaryPort} from this
  * context's own {@link TrackingConfigQuery}.
  *
- * <p>This is the supplying half of an inverted dependency. The upgrade response has always shown an
- * upgrade's tracking setup; having the upgrade context fetch it directly created a cycle, because this
- * context already depends on {@code upgrade} for ownership checks. Declaring the contract there and
- * implementing it here leaves a single arrow, from this context to that one.
+ * <p>This is the supplying half of an inverted dependency. An upgrade's response carries its tracking
+ * setup; having the upgrade context fetch it directly would make a cycle, because this context already
+ * depends on {@code upgrade} for ownership checks. Declaring the contract there and implementing it here
+ * leaves a single arrow, from this context to that one.
  *
  * <p>Translating {@link TrackingConfig} into the upgrade context's own record is the point, not
  * incidental: it is what stops this context's domain types becoming part of that context's API.
@@ -34,7 +34,7 @@ public class UpgradeTrackingSummaryAdapter implements UpgradeTrackingSummaryPort
     /** {@inheritDoc} */
     @Override
     public Map<UUID, UpgradeTrackingSummary> findByUpgradeIds(Collection<UUID> upgradeIds) {
-        if (upgradeIds.isEmpty()) return Map.of(); // nothing asked for, nothing queried
+        if (upgradeIds.isEmpty()) return Map.of();
         return trackingConfigQuery.findByUpgradeIds(upgradeIds).stream()
                 .collect(Collectors.toMap(TrackingConfig::getUpgradeId, this::toSummary));
     }

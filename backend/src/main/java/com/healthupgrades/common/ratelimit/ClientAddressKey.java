@@ -43,9 +43,11 @@ final class ClientAddressKey {
      *
      * @param clientAddress the address Tomcat resolved for the request, already stripped of any
      *                      untrusted {@code X-Forwarded-For} hops
-     * @return the /64 prefix for an IPv6 address, the address itself for IPv4, and the input unchanged
-     *         for anything unrecognisable — an address that cannot be parsed still gets counted, just
-     *         under itself, because the alternative is not counting it at all
+     * @return the /64 prefix for an IPv6 address, the address itself for IPv4, the shared bucket
+     *         {@code "unknown"} for a null or blank one, and the input unchanged for anything
+     *         unrecognisable — an address that cannot be parsed still gets counted, just under itself,
+     *         because the alternative is not counting it at all. An IPv4-mapped IPv6 literal such as
+     *         {@code ::ffff:203.0.113.7} also comes back unchanged
      */
     static String of(String clientAddress) {
         if (clientAddress == null || clientAddress.isBlank()) {

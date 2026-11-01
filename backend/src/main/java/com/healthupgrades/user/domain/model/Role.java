@@ -6,7 +6,9 @@ package com.healthupgrades.user.domain.model;
  * <p>Two values and no hierarchy, deliberately. Authorisation here is almost entirely ownership — every
  * query is scoped by user id, so one account cannot read another's rows whatever its role — and the
  * only thing a role decides is whether the account-administration endpoints answer. A third role would
- * need a reason recorded in an ADR, not a value added here.
+ * need a reason recorded in an ADR, not a value added here. A new constant also needs a migration that
+ * extends the {@code users_role_check} constraint, and the frontend's wire types regenerated with
+ * {@code npm run generate:wire-types}.
  *
  * <p>The role is read from the database on every request rather than carried in the access token, so
  * revoking ADMIN takes effect on the next request instead of whenever the token happens to expire.

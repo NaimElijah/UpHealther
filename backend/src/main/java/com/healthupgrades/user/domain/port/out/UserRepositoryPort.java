@@ -1,8 +1,8 @@
 package com.healthupgrades.user.domain.port.out;
 
-import com.healthupgrades.user.domain.model.Role; // the role an existence check asks about
-import com.healthupgrades.user.domain.model.User; // the aggregate this port persists
-import com.healthupgrades.user.domain.model.UserPage; // a page of them, with the total
+import com.healthupgrades.user.domain.model.Role;
+import com.healthupgrades.user.domain.model.User;
+import com.healthupgrades.user.domain.model.UserPage;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -23,20 +23,24 @@ public interface UserRepositoryPort {
     User save(User user);
 
     /**
-     * Persists a user and flushes, so constraint violations surface inside the call.
+     * Persists a user not yet stored and flushes, so constraint violations surface inside the call.
      *
+     * @param user the unsaved user
+     * @return the managed instance, with its generated id
      * @throws com.healthupgrades.user.domain.model.EmailAlreadyRegisteredException if the address is
      *         already held by another account
+     * @throws org.springframework.dao.DataIntegrityViolationException for any other integrity failure,
+     *         rethrown unchanged
      */
     User saveAndFlush(User user);
 
     /** Looks up a user by id. */
     Optional<User> findById(UUID id);
 
-    /** Looks up a user by email (the login identity). */
+    /** Looks up a user by email (the login identity), which must already be normalised. */
     Optional<User> findByEmail(String email);
 
-    /** Whether a user already exists with the given email. */
+    /** Whether a user already exists with the given email, which must already be normalised. */
     boolean existsByEmail(String email);
 
     /**
@@ -54,6 +58,7 @@ public interface UserRepositoryPort {
      * @param page zero-based page number
      * @param size how many accounts per page
      * @return that page of accounts, oldest first, and how many accounts exist in all
+     * @throws IllegalArgumentException if {@code page} is negative or {@code size} is below one
      */
     UserPage findAll(int page, int size);
 

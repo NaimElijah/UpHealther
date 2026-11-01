@@ -68,17 +68,17 @@ public class SecurityConfig {
             throws Exception {
         http
                 // Spring's CSRF token machinery is off, which is not the same as saying CSRF does not
-                // apply. It did not, once: every endpoint authenticated from an Authorization header,
-                // which a browser never attaches by itself. That changed when sessions arrived - the
-                // refresh cookie IS sent automatically, and /api/auth/refresh and /api/auth/logout act
-                // on it alone.
+                // apply. A request carries its bearer token in an Authorization header, which a browser
+                // never attaches by itself. The exception is the refresh cookie, which IS sent
+                // automatically: /api/auth/refresh and /api/auth/logout act on it alone.
                 //
                 // Those two are defended instead by the cookie being SameSite=Strict, so it is not sent
                 // cross-site at all, and by a required X-Requested-With header, which a cross-site form
-                // post cannot set and a cross-origin fetch cannot set without a preflight this server
-                // does not allow. Removing either defence re-opens CSRF on them; ADR-015 records why
-                // that pair was chosen over a double-submit token. Every other endpoint still carries a
-                // bearer token and is unaffected.
+                // post cannot set and a cross-origin fetch cannot set without a preflight. This server
+                // answers a preflight only for the origins in app.cors.allowed-origins; with a * entry it
+                // answers every origin, but credentials are then off, so the cookie is not sent. Removing
+                // either defence re-opens CSRF on them; ADR-015 records why that pair was chosen over a
+                // double-submit token. Every other endpoint still carries a bearer token and is unaffected.
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -92,8 +92,9 @@ public class SecurityConfig {
                         // bounded by Boot's server.error.include-* defaults, none of which is overridden.
                         .dispatcherTypeMatchers(DispatcherType.ERROR)
                         .permitAll()
-                        // Exactly the two endpoints a visitor without a token needs. A blanket
-                        // /api/auth/** also opened /api/auth/me, which then dereferenced a null
+                        // Exactly the four auth endpoints a visitor without an access token needs: register
+                        // and login, which create or prove an identity, and refresh and logout, below.
+                        // A blanket /api/auth/** also opened /api/auth/me, which then dereferenced a null
                         // @AuthenticationPrincipal and answered 500 instead of refusing the request
                         // (FR-5) - see AuthenticatedBoundaryTest.
                         // Refresh and logout act on the refresh cookie alone, so they must answer a

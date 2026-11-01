@@ -12,7 +12,7 @@ import tools.jackson.databind.module.SimpleModule;
  *
  * <p>PostgreSQL refuses the character in {@code text} and {@code varchar} alike, so a body carrying one
  * passed validation, reached the flush and came back as a 500, with an ERROR line written for it: alert
- * noise anybody could make on demand, an anonymous registration included (S5.B5, NFR-7). Refusing it here
+ * noise anybody could make on demand, an anonymous registration included (S5.B5, ADR-065, NFR-7). Refusing it here
  * means it is refused once, for every field of every body, before it reaches a use case. No field of
  * this API has a use for it.
  *

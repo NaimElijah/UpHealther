@@ -3,8 +3,11 @@ package com.healthupgrades.notification.domain.model;
 /**
  * What a notification is about.
  *
- * <p>The frontend switches on this to choose an icon and where clicking the notification leads, so a new
- * value needs a matching entry there — an unmapped type renders with a fallback rather than failing.
+ * <p>The type is on the wire so a client can tell events apart; the SPA does not read it today. A
+ * notification's icon and colour come from its {@link NotificationCategory}, and where a click leads from its
+ * {@code relatedUpgradeId}. A new constant needs a migration that extends the
+ * {@code notifications_type_check} constraint, and the wire type regenerated with
+ * {@code npm run generate:wire-types}.
  *
  * <p>Most values mirror a domain event; the last two are raised by the scheduler instead, having no
  * event behind them.

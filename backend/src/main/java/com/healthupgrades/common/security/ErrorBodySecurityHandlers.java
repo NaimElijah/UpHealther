@@ -16,7 +16,7 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
  * <p>Both happen inside the filter chain, before any controller, so {@code GlobalExceptionHandler}
  * would never see them. Spring Security's defaults answered them itself: an anonymous request got a
  * bodiless 403 from {@code Http403ForbiddenEntryPoint}, which a client could not tell apart from "this is
- * not yours" (#58). Handing each one to the MVC exception resolver instead means one class decides every
+ * not yours" (#58, ADR-014). Handing each one to the MVC exception resolver instead means one class decides every
  * status and every body, with the trace id on it (NFR-7).
  *
  * <p>The entry point does not forward Spring's own exception. {@code GlobalExceptionHandler} maps only

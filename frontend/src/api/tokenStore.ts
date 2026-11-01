@@ -28,7 +28,13 @@ let expiresAtMs: number | null = null;
  */
 const EXPIRY_MARGIN_MS = 30_000;
 
-/** Stores a freshly issued token. */
+/**
+ * Stores a freshly issued token.
+ *
+ * @param token     the bearer token
+ * @param expiresAt when it stops being accepted, as the ISO-8601 instant the API sends; text that does not parse
+ *                  leaves the expiry unknown, which {@link hasUsableAccessToken} counts as usable
+ */
 export function setAccessToken(token: string, expiresAt: string): void {
   accessToken = token;
   const parsed = Date.parse(expiresAt);
@@ -51,6 +57,8 @@ export function getAccessToken(): string | null {
  *
  * An unknown expiry counts as usable — the token was issued by this server, and being refused is a
  * recoverable outcome, whereas refusing to send it at all is not.
+ *
+ * @param now the instant to judge by, in epoch milliseconds; the clock unless a caller supplies one
  */
 export function hasUsableAccessToken(now: number = Date.now()): boolean {
   if (accessToken === null) return false;

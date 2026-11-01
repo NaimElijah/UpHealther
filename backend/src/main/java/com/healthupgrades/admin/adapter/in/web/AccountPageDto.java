@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * One page of accounts on the wire.
  *
- * <p>`total` is not decoration: without it a client shown twenty-five accounts cannot tell whether
+ * <p>{@code total} is not decoration: without it a client shown twenty-five accounts cannot tell whether
  * there are two more or two thousand, and would have to page until a short one came back — reading the
  * whole table to discover it had finished.
  *

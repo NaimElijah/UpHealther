@@ -59,6 +59,7 @@ public class AuthSession {
     @Column(nullable = false)
     private Instant createdAt;
 
+    /** Set when the session opens and on each rotation. Nothing in {@code src/main} reads it today. */
     @Column(nullable = false)
     private Instant lastUsedAt;
 
@@ -70,6 +71,11 @@ public class AuthSession {
     @Column(nullable = false)
     private Instant absoluteExpiresAt;
 
+    /**
+     * Set by {@link #revoke()}, and in bulk by {@code AuthSessionRepositoryPort#revokeAllForUser}, which
+     * does not call it; never cleared. A revoked row stays until the cleanup sweep deletes it
+     * ({@code AuthSessionRepositoryPort#deleteUnusableAsOf}).
+     */
     @Column(nullable = false)
     private boolean revoked;
 

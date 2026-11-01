@@ -1,7 +1,7 @@
 package com.healthupgrades.tracking.adapter.out.persistence;
 
-import com.healthupgrades.tracking.domain.model.ProgressEntry; // domain aggregate
-import com.healthupgrades.tracking.domain.port.out.ProgressEntryRepositoryPort; // the port implemented here
+import com.healthupgrades.tracking.domain.model.ProgressEntry;
+import com.healthupgrades.tracking.domain.port.out.ProgressEntryRepositoryPort;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 class ProgressEntryRepositoryAdapter implements ProgressEntryRepositoryPort {
 
-    private final ProgressEntryJpaRepository jpa; // Spring Data proxy
+    private final ProgressEntryJpaRepository jpa;
 
     /** {@inheritDoc} */
     @Override

@@ -1,6 +1,6 @@
 package com.healthupgrades.tracking.application.port.in;
 
-import com.healthupgrades.tracking.domain.model.TrackingConfig; // returned domain aggregate
+import com.healthupgrades.tracking.domain.model.TrackingConfig;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;

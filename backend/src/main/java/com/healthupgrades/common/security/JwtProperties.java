@@ -40,7 +40,7 @@ public record JwtProperties(
 
     /**
      * The shortest access-token lifetime: a minute. Every open tab renews once per lifetime, so a shorter
-     * one would spend the refresh endpoints' rate limit on renewals alone (S5.A13).
+     * one would spend the refresh endpoints' rate limit on renewals alone (S5.A13, ADR-065).
      */
     public static final long MIN_ACCESS_TOKEN_TTL_MINUTES = 1;
 
@@ -54,7 +54,7 @@ public record JwtProperties(
      * The longest clock skew: five minutes, ten times the shipped thirty seconds, and the tolerance
      * Kerberos defaults to. Hosts kept by NTP agree to well within a second. The skew is added straight
      * onto every token's expiry, so past a few minutes it stops being a tolerance and becomes a longer
-     * lifetime than {@link #MAX_ACCESS_TOKEN_TTL_HOURS} allows (S5.A13).
+     * lifetime than {@link #MAX_ACCESS_TOKEN_TTL_HOURS} allows (S5.A13, ADR-065).
      */
     public static final long MAX_CLOCK_SKEW_MINUTES = 5;
 }

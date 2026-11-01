@@ -15,8 +15,9 @@ import java.util.UUID;
  * {@code user.adapter.in.composition.AccountCredentialsAdapter} supplies it. The same shape as
  * {@link SessionStatusPort}, for the same reason (ADR-062).
  *
- * <p>Both lookups are re-run on every request rather than cached, which is what makes a deleted account,
- * a disabled one and a revoked role take effect on the next call (NFR-5, NFR-33, NFR-34).
+ * <p>Neither lookup is cached: {@code findById} runs on every request and {@code findByEmail} on every
+ * sign-in, which is what makes a deleted account, a disabled one and a revoked role take effect on the
+ * next call (NFR-5, NFR-33, NFR-34).
  */
 public interface AccountCredentialsPort {
 

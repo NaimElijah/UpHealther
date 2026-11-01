@@ -1,7 +1,7 @@
 package com.healthupgrades.auth.application;
 
 import com.healthupgrades.auth.application.port.in.SessionGrant;
-import com.healthupgrades.user.domain.model.User; // the authenticated domain user
+import com.healthupgrades.user.domain.model.User;
 import java.time.Instant;
 import java.util.UUID;
 

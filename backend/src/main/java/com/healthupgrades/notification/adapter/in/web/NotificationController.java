@@ -14,8 +14,7 @@ import org.springframework.web.bind.annotation.*;
  *
  * <p>Read and acknowledge only — notifications are never created through the API. They are produced by
  * {@code NotificationEventListener} reacting to domain events and by {@code NotificationSweepService}'s
- * scheduled sweeps, so
- * there is no endpoint a client could post one to.
+ * scheduled sweeps, so there is no endpoint a client could post one to.
  *
  * <p>This is also the fallback transport: the same payloads are pushed over STOMP as they happen, and
  * a client that was offline sees them here on its next load.

@@ -15,13 +15,13 @@ import org.springframework.stereotype.Service;
  *
  * <p>Package-private, and a class of its own rather than a method on {@link TrackingService}, because a
  * controller holds that service: the unscoped read would be one call away from a request handler, past
- * every rule on the port (S5.B6). {@code HexagonalArchitectureTest} keeps it package-private.
+ * every rule on the port (ADR-065, section 9). {@code HexagonalArchitectureTest} keeps it package-private.
  */
 @Service
 @RequiredArgsConstructor
 class TrackingConfigReads implements TrackingConfigQuery {
 
-    private final TrackingConfigRepositoryPort configRepository; // outbound: tracking configs
+    private final TrackingConfigRepositoryPort configRepository;
 
     /** {@inheritDoc} */
     @Override

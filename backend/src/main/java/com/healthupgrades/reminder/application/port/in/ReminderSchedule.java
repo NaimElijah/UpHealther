@@ -9,6 +9,8 @@ import java.util.List;
  * <p>Day tokens stay as strings at this boundary because normalising them is the domain's job:
  * {@code ReminderDays} owns which spellings are accepted and how they are stored.
  *
+ * @param reminderTime the time of day to fire at, in the server's zone; null is refused with a
+ *                     {@code BusinessRuleException}
  * @param days null or empty means every day
  * @param enabled null leaves an existing reminder's state alone and creates new ones enabled
  */

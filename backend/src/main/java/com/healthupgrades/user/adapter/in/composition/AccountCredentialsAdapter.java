@@ -27,7 +27,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class AccountCredentialsAdapter implements AccountCredentialsPort {
 
-    private final UserQuery userQuery; // this context's own inbound read port
+    private final UserQuery userQuery;
 
     /** {@inheritDoc} */
     @Override

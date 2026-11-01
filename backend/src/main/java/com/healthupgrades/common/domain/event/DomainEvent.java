@@ -16,6 +16,9 @@ import java.time.LocalDateTime;
  */
 public interface DomainEvent {
 
-    /** When the state change this event describes occurred. */
+    /**
+     * When the state change this event describes occurred. By convention publishers take it from the
+     * injected clock, which keeps UTC (ADR-020).
+     */
     LocalDateTime occurredAt();
 }

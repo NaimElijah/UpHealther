@@ -129,7 +129,7 @@ public class JwtTokenProvider {
             }
             if (claims.getExpiration() == null) {
                 // JJWT checks exp only when the token carries one, so without this a token minted with
-                // none would be accepted for ever. Every token issued here has one (S5.A14).
+                // none would be accepted for ever. Every token issued here has one (S5.A14, ADR-065).
                 log.debug("Rejected a token: it names no expiry");
                 return Optional.empty();
             }

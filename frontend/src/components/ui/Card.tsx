@@ -23,7 +23,7 @@ interface CardProps {
  *
  * The header is a heading, so the page's sections are in its outline and a screen reader can move
  * between them (WCAG 1.3.1, 2.4.6). It carries no classes of its own: Preflight resets a heading's size
- * and weight to inherit, so the row's styling is what it looks like, as before. An action goes beside the
+ * and weight to inherit, so the row's styling is what it looks like. An action goes beside the
  * heading, never inside it, where it would become part of the section's name.
  */
 const Card: React.FC<CardProps> = ({ children, header, headerAction, level = 2, className = '' }) => {

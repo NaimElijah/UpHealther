@@ -14,8 +14,9 @@ import lombok.*;
  * {@link #plan}, {@link #activate}, {@link #pause}, {@link #complete}, {@link #abandon} and
  * {@link #reschedule}, each of which guards the transition. Editable descriptive fields change through
  * {@link #updateDetails}. Production code creates instances via {@link #create}, which enforces the
- * invariants a new upgrade must satisfy; the builder exists for persistence and for tests that need an
- * aggregate already in a particular state.
+ * invariants a new upgrade must satisfy; the builder backs {@code create} and the tests that need an
+ * aggregate already in a particular state. Hibernate builds an entity through the protected no-argument
+ * constructor.
  */
 @Entity
 @Table(name = "health_upgrades")
@@ -81,6 +82,10 @@ public class HealthUpgrade {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    /**
+     * Optimistic lock (BR-14): two saves that overlap inside the server are refused with a 409. No request
+     * carries the version back yet, so an edit from a stale page is not refused (#194).
+     */
     @Version
     private Long version;
 
@@ -91,6 +96,17 @@ public class HealthUpgrade {
      * to a database constraint at flush time: an upgrade always belongs to a user, always has a title,
      * always has a type, and always starts as an IDEA.
      *
+     * @param userId           the owner; required
+     * @param areaId           the health area it is filed under; may be null
+     * @param title            short name; required and non-blank
+     * @param description      longer explanation; may be null
+     * @param type             what kind of change this is; required, and not a retired type
+     * @param difficulty       how demanding it is; may be null
+     * @param plannedStartDate the intended start date; may be null
+     * @param targetEndDate    the date it should be done by; may be null
+     * @param motivation       why the user wants it; may be null
+     * @param successCriteria  how the user will know it worked; may be null
+     * @return the new upgrade, in the IDEA state
      * @throws BusinessRuleException if the owner, title or type is missing, or the type is retired
      */
     public static HealthUpgrade create(
@@ -133,6 +149,13 @@ public class HealthUpgrade {
      * <p>A retired type is accepted only when the upgrade already holds it: the SPA sends the type back
      * unchanged on every edit, and a row that carries one must stay editable, but none may move to it.
      *
+     * @param areaId          the health area to file it under; null takes it out of every area
+     * @param title           short name; required and non-blank
+     * @param description     longer explanation; may be null
+     * @param type            what kind of change this is; required
+     * @param targetEndDate   the date it should be done by; may be null
+     * @param motivation      why the user wants it; may be null
+     * @param successCriteria how the user will know it worked; may be null
      * @throws BusinessRuleException if the title is blanked out, the type is missing, or a retired type
      *         is chosen for an upgrade that does not already hold it
      */
@@ -157,14 +180,22 @@ public class HealthUpgrade {
         this.successCriteria = successCriteria;
     }
 
-    /** Stamps the creation and update timestamps before the row is first inserted. */
+    /**
+     * Stamps the creation and update timestamps before the row is first inserted.
+     *
+     * <p>Reads the JVM's default zone rather than the injected clock: a known deviation from NFR-15, tracked by
+     * #51 (ADR-020). {@code ServerTimeArchitectureTest} exempts these callbacks, so it does not catch a new one.
+     */
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
 
-    /** Refreshes the update timestamp before each update. */
+    /**
+     * Refreshes the update timestamp before each update, from the JVM's default zone as
+     * {@link #onCreate} does.
+     */
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
@@ -247,7 +278,7 @@ public class HealthUpgrade {
     }
 
     /**
-     * Gives an upgrade up, from any state that is not already final: → ABANDONED.
+     * Gives an upgrade up, from any state except COMPLETED and ABANDONED: → ABANDONED.
      *
      * <p>Reversible through {@link #reschedule}, unlike completion.
      *
@@ -298,6 +329,9 @@ public class HealthUpgrade {
      *
      * <p>The caller supplies the date rather than the aggregate reading the system clock, so callers that
      * inject a {@link java.time.Clock} actually get to decide what "now" means.
+     *
+     * @param asOf the day to judge against; must not be null
+     * @return true when the upgrade is ACTIVE, has a target end date, and {@code asOf} is after it
      */
     public boolean isOverdue(LocalDate asOf) {
         return targetEndDate != null && status == UpgradeStatus.ACTIVE && asOf.isAfter(targetEndDate);

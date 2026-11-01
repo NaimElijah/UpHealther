@@ -89,6 +89,10 @@ public class User {
      * Stamps the creation and update timestamps before the row is first inserted, and normalises the
      * email as a backstop for a caller that forgot to: the database refuses an unnormalised address, so
      * the alternative is a constraint violation at flush.
+     *
+     * <p>The timestamps come from {@code LocalDateTime.now()}, in the host's zone, not from the injected UTC
+     * clock. That is a known deviation from ADR-020, tracked in #51 and exempted in
+     * {@code ServerTimeArchitectureTest} until #51 routes the entity hooks through the clock.
      */
     @PrePersist
     protected void onCreate() {
@@ -97,7 +101,10 @@ public class User {
         updatedAt = LocalDateTime.now();
     }
 
-    /** Refreshes the update timestamp before each update, normalising the email for the same reason. */
+    /**
+     * Refreshes the update timestamp before each update, normalising the email for the same reason. The
+     * timestamp is in the host's zone, as in {@link #onCreate()}.
+     */
     @PreUpdate
     protected void onUpdate() {
         email = EmailAddress.normalise(email);

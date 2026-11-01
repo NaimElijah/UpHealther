@@ -2,10 +2,10 @@
  * The smoke suite: one new visitor drives the frontend, nginx, the API, the notification socket and the
  * database together, through a browser, along the happy path.
  *
- * Each step is a place where the two sides have disagreed while each side's own suite passed: Plan
- * posted no start date and every plan was refused (#88), and the dashboard showed the weekly rate a
- * hundred times too large (#20). Failure paths stay at the cheapest level that can observe them
- * (ADR-009). See docs/ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md.
+ * Each step covers a join only the running stack shows. Two of them have failed while each side's own
+ * suite passed: Plan posted no start date and every plan was refused (#88), and the dashboard showed the
+ * weekly rate a hundred times too large (#20). Failure paths stay at the cheapest level that can observe
+ * them (ADR-009). See docs/ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md.
  *
  * A second test reads the third-party notices that must travel with the bundle (#337): only the built
  * image shows whether nginx serves the file Vite wrote.
@@ -14,7 +14,10 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-/** Eight characters or more, the API's minimum (BR-17). The account lives only in this run's database. */
+/**
+ * Eight characters or more, the API's minimum (BR-17). Under `npm run test:images` the account dies with the
+ * stack; run alone against a developer's own stack, it stays there.
+ */
 const PASSWORD = 'smoke-test-password';
 
 /** Shares no word with a button the steps press, so a name match never lands on the card's title. */
@@ -31,7 +34,8 @@ function sidebarLink(page: Page, label: string): Locator {
 /**
  * The figure of one of the dashboard's stat tiles. A tile is a figure followed by its caption, with no
  * role between them, so the caption is found and the figure read before it, as DashboardPage.test.tsx
- * does. Restricted to a `div` because the same words appear in the sidebar and in status badges.
+ * does. Restricted to a `div` because the same words appear in the status badges of the upgrade cards on the
+ * page, which are spans.
  */
 function statTile(page: Page, caption: string): Locator {
   return page
@@ -89,7 +93,7 @@ function noticeSections(notices: string): Map<string, string> {
 }
 
 test('GivenANewVisitor_WhenTheyActivateAnUpgradeAndLogToday_ThenTheDashboardCountsIt', async ({ page }) => {
-  // nginx serves the CSP, so a violation shows in no other suite. Every console error is not collected:
+  // nginx serves the CSP, so a violation shows in no other suite. Not every console error is collected:
   // the session check on a signed-out page is answered 401 by design, and the browser logs it.
   const problems: string[] = [];
   page.on('pageerror', (error) => problems.push(`uncaught: ${error.message}`));

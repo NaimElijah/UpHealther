@@ -13,9 +13,8 @@ import { endSession } from './session';
 import { clearAccessToken, getAccessToken, setAccessToken } from './tokenStore';
 import type { AuthResponse } from '../types';
 
-// Default to a relative base URL so every `/api/...` call is same-origin and flows through the
-// Vite dev proxy (vite.config.ts) in development and the nginx proxy (nginx.conf) in production.
-// This avoids cross-origin/CORS issues. Set VITE_API_URL only when the API lives on another origin.
+// The base URL is `apiBaseUrl()`'s: relative by default, so every `/api/...` call flows through the Vite dev
+// proxy (vite.config.ts) in development and the nginx proxy (nginx.conf) in production.
 // withCredentials so the refresh cookie travels even when the API is on another origin; a same-origin
 // request would send it regardless, and a deployment that split the origins would silently not.
 const client = axios.create({
@@ -47,7 +46,8 @@ const CONFLICT_BACKOFF_MS = 150;
 const TOO_MANY_REQUESTS = 429;
 
 /**
- * How long one renewal is waited for before it counts as unanswered (S5.D5).
+ * How long one renewal attempt is waited for before it counts as unanswered (S5.D5, #339). The single retry
+ * after a 409 gets its own deadline.
  *
  * The renewal runs while holding the cross-tab lock, so a renewal that hung would hold up every tab's
  * renewal, and every request waiting behind a 401, for as long as the connection stayed open. The

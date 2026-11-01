@@ -14,12 +14,13 @@ import org.jspecify.annotations.Nullable;
  * for both.
  *
  * @param id               the notification's identifier
- * @param type             what happened; the frontend maps this to an icon and a destination
+ * @param type             what happened; the SPA does not read it today (see {@link NotificationType})
  * @param category         how it should read: informational, positive, a warning, or a nudge
  * @param title            short headline, already composed server-side
  * @param message          the body, already composed server-side, may be null
  * @param relatedUpgradeId the upgrade it concerns, so the client can link to it; null for
- *                         account-wide notifications such as the daily check-in nudge
+ *                         account-wide notifications such as the daily check-in nudge, and once the
+ *                         upgrade is deleted
  * @param read             whether the user has acknowledged it
  * @param createdAt        when it was raised
  */

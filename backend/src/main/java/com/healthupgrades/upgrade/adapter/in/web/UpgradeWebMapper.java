@@ -49,6 +49,9 @@ public class UpgradeWebMapper {
     /**
      * Batch variant of {@link #toDto(HealthUpgrade)}. Resolves every upgrade's tracking configuration in
      * one call instead of one lookup per upgrade, avoiding the N+1 pattern on list endpoints.
+     *
+     * @param upgrades the upgrades to map; an empty list returns an empty list without calling the port
+     * @return one response per upgrade, in the order given
      */
     public List<UpgradeDto> toDtos(List<HealthUpgrade> upgrades) {
         if (upgrades.isEmpty()) return List.of();

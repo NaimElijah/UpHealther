@@ -1,7 +1,7 @@
 package com.healthupgrades.auth.domain.port.out;
 
-import com.healthupgrades.auth.domain.model.AuthSession; // the aggregate this port persists
-import com.healthupgrades.auth.domain.model.SpentCredential; // a credential a rotation retired
+import com.healthupgrades.auth.domain.model.AuthSession;
+import com.healthupgrades.auth.domain.model.SpentCredential;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -83,6 +83,7 @@ public interface AuthSessionRepositoryPort {
     /**
      * Ends every session an account holds.
      *
+     * @param userId the account whose sessions end
      * @return how many had not been revoked, expired ones the cleanup has not yet removed included
      */
     int revokeAllForUser(UUID userId);

@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 /**
  * Runs a Python 3 script under whichever name this machine gives the interpreter, and exits with its
- * status.
+ * status, or 1 when it is killed by a signal. Run it as `node scripts/python.mjs <script> [arguments]`; the
+ * root's `test:diagrams` does. The script runs in the caller's working directory, so a relative path
+ * resolves against it. When no candidate is a Python 3, it throws an `Error` listing the ones it tried,
+ * which Node leaves uncaught: a stack trace and exit status 1.
  *
  * The name differs by platform. CI's Ubuntu runner has `python3`. A python.org install on Windows has
  * `python` or the `py` launcher. There, `python3` is often the Microsoft Store's alias, which may

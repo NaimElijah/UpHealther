@@ -17,9 +17,9 @@ const optionsOf = <T extends string>(labels: Record<T, string>): { value: T; lab
 
 /**
  * What the configuration form, and the card above it, call each tracking type. Keyed by the generated
- * union, so a type the API adds is a compile error here rather than an option the form lacks. The
- * upgrade's saved type is the upgrade context's mirror of that union (ADR-077), so the form can open
- * on it as it is.
+ * union, so a type the API adds is a compile error here rather than an option the form lacks. A saved
+ * configuration carries `UpgradeTrackingType`, the `upgrade` context's mirror of that union (ADR-077); a
+ * contract test holds the two equal, so the form can open on a saved type as it is.
  */
 const TRACKING_TYPE_LABELS: Record<TrackingType, string> = {
   BOOLEAN: 'Yes / No (did it)',

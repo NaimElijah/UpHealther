@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 /**
  * Runs the backend's Maven wrapper in `backend/` with the arguments it is given, and exits with Maven's
- * status.
+ * status, or 1 when Maven is killed by a signal. Run it as `node scripts/mvnw.mjs <maven arguments>`; the
+ * root's `test:backend` and `generate:wire-types` do.
+ *
+ * On Windows an argument containing whitespace or one of `"&|<>^%!()` is refused with an `Error` before
+ * anything runs, which Node leaves uncaught: a stack trace and exit status 1. `mvnw.cmd` calls
+ * `powershell`, so it has to be on `PATH`.
  *
  * The root `package.json` cannot call the wrapper directly, because npm runs a script through `cmd.exe`
  * on Windows and through `sh` everywhere else, and no one spelling works in both. `cmd.exe` reads
