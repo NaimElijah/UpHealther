@@ -159,14 +159,15 @@ The four variables a deployment reads first, from [`.env.example`](.env.example)
 setting to run locally. Only `JWT_SECRET` is required: it has no default, so a deployment without
 one refuses to start; locally, compose and `backend/config/` supply a published development key
 ([ADR-042](docs/ADRs/ADR-042-the-jar-carries-no-jwt-signing-key.md)). `ADMIN_BOOTSTRAP_USER_ID` is
-empty by default, and empty means do nothing. The other two defaults suit the local stack only.
+empty by default, and empty means do nothing. The other two have defaults that suit the local stack
+only, so a deployment sets them.
 
 | Variable | Purpose | Default | Required |
 |---|---|---|:-:|
-| `POSTGRES_PASSWORD` | The compose PostgreSQL's superuser password | `healthupgrades` | No |
+| `POSTGRES_PASSWORD` | The compose PostgreSQL's superuser password | `healthupgrades` | In a deployment |
 | `JWT_SECRET` | Token signing key, at least 256 bits | none; compose and `backend/config/` supply a dev key | Yes |
 | `ADMIN_BOOTSTRAP_USER_ID` | Account id promoted to `ADMIN` while no administrator exists | empty: do nothing | No |
-| `TRUSTED_PROXIES` | Java regex for the hop trusted to set `X-Forwarded-*` | nginx on the compose network | No |
+| `TRUSTED_PROXIES` | Java regex for the hop trusted to set `X-Forwarded-*` | nginx on the compose network | In a deployment |
 
 The other twenty-six variables, none required: [architecture.md](docs/architecture/architecture.md#the-other-configuration-variables).
 
