@@ -106,7 +106,7 @@ nothing.
 
 | Layer | Technology | Version | Why |
 |:---|:---|---:|:---|
-| Language, framework | Java, Spring Boot | 21 / 4.1.1 | Records carry the boundary code; Spring stays in the adapters ([ADR-032](docs/ADRs/ADR-032-the-backend-runs-on-spring-boot-4-1.md)) |
+| Language, framework | Java, Spring Boot | 21 / 4.1.1 | Records carry the boundary code; Spring stays out of the domain ([ADR-032](docs/ADRs/ADR-032-the-backend-runs-on-spring-boot-4-1.md)) |
 | Backend build | Maven, through `./mvnw` | 3.10.0 | Pinned and checksummed; the enforcer refuses any other Maven or JDK ([ADR-030](docs/ADRs/ADR-030-the-toolchain-is-pinned-in-the-repository.md)) |
 | Auth | Spring Security + JJWT | 7.1.1 / 0.13.0 | Short-lived token, rotating refresh cookie ([ADR-015](docs/ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)) |
 | Database | PostgreSQL, Flyway | 15 / 12.4.0 | Flyway owns the schema; Hibernate only validates it |
