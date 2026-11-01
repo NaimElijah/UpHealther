@@ -268,7 +268,7 @@ and the page.
 | Level | Covers | Command |
 |---|---|---|
 | Unit and slice | State machine, every use case, each controller on the real security chain; no database or Docker | `./mvnw test` in `backend/` |
-| Structural | Thirty-one ArchUnit rules; the wire-type, column-bound, pinned-image and version contracts | `./mvnw test` in `backend/` |
+| Structural | Thirty-one ArchUnit rules (twenty-eight hexagonal, three on server time); the wire-type, column-bound, pinned-image and version contracts | `./mvnw test` in `backend/` |
 | Integration | The app against a Testcontainers PostgreSQL: migrations, database-enforced invariants | `./mvnw verify` in `backend/` |
 | Frontend | Session restore, silent token renewal, the socket, route and role gates, CSP, theme | `npm test` in `frontend/` |
 | Smoke | A browser drives both modules through the composed stack, under nginx's CSP | `npm run test:images` |
