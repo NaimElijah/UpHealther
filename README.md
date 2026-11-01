@@ -227,7 +227,7 @@ Running natively needs JDK 21, Node 24 (`frontend/.nvmrc` names the release; npm
 (integration tests). Maven comes with the `./mvnw` wrapper. The commands run from the repository
 root, the same in PowerShell, Git Bash and Linux ([ADR-044](docs/ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md));
 the `cd` lines are for Git Bash or Linux. In PowerShell 5.1, which has no `&&`, use
-`cd backend; .\mvnw.cmd spring-boot:run`.
+`cd backend; .\mvnw.cmd spring-boot:run` and `cd frontend; npm run dev`.
 
 ```bash
 npm run setup                    # once per clone, and after a lockfile changes
