@@ -1,6 +1,6 @@
 # Architecture
 
-The system as it actually is, at the time of writing. This record describes **what** is built and
+The system as it actually is. This record describes **what** is built and
 **how the pieces fit**; it does not argue for any of it. The reasoning, the alternatives that were
 rejected, and the conditions that would make us revisit a choice live in [`docs/ADRs/`](../ADRs/).
 
@@ -73,9 +73,9 @@ Ten contexts, each owning its own vocabulary, plus a cross-cutting `common`.
 | `common` | The `DomainEvent` marker and the `DomainEventPublisher` port; the shared exceptions, including `ConflictException`, which a context subclasses to name its own conflict; the audit trail (`AuditTrail` and `LoggingAuditTrail`); the ports it declares for a context to supply or call, `SessionStatusPort`, `AccountCredentialsPort` and `LiveSocketPort`; the global exception handler; JWT security; the WebSocket configuration and the registry of open sockets; and `observability`, `ratelimit` and `time` | Not a context; a shared kernel plus cross-cutting adapters. It depends on no context, and ArchUnit keeps it that way ([ADR-062](../ADRs/ADR-062-the-shared-kernel-depends-on-no-bounded-context.md)) |
 
 The shapes that differ are deliberate, not drift. `dashboard` is two-layer by design
-([ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)); `auth` began
-that way and gained an aggregate with sessions
-([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)), so it is now full;
+([ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)); `auth` is full
+because it owns an aggregate, `AuthSession`
+([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md));
 and `admin` owns no aggregate at all, orchestrating over `user` and `auth`.
 
 A context keeps its adapters under `adapter/in` (what starts work) and `adapter/out` (what work reaches
@@ -625,11 +625,11 @@ driver's message, row included, on every SQL failure, a handled refusal too.
 policy, [ADR-026](../ADRs/ADR-026-a-scheduled-run-that-threw-is-logged-in-full.md) the exception, and
 [ADR-027](../ADRs/ADR-027-hibernates-sql-exception-logger-is-turned-off.md) the silenced logger.
 
-Three places are worth knowing about because they were silent and are no longer:
+Three places are worth knowing about because their failures are reported rather than swallowed:
 
 - **The scheduled jobs.** Each run is wrapped by `JobMetrics`, which times it and counts its outcome,
-  and each writes one INFO line saying what it found and what it did. A sweep that has been throwing
-  for a week used to look exactly like a sweep with nothing to do. The failure is rethrown rather than
+  and each writes one INFO line saying what it found and what it did. A sweep that throws
+  is counted `failed`, which a sweep with nothing to do is not. The failure is rethrown rather than
   handled, because Spring's scheduler already logs a task that threw and two entries for one fault is
   worse than one. `dispatchReminders` stays silent when nothing is due — otherwise it writes a line a
   minute, all night, and buries the runs that did something.
@@ -649,9 +649,8 @@ Three places are worth knowing about because they were silent and are no longer:
   and written from an `afterCommit` callback, so it never says "revoked" of a session whose revocation
   rolled back; its `AUTH_TOKEN_REUSE` entry, a refusal, is written at once.
 - **A failed real-time push.** It runs from an `afterCommit` callback, so the notification is already
-  durable; the failure is now reported at WARN, by ids and by its own and its root cause's exception
-  types with no stack trace, and the caller carries on, where before one unreachable session cancelled
-  everybody else's reminders for that minute.
+  durable; a failure is reported at WARN, by ids and by its own and its root cause's exception
+  types with no stack trace, and the caller carries on.
 
 ### In the browser
 
@@ -681,7 +680,7 @@ list, the only read across accounts, which names the administrator and no resour
 `audit.events{action,outcome}` counter from the same call so the two cannot disagree.
 
 An entry is `(action, actorUserId, resourceId, outcome)` — two enums and two identifiers, with **nowhere
-to put free text**, which is how NFR-6 survives contact with twenty-one new call sites. One identifier is
+to put free text**, which is how NFR-6 holds at every call site. One identifier is
 not written as it is: when the resource is an `AUTH_SESSION`, the line carries the first sixteen hex
 characters of the SHA-256 of the session id instead. The owner's id is on the same line, and an account
 paired with a live session of it is the half of a forged token that a signing key alone lacks
@@ -976,8 +975,8 @@ load-bearing rather than tidy. A flex item's `min-width` defaults to `auto`, whi
 min-content width — so a single child that cannot shrink overrules `flex-shrink`, and the column, not
 the child, is what grows past the viewport. `min-w-0` removes that floor and hands the pressure back to
 the content, which is why every user-supplied string in the shell also carries `truncate` or
-`break-words`, and why a health area's icon sits in a fixed clipping box. It replaced an
-`overflow-auto` that was doing the same job invisibly: a flex item whose overflow is not `visible`
+`break-words`, and why a health area's icon sits in a fixed clipping box. `<main>` is not given
+`overflow-auto`, which would do the same job invisibly: a flex item whose overflow is not `visible`
 already has an automatic minimum size of zero. How wide a page may then grow is decided once, in
 `PageContainer`, and not by the pages. See [ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md).
 
