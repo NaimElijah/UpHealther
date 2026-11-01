@@ -3,7 +3,9 @@
 - **Status:** Accepted — extended by
   [ADR-071](ADR-071-registration-refuses-the-most-common-passwords.md), which applies `LICENSE` §5 to
   vendored third-party data, the common-password list, as well as to the components the software
-  depends on
+  depends on; and by [ADR-084](ADR-084-the-licence-permits-running-an-unmodified-copy-to-evaluate-it.md),
+  which adds `LICENSE` §3.4, a permission to build and run an unmodified copy to evaluate it, so the
+  grant described below is no longer the whole of it
 - **Date:** 2026-08-18
 - **Scope:** The repository as a whole. No effect on the architecture, the build or the runtime.
 
