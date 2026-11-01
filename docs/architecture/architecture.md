@@ -752,9 +752,10 @@ Integration points a maintainer will need:
   `spring-boot-maven-plugin` writes into it
   ([ADR-050](../ADRs/ADR-050-one-version-names-the-whole-repository.md)). Nothing else under
   `/actuator` answers.
-- **Environment variables** — `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET` are required in any
-  real deployment, and without `JWT_SECRET` the application refuses to start: the jar carries no
-  signing key. A run from `backend/` reads a published development key from
+- **Environment variables** — `JWT_SECRET` is required in any real deployment, and without it the
+  application refuses to start: the jar carries no signing key. The README's configuration section lists
+  what else a deployment must set; compose derives `DB_URL`, `DB_USERNAME` and `DB_PASSWORD` from
+  `POSTGRES_*`. A run from `backend/` reads a published development key from
   `backend/config/application.yml`, which is never packaged, and compose passes the same value
   ([ADR-042](../ADRs/ADR-042-the-jar-carries-no-jwt-signing-key.md)). `CORS_ALLOWED_ORIGINS` and
   `VITE_API_URL` only matter when frontend and API are on different origins. The five cron expressions
