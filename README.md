@@ -534,8 +534,10 @@ refusals at all. **Cost:** the container log's retention *is* the audit trail's 
 
 **Source-available, not open source** ([ADR-003](docs/ADRs/ADR-003-proprietary-source-available-licensing.md))
 — MIT and Apache-2.0 permit commercial reuse that was not intended, and AGPL is banned outright at
-many organisations. **Cost:** nobody may run the code without written permission, which rules out
-outside contribution.
+many organisations. **Cost:** an evaluator may run an unmodified copy on their own machine
+([ADR-084](docs/ADRs/ADR-084-the-licence-permits-running-an-unmodified-copy-to-evaluate-it.md)), but
+nobody may modify, host or reuse the code without written permission, which rules out outside
+contribution.
 
 ## 🚦 Status and limitations
 
@@ -576,8 +578,9 @@ partners and a public API are **non-goals** rather than backlog
 
 ## 🤝 Contributing
 
-Outside contribution is not possible under the licence below — the code may be read, not modified.
-Corrections and questions are welcome as [issues](https://github.com/NaimElijah/UpHealther/issues).
+Outside contribution is not possible under the licence below — the code may be read, and run to
+evaluate it, not modified. Corrections and questions are welcome as
+[issues](https://github.com/NaimElijah/UpHealther/issues).
 
 ---
 
@@ -585,13 +588,18 @@ Corrections and questions are welcome as [issues](https://github.com/NaimElijah/
 
 > [!IMPORTANT]
 > UpHealther is **source-available, not open source**. Reading, reviewing and evaluating it is the
-> whole of the permission granted — it may not be used, copied, modified, run or redistributed.
+> whole of the permission granted, and evaluating includes running an unmodified copy on your own
+> computer. It may not be used, copied, modified, deployed or redistributed, and a running copy must
+> not be reachable by anyone else.
 
-**Copyright © 2026 Naim Elijah. All rights reserved.** Anything beyond reading — using, copying,
-modifying, running, deploying, redistributing, or training a model on it — needs written permission,
-via [github.com/NaimElijah](https://github.com/NaimElijah); an unanswered request is a refused one.
-[`LICENSE`](LICENSE) carries the terms that govern. Third-party dependencies remain under their own;
-the SPA's notices are written by the build and served at `/THIRD-PARTY-NOTICES.txt`
+**Copyright © 2026 Naim Elijah. All rights reserved.** Anything beyond that — using, copying,
+modifying, running it for another purpose, deploying, redistributing, or training a model on it —
+needs written permission, via [github.com/NaimElijah](https://github.com/NaimElijah); an unanswered
+request is a refused one. [`LICENSE`](LICENSE) carries the terms that govern, and its §3.4 the
+permission to run a copy
+([ADR-084](docs/ADRs/ADR-084-the-licence-permits-running-an-unmodified-copy-to-evaluate-it.md)).
+Third-party dependencies remain under their own; the SPA's notices are written by the build and
+served at `/THIRD-PARTY-NOTICES.txt`
 ([ADR-059](docs/ADRs/ADR-059-the-bundle-ships-its-third-party-notices.md)). The common-password list
 is SecLists' data under its MIT licence, whose notice ships beside it and in the jar
 ([ADR-071](docs/ADRs/ADR-071-registration-refuses-the-most-common-passwords.md)).
