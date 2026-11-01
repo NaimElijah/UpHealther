@@ -372,7 +372,7 @@ The limitations below are load-bearing rather than accidental:
 Five open epics track what comes next: production on AWS ([#198](https://github.com/NaimElijah/UpHealther/issues/198)),
 public sign-up ([#199](https://github.com/NaimElijah/UpHealther/issues/199)), a visual identity
 ([#226](https://github.com/NaimElijah/UpHealther/issues/226)), learning from a user's own history
-that proves it gives no medical advice ([#271](https://github.com/NaimElijah/UpHealther/issues/271)),
+while proving it gives no medical advice ([#271](https://github.com/NaimElijah/UpHealther/issues/271)),
 and the rest of the repository baseline ([#197](https://github.com/NaimElijah/UpHealther/issues/197)).
 Sharing and a public API are non-goals ([§5](docs/requirements/requirements.md#5-non-goals)).
 
