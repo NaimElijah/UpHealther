@@ -64,8 +64,11 @@ class DemoAccountSeedContractTest {
     /** The variable Boot binds to {@code spring.flyway.callback-locations}. */
     private static final String CALLBACK_LOCATIONS_VARIABLE = "SPRING_FLYWAY_CALLBACK_LOCATIONS";
 
-    /** A Flyway SQL callback's file name, capturing its event: {@code afterMigrate__x.sql} is afterMigrate. */
-    private static final Pattern CALLBACK_SCRIPT = Pattern.compile("^(\\w+?)__\\w+\\.sql$");
+    /**
+     * A Flyway SQL callback's file name, capturing its event: {@code afterMigrate__x.sql} and
+     * {@code afterMigrate.sql} are both afterMigrate, since Flyway takes a callback with no description too.
+     */
+    private static final Pattern CALLBACK_SCRIPT = Pattern.compile("^(\\w+?)(?:__\\w+)?\\.sql$");
 
     /** What the jar is built from, relative to the repository root. */
     private static final String JAR_RESOURCES = "backend/src/main/resources";
@@ -146,7 +149,7 @@ class DemoAccountSeedContractTest {
                 .isNotEmpty();
         assertThat(fileNames)
                 .as(
-                        "every file in %s must be a Flyway SQL callback, <event>__<name>.sql: a callback location"
+                        "every file in %s must be a Flyway SQL callback, <event>[__<name>].sql: a callback location"
                                 + " is read for nothing else, so a V or R migration there never runs",
                         SEED_DIRECTORY)
                 .allMatch(DemoAccountSeedContractTest::isCallbackScript);
@@ -219,7 +222,9 @@ class DemoAccountSeedContractTest {
     @Test
     void GivenScriptNames_WhenEachIsCheckedForACallback_ThenOnlyOneNamedForAFlywayEventPasses() {
         assertThat(isCallbackScript("afterMigrate__demo_account.sql")).isTrue();
+        assertThat(isCallbackScript("afterMigrate.sql")).isTrue();
         assertThat(isCallbackScript("V21__demo_account.sql")).isFalse();
+        assertThat(isCallbackScript("V21.sql")).isFalse();
         assertThat(isCallbackScript("R__demo_account.sql")).isFalse();
         assertThat(isCallbackScript("afterMigrateNow__demo_account.sql")).isFalse();
         assertThat(isCallbackScript("afterMigrate__demo_account.txt")).isFalse();
