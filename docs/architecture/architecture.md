@@ -1069,8 +1069,8 @@ nullable components unset, and reads every request as its generated type spells 
 `toString()`, an extra getter, a module or a global inclusion setting cannot make the API's JSON
 differ from its generated type. `src/types/index.ts` gives the generated
 types the frontend's names (`HealthUpgrade` for `UpgradeDto`, and so on), and adds by intersection
-only what the API does not send. The same test fails if that file declares an interface, an object
-type or an enum union of its own. So a wire change reaches the frontend as a `tsc` error at each use rather than as
+only what the API does not send. `FrontendWireTypesContractTest` also fails if that file declares an
+interface, an object type or an enum union of its own. So a wire change reaches the frontend as a `tsc` error at each use rather than as
 a runtime surprise.
 
 Calls are not covered: each `src/api/*.ts` function still pairs its method and path with its types
