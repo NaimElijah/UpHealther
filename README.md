@@ -191,57 +191,20 @@ a working default, so no `.env` is needed to start — copy `.env.example` to `.
 
 ## 🔩 Configuration
 
-Mirrors [`.env.example`](.env.example). Nothing needs setting to run locally. **Only `JWT_SECRET` is
-required:** the application has no default for it, so a deployment without one refuses to start;
-locally, compose and [`backend/config/application.yml`](backend/config/application.yml) supply a
-published development key
-([ADR-042](docs/ADRs/ADR-042-the-jar-carries-no-jwt-signing-key.md)). `ADMIN_BOOTSTRAP_USER_ID` is
-empty by default, and empty means do nothing. The defaults of the other two, a published password and
-the compose network's proxy address, suit the local stack only, so any non-local run must change them.
+The four variables a deployment reads first, from [`.env.example`](.env.example). Nothing needs
+setting to run locally. **Only `JWT_SECRET` is required:** it has no default, so a deployment
+without one refuses to start; locally, compose and `backend/config/` supply a published development
+key ([ADR-042](docs/ADRs/ADR-042-the-jar-carries-no-jwt-signing-key.md)). `ADMIN_BOOTSTRAP_USER_ID` is
+empty by default, and empty means do nothing. The other two defaults suit the local stack only.
 
 | Variable | Purpose | Default | Required |
 |---|---|---|:-:|
-| `POSTGRES_PASSWORD` | The compose PostgreSQL's superuser password, which the backend never uses; a native run reads `DB_PASSWORD` | `healthupgrades` | No |
-| `JWT_SECRET` | Token signing key; the application refuses to start without one, or on one under 256 bits | none — compose and `backend/config/` supply a published dev key | Yes |
-| `ADMIN_BOOTSTRAP_USER_ID` | An existing account promoted to `ADMIN` at startup while no administrator exists — an id, not an email, because registration is open | empty: do nothing | No |
-| `TRUSTED_PROXIES` | Java regex for the hop allowed to set `X-Forwarded-For`, `X-Forwarded-Host` and `X-Forwarded-Port`; widen it and a caller picks the address the rate limit counts, and the host and port the API believes it was reached on | nginx on the compose network | No |
+| `POSTGRES_PASSWORD` | The compose PostgreSQL's superuser password | `healthupgrades` | No |
+| `JWT_SECRET` | Token signing key, at least 256 bits | none; compose and `backend/config/` supply a dev key | Yes |
+| `ADMIN_BOOTSTRAP_USER_ID` | Account id promoted to `ADMIN` while no administrator exists | empty: do nothing | No |
+| `TRUSTED_PROXIES` | Java regex for the hop trusted to set `X-Forwarded-*` | nginx on the compose network | No |
 
-<details>
-<summary>The other sixteen variables, and ten, plus one old name, that live only in <code>application.yml</code></summary>
-
-None of these is required. They are in `.env.example` order. `docker-compose.yml` does not pass
-four of them through, so they take effect on a native run only — marked *native* — and sets `DB_URL`, `DB_USERNAME` and `DB_PASSWORD`
-itself from `POSTGRES_*`.
-
-| Variable | Purpose | Default |
-|---|---|---|
-| `POSTGRES_DB` | Database name created by the compose Postgres | `healthupgrades` |
-| `POSTGRES_USER` | The superuser created by the compose Postgres | `healthupgrades` |
-| `POSTGRES_APP_USER`, `POSTGRES_APP_PASSWORD` | The role the compose backend connects as, created on an empty volume and owning the database only ([ADR-069](docs/ADRs/ADR-069-the-compose-backend-connects-as-a-role-that-owns-its-database.md)) | `healthupgrades_app` |
-| `JWT_ACCESS_TOKEN_TTL` | How long an access token is accepted; the SPA renews it, so this is not the session's length. Between `1m` and `1h`, or the backend refuses to start | `15m` |
-| `AUTH_SESSION_IDLE` | A session lapses after this long unused; each refresh slides it forward. At least `1h` and at most `AUTH_SESSION_ABSOLUTE` | `7d` |
-| `AUTH_SESSION_ABSOLUTE` | No session outlives this, however often it is refreshed. Between `1h` and `90d` | `30d` |
-| `AUTH_RATE_LIMIT` | Sign-in and registration attempts per client address per window — *native* | `10` |
-| `AUTH_RATE_LIMIT_WINDOW` | The window that limit counts over — *native* | `1m` |
-| `DB_URL` | JDBC URL; compose points it at its own Postgres | `jdbc:postgresql://localhost:5432/healthupgrades` |
-| `DB_USERNAME`, `DB_PASSWORD` | Credentials the backend connects with; compose sets them from `POSTGRES_APP_USER` and `POSTGRES_APP_PASSWORD`, and a native run's default is the compose PostgreSQL's superuser | `healthupgrades` |
-| `CORS_ALLOWED_ORIGINS` | Cross-origin callers and `/ws` handshake origins; unused behind the proxy — *native* | `http://localhost:3000` |
-| `SPRING_PROFILES_ACTIVE` | `json-logs` writes one JSON object per line; compose sets it | empty locally |
-| `LOG_LEVEL_APP` | Level for `com.healthupgrades` only | `INFO` |
-| `VITE_API_URL` | API origin for the SPA; empty uses the same-origin `/api` proxy — *native*, the image takes no build argument | empty |
-
-Compose passes none of the next ten either. Every cron is read in UTC, whatever the host's zone
-([ADR-020](docs/ADRs/ADR-020-the-server-keeps-time-in-utc.md)): `UPGRADE_OVERDUE_CRON`
-(`0 0 8 * * *`; `application.yml` still honours its old name, `NOTIFY_OVERDUE_CRON`, when this one is unset),
-`NOTIFY_CHECKIN_CRON` (`0 0 18 * * *`), `NOTIFY_REMINDERS_CRON` (`0 * * * * *`),
-`AUTH_SESSION_CLEANUP_CRON` (`0 30 3 * * *`) and `NOTIFY_RETENTION_CRON` (`0 45 3 * * *`, which deletes
-notifications older than ninety days, [ADR-075](docs/ADRs/ADR-075-notifications-are-kept-for-ninety-days.md));
-then `AUTH_SESSION_ROTATION_GRACE` (`10s`, between `0s` and `1m`),
-`AUTH_RATE_LIMIT_MAX_CLIENTS` (`10000`), and the refresh and sign-out limit, counted apart from
-sign-in's: `AUTH_SESSION_RATE_LIMIT` (`60`), `AUTH_SESSION_RATE_LIMIT_WINDOW` (`1m`) and
-`AUTH_SESSION_RATE_LIMIT_MAX_CLIENTS` (`10000`).
-
-</details>
+The other twenty-six variables, none required: [architecture.md](docs/architecture/architecture.md#the-other-configuration-variables).
 
 ## 📖 Usage
 
