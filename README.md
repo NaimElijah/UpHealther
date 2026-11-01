@@ -29,7 +29,7 @@ flowchart LR
     subgraph backend["Backend container · Spring Boot :8080"]
         rest["REST controllers"]
         stomp["STOMP endpoint /ws"]
-        jobs["Scheduled jobs<br/>overdue · check-in · reminders · sessions"]
+        jobs["Scheduled jobs<br/>overdue · check-in · reminders · sessions · retention"]
         core["Domain + application core"]
     end
 
@@ -72,8 +72,9 @@ and every one of those moves is a guarded transition rather than an editable sta
 
 - Create an upgrade — a habit, one-off action, routine, goal, experiment, product replacement,
   learning task, or medical or preventive errand — and file it under a health area you define
-- Move it through a lifecycle the domain guards: `IDEA → PLANNED → ACTIVE ⇄ PAUSED → COMPLETED /
-  ABANDONED`, where an illegal move is a 422 with a reason rather than a silent write
+- Move it through a lifecycle the domain guards: `IDEA → PLANNED → ACTIVE ⇄ PAUSED`, then
+  `ACTIVE → COMPLETED`, and any open state `→ ABANDONED`, where an illegal move is a 422 with a
+  reason rather than a silent write
 - Run each upgrade from its own page — edit or reschedule it, choose how it is measured, log the
   day, read its streak, set its reminders, and reflect on what worked and what to adjust
 - Measure it as boolean, numeric, rating or text, and the server scores every entry against that
@@ -140,7 +141,7 @@ Seven diagrams, outside in: [arch-diagrams](docs/architecture/arch-diagrams/READ
 | Build | Vite, on Node | 8.3.4 / 24.22.0 | The same `/api` and `/ws` proxy in dev as nginx serves in prod ([ADR-031](docs/ADRs/ADR-031-the-frontend-toolchain-runs-on-node-24-lts.md), [ADR-036](docs/ADRs/ADR-036-the-frontend-builds-on-vite-8-and-tests-on-vitest-5.md)) |
 | Data fetching | TanStack Query | 5.104.3 | One cache, refreshed by every write rather than refetched by hand ([ADR-029](docs/ADRs/ADR-029-a-write-to-an-upgrade-refreshes-every-view-of-upgrades.md)) |
 | Styling | Tailwind CSS | 3.4.19 | Semantic tokens only — `npm run check:colours` fails on a palette shade; held on 3 until [#369](https://github.com/NaimElijah/UpHealther/issues/369) ([ADR-060](docs/ADRs/ADR-060-dependabot-holds-the-tailwind-and-typescript-majors-back.md)) |
-| Real-time | STOMP over WebSocket | 7.5.0 | Push authenticates with the same token, through a channel interceptor |
+| Real-time | STOMP over WebSocket, `@stomp/stompjs` client | 7.5.0 | The broker is Spring's in-memory simple broker; push authenticates with the same token, through a channel interceptor |
 | Backend tests | JUnit, ArchUnit, Testcontainers | 6.0.3 / 1.5.1 / 2.0.5 | A real PostgreSQL in the integration suite; architecture rules as ordinary tests ([ADR-008](docs/ADRs/ADR-008-testcontainers-for-the-integration-test-database.md)) |
 | Frontend tests | Vitest, on jsdom | 5.0.5 / 30.1.3 | Colocated with the code they test |
 | Smoke test | Playwright, in Chromium | 1.64.1 | One browser run through the composed stack, inside the image check ([ADR-052](docs/ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md)) |
@@ -148,7 +149,7 @@ Seven diagrams, outside in: [arch-diagrams](docs/architecture/arch-diagrams/READ
 
 ## 🚀 Quick start
 
-**Prerequisites:** Docker 24+ with Compose v2, and on Linux Docker Engine 28.3.3 or later, for the reason
+**Prerequisites:** Docker with Compose v2, and on Linux Docker Engine 28.3.3 or later, for the reason
 below. Nothing else — the toolchain runs in containers.
 
 ```bash
@@ -158,7 +159,11 @@ docker compose up --build   # with Node installed, `npm start` runs the same com
 
 Frontend at **http://localhost:3000**, API at **http://localhost:8080**. Compose waits for the
 backend to report *ready* before starting the frontend, so the first page load is never proxied to
-an API still migrating its schema — expect roughly a minute on a cold build. All three ports are
+an API still migrating its schema. Once the images exist, all three services were healthy 55 seconds
+after `docker compose up` on a fresh volume (measured 2026-11-01); the first build takes longer, and CI
+builds both images, starts the stack and runs the browser suite in about three minutes
+([ADR-052](docs/ADRs/ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md)).
+The page is ready when `docker compose ps` shows all three services `healthy`. All three ports are
 published on `127.0.0.1` only, because their defaults are published credentials: another device on
 your network cannot reach the stack. On Linux that holds from Docker Engine 28.3.3: before 28.0.0 a
 neighbouring host could reach a port published on loopback, and before 28.3.3 a firewalld reload
@@ -186,25 +191,26 @@ a working default, so no `.env` is needed to start — copy `.env.example` to `.
 
 ## 🔩 Configuration
 
-Mirrors [`.env.example`](.env.example). Nothing needs setting to run locally. A deployment must set
-these four. `JWT_SECRET` has no default in the application at all, so a deployment without one refuses
-to start; locally, compose and [`backend/config/application.yml`](backend/config/application.yml)
-supply a published development key
-([ADR-042](docs/ADRs/ADR-042-the-jar-carries-no-jwt-signing-key.md)). The other three's defaults suit
-localhost only.
+Mirrors [`.env.example`](.env.example). Nothing needs setting to run locally. **Only `JWT_SECRET` is
+required:** the application has no default for it, so a deployment without one refuses to start;
+locally, compose and [`backend/config/application.yml`](backend/config/application.yml) supply a
+published development key
+([ADR-042](docs/ADRs/ADR-042-the-jar-carries-no-jwt-signing-key.md)). `ADMIN_BOOTSTRAP_USER_ID` is
+empty by default, and empty means do nothing. The defaults of the other two, a published password and
+the compose network's proxy address, suit the local stack only, so any non-local run must change them.
 
-| Variable | Purpose | Default |
-|---|---|---|
-| `POSTGRES_PASSWORD` | The compose PostgreSQL's superuser password, which the backend never uses; a native run reads `DB_PASSWORD` | `healthupgrades` |
-| `JWT_SECRET` | Token signing key; the application refuses to start without one, or on one under 256 bits | none — compose and `backend/config/` supply a published dev key |
-| `ADMIN_BOOTSTRAP_USER_ID` | An existing account promoted to `ADMIN` at startup while no administrator exists — an id, not an email, because registration is open | empty |
-| `TRUSTED_PROXIES` | Java regex for the hop allowed to set `X-Forwarded-For`, `X-Forwarded-Host` and `X-Forwarded-Port`; widen it and a caller picks the address the rate limit counts, and the host and port the API believes it was reached on | nginx on the compose network |
+| Variable | Purpose | Default | Required |
+|---|---|---|:-:|
+| `POSTGRES_PASSWORD` | The compose PostgreSQL's superuser password, which the backend never uses; a native run reads `DB_PASSWORD` | `healthupgrades` | No |
+| `JWT_SECRET` | Token signing key; the application refuses to start without one, or on one under 256 bits | none — compose and `backend/config/` supply a published dev key | Yes |
+| `ADMIN_BOOTSTRAP_USER_ID` | An existing account promoted to `ADMIN` at startup while no administrator exists — an id, not an email, because registration is open | empty: do nothing | No |
+| `TRUSTED_PROXIES` | Java regex for the hop allowed to set `X-Forwarded-For`, `X-Forwarded-Host` and `X-Forwarded-Port`; widen it and a caller picks the address the rate limit counts, and the host and port the API believes it was reached on | nginx on the compose network | No |
 
 <details>
 <summary>The other sixteen variables, and ten, plus one old name, that live only in <code>application.yml</code></summary>
 
-In `.env.example` order. `docker-compose.yml` does not pass four of them through, so they take
-effect on a native run only — marked *native* — and sets `DB_URL`, `DB_USERNAME` and `DB_PASSWORD`
+None of these is required. They are in `.env.example` order. `docker-compose.yml` does not pass
+four of them through, so they take effect on a native run only — marked *native* — and sets `DB_URL`, `DB_USERNAME` and `DB_PASSWORD`
 itself from `POSTGRES_*`.
 
 | Variable | Purpose | Default |
@@ -239,43 +245,57 @@ sign-in's: `AUTH_SESSION_RATE_LIMIT` (`60`), `AUTH_SESSION_RATE_LIMIT_WINDOW` (`
 
 ## 📖 Usage
 
-`POST /api/auth/login` with the demo credentials returns `200` and
-`{ "accessToken": …, "expiresAt": …, "user": { "id", "name", "email", "role", "createdAt" } }`,
-plus a `Set-Cookie` carrying the refresh credential. Export the access token as `$TOKEN`; every call
-below sends it as a bearer. It lasts fifteen minutes: the browser renews it from the cookie unseen,
-and at a terminal you sign in again, or `POST /api/auth/refresh` with the cookie and an
-`X-Requested-With` header.
-
-Create an upgrade — `201`, and it starts in `IDEA` because status moves only through the transition
-endpoints:
+Written for Git Bash or a Linux or macOS shell, with only `curl` and `sed`. The stack from
+[Quick start](#-quick-start) must be running. Sign in as the demo account and keep the access token:
 
 ```bash
-curl -sX POST http://localhost:8080/api/upgrades \
+TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"demo@healthupgrades.com","password":"demo1234"}' \
+  | sed -E 's/.*"accessToken":"([^"]+)".*/\1/')
+```
+
+The login answers `200` with
+`{ "accessToken": …, "expiresAt": …, "user": { "id", "name", "email", "role", "createdAt" } }`, plus
+a `Set-Cookie` carrying the refresh credential, `__Host-refresh_token`. Every call below sends the
+token as a bearer. It lasts fifteen minutes: the browser renews it from the cookie unseen, and at a
+terminal you sign in again, or `POST /api/auth/refresh` with the cookie and an `X-Requested-With`
+header.
+
+Create an upgrade — `201`, and it starts in `IDEA` because status moves only through the transition
+endpoints. The call keeps the new upgrade's `id`:
+
+```bash
+ID=$(curl -s -X POST http://localhost:8080/api/upgrades \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"title":"Walk 8k steps","type":"HABIT","difficulty":"MEDIUM"}'
+  -d '{"title":"Walk 8k steps","type":"HABIT","difficulty":"MEDIUM"}' \
+  | sed -E 's/^\{"id":"([^"]+)".*/\1/')
 ```
 
 The response carries all eighteen fields of the upgrade — nulls are serialised rather than omitted,
-so a client can rely on every key being present. A complete request-and-response pair is in
-[docs/api.md](docs/api.md#a-created-upgrade-in-full).
+so a client can rely on every key being present. It begins
+`{"id":"bc6e99dd-…","userId":"a0000000-0000-0000-0000-000000000001","areaId":null,"title":"Walk 8k steps",…,"status":"IDEA",…}`.
+A complete request-and-response pair is in [docs/api.md](docs/api.md#a-created-upgrade-in-full).
 
 A move the state machine forbids is refused by the domain, not the controller — `422`, with the
-`traceId` that finds the log line for it:
+`traceId` that finds the log line for it. The upgrade is still an `IDEA`, so it cannot be completed:
 
 ```bash
-curl -sX POST "http://localhost:8080/api/upgrades/0f2c8f5a.../complete" \
+curl -s -X POST "http://localhost:8080/api/upgrades/$ID/complete" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
 ```json
 {
   "message": "Only ACTIVE upgrades can be completed",
-  "path": "/api/upgrades/0f2c8f5a.../complete",
+  "path": "/api/upgrades/bc6e99dd-eae6-4602-a91d-ddfa44dcfcd8/complete",
   "status": 422,
-  "timestamp": "2026-10-17T11:29:50.599299572",
-  "traceId": "c9d0136e444d6791c64f4e0f093b2591"
+  "timestamp": "2026-11-01T17:37:53.7230967",
+  "traceId": "fbaa61c2ef9e6e9c321bd7680d52981e"
 }
 ```
+
+Your `id`, `timestamp` and `traceId` differ.
 
 The rest of the surface — every endpoint, the full status contract, and the error body — is in
 [**docs/api.md**](docs/api.md).
@@ -301,6 +321,10 @@ docker compose up -d postgres               # or bring your own PostgreSQL
 cd backend  && ./mvnw spring-boot:run        # terminal 1 — :8080, migrates on start
 cd frontend && npm run dev                  # terminal 2 — :3000, proxies /api and /ws to :8080
 ```
+
+A native `./mvnw spring-boot:run` listens on every interface while it holds the published signing
+key ([#366](https://github.com/NaimElijah/UpHealther/issues/366)), so on a shared network another
+computer can reach it. Run it only on a network you trust; compose publishes on `127.0.0.1` only.
 
 **Migrations** are Flyway SQL in `backend/src/main/resources/db/migration`, named `V{n}__snake_case.sql`
 and append-only — Hibernate validates the entities against the schema and refuses to start on a
@@ -358,7 +382,9 @@ npm run test:images     # both images build, the stack they make starts healthy,
 ```
 
 `test:images` runs as a throwaway compose project, and takes it down again, so your data volume is
-never touched. It publishes one port for the browser suite in `e2e/`: the frontend's, on
+never touched. It needs Compose 2.24.4 or later, because its override file uses the `!reset` and
+`!override` tags ([`scripts/check-images.mjs`](scripts/check-images.mjs)). It publishes one port for
+the browser suite in `e2e/`: the frontend's, on
 `127.0.0.1:3000`, keeping 3000 because `http://localhost:3000` is the only origin the stack accepts. It
 refuses to start while something already answers there; on a machine where `localhost` is `::1`, a
 running `npm run dev` listens only there and does not collide. Each run registers an account in the
@@ -541,9 +567,11 @@ contribution.
 
 ## 🚦 Status and limitations
 
-**Feature-complete and unshipped.** Every capability above works and is covered by tests at every
-level, and `npm test` is green, but it has never run in a hosted environment. One version names both
-modules ([ADR-050](docs/ADRs/ADR-050-one-version-names-the-whole-repository.md)), and each release
+**Feature-complete and unshipped.** Every capability above is implemented and covered by tests at
+every level, and `npm test` is green, but it has never run in a hosted environment, and some defects
+are known: see the
+[open bugs](https://github.com/NaimElijah/UpHealther/issues?q=is%3Aopen+label%3A%22type%3A+bug%22).
+One version names both modules ([ADR-050](docs/ADRs/ADR-050-one-version-names-the-whole-repository.md)), and each release
 is a `v<version>` tag on `main`, listed in [`CHANGELOG.md`](CHANGELOG.md).
 
 Known limitations, load-bearing rather than accidental:
@@ -564,14 +592,23 @@ Known limitations, load-bearing rather than accidental:
 - **The compose stack signs tokens with a published key** unless `JWT_SECRET` is set.
   `docker-compose.yml` is the local stack, not a deployment; the image itself carries no key
   ([ADR-042](docs/ADRs/ADR-042-the-jar-carries-no-jwt-signing-key.md)).
+- **A native backend run is reachable from the network.** `./mvnw spring-boot:run` listens on every
+  interface while holding the published signing key
+  ([#366](https://github.com/NaimElijah/UpHealther/issues/366)), so on a shared network another
+  computer can reach it, which also breaks the condition of `LICENSE` §3.4. The composed stack binds
+  `127.0.0.1` only.
 - **The demo account ships with a published password**, seeded into every environment by migration:
   convenient for a clone, wrong for anything reachable.
-- **No screenshots yet.** The system-context diagram stands in until the UI is captured.
+- **No screenshots yet.** The container diagram at the top stands in until the UI is captured
+  ([#419](https://github.com/NaimElijah/UpHealther/issues/419)); the system-context diagram is in the
+  [diagrams](docs/architecture/arch-diagrams/README.md#1-system-context).
 
-What comes next is tracked as four open epics: running in production on AWS
+What comes next is tracked as five open epics: running in production on AWS
 ([#198](https://github.com/NaimElijah/UpHealther/issues/198)), readiness for public sign-up
 ([#199](https://github.com/NaimElijah/UpHealther/issues/199)), a visual identity of the interface's
-own ([#226](https://github.com/NaimElijah/UpHealther/issues/226)), and the rest of the repository
+own ([#226](https://github.com/NaimElijah/UpHealther/issues/226)), learning from a user's own history
+while proving it gives no medical advice
+([#271](https://github.com/NaimElijah/UpHealther/issues/271)), and the rest of the repository
 baseline ([#197](https://github.com/NaimElijah/UpHealther/issues/197)). Sharing, accountability
 partners and a public API are **non-goals** rather than backlog
 ([§5](docs/requirements/requirements.md#5-non-goals)).
