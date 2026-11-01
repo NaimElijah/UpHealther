@@ -6,11 +6,13 @@
 spring:
   flyway:
     # The demo account, demo@healthupgrades.com, with a password the README publishes: the callback
-    # db/demo/afterMigrate__demo_account.sql creates it after every migration while it is missing. The
-    # jar carries the script, but names no callback location, so only a run that reads this file, or the
-    # compose stack, which names the same location, ever runs it (ShippedFlywayConfigurationTest).
-    # The tests run from backend/ and so read this file too; PostgresIT empties the location for them.
-    callback-locations: classpath:db/demo
+    # config/db/demo/afterMigrate__demo_account.sql creates it after every migration while it is missing.
+    # A filesystem location, relative to the working directory, which a run that reads this file has as
+    # backend/. The script sits beside this file, so the jar and the image carry neither, and a deployment
+    # that copied this setting would name a folder it does not have (#84). The compose stack mounts the
+    # folder and names the mount. The tests run from backend/ and so read this file too; PostgresIT
+    # empties the location for them.
+    callback-locations: filesystem:config/db/demo
 app:
   jwt:
     # Published, so it gives no security at all: it exists so that a clone runs with no setup.

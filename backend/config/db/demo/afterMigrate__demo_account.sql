@@ -2,18 +2,20 @@
 -- upgrades and four tracking configurations, so a fresh clone has something to look at.
 --
 -- A Flyway callback, not a migration. Flyway runs it after every migrate and never records it in
--- flyway_schema_history, so a database it ran on still validates against a configuration without it. It
--- runs only where spring.flyway.callback-locations names classpath:db/demo: backend/config/application.yml
--- does for a run from backend/, and docker-compose.yml does for the local stack. The jar carries this file,
--- but its own application.yml names no callback location, so no deployment runs it
--- (ShippedFlywayConfigurationTest). It sits beside db/migration, never under it: with no callback location
--- named, Flyway looks for callbacks among the migrations, recursively, and would run it everywhere.
+-- flyway_schema_history, so a database it ran on still validates against a configuration without it.
+--
+-- It lives under backend/config/, which neither the jar nor the image ever contains, as the development
+-- signing key does (ADR-042), and it is read from the filesystem, never the classpath. A run from backend/
+-- names it through backend/config/application.yml, as filesystem:config/db/demo; the compose stack mounts
+-- this folder read-only into the backend container and names the mount. A deployment has neither the file
+-- nor the folder: a callback location copied into one names a directory that is not there, which Flyway
+-- skips with an error in the log, and no account is created (DemoAccountSeedContractTest).
 --
 -- Created whole or not at all. When the account already exists, or another account holds its address, the
 -- block returns before writing anything, so whatever an owner deleted or changed stays that way across
 -- every restart, and an account somebody registered under the address is left alone.
 --
--- Written against today's schema, V1 to V21, and as the domain would write each row, where V2 did not:
+-- Written against the schema as of V21, and as the domain would write each row, where V2 did not:
 -- - an ACTIVE upgrade has a start date, as HealthUpgrade.activate always sets one, where V2's had none.
 --   Each takes its planned start date, which the activate endpoint accepts as the day it started;
 -- - the areas carry V5's emoji, not V2's icon-font names;
@@ -21,7 +23,7 @@
 -- The ids are fixed, and V2's: the rows below name each other by them, and the account's own id is what
 -- makes a second run find it already there.
 
--- Bounds the wait for every lock the inserts take, as every migration bounds its own (ADR-072).
+-- Bounds the wait for every lock the inserts take, as every migration from V10 on bounds its own (ADR-072).
 SET LOCAL lock_timeout = '5s';
 
 DO $$

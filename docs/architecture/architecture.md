@@ -737,7 +737,7 @@ push service, no analytics, no AI service.
 | Dependency | Used for | How it is reached |
 |---|---|---|
 | **PostgreSQL 15** | All persistent state | JDBC from the backend only. Credentials from `DB_URL` / `DB_USERNAME` / `DB_PASSWORD`, which compose fills from `POSTGRES_APP_USER` and `POSTGRES_APP_PASSWORD` |
-| **Flyway** | Schema ownership and migration on startup | Embedded in the backend; every `V{n}` applies in order at boot. An applied migration is never edited — Flyway checksums it, comments included — so a correction is another migration. One callback, `db/demo/afterMigrate__demo_account.sql`, runs after a migrate only where `spring.flyway.callback-locations` names `classpath:db/demo`: a run from `backend/` and the compose stack, never the jar's own configuration ([ADR-085](../ADRs/ADR-085-the-jar-creates-no-account-of-its-own.md)) |
+| **Flyway** | Schema ownership and migration on startup | Embedded in the backend; every `V{n}` applies in order at boot. An applied migration is never edited — Flyway checksums it, comments included — so a correction is another migration. One callback, `backend/config/db/demo/afterMigrate__demo_account.sql`, which the jar and the image do not carry, runs after a migrate only where `spring.flyway.callback-locations` names it as a `filesystem:` location: a run from `backend/`, and the compose stack, which mounts the folder; never the jar's own configuration ([ADR-085](../ADRs/ADR-085-the-jar-creates-no-account-of-its-own.md)) |
 | **Browser WebSocket** | Real-time notification delivery | The `/ws` STOMP endpoint, proxied by nginx (or Vite in development). nginx throttles its handshake per client address, not what an open socket sends (#382, [ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md)) |
 | **nginx** | Serves the built SPA and proxies `/api` and `/ws` | Also where the security headers live — the content security policy, framing and referrer rules, declared for the whole server so that nginx's own error pages under `/api` and `/ws` carry them too ([ADR-018](../ADRs/ADR-018-a-content-security-policy-with-a-hashed-inline-boot-script.md)). Absent from `npm run dev`, which serves no headers |
 | **SecLists' common-password list** | The passwords registration refuses as common (BR-17) | Never reached at run time. `scripts/derive_common_passwords.py` derives 10,000 entries from one pinned file, and the result is committed under `backend/src/main/resources/auth/`, beside the MIT notice that ships with it in the jar ([ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md)) |
@@ -758,9 +758,11 @@ Integration points a maintainer will need:
   [the rest are below](#the-other-configuration-variables); compose derives `DB_URL`, `DB_USERNAME`
   and `DB_PASSWORD` from `POSTGRES_*`. A run from `backend/` reads a published development key from
   `backend/config/application.yml`, which is never packaged, and compose passes the same value
-  ([ADR-042](../ADRs/ADR-042-the-jar-carries-no-jwt-signing-key.md)). That file also names the Flyway
-  callback location of the demo account, and compose sets the same location as the literal
-  `SPRING_FLYWAY_CALLBACK_LOCATIONS`; it is a setting a deployment must not carry, not a variable it reads
+  ([ADR-042](../ADRs/ADR-042-the-jar-carries-no-jwt-signing-key.md)). That file also names the demo
+  account's seed, `spring.flyway.callback-locations: filesystem:config/db/demo`, a folder beside it that
+  is never packaged either. Compose mounts the folder read-only at `/demo-seed` and sets the literal
+  `SPRING_FLYWAY_CALLBACK_LOCATIONS: "filesystem:/demo-seed"`. It is a setting no deployment may carry,
+  not a variable one reads, and on its own it does nothing: the image has no such folder
   ([ADR-085](../ADRs/ADR-085-the-jar-creates-no-account-of-its-own.md)). `CORS_ALLOWED_ORIGINS` and
   `VITE_API_URL` only matter when frontend and API are on different origins. The five cron expressions
   are keyed in `application.yml` under `app.*.schedules.*`, each overridable by the environment variable
@@ -951,16 +953,19 @@ table is built `CONCURRENTLY`, in a file of its own that Flyway runs outside a t
 **The jar creates no account.** `V2` once seeded the demo account, with a published password, into every
 database the application migrated, and `V21` deletes it again, with everything it owns, through the
 `users(id)` cascades. A development run creates it afresh after each migrate, from
-`db/demo/afterMigrate__demo_account.sql`. That script is a Flyway callback, not a migration, so it writes
-no row to `flyway_schema_history`, and a database it ran on validates against a configuration without it.
-It runs only where `spring.flyway.callback-locations` names `classpath:db/demo`, which
-`backend/config/application.yml` and `docker-compose.yml` do and the jar's own `application.yml` never
-does; with the setting absent there is no account. It creates the account whole and only while it is
-missing, so an owner's changes and deletions survive a restart. The directory holds callbacks alone, beside
-`db/migration` and never under it, because Flyway looks for callbacks among the migrations, recursively,
-when no callback location is named. A schema change updates the script in the same commit.
-`ShippedFlywayConfigurationTest` pins the jar's side, `DemoAccountSeedContractTest` the development
-side, and `DemoAccountMigrationIT` what the script does to the schema
+`backend/config/db/demo/afterMigrate__demo_account.sql`. That script is a Flyway callback, not a migration,
+so it writes no row to `flyway_schema_history`, and a database it ran on validates against a configuration
+without it. It sits beside the development signing key's file, so the jar and the image, which are built
+from `src/` and copy the jar alone, never contain it. It runs only where
+`spring.flyway.callback-locations` names it as a `filesystem:` location: `backend/config/application.yml`
+does, relative to `backend/`, and `docker-compose.yml` does for the mount it adds at `/demo-seed`. The jar's
+own `application.yml` never does. With the setting absent there is no account, and with the setting present
+and the folder missing Flyway skips it with an ERROR in the log, so a setting copied into a deployment
+creates nothing. The script creates the account whole and only while it is missing, so an owner's changes
+and deletions survive a restart. The folder holds callbacks alone. A schema change that a seed row meets
+updates the script in the same commit. `ShippedFlywayConfigurationTest` pins the jar's side,
+`DemoAccountSeedContractTest` the development side and that the image carries no seed, and
+`DemoAccountMigrationIT` what the script does to the schema
 ([ADR-085](../ADRs/ADR-085-the-jar-creates-no-account-of-its-own.md); NFR-62).
 
 **Registration's password rules are constraints on the request record.** BR-17's bounds and its
@@ -1274,7 +1279,7 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why nginx throttles the `/ws` handshake although ADR-017 kept sign-in's limit in the application; why there is no cap on open sockets; what a load balancer would need first | [ADR-070](../ADRs/ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md) |
 | Why registration refuses the 10,000 most common passwords from a pinned SecLists file, rather than asking Have I Been Pwned; how the list is derived and filtered; why the refusal is a constraint beside BR-17's minimum | [ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md) |
 | Why every migration from `V10` opens with `SET LOCAL lock_timeout`, and not `spring.flyway.init-sqls`; when an index change must be `CONCURRENTLY`, in a file of its own | [ADR-072](../ADRs/ADR-072-every-migration-bounds-its-lock-wait.md) |
-| Why the jar creates no account and a development run creates the demo account through a Flyway callback, not a repeatable migration, `locations`, a profile or a disabled account; why that setting is not the environment signal ADR-041 and ADR-042 turned down; what would make it unsafe | [ADR-085](../ADRs/ADR-085-the-jar-creates-no-account-of-its-own.md) |
+| Why the jar creates no account and a development run creates the demo account from a seed outside the image, through a Flyway callback, not a classpath location, a repeatable migration, `locations`, a profile or runner, or a disabled account; why that setting is not the environment signal ADR-041 and ADR-042 turned down; what would make it unsafe | [ADR-085](../ADRs/ADR-085-the-jar-creates-no-account-of-its-own.md) |
 | Why every enum column carries a `CHECK` of its constants rather than a PostgreSQL enum type or a lookup table, and which numeric bounds the schema holds; why a child row references its parent by id and owner together, why the area key is left unvalidated, and why the single-column area key stands beside it | [ADR-073](../ADRs/ADR-073-the-schema-refuses-what-the-domain-cannot-hold.md) |
 | How a concurrent write that `@Version` does not cover is handled: a per-user invariant over several rows claimed with an advisory try-lock, refused as a retryable 409 rather than waited for, and a lost check-then-insert race translated in the adapter into a 409; what would make the claim the wrong tool | [ADR-074](../ADRs/ADR-074-concurrent-writes-beyond-the-version-check.md) |
 | Why a notification is deleted ninety days after it was created, by a nightly job in batches of a thousand, at most twenty a night; why not thirty days, the newest fifty, or waiting for the privacy notice | [ADR-075](../ADRs/ADR-075-notifications-are-kept-for-ninety-days.md) |

@@ -53,8 +53,9 @@ import org.testcontainers.utility.DockerImageName;
  * same reason as the rate limit: one value for every {@code *IT}, one context cache key.
  *
  * <p><strong>No demo account.</strong> Maven runs the tests from {@code backend/}, so they read
- * {@code backend/config/application.yml}, which names the Flyway callback that creates the demo account for
- * a run from a checkout (#84). The callback location is emptied here, so the shared database is migrated as
+ * {@code backend/config/application.yml}, which names {@code filesystem:config/db/demo}, the folder of the
+ * Flyway callback that creates the demo account for a run from a checkout; from {@code backend/} that
+ * relative location resolves (#84). The callback location is emptied here, so the shared database is migrated as
  * the jar migrates a deployment's: it holds no account that no test created, and {@code ApplicationContextIT}
  * can show a deployment gets none. Set here, for the same reason as the rate limit. What the callback does
  * is {@code DemoAccountMigrationIT}'s to show, on databases of its own.

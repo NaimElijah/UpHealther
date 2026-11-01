@@ -11,9 +11,9 @@
 -- the account's areas, upgrades, tracking configurations, progress, reflections, reminders, notifications
 -- and sessions go with it, and each session's spent tokens with the session.
 --
--- A development run gets the account back from db/demo/afterMigrate__demo_account.sql, a Flyway callback
--- that only backend/config/application.yml and docker-compose.yml name. The jar's own configuration never
--- does, so no deployment holds it again.
+-- A development run gets the account back from backend/config/db/demo/afterMigrate__demo_account.sql, a
+-- Flyway callback outside the jar and the image, which only backend/config/application.yml and
+-- docker-compose.yml name. No deployment carries the script, so none holds the account again.
 
 -- Bounds the wait for the row locks the delete and its cascades take (ADR-072).
 SET LOCAL lock_timeout = '5s';

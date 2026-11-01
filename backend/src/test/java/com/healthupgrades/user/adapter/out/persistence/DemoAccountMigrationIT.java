@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 import com.healthupgrades.support.PostgresIT;
+import com.healthupgrades.support.RepositoryVersion;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -27,13 +28,16 @@ import org.springframework.security.crypto.password.PasswordEncoder;
  *
  * <p>V2 seeded the account, whose password this repository publishes, into every database, production
  * included. {@code V21__delete_the_seeded_demo_account.sql} deletes it, with everything it owns, and only a
- * development run creates it again, through the Flyway callback in {@code db/demo}, which only a checkout's
- * configuration and the compose stack name as a callback location.
+ * development run creates it again, through the Flyway callback in {@code backend/config/db/demo}, which
+ * only a checkout's configuration and the compose stack name as a callback location, and which neither the
+ * jar nor the image carries.
  *
  * <p>Raw Flyway on databases of their own, as {@code AuthSessionMigrationIT} does: the shared database is
  * already at the latest version, and is migrated without the callback. "Shipped" here means the jar's own
- * settings, the default location and no callback location; "with the demo" adds {@code classpath:db/demo}
- * as the callback location, as {@code backend/config/application.yml} and {@code docker-compose.yml} do.
+ * settings, the default location and no callback location; "with the demo" adds that folder as a
+ * {@code filesystem:} callback location, as {@code backend/config/application.yml} and
+ * {@code docker-compose.yml} do. Named by its absolute path, so the test does not depend on the directory
+ * it runs from.
  */
 class DemoAccountMigrationIT extends PostgresIT {
 
@@ -45,8 +49,11 @@ class DemoAccountMigrationIT extends PostgresIT {
     /** The password the README publishes for the account. */
     private static final String DEMO_PASSWORD = "demo1234";
 
-    /** The callback location that holds the demo account's script. */
-    private static final String DEMO_LOCATION = "classpath:db/demo";
+    /** The callback location that holds the demo account's script, as an absolute filesystem location. */
+    private static final String DEMO_LOCATION = "filesystem:"
+            + RepositoryVersion.repositoryRoot()
+                    .resolve("backend/config/db/demo")
+                    .toAbsolutePath();
 
     /** The last version before the account is deleted, at which V2's account and its rows still exist. */
     private static final String BEFORE_THE_DELETE = "20";
@@ -370,8 +377,16 @@ class DemoAccountMigrationIT extends PostgresIT {
         shipped(database).target(version).load().migrate();
     }
 
+    /**
+     * Fails on a missing location, unlike Boot's default: Flyway would otherwise skip a wrong path with an
+     * error in the log, and each test would fail on its assertions without saying why.
+     */
     private static void migrateWithTheDemo(IsolatedDatabase database) {
-        shipped(database).callbackLocations(DEMO_LOCATION).load().migrate();
+        shipped(database)
+                .callbackLocations(DEMO_LOCATION)
+                .failOnMissingLocations(true)
+                .load()
+                .migrate();
     }
 
     /**

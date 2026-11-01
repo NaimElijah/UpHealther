@@ -94,8 +94,8 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
   and `DB_PASSWORD` override the defaults in `application.yml`. The signing key comes from
   `backend/config/application.yml`, which only a run from `backend/` reads, and `JWT_SECRET` overrides
   it; the jar has none and refuses to start without one (ADR-042). The same file names the demo account's
-  seed as a Flyway callback location, which the jar never does, so no deployment creates the account
-  (ADR-085).
+  seed, `backend/config/db/demo`, as a `filesystem:` Flyway callback location. Neither is packaged, so no
+  deployment has the seed to create the account from (ADR-085).
 - `./mvnw test` — unit, web-slice and architecture tests; **no database, no Docker**.
 - `./mvnw clean verify` — the above, the `*IT` integration tests and the format check. Needs a running
   **Docker daemon**: the ITs start their own PostgreSQL through Testcontainers. What CI runs is the
@@ -127,11 +127,14 @@ application — do not add medical advice/diagnosis features (`requirements.md` 
   Postgres :5432.
 - Demo account after startup: `demo@healthupgrades.com` / `demo1234`, in the compose stack and in a run
   from `backend/`, and nowhere else: the jar creates no account (ADR-085, NFR-62). `V21` deleted what
-  `V2`, `V3` and `V6` wrote, and `db/demo/afterMigrate__demo_account.sql`, a Flyway callback that only
-  those two name through `spring.flyway.callback-locations`, creates it while it is missing. Change the
+  `V2`, `V3` and `V6` wrote, and `backend/config/db/demo/afterMigrate__demo_account.sql`, a Flyway callback
+  outside the jar and the image, creates it while it is missing. Only a run from `backend/`
+  (`filesystem:config/db/demo` in `backend/config/application.yml`) and the compose backend (the folder
+  mounted read-only at `/demo-seed`, named by `SPRING_FLYWAY_CALLBACK_LOCATIONS`) name it. Change the
   account in that script, in the same commit as any schema change it needs, never by a migration, and
-  never edit an applied one (Flyway checksums the comments too). Only callbacks go in `db/demo`, never a
-  `V` or `R` file. Old local databases lose the account's data once and get it back empty.
+  never edit an applied one (Flyway checksums the comments too). Only callbacks go in that folder, never a
+  `V` or `R` file. Old local databases lose the account's data once and get it back as seeded, without
+  what was entered.
 
 A change is ready for a PR when the root `npm test` passes: it runs what CI's four jobs run, the
 backend's `clean verify` and audit, the frontend list above, the diagram check and the image check.
@@ -150,7 +153,7 @@ the other open PRs with a push or a close and reopen.
 - The status enum is `IDEA` (not `DRAFT`); keep backend enum, frontend type, and any seed data in sync
   when touching it. The frontend type is generated from the enum, and `FrontendWireTypesContractTest`
   fails the build until `npm run generate:wire-types` has been run. The seed data is the demo callback in
-  `db/demo`, and `DemoAccountMigrationIT` runs it against the schema's `CHECK` constraints, so a status
+  `backend/config/db/demo`, and `DemoAccountMigrationIT` runs it against the schema's `CHECK` constraints, so a status
   the enum no longer spells fails the build there.
 - The frontend's request and response types are generated from the backend's records, never written by
   hand (NFR-10, ADR-053). A wire record's component that can be null carries JSpecify's `@Nullable`;

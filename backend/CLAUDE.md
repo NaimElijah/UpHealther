@@ -261,8 +261,8 @@ that.
   test of what one migration does to rows written before it cannot use that database, which Flyway has
   already taken to the latest version: it takes one of its own from `PostgresIT.createIsolatedDatabase`
   and migrates it with Flyway's `target`, as `AuthSessionMigrationIT` does. `PostgresIT` also empties
-  `spring.flyway.callback-locations`, which `config/application.yml` names for the demo account when
-  Maven runs from `backend/`, so the shared database holds no account no test created; a test that needs
+  `spring.flyway.callback-locations`, which `config/application.yml` sets to the demo seed when Maven
+  runs from `backend/`, so the shared database holds no account no test created; a test that needs
   the demo account migrates a database of its own with the location, as `DemoAccountMigrationIT` does.
   When an IT fails on a tree that passed elsewhere, reproduce with `-Dfailsafe.runOrder=alphabetical`
   and `reversealphabetical` before re-running anything.
@@ -281,12 +281,15 @@ A new migration opens with `SET LOCAL lock_timeout = '5s';` before any other sta
 `MigrationLockTimeoutContractTest` fails the build. Once production holds data, an index on a populated
 table is built `CONCURRENTLY`, in a file of its own (ADR-072).
 
-`db/demo` holds Flyway **callbacks only**, never a `V` or `R` file: it is a callback location, so a
-migration put there is never applied, and it sits beside `db/migration`, never under it, because Flyway
-scans the migration locations for callbacks too. Its one script, `afterMigrate__demo_account.sql`,
-creates the demo account and runs only where `spring.flyway.callback-locations` names it
-(`config/application.yml`, `docker-compose.yml`); the jar's `application.yml` must never (ADR-085,
-`ShippedFlywayConfigurationTest`). **A schema change that a demo row would meet, such as a new `NOT NULL`
+`config/db/demo` holds Flyway **callbacks only**, never a `V` or `R` file: it is a callback location, so a
+migration put there is never applied. It is outside `src/`, beside the file that holds the development
+signing key, so the jar and the image never carry it, and `DemoAccountSeedContractTest` fails on any SQL in
+`src/main/resources` outside `db/migration`. Its one script, `afterMigrate__demo_account.sql`, creates
+the demo account and runs only where `spring.flyway.callback-locations` names it as a `filesystem:`
+location: `config/application.yml` (`filesystem:config/db/demo`, relative to `backend/`) and
+`docker-compose.yml`, which mounts the folder read-only at `/demo-seed`. The jar's `application.yml`
+must never name one (ADR-085, `ShippedFlywayConfigurationTest`), and no production source may name the
+seed, its setting or the account's id. **A schema change that a demo row would meet, such as a new `NOT NULL`
 column or constraint, updates the script in the same commit**; `DemoAccountMigrationIT` fails on a
 mismatch. The account is never changed by a migration: `V2`, `V3` and `V6` stay as they are and `V21`
 deletes what they wrote.

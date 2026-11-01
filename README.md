@@ -243,7 +243,8 @@ a firewall blocks inbound `:8080`.
 **Migrations.** Flyway SQL in `backend/src/main/resources/db/migration`, named
 `V{n}__snake_case.sql` and append-only: Hibernate validates the entities against the schema and
 refuses to start on a mismatch, so an entity change needs a new migration rather than a `ddl-auto`
-change.
+change, and one a demo row meets updates `backend/config/db/demo` too
+([ADR-085](docs/ADRs/ADR-085-the-jar-creates-no-account-of-its-own.md)).
 
 **Common-password list.** The list that registration refuses (BR-17) is public on purpose: it holds
 passwords that are already public. `scripts/derive_common_passwords.py` derives it again, and
@@ -358,9 +359,9 @@ The limitations below are load-bearing rather than accidental:
   so another computer may reach it, which `LICENSE` §3.4 does not permit. The composed stack binds
   `127.0.0.1` only.
 - **The local stack's demo account has a published password.** Compose and a run from `backend/`
-  create it; the jar and the image never do, so a deployment holds no account anyone did not register,
-  unless its operator names the demo seed's Flyway location, which `docker-compose.yml` does and a
-  deployment must not copy ([ADR-085](docs/ADRs/ADR-085-the-jar-creates-no-account-of-its-own.md)).
+  create it from a seed in `backend/config/`; the jar and the image carry no seed, so a deployment holds
+  no account anyone did not register, even with compose's Flyway setting copied into it
+  ([ADR-085](docs/ADRs/ADR-085-the-jar-creates-no-account-of-its-own.md)).
 - **React, React Router, Tailwind and TypeScript sit a major behind**, held until their migrations
   ([ADR-048](docs/ADRs/ADR-048-dependabot-holds-react-majors-back.md),
   [ADR-060](docs/ADRs/ADR-060-dependabot-holds-the-tailwind-and-typescript-majors-back.md)); React
