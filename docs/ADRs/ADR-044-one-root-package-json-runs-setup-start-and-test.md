@@ -11,7 +11,10 @@
   Chromium; it extends the Prettier scope of
   [ADR-038](ADR-038-the-frontend-is-formatted-by-prettier.md) to the root `package.json` and `scripts/`,
   and folds the "separate CI step" for the frontend tests that
-  [ADR-004](ADR-004-frontend-test-harness.md) names into one step that runs the whole frontend gate
+  [ADR-004](ADR-004-frontend-test-harness.md) names into one step that runs the whole frontend gate. Its
+  "ESLint lints no `.mjs` file anywhere" is superseded by
+  [ADR-056](ADR-056-the-javascript-files-are-linted-too.md), which lints the `.js` and `.mjs` files too,
+  the root `scripts/` among them, through `lint:scripts`
 - **Date:** 2026-10-18
 - **Scope:** the root `package.json`, `scripts/mvnw.mjs`, `scripts/python.mjs`, the `format` and
   `format:check` scripts in `frontend/package.json`, and `.github/workflows/ci.yml`. NFR-52 in
