@@ -204,7 +204,8 @@ localhost only.
 <summary>The other sixteen variables, and ten that live only in <code>application.yml</code></summary>
 
 In `.env.example` order. `docker-compose.yml` does not pass four of them through, so they take
-effect on a native run only — marked *native*.
+effect on a native run only — marked *native* — and sets `DB_URL`, `DB_USERNAME` and `DB_PASSWORD`
+itself from `POSTGRES_*`.
 
 | Variable | Purpose | Default |
 |---|---|---|
