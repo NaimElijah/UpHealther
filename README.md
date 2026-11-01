@@ -143,8 +143,8 @@ working default, so no `.env` is needed to start — copy `.env.example` to `.en
 <details>
 <summary>If it does not come up</summary>
 
-- **`port is already allocated` on 5432** — a host PostgreSQL owns the port. Stop it, or drop the
-  `postgres` service's `ports:` mapping; the backend reaches it over the compose network anyway.
+- **`port is already allocated` on 5432** — a host PostgreSQL owns the port. Stop it while you
+  evaluate: editing `docker-compose.yml` makes the copy modified, which `LICENSE` §3.4 does not cover.
 - **Backend exits, logs mention Flyway, `password authentication failed` or `permission denied`** —
   a stale `postgres_data` volume ([ADR-069](docs/ADRs/ADR-069-the-compose-backend-connects-as-a-role-that-owns-its-database.md)).
   `docker compose down -v` and start again; this deletes the local data, the demo account included,
