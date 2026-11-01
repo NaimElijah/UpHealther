@@ -650,8 +650,8 @@ Three places are worth knowing about because their failures are reported rather 
   and written from an `afterCommit` callback, so it never says "revoked" of a session whose revocation
   rolled back; its `AUTH_TOKEN_REUSE` entry, a refusal, is written at once.
 - **A failed real-time push.** It runs from an `afterCommit` callback, so the notification is already
-  durable; a failure is reported at WARN, by ids and by its own and its root cause's exception
-  types with no stack trace, and the caller carries on.
+  durable; a delivery failure (a `MessagingException`) is reported at WARN, by ids and by its own
+  and its root cause's exception types with no stack trace, and the caller carries on.
 
 ### In the browser
 
