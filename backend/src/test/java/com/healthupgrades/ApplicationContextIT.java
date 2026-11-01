@@ -34,9 +34,13 @@ import org.springframework.orm.jpa.support.OpenEntityManagerInViewInterceptor;
  *       Booting here is what turns that into a build failure.</li>
  * </ul>
  *
- * <p>It also pins two properties of what the shipped configuration builds: open-in-view is off, so a
- * request holds a pooled connection only while one of its transactions runs; and a database it has migrated
- * holds no demo account (#84).
+ * <p>It also pins one property of the context the shipped configuration builds: open-in-view is off, so a
+ * request holds a pooled connection only while one of its transactions runs.
+ *
+ * <p>And one property of the migrations, run through Boot's own Flyway setup: with no callback location,
+ * they leave no demo account, because V21 deletes the one V2 seeds (#84). {@link PostgresIT} empties the
+ * callback location for every {@code *IT}, so this context never sees whether the shipped configuration
+ * names one; {@code ShippedFlywayConfigurationTest} guards that.
  */
 @SpringBootTest
 class ApplicationContextIT extends PostgresIT {
@@ -77,10 +81,14 @@ class ApplicationContextIT extends PostgresIT {
                 .isEmpty();
     }
 
+    /**
+     * V2 still seeds the account on every database, so without V21 anyone could sign in to it wherever the
+     * migrations run. Boot's Flyway migrated this database with {@link PostgresIT}'s empty callback location,
+     * which is what a deployment gets only while its configuration names none; whether the shipped
+     * configuration does is {@code ShippedFlywayConfigurationTest}'s to show, not this case's.
+     */
     @Test
-    void GivenTheShippedFlywaySettings_WhenTheApplicationHasStarted_ThenThereIsNoDemoAccount() {
-        // PostgresIT empties the callback location backend/config/ names, so Flyway ran here as it runs in
-        // a deployment: V2 seeded the account, and V21 must have deleted it, or anyone could sign in to it.
+    void GivenTheMigrationsWithNoCallbackLocation_WhenTheApplicationHasStarted_ThenV21HasRemovedV2sDemoAccount() {
         assertThat(jdbc.queryForObject(
                         "SELECT count(*) FROM users WHERE id = ? OR email = ?", Long.class, DEMO_ACCOUNT, DEMO_EMAIL))
                 .as("accounts holding the demo account's id or address")
