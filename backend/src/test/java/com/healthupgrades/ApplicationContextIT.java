@@ -6,10 +6,12 @@ import com.healthupgrades.support.PostgresIT;
 import com.healthupgrades.tracking.domain.service.ProgressEvaluationService;
 import com.healthupgrades.tracking.domain.service.StreakCalculator;
 import com.healthupgrades.upgrade.domain.service.UpgradeSchedulingService;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.jpa.support.OpenEntityManagerInViewInterceptor;
 
 /**
@@ -34,9 +36,20 @@ import org.springframework.orm.jpa.support.OpenEntityManagerInViewInterceptor;
  *
  * <p>It also pins one property of the context the shipped configuration builds: open-in-view is off, so a
  * request holds a pooled connection only while one of its transactions runs.
+ *
+ * <p>And one property of the migrations, run through Boot's own Flyway setup: with no callback location,
+ * they leave no demo account, because V21 deletes the one V2 seeds (#84). {@link PostgresIT} empties the
+ * callback location for every {@code *IT}, so this context never sees whether the shipped configuration
+ * names one; {@code ShippedFlywayConfigurationTest} guards that.
  */
 @SpringBootTest
 class ApplicationContextIT extends PostgresIT {
+
+    /** The id V2 gave the demo account, which no deployment's database may hold. */
+    private static final UUID DEMO_ACCOUNT = UUID.fromString("a0000000-0000-0000-0000-000000000001");
+
+    /** The demo account's address, which a published password signs in to wherever it exists. */
+    private static final String DEMO_EMAIL = "demo@healthupgrades.com";
 
     @Autowired
     UpgradeSchedulingService upgradeSchedulingService;
@@ -49,6 +62,9 @@ class ApplicationContextIT extends PostgresIT {
 
     @Autowired
     ApplicationContext context;
+
+    @Autowired
+    JdbcTemplate jdbc;
 
     @Test
     void GivenTheRealSchemaAndTheHandWiredBeans_WhenTheApplicationStarts_ThenItComesUpWithBothIntact() {
@@ -63,5 +79,19 @@ class ApplicationContextIT extends PostgresIT {
         // registered every request holds its pooled connection until the response has been written.
         assertThat(context.getBeanNamesForType(OpenEntityManagerInViewInterceptor.class))
                 .isEmpty();
+    }
+
+    /**
+     * V2 still seeds the account on every database, so without V21 anyone could sign in to it wherever the
+     * migrations run. Boot's Flyway migrated this database with {@link PostgresIT}'s empty callback location,
+     * which is what a deployment gets only while its configuration names none; whether the shipped
+     * configuration does is {@code ShippedFlywayConfigurationTest}'s to show, not this case's.
+     */
+    @Test
+    void GivenTheMigrationsWithNoCallbackLocation_WhenTheApplicationHasStarted_ThenV21HasRemovedV2sDemoAccount() {
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM users WHERE id = ? OR email = ?", Long.class, DEMO_ACCOUNT, DEMO_EMAIL))
+                .as("accounts holding the demo account's id or address")
+                .isZero();
     }
 }

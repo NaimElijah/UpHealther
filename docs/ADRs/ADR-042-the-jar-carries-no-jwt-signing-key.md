@@ -1,6 +1,9 @@
 # ADR-042: The jar carries no JWT signing key — a run from the checkout reads one from `backend/config/`
 
-- **Status:** Accepted
+- **Status:** Accepted — its "if #84 introduces such a signal for the demo seed" trigger did not
+  fire: [ADR-085](ADR-085-the-jar-creates-no-account-of-its-own.md) names the seed's Flyway callback
+  location in the same unpackaged `backend/config/application.yml`, a setting whose absence is the
+  deployment's behaviour, not an environment signal
 - **Date:** 2026-10-17
 - **Scope:** `application.yml`, `backend/config/application.yml`,
   `backend/src/test/resources/config/application.yml`, `docker-compose.yml`, `.env.example`,

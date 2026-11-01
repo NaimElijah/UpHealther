@@ -25,7 +25,11 @@ import java.util.stream.Stream;
  */
 final class FlywayMigrations {
 
-    /** Flyway's migration directory, relative to {@code backend/}, where Maven runs the tests. */
+    /**
+     * Flyway's migration directory, relative to {@code backend/}, where Maven runs the tests. Every migration
+     * sits directly in it: Flyway would also run one from a folder beneath it, but {@link #read()} refuses
+     * one there.
+     */
     static final Path DIRECTORY = Paths.get("src", "main", "resources", "db", "migration");
 
     /** A Flyway versioned migration's file name, capturing its version: {@code V10__x.sql} is 10. */
@@ -74,16 +78,42 @@ final class FlywayMigrations {
      * Every migration in {@link #DIRECTORY}, in the order Flyway applies them.
      *
      * @throws UncheckedIOException if the directory cannot be read
-     * @throws IllegalArgumentException if a {@code .sql} file there is not a versioned migration
+     * @throws IllegalArgumentException if a {@code .sql} file there is not a versioned migration, or one sits
+     *     in a folder beneath it
      */
     static List<Migration> read() {
+        return read(DIRECTORY);
+    }
+
+    /**
+     * Every migration in the given directory, in the order Flyway applies them.
+     *
+     * <p>Searches the folders beneath it too, but only to refuse what it finds there. Flyway scans a location
+     * recursively, so a script nested there would run on every database, a callback included (#84); and
+     * every other reader of the migrations, the ER diagram's generator among them, reads the top level
+     * alone, so a nested migration's DDL would be missing from what they check while they passed. One rule
+     * everywhere: every migration sits directly in the directory.
+     *
+     * @param directory where the migrations are
+     * @throws UncheckedIOException if the directory cannot be read
+     * @throws IllegalArgumentException if a {@code .sql} file there is not a versioned migration, or one sits
+     *     in a folder beneath it
+     */
+    static List<Migration> read(Path directory) {
         Map<String, String> sqlByFileName = new LinkedHashMap<>();
-        try (Stream<Path> files = Files.list(DIRECTORY)) {
-            for (Path file : files.filter(p -> p.toString().endsWith(".sql")).toList()) {
+        try (Stream<Path> files = Files.walk(directory)) {
+            for (Path file : files.filter(Files::isRegularFile)
+                    .filter(p -> p.toString().endsWith(".sql"))
+                    .toList()) {
+                if (!file.getParent().equals(directory)) {
+                    throw new IllegalArgumentException(directory.relativize(file)
+                            + " sits in a folder beneath " + directory
+                            + "; every migration belongs directly in it, where every reader looks");
+                }
                 sqlByFileName.put(file.getFileName().toString(), Files.readString(file));
             }
         } catch (IOException e) {
-            throw new UncheckedIOException("could not read the migrations at " + DIRECTORY.toAbsolutePath(), e);
+            throw new UncheckedIOException("could not read the migrations at " + directory.toAbsolutePath(), e);
         }
         return inVersionOrder(sqlByFileName);
     }

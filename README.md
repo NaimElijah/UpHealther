@@ -137,8 +137,9 @@ The page is ready when `docker compose ps` shows all three services `healthy`. T
 published on `127.0.0.1` only, because their defaults are published credentials, so another device
 on your network cannot reach the stack; on Linux that needs Engine 28.3.3 ([ADR-057](docs/ADRs/ADR-057-the-developer-stack-is-reachable-from-this-machine-only.md)).
 
-Sign in with the seeded demo account `demo@healthupgrades.com` / `demo1234`. Every variable has a
-working default, so no `.env` is needed to start — copy `.env.example` to `.env` only to override.
+Sign in with the demo account `demo@healthupgrades.com` / `demo1234`, which the stack creates on
+its first start ([ADR-085](docs/ADRs/ADR-085-the-jar-creates-no-account-of-its-own.md)). Every variable
+has a working default, so no `.env` is needed to start — copy `.env.example` to `.env` only to override.
 
 **If it does not come up.**
 
@@ -147,7 +148,7 @@ working default, so no `.env` is needed to start — copy `.env.example` to `.en
 - **Backend exits, logs mention Flyway, `password authentication failed` or `permission denied`** —
   a stale `postgres_data` volume ([ADR-069](docs/ADRs/ADR-069-the-compose-backend-connects-as-a-role-that-owns-its-database.md)).
   `docker compose down -v` and start again; this deletes the local data, the demo account included,
-  which the migrations seed again.
+  which the next start creates again.
 - **Frontend loads, every call fails** — `curl http://localhost:8080/actuator/health/readiness`.
 
 ## Configuration
@@ -242,7 +243,8 @@ a firewall blocks inbound `:8080`.
 **Migrations.** Flyway SQL in `backend/src/main/resources/db/migration`, named
 `V{n}__snake_case.sql` and append-only: Hibernate validates the entities against the schema and
 refuses to start on a mismatch, so an entity change needs a new migration rather than a `ddl-auto`
-change.
+change, and one a demo row meets updates `backend/config/db/demo` too
+([ADR-085](docs/ADRs/ADR-085-the-jar-creates-no-account-of-its-own.md)).
 
 **Common-password list.** The list that registration refuses (BR-17) is public on purpose: it holds
 passwords that are already public. `scripts/derive_common_passwords.py` derives it again, and
@@ -356,8 +358,10 @@ The limitations below are load-bearing rather than accidental:
   interface while holding that key ([#366](https://github.com/NaimElijah/UpHealther/issues/366)),
   so another computer may reach it, which `LICENSE` §3.4 does not permit. The composed stack binds
   `127.0.0.1` only.
-- **The demo account ships with a published password**, seeded into every environment by migration:
-  convenient for a clone, wrong for anything reachable.
+- **The local stack's demo account has a published password.** Compose and a run from `backend/`
+  create it from a seed in `backend/config/`; the jar and the image carry no seed, so a deployment holds
+  no account anyone did not register, even with compose's Flyway setting copied into it
+  ([ADR-085](docs/ADRs/ADR-085-the-jar-creates-no-account-of-its-own.md)).
 - **React, React Router, Tailwind and TypeScript sit a major behind**, held until their migrations
   ([ADR-048](docs/ADRs/ADR-048-dependabot-holds-react-majors-back.md),
   [ADR-060](docs/ADRs/ADR-060-dependabot-holds-the-tailwind-and-typescript-majors-back.md)); React
