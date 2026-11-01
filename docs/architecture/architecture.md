@@ -10,7 +10,8 @@ rejected, and the conditions that would make us revisit a choice live in [`docs/
 
 UpHealther is a three-process web application: a React single-page app, a Spring Boot HTTP API,
 and a PostgreSQL database. There is no message broker, no cache, no third-party service and no second
-backend — every piece of state lives in the one database. Besides writing to it the API pushes
+backend — every piece of durable state lives in the one database; the rate-limit windows, the registry
+of open sockets and the STOMP broker live in the API's memory. Besides writing to the database the API pushes
 notifications and STOMP ERROR frames to a connected browser, sets and clears the refresh cookie, and
 writes log lines to the console.
 
