@@ -7,7 +7,8 @@
   alternative's revisit trigger fired, and
   [ADR-052](ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md) adds a
   Playwright smoke suite against the composed stack beside this harness, the addition that alternative
-  foresaw. The choice of harness stands.
+  foresaw. The `FrontendEnumContractTest` it names was retired by
+  [ADR-053](ADR-053-the-frontends-wire-types-are-generated-from-the-apis-records.md). The choice of harness stands.
 - **Date:** 2026-08-19
 - **Scope:** `frontend/` only. No effect on the backend, the runtime, or anything that ships to a
   browser — every package added here is a development dependency.

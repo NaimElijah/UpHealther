@@ -2,7 +2,10 @@
 
 - **Status:** Accepted — extended by [ADR-070](ADR-070-nginx-throttles-the-websocket-handshake-per-client-address.md),
   and by [ADR-065](ADR-065-the-backend-hardened-after-scan-05.md), which puts refresh and sign-out behind
-  a second limiter of the same kind, with a map and an allowance of its own
+  a second limiter of the same kind, with a map and an allowance of its own. The window evicted at the
+  cap is not the oldest live one, as the body says: `FixedWindowRateLimiter.evictIfFull` removes whichever
+  window the map's iterator reaches first, and the sweep of expired windows before it runs at most once
+  per window, so the window evicted may be live or expired
 - **Date:** 2026-09-21
 - **Scope:** `backend/` — a `HandlerInterceptor` over the two anonymous authentication endpoints — plus
   the nginx and Tomcat configuration that makes the client address trustworthy. Closes #56. No new

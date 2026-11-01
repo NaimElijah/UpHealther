@@ -84,8 +84,9 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   refresh cookie, which this code cannot read by design.
   A response interceptor treats a 401 as an expired token rather than a lost session: it renews from
   the cookie — single-flight within the tab and across tabs via `navigator.locks`, since rotation
-  makes a credential good for one use — and retries the request once. Only a renewal that fails,
-  refused or unanswered, ends the session and redirects to `/login`; the notification socket's own
+  makes a credential good for one use — and retries the request once. Only a renewal that fails —
+  refused, answered 5xx, or unanswered — ends the session and redirects to `/login` (whether anything
+  but a refusal should is #377); the notification socket's own
   failed renewal does not (ADR-054). A renewal answered 429 has not failed: the limit is per client
   address, so someone else behind it can spend it, and `renewSession` rejects with that 429 instead of
   answering false. The request fails with it, nothing is cleared, and no session ends (ADR-065); keep
@@ -104,7 +105,7 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   ([ADR-066](../docs/ADRs/ADR-066-a-tab-keeps-nothing-of-a-session-that-ended.md)).
   State of a new kind that must not outlive a session registers with `onSessionEnd` too. A 401 from
   `/api/auth/login` or `/api/auth/register` is the form's answer and is left to the page, and a 403
-  ("known, not allowed") never ends a session. See [ADR-015](../docs/ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md).
+  on an ordinary request ("known, not allowed") never ends a session. See [ADR-015](../docs/ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md).
   Every HTTP call in `src/api/*.ts` goes through this client — add new endpoints there, not with raw
   axios. A value interpolated into a path goes through the `apiPath` template tag
   (`` apiPath`/api/upgrades/${id}/plan` ``), never a bare template: React Router decodes `:id`, so a
@@ -166,9 +167,11 @@ releases; nothing checks the e2e copy, which fails CI's `setup:e2e` with EBADENG
   an object type (`export type X = { … }`) or an enum union of its own.
   - Every response key is present, and a missing value is `null`, so test for it with `!= null` (#117).
     Test fixtures follow suit: build them with `src/test/wireFixtures.ts`, which fills every key, and
-    override what the test is about. A date-time on the wire has no offset (`2026-01-14T09:13:02`), so a
-    fixture built from an instant takes `toISOString().slice(0, 19)`: one ending in `Z` is a shape the
-    API never sends, and it hid a notification age read in the browser's zone (#335).
+    override what the test is about. A date-time on the wire has no offset (`2026-01-14T09:13:02`),
+    except the auth response's `expiresAt`, a `java.time.Instant` sent as an ISO-8601 instant ending in
+    `Z`. So a fixture for any other date-time built from an instant takes `toISOString().slice(0, 19)`:
+    one ending in `Z` is a shape the API never sends there, and it hid a notification age read in the
+    browser's zone (#335).
   - Type an inline request body with `satisfies` and its generated request type, as `api/auth.ts` does,
     so a key the endpoint does not take, or a missing one, is a compile error.
 - Styling is Tailwind CSS; reusable primitives are in `src/components/ui/`.

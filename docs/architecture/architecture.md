@@ -1,6 +1,6 @@
 # Architecture
 
-The system as it actually is, at the time of writing. This record describes **what** is built and
+The system as it actually is. This record describes **what** is built and
 **how the pieces fit**; it does not argue for any of it. The reasoning, the alternatives that were
 rejected, and the conditions that would make us revisit a choice live in [`docs/ADRs/`](../ADRs/).
 
@@ -10,8 +10,10 @@ rejected, and the conditions that would make us revisit a choice live in [`docs/
 
 UpHealther is a three-process web application: a React single-page app, a Spring Boot HTTP API,
 and a PostgreSQL database. There is no message broker, no cache, no third-party service and no second
-backend — every piece of state lives in the one database, and every side effect the API performs is
-either a write to it or a message pushed to a connected browser.
+backend — every piece of durable state lives in the one database; the rate-limit windows, the registry
+of open sockets and the STOMP broker live in the API's memory. Besides writing to the database the API pushes
+notifications and STOMP ERROR frames to a connected browser, sets and clears the refresh cookie, and
+writes log lines to the console.
 
 The browser talks to the API over HTTP for everything it reads and writes, and holds an additional
 WebSocket connection that the API uses to push notifications as they are raised. Both travel to the
@@ -73,9 +75,9 @@ Ten contexts, each owning its own vocabulary, plus a cross-cutting `common`.
 | `common` | The `DomainEvent` marker and the `DomainEventPublisher` port; the shared exceptions, including `ConflictException`, which a context subclasses to name its own conflict; the audit trail (`AuditTrail` and `LoggingAuditTrail`); the ports it declares for a context to supply or call, `SessionStatusPort`, `AccountCredentialsPort` and `LiveSocketPort`; the global exception handler; JWT security; the WebSocket configuration and the registry of open sockets; and `observability`, `ratelimit` and `time` | Not a context; a shared kernel plus cross-cutting adapters. It depends on no context, and ArchUnit keeps it that way ([ADR-062](../ADRs/ADR-062-the-shared-kernel-depends-on-no-bounded-context.md)) |
 
 The shapes that differ are deliberate, not drift. `dashboard` is two-layer by design
-([ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)); `auth` began
-that way and gained an aggregate with sessions
-([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md)), so it is now full;
+([ADR-002](../ADRs/ADR-002-close-the-gap-between-the-described-and-enforced-architecture.md)); `auth` is full
+because it owns an aggregate, `AuthSession`
+([ADR-015](../ADRs/ADR-015-server-side-sessions-behind-a-rotating-refresh-cookie.md));
 and `admin` owns no aggregate at all, orchestrating over `user` and `auth`.
 
 A context keeps its adapters under `adapter/in` (what starts work) and `adapter/out` (what work reaches
@@ -343,10 +345,9 @@ of all of them in one call. No application service calls the port, so a use case
 `DashboardWebMapper` maps its embedded upgrades through `UpgradeWebMapper`, so the dashboard inherits
 the read.
 
-The indirection is accepted, and not moved into the use cases. Moving it would change the ten
-`UpgradeService` methods the controller maps, and the dashboard's view, to return an upgrade together
-with its setup: about a dozen signatures, to remove an indirection that is named here instead. The
-cost is that a web mapper does I/O, which a reader of the layering rules would not expect.
+The indirection stays in the web mapper and is not moved into the use cases
+([ADR-064](../ADRs/ADR-064-the-backends-layering-rules-beyond-adr-002.md) records why). The cost is that
+a web mapper does I/O, which a reader of the layering rules would not expect.
 `TrackingConfigQuery`, the port that answers, is not scoped by owner. ArchUnit keeps every dependent of
 it inside `tracking`, every dependent of `UpgradeTrackingSummaryPort` but this mapper and its
 implementer out, and every dependent of this mapper but its two callers out; mechanism 5, above, says
@@ -502,7 +503,7 @@ sequenceDiagram
     end
 ```
 
-Four things worth noticing. The row is read **`FOR UPDATE`**, so two tabs refreshing together
+A few things are worth noticing. The row is read **`FOR UPDATE`**, so two tabs refreshing together
 serialise instead of both rotating from the same starting state. A refresh with the current credential
 reads the account before it rotates, so an account switched off after its session opened, or deleted,
 is signed out at its next refresh at the latest, and every other session it holds with it. That read
@@ -625,11 +626,11 @@ driver's message, row included, on every SQL failure, a handled refusal too.
 policy, [ADR-026](../ADRs/ADR-026-a-scheduled-run-that-threw-is-logged-in-full.md) the exception, and
 [ADR-027](../ADRs/ADR-027-hibernates-sql-exception-logger-is-turned-off.md) the silenced logger.
 
-Three places are worth knowing about because they were silent and are no longer:
+Three places are worth knowing about because their failures are reported rather than swallowed:
 
 - **The scheduled jobs.** Each run is wrapped by `JobMetrics`, which times it and counts its outcome,
-  and each writes one INFO line saying what it found and what it did. A sweep that has been throwing
-  for a week used to look exactly like a sweep with nothing to do. The failure is rethrown rather than
+  and each writes one INFO line saying what it found and what it did. A sweep that throws
+  is counted `failed`, which a sweep with nothing to do is not. The failure is rethrown rather than
   handled, because Spring's scheduler already logs a task that threw and two entries for one fault is
   worse than one. `dispatchReminders` stays silent when nothing is due — otherwise it writes a line a
   minute, all night, and buries the runs that did something.
@@ -649,9 +650,8 @@ Three places are worth knowing about because they were silent and are no longer:
   and written from an `afterCommit` callback, so it never says "revoked" of a session whose revocation
   rolled back; its `AUTH_TOKEN_REUSE` entry, a refusal, is written at once.
 - **A failed real-time push.** It runs from an `afterCommit` callback, so the notification is already
-  durable; the failure is now reported at WARN, by ids and by its own and its root cause's exception
-  types with no stack trace, and the caller carries on, where before one unreachable session cancelled
-  everybody else's reminders for that minute.
+  durable; a delivery failure (a `MessagingException`) is reported at WARN, by ids and by its own
+  and its root cause's exception types with no stack trace, and the caller carries on.
 
 ### In the browser
 
@@ -681,7 +681,7 @@ list, the only read across accounts, which names the administrator and no resour
 `audit.events{action,outcome}` counter from the same call so the two cannot disagree.
 
 An entry is `(action, actorUserId, resourceId, outcome)` — two enums and two identifiers, with **nowhere
-to put free text**, which is how NFR-6 survives contact with twenty-one new call sites. One identifier is
+to put free text**, which is how NFR-6 holds at every call site. One identifier is
 not written as it is: when the resource is an `AUTH_SESSION`, the line carries the first sixteen hex
 characters of the SHA-256 of the session id instead. The owner's id is on the same line, and an account
 paired with a live session of it is the half of a forged token that a signing key alone lacks
@@ -698,9 +698,8 @@ the trail is the only place that attempt exists at all
 ([ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md)). `REFUSED` (the system said no) and
 `FAILED` (the system broke) are separate outcomes because they need separate reactions.
 
-There is no audit table. An entry has to outlive the transaction it observes — a refused transition
-rolls back, and a row written inside it would roll back too — and the trace id already on the line joins
-the entry to its request without a foreign key.
+There is no audit table: an entry is a line on the `AUDIT` logger, and the trace id already on the
+line joins it to its request.
 [ADR-011](../ADRs/ADR-011-audit-as-a-log-stream.md) records the decision, what is deliberately not
 audited, and what would reverse it;
 [ADR-021](../ADRs/ADR-021-what-a-refused-authentication-names-and-what-is-no-attempt.md) records whom a
@@ -753,13 +752,16 @@ Integration points a maintainer will need:
   `spring-boot-maven-plugin` writes into it
   ([ADR-050](../ADRs/ADR-050-one-version-names-the-whole-repository.md)). Nothing else under
   `/actuator` answers.
-- **Environment variables** — `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET` are required in any
-  real deployment, and without `JWT_SECRET` the application refuses to start: the jar carries no
-  signing key. A run from `backend/` reads a published development key from
+- **Environment variables** — `JWT_SECRET` is required in any real deployment, and without it the
+  application refuses to start: the jar carries no signing key. The README's configuration section lists
+  what else a deployment must set; compose derives `DB_URL`, `DB_USERNAME` and `DB_PASSWORD` from
+  `POSTGRES_*`. A run from `backend/` reads a published development key from
   `backend/config/application.yml`, which is never packaged, and compose passes the same value
   ([ADR-042](../ADRs/ADR-042-the-jar-carries-no-jwt-signing-key.md)). `CORS_ALLOWED_ORIGINS` and
-  `VITE_API_URL` only matter when frontend and API are on different origins. The cron expressions are
-  overridable per environment. `.env.example` lists them all.
+  `VITE_API_URL` only matter when frontend and API are on different origins. The five cron expressions
+  are keyed in `application.yml` under `app.*.schedules.*`, each overridable by the environment variable
+  the [README's configuration section](../../README.md#-configuration) names. `.env.example` lists none of
+  them.
 - **CI** — GitHub Actions on every push and PR to `main` and `dev`. Each job runs its part of the gate
   through the root `package.json`, the same scripts `npm test` runs locally
   ([ADR-044](../ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md)): the backend runs `./mvnw verify`,
@@ -914,8 +916,7 @@ at startup: `CommonPasswordPolicy`, in the application layer, loads it through
 `CommonPasswordListPort`, which `ClasspathCommonPasswordList` implements over the classpath, and
 the `@NotCommonPassword` validator asks the policy. Spring builds that validator with the policy
 injected, so a web slice that posts a registration needs the policy bean, which `WebSliceSupport`
-supplies. A missing list, an empty one or one of only blank lines stops the application starting
-([ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md)).
+supplies ([ADR-071](../ADRs/ADR-071-registration-refuses-the-most-common-passwords.md)).
 
 **Every request record and response DTO belongs to the web adapter.** Application services take command
 records from `application/port/in` and return domain objects; a `*WebMapper` per context translates in
@@ -974,8 +975,8 @@ load-bearing rather than tidy. A flex item's `min-width` defaults to `auto`, whi
 min-content width — so a single child that cannot shrink overrules `flex-shrink`, and the column, not
 the child, is what grows past the viewport. `min-w-0` removes that floor and hands the pressure back to
 the content, which is why every user-supplied string in the shell also carries `truncate` or
-`break-words`, and why a health area's icon sits in a fixed clipping box. It replaced an
-`overflow-auto` that was doing the same job invisibly: a flex item whose overflow is not `visible`
+`break-words`, and why a health area's icon sits in a fixed clipping box. `<main>` is not given
+`overflow-auto`, which would do the same job invisibly: a flex item whose overflow is not `visible`
 already has an automatic minimum size of zero. How wide a page may then grow is decided once, in
 `PageContainer`, and not by the pages. See [ADR-005](../ADRs/ADR-005-one-page-width-and-a-shell-that-cannot-overflow.md).
 
@@ -1068,8 +1069,8 @@ nullable components unset, and reads every request as its generated type spells 
 `toString()`, an extra getter, a module or a global inclusion setting cannot make the API's JSON
 differ from its generated type. `src/types/index.ts` gives the generated
 types the frontend's names (`HealthUpgrade` for `UpgradeDto`, and so on), and adds by intersection
-only what the API does not send. The same test fails if that file declares an interface, an object
-type or an enum union of its own. So a wire change reaches the frontend as a `tsc` error at each use rather than as
+only what the API does not send. `FrontendWireTypesContractTest` also fails if that file declares an
+interface, an object type or an enum union of its own. So a wire change reaches the frontend as a `tsc` error at each use rather than as
 a runtime surprise.
 
 Calls are not covered: each `src/api/*.ts` function still pairs its method and path with its types
@@ -1088,8 +1089,8 @@ request body writes to.
 **One character is refused for every field at once.** PostgreSQL refuses U+0000 in any text column, so
 a body carrying one reached the flush and returned 500 with an ERROR line. `NulRefusingStringModule`, a
 Jackson module Boot registers with its mapper, refuses any string a request body carries that holds one,
-which reaches the client as the 400 of a malformed body. It is one module rather than a constraint per
-field so that a field added later is covered without anybody remembering it.
+which reaches the client as the 400 of a malformed body. One module covers every string field, a later
+one included ([ADR-065](../ADRs/ADR-065-the-backend-hardened-after-scan-05.md)).
 
 **The repository's commands are defined once, in the root `package.json`.** `npm run setup`,
 `npm start` and `npm test` are its entry points, and CI's jobs call its `test:*` scripts rather than
@@ -1229,4 +1230,4 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why an upgrade records when it was completed, stamped from the injected clock and backfilled approximately from `updated_at`, rather than restating FR-27 or waiting for #263's lifecycle history | [ADR-080](../ADRs/ADR-080-an-upgrade-records-when-it-was-completed.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
-| How to run, test and deploy it | [`README.md`](../../README.md) |
+| How to run, test and release it | [`README.md`](../../README.md) |
