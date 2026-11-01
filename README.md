@@ -201,7 +201,7 @@ localhost only.
 | `TRUSTED_PROXIES` | Java regex for the hop allowed to set `X-Forwarded-For`, `X-Forwarded-Host` and `X-Forwarded-Port`; widen it and a caller picks the address the rate limit counts, and the host and port the API believes it was reached on | nginx on the compose network |
 
 <details>
-<summary>The other sixteen variables, and ten that live only in <code>application.yml</code></summary>
+<summary>The other sixteen variables, and ten, plus one old name, that live only in <code>application.yml</code></summary>
 
 In `.env.example` order. `docker-compose.yml` does not pass four of them through, so they take
 effect on a native run only — marked *native* — and sets `DB_URL`, `DB_USERNAME` and `DB_PASSWORD`
