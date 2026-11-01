@@ -4,7 +4,8 @@
   [ADR-052](ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md), which adds a
   smoke level above the four: a browser driving both modules together, against the stack built from
   both images. "No real network" holds for it as no network beyond the machine, and it cannot inject
-  the server's `Clock`, so it pins the browser to the server's zone instead
+  the server's `Clock`, so it pins the browser to the server's zone instead; the `FrontendEnumContractTest` it
+  names was retired by [ADR-053](ADR-053-the-frontends-wire-types-are-generated-from-the-apis-records.md)
 - **Date:** 2026-08-25
 - **Scope:** the whole repository — `backend/`, `frontend/`, and what CI gates on.
 
