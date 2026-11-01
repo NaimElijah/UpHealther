@@ -361,8 +361,11 @@ The limitations below are load-bearing rather than accidental:
   `127.0.0.1` only.
 - **The demo account ships with a published password**, seeded into every environment by migration:
   convenient for a clone, wrong for anything reachable.
-- **React, Tailwind and TypeScript sit a major behind**, held until their migrations ([ADR-048](docs/ADRs/ADR-048-dependabot-holds-react-majors-back.md),
-  [ADR-060](docs/ADRs/ADR-060-dependabot-holds-the-tailwind-and-typescript-majors-back.md)).
+- **React, React Router, Tailwind and TypeScript sit a major behind**, held until their migrations
+  ([ADR-048](docs/ADRs/ADR-048-dependabot-holds-react-majors-back.md),
+  [ADR-060](docs/ADRs/ADR-060-dependabot-holds-the-tailwind-and-typescript-majors-back.md)); React
+  Router 6 also while its open advisories do not reach the SPA
+  ([ADR-034](docs/ADRs/ADR-034-stay-on-react-router-6-while-its-open-advisories-do-not-reach-the-spa.md)).
 - **No screenshots yet.** The container diagram at the top stands in until the UI is captured
   ([#419](https://github.com/NaimElijah/UpHealther/issues/419)).
 
