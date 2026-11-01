@@ -61,6 +61,12 @@ services:
       # one, the same value as backend/config/application.yml. This file is the local stack only: a
       # deployment through it would inherit this key unless JWT_SECRET is set.
       JWT_SECRET: ${JWT_SECRET:-local-development-only-published-signing-key-not-a-secret}
+      # Creates the demo account after every migration while it is missing, through the Flyway callback
+      # this service mounts at /demo-seed below, as backend/config/application.yml does for a native run.
+      # The image carries no script, so a deployment that copied this variable names a folder it does
+      # not have, and Flyway creates nothing (#84). A literal, not a variable: this file is the local
+      # stack only, and the demo account is part of what it is for.
+      SPRING_FLYWAY_CALLBACK_LOCATIONS: "filesystem:/demo-seed"
       # Shorten it to watch a token lapse and be renewed without the user noticing.
       JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-15m}
       # How long a session survives unused, and the cap it never outlives however busy it is.
@@ -81,6 +87,10 @@ services:
       # format it: nine unparseable lines ahead of every restart's JSON. Off here and nowhere else -
       # a local run still gets it, and there it is a person reading rather than a parser.
       SPRING_MAIN_BANNER_MODE: "off"
+    # The demo account's seed script, which the image never carries (#84). Read-only: Flyway only reads
+    # it, and nothing the backend runs should be able to rewrite what every later start executes.
+    volumes:
+      - ./backend/config/db/demo:/demo-seed:ro
     depends_on:
       postgres:
         condition: service_healthy

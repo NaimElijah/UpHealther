@@ -4,7 +4,9 @@
   [ADR-057](ADR-057-the-developer-stack-is-reachable-from-this-machine-only.md), which publishes the
   compose stack on `127.0.0.1` only. The cookie it describes is renamed `__Host-refresh_token`, on
   `Path=/`, by [ADR-065](ADR-065-the-backend-hardened-after-scan-05.md); the prefix requires the
-  `Secure` this record fixed
+  `Secure` this record fixed. Its "if #84 introduces such a signal anyway" trigger did not fire:
+  [ADR-085](ADR-085-the-jar-creates-no-account-of-its-own.md) creates the demo account through a Flyway
+  setting that fails safe, not an environment signal
 - **Date:** 2026-10-17
 - **Scope:** `RefreshCookies`, `RefreshCookieProperties`, `application.yml`, `docker-compose.yml`,
   `.env.example`.
