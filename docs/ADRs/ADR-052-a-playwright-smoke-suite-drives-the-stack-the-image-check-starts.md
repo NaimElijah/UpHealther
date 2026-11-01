@@ -2,9 +2,9 @@
 
 - **Status:** Accepted — extended by
   [ADR-059](ADR-059-the-bundle-ships-its-third-party-notices.md), which adds a second test that reads
-  the third-party notices nginx serves. Its "so no shell parses anything, as in `mvnw.mjs`" names the
-  wrong script: on Windows `scripts/mvnw.mjs` runs `mvnw.cmd` through `cmd.exe` (`shell: true`), and
-  `scripts/python.mjs` is the one that spawns without a shell
+  the third-party notices nginx serves. Its "so no shell parses anything, as in `mvnw.mjs`" holds for
+  `scripts/mvnw.mjs` only off Windows: on Windows it runs `mvnw.cmd` through `cmd.exe` (`shell: true`).
+  `scripts/python.mjs` spawns without a shell everywhere
 - **Date:** 2026-10-22
 - **Scope:**
   - `e2e/`: its `package.json`, lockfile, `.npmrc`, `playwright.config.ts` and `tests/smoke.test.ts`;
