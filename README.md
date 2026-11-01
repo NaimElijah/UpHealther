@@ -140,8 +140,7 @@ on your network cannot reach the stack; on Linux that needs Engine 28.3.3 ([ADR-
 Sign in with the seeded demo account `demo@healthupgrades.com` / `demo1234`. Every variable has a
 working default, so no `.env` is needed to start — copy `.env.example` to `.env` only to override.
 
-<details>
-<summary>If it does not come up</summary>
+**If it does not come up.**
 
 - **`port is already allocated` on 5432** — a host PostgreSQL owns the port. Stop it while you
   evaluate: editing `docker-compose.yml` makes the copy modified, which `LICENSE` §3.4 does not cover.
@@ -150,8 +149,6 @@ working default, so no `.env` is needed to start — copy `.env.example` to `.en
   `docker compose down -v` and start again; this deletes the local data, the demo account included,
   which the migrations seed again.
 - **Frontend loads, every call fails** — `curl http://localhost:8080/actuator/health/readiness`.
-
-</details>
 
 ## Configuration
 
