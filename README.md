@@ -376,9 +376,9 @@ Sharing and a public API are non-goals ([§5](docs/requirements/requirements.md#
 
 > [!IMPORTANT]
 > UpHealther is **source-available, not open source**. Reading, reviewing and evaluating it is the
-> whole of the permission granted, and evaluating includes running an unmodified copy on your own
-> computer. It may not be used, copied, modified, deployed or redistributed, and a running copy must
-> not be reachable by anyone else.
+> whole of the permission granted, and evaluating includes running an unmodified copy on a computer
+> you control, provided no other person or computer can reach it. It may not be used, copied,
+> modified, deployed or redistributed.
 
 Copyright © 2026 Naim Elijah. All rights reserved. Anything beyond that — using, copying, modifying,
 running it for another purpose, deploying, redistributing, or training a model on it — needs written
