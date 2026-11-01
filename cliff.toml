@@ -1,6 +1,6 @@
 # How git-cliff writes CHANGELOG.md from the Conventional Commits between release tags. It runs from
-# scripts/compose.changelog.yml, as `npm run changelog -- --tag vX.Y.Z`; the README's Releasing
-# section has the whole procedure. See
+# scripts/compose.changelog.yml, as `npm run changelog -- --tag vX.Y.Z`; docs/releasing.md has the
+# whole procedure. See
 # docs/ADRs/ADR-051-a-release-is-a-tag-on-its-promotion-and-git-cliff-writes-its-changelog.md.
 
 [changelog]

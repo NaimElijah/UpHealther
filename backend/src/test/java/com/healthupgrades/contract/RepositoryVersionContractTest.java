@@ -23,8 +23,8 @@ import tools.jackson.databind.ObjectMapper;
  * <p>The API and the interface ship together and are never released apart, so they carry one version.
  * Four fields spell it: the pom's, {@code frontend/package.json}'s, and the two its lockfile repeats.
  * Nothing else connects them. Maven reads none of the frontend's, and {@code npm ci} does not compare a
- * lockfile's own version with its manifest's. A release sets them with two commands (the README's
- * Releasing section), and this is what fails when one of them was not run.
+ * lockfile's own version with its manifest's. A release sets them with two commands
+ * ({@code docs/releasing.md}), and this is what fails when one of them was not run.
  *
  * <p>{@code CHANGELOG.md} is generated, one section per release, by a command a release can forget or
  * run wrongly, so its shape is checked too.
@@ -81,8 +81,8 @@ class RepositoryVersionContractTest {
 
         assertThat(versionByField)
                 .describedAs(
-                        "every field must name backend/pom.xml's version, %s; the README's Releasing section "
-                                + "sets them together",
+                        "every field must name backend/pom.xml's version, %s; docs/releasing.md sets them "
+                                + "together",
                         version)
                 .allSatisfy((field, value) -> assertThat(value).as(field).isEqualTo(version));
     }
@@ -98,7 +98,7 @@ class RepositoryVersionContractTest {
         assertThat(matches(SECTION_HEADING, read(CHANGELOG)))
                 .describedAs(
                         "the sections of %s, newest first: `npm run changelog -- --tag v%s` writes the "
-                                + "newest (the README's Releasing section)",
+                                + "newest (docs/releasing.md)",
                         CHANGELOG, version)
                 .startsWith(version);
     }
