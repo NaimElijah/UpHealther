@@ -236,8 +236,10 @@ cd frontend && npm run dev              # terminal 2: :3000, proxies /api and /w
 ```
 
 A native `./mvnw spring-boot:run` listens on every interface while it holds the published signing
-key ([#366](https://github.com/NaimElijah/UpHealther/issues/366)); compose binds `127.0.0.1` only.
-Run it on a network you trust.
+key ([#366](https://github.com/NaimElijah/UpHealther/issues/366)), so another computer on your
+network can reach it, and `LICENSE` §3.4 does not cover a copy another computer can reach. To
+evaluate, use Quick start's compose stack, which binds `127.0.0.1` only, or run natively only where
+a firewall blocks inbound `:8080`.
 
 **Migrations.** Flyway SQL in `backend/src/main/resources/db/migration`, named
 `V{n}__snake_case.sql` and append-only: Hibernate validates the entities against the schema and
@@ -354,7 +356,8 @@ The limitations below are load-bearing rather than accidental:
   local stack, not a deployment ([ADR-042](docs/ADRs/ADR-042-the-jar-carries-no-jwt-signing-key.md)).
 - **A native backend run is reachable from the network.** `./mvnw spring-boot:run` listens on every
   interface while holding that key ([#366](https://github.com/NaimElijah/UpHealther/issues/366)),
-  which also breaks the condition of `LICENSE` §3.4. The composed stack binds `127.0.0.1` only.
+  so another computer may reach it, which `LICENSE` §3.4 does not permit. The composed stack binds
+  `127.0.0.1` only.
 - **The demo account ships with a published password**, seeded into every environment by migration:
   convenient for a clone, wrong for anything reachable.
 - **React, Tailwind and TypeScript sit a major behind**, held until their migrations ([ADR-048](docs/ADRs/ADR-048-dependabot-holds-react-majors-back.md),
