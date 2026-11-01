@@ -1,5 +1,5 @@
 # Writes the next release's section of CHANGELOG.md: `npm run changelog -- --tag vX.Y.Z`, one step of
-# the README's Releasing section. See
+# docs/releasing.md. See
 # docs/ADRs/ADR-051-a-release-is-a-tag-on-its-promotion-and-git-cliff-writes-its-changelog.md.
 #
 # git-cliff reads the commits since the newest v* tag, groups them by Conventional Commit type as

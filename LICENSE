@@ -1,5 +1,5 @@
 UpHealther — Proprietary Source-Available License
-Version 1.0
+Version 1.1
 
 Copyright (c) 2026 Naim Elijah. All rights reserved.
 
@@ -7,9 +7,11 @@ Copyright (c) 2026 Naim Elijah. All rights reserved.
 SUMMARY (not part of the licence terms)
 
     This source code is published so that it can be read, reviewed and evaluated.
-    It is not open source. You may look at it. You may not use it, copy it,
-    modify it, run it, or publish it — in whole or in part — without written
-    permission from the copyright holder.
+    It is not open source. You may look at it, and you may run an unmodified copy
+    on a computer you control to evaluate it, provided no other person or
+    computer can reach it (Section 3.4). You may not use it, copy it, modify it,
+    run it for any other purpose, or publish it — in whole or in part — without
+    written permission from the copyright holder.
 
 
 1. DEFINITIONS
@@ -47,15 +49,21 @@ SUMMARY (not part of the licence terms)
     3.1 view and read the Software;
 
     3.2 retain a local copy obtained through the hosting platform's own
-        mechanisms, solely for the purpose of reading and evaluating it; and
+        mechanisms, solely for the purpose of reading and evaluating it;
 
     3.3 quote short excerpts for the purpose of commentary, review, teaching or
         news reporting, provided the Author and this repository are clearly
-        credited.
+        credited; and
+
+    3.4 build and run an unmodified copy of the Software, as the repository's own
+        build files and documentation direct, on a computer under your own
+        control, solely for the purpose of evaluating it, provided that you do
+        not deploy it, host it, offer it as a service, or make it reachable by
+        any other person or by any other computer over a network.
 
     This permission exists so that the Software can be assessed — by prospective
     employers, collaborators, reviewers and the technically curious. It is not
-    permission to use the Software.
+    permission to use the Software for any other purpose.
 
 
 4. RESTRICTIONS
@@ -63,7 +71,8 @@ SUMMARY (not part of the licence terms)
     Except with the prior written permission of the Author, you may NOT:
 
     4.1 use the Software, or any part of it, in any project, product, service or
-        system, whether commercial or non-commercial;
+        system, whether commercial or non-commercial, other than as permitted by
+        Section 3.4;
 
     4.2 copy, reproduce or republish the Software, in whole or in substantial
         part, other than as permitted by Section 3;
@@ -74,7 +83,8 @@ SUMMARY (not part of the licence terms)
         Software or any rights in it;
 
     4.5 deploy, host, execute or operate the Software, including as part of a
-        hosted or network-accessible service;
+        hosted or network-accessible service, other than as permitted by
+        Section 3.4;
 
     4.6 remove, obscure or alter any copyright notice, authorship attribution or
         licence text contained in the Software;

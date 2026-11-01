@@ -754,14 +754,14 @@ Integration points a maintainer will need:
   `/actuator` answers.
 - **Environment variables** — `JWT_SECRET` is required in any real deployment, and without it the
   application refuses to start: the jar carries no signing key. The README's configuration section lists
-  what else a deployment must set; compose derives `DB_URL`, `DB_USERNAME` and `DB_PASSWORD` from
-  `POSTGRES_*`. A run from `backend/` reads a published development key from
+  the four variables a deployment reads first and
+  [the rest are below](#the-other-configuration-variables); compose derives `DB_URL`, `DB_USERNAME`
+  and `DB_PASSWORD` from `POSTGRES_*`. A run from `backend/` reads a published development key from
   `backend/config/application.yml`, which is never packaged, and compose passes the same value
   ([ADR-042](../ADRs/ADR-042-the-jar-carries-no-jwt-signing-key.md)). `CORS_ALLOWED_ORIGINS` and
   `VITE_API_URL` only matter when frontend and API are on different origins. The five cron expressions
   are keyed in `application.yml` under `app.*.schedules.*`, each overridable by the environment variable
-  the [README's configuration section](../../README.md#-configuration) names. `.env.example` lists none of
-  them.
+  [the section below](#the-other-configuration-variables) names. `.env.example` lists none of them.
 - **CI** — GitHub Actions on every push and PR to `main` and `dev`. Each job runs its part of the gate
   through the root `package.json`, the same scripts `npm test` runs locally
   ([ADR-044](../ADRs/ADR-044-one-root-package-json-runs-setup-start-and-test.md)): the backend runs `./mvnw verify`,
@@ -809,6 +809,42 @@ Integration points a maintainer will need:
   a pull request of its own
   ([ADR-051](../ADRs/ADR-051-a-release-is-a-tag-on-its-promotion-and-git-cliff-writes-its-changelog.md)).
   Nothing runs when a tag is pushed.
+
+### The other configuration variables
+
+The [README's configuration table](../../README.md#configuration) lists the four variables a deployment
+reads first. This is the rest: sixteen that `.env.example` also carries, and ten that live only in
+`application.yml`. None is required. `docker-compose.yml` does not pass four of them through, so those
+take effect on a native run only, marked *native*, and it sets `DB_URL`, `DB_USERNAME` and `DB_PASSWORD`
+itself from `POSTGRES_*`.
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `POSTGRES_DB` | Database name created by the compose Postgres | `healthupgrades` |
+| `POSTGRES_USER` | The superuser created by the compose Postgres | `healthupgrades` |
+| `POSTGRES_APP_USER`, `POSTGRES_APP_PASSWORD` | The role the compose backend connects as, created on an empty volume and owning the database only ([ADR-069](../ADRs/ADR-069-the-compose-backend-connects-as-a-role-that-owns-its-database.md)) | `healthupgrades_app` |
+| `JWT_ACCESS_TOKEN_TTL` | How long an access token is accepted; the SPA renews it, so this is not the session's length. Between `1m` and `1h`, or the backend refuses to start | `15m` |
+| `AUTH_SESSION_IDLE` | A session lapses after this long unused; each refresh slides it forward. At least `1h` and at most `AUTH_SESSION_ABSOLUTE` | `7d` |
+| `AUTH_SESSION_ABSOLUTE` | No session outlives this, however often it is refreshed. Between `1h` and `90d` | `30d` |
+| `AUTH_RATE_LIMIT` | Sign-in and registration attempts per client address per window — *native* | `10` |
+| `AUTH_RATE_LIMIT_WINDOW` | The window that limit counts over — *native* | `1m` |
+| `DB_URL` | JDBC URL; compose points it at its own Postgres | `jdbc:postgresql://localhost:5432/healthupgrades` |
+| `DB_USERNAME`, `DB_PASSWORD` | Credentials the backend connects with; compose sets them from `POSTGRES_APP_USER` and `POSTGRES_APP_PASSWORD`, and a native run's default is the compose PostgreSQL's superuser | `healthupgrades` |
+| `CORS_ALLOWED_ORIGINS` | Cross-origin callers and `/ws` handshake origins; unused behind the proxy — *native* | `http://localhost:3000` |
+| `SPRING_PROFILES_ACTIVE` | `json-logs` writes one JSON object per line; compose sets it | empty locally |
+| `LOG_LEVEL_APP` | Level for `com.healthupgrades` only | `INFO` |
+| `VITE_API_URL` | API origin for the SPA; empty uses the same-origin `/api` proxy — *native*, the image takes no build argument | empty |
+
+Compose passes none of the next ten either. Every cron is read in UTC, whatever the host's zone
+([ADR-020](../ADRs/ADR-020-the-server-keeps-time-in-utc.md)): `UPGRADE_OVERDUE_CRON`
+(`0 0 8 * * *`; `application.yml` still honours its old name, `NOTIFY_OVERDUE_CRON`, when this one is
+unset), `NOTIFY_CHECKIN_CRON` (`0 0 18 * * *`), `NOTIFY_REMINDERS_CRON` (`0 * * * * *`),
+`AUTH_SESSION_CLEANUP_CRON` (`0 30 3 * * *`) and `NOTIFY_RETENTION_CRON` (`0 45 3 * * *`, which deletes
+notifications older than ninety days,
+[ADR-075](../ADRs/ADR-075-notifications-are-kept-for-ninety-days.md)); then `AUTH_SESSION_ROTATION_GRACE`
+(`10s`, between `0s` and `1m`), `AUTH_RATE_LIMIT_MAX_CLIENTS` (`10000`), and the refresh and sign-out
+limit, counted apart from sign-in's: `AUTH_SESSION_RATE_LIMIT` (`60`), `AUTH_SESSION_RATE_LIMIT_WINDOW`
+(`1m`) and `AUTH_SESSION_RATE_LIMIT_MAX_CLIENTS` (`10000`).
 
 ---
 
@@ -1230,4 +1266,5 @@ Stated because they are load-bearing, not because they are problems yet:
 | Why an upgrade records when it was completed, stamped from the injected clock and backfilled approximately from `updated_at`, rather than restating FR-27 or waiting for #263's lifecycle history | [ADR-080](../ADRs/ADR-080-an-upgrade-records-when-it-was-completed.md) |
 | Day-to-day conventions when changing backend code | [`backend/CLAUDE.md`](../../backend/CLAUDE.md) |
 | Day-to-day conventions when changing frontend code | [`frontend/CLAUDE.md`](../../frontend/CLAUDE.md) |
-| How to run, test and release it | [`README.md`](../../README.md) |
+| How to run and test it | [`README.md`](../../README.md) |
+| How to cut a release | [`docs/releasing.md`](../releasing.md) |
