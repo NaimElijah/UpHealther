@@ -1,6 +1,6 @@
 package com.healthupgrades.tracking.domain.port.out;
 
-import com.healthupgrades.tracking.domain.model.ProgressEntry; // the aggregate this port persists
+import com.healthupgrades.tracking.domain.model.ProgressEntry;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
@@ -22,7 +22,7 @@ public interface ProgressEntryRepositoryPort {
     /** All progress entries for an upgrade. */
     List<ProgressEntry> findByUpgradeId(UUID upgradeId);
 
-    /** An upgrade's progress entries, newest first (used to compute streaks). */
+    /** An upgrade's progress entries, newest first. */
     List<ProgressEntry> findByUpgradeIdOrderByDateDesc(UUID upgradeId);
 
     /**
@@ -44,6 +44,6 @@ public interface ProgressEntryRepositoryPort {
     /** The ids of every user with at least one entry on a date. */
     Set<UUID> findUserIdsWithEntriesOn(LocalDate date);
 
-    /** A user's progress entries within an inclusive date range (used for weekly rates). */
+    /** A user's progress entries within an inclusive date range. */
     List<ProgressEntry> findByUserIdAndDateBetween(UUID userId, LocalDate start, LocalDate end);
 }

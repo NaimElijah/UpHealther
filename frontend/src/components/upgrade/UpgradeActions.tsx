@@ -33,7 +33,7 @@ const editableFields = (upgrade: HealthUpgrade): CreateUpgradeRequest => ({
   targetEndDate: upgrade.targetEndDate,
 });
 
-/** The states an upgrade can be abandoned from: every one that is not final (BR-2). */
+/** The states an upgrade can be abandoned from: every one but COMPLETED, which is terminal (BR-3), and ABANDONED. */
 const ABANDONABLE: readonly UpgradeStatus[] = ['IDEA', 'PLANNED', 'ACTIVE', 'PAUSED'];
 
 /**
@@ -63,8 +63,9 @@ interface Props {
 
 /**
  * What can be done to an upgrade as a whole from its own page (#89): edit its descriptive fields, in any
- * state (FR-13), abandon it from any state that is not final, and reschedule it once it is past being an
- * idea (FR-12). Rescheduling an abandoned upgrade is also the way back from abandoning it (BR-2).
+ * state (FR-13), abandon it from any state but COMPLETED and ABANDONED, and reschedule it once it is past being an
+ * idea, unless it is COMPLETED (FR-12, BR-3). Rescheduling an abandoned upgrade is also the way back from
+ * abandoning it (BR-2).
  * And delete it, in any state, with everything recorded against it (FR-14).
  *
  * Abandoning and deleting ask first. An abandoned upgrade leaves every list, so a slip would look as

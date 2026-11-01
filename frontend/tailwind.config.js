@@ -12,13 +12,12 @@
  * `'selector'` only landed in 3.4.1, so a fresh install resolving 3.4.0 exactly would break. It also
  * compiles to a `.dark` descendant selector rather than `:where(.dark, .dark *)`, which has zero
  * specificity — the higher specificity is what makes a one-off `dark:` override stick.
- *
- * @type {import('tailwindcss').Config}
  */
 
 /** @param {string} name the token's name, without the `--color-` prefix */
 const token = (name) => `rgb(var(--color-${name}) / <alpha-value>)`;
 
+/** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   darkMode: 'class',

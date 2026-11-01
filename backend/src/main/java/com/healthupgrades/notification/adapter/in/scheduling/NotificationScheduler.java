@@ -27,11 +27,11 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class NotificationScheduler {
 
-    private final NotificationSweepService sweeps; // own application service: the two sweeps
+    private final NotificationSweepService sweeps;
     private final JobMetrics jobMetrics; // times each run and counts how it ended
-    private final Clock clock; // injectable clock for deterministic scheduling
+    private final Clock clock;
 
-    /** Nudges every user who has running upgrades but has logged nothing today. */
+    /** Triggers the daily check-in nudge for today, by the server's zone. */
     @Scheduled(cron = "${app.notifications.schedules.daily-checkin}", zone = ServerZone.ID)
     public void notifyDailyCheckin() {
         jobMetrics.timed(CHECKIN_JOB, () -> sweeps.nudgeDailyCheckin(LocalDate.now(clock)));

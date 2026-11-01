@@ -29,17 +29,20 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Each state change follows the pattern: load the aggregate, invoke the domain method (which guards the
  * transition), save via the repository port, publish a domain event, and return the domain aggregate.
- * Command methods return {@link HealthUpgrade}; the web adapter maps it to a DTO. Implements the
- * {@link UpgradeQuery} inbound port so other contexts read upgrades as domain objects. The sweeps' reads of
- * every user's upgrades are {@link UpgradeSweeps}', not this service's, because controllers hold this one.
+ * Command methods return the saved {@link HealthUpgrade}, except {@code delete}; the web adapter maps it
+ * to a DTO. Implements the {@link UpgradeQuery} inbound port so other contexts read upgrades as domain
+ * objects. The sweeps' reads of every user's upgrades are {@link UpgradeSweeps}', not this service's,
+ * because controllers hold this one.
+ *
+ * <p>The writes are recorded in the audit trail, whether they succeed or are refused (ADR-011).
  */
 @Service
 @RequiredArgsConstructor
 public class UpgradeService implements UpgradeQuery {
 
-    private final UpgradeRepositoryPort repository; // outbound persistence port
-    private final UpgradeSchedulingService schedulingService; // pure domain invariant
-    private final DomainEventPublisher eventPublisher; // in-process domain events
+    private final UpgradeRepositoryPort repository;
+    private final UpgradeSchedulingService schedulingService;
+    private final DomainEventPublisher eventPublisher;
     private final AuditTrail auditTrail; // records the attempt, allowed or refused
     private final HealthAreaQuery healthAreaQuery; // confirms an area is the caller's before filing under it
     private final Clock clock; // decides the start date an activation defaults to, and every event's time
@@ -107,6 +110,9 @@ public class UpgradeService implements UpgradeQuery {
      * <p>Promoting an already-ACTIVE upgrade to HARD is one of the two ways to occupy a HARD slot, so
      * the limit is checked here as well as on activation — and checked before anything is mutated, so a
      * rejected update leaves the aggregate untouched.
+     *
+     * <p>A null difficulty in {@code details} leaves the current difficulty unchanged; it cannot clear one.
+     * The area is re-checked only when it changed. No event is published.
      *
      * @param userId  the owner
      * @param id      the upgrade's identifier
@@ -189,7 +195,8 @@ public class UpgradeService implements UpgradeQuery {
      * @param plannedStartDate the intended start date
      * @return the saved aggregate
      * @throws ResourceNotFoundException if the upgrade does not exist or belongs to somebody else
-     * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if it is not an IDEA
+     * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if it is not an IDEA, or
+     *         {@code plannedStartDate} is null
      */
     @Transactional
     public HealthUpgrade plan(UUID userId, UUID id, LocalDate plannedStartDate) {
@@ -298,12 +305,15 @@ public class UpgradeService implements UpgradeQuery {
     /**
      * Moves an owned upgrade's planned start date, reviving an abandoned one into PLANNED.
      *
+     * <p>Publishes {@link HealthUpgradePlanned} only when an ABANDONED upgrade is revived.
+     *
      * @param userId  the owner
      * @param id      the upgrade's identifier
      * @param newDate the new planned start date
      * @return the saved aggregate
      * @throws ResourceNotFoundException if the upgrade does not exist or belongs to somebody else
-     * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if it is COMPLETED
+     * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if it is COMPLETED, or
+     *         {@code newDate} is null
      */
     @Transactional
     public HealthUpgrade reschedule(UUID userId, UUID id, LocalDate newDate) {
@@ -325,16 +335,14 @@ public class UpgradeService implements UpgradeQuery {
 
     /**
      * Refuses an area the caller does not own (BR-18). An absent area is refused with the same message
-     * as a foreign one, so the answer says nothing about which areas exist; without this, a foreign id
-     * was stored as given and a nonexistent one failed at the flush as a 500.
+     * as a foreign one, so the answer says nothing about which areas exist. Both are a
+     * {@code BusinessRuleException} (422).
      */
     private void requireOwnedArea(UUID userId, UUID areaId) {
         if (areaId != null && !healthAreaQuery.ownsArea(userId, areaId)) {
             throw new BusinessRuleException("Unknown health area");
         }
     }
-
-    // ---- UpgradeQuery (inbound port) ----
 
     /** {@inheritDoc} */
     @Override

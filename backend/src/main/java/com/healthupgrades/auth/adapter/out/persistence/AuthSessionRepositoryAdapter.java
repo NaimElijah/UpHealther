@@ -1,8 +1,8 @@
 package com.healthupgrades.auth.adapter.out.persistence;
 
-import com.healthupgrades.auth.domain.model.AuthSession; // domain aggregate
-import com.healthupgrades.auth.domain.model.SpentCredential; // a credential a rotation retired
-import com.healthupgrades.auth.domain.port.out.AuthSessionRepositoryPort; // the port implemented here
+import com.healthupgrades.auth.domain.model.AuthSession;
+import com.healthupgrades.auth.domain.model.SpentCredential;
+import com.healthupgrades.auth.domain.port.out.AuthSessionRepositoryPort;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
 import java.util.List;
@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
  * Persistence adapter implementing {@link AuthSessionRepositoryPort} by delegating to Spring Data JPA.
  *
  * <p>The adapter exists so the Spring Data interface can stay package-private: the port is the only
- * thing the rest of the application sees, which is what keeps JPA confined to this package.
+ * thing the rest of the application sees, which is what keeps Spring Data confined to this package.
  *
  * <p>The spent credentials are written and read with native SQL rather than as an entity. They are
  * write-once rows the session's lock already serialises, keyed by a digest, and a byte array is no
@@ -25,7 +25,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 class AuthSessionRepositoryAdapter implements AuthSessionRepositoryPort {
 
-    private final AuthSessionJpaRepository jpa; // Spring Data proxy
+    private final AuthSessionJpaRepository jpa;
     private final EntityManager entityManager; // the transaction's, for inserts and the spent credentials
 
     /** {@inheritDoc} */

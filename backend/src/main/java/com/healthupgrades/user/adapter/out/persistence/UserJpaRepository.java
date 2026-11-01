@@ -1,7 +1,7 @@
 package com.healthupgrades.user.adapter.out.persistence;
 
 import com.healthupgrades.user.domain.model.Role;
-import com.healthupgrades.user.domain.model.User; // managed entity
+import com.healthupgrades.user.domain.model.User;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -10,7 +10,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
  * Spring Data JPA repository backing {@link UserRepositoryAdapter}; package-private internal detail.
  */
 interface UserJpaRepository extends JpaRepository<User, UUID> {
-    Optional<User> findByEmail(String email); // derived query: lookup by login email
+    Optional<User> findByEmail(String email);
 
     boolean existsByEmail(String email);
 
@@ -20,5 +20,5 @@ interface UserJpaRepository extends JpaRepository<User, UUID> {
      * <p>{@code AndEnabledTrue} is load-bearing: a disabled administrator is a row that says ADMIN and
      * an installation nobody can administer.
      */
-    boolean existsByRoleAndEnabledTrue(Role role); // derived existence check
+    boolean existsByRoleAndEnabledTrue(Role role);
 }

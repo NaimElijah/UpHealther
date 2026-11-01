@@ -99,12 +99,11 @@ const RegisterPage: React.FC = () => {
       await register(name, email, password);
       navigate('/dashboard', { replace: true });
     } catch (thrown) {
-      // Was a hard-coded "Email may already be in use." for every failure, including a 500 and a
-      // network outage - which sent people looking for an account they had never created. The API
-      // says what went wrong; the trace id is appended so a report about the ones it cannot explain
-      // is worth acting on.
+      // Each failure is shown as toApiError decodes it, so none, a 500 and a network outage included, is passed
+      // off as a taken email; the trace id is appended so a report about the ones it cannot explain is worth
+      // acting on.
       // toFormMessage prefers the field detail: a 400 puts only "Validation failed" in `message` and
-      // the reason in `fieldErrors`, so rendering `message` left somebody who pasted a passphrase past
+      // the reason in `fieldErrors`, so rendering `message` would leave somebody who pasted a passphrase past
       // BCrypt's 72-byte limit with nothing to act on.
       setError(toFormMessage(toApiError(thrown)));
     } finally {

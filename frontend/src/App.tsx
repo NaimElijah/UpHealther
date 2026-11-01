@@ -19,9 +19,8 @@ const queryClient = createQueryClient();
  * puts the theme toggle within reach before anyone has signed in.
  *
  * `ErrorBoundary` sits *inside* the theme and *outside* everything else: inside so its fallback is
- * drawn in the theme the user chose, outside so a throw anywhere below it is contained. Before it,
- * any render-time error unmounted the whole tree to a blank page with nothing to read and nothing to
- * report.
+ * drawn in the theme the user chose, outside so a throw anywhere below it is contained. Without it, any
+ * render-time error unmounts the whole tree to a blank page with nothing to read and nothing to report.
  */
 const App: React.FC = () => (
   <ThemeProvider>

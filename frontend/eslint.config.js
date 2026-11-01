@@ -115,6 +115,8 @@ const SINGLE_OWNER = {
  * @param files  the globs the block applies to, under `src/`
  * @param layer  the index into `LAYERS` of the files' layer, or `LAYERS.length` for the entry modules
  * @param owns   the `SINGLE_OWNER` keys these files are the owner of
+ * @returns a flat-config block for `files`, other than the test files, whose `no-restricted-imports` rule
+ *          carries the layering and every single-owner restriction these files do not own
  */
 function restrictImports({ files, layer, owns = [] }) {
   const above = LAYERS.slice(layer + 1).flat();
@@ -186,8 +188,8 @@ export default defineConfig([
       js.configs.recommended,
       tseslint.configs.recommended,
       reactHooks.configs.flat.recommended,
-      // Vite's preset: `allowConstantExport` as before, plus `allowCompoundComponents`, which
-      // `@vitejs/plugin-react` has supported since 4.7.
+      // Vite's preset: `allowConstantExport` plus `allowCompoundComponents`, which `@vitejs/plugin-react`
+      // has supported since 4.7.
       reactRefresh.configs.vite(),
     ],
     languageOptions: {

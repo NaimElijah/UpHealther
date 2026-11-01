@@ -126,7 +126,7 @@ export function openNotificationSocket({ onNotification, onConnectionChange }: N
     },
     onWebSocketClose: () => onConnectionChange(false),
     // The server ends a socket whose session has ended with this frame (ADR-054), so the tab ends the
-    // session too, at once, rather than showing that session's data until its next request (S5.D2,
+    // session too, at once, rather than showing that session's data until its next request (S5.D2 of #339,
     // ADR-066). `endSession` drops the token, which could still look usable by its clock, empties the
     // query cache and leaves for the sign-in page. Any other ERROR leaves the session alone: a frame the
     // server refused or could not process is answered `Unauthenticated`, `Refused` or `Frame not

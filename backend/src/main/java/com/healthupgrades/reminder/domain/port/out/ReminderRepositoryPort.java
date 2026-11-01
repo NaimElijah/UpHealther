@@ -1,6 +1,6 @@
 package com.healthupgrades.reminder.domain.port.out;
 
-import com.healthupgrades.reminder.domain.model.Reminder; // the aggregate this port persists
+import com.healthupgrades.reminder.domain.model.Reminder;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;

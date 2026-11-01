@@ -63,7 +63,15 @@ public interface AuditTrail {
      * somebody created something without saying what. That is the one question a creation entry exists
      * to answer.
      *
-     * @param createdId reads the new record's id off the result, once there is one
+     * <p>On failure nothing was created, so the entry names no resource, and the exception is rethrown
+     * untouched. {@code createdId} runs inside the same try, so an exception from it is recorded as a
+     * failure of the attempt and rethrown.
+     *
+     * @param action      what is being attempted
+     * @param actorUserId the user attempting it
+     * @param operation   the work to run and observe
+     * @param createdId   reads the new record's id off the result, once there is one
+     * @return whatever the operation returned
      */
     default <T> T recordingCreation(
             AuditAction action, UUID actorUserId, Supplier<T> operation, Function<T, UUID> createdId) {

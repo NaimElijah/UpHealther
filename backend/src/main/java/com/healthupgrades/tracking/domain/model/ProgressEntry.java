@@ -11,7 +11,8 @@ import lombok.*;
  *
  * <p>At most one entry may exist per upgrade per date. That is a domain invariant checked before
  * insertion and backed by V1's {@code uq_progress_upgrade_date}, so a race that slips past the check
- * still fails at the database rather than producing two entries for a day. The
+ * still fails at the database rather than producing two entries for a day. That failure is not
+ * translated: it surfaces as a 500 (BR-6, #146). The
  * {@code @UniqueConstraint} below only describes that constraint: with {@code ddl-auto: validate},
  * Hibernate creates nothing.
  *
@@ -34,6 +35,7 @@ public class ProgressEntry {
     @Column(name = "upgrade_id", nullable = false)
     private UUID upgradeId;
 
+    /** Copy of the owning upgrade's owner; a composite foreign key refuses a mismatch (V13, BR-15). */
     @Column(nullable = false)
     private UUID userId;
 
@@ -62,14 +64,22 @@ public class ProgressEntry {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
-    /** Stamps the creation and update timestamps before the row is first inserted. */
+    /**
+     * Stamps the creation and update timestamps before the row is first inserted.
+     *
+     * <p>Reads the JVM's default zone rather than the injected clock: a known deviation from NFR-15, tracked by
+     * #51 (ADR-020). {@code ServerTimeArchitectureTest} exempts these callbacks, so it does not catch a new one.
+     */
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
 
-    /** Refreshes the update timestamp before each update. */
+    /**
+     * Refreshes the update timestamp before each update, from the JVM's default zone as
+     * {@link #onCreate} does.
+     */
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();

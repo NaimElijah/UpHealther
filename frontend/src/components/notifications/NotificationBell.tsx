@@ -13,10 +13,11 @@ const BADGE_MAX = 9;
  * "Notifications", losing the very thing the badge conveys.
  *
  * It is a disclosure, as the WAI-ARIA Authoring Practices describe one (WCAG 4.1.2): `aria-expanded` says
- * whether the panel is open and `aria-controls` names it, and Escape closes it. Closing it from inside,
- * by Escape, a selection or an action that removes its own button, hands focus back to the bell, which
- * would otherwise fall to `<body>` (2.4.3). A selection that opens a page moves focus on again to that
- * page's heading, after this (ADR-083). An outside click closes it and leaves focus where the click put it.
+ * whether the panel is open and `aria-controls` names it, and Escape closes it. Escape, a selection and
+ * View all close it and hand focus back to the bell, which would otherwise fall to `<body>` (2.4.3). An
+ * action that removes its own button (Mark all read, the desktop prompt) leaves it open and hands focus back to
+ * the bell too. A selection that opens a page moves focus on again to that page's heading, after this
+ * (ADR-083). An outside click closes it and leaves focus where the click put it.
  */
 const NotificationBell: React.FC = () => {
   const { unreadCount } = useNotifications();

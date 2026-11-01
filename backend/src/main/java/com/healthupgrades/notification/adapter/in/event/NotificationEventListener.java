@@ -30,8 +30,8 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * so a notification is only created once the originating transaction has actually committed (no
  * notifications on rollback); events raised by a scheduled scan have no transaction to wait for and use
  * a plain listener. The remaining time-based notifications (check-in, reminders) are produced directly
- * by {@code NotificationSweepService}, on {@code NotificationScheduler}'s crons. Per-progress entries are intentionally not notified (too frequent) —
- * streak milestones cover that.
+ * by {@code NotificationSweepService}, on {@code NotificationScheduler}'s crons. Per-progress entries are
+ * intentionally not notified (too frequent) — streak milestones cover that.
  *
  * <p>Each {@code AFTER_COMMIT} method runs in a transaction of its own ({@code REQUIRES_NEW}). It runs
  * while the committed transaction's resources are still bound to the thread, so a plain

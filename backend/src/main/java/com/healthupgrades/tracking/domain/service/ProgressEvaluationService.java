@@ -33,7 +33,6 @@ public class ProgressEvaluationService {
         Objects.requireNonNull(entry, "entry");
         Objects.requireNonNull(config, "config");
 
-        // The success rule depends on how this upgrade is tracked.
         return switch (config.getTrackingType()) {
             case BOOLEAN -> Boolean.TRUE.equals(entry.getCompleted());
             case NUMERIC ->

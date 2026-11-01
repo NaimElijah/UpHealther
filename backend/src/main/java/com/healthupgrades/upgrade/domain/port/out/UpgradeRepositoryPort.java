@@ -73,7 +73,8 @@ public interface UpgradeRepositoryPort {
      * can count without claiming (ADR-074).
      *
      * <p><strong>Precondition:</strong> a transaction is active. Outside one, the claim would end with the
-     * statement and protect nothing, so the call fails instead.
+     * statement and protect nothing, so the call fails with Spring's {@code IllegalTransactionStateException}
+     * (the claim's {@code MANDATORY} propagation) instead.
      *
      * @param userId the user whose limit is checked
      * @return how many of the user's upgrades are ACTIVE at HARD

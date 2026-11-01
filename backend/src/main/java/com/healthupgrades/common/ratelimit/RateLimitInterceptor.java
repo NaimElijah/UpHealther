@@ -14,7 +14,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
  * <p><strong>A {@link HandlerInterceptor}, not a filter, and not a {@code @Component}.</strong> A
  * filter bean is registered automatically by Boot <em>and</em> by any chain that names it, so it runs
  * twice and counts every attempt as two; it is also pulled into every {@code @WebMvcTest} slice in the
- * codebase, which would put a rate limit in front of ten controller tests that have nothing to do with
+ * codebase, which would put a rate limit in front of controller tests that have nothing to do with
  * authentication. An interceptor is registered once, explicitly, against the paths it is for: one
  * instance per limiter, each with the paths its limiter counts.
  *

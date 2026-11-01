@@ -23,7 +23,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 class UpgradeSweeps implements UpgradeSweepQuery {
 
-    private final UpgradeRepositoryPort repository; // outbound persistence port
+    private final UpgradeRepositoryPort repository;
 
     /** {@inheritDoc} */
     @Override

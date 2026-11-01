@@ -9,11 +9,13 @@ import java.util.UUID;
  * The whole dashboard in one response.
  *
  * <p>Composed rather than stored: every bucket is derived at request time from the user's upgrades,
- * progress entries and health areas. The buckets overlap on purpose — an upgrade can be ACTIVE, due
- * today and overdue at once, and appears in each list it qualifies for. Each is nevertheless serialized
- * from a single mapped instance, so the repeated upgrades are identical rather than merely equal.
+ * progress entries and health areas. The buckets overlap by design: an ACTIVE upgrade is in
+ * {@code activeUpgrades} and, by its dates, may also be in {@code todayUpgrades} (inside its date window)
+ * or {@code overdueUpgrades} (past its target end), never both. One activated with a start date still to
+ * come is in neither. Each is serialized from a single mapped instance, so the repeated upgrades are
+ * identical rather than merely equal.
  *
- * <p>One request replaces the five or so a client would otherwise make to draw the same page.
+ * <p>All of it comes in one response, so the home page needs one request (FR-27).
  *
  * @param activeUpgrades       upgrades currently running
  * @param plannedUpgrades      upgrades committed to a date but not yet started
@@ -23,7 +25,8 @@ import java.util.UUID;
  *                             zero when nothing was logged, which is indistinguishable from all-missed
  * @param streaks              current streak by upgrade id, for running upgrades only
  * @param recentlyCompleted    the five most recently finished upgrades
- * @param areaSummary          per-health-area counts
+ * @param areaSummary          one entry per health area the user has, zero counts included; upgrades filed
+ *                             under no area appear in no entry
  */
 public record DashboardDto(
         List<UpgradeDto> activeUpgrades,

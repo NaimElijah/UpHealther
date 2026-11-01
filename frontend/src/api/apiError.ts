@@ -6,8 +6,7 @@ import axios from 'axios';
  * `traceId` is the point of this module. The backend goes out of its way to produce one — it is on
  * every log line, on the `X-Trace-Id` response header and on the body of every error it builds
  * (NFR-21) — precisely so that somebody reporting a failure can quote one string that finds the
- * request in the log. Discarding it, which is what every call site did before, threw away the only
- * thing that made a bug report actionable.
+ * request in the log. Discarding it throws away the only thing that makes a bug report actionable.
  */
 export interface ApiError {
   /** HTTP status, or `undefined` when the request never got a response at all. */
@@ -24,10 +23,13 @@ export interface ApiError {
  * The sentence to put in front of a user for a failed call, preferring the specific over the general.
  *
  * A validation failure carries its detail in `fieldErrors` and puts only "Validation failed" in
- * `message`, so rendering `message` alone tells somebody that something is wrong and nothing about
- * what — which is what every form here did with the 400s the API started returning for an over-long
- * field or a short password. Field messages come first for that reason, and the trace id is appended
- * only when there is no field detail, because "reference 7f3a..." helps a bug report and not a form.
+ * `message`, so rendering `message` alone would tell somebody that something is wrong and nothing about
+ * what, as with a 400 for an over-long field or a short password. Field messages come first for that
+ * reason, and the trace id is appended only when there is no field detail, because "reference 7f3a..."
+ * helps a bug report and not a form.
+ *
+ * Field errors are listed sorted by field name, each as `Name: message.`, joined by spaces; when `primary` is
+ * among them, its message alone is returned.
  *
  * @param error   a decoded failure from {@link toApiError}
  * @param primary the form's main field, whose message is shown alone when it is the one that failed
@@ -50,8 +52,9 @@ function capitalise(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-/** Shown when the request never reached the API, or reached it and produced nothing to quote. */
+/** Shown when the request got no response at all, so there is no message and no trace id to quote. */
 const UNREACHABLE = 'Could not reach the server. Check your connection and try again.';
+/** Shown for a thrown value that is not an `Error` with a message, and for a response whose body has no message. */
 const UNEXPLAINED = 'Something went wrong.';
 
 /**
@@ -67,7 +70,10 @@ interface ErrorResponseBody {
   traceId?: unknown;
 }
 
-/** Header the backend echoes the trace id on, set before the chain runs so it survives a rejection. */
+/**
+ * Header the backend echoes the trace id on, set before the chain runs so it survives a rejection. Written lower
+ * case: it is read by bracket access, which `apiError.test.ts` pins against a real `AxiosHeaders`.
+ */
 const TRACE_ID_HEADER = 'x-trace-id';
 
 /**
@@ -92,7 +98,8 @@ export function toApiError(thrown: unknown): ApiError {
   const { response } = thrown;
   if (!response) {
     // No response at all: a network failure, a CORS rejection or a timeout. There is no trace id to
-    // quote because nothing on the server ever saw the request.
+    // quote, because the response that would carry one never reached this tab; the server may still
+    // have seen the request.
     return { message: UNREACHABLE };
   }
 

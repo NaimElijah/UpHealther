@@ -49,9 +49,8 @@ const DashboardPage: React.FC = () => {
 
   /**
    * Performs a lifecycle transition from a card, then refreshes every view of upgrades, this one
-   * included. A refusal is shown on the card it was pressed on, with its trace id (NFR-30); before, it
-   * was an unhandled rejection. The section travels with the change because one upgrade can be listed in
-   * two of them.
+   * included. A refusal is shown on the card it was pressed on, with its trace id (NFR-30). The section
+   * travels with the change because one upgrade can be listed in two of them.
    */
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: ActionTarget; section: CardSection }) =>
@@ -220,6 +219,7 @@ const DashboardPage: React.FC = () => {
 
       {areaSummary.length > 0 && (
         <Card header="By Area">
+          {/* Explicit role, for the reason ProgressHistoryPage gives. */}
           <ul role="list" aria-label="Upgrades by area" className="space-y-2">
             {areaSummary.map((a) => (
               <li
@@ -244,6 +244,7 @@ const DashboardPage: React.FC = () => {
             </>
           }
         >
+          {/* Explicit role, for the reason ProgressHistoryPage gives. */}
           <ul role="list" aria-label="Current streaks" className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {runningStreaks.map(({ upgrade, days }) => (
               <li key={upgrade.id} className="bg-streak-soft rounded-lg p-3 text-center">

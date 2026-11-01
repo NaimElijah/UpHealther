@@ -1,6 +1,9 @@
 import { clearAccessToken } from './tokenStore';
 
-/** What the layers above `api/` hand in to forget when a session ends; the query cache is the one. */
+/**
+ * What the layers above `api/` hand in to forget when a session ends: the query cache (`createQueryClient`) and
+ * the mounted application (`main.tsx`).
+ */
 type SessionEndListener = () => void;
 
 const sessionEndListeners = new Set<SessionEndListener>();
@@ -10,7 +13,7 @@ const sessionEndListeners = new Set<SessionEndListener>();
  *
  * It exists because the query cache is built in `lib/`, which `api/` may not import (ADR-061), and a
  * navigation alone does not discard it: a page the back/forward cache keeps is restored with its script
- * state intact (S5.D1). `createQueryClient` registers the cache it builds.
+ * state intact (S5.D1, #339). `createQueryClient` registers the cache it builds.
  *
  * @param listener  called synchronously by `endSession`, once per call. That is not once per session:
  *                  parallel requests whose renewal fails each call it, so a listener must bear running
@@ -53,7 +56,7 @@ export function endSession(): void {
 
 // A page restored from the back/forward cache resumes the script state it was left with: the access
 // token, the query cache and every provider's view of who is signed in, none of which has been checked
-// since (S5.D1). Reloading it makes it start again from the refresh cookie, like any other load, at the
+// since (S5.D1, #339). Reloading it makes it start again from the refresh cookie, like any other load, at the
 // cost of the instant Back the cache would have given.
 window.addEventListener('pageshow', (event) => {
   if (event.persisted) window.location.reload();

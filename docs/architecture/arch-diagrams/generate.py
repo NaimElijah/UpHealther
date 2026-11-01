@@ -8,7 +8,7 @@ already states and would otherwise drift the moment anyone adds an import, a fie
     class-diagram  one bounded context's types and their relations, from the package layout
     er-diagram     the database schema, from the Flyway migrations
 
-The other three are conceptual, do not rot, and are written by hand in the README.
+The other four are conceptual, do not rot, and are written by hand in the README.
 
 Usage:
     python generate.py            rewrite the generated regions of README.md
@@ -76,6 +76,16 @@ LINE_COMMENT = re.compile(r"//[^\n]*")
 STRING_LITERAL = re.compile(r'"(?:\\.|[^"\\])*"')
 
 
+def java_sources() -> list[Path]:
+    """Every Java source in the backend's main tree that declares a type.
+
+    A package-info.java declares none: it holds its package's Javadoc, and no import a dependency could
+    come from. Read as a type, every package's copy would share the one name `package-info`, which
+    `discover_types` refuses.
+    """
+    return [path for path in sorted(JAVA_ROOT.rglob("*.java")) if path.name != "package-info.java"]
+
+
 def code_only(source: str) -> str:
     """Strips comments and string literals, so documentation references are not read as dependencies.
 
@@ -106,14 +116,21 @@ def stereotype_for(relative_package: str, kind: str, name: str) -> str:
 
 
 def discover_types() -> dict:
-    """Every type in the backend's main sources, keyed by simple name."""
+    """Every type in the backend's main sources, keyed by simple name.
+
+    Two sources with one simple name stop the run: the second would silently replace the first, and its
+    relations with it. That is also what makes `--check` fail if `java_sources` stops leaving out the
+    package-info.java files, which share one name.
+    """
     types = {}
-    for path in sorted(JAVA_ROOT.rglob("*.java")):
+    for path in java_sources():
         relative = path.relative_to(JAVA_ROOT)
         parts = relative.parts
         context = parts[0]
         package = "/".join(parts[1:-1])
         name = path.stem
+        if name in types:
+            raise SystemExit(f"two sources declare a type named {name}; the second is {path}")
         source = path.read_text(encoding="utf-8")
         body = code_only(source)
 
@@ -139,7 +156,7 @@ def discover_types() -> dict:
 def context_map() -> str:
     """The cross-context dependency graph, read off the imports rather than off intent."""
     edges = {}
-    for path in sorted(JAVA_ROOT.rglob("*.java")):
+    for path in java_sources():
         source_context = path.relative_to(JAVA_ROOT).parts[0]
         if source_context not in CONTEXTS:
             continue

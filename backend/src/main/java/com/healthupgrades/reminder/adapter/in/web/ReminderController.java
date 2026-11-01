@@ -17,8 +17,8 @@ import org.springframework.web.util.UriComponentsBuilder;
  * REST adapter for reminders — the recurring nudges attached to an upgrade.
  *
  * <p>The routes are deliberately asymmetric: creating and listing are addressed through the parent
- * upgrade ({@code /api/upgrades/&#123;id&#125;/reminders}), while updating and deleting address the
- * reminder itself ({@code /api/reminders/&#123;id&#125;}), since a reminder has its own identity once
+ * upgrade ({@code /api/upgrades/{upgradeId}/reminders}), while updating and deleting address the
+ * reminder itself ({@code /api/reminders/{id}}), since a reminder has its own identity once
  * it exists. Ownership is established through the parent upgrade either way — a reminder has no owner
  * column of its own.
  */
@@ -49,7 +49,7 @@ public class ReminderController {
     /**
      * Adds a reminder to an upgrade. An upgrade may have several.
      *
-     * <p>{@code Location} names the reminder's own route, {@code /api/reminders/&#123;id&#125;}, which
+     * <p>{@code Location} names the reminder's own route, {@code /api/reminders/{id}}, which
      * its update and delete take, as a relative reference (RFC 9110 section 10.2.2).
      *
      * @param upgradeId the upgrade to attach it to

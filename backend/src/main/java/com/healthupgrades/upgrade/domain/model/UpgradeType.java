@@ -40,9 +40,9 @@ public enum UpgradeType {
     /**
      * A prescribed protocol to follow.
      *
-     * <p>Retained rather than offered: it predates the kinds above, appears in no requirement and is not
-     * selectable in the UI, but a deployed database may hold rows carrying it — and Hibernate would fail
-     * to read those back if the constant were removed.
+     * <p>Retained rather than offered: it is none of the eight kinds above (FR-9 names it only as retired)
+     * and is not selectable in the UI, but a deployed database may hold rows carrying it — and Hibernate
+     * would fail to read those back if the constant were removed.
      *
      * <p>No new row can carry it: {@code HealthUpgrade} refuses it on creation, and on an edit unless the
      * upgrade already holds it, so the removal condition below can be met.

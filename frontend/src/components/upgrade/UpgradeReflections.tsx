@@ -38,6 +38,8 @@ interface Props {
 /**
  * An upgrade's reflections (FR-24), newest first as the API returns them, and the **Add Reflection**
  * dialog. A saved reflection refreshes this list alone.
+ *
+ * A read that failed renders as "No reflections yet.": the section ignores the read's `error` (#148).
  */
 const UpgradeReflections: React.FC<Props> = ({ upgradeId, read }) => {
   const qc = useQueryClient();

@@ -75,6 +75,7 @@ public class BearerTokenAuthenticator {
                 log.debug("A token names a disabled account; left anonymous");
                 return Optional.<BearerAuthentication>empty();
             }
+            // The hash serves sign-in only; a principal built from a bearer token never needs it.
             principal.ifPresent(SecurityUser::eraseCredentials);
             return principal.map(user -> new BearerAuthentication(user, verified.sessionId()));
         });

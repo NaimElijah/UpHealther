@@ -1,6 +1,6 @@
 package com.healthupgrades.user.application.port.in;
 
-import com.healthupgrades.user.domain.model.UserPage; // returned page of domain aggregates
+import com.healthupgrades.user.domain.model.UserPage;
 
 /**
  * Inbound port paging through every account on the installation, for the administration context alone.

@@ -109,8 +109,8 @@ const UpgradeBacklogPage: React.FC = () => {
     try {
       await createMutation.mutateAsync(form);
     } catch (thrown) {
-      // Without this the rejection was unhandled and the modal simply sat there: the API refuses an
-      // over-long title with a 400 naming the field (BR-16), and none of it reached the form.
+      // The API refuses an over-long title with a 400 naming the field (BR-16); the message is shown under the
+      // Title field.
       setFormError(toFormMessage(toApiError(thrown), 'title'));
     }
   };

@@ -7,11 +7,10 @@ import java.util.UUID;
 /**
  * Outbound port through which this context obtains the tracking setup shown alongside an upgrade.
  *
- * <p>The upgrade response has always carried its tracking configuration, which previously meant the
- * upgrade context reaching into {@code tracking} while {@code tracking} was already reaching back for
- * ownership checks — a cycle between two bounded contexts. Inverting it fixes the direction: this
- * context declares the contract, and whichever context can satisfy it implements it. The dependency
- * then points only one way, from the supplier to this port.
+ * <p>The upgrade response carries its tracking configuration. Reaching into {@code tracking} for it would
+ * make a cycle between two bounded contexts, because {@code tracking} already reaches back for ownership
+ * checks. So the direction is inverted: this context declares the contract, and whichever context can
+ * satisfy it implements it. The dependency points only one way, from the supplier to this port.
  *
  * <p>Implementations must tolerate ids with no configuration by omitting them from the result rather
  * than returning nulls.

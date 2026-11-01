@@ -1,6 +1,6 @@
 package com.healthupgrades.healtharea.domain.port.out;
 
-import com.healthupgrades.healtharea.domain.model.HealthArea; // the aggregate this port persists
+import com.healthupgrades.healtharea.domain.model.HealthArea;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -16,9 +16,9 @@ public interface HealthAreaRepositoryPort {
     /** Removes a health area from the store. */
     void delete(HealthArea area);
 
-    /** All health areas owned by a user. */
+    /** All health areas owned by a user, in no particular order. */
     List<HealthArea> findByUserId(UUID userId);
 
-    /** Ownership-scoped single lookup by id. */
+    /** Ownership-scoped single lookup by id: empty when the area is missing or another user's. */
     Optional<HealthArea> findByIdAndUserId(UUID id, UUID userId);
 }

@@ -1,7 +1,7 @@
 package com.healthupgrades.notification.domain.port.out;
 
-import com.healthupgrades.notification.domain.model.Notification; // the aggregate this port persists
-import com.healthupgrades.notification.domain.model.NotificationType; // used by the dedup guards
+import com.healthupgrades.notification.domain.model.Notification;
+import com.healthupgrades.notification.domain.model.NotificationType;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -38,8 +38,12 @@ public interface NotificationRepositoryPort {
     boolean existsForUpgradeSince(UUID userId, UUID relatedUpgradeId, NotificationType type, LocalDateTime since);
 
     /**
-     * Dedup guard for a sweep: every user sent a notification of a type after a timestamp, in one query
-     * rather than one per user (NFR-14).
+     * Dedup guard for a sweep: every user sent a notification of a type strictly after a timestamp, in one
+     * query rather than one per user (NFR-14).
+     *
+     * @param type  the kind of notification
+     * @param after the instant a notification must be created after; one created exactly then does not count
+     * @return the owners of at least one such notification
      */
     Set<UUID> findUserIdsNotifiedAfter(NotificationType type, LocalDateTime after);
 

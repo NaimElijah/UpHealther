@@ -6,7 +6,9 @@ import com.healthupgrades.common.domain.exception.ConflictException;
  * Thrown when a progress entry already exists for the same upgrade and date (BR-6).
  *
  * <p>One entry per upgrade per day is a domain invariant, also backed by a unique constraint in the
- * schema. A {@link ConflictException}, so it is answered 409 (Conflict) rather than 422: the client
+ * schema. Only the existence check in {@code TrackingService} raises this exception: a concurrent
+ * duplicate that passes the check reaches the constraint untranslated and is answered 500 (BR-6, #146).
+ * It is a {@link ConflictException}, so it is answered 409 (Conflict) rather than 422: the client
  * should treat it as a conflict to resolve, by editing the existing entry, rather than as invalid input.
  * It lives here, beside the entry it protects, because it is this context's concept; the kernel knows
  * only the shape.

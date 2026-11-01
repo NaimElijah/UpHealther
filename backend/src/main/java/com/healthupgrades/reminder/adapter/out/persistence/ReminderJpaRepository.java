@@ -1,6 +1,6 @@
 package com.healthupgrades.reminder.adapter.out.persistence;
 
-import com.healthupgrades.reminder.domain.model.Reminder; // managed entity
+import com.healthupgrades.reminder.domain.model.Reminder;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,7 +11,7 @@ import org.springframework.data.repository.query.Param;
  * Spring Data JPA repository backing {@link ReminderRepositoryAdapter}; package-private internal detail.
  */
 interface ReminderJpaRepository extends JpaRepository<Reminder, UUID> {
-    List<Reminder> findByUpgradeId(UUID upgradeId); // derived query
+    List<Reminder> findByUpgradeId(UUID upgradeId);
 
     /**
      * The enabled reminders set for a time within one minute of the day.

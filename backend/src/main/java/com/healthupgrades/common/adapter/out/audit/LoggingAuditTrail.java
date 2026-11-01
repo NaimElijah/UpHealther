@@ -38,7 +38,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  *
  * <p><b>A session is named by a digest, not by its id.</b> An {@code AUTH_SESSION} entry names the
  * session's owner beside it, and that pair, an account and a live session of it, is the half of a forged
- * token that ADR-049 says a signing key alone lacks (S5.C3). So the session id is written as the first
+ * token that ADR-049 says a signing key alone lacks (S5.C3, ADR-065). So the session id is written as the first
  * {@value #SESSION_DIGEST_HEX_LENGTH} hex characters of its SHA-256: the same session always gives the
  * same value, so its entries still join up, but the value is no id anybody can put in a token. A reader
  * who holds a session id, from the database or a support case, finds its entries by computing the same
@@ -67,6 +67,7 @@ public class LoggingAuditTrail implements AuditTrail {
 
     private final MeterRegistry meterRegistry;
 
+    /** @param meterRegistry where the {@code audit.events} counter is registered */
     public LoggingAuditTrail(MeterRegistry meterRegistry) {
         this.meterRegistry = meterRegistry;
     }
@@ -74,17 +75,19 @@ public class LoggingAuditTrail implements AuditTrail {
     /**
      * {@inheritDoc}
      *
-     * <p><b>An {@code ALLOWED} entry waits for the commit.</b> Every caller wraps the body of an
-     * {@code @Transactional} service method, so the work returns while its transaction is still open —
-     * the commit happens afterwards, in the proxy. Only registration's save, the tracking
-     * configuration's save and the account save flush, each to translate the race it can lose (ADR-074,
-     * ADR-073), so everywhere else a {@code @Version} clash or a unique constraint losing a race is
-     * decided <em>at commit</em>,
-     * after the service method has returned. Writing the entry at that point would have the trail and
-     * the counter both claim an edit succeeded while the caller was answered 409 and nothing was
-     * persisted. Deferring it through
-     * the same {@code afterCommit} route {@code NotificationService} already uses is what makes
-     * "allowed" mean what {@code ADR-011} says it means.
+     * <p><b>An {@code ALLOWED} entry waits for the transaction to end.</b> A caller inside an
+     * {@code @Transactional} service method returns while its transaction is still open — the commit
+     * happens afterwards, in the proxy. The repository writes that flush in order to translate the race
+     * they can lose are registration's save, the tracking configuration's save and the account save
+     * (ADR-074, ADR-073), so everywhere else a {@code @Version} clash or a unique constraint losing a
+     * race is decided <em>at commit</em>, after the service method has returned. Writing the entry at
+     * that point would have the trail and the counter both claim an edit succeeded while the caller was
+     * answered 409 and nothing was persisted. So the entry is deferred through a
+     * {@code TransactionSynchronization}, as {@code NotificationService} does, but to
+     * {@code afterCompletion} rather than {@code afterCommit}; that is what makes "allowed" mean what
+     * ADR-011 says it means. If the transaction rolls back, the entry is written as {@code REFUSED}
+     * ({@link AuditEvent#refused}) rather than dropped. With no transaction active (a STOMP CONNECT, say)
+     * the entry is written at once.
      *
      * <p>Refusals and faults are written immediately and deliberately: they already describe an attempt
      * that did not land, they are the security-relevant half, and a process that dies before commit

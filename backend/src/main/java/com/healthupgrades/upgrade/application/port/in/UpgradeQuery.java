@@ -1,6 +1,6 @@
 package com.healthupgrades.upgrade.application.port.in;
 
-import com.healthupgrades.upgrade.domain.model.HealthUpgrade; // returned domain aggregate
+import com.healthupgrades.upgrade.domain.model.HealthUpgrade;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;

@@ -40,7 +40,7 @@ import org.springframework.transaction.CannotCreateTransactionException;
  *
  * <p>Deliberately not {@code @Transactional}. Each notification is created through
  * {@link NotificationService#create}, in a transaction of its own, so that one that fails to save does
- * not roll back the ones before it ({@link Deliveries}).
+ * not roll back the ones before it ({@code Deliveries}).
  *
  * <p>Overdue alerts are not here: being overdue is a fact about an upgrade, so the upgrade context
  * detects it and publishes {@code UpgradeOverdueDetected}, which {@code NotificationEventListener} turns
@@ -67,11 +67,11 @@ public class NotificationSweepService {
 
     private static final String CREATE_FAILED = "notification.create-failed";
 
-    private final UpgradeSweepQuery upgradeQuery; // sweep port: every user's upgrades
-    private final ProgressSweepQuery progressQuery; // sweep port: who logged on a day
-    private final ReminderSweepQuery reminderQuery; // sweep port: every enabled reminder
-    private final NotificationRepositoryPort notificationRepository; // own outbound port (dedup guards)
-    private final NotificationService notificationService; // own application service (create + push)
+    private final UpgradeSweepQuery upgradeQuery;
+    private final ProgressSweepQuery progressQuery;
+    private final ReminderSweepQuery reminderQuery;
+    private final NotificationRepositoryPort notificationRepository;
+    private final NotificationService notificationService;
 
     /**
      * Nudges every user who has running upgrades but has logged nothing today.
@@ -81,7 +81,7 @@ public class NotificationSweepService {
      * nothing stops the trigger from running this more than once a day.
      *
      * <p>A nudge that fails to save does not cost the users after it; the sweep still ends by rethrowing
-     * the first failure once it has logged what it did ({@link Deliveries}).
+     * the first failure once it has logged what it did ({@code Deliveries}).
      *
      * @param today the day to nudge for, by the server's zone
      * @throws RuntimeException the first nudge that failed to save, after every other nudge was attempted
@@ -158,7 +158,7 @@ public class NotificationSweepService {
      * once, so a reminder cannot match twice.
      *
      * <p>For the same reason nothing retries a reminder this run did not send, which is why one that fails
-     * to save must not take the rest of the minute's reminders with it ({@link Deliveries}).
+     * to save must not take the rest of the minute's reminders with it ({@code Deliveries}).
      *
      * @param today the day of the week it is, by the server's zone
      * @param now   the time of day it is, by the server's zone

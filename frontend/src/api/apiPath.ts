@@ -10,7 +10,7 @@ const UNENCODABLE_SEGMENTS = new Set(['', '.', '..']);
  *
  * Every id that reaches a path comes from a route or a response, and a route's `:id` arrives decoded,
  * so `/upgrades/..%2Fhealth-areas%3F` hands the page `../health-areas?`. Interpolated as it is, that
- * climbs out of the upgrade's path and turns the rest into a query string (S5.D4). Each value is
+ * climbs out of the upgrade's path and turns the rest into a query string (S5.D4, #339). Each value is
  * therefore percent-encoded with `encodeURIComponent`, which leaves no `/`, `?` or `#` to read as
  * structure.
  *

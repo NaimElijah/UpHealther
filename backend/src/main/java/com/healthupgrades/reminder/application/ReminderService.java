@@ -21,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>A reminder has no owner of its own — ownership is established through the upgrade it belongs to,
  * which is why every method here starts by resolving that upgrade through {@link UpgradeQuery}.
+ *
+ * <p>The writes are recorded in the audit trail, whether they succeed or are refused (ADR-011).
  */
 @Service
 @RequiredArgsConstructor
@@ -39,14 +41,14 @@ public class ReminderService {
      * @return the persisted reminder
      * @throws ResourceNotFoundException if the upgrade does not exist or belongs to somebody else
      * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if a day token is not a
-     *         recognisable day
+     *         recognisable day, or the time is null
      */
     @Transactional
     public Reminder create(UUID userId, UUID upgradeId, ReminderSchedule schedule) {
-        // Audited against the upgrade it hangs off, as the action's label says (S5.C6): that is what
-        // ownership is decided by, and a refusal names the upgrade that was probed.
+        // Audited against the upgrade it hangs off, as the action's label says (ADR-065, section 11): that is
+        // what ownership is decided by, and a refusal names the upgrade that was probed.
         return auditTrail.recording(AuditAction.REMINDER_CREATE, userId, upgradeId, () -> {
-            upgradeQuery.getOwnedUpgrade(userId, upgradeId); // ownership check (throws if not owned)
+            upgradeQuery.getOwnedUpgrade(userId, upgradeId);
             Reminder reminder = Reminder.create(
                     upgradeId,
                     schedule.reminderTime(),
@@ -78,7 +80,7 @@ public class ReminderService {
      * @return the saved reminder
      * @throws ResourceNotFoundException if the reminder does not exist, or its upgrade is not the user's
      * @throws com.healthupgrades.common.domain.exception.BusinessRuleException if a day token is not a
-     *         recognisable day
+     *         recognisable day, or the time is null
      */
     @Transactional
     public Reminder update(UUID userId, UUID reminderId, ReminderSchedule schedule) {
@@ -109,14 +111,14 @@ public class ReminderService {
      * Single ownership guard: a reminder is the caller's only if the upgrade it hangs off is.
      *
      * <p>Another user's reminder is answered exactly as an unknown id is, the same exception and the
-     * same words (BR-15, S5.B3). The upgrade's own refusal names that user's upgrade, and reads
+     * same words (BR-15; scan 05 finding B3, #339). The upgrade's own refusal names that user's upgrade, and reads
      * differently from a missing reminder's, so letting it through told the caller the reminder existed
      * and whose upgrade it was on.
      */
     private Reminder getOwnedReminder(UUID userId, UUID reminderId) {
         Reminder reminder = repository.findById(reminderId).orElseThrow(() -> reminderNotFound(reminderId));
         try {
-            upgradeQuery.getOwnedUpgrade(userId, reminder.getUpgradeId()); // ownership via parent upgrade
+            upgradeQuery.getOwnedUpgrade(userId, reminder.getUpgradeId());
         } catch (ResourceNotFoundException notTheirs) {
             throw reminderNotFound(reminderId);
         }

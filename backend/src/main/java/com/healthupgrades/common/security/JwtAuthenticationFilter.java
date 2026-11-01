@@ -24,8 +24,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * delegate the decision to {@link BearerTokenAuthenticator}.
  *
  * <p>It runs <em>only</em> inside the security chain. Boot also registers every {@code Filter} bean with
- * the servlet container, and that second registration is switched off here. With it, requests were
- * authenticated only while the container's copy happened to run after the chain. Ordered ahead of it,
+ * the servlet container, and that second registration is switched off here, because with it a request
+ * is authenticated only while the container's copy happens to run after the chain. Ordered ahead of it,
  * that copy authenticates first, the chain's {@code SecurityContextHolderFilter} replaces the context,
  * and the in-chain copy is skipped as already run, so every request is anonymous (#238,
  * {@code JwtFilterRegistrationIT}).
@@ -62,7 +62,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    /** Extracts the token from an {@code Authorization: Bearer <token>} header, or null if absent. */
     private String resolveToken(HttpServletRequest request) {
         String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (StringUtils.hasText(authorization) && authorization.startsWith(BEARER_PREFIX)) {

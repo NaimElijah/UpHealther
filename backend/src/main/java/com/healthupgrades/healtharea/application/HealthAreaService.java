@@ -16,8 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Use cases for health areas: create, read, update and delete, all scoped to one owner.
  *
- * <p>Every method takes the owner's id explicitly — there is no ambient "current user" in this layer —
- * and every lookup goes through {@code getOwnedArea}, so ownership is checked in exactly one place.
+ * <p>Every method takes the owner's id explicitly — there is no ambient "current user" in this layer.
+ * Every read or write of one area by id goes through {@code getOwnedArea}; {@code ownsArea} answers the
+ * same question as a boolean for other contexts.
+ *
+ * <p>The writes are recorded in the audit trail, whether they succeed or are refused (ADR-011).
  */
 @Service
 @RequiredArgsConstructor

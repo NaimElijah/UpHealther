@@ -488,7 +488,7 @@ class HexagonalArchitectureTest {
      *
      * <p>{@code TrackingConfigQuery.findByUpgradeIds} returns configurations whoever owns the upgrade,
      * because {@code tracking_configs} has no owner column to filter on. Today that exposes nothing: its
-     * dependents are {@code TrackingService}, which implements it, and {@code UpgradeTrackingSummaryAdapter},
+     * dependents are {@code TrackingConfigReads}, which implements it, and {@code UpgradeTrackingSummaryAdapter},
      * which answers {@code UpgradeTrackingSummaryPort} for {@code UpgradeWebMapper}. The mapper passes only
      * the ids of upgrades it was handed, and those were loaded through user-scoped reads, so no id a request
      * supplies reaches the query. Scoping it would cost a migration, a join onto another context's table,

@@ -18,7 +18,10 @@ export const getWeekProgress = async (): Promise<ProgressEntry[]> => {
  * Logs a day's progress.
  *
  * `upgradeId` selects the endpoint and is deliberately not sent in the body. A second entry for the
- * same upgrade and date is rejected with a 409 rather than replacing the first.
+ * same upgrade and date is rejected with a 409 rather than replacing the first. An absent `date` means the
+ * server's today (UTC); one later than the server's tomorrow is refused with a 400 (FR-18), and an upgrade that
+ * is not the caller's with a 404. When the upgrade has a tracking configuration, the stored `completed` is the
+ * server's verdict, not the one sent.
  */
 export const createProgress = async (req: CreateProgressRequest): Promise<ProgressEntry> => {
   const { upgradeId, date, completed, numericValue, unit, rating, note } = req;

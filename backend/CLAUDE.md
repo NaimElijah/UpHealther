@@ -191,6 +191,11 @@ read/composition model with no domain or outbound side. All three are deliberate
   `UpgradeTrackingEnumMirrorContractTest` holds the two equal. Not `port.in`, which is for use-case
   contracts, and not `port.out`, which inbound adapters may not name (ADR-077).
 
+- **Each context's top-level package has a `package-info.java`**: what the context owns, and the
+  rules a maintainer must keep. A new context gets one, and a change that breaks one of its rules
+  changes it. A rule that already has an ADR or a paragraph here is stated in a line and cited, not
+  restated. The diagram generator skips these files, and stops on any other repeated type name.
+
 ## Lint
 
 The compiler is the linter. Every `-Xlint` category is on except `processing` and `serial`, and `try`

@@ -29,8 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class AdminBootstrapService {
 
-    private final UserQuery userQuery; // inbound read port of the user context
-    private final UserCommand userCommand; // inbound write port of the user context
+    private final UserQuery userQuery;
+    private final UserCommand userCommand;
     private final AuditTrail auditTrail; // records the promotion, the one thing this changes
 
     /**
@@ -55,11 +55,12 @@ public class AdminBootstrapService {
      * @throws com.healthupgrades.user.domain.model.AccountModifiedConcurrentlyException if another write
      *         to the account, a second instance's bootstrap most likely, committed after it was read. The
      *         save flushes, so this is raised inside the audited body and recorded {@code REFUSED}
-     * @throws org.springframework.dao.DataAccessException or
-     *         {@link org.springframework.transaction.TransactionException} if the promotion cannot be
-     *         written, recorded {@code FAILED} when raised by the save; one raised at commit, after this
-     *         method has returned, propagates from the transaction proxy, and {@code LoggingAuditTrail}
-     *         records the attempt {@code REFUSED} when the transaction rolls back
+     * @throws org.springframework.dao.DataAccessException if the promotion cannot be written. Recorded
+     *         {@code FAILED} when the save raises it; one raised at commit, after this method has returned,
+     *         propagates from the transaction proxy, and {@code LoggingAuditTrail} records the attempt
+     *         {@code REFUSED} when the transaction rolls back
+     * @throws org.springframework.transaction.TransactionException on the same terms as
+     *         {@link org.springframework.dao.DataAccessException}
      */
     @Transactional
     public void bootstrap(UUID accountId) {

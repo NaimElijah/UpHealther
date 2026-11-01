@@ -1,6 +1,6 @@
 package com.healthupgrades.user.application.port.in;
 
-import com.healthupgrades.user.domain.model.User; // the aggregate being persisted
+import com.healthupgrades.user.domain.model.User;
 
 /**
  * Inbound port exposing write access to users: registration writes through it, and so do the

@@ -18,8 +18,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class DashboardController {
 
-    private final DashboardQuery dashboardQuery; // application aggregation port
-    private final DashboardWebMapper mapper; // domain view -> HTTP DTO
+    private final DashboardQuery dashboardQuery;
+    private final DashboardWebMapper mapper;
 
     /**
      * Builds and returns the caller's dashboard.

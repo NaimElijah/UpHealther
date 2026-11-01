@@ -10,8 +10,8 @@ import org.springframework.stereotype.Component;
 /**
  * Adapter implementing {@link DomainEventPublisher} over Spring's {@link ApplicationEventPublisher}.
  *
- * <p>Delegating to the real Spring publisher is important: it keeps transaction-bound consumers
- * ({@code @TransactionalEventListener(AFTER_COMMIT)}) firing exactly as before.
+ * <p>Delegating to the real Spring publisher is what lets transaction-bound consumers
+ * ({@code @TransactionalEventListener(AFTER_COMMIT)}) fire once the publishing transaction commits.
  */
 @Component
 @RequiredArgsConstructor

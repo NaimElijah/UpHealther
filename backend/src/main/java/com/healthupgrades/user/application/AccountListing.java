@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 class AccountListing implements AccountListQuery {
 
-    private final UserRepositoryPort repository; // outbound persistence port
+    private final UserRepositoryPort repository;
 
     /** {@inheritDoc} */
     @Override

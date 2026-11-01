@@ -30,7 +30,8 @@ import org.springframework.stereotype.Component;
  *   <li><strong>{@code SameSite=Strict}</strong> — never sent on a cross-site request, which is the
  *       first of the two things standing between this cookie and CSRF. The second is the
  *       {@code X-Requested-With} header the endpoints require: a form post from another origin cannot
- *       set a header, and a cross-origin {@code fetch} that tries is stopped by preflight.</li>
+ *       set a header, and a cross-origin {@code fetch} that sets one needs a preflight, which the server
+ *       answers only for the configured origins.</li>
  *   <li><strong>The {@code __Host-} name</strong> — the name {@code application.yml} ships, which a
  *       browser accepts only with {@code Secure}, from a secure origin, with {@code Path=/} and with no
  *       {@code Domain}. So no other host can set a cookie of that name: not a plain-HTTP one, and not a
@@ -55,9 +56,9 @@ public class RefreshCookies {
      *
      * <p>Not authentication — it proves nothing about who is calling. It proves the call was made by
      * script rather than by a form, because a cross-origin form post cannot set a header at all and a
-     * cross-origin {@code fetch} that sets one triggers a preflight the server does not allow. Paired
-     * with {@code SameSite=Strict} it is the CSRF defence for the two endpoints that act on a cookie
-     * alone.
+     * cross-origin {@code fetch} that sets one needs a preflight, which the server answers only for the
+     * configured origins. Paired with {@code SameSite=Strict} it is the CSRF defence for the two endpoints
+     * that act on a cookie alone.
      */
     public static final String REQUESTED_WITH = "X-Requested-With";
 

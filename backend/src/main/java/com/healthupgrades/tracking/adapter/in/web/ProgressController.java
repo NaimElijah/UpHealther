@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
  * REST adapter for logging and reading progress.
  *
  * <p>The routes are split across two prefixes rather than one, and deliberately: entries filed against a
- * single upgrade live under {@code /api/upgrades/&#123;id&#125;/…}, while the cross-upgrade views the daily
+ * single upgrade live under {@code /api/upgrades/{upgradeId}/…}, while the cross-upgrade views the daily
  * check-in and dashboard need live under {@code /api/progress/…}. That is why this controller declares
  * no class-level {@code @RequestMapping}.
  *
@@ -42,7 +42,8 @@ public class ProgressController {
      * @throws com.healthupgrades.common.domain.exception.ResourceNotFoundException if no such
      *         upgrade is owned by the caller (404)
      * @throws com.healthupgrades.tracking.domain.model.DuplicateProgressException if an entry
-     *         already exists for that upgrade and date (409)
+     *         already exists for that upgrade and date (409); a concurrent duplicate that passes the
+     *         existence check is not translated and surfaces as 500 (BR-6, #146)
      */
     @PostMapping("/api/upgrades/{upgradeId}/progress")
     public ResponseEntity<ProgressDto> recordProgress(

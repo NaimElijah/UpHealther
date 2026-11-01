@@ -61,6 +61,8 @@ interface Props {
  *
  * Every write refreshes the reminders alone, since nothing else shows them. Only one write runs at a
  * time, for the reason given beside `reminderWriteInFlight`.
+ *
+ * A read that failed renders as an empty list: the section ignores the read's `error` (#148).
  */
 const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
   const qc = useQueryClient();
@@ -117,7 +119,7 @@ const UpgradeReminders: React.FC<Props> = ({ upgradeId, read }) => {
     createReminderMut.reset();
     setEditingReminderId(reminder.id);
     // The form below changes from adding to saving this reminder, and focus goes where the change is, so
-    // the switch is not made silently (finding X9.17).
+    // the switch is not made silently (finding X9.17 of #343).
     timeField.current?.focus();
   };
 

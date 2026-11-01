@@ -12,7 +12,7 @@ import java.util.UUID;
  *
  * @param id           the reminder's identifier
  * @param upgradeId    the upgrade it belongs to
- * @param reminderTime the local time it fires at
+ * @param reminderTime the time of day it fires at, in the server's zone (UTC, ADR-020)
  * @param daysOfWeek   the days it fires on, in calendar order; empty means every day
  * @param enabled      whether it is switched on
  */
