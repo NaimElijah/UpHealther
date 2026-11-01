@@ -55,6 +55,12 @@ class DemoAccountMigrationIT extends PostgresIT {
                     .resolve("backend/config/db/demo")
                     .toAbsolutePath();
 
+    /**
+     * The last version before V13's owner key on an upgrade's area, which refuses a new upgrade filed under
+     * another owner's area. A row filed so before it is one V18's single-column key exists to detach.
+     */
+    private static final String BEFORE_THE_OWNER_KEYS = "12";
+
     /** The last version before the account is deleted, at which V2's account and its rows still exist. */
     private static final String BEFORE_THE_DELETE = "20";
 
@@ -88,42 +94,61 @@ class DemoAccountMigrationIT extends PostgresIT {
 
     private static final String ANOTHER_EMAIL = "someone-else@example.com";
 
+    /** An address the demo row is moved to, so that another account can hold the demo address beside it. */
+    private static final String READDRESSED_DEMO_EMAIL = "readdressed-demo@example.com";
+
     /** Another account's password, only ever hashed, so a change to its hash can be seen. */
     private static final String ANOTHER_PASSWORD = "another-owners-password";
 
     private static final PasswordEncoder ENCODER = new BCryptPasswordEncoder();
 
     /**
-     * Every table a row of the demo account's can sit in, and how many rows in it are the account's. A
-     * tracking configuration, a reminder and a spent token name no owner, so each is counted whole: in these
-     * databases only the demo account owns any.
+     * Every table a row of an account's can sit in, and how many rows in it are that account's. A tracking
+     * configuration, a reminder and a spent token name no owner of their own, so each is counted through the
+     * parent that does: its upgrade, or its session.
      */
-    private static final String ROWS_OF_THE_DEMO_ACCOUNT = """
-            WITH demo (id) AS (VALUES (CAST(? AS uuid)))
-            SELECT 'users' AS table_name, count(*) AS row_count FROM users JOIN demo ON users.id = demo.id
-            UNION ALL SELECT 'health_areas', count(*) FROM health_areas a JOIN demo ON a.user_id = demo.id
-            UNION ALL SELECT 'health_upgrades', count(*) FROM health_upgrades u JOIN demo ON u.user_id = demo.id
-            UNION ALL SELECT 'tracking_configs', count(*) FROM tracking_configs
-            UNION ALL SELECT 'progress_entries', count(*) FROM progress_entries p JOIN demo ON p.user_id = demo.id
-            UNION ALL SELECT 'reflections', count(*) FROM reflections r JOIN demo ON r.user_id = demo.id
-            UNION ALL SELECT 'reminders', count(*) FROM reminders
-            UNION ALL SELECT 'notifications', count(*) FROM notifications n JOIN demo ON n.user_id = demo.id
-            UNION ALL SELECT 'auth_sessions', count(*) FROM auth_sessions s JOIN demo ON s.user_id = demo.id
-            UNION ALL SELECT 'auth_session_spent_tokens', count(*) FROM auth_session_spent_tokens
+    private static final String ROWS_OF_AN_ACCOUNT = """
+            WITH account (id) AS (VALUES (CAST(? AS uuid)))
+            SELECT 'users' AS table_name, count(*) AS row_count FROM users JOIN account ON users.id = account.id
+            UNION ALL SELECT 'health_areas', count(*)
+                FROM health_areas a JOIN account ON a.user_id = account.id
+            UNION ALL SELECT 'health_upgrades', count(*)
+                FROM health_upgrades u JOIN account ON u.user_id = account.id
+            UNION ALL SELECT 'tracking_configs', count(*)
+                FROM tracking_configs c JOIN health_upgrades u ON u.id = c.upgrade_id
+                JOIN account ON u.user_id = account.id
+            UNION ALL SELECT 'progress_entries', count(*)
+                FROM progress_entries p JOIN account ON p.user_id = account.id
+            UNION ALL SELECT 'reflections', count(*)
+                FROM reflections r JOIN account ON r.user_id = account.id
+            UNION ALL SELECT 'reminders', count(*)
+                FROM reminders m JOIN health_upgrades u ON u.id = m.upgrade_id
+                JOIN account ON u.user_id = account.id
+            UNION ALL SELECT 'notifications', count(*)
+                FROM notifications n JOIN account ON n.user_id = account.id
+            UNION ALL SELECT 'auth_sessions', count(*)
+                FROM auth_sessions s JOIN account ON s.user_id = account.id
+            UNION ALL SELECT 'auth_session_spent_tokens', count(*)
+                FROM auth_session_spent_tokens t JOIN auth_sessions s ON s.id = t.session_id
+                JOIN account ON s.user_id = account.id
             """;
 
     /**
      * What every new deployment's database looks like from now on: V2 still seeds the account, V21 takes it
-     * away again, and nothing in the jar's configuration brings it back.
+     * away again, and nothing in the jar's configuration brings it back. NFR-62 asks more than that: the
+     * migrations create no account of any kind, so a later one that seeded another would fail here too.
      */
     @Test
-    void GivenAnEmptyDatabase_WhenTheShippedMigrationsRun_ThenThereIsNoDemoAccountAndNoneOfItsAreas()
+    void GivenAnEmptyDatabase_WhenTheShippedMigrationsRun_ThenItHoldsNoAccountAtAllAndNoneOfTheDemosAreas()
             throws SQLException {
         IsolatedDatabase database = createIsolatedDatabase("demo_shipped_leaves_no_account");
 
         migrateShipped(database);
 
         try (Connection connection = database.connect()) {
+            assertThat(count(connection, "SELECT count(*) FROM users"))
+                    .as("accounts the migrations created, which only registration may")
+                    .isZero();
             assertThat(count(
                             connection,
                             "SELECT count(*) FROM users WHERE id = ? OR email = ?",
@@ -142,47 +167,115 @@ class DemoAccountMigrationIT extends PostgresIT {
     }
 
     /**
-     * A database that has been running for a while: the account has been used, so it owns a row in every
-     * table that can hold one, and somebody else has an account too. The delete must reach every row of the
-     * first, through the cascades alone, and spare the second.
+     * A database that has been running for a while: both the demo account and another account own a row in
+     * every table that can hold one. The delete must reach every row of the first, through the cascades
+     * alone, and leave every row of the second.
+     *
+     * <p>Two of the second account's rows point at the first's, which is where a cascade could reach too
+     * far: a notification about a demo upgrade, which loses only that link, and an upgrade filed under a demo
+     * area before V13's owner key refused such a filing. V18's single-column key detaches that upgrade, and
+     * V14's trigger moves its version by one, so a request holding the old version is refused, not let
+     * through to write the deleted area back.
      */
     @Test
-    void GivenRowsTheDemoAccountOwnsAndAnotherAccount_WhenV21Runs_ThenOnlyTheDemoAccountsRowsAreGone()
+    void GivenRowsOfTheDemoAndOfAnotherAccountPointingAtIt_WhenV21Runs_ThenOnlyTheDemosRowsAndTheLinksToThemGo()
             throws SQLException {
         IsolatedDatabase database = createIsolatedDatabase("demo_v21_deletes_what_it_owned");
-        migrateShipped(database, BEFORE_THE_DELETE);
         UUID anotherAccount = UUID.randomUUID();
-        UUID anotherAccountsArea = UUID.randomUUID();
+        UUID filedUnderADemoArea = UUID.randomUUID();
+        migrateShipped(database, BEFORE_THE_OWNER_KEYS);
         try (Connection connection = database.connect()) {
-            insertRowsTheDemoAccountOwns(connection);
             insertAccount(connection, anotherAccount, ANOTHER_EMAIL, ENCODER.encode(ANOTHER_PASSWORD));
+            insertUpgrade(connection, filedUnderADemoArea, anotherAccount, HYDRATION_AREA);
+        }
+        migrateShipped(database, BEFORE_THE_DELETE);
+        UUID anotherArea = UUID.randomUUID();
+        UUID anotherUpgrade = UUID.randomUUID();
+        UUID notificationAboutADemoUpgrade = UUID.randomUUID();
+        Map<String, Long> anotherAccountsRows;
+        long versionBeforeTheDelete;
+        try (Connection connection = database.connect()) {
+            insertRowsOwnedBy(connection, DEMO_ACCOUNT, WATER_UPGRADE, UUID.randomUUID());
             execute(
                     connection,
                     "INSERT INTO health_areas (id, user_id, name) VALUES (?, ?, 'Strength')",
-                    anotherAccountsArea,
+                    anotherArea,
                     anotherAccount);
-            assertThat(rowsOfTheDemoAccount(connection))
+            insertUpgrade(connection, anotherUpgrade, anotherAccount, anotherArea);
+            execute(
+                    connection,
+                    "INSERT INTO tracking_configs (id, upgrade_id, tracking_type) VALUES (?, ?, 'BOOLEAN')",
+                    UUID.randomUUID(),
+                    anotherUpgrade);
+            insertRowsOwnedBy(connection, anotherAccount, anotherUpgrade, notificationAboutADemoUpgrade);
+            assertThat(rowsOf(connection, DEMO_ACCOUNT))
                     .as("before V21, the demo account owns a row in every table that can hold one")
                     .isNotEmpty()
                     .allSatisfy((table, rows) -> assertThat(rows).as(table).isPositive());
+            anotherAccountsRows = rowsOf(connection, anotherAccount);
+            assertThat(anotherAccountsRows)
+                    .as("before V21, the other account owns a row in every table that can hold one")
+                    .allSatisfy((table, rows) -> assertThat(rows).as(table).isPositive());
+            versionBeforeTheDelete = versionOf(connection, filedUnderADemoArea);
         }
 
         migrateShipped(database, THE_DELETE);
 
         try (Connection connection = database.connect()) {
-            assertThat(rowsOfTheDemoAccount(connection))
+            assertThat(rowsOf(connection, DEMO_ACCOUNT))
                     .as("after V21, rows the demo account owned")
                     .allSatisfy((table, rows) -> assertThat(rows).as(table).isZero());
-            assertThat(count(connection, "SELECT count(*) FROM users WHERE id = ?", anotherAccount))
-                    .as("another account, which V21 must not touch")
+            assertThat(rowsOf(connection, anotherAccount))
+                    .as("after V21, the other account's rows, of which V21 must delete none")
+                    .isEqualTo(anotherAccountsRows);
+            assertThat(count(
+                            connection,
+                            "SELECT count(*) FROM notifications WHERE id = ? AND related_upgrade_id IS NULL",
+                            notificationAboutADemoUpgrade))
+                    .as("the other account's notification about a demo upgrade, kept without the link")
                     .isOne();
             assertThat(count(
                             connection,
-                            "SELECT count(*) FROM health_areas WHERE id = ? AND user_id = ?",
-                            anotherAccountsArea,
-                            anotherAccount))
-                    .as("that account's area")
+                            "SELECT count(*) FROM health_upgrades WHERE id = ? AND area_id IS NULL",
+                            filedUnderADemoArea))
+                    .as("the other account's upgrade filed under a demo area, kept and unfiled")
                     .isOne();
+            assertThat(versionOf(connection, filedUnderADemoArea))
+                    .as("its version, which V14's trigger moves once when the area is detached")
+                    .isEqualTo(versionBeforeTheDelete + 1);
+        }
+    }
+
+    /**
+     * V21 matches the fixed id alone, never the address. An account that holds the demo address under another
+     * id was registered by somebody, and is theirs; a delete that also matched the address would take it with
+     * everything it owns. Here the demo row has moved to another address first, as only a direct write could
+     * move it, so that both rows exist when V21 runs.
+     */
+    @Test
+    void GivenAnotherAccountHoldingTheDemoAddressBeforeV21_WhenV21Runs_ThenOnlyTheFixedIdIsDeleted()
+            throws SQLException {
+        IsolatedDatabase database = createIsolatedDatabase("demo_v21_matches_the_id_alone");
+        migrateShipped(database, BEFORE_THE_DELETE);
+        UUID addressHolder = UUID.randomUUID();
+        try (Connection connection = database.connect()) {
+            execute(connection, "UPDATE users SET email = ? WHERE id = ?", READDRESSED_DEMO_EMAIL, DEMO_ACCOUNT);
+            insertAccount(connection, addressHolder, DEMO_EMAIL, ENCODER.encode(ANOTHER_PASSWORD));
+        }
+
+        migrateShipped(database, THE_DELETE);
+
+        try (Connection connection = database.connect()) {
+            assertThat(count(
+                            connection,
+                            "SELECT count(*) FROM users WHERE id = ? AND email = ?",
+                            addressHolder,
+                            DEMO_EMAIL))
+                    .as("the account that holds the demo address under its own id")
+                    .isOne();
+            assertThat(count(connection, "SELECT count(*) FROM users WHERE id = ?", DEMO_ACCOUNT))
+                    .as("the row under the demo account's fixed id")
+                    .isZero();
         }
     }
 
@@ -255,7 +348,7 @@ class DemoAccountMigrationIT extends PostgresIT {
         migrateShipped(database, BEFORE_THE_DELETE);
         UUID progress = UUID.randomUUID();
         try (Connection connection = database.connect()) {
-            insertProgress(connection, progress);
+            insertProgress(connection, progress, DEMO_ACCOUNT, WATER_UPGRADE);
         }
 
         migrateWithTheDemo(database);
@@ -344,6 +437,10 @@ class DemoAccountMigrationIT extends PostgresIT {
     /**
      * A callback is never recorded, which is why the seed is one and not a repeatable migration: a database a
      * development run seeded still validates against a configuration that does not name the callback.
+     *
+     * <p>Nothing in this repository can turn it red; only a Flyway release that began recording callbacks in
+     * its schema history could. It pins the library's behaviour that the seed's design rests on, so an upgrade
+     * that changed it fails here rather than at a deployment's first start.
      */
     @Test
     void
@@ -390,34 +487,40 @@ class DemoAccountMigrationIT extends PostgresIT {
     }
 
     /**
-     * A row of the demo account's in every table that can hold one, each under {@link #WATER_UPGRADE} where it
-     * belongs to an upgrade, as V20 stores them.
+     * An account's row in each table that names an owner, an upgrade or a session, as V20 stores them: a
+     * progress entry, a reflection and a reminder on the account's upgrade, a session with a spent token, and
+     * a notification about the demo's water upgrade, whoever owns the notification.
+     *
+     * @param account      the owner
+     * @param upgrade      one of the owner's upgrades, which the progress, reflection and reminder are on
+     * @param notification the notification's id, for a caller that checks what became of it
      */
-    private static void insertRowsTheDemoAccountOwns(Connection connection) throws SQLException {
+    private static void insertRowsOwnedBy(Connection connection, UUID account, UUID upgrade, UUID notification)
+            throws SQLException {
         UUID session = UUID.randomUUID();
-        insertProgress(connection, UUID.randomUUID());
+        insertProgress(connection, UUID.randomUUID(), account, upgrade);
         execute(
                 connection,
                 "INSERT INTO reflections (id, upgrade_id, user_id, date) VALUES (?, ?, ?, CURRENT_DATE)",
                 UUID.randomUUID(),
-                WATER_UPGRADE,
-                DEMO_ACCOUNT);
+                upgrade,
+                account);
         execute(
                 connection,
                 "INSERT INTO reminders (id, upgrade_id, reminder_time, enabled) VALUES (?, ?, '08:00', TRUE)",
                 UUID.randomUUID(),
-                WATER_UPGRADE);
+                upgrade);
         execute(connection, """
-                INSERT INTO notifications (id, user_id, type, category, title)
-                VALUES (?, ?, 'REMINDER', 'REMINDER', 'Drink water')
-                """, UUID.randomUUID(), DEMO_ACCOUNT);
+                INSERT INTO notifications (id, user_id, type, category, title, related_upgrade_id)
+                VALUES (?, ?, 'REMINDER', 'REMINDER', 'Drink water', ?)
+                """, notification, account, WATER_UPGRADE);
         try (PreparedStatement insert = connection.prepareStatement("""
                 INSERT INTO auth_sessions (id, user_id, refresh_token_hash, created_at, last_used_at,
                     idle_expires_at, absolute_expires_at)
                 VALUES (?, ?, ?, now(), now(), now() + interval '7 days', now() + interval '30 days')
                 """)) {
             insert.setObject(1, session);
-            insert.setObject(2, DEMO_ACCOUNT);
+            insert.setObject(2, account);
             insert.setBytes(3, new byte[] {1, 2, 3});
             insert.executeUpdate();
         }
@@ -429,14 +532,33 @@ class DemoAccountMigrationIT extends PostgresIT {
         }
     }
 
-    /** One day's progress on the demo's water upgrade. */
-    private static void insertProgress(Connection connection, UUID id) throws SQLException {
+    /** One day's progress, today, on an account's upgrade. */
+    private static void insertProgress(Connection connection, UUID id, UUID account, UUID upgrade) throws SQLException {
         execute(
                 connection,
                 "INSERT INTO progress_entries (id, upgrade_id, user_id, date) VALUES (?, ?, ?, CURRENT_DATE)",
                 id,
-                WATER_UPGRADE,
-                DEMO_ACCOUNT);
+                upgrade,
+                account);
+    }
+
+    /** An idea, filed under the given area, with every other column at its default. */
+    private static void insertUpgrade(Connection connection, UUID id, UUID owner, UUID area) throws SQLException {
+        execute(connection, """
+                INSERT INTO health_upgrades (id, user_id, area_id, title, type, status)
+                VALUES (?, ?, ?, 'Lift weights', 'HABIT', 'IDEA')
+                """, id, owner, area);
+    }
+
+    private static long versionOf(Connection connection, UUID upgrade) throws SQLException {
+        try (PreparedStatement select =
+                connection.prepareStatement("SELECT version FROM health_upgrades WHERE id = ?")) {
+            select.setObject(1, upgrade);
+            try (ResultSet row = select.executeQuery()) {
+                assertThat(row.next()).as("upgrade %s exists", upgrade).isTrue();
+                return row.getLong("version");
+            }
+        }
     }
 
     private static void insertAccount(Connection connection, UUID id, String email, String passwordHash)
@@ -449,11 +571,11 @@ class DemoAccountMigrationIT extends PostgresIT {
                 passwordHash);
     }
 
-    /** {@link #ROWS_OF_THE_DEMO_ACCOUNT}, as each table's name to its count. */
-    private static Map<String, Long> rowsOfTheDemoAccount(Connection connection) throws SQLException {
+    /** {@link #ROWS_OF_AN_ACCOUNT} for the given account, as each table's name to its count. */
+    private static Map<String, Long> rowsOf(Connection connection, UUID account) throws SQLException {
         Map<String, Long> rowsByTable = new LinkedHashMap<>();
-        try (PreparedStatement select = connection.prepareStatement(ROWS_OF_THE_DEMO_ACCOUNT)) {
-            select.setObject(1, DEMO_ACCOUNT);
+        try (PreparedStatement select = connection.prepareStatement(ROWS_OF_AN_ACCOUNT)) {
+            select.setObject(1, account);
             try (ResultSet rows = select.executeQuery()) {
                 while (rows.next()) {
                     rowsByTable.put(rows.getString("table_name"), rows.getLong("row_count"));
