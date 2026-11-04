@@ -1,6 +1,8 @@
 # ADR-069: The compose backend connects as a role that owns its database, not as the superuser
 
-- **Status:** Accepted
+- **Status:** Accepted — its "when the deployment (#224) gets a managed database" trigger fires:
+  [ADR-086](ADR-086-the-first-deployment-is-one-ec2-vm-running-compose.md) chooses RDS, and
+  [#206](https://github.com/NaimElijah/UpHealther/issues/206) decides the application's role there
 - **Date:** 2026-10-30
 - **Scope:**
   - `docker-compose.yml` — the `postgres` service mounts `scripts/postgres-init/` and takes two new
