@@ -1,6 +1,11 @@
 # ADR-085: The jar creates no account of its own — a development run creates the demo account from a seed the image never carries
 
-- **Status:** Accepted
+- **Status:** Accepted — its "`docker-compose.yml` is used to deploy anything" trigger did not fire:
+  [ADR-086](ADR-086-the-first-deployment-is-one-ec2-vm-running-compose.md) deploys from a compose file
+  of its own. Its "A Fargate task cannot bind-mount a repository directory" no longer holds, because a
+  VM can. What replaces it is that the VM holds no checkout, and its trigger on #207's task definition
+  moves to [#429](https://github.com/NaimElijah/UpHealther/issues/429), which must name no seed or Flyway
+  location
 - **Date:** 2026-11-01
 - **Scope:** `V21__delete_the_seeded_demo_account.sql`, `backend/config/db/demo/afterMigrate__demo_account.sql`,
   `backend/config/application.yml`, `docker-compose.yml`, `support/PostgresIT`.

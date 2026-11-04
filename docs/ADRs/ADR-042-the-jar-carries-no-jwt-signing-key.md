@@ -3,7 +3,10 @@
 - **Status:** Accepted — its "if #84 introduces such a signal for the demo seed" trigger did not
   fire: [ADR-085](ADR-085-the-jar-creates-no-account-of-its-own.md) names the seed's Flyway callback
   location in the same unpackaged `backend/config/application.yml`, a setting whose absence is the
-  deployment's behaviour, not an environment signal
+  deployment's behaviour, not an environment signal. Its "Production is ECS on Fargate" is superseded
+  by [ADR-086](ADR-086-the-first-deployment-is-one-ec2-vm-running-compose.md): production is one VM,
+  from a compose file of its own that gives `JWT_SECRET` no default, and `docker-compose.yml` stays the
+  local stack, so the gap it accepted stays where it was
 - **Date:** 2026-10-17
 - **Scope:** `application.yml`, `backend/config/application.yml`,
   `backend/src/test/resources/config/application.yml`, `docker-compose.yml`, `.env.example`,

@@ -1,6 +1,10 @@
 # ADR-020: The server keeps time in UTC
 
-- **Status:** Accepted
+- **Status:** Accepted — its "a deployment serves users in a single region outside UTC *and* per-user
+  zones are not yet built" trigger has not fired:
+  [ADR-086](ADR-086-the-first-deployment-is-one-ec2-vm-running-compose.md) leaves where the users are
+  open. [#202](https://github.com/NaimElijah/UpHealther/issues/202) decides the region together with where
+  the users are, and [#179](https://github.com/NaimElijah/UpHealther/issues/179) decides users' zones
 - **Date:** 2026-10-04
 - **Scope:** the `Clock` bean in `HealthUpgradesApplication`, `common/time/ServerZone`, and the `zone`
   of every `@Scheduled` cron. No new dependency, and no new configuration.
