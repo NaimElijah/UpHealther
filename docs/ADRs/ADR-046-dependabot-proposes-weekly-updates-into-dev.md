@@ -8,7 +8,10 @@
   [ADR-052](ADR-052-a-playwright-smoke-suite-drives-the-stack-the-image-check-starts.md), which adds an
   `npm` entry for `/e2e`, so a Playwright release arrives in a PR of its own; and by
   [ADR-060](ADR-060-dependabot-holds-the-tailwind-and-typescript-majors-back.md), which adds the
-  Tailwind and TypeScript majors to the `npm` entry's ignored updates
+  Tailwind and TypeScript majors to the `npm` entry's ignored updates. Its "a public deployment makes a
+  leaked generic secret costly" trigger fires with
+  [ADR-086](ADR-086-the-first-deployment-is-one-ec2-vm-running-compose.md);
+  [#431](https://github.com/NaimElijah/UpHealther/issues/431) decides those two features
 - **Date:** 2026-10-19
 - **Scope:** `.github/dependabot.yml`, and the repository's code-security settings, which live outside
   the tree. NFR-53 in `docs/requirements/requirements.md`.

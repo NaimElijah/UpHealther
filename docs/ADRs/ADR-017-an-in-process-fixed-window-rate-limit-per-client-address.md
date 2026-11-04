@@ -5,7 +5,9 @@
   a second limiter of the same kind, with a map and an allowance of its own. The window evicted at the
   cap is not the oldest live one, as the body says: `FixedWindowRateLimiter.evictIfFull` removes whichever
   window the map's iterator reaches first, and the sweep of expired windows before it runs at most once
-  per window, so the window evicted may be live or expired
+  per window, so the window evicted may be live or expired. Its "the moment a second instance is run"
+  trigger did not fire: [ADR-086](ADR-086-the-first-deployment-is-one-ec2-vm-running-compose.md) runs
+  one VM and one backend
 - **Date:** 2026-09-21
 - **Scope:** `backend/` — a `HandlerInterceptor` over the two anonymous authentication endpoints — plus
   the nginx and Tomcat configuration that makes the client address trustworthy. Closes #56. No new
