@@ -1,6 +1,9 @@
 # ADR-072: Every migration bounds its lock wait, and an index on a populated table is built concurrently
 
-- **Status:** Accepted
+- **Status:** Accepted — ADR-069's "a managed database", which this record repeats, fires with
+  [ADR-086](ADR-086-the-first-deployment-is-one-ec2-vm-running-compose.md), and
+  [#206](https://github.com/NaimElijah/UpHealther/issues/206) decides whether migrations get a role of
+  their own
 - **Date:** 2026-10-30
 - **Scope:**
   - `backend/src/main/resources/db/migration/`, from `V10__auth_session_spent_tokens.sql` on.

@@ -3,7 +3,9 @@
 - **Status:** Accepted — the logger it names superseded by
   [ADR-032](ADR-032-the-backend-runs-on-spring-boot-4-1.md):
   Hibernate 7 writes the same output under `org.hibernate.orm.jdbc.error`, which is now the one
-  turned off
+  turned off. Its "Logs leave the operator's control" trigger fires with
+  [ADR-086](ADR-086-the-first-deployment-is-one-ec2-vm-running-compose.md);
+  [#436](https://github.com/NaimElijah/UpHealther/issues/436) carries it
 - **Date:** 2026-10-10
 - **Scope:** `logging.level` in `backend/src/main/resources/application.yml`, and NFR-6 in
   `docs/requirements/requirements.md`. Extends [ADR-010](ADR-010-structured-logging-and-a-level-policy.md)

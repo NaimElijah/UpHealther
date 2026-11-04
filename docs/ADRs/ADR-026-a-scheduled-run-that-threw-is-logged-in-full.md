@@ -2,7 +2,10 @@
 
 - **Status:** Accepted — extended by
   [ADR-027](ADR-027-hibernates-sql-exception-logger-is-turned-off.md), which turns off the Hibernate
-  logger the third consequence below leaves as NFR-6's known deviation
+  logger the third consequence below leaves as NFR-6's known deviation. Its "Logs leave the operator's
+  control" trigger fires: [ADR-086](ADR-086-the-first-deployment-is-one-ec2-vm-running-compose.md) keeps logs in
+  CloudWatch, "retained beyond `docker logs`", and
+  [#436](https://github.com/NaimElijah/UpHealther/issues/436) does what it says must then be done
 - **Date:** 2026-10-08
 - **Scope:** NFR-6 in `docs/requirements/requirements.md`. No code changes. Extends
   [ADR-010](ADR-010-structured-logging-and-a-level-policy.md), and answers the question
