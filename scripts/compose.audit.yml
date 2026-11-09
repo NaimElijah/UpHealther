@@ -15,7 +15,7 @@
 name: uphealther-audit
 services:
   osv-scanner:
-    image: ghcr.io/google/osv-scanner:v2.7.0
+    image: ghcr.io/google/osv-scanner:v2.7.1
     network_mode: bridge
     volumes:
       - ../backend:/src:ro
