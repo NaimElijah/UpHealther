@@ -46,3 +46,6 @@ logs/
 # Local tooling config — .claude/ is tracked (the project guide, .claude/CLAUDE.md);
 # only machine-local agent state is ignored.
 .claude/settings.local.json
+
+# A dated snapshot of the recommended issue order, not maintained as the backlog changes.
+docs/development_flow/uphealther-build-order.html
