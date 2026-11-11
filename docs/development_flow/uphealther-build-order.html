@@ -105,12 +105,12 @@
   <header>
     <h1>UpHealther build order</h1>
     <p class="lead">Settle your decisions first, build toward launch on six tracks at once, make the threat model the last gate, and start AI once real users exist.</p>
-    <p class="tally">91 issues before launch, 69 after, 160 in total. Every open work item appears once.</p>
+    <p class="tally">91 issues before launch, 69 after, 160 in total. The flow names every open work item once.</p>
   </header>
 
   <figure>
     <div class="scroll">
-      <svg class="flow" viewBox="0 0 1000 1196" role="img" aria-label="Flow from top to bottom. Stages 0 to 2 run in sequence: clear the deck, decide, close pre-deploy gaps. Stage 3 runs six tracks in parallel: AWS infrastructure, app and delivery, accounts and legal, security fixes, visible bugs and visual identity. Stage 4 is operations and stage 5 is the final gate. Then port 443 opens to the public. After launch, hygiene, product features and the AI platform run side by side, AI features follow the platform, and brainstorms come last.">
+      <svg class="flow" viewBox="0 0 1000 1252" role="img" aria-label="Flow from top to bottom. Stages 0 to 2 run in sequence: clear the deck, decide, close pre-deploy gaps. Stage 3 runs six tracks in parallel: AWS infrastructure, app and delivery, accounts and legal, security fixes, visible bugs and visual identity. Stage 4 is operations and stage 5 is the final gate. Then port 443 opens to the public. After launch, hygiene, product features and the AI platform run side by side, AI features follow the platform, and brainstorms come last.">
         <defs>
           <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M0 0L10 5L0 10z" fill="currentColor"/>
@@ -286,17 +286,21 @@
         <text class="s" x="8" y="928">≈164 days</text>
         <text class="s" x="8" y="944">if done serially</text>
 
-        <rect class="box" x="120" y="870" width="280" height="310" rx="4"/>
+        <rect class="box" x="120" y="870" width="280" height="366" rx="4"/>
         <text class="t" x="136" y="894">Hygiene, in the background</text>
         <text class="s" x="136" y="912">29 issues · ≈15 d</text>
         <text class="r" x="136" y="942">Backend and frontend P3 items: 11</text>
-        <text class="r" x="136" y="966">CI, tooling, dependencies: 11</text>
-        <text class="r" x="136" y="990">Test gaps: 4</text>
-        <text class="r" x="136" y="1014">Docs: 3</text>
-        <text class="d" x="136" y="1050">Includes React 19 (#314) and</text>
-        <text class="d" x="136" y="1067">TypeScript 6 (#370).</text>
-        <text class="d" x="136" y="1100">Take these in the order the alarms</text>
-        <text class="d" x="136" y="1117">and real users make urgent.</text>
+        <text class="d" x="136" y="960">#62 #133 #143 #239 #348 #350 #390</text>
+        <text class="d" x="136" y="977">#149 #409 #410 #412</text>
+        <text class="r" x="136" y="1007">CI, tooling, dependencies: 11</text>
+        <text class="d" x="136" y="1025">#158 #249 #284 #292 #296 #298 #302</text>
+        <text class="d" x="136" y="1042">#314 #370 #413 #421</text>
+        <text class="r" x="136" y="1072">Test gaps: 4</text>
+        <text class="d" x="136" y="1090">#328 #359 #360 #417</text>
+        <text class="r" x="136" y="1120">Docs: 3</text>
+        <text class="d" x="136" y="1138">#297 #419 #437</text>
+        <text class="d" x="136" y="1180">Take these in the order the alarms</text>
+        <text class="d" x="136" y="1197">and real users make urgent.</text>
 
         <rect class="box" x="413" y="870" width="280" height="110" rx="4"/>
         <text class="t" x="429" y="894">Product features</text>
@@ -315,20 +319,23 @@
         <path class="wire" d="M846 980V1016" marker-end="url(#arr)"/>
         <text class="a" x="836" y="1003" text-anchor="end">every feature calls through it</text>
 
-        <rect class="box" x="706" y="1018" width="280" height="90" rx="4"/>
+        <rect class="box" x="706" y="1018" width="280" height="146" rx="4"/>
         <text class="t" x="722" y="1042">AI features</text>
         <text class="s" x="722" y="1060">15 issues · ≈89 d</text>
         <text class="r" x="722" y="1080">#264 drafts an upgrade, lowest risk</text>
-        <text class="r" x="722" y="1098">Then the rest, each against a baseline</text>
+        <text class="r" x="722" y="1098">Then each against a non-AI baseline:</text>
+        <text class="r" x="722" y="1116">#265 #266 #267 #268 #269 #273 #274</text>
+        <text class="r" x="722" y="1134">#275 #276 #277 #278 #279 #270</text>
+        <text class="r" x="722" y="1152">#29</text>
 
-        <path class="wire" d="M553 980V1128" marker-end="url(#arr)"/>
-        <path class="wire" d="M846 1108V1128" marker-end="url(#arr)"/>
-        <text class="a" x="563" y="1066">real usage picks which</text>
+        <path class="wire" d="M553 980V1184" marker-end="url(#arr)"/>
+        <path class="wire" d="M846 1164V1184" marker-end="url(#arr)"/>
+        <text class="a" x="563" y="1084">real usage picks which</text>
 
-        <rect class="box" x="413" y="1130" width="573" height="50" rx="4"/>
-        <text class="t" x="429" y="1152">Brainstorms</text>
-        <text class="d" x="429" y="1171">#28 #30 #31 #32 #33 #34 #35 #37: reopen once there is real usage</text>
-        <text class="s" x="974" y="1152" text-anchor="end">8 issues · ≈4 d</text>
+        <rect class="box" x="413" y="1186" width="573" height="50" rx="4"/>
+        <text class="t" x="429" y="1208">Brainstorms</text>
+        <text class="d" x="429" y="1227">#28 #30 #31 #32 #33 #34 #35 #37: reopen once there is real usage</text>
+        <text class="s" x="974" y="1208" text-anchor="end">8 issues · ≈4 d</text>
       </svg>
     </div>
     <figcaption>Read from top to bottom. Each list runs in working order. An amber dot marks work that waits on you. Day counts add up the size labels (XS 0.1, S 0.5, M 1.5, L 4, XL 8), so treat them as rough proportions.</figcaption>
