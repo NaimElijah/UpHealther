@@ -3,7 +3,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<style>body { margin: 0; }</style>
 <title>UpHealther Build Order</title>
 <style>
   /* Layout: one reading column, with the flow figure as the page's main object. */
@@ -20,7 +19,7 @@
     --body: "Segoe UI", system-ui, sans-serif;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
+    :root {
       --bg: #0f1615;
       --surface: #18221f;
       --ink: #e5edeb;
@@ -32,18 +31,8 @@
       color-scheme: dark;
     }
   }
-  :root[data-theme="dark"] {
-    --bg: #0f1615;
-    --surface: #18221f;
-    --ink: #e5edeb;
-    --muted: #9aaaa6;
-    --rule: #34433f;
-    --accent: #43d1be;
-    --on-accent: #07211d;
-    --you: #f5b64a;
-    color-scheme: dark;
-  }
   body {
+    margin: 0;
     background: var(--bg);
     color: var(--ink);
     font: 15px/1.55 var(--body);
