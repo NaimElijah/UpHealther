@@ -97,7 +97,7 @@
 
   <figure>
     <div class="scroll">
-      <svg class="flow" viewBox="0 0 1000 1252" role="img" aria-label="Flow from top to bottom. Stages 0 to 2 run in sequence: clear the deck, decide, close pre-deploy gaps. Stage 3 runs six tracks in parallel: AWS infrastructure, app and delivery, accounts and legal, security fixes, visible bugs and visual identity. Stage 4 is operations and stage 5 is the final gate. Then port 443 opens to the public. After launch, hygiene, product features and the AI platform run side by side, AI features follow the platform, and brainstorms come last.">
+      <svg class="flow" viewBox="0 0 1000 1252" role="img" aria-label="Flow from top to bottom. Stages 0 to 2 run in sequence: clear the deck, decide, close pre-deploy gaps. Stage 3 runs six tracks in parallel: AWS infrastructure, app and delivery, accounts and legal, security fixes, visible bugs and visual identity. Stage 4 is operations and stage 5 is the final gate. Then port 443 opens to the public. After launch, hygiene, product features and the AI platform run side by side, AI features follow the platform, and brainstorms come last. Amber dots mark decisions that wait on the owner: all of stage 1, and #202, #227, #170, #250 and #401 in stage 3.">
         <defs>
           <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M0 0L10 5L0 10z" fill="currentColor"/>
@@ -195,7 +195,8 @@
         <text class="r" x="570" y="402">#403 #379 renewal</text>
         <text class="r" x="570" y="418">#331 socket expiry</text>
         <text class="r" x="570" y="434">#367 #382 /ws</text>
-        <text class="r" x="570" y="450">#398 #401 log lines</text>
+        <text class="r" x="570" y="450">#398 #401 logs</text>
+        <circle class="dot" cx="682" cy="446" r="3.5"/>
         <text class="r" x="570" y="466">#366 bind address</text>
         <text class="r" x="570" y="482">#357 admin fence</text>
 
@@ -203,6 +204,7 @@
         <text class="tc" x="716" y="314">Visible bugs</text>
         <text class="s" x="716" y="331">10 issues · ≈7 d</text>
         <text class="r" x="716" y="354">#170 500 mapping</text>
+        <circle class="dot" cx="828" cy="350" r="3.5"/>
         <text class="r" x="716" y="370">#146 #406 500s</text>
         <text class="r" x="716" y="386">#194 lost edits</text>
         <text class="r" x="716" y="402">#349 sweep stops</text>
@@ -220,6 +222,7 @@
         <circle class="dot" cx="974" cy="366" r="3.5"/>
         <text class="r" x="862" y="386">#229 UI workflow</text>
         <text class="r" x="862" y="402">#250 browsers</text>
+        <circle class="dot" cx="974" cy="398" r="3.5"/>
         <text class="r" x="862" y="418">#369 Tailwind 4</text>
         <text class="r" x="862" y="434">#230 tokens</text>
         <text class="r" x="862" y="450">#61 #404 test gates</text>
@@ -325,7 +328,7 @@
         <text class="s" x="974" y="1208" text-anchor="end">8 issues · ≈4 d</text>
       </svg>
     </div>
-    <figcaption>Read from top to bottom. Each list runs in working order. An amber dot marks work that waits on you. Day counts add up the size labels (XS 0.1, S 0.5, M 1.5, L 4, XL 8), so treat them as rough proportions.</figcaption>
+    <figcaption>Read from top to bottom. Each list runs in working order. An amber dot marks a decision that waits on the owner. #222 in stage 4 also carries owner decisions. Day counts add up the size labels (XS 0.1, S 0.5, M 1.5, L 4, XL 8), so treat them as rough proportions.</figcaption>
   </figure>
 
   <section>
