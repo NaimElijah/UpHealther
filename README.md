@@ -319,7 +319,7 @@ the steps are in [docs/releasing.md](docs/releasing.md).
 backend/      Spring Boot API: ten bounded contexts; config/ = the unpackaged dev key
 frontend/     React + TypeScript SPA, served by nginx in production
 e2e/          Playwright smoke suite: a browser through the composed stack
-docs/         requirements/, architecture/ (seven diagrams), ADRs/, api.md, releasing.md, development_flow/
+docs/         requirements/, architecture/ (seven diagrams), ADRs/, api.md, releasing.md
 scripts/      Image check, audit, git-cliff, launchers, postgres-init/, password list
 ```
 
