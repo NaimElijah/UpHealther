@@ -158,7 +158,7 @@
 
         <!-- Stage 3 -->
         <text class="g" x="8" y="316">STAGE 3</text>
-        <text class="s" x="8" y="334">≈97 days</text>
+        <text class="s" x="8" y="334">≈96 days</text>
         <text class="s" x="8" y="350">if done serially</text>
 
         <rect class="box" x="120" y="292" width="136" height="248" rx="4"/>
@@ -191,14 +191,13 @@
 
         <rect class="box" x="412" y="292" width="136" height="248" rx="4"/>
         <text class="tc" x="424" y="314">Accounts, legal</text>
-        <text class="s" x="424" y="331">7 issues · ≈20 d</text>
+        <text class="s" x="424" y="331">6 issues · ≈19 d</text>
         <text class="r" x="424" y="354">#225 SECURITY.md</text>
         <text class="r" x="424" y="370">#435 write limit</text>
         <text class="r" x="424" y="386">#223 verify email</text>
         <text class="r" x="424" y="402">#57 password, delete</text>
         <text class="r" x="424" y="418">#186 sessions</text>
         <text class="r" x="424" y="434">#185 name, email</text>
-        <text class="r" x="424" y="450">#222 privacy, terms</text>
 
         <rect class="box" x="558" y="292" width="136" height="248" rx="4"/>
         <text class="tc" x="570" y="314">Security fixes</text>
@@ -251,11 +250,11 @@
 
         <!-- Stage 4 -->
         <text class="g" x="8" y="622">STAGE 4</text>
-        <text class="s" x="8" y="640">≈27 days</text>
+        <text class="s" x="8" y="640">≈29 days</text>
         <rect class="box" x="120" y="598" width="866" height="60" rx="4"/>
         <text class="t" x="136" y="622">Operate it</text>
-        <text class="d" x="136" y="643">#217 log retention · #218 metrics · #220 load test · #219 alarms · #155 restore drill · #221 runbooks · #51 #431 follow-ups</text>
-        <text class="s" x="974" y="622" text-anchor="end">8 issues</text>
+        <text class="d" x="136" y="643">#217 retention · #218 metrics · #220 load test · #219 alarms · #155 restore · #222 privacy notice · #221 runbooks · #51 #431 rest</text>
+        <text class="s" x="974" y="622" text-anchor="end">9 issues</text>
         <path class="wire" d="M553 658V680" marker-end="url(#arr)"/>
 
         <!-- Stage 5 -->
@@ -349,7 +348,7 @@
           <tr><td class="first">#436 log text</td><td>#217 log retention</td><td>Otherwise CloudWatch can keep a password hash or a reflection for the whole retention period.</td></tr>
           <tr><td class="first">#206, #430</td><td>#220 load test, #155 restore drill</td><td>Both need the real host and database.</td></tr>
           <tr><td class="first">#220 load test</td><td>#219 alarms</td><td>The test sets the alarm thresholds.</td></tr>
-          <tr><td class="first">#202, #152, #217</td><td>#222 privacy notice</td><td>The notice has to state where data lives, who sends mail and how long logs stay.</td></tr>
+          <tr><td class="first">#202, #152, #209, #217, #155</td><td>#222 privacy notice</td><td>The notice has to state where data lives, who sends mail, a contact mailbox on the domain, and how long logs and backups stay.</td></tr>
           <tr><td class="first">#250, #369</td><td>#230 design tokens</td><td>Tokens built on Tailwind 3 would be redone in the move to 4, which also raises the minimum browser versions.</td></tr>
           <tr><td class="first">#61, #404</td><td>#233 screen redesign</td><td>The checks catch a redesign that breaks width, contrast or WCAG 2.2 AA.</td></tr>
           <tr><td class="first">Security fixes</td><td>#224 threat model</td><td>The review should find new problems, not list ones already filed.</td></tr>
@@ -368,7 +367,7 @@
         <thead><tr><th>Category</th><th class="n">Before launch</th><th class="n">After launch</th><th>Placement</th></tr></thead>
         <tbody>
           <tr><td>AWS cloud deployment (#198)</td><td class="n">27</td><td class="n">0</td><td>Stages 3 and 4. This is the spine of the plan.</td></tr>
-          <tr><td>Public launch (#199)</td><td class="n">11</td><td class="n">0</td><td>Three decisions in stage 1, the rest in stage 3.</td></tr>
+          <tr><td>Public launch (#199)</td><td class="n">11</td><td class="n">0</td><td>Three decisions in stage 1, #222 in stage 4, the rest in stage 3.</td></tr>
           <tr><td>Security and auth hardening</td><td class="n">11</td><td class="n">0</td><td>Stage 3. All are small, so I would batch them before the threat model.</td></tr>
           <tr><td>Visual identity (#226)</td><td class="n">11</td><td class="n">0</td><td>Stage 3. It is the only epic that does not block a safe launch.</td></tr>
           <tr><td>Product and technical decisions</td><td class="n">7</td><td class="n">0</td><td>Four in stage 1, and three join the track they affect.</td></tr>
