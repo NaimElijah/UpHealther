@@ -91,7 +91,7 @@
 <main>
   <header>
     <h1>UpHealther build order</h1>
-    <p class="lead">Settle your decisions first, build toward launch on six tracks at once, make the threat model the last gate, and start AI once real users exist.</p>
+    <p class="lead">Settle the owner's decisions first, build toward launch on six tracks at once, make the threat model the last gate, and start AI once real users exist.</p>
     <p class="tally">Snapshot of 2026-11-11, not updated as issues close. 91 issues before launch, 69 after, 160 in total. The flow names every open work item once.</p>
   </header>
 
@@ -119,7 +119,7 @@
         <rect class="box" x="120" y="104" width="866" height="60" rx="4"/>
         <text class="t" x="136" y="128">Decide</text>
         <circle class="dot" cx="196" cy="124" r="3.5"/>
-        <text class="you" x="205" y="128">needs you</text>
+        <text class="you" x="205" y="128">needs the owner</text>
         <text class="d" x="136" y="149">#152 email · #171 text limits · #179 time zones · #55 #172 #180 #181 what a check-in, a streak and a frequency record</text>
         <text class="s" x="974" y="128" text-anchor="end">7 issues</text>
         <path class="wire" d="M553 164V186" marker-end="url(#arr)"/>
@@ -366,7 +366,7 @@
         <tbody>
           <tr><td>AWS cloud deployment (#198)</td><td class="n">27</td><td class="n">0</td><td>Stages 3 and 4. This is the spine of the plan.</td></tr>
           <tr><td>Public launch (#199)</td><td class="n">11</td><td class="n">0</td><td>Three decisions in stage 1, #222 in stage 4, #224 in stage 5, the rest in stage 3.</td></tr>
-          <tr><td>Security and auth hardening</td><td class="n">11</td><td class="n">0</td><td>Stage 3. All are small, so I would batch them before the threat model.</td></tr>
+          <tr><td>Security and auth hardening</td><td class="n">11</td><td class="n">0</td><td>Stage 3. All are small, so batch them before the threat model.</td></tr>
           <tr><td>Visual identity (#226)</td><td class="n">11</td><td class="n">0</td><td>Stage 3. It is the only epic that does not block a safe launch.</td></tr>
           <tr><td>Product and technical decisions</td><td class="n">7</td><td class="n">0</td><td>Four in stage 1, and three join the track they affect.</td></tr>
           <tr><td>Repository baseline (#197)</td><td class="n">2</td><td class="n">0</td><td>Stage 0. It closes the epic.</td></tr>
@@ -385,11 +385,11 @@
   </section>
 
   <section>
-    <h2>If you need to cut or reorder</h2>
+    <h2>To cut or reorder</h2>
     <ul>
       <li><strong>Launch sooner:</strong> trim visual identity to #228, #227, #229, #250, #369, #230, #231 and #232, and move the #233 screen redesign after launch. That track is the largest in stage 3.</li>
-      <li><strong>The hard minimum:</strong> the ten launch blockers in #199 and the AWS work they need. Visible bugs and the P3 security items are my judgment, and they can slip if you accept the risk.</li>
-      <li><strong>AI earlier:</strong> the platform can start once #202 exists, and live evals also need #203 and #204. Evals use synthetic data, so no users are needed. Launch would slip by about 35 label-days. I would only do this if showing AI work matters more to you than having users.</li>
+      <li><strong>The hard minimum:</strong> the ten launch blockers in #199 and the AWS work they need. Visible bugs and the P3 security items are judgment calls, and they can slip if the risk is accepted.</li>
+      <li><strong>AI earlier:</strong> the platform can start once #202 exists, and live evals also need #203 and #204. Evals use synthetic data, so no users are needed. Launch would slip by about 35 label-days. This only makes sense if showing AI work matters more than having users.</li>
     </ul>
     <p class="note">This order is my recommendation, based on the priority labels, the epic plans and about 30 issue bodies, most read in part. It moves #369 and #263 ahead of their labels and #271's own step order.</p>
   </section>
