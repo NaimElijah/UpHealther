@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body { margin: 0; }</style>
+<title>UpHealther Build Order</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+  /* Layout: one reading column, with the flow figure as the page's main object. */
+  :root {
+    --bg: #f4f7f7;
+    --surface: #ffffff;
+    --ink: #15211f;
+    --muted: #586a66;
+    --rule: #cbd7d4;
+    --accent: #0f766e;
+    --on-accent: #ffffff;
+    --you: #a65305;
+    --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+    --body: "Inter", "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1615;
+      --surface: #18221f;
+      --ink: #e5edeb;
+      --muted: #9aaaa6;
+      --rule: #34433f;
+      --accent: #43d1be;
+      --on-accent: #07211d;
+      --you: #f5b64a;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1615;
+    --surface: #18221f;
+    --ink: #e5edeb;
+    --muted: #9aaaa6;
+    --rule: #34433f;
+    --accent: #43d1be;
+    --on-accent: #07211d;
+    --you: #f5b64a;
+    color-scheme: dark;
+  }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.55 var(--body);
+  }
+  main {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding-block: 40px 64px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid;
+    gap: 40px;
+  }
+  main > * { min-width: 0; }
+  header { display: grid; gap: 10px; }
+  h1, h2 { font-family: var(--display); text-wrap: balance; margin: 0; }
+  h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.08; font-weight: 700; letter-spacing: -0.01em; }
+  h2 { font-size: 22px; font-weight: 600; }
+  p { margin: 0; max-width: 68ch; }
+  .lead { font-size: 18px; }
+  .tally { color: var(--muted); font-variant-numeric: tabular-nums; }
+  section { display: grid; gap: 14px; }
+  section > * { min-width: 0; }
+  figure { margin: 0; display: grid; gap: 12px; }
+  figure > * { min-width: 0; }
+  figcaption { color: var(--muted); font-size: 13.5px; max-width: 80ch; }
+  .scroll { overflow-x: auto; }
+  svg.flow { display: block; width: 100%; min-width: 860px; height: auto; color: var(--muted); }
+  .box { fill: var(--surface); stroke: var(--rule); stroke-width: 1; }
+  .wire { fill: none; stroke: currentColor; stroke-width: 1.5; }
+  .launch { fill: var(--accent); }
+  .t { fill: var(--ink); font: 600 14px var(--display); }
+  .tc { fill: var(--ink); font: 600 13px var(--display); }
+  .d { fill: var(--muted); font: 12px var(--body); }
+  .s { fill: var(--muted); font: 11px var(--body); font-variant-numeric: tabular-nums; }
+  .r { fill: var(--ink); font: 11.5px var(--body); font-variant-numeric: tabular-nums; }
+  .g { fill: var(--muted); font: 600 11px var(--body); letter-spacing: 0.08em; }
+  .a { fill: var(--muted); font: italic 11.5px var(--body); }
+  .you { fill: var(--you); font: 600 11.5px var(--body); }
+  .dot { fill: var(--you); }
+  .lt { fill: var(--on-accent); font: 700 17px var(--display); }
+  .ls { fill: var(--on-accent); font: 500 12.5px var(--body); font-variant-numeric: tabular-nums; }
+  .table { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 9px 12px 9px 0; border-bottom: 1px solid var(--rule); }
+  th { font: 600 12px var(--body); color: var(--muted); letter-spacing: 0.04em; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; padding-right: 20px; white-space: nowrap; }
+  tfoot td { font-weight: 600; border-bottom: 0; }
+  .first { white-space: nowrap; font-weight: 500; }
+  ul { margin: 0; padding-left: 20px; display: grid; gap: 8px; max-width: 74ch; }
+  .note { color: var(--muted); font-size: 13.5px; }
+</style>
+
+</head>
+<body>
+<main>
+  <header>
+    <h1>UpHealther build order</h1>
+    <p class="lead">Settle your decisions first, build toward launch on six tracks at once, make the threat model the last gate, and start AI once real users exist.</p>
+    <p class="tally">91 issues before launch, 69 after, 160 in total. Every open work item appears once.</p>
+  </header>
+
+  <figure>
+    <div class="scroll">
+      <svg class="flow" viewBox="0 0 1000 1196" role="img" aria-label="Flow from top to bottom. Stages 0 to 2 run in sequence: clear the deck, decide, close pre-deploy gaps. Stage 3 runs six tracks in parallel: AWS infrastructure, app and delivery, accounts and legal, security fixes, visible bugs and visual identity. Stage 4 is operations and stage 5 is the final gate. Then port 443 opens to the public. After launch, hygiene, product features and the AI platform run side by side, AI features follow the platform, and brainstorms come last.">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0L10 5L0 10z" fill="currentColor"/>
+          </marker>
+        </defs>
+
+        <!-- Stage 0 -->
+        <text class="g" x="8" y="44">STAGE 0</text>
+        <text class="s" x="8" y="62">≈2 days</text>
+        <rect class="box" x="120" y="20" width="866" height="60" rx="4"/>
+        <text class="t" x="136" y="44">Clear the deck</text>
+        <text class="d" x="136" y="65">Finish the baseline (#175, #200), fix api.md (#283), stabilise the flaky #352, merge the green Dependabot PRs</text>
+        <text class="s" x="974" y="44" text-anchor="end">4 issues</text>
+        <path class="wire" d="M553 80V102" marker-end="url(#arr)"/>
+
+        <!-- Stage 1 -->
+        <text class="g" x="8" y="128">STAGE 1</text>
+        <text class="s" x="8" y="146">≈3 days</text>
+        <rect class="box" x="120" y="104" width="866" height="60" rx="4"/>
+        <text class="t" x="136" y="128">Decide</text>
+        <circle class="dot" cx="196" cy="124" r="3.5"/>
+        <text class="you" x="205" y="128">needs you</text>
+        <text class="d" x="136" y="149">#152 email · #171 text limits · #179 time zones · #55 #172 #180 #181 what a check-in, a streak and a frequency record</text>
+        <text class="s" x="974" y="128" text-anchor="end">7 issues</text>
+        <path class="wire" d="M553 164V186" marker-end="url(#arr)"/>
+
+        <!-- Stage 2 -->
+        <text class="g" x="8" y="212">STAGE 2</text>
+        <text class="s" x="8" y="230">≈3 days</text>
+        <rect class="box" x="120" y="188" width="866" height="60" rx="4"/>
+        <text class="t" x="136" y="212">Close what gets worse after deploying</text>
+        <text class="d" x="136" y="233">#299 pin CI actions · #301 #304 #313 #362 dependency gaps · #425 test the image as deployed · #173 remove PROTOCOL</text>
+        <text class="s" x="974" y="212" text-anchor="end">7 issues</text>
+
+        <!-- Fan out -->
+        <path class="wire" d="M553 248V268"/>
+        <path class="wire" d="M188 268H918"/>
+        <text class="a" x="563" y="261">run all six at once</text>
+        <path class="wire" d="M188 268V290" marker-end="url(#arr)"/>
+        <path class="wire" d="M334 268V290" marker-end="url(#arr)"/>
+        <path class="wire" d="M480 268V290" marker-end="url(#arr)"/>
+        <path class="wire" d="M626 268V290" marker-end="url(#arr)"/>
+        <path class="wire" d="M772 268V290" marker-end="url(#arr)"/>
+        <path class="wire" d="M918 268V290" marker-end="url(#arr)"/>
+
+        <!-- Stage 3 -->
+        <text class="g" x="8" y="316">STAGE 3</text>
+        <text class="s" x="8" y="334">≈97 days</text>
+        <text class="s" x="8" y="350">if done serially</text>
+
+        <rect class="box" x="120" y="292" width="136" height="248" rx="4"/>
+        <text class="tc" x="132" y="314">AWS infra</text>
+        <text class="s" x="132" y="331">8 issues · ≈17 d</text>
+        <text class="r" x="132" y="354">#202 account</text>
+        <circle class="dot" cx="244" cy="350" r="3.5"/>
+        <text class="r" x="132" y="370">#203 Terraform</text>
+        <text class="r" x="132" y="386">#204 CI to AWS</text>
+        <text class="r" x="132" y="402">#205 network</text>
+        <text class="r" x="132" y="418">#206 RDS</text>
+        <text class="r" x="132" y="434">#430 the VM</text>
+        <text class="r" x="132" y="450">#212 secrets</text>
+        <text class="r" x="132" y="466">#209 domain + TLS</text>
+
+        <rect class="box" x="266" y="292" width="136" height="248" rx="4"/>
+        <text class="tc" x="278" y="314">App and delivery</text>
+        <text class="s" x="278" y="331">11 issues · ≈16 d</text>
+        <text class="r" x="278" y="354">#213 images</text>
+        <text class="r" x="278" y="370">#429 prod compose</text>
+        <text class="r" x="278" y="386">#433 HSTS</text>
+        <text class="r" x="278" y="402">#436 log text</text>
+        <text class="r" x="278" y="418">#434 nginx limits</text>
+        <text class="r" x="278" y="434">#211 graceful stop</text>
+        <text class="r" x="278" y="450">#214 compression</text>
+        <text class="r" x="278" y="466">#216 migrations</text>
+        <text class="r" x="278" y="482">#210 heartbeat</text>
+        <text class="r" x="278" y="498">#154 images to ECR</text>
+        <text class="r" x="278" y="514">#215 deploy job</text>
+
+        <rect class="box" x="412" y="292" width="136" height="248" rx="4"/>
+        <text class="tc" x="424" y="314">Accounts, legal</text>
+        <text class="s" x="424" y="331">7 issues · ≈20 d</text>
+        <text class="r" x="424" y="354">#225 SECURITY.md</text>
+        <text class="r" x="424" y="370">#435 write limit</text>
+        <text class="r" x="424" y="386">#223 verify email</text>
+        <text class="r" x="424" y="402">#57 password, delete</text>
+        <text class="r" x="424" y="418">#186 sessions</text>
+        <text class="r" x="424" y="434">#185 name, email</text>
+        <text class="r" x="424" y="450">#222 privacy, terms</text>
+
+        <rect class="box" x="558" y="292" width="136" height="248" rx="4"/>
+        <text class="tc" x="570" y="314">Security fixes</text>
+        <text class="s" x="570" y="331">13 issues · ≈6 d</text>
+        <text class="r" x="570" y="354">#424 demo password</text>
+        <text class="r" x="570" y="370">#386 password rule</text>
+        <text class="r" x="570" y="386">#377 #384 renewal</text>
+        <text class="r" x="570" y="402">#403 #379 renewal</text>
+        <text class="r" x="570" y="418">#331 socket expiry</text>
+        <text class="r" x="570" y="434">#367 #382 /ws abuse</text>
+        <text class="r" x="570" y="450">#398 #401 log lines</text>
+        <text class="r" x="570" y="466">#366 bind address</text>
+        <text class="r" x="570" y="482">#357 admin fence</text>
+
+        <rect class="box" x="704" y="292" width="136" height="248" rx="4"/>
+        <text class="tc" x="716" y="314">Visible bugs</text>
+        <text class="s" x="716" y="331">10 issues · ≈7 d</text>
+        <text class="r" x="716" y="354">#170 decide 500 map</text>
+        <text class="r" x="716" y="370">#146 #406 bad 500s</text>
+        <text class="r" x="716" y="386">#194 lost edits</text>
+        <text class="r" x="716" y="402">#349 sweep stops</text>
+        <text class="r" x="716" y="418">#347 audit gaps</text>
+        <text class="r" x="716" y="434">#192 stale data</text>
+        <text class="r" x="716" y="450">#177 streak hidden</text>
+        <text class="r" x="716" y="466">#148 trace ids</text>
+        <text class="r" x="716" y="482">#174 focus lost</text>
+
+        <rect class="box" x="850" y="292" width="136" height="248" rx="4"/>
+        <text class="tc" x="862" y="314">Visual identity</text>
+        <text class="s" x="862" y="331">14 issues · ≈32 d</text>
+        <text class="r" x="862" y="354">#228 design tool</text>
+        <text class="r" x="862" y="370">#227 direction</text>
+        <circle class="dot" cx="974" cy="366" r="3.5"/>
+        <text class="r" x="862" y="386">#229 UI workflow</text>
+        <text class="r" x="862" y="402">#250 browsers</text>
+        <text class="r" x="862" y="418">#369 Tailwind 4</text>
+        <text class="r" x="862" y="434">#230 tokens</text>
+        <text class="r" x="862" y="450">#61 #404 test gates</text>
+        <text class="r" x="862" y="466">#231 icons, logo</text>
+        <text class="r" x="862" y="482">#233 screens</text>
+        <text class="r" x="862" y="498">#182 area colour</text>
+        <text class="r" x="862" y="514">#232 landing page</text>
+        <text class="r" x="862" y="530">#65 #71 voice</text>
+
+        <!-- Converge -->
+        <path class="wire" d="M188 540V564M334 540V564M480 540V564M626 540V564M772 540V564M918 540V564"/>
+        <path class="wire" d="M188 564H918"/>
+        <path class="wire" d="M553 564V596" marker-end="url(#arr)"/>
+        <text class="a" x="563" y="584">all six finished</text>
+
+        <!-- Stage 4 -->
+        <text class="g" x="8" y="622">STAGE 4</text>
+        <text class="s" x="8" y="640">≈27 days</text>
+        <rect class="box" x="120" y="598" width="866" height="60" rx="4"/>
+        <text class="t" x="136" y="622">Operate it</text>
+        <text class="d" x="136" y="643">#217 log retention · #218 metrics · #220 load test · #219 alarms · #155 restore drill · #221 runbooks · #51 #431 follow-ups</text>
+        <text class="s" x="974" y="622" text-anchor="end">8 issues</text>
+        <path class="wire" d="M553 658V680" marker-end="url(#arr)"/>
+
+        <!-- Stage 5 -->
+        <text class="g" x="8" y="706">STAGE 5</text>
+        <text class="s" x="8" y="724">≈8 days</text>
+        <rect class="box" x="120" y="682" width="866" height="60" rx="4"/>
+        <text class="t" x="136" y="706">Final gate</text>
+        <text class="d" x="136" y="727">#263 start recording status history, which cannot be backfilled later · #224 threat model reviews everything above</text>
+        <text class="s" x="974" y="706" text-anchor="end">2 issues</text>
+        <path class="wire" d="M553 742V764" marker-end="url(#arr)"/>
+
+        <!-- Launch -->
+        <text class="g" x="8" y="798">LAUNCH</text>
+        <rect class="launch" x="120" y="766" width="866" height="56" rx="4"/>
+        <text class="lt" x="136" y="800">Open port 443 to the public</text>
+        <text class="ls" x="974" y="799" text-anchor="end">91 of 160 issues closed before this line</text>
+
+        <!-- Fan out after launch -->
+        <path class="wire" d="M553 822V846"/>
+        <path class="wire" d="M260 846H846"/>
+        <text class="a" x="563" y="840">real users arrive</text>
+        <path class="wire" d="M260 846V868" marker-end="url(#arr)"/>
+        <path class="wire" d="M553 846V868" marker-end="url(#arr)"/>
+        <path class="wire" d="M846 846V868" marker-end="url(#arr)"/>
+
+        <!-- After launch -->
+        <text class="g" x="8" y="894">AFTER</text>
+        <text class="g" x="8" y="910">LAUNCH</text>
+        <text class="s" x="8" y="928">≈164 days</text>
+        <text class="s" x="8" y="944">if done serially</text>
+
+        <rect class="box" x="120" y="870" width="280" height="310" rx="4"/>
+        <text class="t" x="136" y="894">Hygiene, in the background</text>
+        <text class="s" x="136" y="912">29 issues · ≈15 d</text>
+        <text class="r" x="136" y="942">Backend and frontend P3 items: 11</text>
+        <text class="r" x="136" y="966">CI, tooling, dependencies: 11</text>
+        <text class="r" x="136" y="990">Test gaps: 4</text>
+        <text class="r" x="136" y="1014">Docs: 3</text>
+        <text class="d" x="136" y="1050">Includes React 19 (#314) and</text>
+        <text class="d" x="136" y="1067">TypeScript 6 (#370).</text>
+        <text class="d" x="136" y="1100">Take these in the order the alarms</text>
+        <text class="d" x="136" y="1117">and real users make urgent.</text>
+
+        <rect class="box" x="413" y="870" width="280" height="110" rx="4"/>
+        <text class="t" x="429" y="894">Product features</text>
+        <text class="s" x="429" y="912">9 issues · ≈22 d</text>
+        <text class="r" x="429" y="934">#90 #183 #193 #178 #184 screen gaps</text>
+        <text class="r" x="429" y="952">#159 CSV export · #66 Health Kanban</text>
+        <text class="r" x="429" y="970">#156 PWA, then #157 Web Push</text>
+
+        <rect class="box" x="706" y="870" width="280" height="110" rx="4"/>
+        <text class="t" x="722" y="894">AI platform</text>
+        <text class="s" x="722" y="912">8 issues · ≈35 d</text>
+        <text class="r" x="722" y="934">#80 #257 where it runs, provider</text>
+        <text class="r" x="722" y="952">#258 port · #259 consent · #260 evals</text>
+        <text class="r" x="722" y="970">#261 guardrail · #262 cost · #272 rollout</text>
+
+        <path class="wire" d="M846 980V1016" marker-end="url(#arr)"/>
+        <text class="a" x="836" y="1003" text-anchor="end">every feature calls through it</text>
+
+        <rect class="box" x="706" y="1018" width="280" height="90" rx="4"/>
+        <text class="t" x="722" y="1042">AI features</text>
+        <text class="s" x="722" y="1060">15 issues · ≈89 d</text>
+        <text class="r" x="722" y="1080">#264 drafts an upgrade, lowest risk</text>
+        <text class="r" x="722" y="1098">Then the rest, each against a baseline</text>
+
+        <path class="wire" d="M553 980V1128" marker-end="url(#arr)"/>
+        <path class="wire" d="M846 1108V1128" marker-end="url(#arr)"/>
+        <text class="a" x="563" y="1066">real usage picks which</text>
+
+        <rect class="box" x="413" y="1130" width="573" height="50" rx="4"/>
+        <text class="t" x="429" y="1152">Brainstorms</text>
+        <text class="d" x="429" y="1171">#28 #30 #31 #32 #33 #34 #35 #37: reopen once there is real usage</text>
+        <text class="s" x="974" y="1152" text-anchor="end">8 issues · ≈4 d</text>
+      </svg>
+    </div>
+    <figcaption>Read from top to bottom. Each list runs in working order. An amber dot marks work that waits on you. Day counts add up the size labels (XS 0.1, S 0.5, M 1.5, L 4, XL 8), so treat them as rough proportions.</figcaption>
+  </figure>
+
+  <section>
+    <h2>The constraints that set this order</h2>
+    <div class="table">
+      <table>
+        <thead><tr><th>First</th><th>Then</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td class="first">#152 email</td><td>#223, #57, #185</td><td>Address verification and password recovery both send mail.</td></tr>
+          <tr><td class="first">#202 AWS account</td><td>Seven other AWS issues</td><td>Every resource and credential is created under the account.</td></tr>
+          <tr><td class="first">#299 pin actions</td><td>#204 CI into AWS</td><td>A moved action tag would otherwise run with AWS access. ADR-045 records that this happened to trivy-action.</td></tr>
+          <tr><td class="first">#213 images</td><td>#429 compose file</td><td>The production compose file relies on non-root images.</td></tr>
+          <tr><td class="first">#433 HSTS</td><td>#209 TLS</td><td>Otherwise the first sign-in pins browsers to HTTPS for a year.</td></tr>
+          <tr><td class="first">#436 log text</td><td>#217 log retention</td><td>Otherwise CloudWatch can keep a password hash or a reflection for the whole retention period.</td></tr>
+          <tr><td class="first">#206, #430</td><td>#220 load test, #155 restore drill</td><td>Both need the real host and database.</td></tr>
+          <tr><td class="first">#220 load test</td><td>#219 alarms</td><td>The test sets the alarm thresholds.</td></tr>
+          <tr><td class="first">#202, #152, #217</td><td>#222 privacy notice</td><td>The notice has to state where data lives, who sends mail and how long logs stay.</td></tr>
+          <tr><td class="first">#250, #369</td><td>#230 design tokens</td><td>Tokens built on Tailwind 3 would be redone in the move to 4, which also raises the minimum browser versions.</td></tr>
+          <tr><td class="first">#61, #404</td><td>#233 screen redesign</td><td>The checks catch a redesign that breaks width, contrast or WCAG 2.2 AA.</td></tr>
+          <tr><td class="first">Security fixes</td><td>#224 threat model</td><td>The review should find new problems, not list ones already filed.</td></tr>
+          <tr><td class="first">#55, #172, #180, #181</td><td>Launch</td><td>These define what gets stored. #55 currently records an untouched upgrade as a miss that cannot be corrected that day.</td></tr>
+          <tr><td class="first">#263 status history</td><td>Launch</td><td>History that was never recorded cannot be recovered, and five AI features depend on it.</td></tr>
+          <tr><td class="first">Launch</td><td>AI features</td><td>#271 says a model trained now would be trained on nothing.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Where each category lands</h2>
+    <div class="table">
+      <table>
+        <thead><tr><th>Category</th><th class="n">Before launch</th><th class="n">After launch</th><th>Placement</th></tr></thead>
+        <tbody>
+          <tr><td>AWS cloud deployment (#198)</td><td class="n">27</td><td class="n">0</td><td>Stages 3 and 4. This is the spine of the plan.</td></tr>
+          <tr><td>Public launch (#199)</td><td class="n">11</td><td class="n">0</td><td>Three decisions in stage 1, the rest in stage 3.</td></tr>
+          <tr><td>Security and auth hardening</td><td class="n">11</td><td class="n">0</td><td>Stage 3. All are small, so I would batch them before the threat model.</td></tr>
+          <tr><td>Visual identity (#226)</td><td class="n">11</td><td class="n">0</td><td>Stage 3. It is the only epic that does not block a safe launch.</td></tr>
+          <tr><td>Product and technical decisions</td><td class="n">7</td><td class="n">0</td><td>Four in stage 1, and three join the track they affect.</td></tr>
+          <tr><td>Repository baseline (#197)</td><td class="n">2</td><td class="n">0</td><td>Stage 0. It closes the epic.</td></tr>
+          <tr><td>CI, build, dependencies, tooling</td><td class="n">7</td><td class="n">11</td><td>Pins and deploy checks first. Tailwind 4 moves into the visual track.</td></tr>
+          <tr><td>Backend bugs, performance, cleanup</td><td class="n">6</td><td class="n">7</td><td>P2 items before launch, P3 after.</td></tr>
+          <tr><td>Frontend bugs and accessibility</td><td class="n">5</td><td class="n">4</td><td>P2 items before launch, P3 after.</td></tr>
+          <tr><td>Test gaps</td><td class="n">2</td><td class="n">4</td><td>The flaky test first, because it can fail any PR's required CI.</td></tr>
+          <tr><td>Docs</td><td class="n">1</td><td class="n">3</td><td>#283 ships with #175.</td></tr>
+          <tr><td>AI/ML (#271)</td><td class="n">1</td><td class="n">23</td><td>Only #263 goes before launch.</td></tr>
+          <tr><td>Product features and UX</td><td class="n">0</td><td class="n">9</td><td>Ordered by what users ask for.</td></tr>
+          <tr><td>Brainstorms</td><td class="n">0</td><td class="n">8</td><td>Last.</td></tr>
+        </tbody>
+        <tfoot><tr><td>Total</td><td class="n">91</td><td class="n">69</td><td></td></tr></tfoot>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>If you need to cut or reorder</h2>
+    <ul>
+      <li><strong>Launch sooner:</strong> trim visual identity to #228, #227, #230, #231 and #232, and move the #233 screen redesign after launch. That track is the largest in stage 3.</li>
+      <li><strong>The hard minimum:</strong> the ten launch blockers in #199 and the AWS work they need. Visible bugs and the P3 security items are my judgment, and they can slip if you accept the risk.</li>
+      <li><strong>AI earlier:</strong> the platform can start once #202 exists, because evals use synthetic data. Launch would slip by about 35 label-days. I would only do this if showing AI work matters more to you than having users.</li>
+    </ul>
+    <p class="note">This order is my recommendation, based on the priority labels, the epic plans and about 30 issue bodies, most read in part. It moves #369 and #263 ahead of their labels and #271's own step order.</p>
+  </section>
+</main>
+</body>
+</html>
